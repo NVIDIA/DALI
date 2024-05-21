@@ -64,7 +64,9 @@ def video_loader(batch_size, epochs):
         yield batch
 
 
-def video_decoder_iter(batch_size, epochs=1, device="cpu", module=fn.experimental):
+def video_decoder_iter(
+    batch_size, epochs=1, device="cpu", module=fn.experimental
+):
     pipe = video_decoder_pipeline(
         batch_size=batch_size,
         device_id=0,
@@ -111,7 +113,9 @@ def test_full_range_video():
     def test_pipeline():
         videos = fn.readers.video(
             device="gpu",
-            filenames=[get_dali_extra_path() + "/db/video/full_dynamic_range/video.mp4"],
+            filenames=[
+                get_dali_extra_path() + "/db/video/full_dynamic_range/video.mp4"
+            ],
             sequence_length=1,
             initial_fill=10,
             normalized=False,
@@ -124,7 +128,9 @@ def test_full_range_video():
     video_pipeline.build()
     o = video_pipeline.run()
     out = o[0].as_cpu().as_array()
-    ref = cv2.imread(get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png")
+    ref = cv2.imread(
+        get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png"
+    )
     ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
     left = ref
     right = out
@@ -140,7 +146,9 @@ def test_full_range_video_in_memory(device):
     def test_pipeline():
         videos = fn.experimental.readers.video(
             device=device,
-            filenames=[get_dali_extra_path() + "/db/video/full_dynamic_range/video.mp4"],
+            filenames=[
+                get_dali_extra_path() + "/db/video/full_dynamic_range/video.mp4"
+            ],
             sequence_length=1,
         )
         return videos
@@ -153,7 +161,9 @@ def test_full_range_video_in_memory(device):
     if device == "gpu":
         out = out.as_cpu()
     out = out.as_array()
-    ref = cv2.imread(get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png")
+    ref = cv2.imread(
+        get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png"
+    )
     ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
     left = ref
     right = out

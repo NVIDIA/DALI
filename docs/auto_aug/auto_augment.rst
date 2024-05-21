@@ -60,7 +60,8 @@ The best way is to wrap your policy creation into a function::
 
    def my_custom_policy() -> Policy:
         """
-        Creates a simple AutoAugment policy with 3 sub-policies using custom magnitude ranges.
+        Creates a simple AutoAugment policy with 3 sub-policies using custom
+        magnitude ranges.
         """
 
         shear_x = augmentations.shear_x.augmentation((0, 0.5), True)

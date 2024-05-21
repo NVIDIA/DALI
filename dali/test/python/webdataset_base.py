@@ -64,7 +64,11 @@ def webdataset_raw_pipeline(
 def filter_ext(files, exts):
     if isinstance(exts, str):
         exts = {exts}
-    return list(filter(lambda s: any(map(lambda ext: s.endswith("." + ext), exts)), files))
+    return list(
+        filter(
+            lambda s: any(map(lambda ext: s.endswith("." + ext), exts)), files
+        )
+    )
 
 
 @pipeline_def()
@@ -108,7 +112,10 @@ def generate_temp_index_file(tar_file_path):
     global wds2idx_script
     temp_index_file = tempfile.NamedTemporaryFile()
     assert_equal(
-        call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb")),
+        call(
+            [wds2idx_script, tar_file_path, temp_index_file.name],
+            stdout=open(os.devnull, "wb"),
+        ),
         0,
     )
     return temp_index_file

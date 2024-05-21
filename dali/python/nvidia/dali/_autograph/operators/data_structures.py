@@ -84,7 +84,9 @@ def _py_list_append(list_, x):
     return list_
 
 
-class ListPopOpts(collections.namedtuple("ListPopOpts", ("element_dtype", "element_shape"))):
+class ListPopOpts(
+    collections.namedtuple("ListPopOpts", ("element_dtype", "element_shape"))
+):
     pass
 
 
@@ -128,7 +130,9 @@ def _py_list_pop(list_, i):
 
 
 # TODO(mdan): Look into reducing duplication between all these containers.
-class ListStackOpts(collections.namedtuple("ListStackOpts", ("element_dtype", "original_call"))):
+class ListStackOpts(
+    collections.namedtuple("ListStackOpts", ("element_dtype", "original_call"))
+):
     pass
 
 

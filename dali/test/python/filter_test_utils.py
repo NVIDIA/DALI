@@ -38,13 +38,17 @@ def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
         anchor = (anchor,) * ndim
     assert len(anchor) == ndim, f"{anchor}, {ndim}"
     anchor = tuple(
-        filt_ext // 2 if anch == -1 else anch for anch, filt_ext in zip(anchor, kernel.shape)
+        filt_ext // 2 if anch == -1 else anch
+        for anch, filt_ext in zip(anchor, kernel.shape)
     )
     for anch, filt_ext in zip(anchor, kernel.shape):
         assert 0 <= anch < filt_ext
     # there are two ways (and none exact) to center the even filter
     # over the image; scipy does it the other way round
-    origin = tuple((filt_ext - 1) // 2 - anch for anch, filt_ext in zip(anchor, kernel.shape))
+    origin = tuple(
+        (filt_ext - 1) // 2 - anch
+        for anch, filt_ext in zip(anchor, kernel.shape)
+    )
 
     out = sp_convolve(
         np.float32(sample),
@@ -61,7 +65,8 @@ def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
 
     if mode == "valid":
         slices = tuple(
-            make_slice(anch, anch - filt_ext + 1) for anch, filt_ext in zip(anchor, kernel.shape)
+            make_slice(anch, anch - filt_ext + 1)
+            for anch, filt_ext in zip(anchor, kernel.shape)
         )
         out = out[slices]
 
@@ -69,12 +74,20 @@ def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
 
 
 def filter_baseline(
-    sample, kernel, anchor, border, fill_value=None, mode="same", has_channels=False
+    sample,
+    kernel,
+    anchor,
+    border,
+    fill_value=None,
+    mode="same",
+    has_channels=False,
 ):
     assert mode in ("same", "valid"), f"{mode}"
 
     def baseline_call(plane):
-        return scipy_baseline_plane(plane, kernel, anchor, border, fill_value, mode)
+        return scipy_baseline_plane(
+            plane, kernel, anchor, border, fill_value, mode
+        )
 
     ndim = len(sample.shape)
     if not has_channels:
@@ -84,12 +97,18 @@ def filter_baseline(
 
     ndim = len(sample.shape)
     channel_dim = ndim - 1
-    channel_first = sample.transpose([channel_dim] + [i for i in range(channel_dim)])
-    out = np.stack([baseline_call(plane) for plane in channel_first], axis=channel_dim)
+    channel_first = sample.transpose(
+        [channel_dim] + [i for i in range(channel_dim)]
+    )
+    out = np.stack(
+        [baseline_call(plane) for plane in channel_first], axis=channel_dim
+    )
     return out
 
 
-def filter_baseline_layout(layout, sample, kernel, anchor, border, fill_value=None, mode="same"):
+def filter_baseline_layout(
+    layout, sample, kernel, anchor, border, fill_value=None, mode="same"
+):
     ndim = len(sample.shape)
     if not layout:
         assert ndim in (2, 3), f"{sample.shape}"
@@ -99,7 +118,13 @@ def filter_baseline_layout(layout, sample, kernel, anchor, border, fill_value=No
 
     def baseline_call(plane):
         return filter_baseline(
-            plane, kernel, anchor, border, fill_value, mode, has_channels=has_channels
+            plane,
+            kernel,
+            anchor,
+            border,
+            fill_value,
+            mode,
+            has_channels=has_channels,
         )
 
     def get_seq_ndim():

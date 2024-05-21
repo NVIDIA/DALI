@@ -65,7 +65,9 @@ def ColorTwistPipeline(data_iterator, is_input_float, inp_dtype, out_dtype):
     return imgs, out_cpu, out_gpu, H, S, brightness, contrast
 
 
-rgb2yiq = np.array([[0.299, 0.587, 0.114], [0.596, -0.274, -0.321], [0.211, -0.523, 0.311]])
+rgb2yiq = np.array(
+    [[0.299, 0.587, 0.114], [0.596, -0.274, -0.321], [0.211, -0.523, 0.311]]
+)
 
 yiq2rgb = np.linalg.inv(rgb2yiq)
 
@@ -121,7 +123,9 @@ def check(input, out_cpu, out_gpu, H, S, brightness, contrast, out_dtype):
 def check_ref(inp_dtype, out_dtype, has_3_dims):
     batch_size = 32
     n_iters = 8
-    shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
+    shape = (
+        (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
+    )
     inp_dtype = dali_type_to_np(inp_dtype)
     ri1 = RandomDataIterator(batch_size, shape=shape, dtype=inp_dtype)
     pipe = ColorTwistPipeline(
@@ -140,7 +144,16 @@ def check_ref(inp_dtype, out_dtype, has_3_dims):
         out_gpu = out_gpu.as_cpu()
         for i in range(batch_size):
             h, s, b, c = H.at(i), S.at(i), B.at(i), C.at(i)
-            check(inp.at(i), out_cpu.at(i), out_gpu.at(i), h, s, b, c, dali_type_to_np(out_dtype))
+            check(
+                inp.at(i),
+                out_cpu.at(i),
+                out_gpu.at(i),
+                h,
+                s,
+                b,
+                c,
+                dali_type_to_np(out_dtype),
+            )
 
 
 def test_color_twist():
@@ -197,19 +210,30 @@ def test_video():
                 ArgCb("contrast", contrast, True),
             ],
         ),
-        (fn.color_twist, {}, [ArgCb("brightness", brightness, True), ArgCb("hue", hue, False)]),
+        (
+            fn.color_twist,
+            {},
+            [ArgCb("brightness", brightness, True), ArgCb("hue", hue, False)],
+        ),
     ]
 
     yield from video_suite_helper(video_test_cases, test_channel_first=False)
 
 
 def test_color_twist_default_dtype():
-    np_types = [types.FLOAT, types.INT32, types.INT16, types.UINT8]  # Just some types
+    np_types = [
+        types.FLOAT,
+        types.INT32,
+        types.INT16,
+        types.UINT8,
+    ]  # Just some types
 
     def impl(op, device, type):
         @pipeline_def(batch_size=1, num_threads=3, device_id=0)
         def pipeline():
-            data = types.Constant(255, shape=(10, 10, 3), dtype=type, device=device)
+            data = types.Constant(
+                255, shape=(10, 10, 3), dtype=type, device=device
+            )
             return op(data)
 
         pipe = pipeline()

@@ -39,7 +39,9 @@ class DaliCallback(Protocol):
 
 
 class _JaxFunction(
-    ops.python_op_factory("_JaxFunction", "_JaxFunction", "_JaxFunction", generated=False)
+    ops.python_op_factory(
+        "_JaxFunction", "_JaxFunction", "_JaxFunction", generated=False
+    )
 ):
     _impl_module = "nvidia.dali.plugin.jax.fn"
     ops.register_cpu_op("_JaxFunction")

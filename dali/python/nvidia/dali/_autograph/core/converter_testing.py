@@ -49,7 +49,10 @@ def is_inside_generated_code():
 
         internal_stack_functions = ("converted_call", "_call_unconverted")
         # Walk up the stack until we're out of the internal functions.
-        while frame is not None and frame.f_code.co_name in internal_stack_functions:
+        while (
+            frame is not None
+            and frame.f_code.co_name in internal_stack_functions
+        ):
             frame = frame.f_back
         if frame is None:
             return False
@@ -62,7 +65,9 @@ def is_inside_generated_code():
 class TestingTranspiler(api.PyToLib):
     """Testing version that only applies given transformations."""
 
-    def __init__(self, converters, ag_overrides, operator_overload=hooks.OperatorBase()):
+    def __init__(
+        self, converters, ag_overrides, operator_overload=hooks.OperatorBase()
+    ):
         super(TestingTranspiler, self).__init__(
             name="autograph", operator_overload=operator_overload
         )
@@ -115,10 +120,13 @@ class TestCase(unittest.TestCase):
         operator_overload=hooks.OperatorBase(),
     ):
         program_ctx = converter.ProgramContext(
-            options=converter.ConversionOptions(recursive=True), autograph_module=api
+            options=converter.ConversionOptions(recursive=True),
+            autograph_module=api,
         )
 
-        tr = TestingTranspiler(converter_module, ag_overrides, operator_overload=operator_overload)
+        tr = TestingTranspiler(
+            converter_module, ag_overrides, operator_overload=operator_overload
+        )
         transformed, _, _ = tr.transform_function(f, program_ctx)
 
         if include_ast:

@@ -33,7 +33,9 @@ class CoordFlipPipeline(Pipeline):
         num_threads=1,
         device_id=0,
     ):
-        super(CoordFlipPipeline, self).__init__(batch_size, num_threads, device_id)
+        super(CoordFlipPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.device = device
         self.iterator = iterator
         self.coord_flip = ops.CoordFlip(
@@ -45,7 +47,9 @@ class CoordFlipPipeline(Pipeline):
         )
         self.flip_x = ops.random.CoinFlip(probability=0.5)
         self.flip_y = ops.random.CoinFlip(probability=0.5)
-        self.flip_z = ops.random.CoinFlip(probability=0.5) if len(layout) == 3 else None
+        self.flip_z = (
+            ops.random.CoinFlip(probability=0.5) if len(layout) == 3 else None
+        )
 
     def define_graph(self):
         inputs = fn.external_source(lambda: next(self.iterator))
@@ -61,9 +65,13 @@ class CoordFlipPipeline(Pipeline):
         return outputs
 
 
-def check_operator_coord_flip(device, batch_size, layout, shape, center_x, center_y, center_z):
+def check_operator_coord_flip(
+    device, batch_size, layout, shape, center_x, center_y, center_z
+):
     eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
-    pipe = CoordFlipPipeline(device, batch_size, iter(eii1), layout, center_x, center_y, center_z)
+    pipe = CoordFlipPipeline(
+        device, batch_size, iter(eii1), layout, center_x, center_y, center_z
+    )
     pipe.build()
     for i in range(30):
         outputs = pipe.run()
@@ -95,18 +103,29 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
             expected_out_coords = np.copy(in_coords)
             for d in range(ndim):
                 if flip_dim[d]:
-                    expected_out_coords[:, d] = 2 * center_dim[d] - in_coords[:, d]
-            np.testing.assert_allclose(out_coords[:, d], expected_out_coords[:, d])
+                    expected_out_coords[:, d] = (
+                        2 * center_dim[d] - in_coords[:, d]
+                    )
+            np.testing.assert_allclose(
+                out_coords[:, d], expected_out_coords[:, d]
+            )
 
 
 def test_operator_coord_flip():
     for device in ["cpu", "gpu"]:
         for batch_size in [1, 3]:
-            layout_shape_values = [("x", (10, 1)), ("xy", (10, 2)), ("xyz", (10, 3))]
+            layout_shape_values = [
+                ("x", (10, 1)),
+                ("xy", (10, 2)),
+                ("xyz", (10, 3)),
+            ]
             if device == "cpu":
                 layout_shape_values.append(("xy", (0, 2)))
             for layout, shape in layout_shape_values:
-                for center_x, center_y, center_z in [(0.5, 0.5, 0.5), (0.0, 1.0, -0.5)]:
+                for center_x, center_y, center_z in [
+                    (0.5, 0.5, 0.5),
+                    (0.0, 1.0, -0.5),
+                ]:
                     yield (
                         check_operator_coord_flip,
                         device,

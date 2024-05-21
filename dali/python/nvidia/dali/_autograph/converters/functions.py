@@ -51,10 +51,14 @@ class FunctionTransformer(converter.Base):
 
             # TODO(mdan): Fix the tests so that we can always add this decorator.
             if fn_scope.level > 2:
-                return templates.replace_as_expression("ag__.autograph_artifact(l)", l=node)
+                return templates.replace_as_expression(
+                    "ag__.autograph_artifact(l)", l=node
+                )
 
             scope = anno.getanno(node, anno.Static.SCOPE)
-            function_context_name = self.ctx.namer.new_symbol("lscope", scope.referenced)
+            function_context_name = self.ctx.namer.new_symbol(
+                "lscope", scope.referenced
+            )
             fn_scope.context_name = function_context_name
             anno.setanno(node, "function_context_name", function_context_name)
 
@@ -66,7 +70,9 @@ class FunctionTransformer(converter.Base):
                 template,
                 options=self._function_scope_options(fn_scope).to_ast(),
                 function_context=function_context_name,
-                function_context_name=gast.Constant(function_context_name, kind=None),
+                function_context_name=gast.Constant(
+                    function_context_name, kind=None
+                ),
                 body=node.body,
             )
 
@@ -76,7 +82,9 @@ class FunctionTransformer(converter.Base):
         with self.state[_Function] as fn_scope:
             scope = anno.getanno(node, annos.NodeAnno.BODY_SCOPE)
 
-            function_context_name = self.ctx.namer.new_symbol("fscope", scope.referenced)
+            function_context_name = self.ctx.namer.new_symbol(
+                "fscope", scope.referenced
+            )
             fn_scope.context_name = function_context_name
             anno.setanno(node, "function_context_name", function_context_name)
 
@@ -92,7 +100,9 @@ class FunctionTransformer(converter.Base):
                 # Inner functions are converted already, so we insert a decorator to
                 # prevent double conversion. Double conversion would work too, but this
                 # saves the overhead.
-                node.decorator_list.append(parser.parse_expression("ag__.autograph_artifact"))
+                node.decorator_list.append(
+                    parser.parse_expression("ag__.autograph_artifact")
+                )
 
             docstring_node = None
             if node.body:

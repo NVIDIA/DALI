@@ -30,7 +30,10 @@ def index_pipe(data_source, indexing_func):
 
 
 def test_plain_indexing():
-    data = [np.float32([[0, 1, 2], [3, 4, 5]]), np.float32([[0, 1], [2, 3], [4, 5]])]
+    data = [
+        np.float32([[0, 1, 2], [3, 4, 5]]),
+        np.float32([[0, 1], [2, 3], [4, 5]]),
+    ]
     src = fn.external_source(lambda: data, layout="AB")
     pipe = index_pipe(src, lambda x: x[1, 1])
     pipe.build()
@@ -41,7 +44,9 @@ def test_plain_indexing():
         assert np.array_equal(x[1, 1], gpu.as_cpu().at(i))
 
 
-def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
+def _test_indexing(
+    data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None
+):
     src = fn.external_source(data_gen, layout=input_layout)
     pipe = index_pipe(src, dali_index_func)
     pipe.build()

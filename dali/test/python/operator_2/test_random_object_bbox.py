@@ -39,7 +39,9 @@ def count_outputs(outs):
 
 data = [
     np.int32([[1, 0, 0, 0], [1, 2, 2, 1], [1, 1, 2, 0], [2, 0, 0, 1]]),
-    np.int32([[0, 3, 3, 0], [1, 0, 1, 2], [0, 1, 1, 0], [0, 2, 0, 1], [0, 2, 2, 1]]),
+    np.int32(
+        [[0, 3, 3, 0], [1, 0, 1, 2], [0, 1, 1, 0], [0, 2, 0, 1], [0, 2, 2, 1]]
+    ),
 ]
 
 
@@ -49,7 +51,11 @@ def test_num_output():
     assert len(fn.segmentation.random_object_bbox(inp)) == 2
     for label_out_param in [None, False, True]:
         label_out = 1 if label_out_param else 0
-        for format, num_box_outputs in [("anchor_shape", 2), ("start_end", 2), ("box", 1)]:
+        for format, num_box_outputs in [
+            ("anchor_shape", 2),
+            ("start_end", 2),
+            ("box", 1),
+        ]:
             assert (
                 count_outputs(
                     fn.segmentation.random_object_bbox(
@@ -96,7 +102,9 @@ def objects2boxes(objects, input_shape):
     if len(objects) == 0:
         return np.int32([[0] * len(input_shape) + list(input_shape)])
 
-    return np.int32([[s.start for s in obj] + [s.stop for s in obj] for obj in objects])
+    return np.int32(
+        [[s.start for s in obj] + [s.stop for s in obj] for obj in objects]
+    )
 
 
 def box_extent(box):
@@ -159,7 +167,9 @@ def class_boxes(array, label):
 
 def axis_indices(shape, axis):
     r = np.arange(shape[axis])
-    r = np.expand_dims(r, list(range(0, axis)) + list(range(axis + 1, len(shape))))
+    r = np.expand_dims(
+        r, list(range(0, axis)) + list(range(axis + 1, len(shape)))
+    )
     rep = list(shape)
     rep[axis] = 1
     r = np.tile(r, rep)
@@ -167,7 +177,9 @@ def axis_indices(shape, axis):
 
 
 def indices(shape):
-    return np.stack([axis_indices(shape, axis) for axis in range(len(shape))], len(shape))
+    return np.stack(
+        [axis_indices(shape, axis) for axis in range(len(shape))], len(shape)
+    )
 
 
 def generate_data(shape, num_classes, blobs_per_class):
@@ -178,7 +190,14 @@ def generate_data(shape, num_classes, blobs_per_class):
 
     radii = np.array([shape])
     mean = np.random.random([num_classes, blobs_per_class, len(shape)]) * radii
-    sigma = (np.random.random([num_classes, blobs_per_class, len(shape)]) * 0.8 + 0.2) * radii / 2
+    sigma = (
+        (
+            np.random.random([num_classes, blobs_per_class, len(shape)]) * 0.8
+            + 0.2
+        )
+        * radii
+        / 2
+    )
 
     mean = np.expand_dims(mean, list(range(2, len(shape) + 2)))
     isigma = 1 / np.expand_dims(sigma, list(range(2, len(shape) + 2)))
@@ -217,7 +236,9 @@ def generate_samples(num_samples, ndim, dtype):
         shape = list(np.random.randint(5, 13, [ndim]))
         num_classes = np.random.randint(1, 10)
         blobs_per_class = np.random.randint(1, 10)
-        samples.append(generate_data(shape, num_classes, blobs_per_class).astype(dtype))
+        samples.append(
+            generate_data(shape, num_classes, blobs_per_class).astype(dtype)
+        )
     return samples
 
 
@@ -267,7 +288,9 @@ def random_weights():
 
 
 def random_threshold(ndim):
-    return fn.random.uniform(range=(1, 5), shape=[ndim], dtype=dali.types.INT32, seed=13231)
+    return fn.random.uniform(
+        range=(1, 5), shape=[ndim], dtype=dali.types.INT32, seed=13231
+    )
 
 
 def contains_box(boxes, box):
@@ -278,9 +301,14 @@ def convert_boxes(outs, format):
     if format == "box":
         return outs[0]
     elif format == "start_end":
-        return [np.concatenate([start, end]) for start, end in zip(outs[0], outs[1])]
+        return [
+            np.concatenate([start, end]) for start, end in zip(outs[0], outs[1])
+        ]
     elif format == "anchor_shape":
-        return [np.concatenate([anchor, anchor + shape]) for anchor, shape in zip(outs[0], outs[1])]
+        return [
+            np.concatenate([anchor, anchor + shape])
+            for anchor, shape in zip(outs[0], outs[1])
+        ]
     else:
         raise ValueError("Test error - unexpected format: {}".format(format))
 
@@ -306,7 +334,9 @@ def _test_random_object_bbox_with_class(
     threshold_out = np.int32([]) if threshold is None else threshold
 
     if cache:
-        source = sampled_dataset(2 * max_batch_size, max_batch_size, ndim, dtype)
+        source = sampled_dataset(
+            2 * max_batch_size, max_batch_size, ndim, dtype
+        )
     else:
         source = batch_generator(max_batch_size, ndim, dtype)
 
@@ -315,7 +345,9 @@ def _test_random_object_bbox_with_class(
         if isinstance(background, dali.pipeline.DataNode) or (
             background is not None and background >= 0
         ):
-            inp = fn.cast(inp + (background_out + 1), dtype=np_type_to_dali(dtype))
+            inp = fn.cast(
+                inp + (background_out + 1), dtype=np_type_to_dali(dtype)
+            )
         # preconfigure
         op = ops.segmentation.RandomObjectBBox(
             format=format,
@@ -333,14 +365,24 @@ def _test_random_object_bbox_with_class(
             outs1 = [outs1]
         # the second instance should have always at least 2 outputs
         assert isinstance(outs2, (list, tuple))
-        outputs = [inp, classes_out, weights_out, background_out, threshold_out, *outs1, *outs2]
+        outputs = [
+            inp,
+            classes_out,
+            weights_out,
+            background_out,
+            threshold_out,
+            *outs1,
+            *outs2,
+        ]
         pipe.set_outputs(*outputs)
     pipe.build()
 
     format = format or "anchor_shape"
 
     for _ in range(50):
-        inp, classes_out, weights_out, background_out, threshold_out, *outs = pipe.run()
+        inp, classes_out, weights_out, background_out, threshold_out, *outs = (
+            pipe.run()
+        )
         nout = (len(outs) - 1) // 2
         outs1 = outs[:nout]
         outs2 = outs[nout:]
@@ -349,8 +391,12 @@ def _test_random_object_bbox_with_class(
 
         # Iterate over indices instead of elements, because normal iteration
         # causes an exception to be thrown in native code, making debugging near impossible.
-        outs = tuple([np.array(out[i]) for i in range(len(out))] for out in outs1)
-        box_class_labels = [np.int32(outs2[-1][i]) for i in range(len(outs2[-1]))]
+        outs = tuple(
+            [np.array(out[i]) for i in range(len(out))] for out in outs1
+        )
+        box_class_labels = [
+            np.int32(outs2[-1][i]) for i in range(len(outs2[-1]))
+        ]
 
         boxes = convert_boxes(outs, format)
 
@@ -360,7 +406,9 @@ def _test_random_object_bbox_with_class(
             if background is not None or classes is None:
                 background_label = background_out.at(i)
             else:
-                background_label = 0 if 0 not in class_labels else np.min(class_labels) - 1
+                background_label = (
+                    0 if 0 not in class_labels else np.min(class_labels) - 1
+                )
 
             label = box_class_labels[i]
             if classes is not None:
@@ -375,7 +423,12 @@ def _test_random_object_bbox_with_class(
                     extent = box_extent(boxes[i])
                     thr = threshold_out.at(i)
                     assert np.all(extent >= thr)
-                    ref_boxes = list(filter(lambda box: np.all(box_extent(box) >= thr), cls_boxes))
+                    ref_boxes = list(
+                        filter(
+                            lambda box: np.all(box_extent(box) >= thr),
+                            cls_boxes,
+                        )
+                    )
                 if k_largest is not None:
                     assert box_in_k_largest(ref_boxes, boxes[i], k_largest)
             assert contains_box(cls_boxes, boxes[i])
@@ -410,12 +463,22 @@ def test_random_object_bbox_with_class():
             for weights in weights_opt:
                 ndim = np.random.randint(1, 5)
 
-                threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+                threshold_opt = [
+                    None,
+                    3,
+                    list(range(1, 1 + ndim)),
+                    random_threshold(ndim),
+                ]
                 threshold = random.choice(threshold_opt)
                 k_largest_opt = [None, 1, 2, 5]
                 k_largest = random.choice(k_largest_opt)
 
-                fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
+                fg_prob_opt = [
+                    None,
+                    0.1,
+                    0.7,
+                    fn.random.uniform(range=(0, 1), seed=1515),
+                ]
                 fg_prob = random.choice(fg_prob_opt)
 
                 format = formats[fmt]
@@ -440,7 +503,13 @@ def test_random_object_bbox_with_class():
 
 @nottest
 def _test_random_object_bbox_ignore_class(
-    max_batch_size, ndim, dtype, format=None, background=None, threshold=None, k_largest=None
+    max_batch_size,
+    ndim,
+    dtype,
+    format=None,
+    background=None,
+    threshold=None,
+    k_largest=None,
 ):
     pipe = dali.Pipeline(max_batch_size, 4, device_id=None, seed=4321)
     background_out = 0 if background is None else background
@@ -469,7 +538,9 @@ def _test_random_object_bbox_ignore_class(
 
         # Iterate over indices instead of elements, because normal iteration
         # causes an exception to be thrown in native code, making debugging near impossible.
-        outs = tuple([np.array(out[i]) for i in range(len(out))] for out in outs)
+        outs = tuple(
+            [np.array(out[i]) for i in range(len(out))] for out in outs
+        )
 
         boxes = convert_boxes(outs, format)
 
@@ -480,9 +551,15 @@ def _test_random_object_bbox_ignore_class(
             ref_boxes = all_boxes(in_tensor, None, background_label)
             if threshold is not None:
                 thr = threshold_out.at(i)
-                ref_boxes = list(filter(lambda box: np.all(box_extent(box) >= thr), ref_boxes))
+                ref_boxes = list(
+                    filter(
+                        lambda box: np.all(box_extent(box) >= thr), ref_boxes
+                    )
+                )
                 if len(ref_boxes) == 0:
-                    ref_boxes = np.int32([[0] * len(in_tensor.shape) + list(in_tensor.shape)])
+                    ref_boxes = np.int32(
+                        [[0] * len(in_tensor.shape) + list(in_tensor.shape)]
+                    )
             if k_largest is not None:
                 assert box_in_k_largest(ref_boxes, boxes[i], k_largest)
             else:
@@ -496,7 +573,12 @@ def test_random_object_bbox_ignore_class():
         ndim = np.random.randint(1, 5)
         dtype = random.choice(types)
         for format in [None, "anchor_shape", "start_end", "box"]:
-            threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+            threshold_opt = [
+                None,
+                3,
+                list(range(1, 1 + ndim)),
+                random_threshold(ndim),
+            ]
             threshold = random.choice(threshold_opt)
             k_largest_opt = [None, 1, 2, 5]
             k_largest = random.choice(k_largest_opt)
@@ -524,7 +606,11 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     data = np.uint32([0, 1, 2, 3])
 
     box, label = fn.segmentation.random_object_bbox(
-        data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels
+        data,
+        foreground_prob=1e-9,
+        format="box",
+        output_class=1,
+        classes=fg_labels,
     )
 
     pipe.set_outputs(box, label)
@@ -556,7 +642,9 @@ def _test_err_args(**kwargs):
 
 
 def test_err_classes_bg():
-    with assert_raises(RuntimeError, glob="Class label 0 coincides with background label"):
+    with assert_raises(
+        RuntimeError, glob="Class label 0 coincides with background label"
+    ):
         _test_err_args(classes=[0, 1, 2, 3], background=0)
 
 
@@ -566,22 +654,29 @@ def test_err_classes_weights_length_clash():
         r"match. Got:\s+classes.shape = \{4\}\s+weights.shape = \{3\}"
     )
     with assert_raises(RuntimeError, regex=error_msg):
-        _test_err_args(classes=[0, 1, 2, 3], class_weights=np.float32([1, 2, 3]))
+        _test_err_args(
+            classes=[0, 1, 2, 3], class_weights=np.float32([1, 2, 3])
+        )
     with assert_raises(RuntimeError, regex=error_msg):
         _test_err_args(classes=np.int32([0, 1, 2, 3]), class_weights=[3, 2, 1])
 
 
 def test_err_classes_ignored():
     with assert_raises(
-        RuntimeError, glob="Class-related arguments * cannot be used when ``ignore_class`` is True"
+        RuntimeError,
+        glob="Class-related arguments * cannot be used when ``ignore_class`` is True",
     ):
         _test_err_args(classes=[0, 1, 2, 3], ignore_class=True)
 
 
 def test_err_k_largest_nonpositive():
-    with assert_raises(RuntimeError, glob="``k_largest`` must be at least 1; got -1"):
+    with assert_raises(
+        RuntimeError, glob="``k_largest`` must be at least 1; got -1"
+    ):
         _test_err_args(k_largest=-1)
-    with assert_raises(RuntimeError, glob="``k_largest`` must be at least 1; got 0"):
+    with assert_raises(
+        RuntimeError, glob="``k_largest`` must be at least 1; got 0"
+    ):
         _test_err_args(k_largest=0)
 
 

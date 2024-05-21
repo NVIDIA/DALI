@@ -95,6 +95,10 @@ class rng_state(_create_module_class()):
 
         for name, submodule_class in rng_state._submodules.items():
             # Create attributes imitating submodules, e.g. `random`, `noise`.
-            setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
+            setattr(
+                self,
+                name,
+                submodule_class(self._operator_cache, self._seed_generator),
+            )
 
     __name__ = "rng_state"

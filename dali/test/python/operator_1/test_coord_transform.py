@@ -55,7 +55,10 @@ def make_data_batch(batch_size, in_dim, type):
 
     for i in range(batch_size):
         batch.append(
-            (np.random.rand(np.random.randint(0, 10000), in_dim) * (hi - lo) + lo).astype(type)
+            (
+                np.random.rand(np.random.randint(0, 10000), in_dim) * (hi - lo)
+                + lo
+            ).astype(type)
         )
     return batch
 
@@ -64,11 +67,17 @@ def get_data_source(batch_size, in_dim, type):
     return lambda: make_data_batch(batch_size, in_dim, type)
 
 
-def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind):
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
+def _run_test(
+    device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind
+):
+    pipe = dali.pipeline.Pipeline(
+        batch_size=batch_size, num_threads=4, device_id=0, seed=1234
+    )
     with pipe:
         X = fn.external_source(
-            source=get_data_source(batch_size, in_dim, in_dtype), device=device, layout="NX"
+            source=get_data_source(batch_size, in_dim, in_dtype),
+            device=device,
+            layout="NX",
         )
         M = None
         T = None
@@ -134,7 +143,11 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
                 Y = Y.clip(info.min, info.max)
 
             ref.append(Y)
-            scale = max(scale, np.max(np.abs(Y)) - np.min(np.abs(Y))) if Y.size > 0 else 1
+            scale = (
+                max(scale, np.max(np.abs(Y)) - np.min(np.abs(Y)))
+                if Y.size > 0
+                else 1
+            )
         avg = 1e-6 * scale
         eps = 1e-6 * scale
         if out_dtype != np.float32:  # headroom for rounding
@@ -218,10 +231,14 @@ def test_all():
 
 
 def _test_empty_input(device):
-    pipe = dali.pipeline.Pipeline(batch_size=2, num_threads=4, device_id=0, seed=1234)
+    pipe = dali.pipeline.Pipeline(
+        batch_size=2, num_threads=4, device_id=0, seed=1234
+    )
     with pipe:
         X = fn.external_source(
-            source=[[np.zeros([0, 3]), np.zeros([0, 3])]], device="cpu", layout="AB"
+            source=[[np.zeros([0, 3]), np.zeros([0, 3])]],
+            device="cpu",
+            layout="AB",
         )
         Y = fn.coord_transform(X, M=(1, 2, 3, 4, 5, 6), T=(1, 2))
         pipe.set_outputs(Y)
@@ -257,7 +274,9 @@ def test_sequences():
         scales = np_rng.uniform(0, 5, 2)
         c = np.cos(angles[0])
         s = np.sin(angles[1])
-        return np.array([[c * scales[0], -s], [s, c * scales[1]]], dtype=np.float32)
+        return np.array(
+            [[c * scales[0], -s], [s, c * scales[1]]], dtype=np.float32
+        )
 
     def t(sample_desc):
         return np.float32(np_rng.uniform(-100, 250, 2))
@@ -276,7 +295,9 @@ def test_sequences():
 
     input_seq_data = [
         [
-            np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
+            np.array(
+                [points() for _ in rand_range(max_num_frames)], dtype=np.float32
+            )
             for _ in rand_range(max_batch_size)
         ]
         for _ in range(num_iters)
@@ -287,13 +308,25 @@ def test_sequences():
     yield from sequence_suite_helper(rng, [main_input], input_cases, num_iters)
 
     input_broadcast_cases = [
-        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "cpu")], ["cpu"]),
-        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"]),
+        (
+            fn.coord_transform,
+            {},
+            [ArgCb(0, lambda _: points(), False, "cpu")],
+            ["cpu"],
+        ),
+        (
+            fn.coord_transform,
+            {},
+            [ArgCb(0, lambda _: points(), False, "gpu")],
+            ["cpu"],
+        ),
     ]
 
     input_mt_data = [
         [
-            np.array([mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
+            np.array(
+                [mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32
+            )
             for _ in rand_range(max_batch_size)
         ]
         for _ in range(num_iters)
@@ -301,4 +334,6 @@ def test_sequences():
 
     main_input = ArgData(desc=ArgDesc("MT", "F", "", "F**"), data=input_mt_data)
 
-    yield from sequence_suite_helper(rng, [main_input], input_broadcast_cases, num_iters)
+    yield from sequence_suite_helper(
+        rng, [main_input], input_broadcast_cases, num_iters
+    )

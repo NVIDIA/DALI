@@ -26,7 +26,8 @@ def get_submodule(root, path):
         `root`
             module object or name of the root module
         `path`
-            period-separated path of the submodule or a list/tuple of submodule names"""
+            period-separated path of the submodule or a list/tuple of submodule names
+    """
 
     if isinstance(root, str):
         root = sys.modules[root]
@@ -59,7 +60,9 @@ def get_submodule(root, path):
     return root
 
 
-def _adjust_operator_module(operator, api_module, submodule, impl_overwrite=None):
+def _adjust_operator_module(
+    operator, api_module, submodule, impl_overwrite=None
+):
     """Adjust the __module__ of `operator` to point into the submodule of `api_module`
     pointed by the list of in `submodule`, for example:
         api_module = <nvidia.dali.ops module>
@@ -72,5 +75,7 @@ def _adjust_operator_module(operator, api_module, submodule, impl_overwrite=None
     generator, we can point to the original implementation module via `impl_overwrite`.
     """
     module = get_submodule(api_module, submodule)
-    operator._impl_module = operator.__module__ if impl_overwrite is None else impl_overwrite
+    operator._impl_module = (
+        operator.__module__ if impl_overwrite is None else impl_overwrite
+    )
     operator.__module__ = module.__name__

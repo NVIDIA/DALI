@@ -38,7 +38,9 @@ def torch_python_function(
 @overload
 def torch_python_function(
     *input: Union[DataNode, TensorLikeIn],
-    function: Callable[..., Union[torch.Tensor, Tuple[torch.Tensor, ...], None]],
+    function: Callable[
+        ..., Union[torch.Tensor, Tuple[torch.Tensor, ...], None]
+    ],
     batch_processing: bool = False,
     num_outputs: int = 1,
     output_layouts: Union[Sequence[str], str, None] = None,

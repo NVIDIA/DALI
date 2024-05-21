@@ -34,7 +34,9 @@ def check_select_masks(
     def get_data_source(*args, **kwargs):
         return lambda: make_batch_select_masks(*args, **kwargs)
 
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
+    pipe = dali.pipeline.Pipeline(
+        batch_size=batch_size, num_threads=4, device_id=0, seed=1234
+    )
     with pipe:
         polygons, vertices, mask_ids = fn.external_source(
             source=get_data_source(
@@ -64,7 +66,10 @@ def check_select_masks(
             in_polygons_dict = {}
             for k in range(in_polygons.shape[0]):
                 mask_id = in_polygons[k, 0]
-                in_polygons_dict[mask_id] = (in_polygons[k, 1], in_polygons[k, 2])
+                in_polygons_dict[mask_id] = (
+                    in_polygons[k, 1],
+                    in_polygons[k, 2],
+                )
 
             if reindex_masks:
                 index_map = {}
@@ -77,7 +82,9 @@ def check_select_masks(
                 in_vertex_start, in_vertex_end = in_polygons_dict[mask_id]
                 in_nvertices = in_vertex_end - in_vertex_start
 
-                expected_out_mask_id = index_map[mask_id] if reindex_masks else mask_id
+                expected_out_mask_id = (
+                    index_map[mask_id] if reindex_masks else mask_id
+                )
                 out_mask_id, out_vertex_start, out_vertex_end = out_polygons[m]
                 assert out_mask_id == expected_out_mask_id
                 assert out_vertex_start == vertex_count
@@ -93,7 +100,10 @@ def test_select_masks():
     nvertices_range = (3, 40)
     for batch_size in [1, 3]:
         for vertex_ndim in [2, 3, 6]:
-            for vertex_dtype in [np.float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
+            for vertex_dtype in [
+                np.float,
+                random.choice([np.int8, np.int16, np.int32, np.int64]),
+            ]:
                 reindex_masks = random.choice([False, True])
                 yield (
                     check_select_masks,
@@ -132,14 +142,19 @@ def test_select_masks_wrong_mask_ids():
         return polygons, vertices, mask_ids
 
     _test_select_masks_wrong_input(
-        lambda: test_data(), err_regex="Selected mask_id .* is not present in the input\\."
+        lambda: test_data(),
+        err_regex="Selected mask_id .* is not present in the input\\.",
     )
 
 
 def test_select_masks_wrong_mask_meta_dim():
     def test_data():
         # Expects 3 integers, not 4
-        polygons = [np.array([[0, 0, 2, -1], [1, 3, 5, -1], [2, 6, 8, -1]], dtype=np.int32)]
+        polygons = [
+            np.array(
+                [[0, 0, 2, -1], [1, 3, 5, -1], [2, 6, 8, -1]], dtype=np.int32
+            )
+        ]
         vertices = [np.array(np.random.rand(9, 2), dtype=np.float32)]
         mask_ids = [np.array([0], dtype=np.int32)]
         return polygons, vertices, mask_ids
@@ -153,8 +168,12 @@ def test_select_masks_wrong_mask_meta_dim():
 
 def test_select_masks_wrong_vertex_ids():
     def test_data():
-        polygons = [np.array([[0, 0, 20]], dtype=np.int32)]  # Out of bounds vertex index
-        vertices = [np.array(np.random.rand(3, 2), dtype=np.float32)]  # Only 3 vertices
+        polygons = [
+            np.array([[0, 0, 20]], dtype=np.int32)
+        ]  # Out of bounds vertex index
+        vertices = [
+            np.array(np.random.rand(3, 2), dtype=np.float32)
+        ]  # Only 3 vertices
         mask_ids = [np.array([0], dtype=np.int32)]
         return polygons, vertices, mask_ids
 

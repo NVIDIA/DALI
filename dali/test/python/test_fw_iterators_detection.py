@@ -75,12 +75,18 @@ def test_mxnet_pipeline_dynamic_shape():
 
 
 def test_pytorch_pipeline_dynamic_shape():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     root, annotations = data_paths()
     pipeline = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
     train_loader = PyTorchIterator(
-        [pipeline], ["data", "bboxes", "label"], EPOCH_SIZE, auto_reset=False, dynamic_shape=True
+        [pipeline],
+        ["data", "bboxes", "label"],
+        EPOCH_SIZE,
+        auto_reset=False,
+        dynamic_shape=True,
     )
     for data in train_loader:
         assert data is not None
@@ -92,14 +98,20 @@ def test_paddle_pipeline_dynamic_shape():
     root, annotations = data_paths()
     pipeline = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
     train_loader = PaddleIterator(
-        [pipeline], ["data", "bboxes", "label"], EPOCH_SIZE, auto_reset=False, dynamic_shape=True
+        [pipeline],
+        ["data", "bboxes", "label"],
+        EPOCH_SIZE,
+        auto_reset=False,
+        dynamic_shape=True,
     )
     for data in train_loader:
         assert data is not None
 
 
 def test_api_fw_check1_pytorch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     yield from test_api_fw_check1(PyTorchIterator, ["data", "bboxes", "label"])
 
@@ -127,7 +139,11 @@ def test_api_fw_check1(iter_type, data_definition):
     root, annotations = data_paths()
     pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
     train_loader = iter_type(
-        [pipe], data_definition, EPOCH_SIZE, auto_reset=False, dynamic_shape=True
+        [pipe],
+        data_definition,
+        EPOCH_SIZE,
+        auto_reset=False,
+        dynamic_shape=True,
     )
     train_loader.__next__()
     for method in [
@@ -173,7 +189,9 @@ def test_api_fw_check2_mxnet():
 
 
 def test_api_fw_check2_pytorch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     yield from test_api_fw_check2(PyTorchIterator, ["data", "bboxes", "label"])
 
@@ -202,14 +220,22 @@ def test_api_fw_check2(iter_type, data_definition):
         ),
     ):
         train_loader = iter_type(
-            [pipe], data_definition, EPOCH_SIZE, auto_reset=False, dynamic_shape=True
+            [pipe],
+            data_definition,
+            EPOCH_SIZE,
+            auto_reset=False,
+            dynamic_shape=True,
         )
         train_loader.__next__()
     # disable check
     pipe.enable_api_check(False)
     try:
         train_loader = iter_type(
-            [pipe], data_definition, EPOCH_SIZE, auto_reset=False, dynamic_shape=True
+            [pipe],
+            data_definition,
+            EPOCH_SIZE,
+            auto_reset=False,
+            dynamic_shape=True,
         )
         train_loader.__next__()
         assert True

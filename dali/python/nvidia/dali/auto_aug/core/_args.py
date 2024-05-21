@@ -41,12 +41,19 @@ def filter_extra_accepted_kwargs(fun, kwargs, skip_positional=0):
         for i, (name, param) in enumerate(sig.parameters.items())
         if i >= skip_positional
         or param.kind
-        not in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY]
+        not in [
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.POSITIONAL_ONLY,
+        ]
     ]
     extra = [
         name
         for (name, param) in params
-        if param.kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY]
+        if param.kind
+        in [
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ]
     ]
     return {name: value for name, value in kwargs.items() if name in extra}
 
@@ -64,13 +71,20 @@ def get_required_kwargs(fun, skip_positional=0):
         for i, (name, param) in enumerate(sig.parameters.items())
         if i >= skip_positional
         or param.kind
-        not in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY]
+        not in [
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.POSITIONAL_ONLY,
+        ]
     ]
     return [
         name
         for name, param in params
         if param.default is inspect.Parameter.empty
-        and param.kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY]
+        and param.kind
+        in [
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ]
     ]
 
 
@@ -84,7 +98,10 @@ def get_num_positional_args(fun):
             name
             for name, param in sig.parameters.items()
             if param.kind
-            in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY]
+            in [
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.POSITIONAL_ONLY,
+            ]
         ]
     )
 
@@ -100,13 +117,17 @@ def filter_unused_args(augmentations, kwargs):
         for augment in augmentations
         for kwarg_name in filter_extra_accepted_kwargs(augment.op, kwargs, 2)
     )
-    return [kwarg_name for kwarg_name in kwargs if kwarg_name not in used_kwargs]
+    return [
+        kwarg_name for kwarg_name in kwargs if kwarg_name not in used_kwargs
+    ]
 
 
 def forbid_unused_kwargs(augmentations, kwargs, call_name):
     unused_args = filter_unused_args(augmentations, kwargs)
     if unused_args:
-        subject, verb = ("kwarg", "is") if len(unused_args) == 1 else ("kwargs", "are")
+        subject, verb = (
+            ("kwarg", "is") if len(unused_args) == 1 else ("kwargs", "are")
+        )
         unused_kwargs_str = ", ".join(unused_args)
         raise UnusedArgException(
             f"The {call_name} got unexpected {subject}. "

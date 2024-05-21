@@ -112,12 +112,16 @@ def _wrap_into_factory(
         template = """
       var_name = None
     """
-        dummy_closure_defs.extend(templates.replace(template, var_name=var_name))
+        dummy_closure_defs.extend(
+            templates.replace(template, var_name=var_name)
+        )
 
     if future_features:
         future_imports = gast.ImportFrom(
             module="__future__",
-            names=[gast.alias(name=name, asname=None) for name in future_features],
+            names=[
+                gast.alias(name=name, asname=None) for name in future_features
+            ],
             level=0,
         )
     else:
@@ -179,7 +183,9 @@ class _PythonFnFactory(object):
     ):
         """Initializes a function."""
         if self._unbound_factory is not None:
-            raise ValueError("double initialization; create a new object instead")
+            raise ValueError(
+                "double initialization; create a new object instead"
+            )
 
         inner_factory_name = namer.new_symbol(inner_factory_name, ())
         outer_factory_name = namer.new_symbol(outer_factory_name, ())
@@ -207,7 +213,9 @@ class _PythonFnFactory(object):
         factory_code = self._unbound_factory.__code__
         factory_freevars = factory_code.co_freevars
         closure_map = dict(zip(self._freevars, closure))
-        factory_closure = tuple(closure_map[name] for name in factory_code.co_freevars)
+        factory_closure = tuple(
+            closure_map[name] for name in factory_code.co_freevars
+        )
         if len(factory_closure) != len(closure):
             raise ValueError(
                 "closure mismatch, requested {}, but source function had {}".format(
@@ -224,7 +232,9 @@ class _PythonFnFactory(object):
         )
 
         # The lint override is a false positive.
-        new_fn = bound_factory(**self._extra_locals)  # pylint:disable=not-callable
+        new_fn = bound_factory(
+            **self._extra_locals
+        )  # pylint:disable=not-callable
 
         if defaults:
             new_fn.__defaults__ = defaults
@@ -440,7 +450,13 @@ class PyToPy(GenericTranspiler):
 
     def _cached_factory(self, fn, cache_subkey):
         cached_factory = self._cache[fn][cache_subkey]
-        logging.log(3, "Cache hit for %s subkey %s: %s", fn, cache_subkey, cached_factory)
+        logging.log(
+            3,
+            "Cache hit for %s subkey %s: %s",
+            fn,
+            cache_subkey,
+            cached_factory,
+        )
         return cached_factory
 
     def transform_function(self, fn, user_context):
@@ -475,9 +491,13 @@ class PyToPy(GenericTranspiler):
                     factory = self._cached_factory(fn, cache_subkey)
 
                 else:
-                    logging.log(1, "%s is not cached for subkey %s", fn, cache_subkey)
+                    logging.log(
+                        1, "%s is not cached for subkey %s", fn, cache_subkey
+                    )
                     # TODO(mdan): Confusing overloading pattern. Fix.
-                    nodes, ctx = super(PyToPy, self).transform_function(fn, user_context)
+                    nodes, ctx = super(PyToPy, self).transform_function(
+                        fn, user_context
+                    )
 
                     if isinstance(nodes, gast.Lambda):
                         nodes = gast_util.compat_assign(
@@ -496,12 +516,23 @@ class PyToPy(GenericTranspiler):
                         nodes.name = ctx.info.name
 
                     if logging.has_verbosity(2):
-                        logging.log(2, "Transformed %s:\n\n%s\n", fn, parser.unparse(nodes))
+                        logging.log(
+                            2,
+                            "Transformed %s:\n\n%s\n",
+                            fn,
+                            parser.unparse(nodes),
+                        )
 
                     factory = _PythonFnFactory(
-                        ctx.info.name, fn.__code__.co_freevars, self.get_extra_locals()
+                        ctx.info.name,
+                        fn.__code__.co_freevars,
+                        self.get_extra_locals(),
                     )
-                    factory.create(nodes, ctx.namer, future_features=ctx.info.future_features)
+                    factory.create(
+                        nodes,
+                        ctx.namer,
+                        future_features=ctx.info.future_features,
+                    )
                     self._cache[fn][cache_subkey] = factory
 
         transformed_fn = factory.instantiate(

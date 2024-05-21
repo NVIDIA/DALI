@@ -94,7 +94,9 @@ class PyToPyTest(unittest.TestCase):
 
         self.assertEqual(f(1), 1 - 2 - 2)
         c = 0
-        self.assertEqual(f(1), 1 - 2 - 2)  # Defaults are evaluated at definition.
+        self.assertEqual(
+            f(1), 1 - 2 - 2
+        )  # Defaults are evaluated at definition.
         b = 1
         self.assertEqual(f(1), 1 - 2 - 1)
 
@@ -175,7 +177,9 @@ class PyToPyTest(unittest.TestCase):
             _, mod, _ = tr.transform(f, None)
             outputs.append(mod.__name__)
 
-        threads = tuple(threading.Thread(target=conversion_thread) for _ in range(10))
+        threads = tuple(
+            threading.Thread(target=conversion_thread) for _ in range(10)
+        )
         for t in threads:
             t.start()
         for t in threads:
@@ -220,5 +224,7 @@ class PyToPyTest(unittest.TestCase):
         tr = TestTranspiler()
         obj = TestClass()
 
-        f, _, _ = tr.transform(obj.global_var_for_test_namespace_collisions, None)
+        f, _, _ = tr.transform(
+            obj.global_var_for_test_namespace_collisions, None
+        )
         self.assertIs(f(obj), global_var_for_test_namespace_collisions)

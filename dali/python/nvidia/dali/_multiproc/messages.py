@@ -71,7 +71,8 @@ class WorkerArgs:
         Python wrapper around Unix socket used to pass file descriptors identifying
         shared memory chunk to child process. None if `start_method='fork'`
     `callback_pickler`
-        Optional custom pickler that was applied to serialize callbacks in `source_descs`"""
+        Optional custom pickler that was applied to serialize callbacks in `source_descs`
+    """
 
     def __init__(
         self,
@@ -107,16 +108,29 @@ class SampleRange:
     """
 
     def __init__(
-        self, sample_start, sample_end, iteration, epoch_idx, *, slice_start=0, slice_end=None
+        self,
+        sample_start,
+        sample_end,
+        iteration,
+        epoch_idx,
+        *,
+        slice_start=0,
+        slice_end=None,
     ):
-        self.sample_start = sample_start  # idx in epoch of first sample in batch
-        self.sample_end = sample_end  # idx in epoch of one past last sample in batch
+        self.sample_start = (
+            sample_start  # idx in epoch of first sample in batch
+        )
+        self.sample_end = (
+            sample_end  # idx in epoch of one past last sample in batch
+        )
         self.iteration = iteration  # index of a batch within epoch
         self.epoch_idx = epoch_idx
         if slice_end is None:
             slice_end = sample_end - sample_start
         assert slice_start >= 0 and slice_start <= sample_end - sample_start
-        assert slice_end >= slice_start and slice_end <= sample_end - sample_start
+        assert (
+            slice_end >= slice_start and slice_end <= sample_end - sample_start
+        )
         # idx of first sample in slice (in a batch not an epoch)
         self.slice_start = slice_start
         # idx of one past last sample in slice (in a batch not an epoch)
@@ -154,9 +168,16 @@ class SampleRange:
         else:
             idx_in_batch = self.slice_start + idx
         if idx_in_batch < self.slice_start or idx_in_batch >= self.slice_end:
-            raise IndexError("Index {} out of range for slice of length {}".format(idx, len(self)))
+            raise IndexError(
+                "Index {} out of range for slice of length {}".format(
+                    idx, len(self)
+                )
+            )
         return SampleInfo(
-            self.sample_start + idx_in_batch, idx_in_batch, self.iteration, self.epoch_idx
+            self.sample_start + idx_in_batch,
+            idx_in_batch,
+            self.iteration,
+            self.epoch_idx,
         )
 
     def __len__(self):
@@ -174,7 +195,12 @@ class TaskArgs:
     def make_batch(cls, batch_args):
         return cls(0, batch_args=batch_args)
 
-    def __init__(self, minibatch_i, sample_range: Optional[SampleRange] = None, batch_args=None):
+    def __init__(
+        self,
+        minibatch_i,
+        sample_range: Optional[SampleRange] = None,
+        batch_args=None,
+    ):
         self.minibatch_i = minibatch_i
         self.sample_range = sample_range
         self.batch_args = batch_args

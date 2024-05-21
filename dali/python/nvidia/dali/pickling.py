@@ -35,7 +35,9 @@ class _CustomPickler:
     def create(cls, py_callback_pickler):
         if py_callback_pickler is None or isinstance(py_callback_pickler, cls):
             return py_callback_pickler
-        if hasattr(py_callback_pickler, "dumps") and hasattr(py_callback_pickler, "loads"):
+        if hasattr(py_callback_pickler, "dumps") and hasattr(
+            py_callback_pickler, "loads"
+        ):
             return cls.create_from_reducer(py_callback_pickler)
         if isinstance(py_callback_pickler, (tuple, list)):
             params = [None] * 3
@@ -71,4 +73,6 @@ def pickle_by_value(fun):
         setattr(fun, "_dali_pickle_by_value", True)
         return fun
     else:
-        raise TypeError("Only functions can be explicitely set to be pickled by value")
+        raise TypeError(
+            "Only functions can be explicitely set to be pickled by value"
+        )

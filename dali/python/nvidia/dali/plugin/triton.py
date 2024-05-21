@@ -36,6 +36,8 @@ def autoserialize(dali_pipeline):
     :param dali_pipeline: DALI Python model definition (``pipeline_def``).
     """
     if not getattr(dali_pipeline, "_is_pipeline_def", False):
-        raise TypeError("Only `@pipeline_def` can be decorated with `@triton.autoserialize`.")
+        raise TypeError(
+            "Only `@pipeline_def` can be decorated with `@triton.autoserialize`."
+        )
     dali_pipeline._is_autoserialize = True
     return dali_pipeline

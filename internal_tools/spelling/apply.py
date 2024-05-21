@@ -64,4 +64,6 @@ if __name__ == "__main__":
     new_dict = old_dict | skipped
     with open(DICT_FILE, "w") as f:
         f.write("\n".join(w for w in sorted(new_dict)) + "\n")
-    print(f"{len(new_dict) - len(old_dict)} words were added to the dictionary.")
+    print(
+        f"{len(new_dict) - len(old_dict)} words were added to the dictionary."
+    )

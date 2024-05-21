@@ -21,7 +21,9 @@ from nvidia.dali._autograph.core import converter_testing
 class VariablesTest(converter_testing.TestCase):
     def _transform_with_test_ld(self, f):
         """Generates code which adds 1 to all variable reads."""
-        return self.transform(f, variables, ag_overrides={"ld": lambda x: x + 1})
+        return self.transform(
+            f, variables, ag_overrides={"ld": lambda x: x + 1}
+        )
 
     def test_read(self):
         def f(l):

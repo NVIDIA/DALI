@@ -161,7 +161,9 @@ def _testimpl_numba_func(
         blocks=None,
         threads_per_block=None,
     ):
-        data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device=device)
+        data = fn.external_source(
+            lambda: get_data(shapes, dtype), batch=True, device=device
+        )
         return numba_function(
             data,
             run_fn=run_fn,
@@ -266,7 +268,10 @@ def test_numba_func():
             [3],
             setup_change_out_shape,
             True,
-            [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
+            [
+                np.full((20, 30, 10), 42, dtype=np.int32),
+                np.full((10, 30, 20), 42, dtype=np.int32),
+            ],
         ),
         (
             [(10, 20, 30), (20, 10, 30)],
@@ -278,7 +283,10 @@ def test_numba_func():
             [3],
             setup_change_out_shape,
             None,
-            [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
+            [
+                np.full((20, 30, 10), 42, dtype=np.int32),
+                np.full((10, 30, 20), 42, dtype=np.int32),
+            ],
         ),
     ]
 
@@ -770,7 +778,9 @@ def test_split_images_col():
     for _ in range(3):
         images_in, R, G, B = pipe.run()
         for i in range(len(images_in)):
-            assert np.array_equal(images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2))
+            assert np.array_equal(
+                images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2)
+            )
 
 
 @with_setup(check_numba_compatibility_gpu)
@@ -797,7 +807,9 @@ def test_split_images_col_gpu():
         for i in range(len(images_in)):
             assert np.array_equal(
                 to_array(images_in[i]),
-                np.stack([to_array(R[i]), to_array(G[i]), to_array(B[i])], axis=2),
+                np.stack(
+                    [to_array(R[i]), to_array(G[i]), to_array(B[i])], axis=2
+                ),
             )
 
 
@@ -845,9 +857,15 @@ def numba_multiple_ins_pipe(
     blocks=None,
     threads_per_block=None,
 ):
-    data0 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device=device)
-    data1 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device=device)
-    data2 = fn.external_source(lambda: get_data_zeros(shapes, dtype), batch=True, device=device)
+    data0 = fn.external_source(
+        lambda: get_data_zeros(shapes, dtype), batch=True, device=device
+    )
+    data1 = fn.external_source(
+        lambda: get_data_zeros(shapes, dtype), batch=True, device=device
+    )
+    data2 = fn.external_source(
+        lambda: get_data_zeros(shapes, dtype), batch=True, device=device
+    )
     return numba_function(
         data0,
         data1,

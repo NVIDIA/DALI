@@ -70,7 +70,8 @@ def check_frame(
         area_max = roi_w_max * roi_h_max / (w * h)
 
         assert (
-            ratio_max >= aspect_ratio_range[0] and ratio_min <= aspect_ratio_range[1]
+            ratio_max >= aspect_ratio_range[0]
+            and ratio_min <= aspect_ratio_range[1]
         ), "aspect ratio estimated at {}..{} outside valid range [{} .. {}]".format(
             ratio_min, ratio_min, *aspect_ratio_range
         )
@@ -85,7 +86,9 @@ def check_frame(
         return roi
 
 
-def check_seq(seq, channel_dim, w, h, aspect_ratio_range, area_range, value_range):
+def check_seq(
+    seq, channel_dim, w, h, aspect_ratio_range, area_range, value_range
+):
     frame_dim = 1 if channel_dim == 0 else 0
     frame_channel_dim = -1 if channel_dim == -1 else 0
     roi = None
@@ -106,16 +109,40 @@ def check_seq(seq, channel_dim, w, h, aspect_ratio_range, area_range, value_rang
         )
 
 
-def check_output(output, channel_dim, input_shape, aspect_ratio_range, area_range, value_range):
+def check_output(
+    output,
+    channel_dim,
+    input_shape,
+    aspect_ratio_range,
+    area_range,
+    value_range,
+):
     if len(input_shape) == 3:
         h, w = input_shape[1:3] if channel_dim == 0 else input_shape[0:2]
         check_frame(
-            output, 0, 1, channel_dim, None, w, h, aspect_ratio_range, area_range, value_range
+            output,
+            0,
+            1,
+            channel_dim,
+            None,
+            w,
+            h,
+            aspect_ratio_range,
+            area_range,
+            value_range,
         )
     else:
         hidx = 1 if channel_dim == -1 else 2
         h, w = input_shape[hidx : hidx + 2]
-        check_seq(output, channel_dim, w, h, aspect_ratio_range, area_range, value_range)
+        check_seq(
+            output,
+            channel_dim,
+            w,
+            h,
+            aspect_ratio_range,
+            area_range,
+            value_range,
+        )
 
 
 def type_range(type):
@@ -130,9 +157,15 @@ def generate_data(frames, width, height, channel_dim, type):
     no_frames = frames is None
     if no_frames:
         frames = 1
-    x = (np.arange(0, width) * value_range // width).astype(type)[np.newaxis, np.newaxis, :]
-    y = (np.arange(0, height) * value_range // height).astype(type)[np.newaxis, :, np.newaxis]
-    f = (np.arange(0, frames) * value_range // frames).astype(type)[:, np.newaxis, np.newaxis]
+    x = (np.arange(0, width) * value_range // width).astype(type)[
+        np.newaxis, np.newaxis, :
+    ]
+    y = (np.arange(0, height) * value_range // height).astype(type)[
+        np.newaxis, :, np.newaxis
+    ]
+    f = (np.arange(0, frames) * value_range // frames).astype(type)[
+        :, np.newaxis, np.newaxis
+    ]
     x = np.broadcast_to(x, (frames, height, width))
     y = np.broadcast_to(y, (frames, height, width))
     f = np.broadcast_to(f, (frames, height, width))
@@ -149,7 +182,11 @@ def generator(batch_size, max_frames, channel_dim, type):
     def generate():
         batch = []
         for _ in range(batch_size):
-            frames = None if max_frames is None else np.random.randint(1, max_frames + 1)
+            frames = (
+                None
+                if max_frames is None
+                else np.random.randint(1, max_frames + 1)
+            )
             sz = np.random.randint(100, 2000 / (max_frames or 1))
             w, h = np.random.randint(sz, 2 * sz, [2])
             batch.append(generate_data(frames, w, h, channel_dim, type))
@@ -159,7 +196,14 @@ def generator(batch_size, max_frames, channel_dim, type):
 
 
 def _test_rrc(
-    device, max_frames, layout, aspect_ratio_range, area_range, output_size, input_type, output_type
+    device,
+    max_frames,
+    layout,
+    aspect_ratio_range,
+    area_range,
+    output_size,
+    input_type,
+    output_type,
 ):
     batch_size = 4
     pipe = dali.pipeline.Pipeline(batch_size, 4, 0)
@@ -168,7 +212,8 @@ def _test_rrc(
     if channel_dim == len(layout) - 1:
         channel_dim = -1
     input = fn.external_source(
-        source=generator(batch_size, max_frames, channel_dim, input_type), layout=layout
+        source=generator(batch_size, max_frames, channel_dim, input_type),
+        layout=layout,
     )
     shape = fn.shapes(input)
     if device == "gpu":
@@ -193,7 +238,14 @@ def _test_rrc(
         for i in range(batch_size):
             out = outputs.at(i)
             input_shape = input_shapes.at(i).tolist()
-            check_output(out, channel_dim, input_shape, aspect_ratio_range, area_range, value_range)
+            check_output(
+                out,
+                channel_dim,
+                input_shape,
+                aspect_ratio_range,
+                area_range,
+                value_range,
+            )
 
 
 def test_random_resized_crop():
@@ -214,7 +266,9 @@ def test_random_resized_crop():
                 ((0.5, 1), (0.1, 0.5)),
             ]:
                 input_type = types[np.random.randint(0, len(types))]
-                output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
+                output_type = (
+                    dali.types.FLOAT if np.random.randint(0, 2) else None
+                )
                 size = sizes[np.random.randint(0, len(sizes))]
                 yield (
                     _test_rrc,

@@ -70,7 +70,11 @@ def CVWarp(output_type, input_type, warp_matrix=None, inv_map=False):
             size,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=[fill, fill, fill],
-            flags=((cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) if inv_map else cv2.INTER_LINEAR),
+            flags=(
+                (cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
+                if inv_map
+                else cv2.INTER_LINEAR
+            ),
         )
         if output_type == types.UINT8 and input_type == types.FLOAT:
             out = np.uint8(np.clip(out, 0, 255))
@@ -101,7 +105,12 @@ class WarpPipeline(Pipeline):
         inv_map=False,
     ):
         super(WarpPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.use_input = use_input
         self.use_dynamic_size = use_input  # avoid Cartesian product
@@ -179,7 +188,12 @@ class CVPipeline(Pipeline):
         inv_map=False,
     ):
         super(CVPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.use_input = use_input
         self.name = "cv"
@@ -192,12 +206,16 @@ class CVPipeline(Pipeline):
                 lambda: gen_transforms(self.max_batch_size, 10)
             )
             self.warp = ops.PythonFunction(
-                function=CVWarp(output_type, input_type, inv_map=inv_map), output_layouts="HWC"
+                function=CVWarp(output_type, input_type, inv_map=inv_map),
+                output_layouts="HWC",
             )
         else:
             self.warp = ops.PythonFunction(
                 function=CVWarp(
-                    output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]], inv_map
+                    output_type,
+                    input_type,
+                    [[0.1, 0.9, 10], [0.8, -0.2, -20]],
+                    inv_map,
                 ),
                 output_layouts="HWC",
             )
@@ -218,7 +236,9 @@ def compare(pipe1, pipe2, max_err):
     epoch_size = pipe1.epoch_size("Reader")
     batch_size = pipe1.max_batch_size
     niter = (epoch_size + batch_size - 1) // batch_size
-    compare_pipelines(pipe1, pipe2, batch_size, niter, max_allowed_error=max_err)
+    compare_pipelines(
+        pipe1, pipe2, batch_size, niter, max_allowed_error=max_err
+    )
 
 
 io_types = [
@@ -231,9 +251,13 @@ io_types = [
 
 def test_vs_cv():
     def impl(device, batch_size, use_input, otype, itype, inv_map):
-        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
+        cv_pipeline = CVPipeline(
+            batch_size, otype, itype, use_input, inv_map=inv_map
+        )
         cv_pipeline.build()
-        cpu_pipeline = WarpPipeline(device, batch_size, otype, itype, use_input, inv_map=inv_map)
+        cpu_pipeline = WarpPipeline(
+            device, batch_size, otype, itype, use_input, inv_map=inv_map
+        )
         cpu_pipeline.build()
         compare(cv_pipeline, cpu_pipeline, 8)
 
@@ -248,9 +272,13 @@ def test_vs_cv():
 
 def test_gpu_vs_cpu():
     def impl(batch_size, use_input, otype, itype, inv_map):
-        cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+        cpu_pipeline = WarpPipeline(
+            "cpu", batch_size, otype, itype, use_input, inv_map=inv_map
+        )
         cpu_pipeline.build()
-        gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+        gpu_pipeline = WarpPipeline(
+            "gpu", batch_size, otype, itype, use_input, inv_map=inv_map
+        )
         gpu_pipeline.build()
 
     random.seed(1006)
@@ -317,7 +345,8 @@ def test_video():
         x, y = sample_desc.rng.choice([(-1, -1), (1, -1), (-1, 1)])
         _, h, w, _ = sample_desc.sample.shape  # assuming FHWC layout
         return np.array(
-            [[x, 0, 0 if x == 1 else w], [0, y, 0 if y == 1 else h], [0, 0, 1]], dtype=np.float32
+            [[x, 0, 0 if x == 1 else w], [0, y, 0 if y == 1 else h], [0, 0, 1]],
+            dtype=np.float32,
         )
 
     def random_translate_mx(sample_desc):
@@ -335,7 +364,10 @@ def test_video():
         def rand_scale():
             return sample_desc.rng.uniform(0.25, 4)
 
-        return np.array([[rand_scale(), 0, 0], [0, rand_scale(), 0], [0, 0, 1]], dtype=np.float32)
+        return np.array(
+            [[rand_scale(), 0, 0], [0, rand_scale(), 0], [0, 0, 1]],
+            dtype=np.float32,
+        )
 
     def random_rotate_mx(sample_desc):
         angle = math.radians(sample_desc.rng.uniform(-90, 90))
@@ -358,24 +390,57 @@ def test_video():
     def output_size(sample_desc):
         _, h, w, _ = sample_desc.sample.shape  # assuming FHWC layout
         rng = sample_desc.rng
-        return np.array([h * rng.uniform(0.5, 2), w * rng.uniform(0.5, 2)], dtype=np.float32)
+        return np.array(
+            [h * rng.uniform(0.5, 2), w * rng.uniform(0.5, 2)], dtype=np.float32
+        )
 
     video_test_cases = [
-        (fn.warp_affine, {"matrix": random_rotate_mx(SampleDesc(rng, 0, 0, 0, None))[0:2, :]}, []),
+        (
+            fn.warp_affine,
+            {
+                "matrix": random_rotate_mx(SampleDesc(rng, 0, 0, 0, None))[
+                    0:2, :
+                ]
+            },
+            [],
+        ),
         (fn.warp_affine, {}, [ArgCb("matrix", random_mx, False)]),
         (fn.warp_affine, {}, [ArgCb("matrix", random_mx, True)]),
         (
             fn.warp_affine,
             {},
-            [ArgCb("matrix", random_mx, False), ArgCb("size", output_size, False)],
+            [
+                ArgCb("matrix", random_mx, False),
+                ArgCb("size", output_size, False),
+            ],
         ),
-        (fn.warp_affine, {}, [ArgCb("matrix", random_mx, True), ArgCb("size", output_size, False)]),
+        (
+            fn.warp_affine,
+            {},
+            [
+                ArgCb("matrix", random_mx, True),
+                ArgCb("size", output_size, False),
+            ],
+        ),
         (fn.warp_affine, {}, [ArgCb(1, random_mx, True, dest_device="cpu")]),
-        (fn.warp_affine, {}, [ArgCb(1, random_mx, True, dest_device="gpu")], ["gpu"]),
+        (
+            fn.warp_affine,
+            {},
+            [ArgCb(1, random_mx, True, dest_device="gpu")],
+            ["gpu"],
+        ),
         (fn.warp_affine, {}, [ArgCb(1, random_mx, False, dest_device="cpu")]),
-        (fn.warp_affine, {}, [ArgCb(1, random_mx, False, dest_device="gpu")], ["gpu"]),
+        (
+            fn.warp_affine,
+            {},
+            [ArgCb(1, random_mx, False, dest_device="gpu")],
+            ["gpu"],
+        ),
     ]
 
     yield from video_suite_helper(
-        video_test_cases, test_channel_first=False, expand_channels=False, rng=rng
+        video_test_cases,
+        test_channel_first=False,
+        expand_channels=False,
+        rng=rng,
     )

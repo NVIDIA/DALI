@@ -44,7 +44,14 @@ class SourceKind(Enum):
 class SourceDescription:
     """Keep the metadata about the source parameter that was originally passed"""
 
-    def __init__(self, source, kind: SourceKind, has_inputs: bool, cycle: str, batch_info=False):
+    def __init__(
+        self,
+        source,
+        kind: SourceKind,
+        has_inputs: bool,
+        cycle: str,
+        batch_info=False,
+    ):
         self.source = source
         self.kind = kind
         self.has_inputs = has_inputs
@@ -80,7 +87,9 @@ _tf_uniform_error_msg = (
 )
 
 
-def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
+def assert_cpu_sample_data_type(
+    sample, error_str="Unsupported callback return type. Got: `{}`."
+):
     import_numpy()
     if isinstance(sample, np.ndarray):
         return True
@@ -103,7 +112,9 @@ def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return t
     raise TypeError(error_str.format(type(sample)))
 
 
-def assert_cpu_batch_data_type(batch, error_str="Unsupported callback return type. Got: `{}`."):
+def assert_cpu_batch_data_type(
+    batch, error_str="Unsupported callback return type. Got: `{}`."
+):
     import_numpy()
     if isinstance(batch, tensors.TensorListCPU):
         return True
@@ -118,7 +129,9 @@ def assert_cpu_batch_data_type(batch, error_str="Unsupported callback return typ
         raise TypeError(error_str.format(type(batch)))
 
 
-def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{}`."):
+def sample_to_numpy(
+    sample, error_str="Unsupported callback return type. Got: `{}`."
+):
     import_numpy()
     assert_cpu_sample_data_type(sample, error_str)
     if isinstance(sample, np.ndarray):
@@ -247,9 +260,9 @@ def accepted_arg_count(callable):
         Indicates that the `source` callable accepts wrong number of type of arguments.
     """
 
-    if not (inspect.isfunction(callable) or inspect.ismethod(callable)) and hasattr(
-        callable, "__call__"
-    ):
+    if not (
+        inspect.isfunction(callable) or inspect.ismethod(callable)
+    ) and hasattr(callable, "__call__"):
         callable = callable.__call__
     # Extracting the `__call__` for a method causes the signature to report `self` as a parameter,
     # so we have to subtract it.
@@ -267,20 +280,24 @@ def accepted_arg_count(callable):
     for p in signature.parameters.values():
         if p.kind == inspect.Parameter.VAR_POSITIONAL:
             raise TypeError(
-                error_msg + f" Found var-positional argument `*{p.name}` which is not allowed."
+                error_msg
+                + f" Found var-positional argument `*{p.name}` which is not allowed."
             )
         if p.kind == inspect.Parameter.VAR_KEYWORD:
             raise TypeError(
-                error_msg + f" Found var-keyword argument `**{p.name}` which is not allowed."
+                error_msg
+                + f" Found var-keyword argument `**{p.name}` which is not allowed."
             )
         if p.kind == inspect.Parameter.KEYWORD_ONLY:
             raise TypeError(
-                error_msg + f" Found keyword-only argument `{p.name}` which is not allowed."
+                error_msg
+                + f" Found keyword-only argument `{p.name}` which is not allowed."
             )
     result = len(signature.parameters) - implicit_args
     if result not in [0, 1]:
         raise TypeError(
-            error_msg + " Found more than one positional argument, which is not allowed."
+            error_msg
+            + " Found more than one positional argument, which is not allowed."
         )
     return result
 
@@ -309,23 +326,31 @@ def get_callback_from_source(source, cycle, batch_info=False):
                     )
                 if _is_generator_function(source):
                     # We got a generator function, each call returns new "generator iterator"
-                    desc = SourceDescription(source, SourceKind.GENERATOR_FUNC, False, cycle)
+                    desc = SourceDescription(
+                        source, SourceKind.GENERATOR_FUNC, False, cycle
+                    )
                     iterator = iter(_CycleGenFunc(source, cycle))
                 else:
                     # We hopefully got an iterable, iter(source) should return new iterator.
                     # TODO(klecki): Iterators are self-iterable (they return self from `iter()`),
                     #               add a check if we have iterable and not iterator here,
                     #               so we can better support cycle.
-                    desc = SourceDescription(source, SourceKind.ITERABLE, False, cycle)
+                    desc = SourceDescription(
+                        source, SourceKind.ITERABLE, False, cycle
+                    )
                     iterator = iter(_CycleIter(source, cycle))
             else:
                 # In non-cycling case, we go over the data once.
                 if _is_generator_function(source):
                     # If we got a generator, we extract the "generator iterator"
-                    desc = SourceDescription(source, SourceKind.GENERATOR_FUNC, False, cycle)
+                    desc = SourceDescription(
+                        source, SourceKind.GENERATOR_FUNC, False, cycle
+                    )
                     source = source()
                 else:
-                    desc = SourceDescription(source, SourceKind.ITERABLE, False, cycle)
+                    desc = SourceDescription(
+                        source, SourceKind.ITERABLE, False, cycle
+                    )
 
                 # We try to use the iterable/iterator.
                 # If this is callable instead, we will throw an error containing 'not iterable'
@@ -338,7 +363,8 @@ def get_callback_from_source(source, cycle, batch_info=False):
                 raise err
             if cycle is not None:
                 raise ValueError(
-                    "The argument `cycle` can only be specified " "if `source` is iterable."
+                    "The argument `cycle` can only be specified "
+                    "if `source` is iterable."
                 )
             if not callable(source):
                 raise TypeError(
@@ -350,7 +376,11 @@ def get_callback_from_source(source, cycle, batch_info=False):
         # via the accepted_arg_count.
         if is_callable:
             desc = SourceDescription(
-                source, SourceKind.CALLABLE, accepted_arg_count(source) > 0, cycle, batch_info
+                source,
+                SourceKind.CALLABLE,
+                accepted_arg_count(source) > 0,
+                cycle,
+                batch_info,
             )
             callback = source
     else:
@@ -366,7 +396,9 @@ def get_callback_from_source(source, cycle, batch_info=False):
 def _inspect_data(data, is_batched):
     # TODO(klecki): Add asserts for uniform input batches (as well as output batches)
     if is_batched:
-        as_numpy = batch_to_numpy(data, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
+        as_numpy = batch_to_numpy(
+            data, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+        )
         if isinstance(as_numpy, list):
             return as_numpy[0].dtype, (None,) * (as_numpy[0].ndim + 1)
         else:
@@ -378,7 +410,9 @@ def _inspect_data(data, is_batched):
 
 def get_batch_iterable_from_callback(source_desc: SourceDescription):
     """Transform batch callback accepting one argument into an Iterable"""
-    first = source_desc.source(types.BatchInfo(0, 0) if source_desc.batch_info else 0)
+    first = source_desc.source(
+        types.BatchInfo(0, 0) if source_desc.batch_info else 0
+    )
     dtype, shape = _inspect_data(first, True)
 
     class CallableBatchIterator:
@@ -393,7 +427,10 @@ def get_batch_iterable_from_callback(source_desc: SourceDescription):
             return self
 
         def __next__(self):
-            if self.iteration == 0 and CallableBatchIterator.first_value is not None:
+            if (
+                self.iteration == 0
+                and CallableBatchIterator.first_value is not None
+            ):
                 result = CallableBatchIterator.first_value
                 CallableBatchIterator.first_value = None
             else:
@@ -406,13 +443,17 @@ def get_batch_iterable_from_callback(source_desc: SourceDescription):
                 result = self.source(argument)
             self.iteration += 1
             return batch_to_numpy(
-                result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+                result,
+                _tf_batch_error_msg,
+                non_uniform_str=_tf_uniform_error_msg,
             )
 
     return CallableBatchIterator, dtype, shape
 
 
-def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size):
+def get_sample_iterable_from_callback(
+    source_desc: SourceDescription, batch_size
+):
     """Transform sample callback accepting one argument into an Iterable"""
     first = source_desc.source(types.SampleInfo(0, 0, 0, 0))
     dtype, shape = _inspect_data(first, False)
@@ -433,13 +474,18 @@ def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size
             return self
 
         def __next__(self):
-            if self.idx_in_epoch == 0 and CallableSampleIterator.first_value is not None:
+            if (
+                self.idx_in_epoch == 0
+                and CallableSampleIterator.first_value is not None
+            ):
                 result = CallableSampleIterator.first_value
                 CallableSampleIterator.first_value = None
             else:
                 # There is no notion of epochs when iterating over DALI Dataset
                 # as the "raise" policy is not supported, so we use epoch 0 only.
-                idx = types.SampleInfo(self.idx_in_epoch, self.idx_in_batch, self.iteration, 0)
+                idx = types.SampleInfo(
+                    self.idx_in_epoch, self.idx_in_batch, self.iteration, 0
+                )
                 result = self.source(idx)
             self.idx_in_epoch += 1
             self.idx_in_batch += 1
@@ -474,7 +520,9 @@ def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
                 result = self.source()
             if is_batched:
                 return batch_to_numpy(
-                    result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+                    result,
+                    _tf_batch_error_msg,
+                    non_uniform_str=_tf_uniform_error_msg,
                 )
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
@@ -482,7 +530,9 @@ def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
     return CallableIterator, dtype, shape
 
 
-def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_batched):
+def get_iterable_from_iterable_or_generator(
+    source_desc: SourceDescription, is_batched
+):
     """Wrap iterable or generator function into another iterable while peeking the first element
 
     If the source is generator function it must be called first.
@@ -520,7 +570,9 @@ def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_b
                 result = next(self.it)
             if is_batched:
                 return batch_to_numpy(
-                    result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+                    result,
+                    _tf_batch_error_msg,
+                    non_uniform_str=_tf_uniform_error_msg,
                 )
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
@@ -528,7 +580,9 @@ def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_b
     return PeekFirstGenerator, dtype, shape
 
 
-def _get_generator_from_source_desc(source_desc: SourceDescription, batch_size, is_batched):
+def _get_generator_from_source_desc(
+    source_desc: SourceDescription, batch_size, is_batched
+):
     """Based on DALI source description create a generator function, type and shape specification
     compatible with TF Generator Dataset.
 
@@ -540,7 +594,9 @@ def _get_generator_from_source_desc(source_desc: SourceDescription, batch_size, 
             if is_batched:
                 return get_batch_iterable_from_callback(source_desc)
             else:
-                return get_sample_iterable_from_callback(source_desc, batch_size)
+                return get_sample_iterable_from_callback(
+                    source_desc, batch_size
+                )
         else:
             # No inputs, plain iteration
             return get_iterable_from_callback(source_desc, is_batched)

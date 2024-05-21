@@ -35,7 +35,9 @@ class NodeAnno(NoValue):
     # These flags are boolean.
     IS_LOCAL = "Symbol is local to the function scope being analyzed."
     IS_PARAM = "Symbol is a parameter to the function being analyzed."
-    IS_MODIFIED_SINCE_ENTRY = "Symbol has been explicitly replaced in the current function scope."
+    IS_MODIFIED_SINCE_ENTRY = (
+        "Symbol has been explicitly replaced in the current function scope."
+    )
 
     # Scopes
     # Scopes are represented by objects of type activity.Scope.
@@ -43,7 +45,8 @@ class NodeAnno(NoValue):
     COND_SCOPE = "The scope for the test node of a conditional statement."
     ITERATE_SCOPE = "The scope for the iterate assignment of a for loop."
     ARGS_AND_BODY_SCOPE = (
-        "The scope for the main body of a function or lambda, including its" " arguments."
+        "The scope for the main body of a function or lambda, including its"
+        " arguments."
     )
     BODY_SCOPE = (
         "The scope for the main body of a statement (True branch for if "

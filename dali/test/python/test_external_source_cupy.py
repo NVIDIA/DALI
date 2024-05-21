@@ -36,7 +36,9 @@ use_cupy()
 import cupy as cp  # noqa:E402  - we need to call this after use_cupy()
 
 
-assert nvidia.dali.types._is_cupy_array(cp.array([1, 2, 3])), "CuPy array not recognized"
+assert nvidia.dali.types._is_cupy_array(
+    cp.array([1, 2, 3])
+), "CuPy array not recognized"
 
 
 def test_external_source_with_iter_cupy_stream():
@@ -45,14 +47,21 @@ def test_external_source_with_iter_cupy_stream():
             pipe = Pipeline(1, 3, 0)
 
             def get_data(i):
-                return [cp.array([attempt * 100 + i * 10 + 1.5], dtype=cp.float32)]
+                return [
+                    cp.array([attempt * 100 + i * 10 + 1.5], dtype=cp.float32)
+                ]
 
             pipe.set_outputs(fn.external_source(get_data))
             pipe.build()
 
             for i in range(10):
                 check_output(
-                    pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)]
+                    pipe.run(),
+                    [
+                        np.array(
+                            [attempt * 100 + i * 10 + 1.5], dtype=np.float32
+                        )
+                    ],
                 )
 
 
@@ -62,13 +71,19 @@ def test_external_source_mixed_contiguous():
 
     def generator(i):
         if i % 2:
-            return cp.array([[100 + i * 10 + 1.5]] * batch_size, dtype=cp.float32)
+            return cp.array(
+                [[100 + i * 10 + 1.5]] * batch_size, dtype=cp.float32
+            )
         else:
-            return batch_size * [cp.array([100 + i * 10 + 1.5], dtype=cp.float32)]
+            return batch_size * [
+                cp.array([100 + i * 10 + 1.5], dtype=cp.float32)
+            ]
 
     pipe = Pipeline(batch_size, 3, 0)
 
-    pipe.set_outputs(fn.external_source(device="gpu", source=generator, no_copy=True))
+    pipe.set_outputs(
+        fn.external_source(device="gpu", source=generator, no_copy=True)
+    )
     pipe.build()
 
     pattern = (
@@ -96,19 +111,26 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
     def get_data():
         nonlocal iter
         with cp.cuda.Device(src):
-            data = cp.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=cp.float32) + iter
+            data = (
+                cp.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=cp.float32) + iter
+            )
             iter += 1
         if use_dali_tensor:
             return TensorGPU(data.toDlpack())
         return data
 
     with pipe:
-        pipe.set_outputs(fn.external_source(get_data, batch=False, device="gpu"))
+        pipe.set_outputs(
+            fn.external_source(get_data, batch=False, device="gpu")
+        )
 
     pipe.build()
     for i in range(10):
         (out,) = pipe.run()
-        assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i)
+        assert np.array_equal(
+            np.array(out[0].as_cpu()),
+            np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i,
+        )
 
 
 @attr("multigpu")
@@ -132,7 +154,10 @@ def _test_memory_consumption(device, test_case):
         fw = cp
 
     def no_copy_sample():
-        batch = [fw.full((1024, 1024, 4), i, dtype=fw.int32) for i in range(batch_size)]
+        batch = [
+            fw.full((1024, 1024, 4), i, dtype=fw.int32)
+            for i in range(batch_size)
+        ]
 
         def cb(sample_info):
             return batch[sample_info.idx_in_batch]
@@ -141,7 +166,9 @@ def _test_memory_consumption(device, test_case):
 
     def copy_sample():
         def cb(sample_info):
-            return fw.full((1024, 1024, 4), sample_info.idx_in_batch, dtype=fw.int32)
+            return fw.full(
+                (1024, 1024, 4), sample_info.idx_in_batch, dtype=fw.int32
+            )
 
         return cb
 
@@ -161,7 +188,9 @@ def _test_memory_consumption(device, test_case):
 
     @pipeline_def
     def pipeline():
-        return fn.external_source(source=cb(), device=device, batch=batch_mode, no_copy=no_copy)
+        return fn.external_source(
+            source=cb(), device=device, batch=batch_mode, no_copy=no_copy
+        )
 
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     pipe.build()

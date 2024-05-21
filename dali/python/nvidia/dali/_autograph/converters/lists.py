@@ -59,7 +59,9 @@ class ListTransformer(converter.Base):
         template = """
       target = ag__.list_append(target, element)
     """
-        return templates.replace(template, target=node.func.value, element=node.args[0])
+        return templates.replace(
+            template, target=node.func.value, element=node.args[0]
+        )
 
     def _replace_pop_call(self, node):
         # Expressions that use pop() are converted to a statement + expression.
@@ -98,7 +100,9 @@ class ListTransformer(converter.Base):
             stmt.pop_uses = []
         stmt.pop_uses.append((node, pop_var_name))
 
-        return templates.replace_as_expression("var_name", var_name=pop_var_name)
+        return templates.replace_as_expression(
+            "var_name", var_name=pop_var_name
+        )
 
     def _replace_stack_call(self, node):
         assert len(node.args) == 1
@@ -190,7 +194,11 @@ class ListTransformer(converter.Base):
         if pop_uses:
             replacements = []
             for original_call_node, pop_var_name in pop_uses:
-                replacements.extend(self._generate_pop_operation(original_call_node, pop_var_name))
+                replacements.extend(
+                    self._generate_pop_operation(
+                        original_call_node, pop_var_name
+                    )
+                )
             replacements.append(node)
             node = replacements
         self.state[_Statement].exit()

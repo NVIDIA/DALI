@@ -32,7 +32,9 @@ def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
         if k in lib:
             allowed_libs_to_check += allowed_libs[k]
 
-    return linked_lib in bundled_lib_names or get_list_elm_match(linked_lib, allowed_libs_to_check)
+    return linked_lib in bundled_lib_names or get_list_elm_match(
+        linked_lib, allowed_libs_to_check
+    )
 
 
 def main():
@@ -70,7 +72,9 @@ def main():
         for lib in ldd.stdout:
             lib = lib.decode().strip("\t").strip("\n")
             linked_lib = lib.split()[0]
-            if not check_ldd_out(lib_name, linked_lib, bundled_lib_names, allowed_libs):
+            if not check_ldd_out(
+                lib_name, linked_lib, bundled_lib_names, allowed_libs
+            ):
                 print(
                     f"Library: '{linked_lib}' should be bundled in whl "
                     f"or removed from the dynamic link dependency"

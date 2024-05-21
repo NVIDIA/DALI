@@ -91,7 +91,9 @@ def normalize_ref(image):
     normalization_std = [0.229, 0.224, 0.225]
 
     image = image.astype(dtype=np.float64).transpose((2, 0, 1)) / 255
-    for plane, (m, s) in zip(range(len(image)), zip(normalization_mean, normalization_std)):
+    for plane, (m, s) in zip(
+        range(len(image)), zip(normalization_mean, normalization_std)
+    ):
         image[plane] = (image[plane] - m) / s
     return image
 
@@ -123,8 +125,12 @@ class DetectionPipeline(Pipeline):
             random_shuffle=True,
         )
 
-        self.decode_cpu = ops.decoders.Image(device="cpu", output_type=types.RGB)
-        self.decode_crop = ops.decoders.ImageSlice(device="cpu", output_type=types.RGB)
+        self.decode_cpu = ops.decoders.Image(
+            device="cpu", output_type=types.RGB
+        )
+        self.decode_crop = ops.decoders.ImageSlice(
+            device="cpu", output_type=types.RGB
+        )
 
         self.decode_gpu = ops.decoders.Image(
             device="mixed", output_type=types.RGB, hw_decoder_load=0
@@ -133,7 +139,9 @@ class DetectionPipeline(Pipeline):
             device="mixed", output_type=types.RGB, hw_decoder_load=0
         )
 
-        self.ssd_crop = ops.SSDRandomCrop(device="cpu", num_attempts=1, seed=args.seed)
+        self.ssd_crop = ops.SSDRandomCrop(
+            device="cpu", num_attempts=1, seed=args.seed
+        )
         self.random_bbox_crop = ops.RandomBBoxCrop(
             device="cpu",
             aspect_ratio=[0.5, 2.0],
@@ -163,10 +171,20 @@ class DetectionPipeline(Pipeline):
         std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
         crop_size = (300, 300)
         self.normalize_cpu = ops.CropMirrorNormalize(
-            device="cpu", crop=crop_size, mean=mean, std=std, mirror=0, dtype=types.FLOAT
+            device="cpu",
+            crop=crop_size,
+            mean=mean,
+            std=std,
+            mirror=0,
+            dtype=types.FLOAT,
         )
         self.normalize_gpu = ops.CropMirrorNormalize(
-            device="gpu", crop=crop_size, mean=mean, std=std, mirror=0, dtype=types.FLOAT
+            device="gpu",
+            crop=crop_size,
+            mean=mean,
+            std=std,
+            mirror=0,
+            dtype=types.FLOAT,
         )
 
         self.twist_cpu = ops.ColorTwist(device="cpu")
@@ -175,8 +193,12 @@ class DetectionPipeline(Pipeline):
         self.hsv_cpu = ops.Hsv(device="cpu", dtype=types.FLOAT)
         self.hsv_gpu = ops.Hsv(device="gpu", dtype=types.FLOAT)
 
-        self.bc_cpu = ops.BrightnessContrast(device="cpu", dtype=types.UINT8, contrast_center=128)
-        self.bc_gpu = ops.BrightnessContrast(device="gpu", dtype=types.UINT8, contrast_center=128)
+        self.bc_cpu = ops.BrightnessContrast(
+            device="cpu", dtype=types.UINT8, contrast_center=128
+        )
+        self.bc_gpu = ops.BrightnessContrast(
+            device="gpu", dtype=types.UINT8, contrast_center=128
+        )
 
         self.flip_cpu = ops.Flip(device="cpu")
         self.bbox_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
@@ -185,8 +207,12 @@ class DetectionPipeline(Pipeline):
         self.bbox_flip_gpu = ops.BbFlip(device="gpu", ltrb=True)
 
         default_boxes = coco_anchors()
-        self.box_encoder_cpu = ops.BoxEncoder(device="cpu", criteria=0.5, anchors=default_boxes)
-        self.box_encoder_gpu = ops.BoxEncoder(device="gpu", criteria=0.5, anchors=default_boxes)
+        self.box_encoder_cpu = ops.BoxEncoder(
+            device="cpu", criteria=0.5, anchors=default_boxes
+        )
+        self.box_encoder_gpu = ops.BoxEncoder(
+            device="gpu", criteria=0.5, anchors=default_boxes
+        )
         self.box_encoder_cpu_offsets = ops.BoxEncoder(
             device="cpu",
             criteria=0.5,
@@ -220,10 +246,12 @@ class DetectionPipeline(Pipeline):
         inputs, boxes, labels = self.input(name="Reader")
 
         image = self.decode_cpu(inputs)
-        image_ssd_crop, boxes_ssd_crop, labels_ssd_crop = self.ssd_crop(image, boxes, labels)
+        image_ssd_crop, boxes_ssd_crop, labels_ssd_crop = self.ssd_crop(
+            image, boxes, labels
+        )
 
-        crop_begin, crop_size, boxes_random_crop, labels_random_crop = self.random_bbox_crop(
-            boxes, labels
+        crop_begin, crop_size, boxes_random_crop, labels_random_crop = (
+            self.random_bbox_crop(boxes, labels)
         )
         image_decode_crop = self.decode_crop(inputs, crop_begin, crop_size)
 
@@ -236,13 +264,25 @@ class DetectionPipeline(Pipeline):
         image_normalized_cpu = self.normalize_cpu(image_resized_cpu)
         image_normalized_gpu = self.normalize_gpu(image_resized_cpu.gpu())
 
-        image_twisted_cpu = self.hsv_cpu(image_ssd_crop, saturation=saturation, hue=hue)
-        image_twisted_cpu = self.bc_cpu(image_twisted_cpu, brightness=brightness, contrast=contrast)
-        image_twisted_gpu = self.hsv_gpu(image_ssd_crop.gpu(), saturation=saturation, hue=hue)
-        image_twisted_gpu = self.bc_gpu(image_twisted_gpu, brightness=brightness, contrast=contrast)
+        image_twisted_cpu = self.hsv_cpu(
+            image_ssd_crop, saturation=saturation, hue=hue
+        )
+        image_twisted_cpu = self.bc_cpu(
+            image_twisted_cpu, brightness=brightness, contrast=contrast
+        )
+        image_twisted_gpu = self.hsv_gpu(
+            image_ssd_crop.gpu(), saturation=saturation, hue=hue
+        )
+        image_twisted_gpu = self.bc_gpu(
+            image_twisted_gpu, brightness=brightness, contrast=contrast
+        )
 
         image_legacy_twisted_cpu = self.twist_cpu(
-            image_ssd_crop, saturation=saturation, contrast=contrast, brightness=brightness, hue=hue
+            image_ssd_crop,
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
+            hue=hue,
         )
         image_legacy_twisted_gpu = self.twist_gpu(
             image_ssd_crop.gpu(),
@@ -265,16 +305,20 @@ class DetectionPipeline(Pipeline):
             boxes_ssd_crop.gpu(), labels_ssd_crop.gpu()
         )
 
-        encoded_offset_boxes_cpu, encoded_offset_labels_cpu = self.box_encoder_cpu_offsets(
-            boxes_ssd_crop, labels_ssd_crop
+        encoded_offset_boxes_cpu, encoded_offset_labels_cpu = (
+            self.box_encoder_cpu_offsets(boxes_ssd_crop, labels_ssd_crop)
         )
-        encoded_offset_boxes_gpu, encoded_offset_labels_gpu = self.box_encoder_gpu_offsets(
-            boxes_ssd_crop.gpu(), labels_ssd_crop.gpu()
+        encoded_offset_boxes_gpu, encoded_offset_labels_gpu = (
+            self.box_encoder_gpu_offsets(
+                boxes_ssd_crop.gpu(), labels_ssd_crop.gpu()
+            )
         )
 
         image_gpu = self.decode_gpu(inputs)
         image_gpu_slice_gpu = self.slice_gpu(image_gpu, crop_begin, crop_size)
-        image_decode_crop_gpu = self.decode_gpu_crop(inputs, crop_begin, crop_size)
+        image_decode_crop_gpu = self.decode_gpu_crop(
+            inputs, crop_begin, crop_size
+        )
 
         return (
             labels,
@@ -315,14 +359,20 @@ def data_paths(use_full_coco):
     if use_full_coco:
         coco = "/data/coco/coco-2017/coco2017/"
         train = os.path.join(coco, "train2017")
-        train_annotations = os.path.join(coco, "annotations/instances_train2017.json")
+        train_annotations = os.path.join(
+            coco, "annotations/instances_train2017.json"
+        )
 
         val = os.path.join(coco, "val2017")
-        val_annotations = os.path.join(coco, "annotations/instances_val2017.json")
+        val_annotations = os.path.join(
+            coco, "annotations/instances_val2017.json"
+        )
         dataset = [(train, train_annotations), (val, val_annotations)]
     else:
         train = os.path.join(test_data_root, "db", "coco", "images")
-        train_annotations = os.path.join(test_data_root, "db", "coco", "instances.json")
+        train_annotations = os.path.join(
+            test_data_root, "db", "coco", "instances.json"
+        )
         dataset = [(train, train_annotations)]
 
     return dataset
@@ -347,7 +397,9 @@ def crop_border(image, border):
 
 
 def diff_against_eps(image_1, image_2, eps):
-    return np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
+    return (
+        np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
+    )
 
 
 def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
@@ -356,8 +408,12 @@ def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
     if reference is not None:
         if border != 0:
             reference = crop_border(reference, border)
-            test = test and diff_against_eps(reference, crop_border(val_1, border), eps)
-            test = test and diff_against_eps(reference, crop_border(val_2, border), eps)
+            test = test and diff_against_eps(
+                reference, crop_border(val_1, border), eps
+            )
+            test = test and diff_against_eps(
+                reference, crop_border(val_2, border), eps
+            )
         else:
             test = test and diff_against_eps(reference, val_1, eps)
             test = test and diff_against_eps(reference, val_2, eps)
@@ -416,13 +472,19 @@ def run_for_dataset(args, dataset):
             decode_crop = compare(image_ssd_crop, image_decode_crop)
             slice_cpu = compare(image_ssd_crop, image_slice_cpu)
             slice_gpu = compare(image_ssd_crop, image_slice_gpu)
-            decode_crop_gpu = compare(image_gpu_slice_gpu, image_decode_crop_gpu)
-            image_crop = decode_crop and slice_cpu and slice_gpu and decode_crop_gpu
+            decode_crop_gpu = compare(
+                image_gpu_slice_gpu, image_decode_crop_gpu
+            )
+            image_crop = (
+                decode_crop and slice_cpu and slice_gpu and decode_crop_gpu
+            )
             boxes_crop = compare(boxes_ssd_crop, boxes_random_crop)
             labels_crop = compare(labels_ssd_crop, labels_random_crop)
             crop = image_crop and boxes_crop and labels_crop
 
-            hsv_bc_twist = relaxed_compare(image_twisted_gpu, image_legacy_twisted_gpu, eps=4)
+            hsv_bc_twist = relaxed_compare(
+                image_twisted_gpu, image_legacy_twisted_gpu, eps=4
+            )
 
             # Check resizing ops
             resize = relaxed_compare(
@@ -434,27 +496,43 @@ def run_for_dataset(args, dataset):
 
             # Check normalizing ops
             image_normalized_ref = normalize_ref(image_resized_cpu)
-            normalize = compare(image_normalized_cpu, image_normalized_gpu, image_normalized_ref)
+            normalize = compare(
+                image_normalized_cpu, image_normalized_gpu, image_normalized_ref
+            )
 
             # Check twisting ops
-            twist_gpu_cpu = relaxed_compare(image_twisted_cpu, image_twisted_gpu, eps=2)
+            twist_gpu_cpu = relaxed_compare(
+                image_twisted_cpu, image_twisted_gpu, eps=2
+            )
             twist = twist_gpu_cpu and hsv_bc_twist
 
             # Check flipping ops
             image_flipped_ref, boxes_flipped_ref = horizontal_flip_ref(
                 image_resized_cpu, boxes_ssd_crop
             )
-            image_flip = compare(image_flipped_cpu, image_flipped_gpu, image_flipped_ref)
-            boxes_flip = compare(boxes_flipped_cpu, boxes_flipped_gpu, boxes_flipped_ref)
+            image_flip = compare(
+                image_flipped_cpu, image_flipped_gpu, image_flipped_ref
+            )
+            boxes_flip = compare(
+                boxes_flipped_cpu, boxes_flipped_gpu, boxes_flipped_ref
+            )
             flip = image_flip and boxes_flip
 
             # Check box encoding ops
             encoded_boxes = compare(encoded_boxes_cpu, encoded_boxes_gpu)
             encoded_labels = compare(encoded_labels_cpu, encoded_labels_gpu)
-            encoded_boxes_offset = compare(encoded_offset_boxes_cpu, encoded_offset_boxes_gpu)
-            encoded_labels_offset = compare(encoded_offset_labels_cpu, encoded_offset_labels_gpu)
-            encoded_labels_cpu = compare(encoded_labels_cpu, encoded_offset_labels_cpu)
-            encoded_labels_gpu = compare(encoded_labels_gpu, encoded_offset_labels_gpu)
+            encoded_boxes_offset = compare(
+                encoded_offset_boxes_cpu, encoded_offset_boxes_gpu
+            )
+            encoded_labels_offset = compare(
+                encoded_offset_labels_cpu, encoded_offset_labels_gpu
+            )
+            encoded_labels_cpu = compare(
+                encoded_labels_cpu, encoded_offset_labels_cpu
+            )
+            encoded_labels_gpu = compare(
+                encoded_labels_gpu, encoded_offset_labels_gpu
+            )
             box_encoder = (
                 encoded_boxes
                 and encoded_boxes_offset
@@ -569,7 +647,9 @@ def make_parser():
         help="prefetch queue depth (default: %(default)s)",
     )
     parser.add_argument(
-        "--use_full_coco", action="store_true", help="Use full COCO data set for this test"
+        "--use_full_coco",
+        action="store_true",
+        help="Use full COCO data set for this test",
     )
 
     return parser

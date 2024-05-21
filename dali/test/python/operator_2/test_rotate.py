@@ -128,7 +128,11 @@ def CVRotate(output_type, input_type, fixed_size):
     def warp_fn(img, angle):
         in_size = img.shape[0:2]
         angle = math.radians(angle)
-        out_size = fixed_size if fixed_size is not None else get_output_size(angle, in_size)
+        out_size = (
+            fixed_size
+            if fixed_size is not None
+            else get_output_size(angle, in_size)
+        )
         matrix = get_transform(angle, in_size, out_size)
         matrix = ToCVMatrix(matrix)
         if output_type == dali.types.FLOAT or input_type == dali.types.FLOAT:
@@ -162,7 +166,12 @@ class RotatePipeline(Pipeline):
         num_gpus=1,
     ):
         super(RotatePipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.name = device
         self.input = ops.readers.Caffe(
@@ -175,7 +184,9 @@ class RotatePipeline(Pipeline):
             self.cast = None
 
         self.uniform = ops.random.Uniform(range=(-180.0, 180.0), seed=42)
-        self.rotate = ops.Rotate(device=device, size=fixed_size, fill_value=42, dtype=output_type)
+        self.rotate = ops.Rotate(
+            device=device, size=fixed_size, fill_value=42, dtype=output_type
+        )
 
     def define_graph(self):
         self.jpegs, self.labels = self.input(name="Reader")
@@ -201,7 +212,12 @@ class CVPipeline(Pipeline):
         num_gpus=1,
     ):
         super(CVPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.name = "cv"
         self.input = ops.readers.Caffe(
@@ -209,7 +225,8 @@ class CVPipeline(Pipeline):
         )
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
         self.rotate = ops.PythonFunction(
-            function=CVRotate(output_type, input_type, fixed_size), output_layouts="HWC"
+            function=CVRotate(output_type, input_type, fixed_size),
+            output_layouts="HWC",
         )
         self.uniform = ops.random.Uniform(range=(-180.0, 180.0), seed=42)
         self.iter = 0
@@ -279,20 +296,32 @@ def infer_sequence_size(input_shapes, angles, axes=None):
     assert axes is None or len(axes) == len(angles)
     if axes is None:
         no_correction_shapes = [
-            np.array(get_output_size(math.radians(angle), shape, False), dtype=np.int32)
+            np.array(
+                get_output_size(math.radians(angle), shape, False),
+                dtype=np.int32,
+            )
             for shape, angle in zip(input_shapes, angles)
         ]
         corrected_shapes = [
-            np.array(get_output_size(math.radians(angle), shape, True), dtype=np.int32)
+            np.array(
+                get_output_size(math.radians(angle), shape, True),
+                dtype=np.int32,
+            )
             for shape, angle in zip(input_shapes, angles)
         ]
     else:
         no_correction_shapes = [
-            np.array(get_3d_output_size(math.radians(angle), axis, shape, False), dtype=np.int32)
+            np.array(
+                get_3d_output_size(math.radians(angle), axis, shape, False),
+                dtype=np.int32,
+            )
             for shape, angle, axis in zip(input_shapes, angles, axes)
         ]
         corrected_shapes = [
-            np.array(get_3d_output_size(math.radians(angle), axis, shape, True), dtype=np.int32)
+            np.array(
+                get_3d_output_size(math.radians(angle), axis, shape, True),
+                dtype=np.int32,
+            )
             for shape, angle, axis in zip(input_shapes, angles, axes)
         ]
     max_shape = np.max(no_correction_shapes, axis=0)
@@ -303,25 +332,35 @@ def infer_sequence_size(input_shapes, angles, axes=None):
     return max_shape
 
 
-def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch, axis_batch=None):
+def sequence_batch_output_size(
+    unfolded_extents, input_batch, angle_batch, axis_batch=None
+):
     def iter_by_groups():
         assert sum(unfolded_extents) == len(input_batch)
         assert len(input_batch) == len(angle_batch)
         assert axis_batch is None or len(axis_batch) == len(angle_batch)
         offset = 0
         for group in unfolded_extents:
-            yield input_batch[offset : offset + group], angle_batch[offset : offset + group], (
-                None if axis_batch is None else axis_batch[offset : offset + group]
+            yield input_batch[offset : offset + group], angle_batch[
+                offset : offset + group
+            ], (
+                None
+                if axis_batch is None
+                else axis_batch[offset : offset + group]
             )
             offset += group
 
     sequence_output_shape = [
-        infer_sequence_size([frame.shape for frame in input_frames], angles, axes)
+        infer_sequence_size(
+            [frame.shape for frame in input_frames], angles, axes
+        )
         for input_frames, angles, axes in iter_by_groups()
     ]
     return [
         output_shape
-        for output_shape, num_frames in zip(sequence_output_shape, unfolded_extents)
+        for output_shape, num_frames in zip(
+            sequence_output_shape, unfolded_extents
+        )
         for _ in range(num_frames)
     ]
 
@@ -339,7 +378,9 @@ class RotatePerFrameParamsProvider(ParamsProvider):
     def expand_params(self):
         assert self.input_data.desc.expandable_prefix == "F"
         expanded_params = super().expand_params()
-        params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
+        params_dict = {
+            param_data.desc.name: param_data for param_data in expanded_params
+        }
         expanded_angles = params_dict.get("angle")
         expanded_axis = params_dict.get("axis")
         assert (
@@ -348,13 +389,23 @@ class RotatePerFrameParamsProvider(ParamsProvider):
             and "size" not in params_dict
         )
         sequence_extents = [
-            [sample.shape[0] for sample in input_batch] for input_batch in self.input_data.data
+            [sample.shape[0] for sample in input_batch]
+            for input_batch in self.input_data.data
         ]
-        output_size_params = (sequence_extents, self.unfolded_input.data, expanded_angles.data)
+        output_size_params = (
+            sequence_extents,
+            self.unfolded_input.data,
+            expanded_angles.data,
+        )
         if expanded_axis is not None:
             output_size_params += (expanded_axis.data,)
-        output_sizes = [sequence_batch_output_size(*args) for args in zip(*output_size_params)]
-        expanded_params.append(ArgData(ArgDesc("size", "", "cpu"), output_sizes))
+        output_sizes = [
+            sequence_batch_output_size(*args)
+            for args in zip(*output_size_params)
+        ]
+        expanded_params.append(
+            ArgData(ArgDesc("size", "", "cpu"), output_sizes)
+        )
         return expanded_params
 
     def __repr__(self):
@@ -366,27 +417,45 @@ def test_video():
         return np.array(sample_desc.rng.uniform(-44.0, 44.0), dtype=np.float32)
 
     def random_angle(sample_desc):
-        return np.array(sample_desc.rng.uniform(-180.0, 180.0), dtype=np.float32)
+        return np.array(
+            sample_desc.rng.uniform(-180.0, 180.0), dtype=np.float32
+        )
 
     def random_output(sample_desc):
-        return np.array([sample_desc.rng.randint(300, 400), rng.randint(300, 400)])
+        return np.array(
+            [sample_desc.rng.randint(300, 400), rng.randint(300, 400)]
+        )
 
     video_test_cases = [
         (dali.fn.rotate, {"angle": 45.0}, []),
         (dali.fn.rotate, {}, [ArgCb("angle", small_angle, False)]),
         (dali.fn.rotate, {}, [ArgCb("angle", random_angle, False)]),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", small_angle, True)])),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True)])),
         (
             dali.fn.rotate,
             {},
-            [ArgCb("angle", small_angle, True), ArgCb("size", random_output, False)],
+            RotatePerFrameParamsProvider([ArgCb("angle", small_angle, True)]),
+        ),
+        (
+            dali.fn.rotate,
+            {},
+            RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True)]),
+        ),
+        (
+            dali.fn.rotate,
+            {},
+            [
+                ArgCb("angle", small_angle, True),
+                ArgCb("size", random_output, False),
+            ],
         ),
     ]
 
     rng = random.Random(42)
     video_cases = get_video_input_cases("FHWC", rng, larger_shape=(512, 287))
-    input_cases = [ArgData(ArgDesc(0, "F", "", "FHWC"), input_data) for input_data in video_cases]
+    input_cases = [
+        ArgData(ArgDesc(0, "F", "", "FHWC"), input_data)
+        for input_data in video_cases
+    ]
     yield from sequence_suite_helper(rng, input_cases, video_test_cases)
 
 
@@ -404,7 +473,9 @@ def test_3d_sequence():
         return np.int32(np_rng.uniform(0, 255, (num_frames, d, h, w, 3)))
 
     def get_random_batch():
-        return [get_random_sample() for _ in range(rng.randint(1, max_batch_size))]
+        return [
+            get_random_sample() for _ in range(rng.randint(1, max_batch_size))
+        ]
 
     input_cases = [
         ArgData(
@@ -414,23 +485,37 @@ def test_3d_sequence():
     ]
 
     def random_angle(sample_desc):
-        return np.array(sample_desc.rng.uniform(-180.0, 180.0), dtype=np.float32)
+        return np.array(
+            sample_desc.rng.uniform(-180.0, 180.0), dtype=np.float32
+        )
 
     def random_axis(sample_desc):
-        return np.array([sample_desc.rng.uniform(-1, 1) for _ in range(3)], dtype=np.float32)
+        return np.array(
+            [sample_desc.rng.uniform(-1, 1) for _ in range(3)], dtype=np.float32
+        )
 
     test_cases = [
-        (dali.fn.rotate, {"angle": 45.0, "axis": np.array([1, 0, 0], dtype=np.float32)}, []),
+        (
+            dali.fn.rotate,
+            {"angle": 45.0, "axis": np.array([1, 0, 0], dtype=np.float32)},
+            [],
+        ),
         (
             dali.fn.rotate,
             {"size": (50, 30, 20)},
-            [ArgCb("angle", random_angle, True), ArgCb("axis", random_axis, True)],
+            [
+                ArgCb("angle", random_angle, True),
+                ArgCb("axis", random_axis, True),
+            ],
         ),
         (
             dali.fn.rotate,
             {},
             RotatePerFrameParamsProvider(
-                [ArgCb("angle", random_angle, True), ArgCb("axis", random_axis, True)]
+                [
+                    ArgCb("angle", random_angle, True),
+                    ArgCb("axis", random_axis, True),
+                ]
             ),
         ),
     ]

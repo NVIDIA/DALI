@@ -65,7 +65,9 @@ def video_decoder_pipeline(input_name, device="cpu"):
 
 
 @pipeline_def
-def video_input_pipeline(input_name, sequence_length, last_sequence_policy="partial", device="cpu"):
+def video_input_pipeline(
+    input_name, sequence_length, last_sequence_policy="partial", device="cpu"
+):
     vid = fn.experimental.inputs.video(
         name=input_name,
         device=device,
@@ -89,7 +91,10 @@ common_pipeline_params = {
 def get_num_frames(encoded_video):
     input_name = "VIDEO_INPUT"
     decoder_pipe = video_decoder_pipeline(
-        input_name=input_name, batch_size=1, device="cpu", **common_pipeline_params
+        input_name=input_name,
+        batch_size=1,
+        device="cpu",
+        **common_pipeline_params,
     )
     decoder_pipe.build()
     decoder_pipe.feed_input(input_name, [encoded_video])
@@ -99,13 +104,19 @@ def get_num_frames(encoded_video):
 
 def get_batch_outline(num_frames, frames_per_sequence, batch_size):
     num_iterations = num_frames // (frames_per_sequence * batch_size)
-    remaining_frames = num_frames - num_iterations * frames_per_sequence * batch_size
+    remaining_frames = (
+        num_frames - num_iterations * frames_per_sequence * batch_size
+    )
     num_full_sequences = remaining_frames // frames_per_sequence
-    num_frames_in_partial_sequence = remaining_frames - num_full_sequences * frames_per_sequence
+    num_frames_in_partial_sequence = (
+        remaining_frames - num_full_sequences * frames_per_sequence
+    )
     return num_iterations, num_full_sequences, num_frames_in_partial_sequence
 
 
-def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_size):
+def portion_out_reference_sequence(
+    decoder_pipe_out, frames_per_sequence, batch_size
+):
     """
     A generator, that takes the output from VideoDecoder DALI pipeline. Then, based of the
     provided parameters, it serves sequences one-by-one, which are supposed to be returned
@@ -124,14 +135,19 @@ def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_
 
 
 @params(*list(params_generator()))
-def test_video_input_compare_with_video_decoder(device, frames_per_sequence, batch_size, test_file):
+def test_video_input_compare_with_video_decoder(
+    device, frames_per_sequence, batch_size, test_file
+):
     """
     Compares the VideoInput with the VideoDecoder.
     """
     input_name = "VIDEO_INPUT"
 
     decoder_pipe = video_decoder_pipeline(
-        input_name=input_name, batch_size=1, device=device, **common_pipeline_params
+        input_name=input_name,
+        batch_size=1,
+        device=device,
+        **common_pipeline_params,
     )
     input_pipe = video_input_pipeline(
         input_name=input_name,
@@ -148,14 +164,18 @@ def test_video_input_compare_with_video_decoder(device, frames_per_sequence, bat
     input_pipe.build()
     input_pipe.feed_input(input_name, np.array([[test_file]]))
 
-    for ref_seq in portion_out_reference_sequence(decoder_out, frames_per_sequence, batch_size):
+    for ref_seq in portion_out_reference_sequence(
+        decoder_out, frames_per_sequence, batch_size
+    ):
         input_out = input_pipe.run()
         test_seq = to_array(input_out[0])
         assert np.all(ref_seq == test_seq)
 
 
 @params(*list(params_generator()))
-def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, test_video):
+def test_video_input_partial_vs_pad(
+    device, frames_per_sequence, batch_size, test_video
+):
     input_name = "VIDEO_INPUT"
     partial_pipe = video_input_pipeline(
         input_name=input_name,
@@ -181,8 +201,8 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     pad_pipe.build()
     pad_pipe.feed_input(input_name, np.array([[test_video]]))
 
-    num_iterations, num_full_sequences, num_frames_in_partial_sequence = get_batch_outline(
-        num_frames, frames_per_sequence, batch_size
+    num_iterations, num_full_sequences, num_frames_in_partial_sequence = (
+        get_batch_outline(num_frames, frames_per_sequence, batch_size)
     )
 
     # First, check all the full batches with full sequences
@@ -199,7 +219,9 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     partial_out = partial_pipe.run()[0]
     pad_out = pad_pipe.run()[0]
     for i in range(num_full_sequences):
-        np.testing.assert_array_equal(to_array(partial_out[i]), to_array(pad_out[i]))
+        np.testing.assert_array_equal(
+            to_array(partial_out[i]), to_array(pad_out[i])
+        )
 
     # And lastly, the actual check PARTIAL vs PAD -
     # the last sequence in the last batch, which might be partial (or padded).
@@ -209,7 +231,9 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     last_pad_sequence = to_array(pad_out[num_full_sequences])
     for i in range(num_frames_in_partial_sequence):
         # The frames that are in both - partial and padded sequences.
-        np.testing.assert_array_equal(last_partial_sequence[i], last_pad_sequence[i])
+        np.testing.assert_array_equal(
+            last_partial_sequence[i], last_pad_sequence[i]
+        )
     frame_shape = last_pad_sequence[0].shape
     empty_frame = np.zeros(frame_shape, dtype=np.uint8)
     for i in range(num_frames_in_partial_sequence, frames_per_sequence):
@@ -241,7 +265,9 @@ def test_video_input_input_queue(device, n_test_files):
     n_runs = 0
     for i in range(n_test_files):
         num_frames = get_num_frames(files[i])
-        ni, nfs, nfips = get_batch_outline(num_frames, frames_per_sequence, batch_size)
+        ni, nfs, nfips = get_batch_outline(
+            num_frames, frames_per_sequence, batch_size
+        )
         n_runs += ni + (1 if nfs + nfips > 0 else 0)
 
     for _ in range(n_runs):

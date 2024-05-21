@@ -108,10 +108,10 @@ The raw video is a 60 FPS, 4K resolution cinematic video.  In order to prepare
 the data for training you should run the following steps:
 
 
-#. 
+#.
    Create a data folder ``<data_dir>`` and download the 4K Myanmar video.
 
-#. 
+#.
    Run ``prepare_data.sh`` by providing the 4K Myanmar video file as argument.
 
 This will create a 5 directories inside of ``<data_dir>``\ :
@@ -122,7 +122,7 @@ This will create a 5 directories inside of ``<data_dir>``\ :
 * 720p
 * 1080p
 * 4k
-  Each of these directories contain scenes (short extracts of the origin video) separated in two directories ``train`` and ``val``. 
+  Each of these directories contain scenes (short extracts of the origin video) separated in two directories ``train`` and ``val``.
 
 The script used in prepare_data.sh are the following:
 
@@ -167,7 +167,7 @@ Input image (128x240 - click to see actual size):
 
 .. image:: ./data/input.png
    :target: ./data/input.png
-   :alt: 
+   :alt:
 
 
 VSRNet prediction (512x960 - click to see actual size):
@@ -175,7 +175,7 @@ VSRNet prediction (512x960 - click to see actual size):
 
 .. image:: ./data/predicted.png
    :target: ./data/predicted.png
-   :alt: 
+   :alt:
 
 
 Example training loss (fp16, batch size 7, min_lr=max_lr=0.001):
@@ -183,7 +183,7 @@ Example training loss (fp16, batch size 7, min_lr=max_lr=0.001):
 
 .. image:: ./data/train_loss.png
    :target: ./data/train_loss.png
-   :alt: 
+   :alt:
 
 
 Example validation PSNR (fp16, batch size 7, min_lr=max_lr=0.001)
@@ -191,7 +191,7 @@ Example validation PSNR (fp16, batch size 7, min_lr=max_lr=0.001)
 
 .. image:: ./data/val_psnr.png
    :target: ./data/val_psnr.png
-   :alt: 
+   :alt:
 
 
 Reference
@@ -203,7 +203,8 @@ If you find this implementation useful in your work, please acknowledge it appro
 
    @InProceedings{IB17,
      author       = "O. Makansi and E. Ilg and and Thomas Brox",
-     title        = "End-to-End Learning of Video Super-Resolution with Motion Compensation",
+     title        = "End-to-End Learning of Video Super-Resolution with Motion
+                     Compensation",
      booktitle    = "German Conference on Pattern Recognition (GCPR) 2017",
      month        = " ",
      year         = "2017",
@@ -213,9 +214,12 @@ If you find this implementation useful in your work, please acknowledge it appro
 .. code-block:: BibTeX
 
    @InProceedings{IMKDB17,
-     author       = "E. Ilg and N. Mayer and T. Saikia and M. Keuper and A. Dosovitskiy and T. Brox",
-     title        = "FlowNet 2.0: Evolution of Optical Flow Estimation with Deep Networks",
-     booktitle    = "IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+     author       = "E. Ilg and N. Mayer and T. Saikia and M. Keuper and A.
+                     Dosovitskiy and T. Brox",
+     title        = "FlowNet 2.0: Evolution of Optical Flow Estimation with
+                     Deep Networks",
+     booktitle    = "IEEE Conference on Computer Vision and Pattern Recognition
+                     (CVPR)",
      month        = "Jul",
      year         = "2017",
      url          = "http://lmb.informatik.uni-freiburg.de//Publications/2017/IMKDB17"

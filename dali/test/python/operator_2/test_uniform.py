@@ -19,15 +19,25 @@ import numpy as np
 import scipy.stats as st
 
 
-def check_uniform_default(device="cpu", batch_size=32, shape=[1e5], val_range=None, niter=3):
-    pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
+def check_uniform_default(
+    device="cpu", batch_size=32, shape=[1e5], val_range=None, niter=3
+):
+    pipe = Pipeline(
+        batch_size=batch_size, device_id=0, num_threads=3, seed=123456
+    )
     with pipe:
-        pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
+        pipe.set_outputs(
+            dali.fn.random.uniform(device=device, range=val_range, shape=shape)
+        )
     pipe.build()
     for it in range(niter):
         outputs = pipe.run()
         val_range = (-1.0, 1.0) if val_range is None else val_range
-        data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]
+        data_out = (
+            outputs[0].as_cpu()
+            if isinstance(outputs[0], TensorListGPU)
+            else outputs[0]
+        )
         pvs = []
         for i in range(batch_size):
             data = np.array(data_out[i])
@@ -45,7 +55,9 @@ def check_uniform_default(device="cpu", batch_size=32, shape=[1e5], val_range=No
             data_kstest = (data - val_range[0]) / (val_range[1] - val_range[0])
             _, pv = st.kstest(rvs=data_kstest, cdf="uniform")
             pvs = pvs + [pv]
-        assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
+        assert (
+            np.mean(pvs) > 0.05
+        ), f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 
 def test_uniform_continuous():
@@ -57,21 +69,36 @@ def test_uniform_continuous():
             yield check_uniform_default, device, batch_size, shape, val_range, niter
 
 
-def check_uniform_continuous_next_after(device="cpu", batch_size=32, shape=[1e5], niter=3):
+def check_uniform_continuous_next_after(
+    device="cpu", batch_size=32, shape=[1e5], niter=3
+):
     batch_size = 4
     shape = [100000]
-    val_range = [np.float32(10.0), np.nextafter(np.float32(10.0), np.float32(11.0))]
+    val_range = [
+        np.float32(10.0),
+        np.nextafter(np.float32(10.0), np.float32(11.0)),
+    ]
 
-    pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
+    pipe = Pipeline(
+        batch_size=batch_size, device_id=0, num_threads=3, seed=123456
+    )
     with pipe:
-        pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
+        pipe.set_outputs(
+            dali.fn.random.uniform(device=device, range=val_range, shape=shape)
+        )
     pipe.build()
     for it in range(niter):
         outputs = pipe.run()
-        data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]
+        data_out = (
+            outputs[0].as_cpu()
+            if isinstance(outputs[0], TensorListGPU)
+            else outputs[0]
+        )
         for i in range(batch_size):
             data = np.array(data_out[i])
-            assert (val_range[0] == data).all(), f"{data} is outside of requested range"
+            assert (
+                val_range[0] == data
+            ).all(), f"{data} is outside of requested range"
 
 
 def test_uniform_continuous_next_after():
@@ -82,17 +109,29 @@ def test_uniform_continuous_next_after():
         yield check_uniform_continuous_next_after, device, batch_size, shape, niter
 
 
-def check_uniform_discrete(device="cpu", batch_size=32, shape=[1e5], values=None, niter=10):
-    pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
+def check_uniform_discrete(
+    device="cpu", batch_size=32, shape=[1e5], values=None, niter=10
+):
+    pipe = Pipeline(
+        batch_size=batch_size, device_id=0, num_threads=3, seed=123456
+    )
     with pipe:
-        pipe.set_outputs(dali.fn.random.uniform(device=device, values=values, shape=shape))
+        pipe.set_outputs(
+            dali.fn.random.uniform(device=device, values=values, shape=shape)
+        )
     pipe.build()
     for it in range(niter):
         outputs = pipe.run()
-        data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]
+        data_out = (
+            outputs[0].as_cpu()
+            if isinstance(outputs[0], TensorListGPU)
+            else outputs[0]
+        )
         values_set = set(values)
         maxval = np.max(values)
-        bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval + 1)])])
+        bins = np.concatenate(
+            [values, np.array([np.nextafter(maxval, maxval + 1)])]
+        )
         bins.sort()
         pvs = []
         for i in range(batch_size):
@@ -102,7 +141,9 @@ def check_uniform_discrete(device="cpu", batch_size=32, shape=[1e5], values=None
             h, _ = np.histogram(data, bins=bins)
             _, pv = st.chisquare(h)
             pvs = pvs + [pv]
-        assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
+        assert (
+            np.mean(pvs) > 0.05
+        ), f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 
 def test_uniform_discrete():

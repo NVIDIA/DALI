@@ -56,13 +56,17 @@ class ControlFlowTransformer(converter.Base):
         if global_vars:
             results.append(gast.Global([str(v) for v in global_vars]))
 
-        nonlocal_vars = [v for v in vars_ if not v.is_composite() and v not in global_vars]
+        nonlocal_vars = [
+            v for v in vars_ if not v.is_composite() and v not in global_vars
+        ]
         if nonlocal_vars:
             results.append(gast.Nonlocal([str(v) for v in nonlocal_vars]))
 
         return results
 
-    def _create_state_functions(self, block_vars, nonlocal_declarations, getter_name, setter_name):
+    def _create_state_functions(
+        self, block_vars, nonlocal_declarations, getter_name, setter_name
+    ):
         if not block_vars:
             template = """
         def getter_name():
@@ -70,7 +74,9 @@ class ControlFlowTransformer(converter.Base):
         def setter_name(block_vars):
           pass
       """
-            return templates.replace(template, getter_name=getter_name, setter_name=setter_name)
+            return templates.replace(
+                template, getter_name=getter_name, setter_name=setter_name
+            )
 
         guarded_block_vars = []
         for v in block_vars:
@@ -158,7 +164,9 @@ class ControlFlowTransformer(converter.Base):
             # Note that some parents might not be symbols - for example, in x['foo'],
             # 'foo' is a parent, but it's a literal, not a symbol. We don't check the
             # liveness of literals.
-            support_set_symbols = tuple(sss for sss in s.support_set if sss.is_symbol())
+            support_set_symbols = tuple(
+                sss for sss in s.support_set if sss.is_symbol()
+            )
             if not all(sss in live_in for sss in support_set_symbols):
                 continue
             composite_scope_vars.append(s)
@@ -171,14 +179,18 @@ class ControlFlowTransformer(converter.Base):
         live_out = anno.getanno(node, anno.Static.LIVE_VARS_OUT)
         fn_scope = self.state[_Function].scope
 
-        basic_scope_vars = self._get_block_basic_vars(modified, live_in, live_out)
+        basic_scope_vars = self._get_block_basic_vars(
+            modified, live_in, live_out
+        )
         composite_scope_vars = self._get_block_composite_vars(modified, live_in)
         scope_vars = tuple(basic_scope_vars | composite_scope_vars)
 
         # Variables that are modified inside the scope, but not defined
         # before entering it. Only simple variables must be defined. The
         # composite ones will be implicitly checked at runtime.
-        possibly_undefined = modified - defined_in - fn_scope.globals - fn_scope.nonlocals
+        possibly_undefined = (
+            modified - defined_in - fn_scope.globals - fn_scope.nonlocals
+        )
         undefined = tuple(v for v in possibly_undefined if not v.is_composite())
 
         # Variables that are modified inside the scope, and depend on values outside
@@ -208,7 +220,10 @@ class ControlFlowTransformer(converter.Base):
         state_getter_name = self.ctx.namer.new_symbol("get_state", reserved)
         state_setter_name = self.ctx.namer.new_symbol("set_state", reserved)
         state_functions = self._create_state_functions(
-            cond_vars, nonlocal_declarations, state_getter_name, state_setter_name
+            cond_vars,
+            nonlocal_declarations,
+            state_getter_name,
+            state_setter_name,
         )
 
         orelse_body = node.orelse
@@ -244,7 +259,9 @@ class ControlFlowTransformer(converter.Base):
             state_functions=state_functions,
             state_getter_name=state_getter_name,
             state_setter_name=state_setter_name,
-            symbol_names=tuple(gast.Constant(str(s), kind=None) for s in cond_vars),
+            symbol_names=tuple(
+                gast.Constant(str(s), kind=None) for s in cond_vars
+            ),
             test=node.test,
             undefined_assigns=undefined_assigns,
         )
@@ -265,7 +282,10 @@ class ControlFlowTransformer(converter.Base):
         state_getter_name = self.ctx.namer.new_symbol("get_state", reserved)
         state_setter_name = self.ctx.namer.new_symbol("set_state", reserved)
         state_functions = self._create_state_functions(
-            loop_vars, nonlocal_declarations, state_getter_name, state_setter_name
+            loop_vars,
+            nonlocal_declarations,
+            state_getter_name,
+            state_setter_name,
         )
 
         opts = self._create_loop_options(node)
@@ -295,7 +315,9 @@ class ControlFlowTransformer(converter.Base):
             state_functions=state_functions,
             state_getter_name=state_getter_name,
             state_setter_name=state_setter_name,
-            symbol_names=tuple(gast.Constant(str(s), kind=None) for s in loop_vars),
+            symbol_names=tuple(
+                gast.Constant(str(s), kind=None) for s in loop_vars
+            ),
             test=node.test,
             test_name=self.ctx.namer.new_symbol("loop_test", reserved),
             undefined_assigns=undefined_assigns,
@@ -308,7 +330,9 @@ class ControlFlowTransformer(converter.Base):
         body_scope = anno.getanno(node, annos.NodeAnno.BODY_SCOPE)
         iter_scope = anno.getanno(node, annos.NodeAnno.ITERATE_SCOPE)
 
-        loop_vars, undefined, _ = self._get_block_vars(node, body_scope.bound | iter_scope.bound)
+        loop_vars, undefined, _ = self._get_block_vars(
+            node, body_scope.bound | iter_scope.bound
+        )
 
         undefined_assigns = self._create_undefined_assigns(undefined)
 
@@ -318,13 +342,19 @@ class ControlFlowTransformer(converter.Base):
         state_getter_name = self.ctx.namer.new_symbol("get_state", reserved)
         state_setter_name = self.ctx.namer.new_symbol("set_state", reserved)
         state_functions = self._create_state_functions(
-            loop_vars, nonlocal_declarations, state_getter_name, state_setter_name
+            loop_vars,
+            nonlocal_declarations,
+            state_getter_name,
+            state_setter_name,
         )
 
         opts = self._create_loop_options(node)
         opts.keys.append(gast.Constant("iterate_names", kind=None))
         opts.values.append(
-            gast.Constant(parser.unparse(node.target, include_encoding_marker=False), kind=None)
+            gast.Constant(
+                parser.unparse(node.target, include_encoding_marker=False),
+                kind=None,
+            )
         )
 
         if anno.hasanno(node, anno.Basic.EXTRA_LOOP_TEST):
@@ -385,7 +415,9 @@ class ControlFlowTransformer(converter.Base):
             iterated=node.iter,
             nonlocal_declarations=nonlocal_declarations,
             opts=opts,
-            symbol_names=tuple(gast.Constant(str(s), kind=None) for s in loop_vars),
+            symbol_names=tuple(
+                gast.Constant(str(s), kind=None) for s in loop_vars
+            ),
             state_functions=state_functions,
             state_getter_name=state_getter_name,
             state_setter_name=state_setter_name,

@@ -48,13 +48,18 @@ def debug_discrepancy_helper(*batch_pairs):
         return [np.array(sample) for sample in batch]
 
     batch_names = [name for _, _, name in batch_pairs]
-    batch_pairs = [(as_array_list(left), as_array_list(right)) for left, right, _ in batch_pairs]
+    batch_pairs = [
+        (as_array_list(left), as_array_list(right))
+        for left, right, _ in batch_pairs
+    ]
     batch_stats = []
     for batch_name, batch_pair in zip(batch_names, batch_pairs):
         left, right = batch_pair
         num_samples = len(left), len(right)
         sample_diffs = []
-        for sample_idx, (sample_left, sample_right) in enumerate(zip(left, right)):
+        for sample_idx, (sample_left, sample_right) in enumerate(
+            zip(left, right)
+        ):
             if sample_left.shape != sample_right.shape:
                 sample_diffs.append(
                     {
@@ -71,7 +76,9 @@ def debug_discrepancy_helper(*batch_pairs):
                 max_err = np.max(absdiff)
                 min_err = np.min(absdiff)
                 total_errors = np.sum(absdiff != 0)
-                if any(val != 0 for val in (err, max_err, max_err, total_errors)):
+                if any(
+                    val != 0 for val in (err, max_err, max_err, total_errors)
+                ):
                     sample_diffs.append(
                         {
                             "sample_idx": sample_idx,
@@ -83,7 +90,11 @@ def debug_discrepancy_helper(*batch_pairs):
                         }
                     )
         batch_stats.append(
-            {"batch_name": batch_name, "num_samples": num_samples, "sample_diffs": sample_diffs}
+            {
+                "batch_name": batch_name,
+                "num_samples": num_samples,
+                "sample_diffs": sample_diffs,
+            }
         )
     return batch_stats
 
@@ -92,13 +103,23 @@ def debug_discrepancy_helper(*batch_pairs):
     *tuple(
         enumerate(
             itertools.product(
-                ("cpu", "gpu"), (True, False), (True, False), (None, 0), (True, False)
+                ("cpu", "gpu"),
+                (True, False),
+                (True, False),
+                (None, 0),
+                (True, False),
             )
         )
     )
 )
 def test_run_rand_aug(i, args):
-    dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    (
+        dev,
+        uniformly_resized,
+        use_shape,
+        fill_value,
+        specify_translation_bounds,
+    ) = args
     # Keep batch_sizes ns and ms length co-prime
     batch_sizes = [1, 8, 7, 13, 31, 64, 47]
     ns = [1, 2, 3]
@@ -108,15 +129,27 @@ def test_run_rand_aug(i, args):
     m = ms[i % len(ms)]
 
     @pipeline_def(
-        enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0, seed=43
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=43,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        decoded_image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
-        resized_image = (
-            decoded_image if not uniformly_resized else fn.resize(decoded_image, size=(244, 244))
+        decoded_image = fn.decoders.image(
+            encoded_image, device="cpu" if dev == "cpu" else "mixed"
         )
-        extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}
+        resized_image = (
+            decoded_image
+            if not uniformly_resized
+            else fn.resize(decoded_image, size=(244, 244))
+        )
+        extra = (
+            {}
+            if not use_shape
+            else {"shape": fn.peek_image_shape(encoded_image)}
+        )
         if fill_value is not None:
             extra["fill_value"] = fill_value
         if specify_translation_bounds:
@@ -124,7 +157,9 @@ def test_run_rand_aug(i, args):
                 extra["max_translate_rel"] = 0.9
             else:
                 extra["max_translate_abs"] = 400
-        raugmented_image = rand_augment.rand_augment(resized_image, n=n, m=m, **extra)
+        raugmented_image = rand_augment.rand_augment(
+            resized_image, n=n, m=m, **extra
+        )
         return encoded_image, decoded_image, resized_image, raugmented_image
 
     # run the pipeline twice to make sure instantiation preserves determinism
@@ -200,7 +235,11 @@ class VideoTest(unittest.TestCase):
         assert device in ("gpu", "cpu")
 
         @pipeline_def(
-            batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+            batch_size=batch_size,
+            device_id=0,
+            num_threads=4,
+            seed=42,
+            enable_conditionals=True,
         )
         def pipeline():
             rng = random.Random(42 + i)
@@ -271,7 +310,9 @@ def test_ops_selection_and_mags(case_idx, args):
     expected_counts = {}
     seq_prob = 1.0 / (num_ops**n)
     for aug_sequence in itertools.product(*([augmentations] * n)):
-        possible_signs = [(-1, 1) if aug.randomly_negate else (1,) for aug in aug_sequence]
+        possible_signs = [
+            (-1, 1) if aug.randomly_negate else (1,) for aug in aug_sequence
+        ]
         possible_signs = tuple(itertools.product(*possible_signs))
         prob = seq_prob / len(possible_signs)
         for signs in possible_signs:
@@ -282,10 +323,16 @@ def test_ops_selection_and_mags(case_idx, args):
                 op_id_mag = aug.mag_to_param(mag * sign)
                 outs.append(op_id_mag)
             expected_counts[tuple(el for out in outs for el in out)] = prob
-    expected_counts = {output: p * batch_size for output, p in expected_counts.items()}
+    expected_counts = {
+        output: p * batch_size for output, p in expected_counts.items()
+    }
 
     @pipeline_def(
-        enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0, seed=42
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=42,
     )
     def pipeline():
         data = types.Constant([], dtype=types.INT32)
@@ -300,7 +347,9 @@ def test_ops_selection_and_mags(case_idx, args):
     p.build()
     for i in range(3):
         (output,) = p.run()
-        output = [np.array(s) for s in (output.as_cpu() if dev == "gpu" else output)]
+        output = [
+            np.array(s) for s in (output.as_cpu() if dev == "gpu" else output)
+        ]
         actual_count = {allowed_out: 0 for allowed_out in expected_counts}
         for sample in output:
             assert len(sample) == n, f"{i} {sample}"
@@ -316,34 +365,66 @@ def test_ops_selection_and_mags(case_idx, args):
 
 
 def test_wrong_params_fail():
-    @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=4,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
+    )
     def pipeline(n, m, num_magnitude_bins):
         data = types.Constant(np.array([[[]]], dtype=np.uint8))
-        return rand_augment.rand_augment(data, n=n, m=m, num_magnitude_bins=num_magnitude_bins)
+        return rand_augment.rand_augment(
+            data, n=n, m=m, num_magnitude_bins=num_magnitude_bins
+        )
 
     with assert_raises(
-        Exception, glob="The number of operations to apply `n` must be a non-negative integer"
+        Exception,
+        glob="The number of operations to apply `n` must be a non-negative integer",
     ):
         pipeline(n=None, m=1, num_magnitude_bins=11)
 
-    with assert_raises(Exception, glob="The `num_magnitude_bins` must be a positive integer, got"):
+    with assert_raises(
+        Exception,
+        glob="The `num_magnitude_bins` must be a positive integer, got",
+    ):
         pipeline(n=1, m=1, num_magnitude_bins=None)
 
-    with assert_raises(Exception, glob="`m` must be an integer from `[[]0, 14[]]` range. Got 15."):
+    with assert_raises(
+        Exception,
+        glob="`m` must be an integer from `[[]0, 14[]]` range. Got 15.",
+    ):
         pipeline(n=1, m=15, num_magnitude_bins=15)
 
-    with assert_raises(Exception, glob="The `augmentations` list cannot be empty"):
+    with assert_raises(
+        Exception, glob="The `augmentations` list cannot be empty"
+    ):
 
-        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+        @pipeline_def(
+            batch_size=4,
+            device_id=0,
+            num_threads=4,
+            seed=42,
+            enable_conditionals=True,
+        )
         def no_aug_pipeline():
             data = types.Constant(np.array([[[]]], dtype=np.uint8))
             return rand_augment.apply_rand_augment([], data, 1, 20)
 
         no_aug_pipeline()
 
-    with assert_raises(Exception, glob="The augmentation `translate_x` requires `shape` argument"):
+    with assert_raises(
+        Exception,
+        glob="The augmentation `translate_x` requires `shape` argument",
+    ):
 
-        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+        @pipeline_def(
+            batch_size=4,
+            device_id=0,
+            num_threads=4,
+            seed=42,
+            enable_conditionals=True,
+        )
         def missing_shape():
             data = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
@@ -351,12 +432,22 @@ def test_wrong_params_fail():
 
         missing_shape()
 
-    with assert_raises(Exception, glob="The kwarg `shhape` is not used by any of the"):
+    with assert_raises(
+        Exception, glob="The kwarg `shhape` is not used by any of the"
+    ):
 
-        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+        @pipeline_def(
+            batch_size=4,
+            device_id=0,
+            num_threads=4,
+            seed=42,
+            enable_conditionals=True,
+        )
         def unused_kwarg():
             data = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
-            return rand_augment.apply_rand_augment(augments, data, 1, 20, shhape=42)
+            return rand_augment.apply_rand_augment(
+                augments, data, 1, 20, shhape=42
+            )
 
         unused_kwarg()

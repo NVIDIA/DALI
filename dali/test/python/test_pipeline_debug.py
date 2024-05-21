@@ -41,9 +41,13 @@ file_root = os.path.join(get_dali_extra_path(), "db/single/jpeg")
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def rn50_pipeline_base():
     rng = fn.random.coin_flip(probability=0.5, seed=47)
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2
+    )
     images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
-    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
+    resized_images = fn.random_resized_crop(
+        images, device="gpu", size=(224, 224), seed=27
+    )
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(
@@ -70,7 +74,9 @@ def rn50_pipeline():
     print(f"rng: {rng.get().as_array()}")
     tmp = rng ^ 1
     print(f"rng xor: {tmp.get().as_array()}")
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2
+    )
     if jpegs.get().is_dense_tensor():
         print(f"jpegs: {jpegs.get().as_array()}")
     else:
@@ -83,7 +89,9 @@ def rn50_pipeline():
         print(i)
     for i in images.get():
         print(i.shape())
-    images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
+    images = fn.random_resized_crop(
+        images, device="gpu", size=(224, 224), seed=27
+    )
     for i in images.get():
         print(i.shape())
     print(np.array(images.get().as_cpu()[0]))
@@ -111,7 +119,9 @@ def test_operations_on_debug_pipeline():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def load_images_pipeline():
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2
+    )
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     return images, labels
 
@@ -119,7 +129,9 @@ def load_images_pipeline():
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
 def injection_pipeline(callback, device="cpu"):
     rng = fn.random.coin_flip(probability=0.5, seed=47)
-    images = fn.random_resized_crop(callback(), device=device, size=(224, 224), seed=27)
+    images = fn.random_resized_crop(
+        callback(), device=device, size=(224, 224), seed=27
+    )
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(
@@ -141,7 +153,9 @@ def injection_pipeline_standard(device="cpu"):
     rng = fn.random.coin_flip(probability=0.5, seed=47)
     if device == "gpu":
         images = images.gpu()
-    images = fn.random_resized_crop(images, device=device, size=(224, 224), seed=27)
+    images = fn.random_resized_crop(
+        images, device=device, size=(224, 224), seed=27
+    )
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(
@@ -160,7 +174,9 @@ def _test_injection(device, name, transform, eps=1e-07):
     pipe_load = load_images_pipeline()
     pipe_load.build()
     pipe_standard = injection_pipeline_standard(device)
-    pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
+    pipe_debug = injection_pipeline(
+        lambda: transform(pipe_load.run()[0]), device
+    )
     compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
 
 
@@ -172,7 +188,11 @@ def test_injection_numpy():
 def test_injection_mxnet():
     import mxnet
 
-    _test_injection("cpu", "mxnet array", lambda xs: [mxnet.nd.array(x, dtype="uint8") for x in xs])
+    _test_injection(
+        "cpu",
+        "mxnet array",
+        lambda xs: [mxnet.nd.array(x, dtype="uint8") for x in xs],
+    )
 
 
 @attr("pytorch")
@@ -195,7 +215,9 @@ def test_injection_cupy():
 
 
 def test_injection_dali_types():
-    yield _test_injection, "gpu", "list of TensorGPU", lambda xs: [x._as_gpu() for x in xs]
+    yield _test_injection, "gpu", "list of TensorGPU", lambda xs: [
+        x._as_gpu() for x in xs
+    ]
     yield _test_injection, "cpu", "TensorListCPU", lambda xs: xs
     yield _test_injection, "gpu", "TensorListGPU", lambda xs: xs._as_gpu()
 
@@ -222,7 +244,9 @@ def es_pipeline_debug():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def es_pipeline_standard():
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2
+    )
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     rng = fn.random.coin_flip(probability=0.5, seed=47)
     images = fn.random_resized_crop(images, size=(224, 224), seed=27)
@@ -244,7 +268,9 @@ def test_external_source_debug_sample_pipeline():
     n_iters = 10
     prefetch_queue_depth = 2
     pipe_load = load_images_pipeline()
-    pipe_standard = es_pipeline_standard(prefetch_queue_depth=prefetch_queue_depth)
+    pipe_standard = es_pipeline_standard(
+        prefetch_queue_depth=prefetch_queue_depth
+    )
     pipe_debug = es_pipeline_debug(prefetch_queue_depth=prefetch_queue_depth)
     pipe_load.build()
     pipe_debug.build()
@@ -268,8 +294,12 @@ def es_pipeline(source, batch):
 def _test_external_source_debug(source, batch):
     n_iters = 8
     prefetch_queue_depth = 2
-    pipe_debug = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth, debug=True)
-    pipe_standard = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth)
+    pipe_debug = es_pipeline(
+        source, batch, prefetch_queue_depth=prefetch_queue_depth, debug=True
+    )
+    pipe_standard = es_pipeline(
+        source, batch, prefetch_queue_depth=prefetch_queue_depth
+    )
     pipe_debug.build()
     pipe_standard.build()
     if source is None:
@@ -300,8 +330,12 @@ def test_external_source_debug_multiple_outputs():
     batch_size = 8
     num_outputs = 3
     data = [[np.random.rand(batch_size, 120, 120, 3)] * num_outputs] * n_iters
-    pipe_debug = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size, debug=True)
-    pipe_standard = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size)
+    pipe_debug = es_pipeline_multiple_outputs(
+        data, num_outputs, batch_size=batch_size, debug=True
+    )
+    pipe_standard = es_pipeline_multiple_outputs(
+        data, num_outputs, batch_size=batch_size
+    )
 
     compare_pipelines(pipe_standard, pipe_debug, 8, n_iters)
 
@@ -313,9 +347,13 @@ def order_change_pipeline():
     else:
         order_change_pipeline.change = True
         rng = fn.random.coin_flip(probability=0.5, seed=47)
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2
+    )
     images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
-    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
+    resized_images = fn.random_resized_crop(
+        images, device="gpu", size=(224, 224), seed=27
+    )
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(
@@ -358,7 +396,10 @@ def inputs_len_change():
 
 @raises(
     RuntimeError,
-    glob=("Trying to use operator * with different number of inputs than when" " it was built."),
+    glob=(
+        "Trying to use operator * with different number of inputs than when"
+        " it was built."
+    ),
 )
 def test_inputs_len_change():
     inputs_len_change.change = True
@@ -435,20 +476,28 @@ def test_kwargs_batch_change():
 
 @pipeline_def
 def init_config_pipeline():
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2
+    )
     return jpegs, labels
 
 
 def test_init_config_pipeline():
-    pipe_standard = init_config_pipeline(batch_size=8, num_threads=3, device_id=0)
-    pipe_debug = init_config_pipeline(batch_size=8, num_threads=3, device_id=0, debug=True)
+    pipe_standard = init_config_pipeline(
+        batch_size=8, num_threads=3, device_id=0
+    )
+    pipe_debug = init_config_pipeline(
+        batch_size=8, num_threads=3, device_id=0, debug=True
+    )
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def shape_pipeline(output_device):
     jpegs, _ = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
-    images = fn.decoders.image(jpegs, device=output_device, output_type=types.RGB)
+    images = fn.decoders.image(
+        jpegs, device=output_device, output_type=types.RGB
+    )
     assert images.shape() == [tuple(im.shape()) for im in images.get()]
     return images
 
@@ -489,7 +538,9 @@ def seed_rn50_pipeline_base():
         file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True
     )
     images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
-    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224))
+    resized_images = fn.random_resized_crop(
+        images, device="gpu", size=(224, 224)
+    )
     out_type = types.FLOAT16
 
     output = fn.crop_mirror_normalize(
@@ -524,7 +575,10 @@ def device_change_rn50_pipeline_base():
     return labels, output
 
 
-@raises(RuntimeError, glob="Input * for operator * is on * but was on * when created.")
+@raises(
+    RuntimeError,
+    glob="Input * for operator * is on * but was on * when created.",
+)
 def test_device_change():
     pipe = device_change_rn50_pipeline_base()
     pipe.build()
@@ -573,7 +627,9 @@ def test_input_sets():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
 def incorrect_input_sets_pipeline():
-    jpegs, _ = fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)
+    jpegs, _ = fn.readers.file(
+        file_root=file_root, seed=42, random_shuffle=True
+    )
     images = fn.decoders.image(jpegs, seed=42)
     output = fn.cat([images, images, images], [images, images])
 
@@ -596,7 +652,8 @@ def test_incorrect_input_sets():
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def multiple_input_sets_pipeline():
     jpegs = [
-        fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0] for _ in range(6)
+        fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+        for _ in range(6)
     ]
     images = fn.decoders.image(jpegs, seed=42)
     cropped_images = fn.random_resized_crop(images, size=(224, 224), seed=42)
@@ -620,7 +677,10 @@ def variable_batch_size_from_external_source_pipeline(src_data):
 
 def test_variable_batch_size_from_external_source():
     batch_sizes = [3, 6, 7, 8]
-    src_data = [np.zeros((batch_size, 64, 64, 3), dtype=np.uint8) for batch_size in batch_sizes]
+    src_data = [
+        np.zeros((batch_size, 64, 64, 3), dtype=np.uint8)
+        for batch_size in batch_sizes
+    ]
     pipe = variable_batch_size_from_external_source_pipeline(src_data)
     pipe.build()
     for batch_size in batch_sizes:
@@ -658,12 +718,17 @@ def incorrect_variable_batch_size_inside_es_pipeline():
         ]
     ]
     out1, out2 = fn.external_source(
-        source=src_data, num_outputs=2, dtype=[types.DALIDataType.UINT8, types.DALIDataType.FLOAT]
+        source=src_data,
+        num_outputs=2,
+        dtype=[types.DALIDataType.UINT8, types.DALIDataType.FLOAT],
     )
     return out1, out2
 
 
-@raises(RuntimeError, glob="External source must return outputs with consistent batch size.*")
+@raises(
+    RuntimeError,
+    glob="External source must return outputs with consistent batch size.*",
+)
 def test_incorrect_variable_batch_size_inside_es():
     pipe = incorrect_variable_batch_size_inside_es_pipeline()
     pipe.build()
@@ -679,7 +744,9 @@ def incorrect_variable_batch_size_pipeline():
     return labels, output
 
 
-@raises(RuntimeError, glob="Batch size must be uniform across an iteration. Input*")
+@raises(
+    RuntimeError, glob="Batch size must be uniform across an iteration. Input*"
+)
 def test_variable_batch_size():
     pipe = incorrect_variable_batch_size_pipeline()
     pipe.build()
@@ -724,7 +791,9 @@ def test_es_device_change():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def nan_check_pipeline(source):
-    return fn.constant(fdata=next(source), shape=())  # TODO: Constant handling in debug mode
+    return fn.constant(
+        fdata=next(source), shape=()
+    )  # TODO: Constant handling in debug mode
 
 
 def _test_nan_check(values):
@@ -744,23 +813,33 @@ def test_nan_check():
 
 
 def test_debug_pipeline_conditionals():
-    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+    @pipeline_def(
+        batch_size=8, num_threads=3, device_id=0, enable_conditionals=False
+    )
     def pipeline_split_merge():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-        input = types.Constant(10, device="cpu")  # TODO: Consant handling in debug mode
+        input = types.Constant(
+            10, device="cpu"
+        )  # TODO: Consant handling in debug mode
         true, false = fn._conditional.split(input, predicate=pred)
         output_true = true + 2
         output_false = false + 100
-        output = fn._conditional.merge(output_true, output_false, predicate=pred)
+        output = fn._conditional.merge(
+            output_true, output_false, predicate=pred
+        )
         print(
             f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}"
         )
         return pred, output
 
-    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=8, num_threads=3, device_id=0, enable_conditionals=True
+    )
     def pipeline_cond():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-        input = types.Constant(10, device="cpu")  # TODO: Consant handling in debug mode
+        input = types.Constant(
+            10, device="cpu"
+        )  # TODO: Consant handling in debug mode
         print(f"Pred: {pred}")
         if pred:
             output = input + 2
@@ -780,7 +859,9 @@ def test_debug_pipeline_conditionals():
 
 
 def test_debug_pipeline_conditional_repeated_op():
-    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+    @pipeline_def(
+        batch_size=8, num_threads=3, device_id=0, enable_conditionals=False
+    )
     def pipeline_split_merge():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
         rng1 = fn.random.coin_flip(seed=1)
@@ -789,13 +870,17 @@ def test_debug_pipeline_conditional_repeated_op():
         _, false = fn._conditional.split(rng2, predicate=pred)
         output_true = true + 20
         output_false = false + 10
-        output = fn._conditional.merge(output_true, output_false, predicate=pred)
+        output = fn._conditional.merge(
+            output_true, output_false, predicate=pred
+        )
         print(
             f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}"
         )
         return pred, output
 
-    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=8, num_threads=3, device_id=0, enable_conditionals=True
+    )
     def pipeline_cond():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
         rng1 = fn.random.coin_flip(seed=1)
@@ -819,18 +904,34 @@ def test_debug_pipeline_conditional_repeated_op():
 
 
 def test_against_split_merge():
-    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-        yield _impl_against_split_merge, {"debug": base_debug}, {"debug": conditional_debug}
+    for base_debug, conditional_debug in [
+        (True, False),
+        (False, True),
+        (True, True),
+    ]:
+        yield _impl_against_split_merge, {"debug": base_debug}, {
+            "debug": conditional_debug
+        }
 
 
 def test_dot_gpu():
-    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+    for base_debug, conditional_debug in [
+        (True, False),
+        (False, True),
+        (True, True),
+    ]:
         yield _impl_dot_gpu, {"debug": base_debug}, {"debug": conditional_debug}
 
 
 def test_arg_inputs_scoped_tracking():
-    for global_debug, scoped_debug in [(True, False), (False, True), (True, True)]:
-        yield _impl_arg_inputs_scoped_tracking, {"debug": global_debug}, {"debug": scoped_debug}
+    for global_debug, scoped_debug in [
+        (True, False),
+        (False, True),
+        (True, True),
+    ]:
+        yield _impl_arg_inputs_scoped_tracking, {"debug": global_debug}, {
+            "debug": scoped_debug
+        }
 
 
 def test_arg_inputs_scoped_uninitialized():
@@ -839,8 +940,14 @@ def test_arg_inputs_scoped_uninitialized():
 
 def test_generators():
     for pred in pred_gens[:-1]:
-        for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-            yield _impl_generators, pred, {"debug": base_debug}, {"debug": conditional_debug}
+        for base_debug, conditional_debug in [
+            (True, False),
+            (False, True),
+            (True, True),
+        ]:
+            yield _impl_generators, pred, {"debug": base_debug}, {
+                "debug": conditional_debug
+            }
 
 
 def test_uninitialized():
@@ -848,7 +955,9 @@ def test_uninitialized():
 
 
 def test_debug_pipeline_conditional_without_data_node():
-    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=8, num_threads=3, device_id=0, enable_conditionals=True
+    )
     def pipeline_cond():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
         rng1 = fn.random.coin_flip(seed=1)

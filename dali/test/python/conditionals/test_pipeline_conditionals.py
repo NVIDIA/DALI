@@ -50,7 +50,9 @@ def test_condition_stack():
     assert test_stack._find_closest(pred_nested) == 0
     # First predicate, no splitting required, as this is the first nesting level
     first_level = test_stack.push_predicate(pred_node)
-    assert _conditionals._data_node_repr(pred_node) == _conditionals._data_node_repr(first_level)
+    assert _conditionals._data_node_repr(
+        pred_node
+    ) == _conditionals._data_node_repr(first_level)
 
     test_stack.track_true_branch()
     test_stack.register_data_nodes(some_op)
@@ -62,7 +64,9 @@ def test_condition_stack():
     true_split = test_stack._realize_split(pred_nested, 0)
     second_level = test_stack.push_predicate(pred_nested)
     # Second predicate require splitting
-    assert _conditionals._data_node_repr(true_split) == _conditionals._data_node_repr(second_level)
+    assert _conditionals._data_node_repr(
+        true_split
+    ) == _conditionals._data_node_repr(second_level)
     test_stack.track_true_branch()
     test_stack.register_data_nodes(some_nested_op)
     assert test_stack._find_closest(some_nested_op) == 2
@@ -70,15 +74,17 @@ def test_condition_stack():
     # It's already on this level
     assert len(test_stack.top().produced) == 1
     preprocessed = test_stack.preprocess_input(some_nested_op)
-    assert _conditionals._data_node_repr(some_nested_op) == _conditionals._data_node_repr(
-        preprocessed
-    )
+    assert _conditionals._data_node_repr(
+        some_nested_op
+    ) == _conditionals._data_node_repr(preprocessed)
     assert len(test_stack.top().produced) == 1
 
     # This one is not
     assert len(test_stack.top().produced) == 1
     preprocessed = test_stack.preprocess_input(some_op)
-    assert _conditionals._data_node_repr(some_op) != _conditionals._data_node_repr(some_nested_op)
+    assert _conditionals._data_node_repr(
+        some_op
+    ) != _conditionals._data_node_repr(some_nested_op)
     assert len(test_stack.top().produced) == 2
 
     test_stack.pop()
@@ -146,13 +152,16 @@ def generic_execute(function, input_gen_list, optional_params=None):
 
     # Prepare external source nodes with placeholder names, convert
     es_inputs = [
-        fn.external_source(name=f"input_{i}", **params) for i, params in enumerate(optional_params)
+        fn.external_source(name=f"input_{i}", **params)
+        for i, params in enumerate(optional_params)
     ]
 
     pipeline_definition = pipeline_def(enable_conditionals=True)(function)
 
     def gen_batch(generator, bs, iter):
-        return [generator(SampleInfo(bs * iter + i, i, iter, 0)) for i in range(bs)]
+        return [
+            generator(SampleInfo(bs * iter + i, i, iter, 0)) for i in range(bs)
+        ]
 
     pipe = pipeline_definition(*es_inputs, **kwargs)
     pipe.build()
@@ -214,7 +223,9 @@ def test_complex_outputs(num_gen):
             obj.b = 2 * n
         return obj.a, obj.b
 
-    generic_execute(lambda input: f(input, DataClass(np.int32(0), np.int32(0))), [num_gen])
+    generic_execute(
+        lambda input: f(input, DataClass(np.int32(0), np.int32(0))), [num_gen]
+    )
 
 
 @params(*num_gens)
@@ -360,7 +371,14 @@ def test_chain_branches_only_assign(pred_1, pred_2):
         return result
 
     generic_execute(
-        f, [pred_1, pred_2, lambda _: np.int32(42), lambda _: np.int32(6), lambda _: np.int32(9)]
+        f,
+        [
+            pred_1,
+            pred_2,
+            lambda _: np.int32(42),
+            lambda _: np.int32(6),
+            lambda _: np.int32(9),
+        ],
     )
 
 
@@ -443,7 +461,9 @@ def test_multiple_nests(dev, input, num):
 
 
 # Compare pure Split/Merge operators with if statement
-def _impl_against_split_merge(base_additional_kwargs={}, conditional_additional_kwargs={}):
+def _impl_against_split_merge(
+    base_additional_kwargs={}, conditional_additional_kwargs={}
+):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 
@@ -461,7 +481,9 @@ def _impl_against_split_merge(base_additional_kwargs={}, conditional_additional_
         output_false = fn.flip(false, horizontal=True)
         return fn._conditional.merge(output_true, output_false, predicate=pred)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **conditional_additional_kwargs
+    )
     def conditional_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=7)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -502,7 +524,9 @@ def _impl_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={}):
         output_false = fn.flip(false, horizontal=True).gpu()
         return fn._conditional.merge(output_true, output_false, predicate=pred)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **conditional_additional_kwargs
+    )
     def conditional_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=1)
         decoded = fn.decoders.image(encoded)
@@ -537,7 +561,9 @@ def test_dot_gpu():
 # in the split/merge - so they are tracked in the local scope.
 
 
-def _impl_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additional_kwargs={}):
+def _impl_arg_inputs_scoped_tracking(
+    global_additional_kwargs={}, scoped_additional_kwargs={}
+):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 
@@ -545,7 +571,9 @@ def _impl_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additio
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **global_additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **global_additional_kwargs
+    )
     def global_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -558,7 +586,9 @@ def _impl_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additio
             output = decoded
         return output
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **scoped_additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **scoped_additional_kwargs
+    )
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -589,7 +619,9 @@ def _impl_arg_inputs_scoped_uninitialized(additional_kwargs={}):
     bs = 10
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **additional_kwargs
+    )
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -628,7 +660,9 @@ def test_arg_inputs_scoped_uninitialized():
 
 
 @params(*(pred_gens[:-1]))
-def _impl_generators(pred, base_additional_kwargs={}, conditional_additional_kwargs={}):
+def _impl_generators(
+    pred, base_additional_kwargs={}, conditional_additional_kwargs={}
+):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 
@@ -652,11 +686,17 @@ def _impl_generators(pred, base_additional_kwargs={}, conditional_additional_kwa
             f32_zeros = np.float32(0.0)
         _, false_u8 = fn._conditional.split(u8_zeros, predicate=predicate)
         _, false_f32 = fn._conditional.split(f32_zeros, predicate=predicate)
-        encoded_out = fn._conditional.merge(true_encoded, false_u8, predicate=predicate)
-        rand_out = fn._conditional.merge(true_rand, false_f32, predicate=predicate)
+        encoded_out = fn._conditional.merge(
+            true_encoded, false_u8, predicate=predicate
+        )
+        rand_out = fn._conditional.merge(
+            true_rand, false_f32, predicate=predicate
+        )
         return encoded_out, rand_out
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **conditional_additional_kwargs
+    )
     def conditional_pipe():
         predicate = fn.external_source(source=pred, batch=False)
         # Generators work by running in top scope and splitting for particular nesting
@@ -690,7 +730,9 @@ def _impl_uninitialized(additional_kwargs={}):
         "device_id": 0,
     }
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
+    @experimental.pipeline_def(
+        enable_conditionals=True, **kwargs, **additional_kwargs
+    )
     def one_branch():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         if pred:
@@ -741,9 +783,13 @@ def _tensor_arg_permute_batch_params():
         for batch_size in batch_sizes
     ]
     mask_batches = [
-        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+        np.array([i % 2 for i in range(batch_size)], dtype=bool)
+        for batch_size in batch_sizes
     ]
-    kwarg_batches = [np.array([pred for pred in mask], dtype=np.int32) for mask in mask_batches]
+    kwarg_batches = [
+        np.array([pred for pred in mask], dtype=np.int32)
+        for mask in mask_batches
+    ]
     return (inp0,), mask_batches, {"indices": kwarg_batches}
 
 
@@ -751,10 +797,12 @@ def _tensor_arg_transform_per_dim_params(arg_name):
     def inner():
         batch_sizes = [5, 1, 2, 8]
         mask_batches = [
-            np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+            np.array([i % 2 for i in range(batch_size)], dtype=bool)
+            for batch_size in batch_sizes
         ]
         kwarg_batches = [
-            np.array([[pred, pred] for pred in mask], dtype=np.float32) for mask in mask_batches
+            np.array([[pred, pred] for pred in mask], dtype=np.float32)
+            for mask in mask_batches
         ]
         return tuple(), mask_batches, {arg_name: kwarg_batches}
 
@@ -764,10 +812,12 @@ def _tensor_arg_transform_per_dim_params(arg_name):
 def _tensor_arg_rotate_params():
     batch_sizes = [3, 1, 2, 4]
     mask_batches = [
-        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+        np.array([i % 2 for i in range(batch_size)], dtype=bool)
+        for batch_size in batch_sizes
     ]
     kwarg_batches = [
-        np.array([10 + 45 * pred for pred in mask], dtype=np.float32) for mask in mask_batches
+        np.array([10 + 45 * pred for pred in mask], dtype=np.float32)
+        for mask in mask_batches
     ]
     return tuple(), mask_batches, {"angle": kwarg_batches}
 
@@ -775,31 +825,48 @@ def _tensor_arg_rotate_params():
 def _tensor_arg_roi_random_crop_params():
     batch_sizes = [1, 2, 7, 3]
     crop_shape = [
-        [np.array([100 * i + 50, 200 * i + 50, 3], dtype=np.int32) for i in range(batch_size)]
+        [
+            np.array([100 * i + 50, 200 * i + 50, 3], dtype=np.int32)
+            for i in range(batch_size)
+        ]
         for batch_size in batch_sizes
     ]
     roi_start = [
-        [np.array([sample[0] // 2, sample[1] // 2, sample[2]], dtype=np.int32) for sample in batch]
+        [
+            np.array(
+                [sample[0] // 2, sample[1] // 2, sample[2]], dtype=np.int32
+            )
+            for sample in batch
+        ]
         for batch in crop_shape
     ]
     mask_batches = [
-        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+        np.array([i % 2 for i in range(batch_size)], dtype=bool)
+        for batch_size in batch_sizes
     ]
     return (
         tuple(),
         mask_batches,
-        {"crop_shape": crop_shape, "roi_start": roi_start, "roi_end": crop_shape},
+        {
+            "crop_shape": crop_shape,
+            "roi_start": roi_start,
+            "roi_end": crop_shape,
+        },
     )
 
 
 def _tensor_arg_shape_kwarg():
     batch_sizes = [1, 2, 3, 16, 5]
     shape = [
-        [np.array([1 + 3 * i, 2 * (i + 1) - 1], dtype=np.int32) for i in range(batch_size)]
+        [
+            np.array([1 + 3 * i, 2 * (i + 1) - 1], dtype=np.int32)
+            for i in range(batch_size)
+        ]
         for batch_size in batch_sizes
     ]
     mask_batches = [
-        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+        np.array([i % 2 for i in range(batch_size)], dtype=bool)
+        for batch_size in batch_sizes
     ]
     return tuple(), mask_batches, {"shape": shape}
 
@@ -824,7 +891,9 @@ def test_named_tensor_arguments(op):
         fn.transforms.crop: _tensor_arg_transform_per_dim_params("from_start"),
         fn.transforms.scale: _tensor_arg_transform_per_dim_params("scale"),
         fn.transforms.shear: _tensor_arg_transform_per_dim_params("angles"),
-        fn.transforms.translation: _tensor_arg_transform_per_dim_params("offset"),
+        fn.transforms.translation: _tensor_arg_transform_per_dim_params(
+            "offset"
+        ),
         fn.transforms.rotation: _tensor_arg_rotate_params,
         fn.random.uniform: _tensor_arg_shape_kwarg,
         fn.random.normal: _tensor_arg_shape_kwarg,
@@ -838,12 +907,26 @@ def test_named_tensor_arguments(op):
 
         return cb
 
-    def get_pipeline(op, args_batches, mask_batches, kwargs_batches, num_threads=4, device_id=0):
+    def get_pipeline(
+        op,
+        args_batches,
+        mask_batches,
+        kwargs_batches,
+        num_threads=4,
+        device_id=0,
+    ):
         max_batch_size = max(len(batch) for batch in mask_batches)
 
-        @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+        @pipeline_def(
+            batch_size=max_batch_size,
+            num_threads=num_threads,
+            device_id=device_id,
+        )
         def split_pipeline():
-            args = [fn.external_source(dummy_source(arg_batches)) for arg_batches in args_batches]
+            args = [
+                fn.external_source(dummy_source(arg_batches))
+                for arg_batches in args_batches
+            ]
             mask = fn.external_source(dummy_source(mask_batches))
             kwargs = {
                 kwarg_name: fn.external_source(dummy_source(batches))
@@ -853,17 +936,23 @@ def test_named_tensor_arguments(op):
                 kwarg_name: fn._conditional.split(batch, predicate=mask)
                 for kwarg_name, batch in kwargs.items()
             }
-            split_args = [fn._conditional.split(arg, predicate=mask) for arg in args]
+            split_args = [
+                fn._conditional.split(arg, predicate=mask) for arg in args
+            ]
             left_args = [left_arg for left_arg, _ in split_args]
             right_args = [right_arg for _, right_arg in split_args]
             left = op(
                 *left_args,
-                **{kwarg_name: left_kwarg for kwarg_name, (left_kwarg, _) in kwargs_split.items()},
+                **{
+                    kwarg_name: left_kwarg
+                    for kwarg_name, (left_kwarg, _) in kwargs_split.items()
+                },
             )
             right = op(
                 *right_args,
                 **{
-                    kwarg_name: right_kwarg for kwarg_name, (_, right_kwarg) in kwargs_split.items()
+                    kwarg_name: right_kwarg
+                    for kwarg_name, (_, right_kwarg) in kwargs_split.items()
                 },
             )
             batch = fn._conditional.merge(left, right, predicate=mask)
@@ -873,7 +962,10 @@ def test_named_tensor_arguments(op):
 
     args_batches, mask_batches, kwargs_batches = ops2params[op]()
     pipe = get_pipeline(
-        op=op, args_batches=args_batches, mask_batches=mask_batches, kwargs_batches=kwargs_batches
+        op=op,
+        args_batches=args_batches,
+        mask_batches=mask_batches,
+        kwargs_batches=kwargs_batches,
     )
     pipe.build()
     for _ in range(len(mask_batches)):
@@ -886,10 +978,18 @@ def test_simple_batch_permute(batch_size, permute_prefix):
     Permute `permute_prefix` of the batch and leave the remaining part untouched
     """
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
         sample_idx = fn.external_source(
-            lambda sample_info: np.array(sample_info.idx_in_batch, dtype=np.int32), batch=False
+            lambda sample_info: np.array(
+                sample_info.idx_in_batch, dtype=np.int32
+            ),
+            batch=False,
         )
         if sample_idx < permute_prefix:
             sample_idx = fn.batch_permutation()
@@ -910,7 +1010,8 @@ def test_simple_batch_permute(batch_size, permute_prefix):
             f"following samples {expected_prefix}"
         )
         assert untouched_suffix == expected_suffix, (
-            f"expected untouched suffix `{untouched_suffix}` to be exactly " f"{expected_suffix}"
+            f"expected untouched suffix `{untouched_suffix}` to be exactly "
+            f"{expected_suffix}"
         )
 
 
@@ -928,14 +1029,24 @@ def test_batch_permutation(batch_size, num_split_level):
     def split_and_permute(batch, num_levels, group=0):
         assert num_levels >= 0
         if num_levels == 0:
-            return fn.permute_batch(batch, indices=fn.batch_permutation()), group
+            return (
+                fn.permute_batch(batch, indices=fn.batch_permutation()),
+                group,
+            )
         else:
             if fn.random.coin_flip():
                 return split_and_permute(batch, num_levels - 1, group)
             else:
-                return split_and_permute(batch, num_levels - 1, group + 2 ** (num_levels - 1))
+                return split_and_permute(
+                    batch, num_levels - 1, group + 2 ** (num_levels - 1)
+                )
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
         sample_idx = fn.external_source(
             lambda sample_info: np.array(sample_info.idx_in_batch), batch=False
@@ -1118,10 +1229,18 @@ def test_sanity_enable_conditionals():
 def test_multiple_input_source():
     batch_size = 16
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
         sample_idx = fn.external_source(
-            lambda sample_info: np.array(sample_info.idx_in_batch, dtype=np.int32), batch=False
+            lambda sample_info: np.array(
+                sample_info.idx_in_batch, dtype=np.int32
+            ),
+            batch=False,
         )
 
         const_42 = types.Constant(np.uint8([42]), device="cpu")
@@ -1139,15 +1258,23 @@ def test_multiple_input_source():
     pipe.build()
     for _ in range(4):
         out_42, out_idx = pipe.run()
-        check_batch(out_42, [[42] if i < (batch_size / 2) else [0] for i in range(batch_size)])
-        check_batch(out_idx, [i if i < (batch_size / 2) else 0 for i in range(batch_size)])
+        check_batch(
+            out_42,
+            [[42] if i < (batch_size / 2) else [0] for i in range(batch_size)],
+        )
+        check_batch(
+            out_idx,
+            [i if i < (batch_size / 2) else 0 for i in range(batch_size)],
+        )
 
 
 def test_exception_explanation():
     def throwing_helper():
         raise ValueError("I am throwing")
 
-    @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=10, device_id=0, num_threads=4, enable_conditionals=True
+    )
     def throwing_pipeline():
         if fn.random.coin_flip():
             x = np.full((1, 1), 10)
@@ -1158,6 +1285,7 @@ def test_exception_explanation():
     # Check that the error message contains the user code from before the autograph translation
     # as an explanation.
     with assert_raises(
-        ValueError, glob="*in user code*in throwing_pipeline*in throwing_helper*ValueError"
+        ValueError,
+        glob="*in user code*in throwing_pipeline*in throwing_helper*ValueError",
     ):
         _ = throwing_pipeline()

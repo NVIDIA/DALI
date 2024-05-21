@@ -38,27 +38,49 @@ vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
     *tuple(
         enumerate(
             itertools.product(
-                ("cpu", "gpu"), (True, False), (True, False), (None, 0), (True, False)
+                ("cpu", "gpu"),
+                (True, False),
+                (True, False),
+                (None, 0),
+                (True, False),
             )
         )
     )
 )
 def test_run_trivial(i, args):
-    dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    (
+        dev,
+        uniformly_resized,
+        use_shape,
+        fill_value,
+        specify_translation_bounds,
+    ) = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 41]
     num_magnitude_bin_cases = [1, 11, 31, 40]
     batch_size = batch_sizes[i % len(batch_sizes)]
-    num_magnitude_bins = num_magnitude_bin_cases[i % len(num_magnitude_bin_cases)]
+    num_magnitude_bins = num_magnitude_bin_cases[
+        i % len(num_magnitude_bin_cases)
+    ]
 
     @pipeline_def(
-        enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0, seed=43
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=43,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
+        image = fn.decoders.image(
+            encoded_image, device="cpu" if dev == "cpu" else "mixed"
+        )
         if uniformly_resized:
             image = fn.resize(image, size=(244, 244))
-        extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}
+        extra = (
+            {}
+            if not use_shape
+            else {"shape": fn.peek_image_shape(encoded_image)}
+        )
         if fill_value is not None:
             extra["fill_value"] = fill_value
         if specify_translation_bounds:
@@ -131,7 +153,11 @@ class VideoTest(unittest.TestCase):
         assert device in ("gpu", "cpu")
 
         @pipeline_def(
-            batch_size=batch_size, device_id=0, num_threads=4, seed=205, enable_conditionals=True
+            batch_size=batch_size,
+            device_id=0,
+            num_threads=4,
+            seed=205,
+            enable_conditionals=True,
         )
         def pipeline():
             rng = random.Random(42 + i)
@@ -205,10 +231,16 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
             else:
                 expected_counts[tuple(aug.mag_to_param(mag))] = prob / 2
                 expected_counts[tuple(aug.mag_to_param(-mag))] = prob / 2
-    expected_counts = {output: p * batch_size for output, p in expected_counts.items()}
+    expected_counts = {
+        output: p * batch_size for output, p in expected_counts.items()
+    }
 
     @pipeline_def(
-        enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0, seed=42
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=42,
     )
     def pipeline():
         data = types.Constant([], dtype=types.INT32)
@@ -224,7 +256,9 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
     stats = []
     for i in range(3):
         (output,) = p.run()
-        output = [np.array(s) for s in (output.as_cpu() if dev == "gpu" else output)]
+        output = [
+            np.array(s) for s in (output.as_cpu() if dev == "gpu" else output)
+        ]
         actual_count = {allowed_out: 0 for allowed_out in expected_counts}
         for sample in output:
             actual_count[tuple(sample)] += 1
@@ -236,4 +270,6 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
         stat = chisquare(actual, expected)
         stats.append(stat)
     mean_p_val = sum(stat.pvalue for stat in stats) / len(stats)
-    assert 0.05 <= mean_p_val <= 0.95, f"{mean_p_val} {stat} {actual} {expected}"
+    assert (
+        0.05 <= mean_p_val <= 0.95
+    ), f"{mean_p_val} {stat} {actual} {expected}"

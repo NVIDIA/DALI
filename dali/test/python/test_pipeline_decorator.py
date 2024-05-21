@@ -30,18 +30,24 @@ num_threads = 4
 device_id = 0
 
 
-def reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=max_batch_size):
+def reference_pipeline(
+    flip_vertical, flip_horizontal, ref_batch_size=max_batch_size
+):
     pipeline = Pipeline(ref_batch_size, num_threads, device_id)
     with pipeline:
         data, _ = fn.readers.file(file_root=images_dir)
         img = fn.decoders.image(data)
-        flipped = fn.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
+        flipped = fn.flip(
+            img, horizontal=flip_horizontal, vertical=flip_vertical
+        )
         pipeline.set_outputs(flipped, img)
     return pipeline
 
 
 @nottest  # pipeline_def works with other decorators too
-@pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+@pipeline_def(
+    batch_size=max_batch_size, num_threads=num_threads, device_id=device_id
+)
 def pipeline_static(flip_vertical, flip_horizontal):
     data, _ = fn.readers.file(file_root=images_dir)
     img = fn.decoders.image(data)
@@ -62,7 +68,9 @@ def pipeline_runtime(flip_vertical, flip_horizontal):
 def test_pipeline_static(flip_vertical, flip_horizontal):
     put_args = pipeline_static(flip_vertical, flip_horizontal)
     ref = reference_pipeline(flip_vertical, flip_horizontal)
-    compare_pipelines(put_args, ref, batch_size=max_batch_size, N_iterations=N_ITER)
+    compare_pipelines(
+        put_args, ref, batch_size=max_batch_size, N_iterations=N_ITER
+    )
 
 
 @nottest
@@ -75,7 +83,9 @@ def test_pipeline_runtime(flip_vertical, flip_horizontal):
         device_id=device_id,
     )
     ref = reference_pipeline(flip_vertical, flip_horizontal)
-    compare_pipelines(put_combined, ref, batch_size=max_batch_size, N_iterations=N_ITER)
+    compare_pipelines(
+        put_combined, ref, batch_size=max_batch_size, N_iterations=N_ITER
+    )
 
 
 @nottest
@@ -87,8 +97,12 @@ def test_pipeline_override(flip_vertical, flip_horizontal, batch_size):
         num_threads=num_threads,
         device_id=device_id,
     )
-    ref = reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=batch_size)
-    compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=N_ITER)
+    ref = reference_pipeline(
+        flip_vertical, flip_horizontal, ref_batch_size=batch_size
+    )
+    compare_pipelines(
+        put_combined, ref, batch_size=batch_size, N_iterations=N_ITER
+    )
 
 
 def test_pipeline_decorator():
@@ -97,17 +111,25 @@ def test_pipeline_decorator():
             yield test_pipeline_static, vert, hori
             yield test_pipeline_runtime, vert, hori
             yield test_pipeline_override, vert, hori, 5
-    yield test_pipeline_runtime, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
-    yield test_pipeline_static, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
+    yield test_pipeline_runtime, fn.random.coin_flip(
+        seed=123
+    ), fn.random.coin_flip(seed=234)
+    yield test_pipeline_static, fn.random.coin_flip(
+        seed=123
+    ), fn.random.coin_flip(seed=234)
 
 
 def test_duplicated_argument():
-    @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+    @pipeline_def(
+        batch_size=max_batch_size, num_threads=num_threads, device_id=device_id
+    )
     def ref_pipeline(val):
         data, _ = fn.readers.file(file_root=images_dir)
         return data + val
 
-    @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+    @pipeline_def(
+        batch_size=max_batch_size, num_threads=num_threads, device_id=device_id
+    )
     def pipeline_duplicated_arg(max_streams):
         data, _ = fn.readers.file(file_root=images_dir)
         return data + max_streams
@@ -148,7 +170,8 @@ def test_is_pipeline_def():
 
 def test_pipeline_def_with_do_not_convert():
     with assert_raises(
-        ValueError, glob="Pipeline definition cannot be marked with @do_not_convert."
+        ValueError,
+        glob="Pipeline definition cannot be marked with @do_not_convert.",
     ):
 
         @pipeline_def
@@ -157,7 +180,8 @@ def test_pipeline_def_with_do_not_convert():
             return 42
 
     with assert_raises(
-        ValueError, glob="Pipeline definition cannot be marked with @do_not_convert."
+        ValueError,
+        glob="Pipeline definition cannot be marked with @do_not_convert.",
     ):
 
         @do_not_convert

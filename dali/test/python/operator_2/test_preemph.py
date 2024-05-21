@@ -48,7 +48,9 @@ class PreemphasisPipeline(Pipeline):
         num_threads=4,
         device_id=0,
     ):
-        super(PreemphasisPipeline, self).__init__(batch_size, num_threads, device_id, seed=SEED)
+        super(PreemphasisPipeline, self).__init__(
+            batch_size, num_threads, device_id, seed=SEED
+        )
         self.device = device
         self.iterator = iterator
         self.per_sample_coeff = per_sample_coeff
@@ -83,7 +85,12 @@ class PreemphasisPythonPipeline(Pipeline):
         device_id=0,
     ):
         super(PreemphasisPythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=SEED, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=SEED,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = "cpu"
         self.iterator = iterator
@@ -104,7 +111,9 @@ class PreemphasisPythonPipeline(Pipeline):
             return self.preemph(data)
 
 
-def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sample_coeff):
+def check_preemphasis_operator(
+    device, batch_size, border, preemph_coeff, per_sample_coeff
+):
     eii1 = RandomlyShapedDataIterator(
         batch_size, min_shape=(100,), max_shape=(10000,), dtype=np.float32
     )
@@ -137,7 +146,11 @@ def test_preemphasis_operator():
     for device in ["cpu", "gpu"]:
         for batch_size in [1, 3, 128]:
             for border in ["zero", "clamp", "reflect"]:
-                for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]:
+                for coef, per_sample_coeff in [
+                    (0.97, False),
+                    (0.0, False),
+                    (None, True),
+                ]:
                     yield (
                         check_preemphasis_operator,
                         device,

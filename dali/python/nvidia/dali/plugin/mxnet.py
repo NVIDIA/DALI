@@ -68,10 +68,11 @@ def feed_ndarray(dali_tensor, arr, cuda_stream=None):
 
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
-    assert dali_tensor.shape() == list(
-        arr.shape
-    ), "Shapes do not match: DALI tensor has " "shape {0}, but NDArray has shape {1}".format(
-        dali_tensor.shape(), list(arr.shape)
+    assert dali_tensor.shape() == list(arr.shape), (
+        "Shapes do not match: DALI tensor has "
+        "shape {0}, but NDArray has shape {1}".format(
+            dali_tensor.shape(), list(arr.shape)
+        )
     )
     # Get CTypes void pointer to the underlying memory held by arr
     ptr = ctypes.c_void_p()
@@ -279,7 +280,10 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
         # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_names_map = [x[0] for x in output_map]
         self._output_categories_map = [x[1] for x in output_map]
-        self._output_categories = {DALIGenericIterator.DATA_TAG, DALIGenericIterator.LABEL_TAG}
+        self._output_categories = {
+            DALIGenericIterator.DATA_TAG,
+            DALIGenericIterator.LABEL_TAG,
+        }
         assert (
             set(self._output_categories_map) <= self._output_categories
         ), "Only DATA_TAG and LABEL_TAG are allowed"
@@ -345,10 +349,14 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                     )
                 )
             for i, label in enumerate(data_batch[0].label):
-                label_shape = (label.shape[0] * self._num_gpus,) + label.shape[1:]
+                label_shape = (label.shape[0] * self._num_gpus,) + label.shape[
+                    1:
+                ]
                 provide_label.append(
                     mx.io.DataDesc(
-                        category_names[DALIGenericIterator.LABEL_TAG][i], label_shape, label.dtype
+                        category_names[DALIGenericIterator.LABEL_TAG][i],
+                        label_shape,
+                        label.dtype,
                     )
                 )
 
@@ -380,7 +388,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             category_info = dict()
             # For data proceed normally
             category_tensors[DALIGenericIterator.DATA_TAG] = [
-                x.as_tensor() for x in category_outputs[DALIGenericIterator.DATA_TAG]
+                x.as_tensor()
+                for x in category_outputs[DALIGenericIterator.DATA_TAG]
             ]
             category_info[DALIGenericIterator.DATA_TAG] = [
                 (x.shape(), types.to_numpy_type(x.dtype))
@@ -388,7 +397,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             ]
             # For labels we squeeze the tensors
             category_tensors[DALIGenericIterator.LABEL_TAG] = [
-                x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]
+                x.as_tensor()
+                for x in category_outputs[DALIGenericIterator.LABEL_TAG]
             ]
             if self._squeeze_labels:
                 for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
@@ -409,16 +419,24 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                         category_device[category].append(mx_cpu_device)
             d = []
             labels = []
-            for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
+            for j, (shape, dtype) in enumerate(
+                category_info[DALIGenericIterator.DATA_TAG]
+            ):
                 d.append(
                     get_mx_array(
-                        shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype=dtype
+                        shape,
+                        category_device[DALIGenericIterator.DATA_TAG][j],
+                        dtype=dtype,
                     )
                 )
-            for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
+            for j, (shape, dtype) in enumerate(
+                category_info[DALIGenericIterator.LABEL_TAG]
+            ):
                 labels.append(
                     get_mx_array(
-                        shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype=dtype
+                        shape,
+                        category_device[DALIGenericIterator.LABEL_TAG][j],
+                        dtype=dtype,
                     )
                 )
 
@@ -427,9 +445,13 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             d = data_batches[i].data
             labels = data_batches[i].label
             for j, d_arr in enumerate(d):
-                feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)
+                feed_ndarray(
+                    category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr
+                )
             for j, l_arr in enumerate(labels):
-                feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
+                feed_ndarray(
+                    category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr
+                )
 
         self._schedule_runs()
 
@@ -481,7 +503,8 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     .. code-block:: python
 
-       DALIClassificationIterator(pipelines, reader_name, data_name, label_name, data_layout)
+       DALIClassificationIterator(pipelines, reader_name, data_name, label_name,
+                                  data_layout)
 
     is equivalent to calling
 
@@ -738,7 +761,10 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
         prepare_first_batch=True,
     ):
         # check the assert first as _DaliBaseIterator would run the prefetch
-        self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
+        self._output_tags = {
+            DALIGluonIterator.DENSE_TAG,
+            DALIGluonIterator.SPARSE_TAG,
+        }
         assert (
             output_types is None or set(output_types) <= self._output_tags
         ), "Only DENSE_TAG and SPARSE_TAG are allowed"
@@ -759,7 +785,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
         self._first_batch = None
         if self._prepare_first_batch:
             try:
-                self._first_batch = self._first_batch = DALIGluonIterator.__next__(self)
+                self._first_batch = self._first_batch = (
+                    DALIGluonIterator.__next__(self)
+                )
                 # call to `next` sets _ever_consumed to True but if we are just calling it from
                 # here we should set if to False again
                 self._ever_consumed = False
@@ -789,7 +817,10 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                     shapes.append(output_elements[-1].shape())
                 else:
                     output_elements.append(
-                        [out[sample_idx] for sample_idx in range(self.batch_size)]
+                        [
+                            out[sample_idx]
+                            for sample_idx in range(self.batch_size)
+                        ]
                     )
                     s = [t.shape() for t in output_elements[-1]]
                     shapes.append(s)
@@ -808,11 +839,17 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                     feed_ndarray(output_el, batch[j])
                 else:
                     for sample_idx in range(self.batch_size):
-                        feed_ndarray(output_el[sample_idx], batch[j][sample_idx])
+                        feed_ndarray(
+                            output_el[sample_idx], batch[j][sample_idx]
+                        )
 
         batches = [
             [
-                ([sample for sample in output_el] if isinstance(output_el, list) else output_el)
+                (
+                    [sample for sample in output_el]
+                    if isinstance(output_el, list)
+                    else output_el
+                )
                 for output_el in batch
             ]
             for batch in data_batches
@@ -840,7 +877,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 and self._size > 0
             ):
                 # First calculate how much data is required to return exactly self._size entries.
-                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+                diff = self._num_gpus * self.batch_size - (
+                    self._counter - self._size
+                )
                 # Figure out how many GPUs to grab from.
                 numGPUs_tograb = int(np.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU (as a fractional GPU
@@ -855,7 +894,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 output = batches[0:numGPUs_tograb]
                 output[-1] = output[-1].copy()
                 for element_idx in range(len(output[-1])):
-                    output[-1][element_idx] = output[-1][element_idx][0:data_fromlastGPU]
+                    output[-1][element_idx] = output[-1][element_idx][
+                        0:data_fromlastGPU
+                    ]
                 return output
 
         return batches
@@ -872,13 +913,20 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 else output_el[0]
             )
             dtype = types.to_numpy_type(first_t.dtype)
-            device = mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
-            if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
+            device = (
+                mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
+            )
+            if (
+                self._outputs_types is None
+                or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG
+            ):
                 new_batch.append(get_mx_array(shapes[j], device, dtype=dtype))
             else:
                 lables = []
                 for sample_idx in range(self.batch_size):
-                    lables.append(get_mx_array(shapes[j][sample_idx], device, dtype=dtype))
+                    lables.append(
+                        get_mx_array(shapes[j][sample_idx], device, dtype=dtype)
+                    )
                 new_batch.append(lables)
         return new_batch
 

@@ -71,7 +71,11 @@ def mfcc_func(axis, dct_type, lifter, n_mfcc, norm, input_data):
     norm_str = "ortho" if norm else None
 
     out = librosa.feature.mfcc(
-        S=input_data, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm_str, lifter=lifter
+        S=input_data,
+        n_mfcc=n_mfcc,
+        dct_type=dct_type,
+        norm=norm_str,
+        lifter=lifter,
     )
 
     # Scipy DCT (used by Librosa) without normalization is scaled by a factor of 2 when comparing
@@ -102,7 +106,12 @@ class MFCCPythonPipeline(Pipeline):
         func=mfcc_func,
     ):
         super(MFCCPythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=12345,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = "cpu"
         self.iterator = iterator
@@ -181,7 +190,9 @@ def check_operator_mfcc_wrong_args(
     device, batch_size, input_shape, axis, dct_type, lifter, n_mfcc, norm, msg
 ):
     with assert_raises(RuntimeError, regex=msg):
-        eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+        eii1 = RandomDataIterator(
+            batch_size, shape=input_shape, dtype=np.float32
+        )
         pipe = MFCCPipeline(
             device,
             batch_size,
@@ -211,9 +222,25 @@ def test_operator_mfcc_wrong_args():
                 "Ortho-normalization is not supported for DCT type I",
             ),
             # axis out of bounds
-            (2, False, -1, 20, 0.0, (100, 100), "Provided axis cannot be negative"),
+            (
+                2,
+                False,
+                -1,
+                20,
+                0.0,
+                (100, 100),
+                "Provided axis cannot be negative",
+            ),
             # axis out of bounds
-            (2, False, 2, 20, 0.0, (100, 100), "Axis [\\d]+ is out of bounds \\[[\\d]+,[\\d]+\\)"),
+            (
+                2,
+                False,
+                2,
+                20,
+                0.0,
+                (100, 100),
+                "Axis [\\d]+ is out of bounds \\[[\\d]+,[\\d]+\\)",
+            ),
             # not supported DCT type
             (
                 10,

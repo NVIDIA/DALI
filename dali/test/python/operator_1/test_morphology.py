@@ -45,7 +45,13 @@ def cv2_morph(dst, img, ksize, anchor, layout, border_mode, morph_type):
     struct_element = cv2.getStructuringElement(cv2.MORPH_RECT, ksize)
 
     def morph_func(img, dst):
-        morph(img, struct_element, anchor=anchor, borderType=ocv_border_mode(border_mode), dst=dst)
+        morph(
+            img,
+            struct_element,
+            anchor=anchor,
+            borderType=ocv_border_mode(border_mode),
+            dst=dst,
+        )
 
     if layout[-1] == "C":
         morph_func(img, dst)
@@ -59,7 +65,13 @@ def ref_func(img, ksize, anchor, layout, border_mode, morph_type):
     if layout[0] == "F":
         for f in range(0, img.shape[0]):
             cv2_morph(
-                dst[f, :, :, :], img[f, :, :, :], ksize, anchor, layout, border_mode, morph_type
+                dst[f, :, :, :],
+                img[f, :, :, :],
+                ksize,
+                anchor,
+                layout,
+                border_mode,
+                morph_type,
             )
     else:
         cv2_morph(dst, img, ksize, anchor, layout, border_mode, morph_type)
@@ -67,9 +79,14 @@ def ref_func(img, ksize, anchor, layout, border_mode, morph_type):
 
 
 @dali.pipeline_def(
-    num_threads=NUM_THREADS, device_id=DEV_ID, exec_pipelined=False, exec_async=False
+    num_threads=NUM_THREADS,
+    device_id=DEV_ID,
+    exec_pipelined=False,
+    exec_async=False,
 )
-def reference_pipe(data_src, layout, ksize_src, anchor_src, border_mode, morph_type):
+def reference_pipe(
+    data_src, layout, ksize_src, anchor_src, border_mode, morph_type
+):
     img = fn.external_source(source=data_src, batch=True, layout=layout)
     ksize = fn.external_source(source=ksize_src)
     anchor = fn.external_source(source=anchor_src)
@@ -79,21 +96,34 @@ def reference_pipe(data_src, layout, ksize_src, anchor_src, border_mode, morph_t
         anchor,
         output_layouts=layout,
         function=lambda im, ks, anch: ref_func(
-            im, ks, anch, layout=layout, border_mode=border_mode, morph_type=morph_type
+            im,
+            ks,
+            anch,
+            layout=layout,
+            border_mode=border_mode,
+            morph_type=morph_type,
         ),
         batch_processing=False,
     )
 
 
 @dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
-def morphology_pipe(data_src, layout, ksize_src, anchor_src, border_mode, morph_type):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
+def morphology_pipe(
+    data_src, layout, ksize_src, anchor_src, border_mode, morph_type
+):
+    img = fn.external_source(
+        source=data_src, batch=True, layout=layout, device="gpu"
+    )
     ksize = fn.external_source(source=ksize_src)
     anchor = fn.external_source(source=anchor_src)
     if morph_type == "dilate":
-        return fn.experimental.dilate(img, mask_size=ksize, anchor=anchor, border_mode=border_mode)
+        return fn.experimental.dilate(
+            img, mask_size=ksize, anchor=anchor, border_mode=border_mode
+        )
     else:
-        return fn.experimental.erode(img, mask_size=ksize, anchor=anchor, border_mode=border_mode)
+        return fn.experimental.erode(
+            img, mask_size=ksize, anchor=anchor, border_mode=border_mode
+        )
 
 
 def ksize_src(bs, lo, hi, seed):
@@ -134,7 +164,9 @@ def anchor_src(bs, seed):
     ("erode", 4, "FHWC", np.float32, 3, 5, "reflect_101"),
     ("erode", 4, "FCHW", np.uint8, 4, 9, "replicate"),
 )
-def test_dilate_vs_ocv(morph_type, bs, layout, dtype, channels, max_ksize, border_mode):
+def test_dilate_vs_ocv(
+    morph_type, bs, layout, dtype, channels, max_ksize, border_mode
+):
     cdim = layout.find("C")
     min_shape = [64 for c in layout]
     min_shape[cdim] = channels

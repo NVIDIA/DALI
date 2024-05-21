@@ -54,7 +54,9 @@ class CommonPipeline(Pipeline):
     def base_define_graph(self, inputs, labels):
         images = self.decode(inputs)
         images = self.resize(images, resize_shorter=self.resize_rng())
-        output = self.cmn(images, crop_pos_x=self.uniform(), crop_pos_y=self.uniform())
+        output = self.cmn(
+            images, crop_pos_x=self.uniform(), crop_pos_y=self.uniform()
+        )
         return (output, labels.gpu())
 
 
@@ -62,7 +64,10 @@ class CaffeReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus):
         super().__init__(batch_size, num_threads, device_id)
         self.input = ops.readers.Caffe(
-            path=lmdb_folder, random_shuffle=True, shard_id=device_id, num_shards=num_gpus
+            path=lmdb_folder,
+            random_shuffle=True,
+            shard_id=device_id,
+            num_shards=num_gpus,
         )
 
     def define_graph(self):
@@ -72,7 +77,12 @@ class CaffeReadPipeline(CommonPipeline):
 
 def get_batch_dali(batch_size, pipe_type, label_type, num_gpus=1):
     pipes = [
-        pipe_type(batch_size=batch_size, num_threads=2, device_id=device_id, num_gpus=num_gpus)
+        pipe_type(
+            batch_size=batch_size,
+            num_threads=2,
+            device_id=device_id,
+            num_gpus=num_gpus,
+        )
         for device_id in range(num_gpus)
     ]
 
@@ -121,7 +131,9 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=16, iterations=32):
 class PythonOperatorPipeline(Pipeline):
     def __init__(self):
         super().__init__(1, 1, 0, 0)
-        self.python_op = ops.PythonFunction(function=lambda: np.zeros((3, 3, 3)))
+        self.python_op = ops.PythonFunction(
+            function=lambda: np.zeros((3, 3, 3))
+        )
 
     def define_graph(self):
         return self.python_op()
@@ -135,4 +147,9 @@ def test_python_operator_error():
     daliop = dali_tf.DALIIterator()
     pipe = PythonOperatorPipeline()
     with tf.device("/cpu:0"):
-        _ = daliop(pipeline=pipe, shapes=[(1, 3, 3, 3)], dtypes=[tf.float32], device_id=0)
+        _ = daliop(
+            pipeline=pipe,
+            shapes=[(1, 3, 3, 3)],
+            dtypes=[tf.float32],
+            device_id=0,
+        )

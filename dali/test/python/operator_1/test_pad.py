@@ -51,7 +51,11 @@ class PadSynthDataPipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.pad = ops.Pad(
-            device=self.device, axes=axes, axis_names=axis_names, align=align, shape=shape_arg
+            device=self.device,
+            axes=axes,
+            axis_names=axis_names,
+            align=align,
+            shape=shape_arg,
         )
 
     def define_graph(self):
@@ -66,7 +70,9 @@ class PadSynthDataPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shape_arg):
+def check_pad(
+    device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
+):
     eii = RandomlyShapedDataIterator(batch_size, max_shape=input_max_shape)
     layout = "HWC"
     pipe = PadSynthDataPipeline(
@@ -88,7 +94,9 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
             assert axis_idx >= 0
             axes.append(axis_idx)
 
-    actual_axes = axes if (axes and len(axes) > 0) else range(len(input_max_shape))
+    actual_axes = (
+        axes if (axes and len(axes) > 0) else range(len(input_max_shape))
+    )
     assert len(actual_axes) > 0
 
     if not shape_arg or len(shape_arg) == 0:
@@ -104,7 +112,11 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
     for k in range(5):
         out1, out2 = pipe.run()
 
-        out1_data = out1.as_cpu() if isinstance(out1[0], dali.backend_impl.TensorGPU) else out1
+        out1_data = (
+            out1.as_cpu()
+            if isinstance(out1[0], dali.backend_impl.TensorGPU)
+            else out1
+        )
         max_shape = [-1] * len(input_max_shape)
 
         for i in range(len(actual_axes)):
@@ -116,7 +128,11 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
                 if input_shape[dim] > max_shape[dim]:
                     max_shape[dim] = input_shape[dim]
 
-        out2_data = out2.as_cpu() if isinstance(out2[0], dali.backend_impl.TensorGPU) else out2
+        out2_data = (
+            out2.as_cpu()
+            if isinstance(out2[0], dali.backend_impl.TensorGPU)
+            else out2
+        )
         for i in range(batch_size):
             input_shape = out1_data.at(i).shape
             output_shape = out2_data.at(i).shape
@@ -127,7 +143,11 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
                 shape_arg_val = shape_arg[j]
                 if shape_arg_val >= 0:
                     in_extent = input_shape[dim]
-                    expected_extent = in_extent if in_extent > shape_arg_val else shape_arg_val
+                    expected_extent = (
+                        in_extent
+                        if in_extent > shape_arg_val
+                        else shape_arg_val
+                    )
                 else:
                     expected_extent = max_shape[dim]
                 remainder = expected_extent % align_val
@@ -196,7 +216,9 @@ def test_pad_error():
     )
 
     pipe.build()
-    with assert_raises(RuntimeError, glob="Values of `align` argument must be positive."):
+    with assert_raises(
+        RuntimeError, glob="Values of `align` argument must be positive."
+    ):
         pipe.run()
 
 
@@ -208,29 +230,56 @@ def is_aligned(sh, align, axes):
     return True
 
 
-def check_pad_per_sample_shapes_and_alignment(device="cpu", batch_size=3, ndim=2, num_iter=3):
-    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
+def check_pad_per_sample_shapes_and_alignment(
+    device="cpu", batch_size=3, ndim=2, num_iter=3
+):
+    pipe = Pipeline(
+        batch_size=batch_size, num_threads=3, device_id=0, seed=1234
+    )
     axes = (0, 1)
     with pipe:
-        in_shape = fn.cast(fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
+        in_shape = fn.cast(
+            fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32
+        )
         in_data = fn.random.uniform(range=(0.0, 1.0), shape=in_shape)
         if device == "gpu":
             in_data = in_data.gpu()
-        req_shape = fn.cast(fn.random.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32)
-        req_align = fn.cast(fn.random.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32)
+        req_shape = fn.cast(
+            fn.random.uniform(range=(21, 30), shape=(ndim,)), dtype=types.INT32
+        )
+        req_align = fn.cast(
+            fn.random.uniform(range=(3, 5), shape=(ndim,)), dtype=types.INT32
+        )
         out_pad_shape = fn.pad(in_data, axes=axes, align=None, shape=req_shape)
         out_pad_align = fn.pad(in_data, axes=axes, align=req_align, shape=None)
-        out_pad_both = fn.pad(in_data, axes=axes, align=req_align, shape=req_shape)
+        out_pad_both = fn.pad(
+            in_data, axes=axes, align=req_align, shape=req_shape
+        )
         pipe.set_outputs(
-            in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both
+            in_shape,
+            in_data,
+            req_shape,
+            req_align,
+            out_pad_shape,
+            out_pad_align,
+            out_pad_both,
         )
     pipe.build()
     for _ in range(num_iter):
-        outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
+        outs = [
+            out.as_cpu() if isinstance(out, TensorListGPU) else out
+            for out in pipe.run()
+        ]
         for i in range(batch_size):
-            in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both = [
-                outs[out_idx].at(i) for out_idx in range(len(outs))
-            ]
+            (
+                in_shape,
+                in_data,
+                req_shape,
+                req_align,
+                out_pad_shape,
+                out_pad_align,
+                out_pad_both,
+            ) = [outs[out_idx].at(i) for out_idx in range(len(outs))]
             assert (in_shape == in_data.shape).all()
             # Pad to explicit shape
             assert (out_pad_shape.shape >= in_shape).all()
@@ -252,28 +301,43 @@ def test_pad_per_sample_shapes_and_alignment():
 
 
 def check_pad_to_square(device="cpu", batch_size=3, ndim=2, num_iter=3):
-    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
+    pipe = Pipeline(
+        batch_size=batch_size, num_threads=3, device_id=0, seed=1234
+    )
     with pipe:
-        in_shape = fn.cast(fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
-        in_data = fn.reshape(fn.random.uniform(range=(0.0, 1.0), shape=in_shape), layout="HW")
+        in_shape = fn.cast(
+            fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32
+        )
+        in_data = fn.reshape(
+            fn.random.uniform(range=(0.0, 1.0), shape=in_shape), layout="HW"
+        )
         shape = fn.shapes(in_data, dtype=types.INT32)
         h = fn.slice(shape, 0, 1, axes=[0])
         w = fn.slice(shape, 1, 1, axes=[0])
         side = math.max(h, w)
         if device == "gpu":
             in_data = in_data.gpu()
-        out_data = fn.pad(in_data, axis_names="HW", shape=fn.cat(side, side, axis=0))
+        out_data = fn.pad(
+            in_data, axis_names="HW", shape=fn.cat(side, side, axis=0)
+        )
         pipe.set_outputs(in_data, out_data)
     pipe.build()
     for _ in range(num_iter):
-        outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
+        outs = [
+            out.as_cpu() if isinstance(out, TensorListGPU) else out
+            for out in pipe.run()
+        ]
         for i in range(batch_size):
-            in_data, out_data = [outs[out_idx].at(i) for out_idx in range(len(outs))]
+            in_data, out_data = [
+                outs[out_idx].at(i) for out_idx in range(len(outs))
+            ]
             in_shape = in_data.shape
             max_side = max(in_shape)
             for s in out_data.shape:
                 assert s == max_side
-            np.testing.assert_equal(out_data[: in_shape[0], : in_shape[1]], in_data)
+            np.testing.assert_equal(
+                out_data[: in_shape[0], : in_shape[1]], in_data
+            )
             np.testing.assert_equal(out_data[in_shape[0] :, :], 0)
             np.testing.assert_equal(out_data[:, in_shape[1] :], 0)
 
@@ -283,14 +347,23 @@ def test_pad_to_square():
     yield check_pad_to_square, "gpu"
 
 
-def check_pad_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
+def check_pad_dynamic_axes(
+    device, batch_size, num_threads, use_negative, use_empty
+):
     shape_arg_desc = (100, 120, np.int32)
     get_dynamic_axes = generator_random_axes_for_3d_input(
-        batch_size, use_negative=use_negative, use_empty=use_empty, extra_out_desc=[shape_arg_desc]
+        batch_size,
+        use_negative=use_negative,
+        use_empty=use_empty,
+        extra_out_desc=[shape_arg_desc],
     )
 
     image_gen = generator_random_data(
-        batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3), dtype=np.float32, val_range=[0.0, 1.0]
+        batch_size,
+        min_sh=(10, 10, 3),
+        max_sh=(100, 100, 3),
+        dtype=np.float32,
+        val_range=[0.0, 1.0],
     )
 
     @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
@@ -331,14 +404,24 @@ def check_pad_dynamic_axes(device, batch_size, num_threads, use_negative, use_em
             for d in axes:
                 expected_pad1_sh[d] = max_shape[d]
             np.testing.assert_allclose(expected_pad1_sh, pad1.shape)
-            np.testing.assert_allclose(pad1[: in_sh[0], : in_sh[1], : in_sh[2]], in_img)
-            np.testing.assert_allclose(pad1[in_sh[0] :, : in_sh[1] :, : in_sh[2] :], fill_value)
+            np.testing.assert_allclose(
+                pad1[: in_sh[0], : in_sh[1], : in_sh[2]], in_img
+            )
+            np.testing.assert_allclose(
+                pad1[in_sh[0] :, : in_sh[1] :, : in_sh[2] :], fill_value
+            )
             expected_pad2_sh = np.copy(pad2.shape)
             for d, req_extent in zip(axes, shape):
-                expected_pad2_sh[d] = req_extent if req_extent > 0 else max_shape[d]
+                expected_pad2_sh[d] = (
+                    req_extent if req_extent > 0 else max_shape[d]
+                )
             np.testing.assert_allclose(expected_pad2_sh, pad2.shape)
-            np.testing.assert_allclose(pad2[: in_sh[0], : in_sh[1], : in_sh[2]], in_img)
-            np.testing.assert_allclose(pad2[in_sh[0] :, : in_sh[1] :, : in_sh[2] :], fill_value)
+            np.testing.assert_allclose(
+                pad2[: in_sh[0], : in_sh[1], : in_sh[2]], in_img
+            )
+            np.testing.assert_allclose(
+                pad2[in_sh[0] :, : in_sh[1] :, : in_sh[2] :], fill_value
+            )
 
 
 def test_dynamic_axes():
@@ -365,8 +448,12 @@ def test_empty_axes():
 def check_pad_wrong_axes(device, wrong_axes_range=None):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = types.Constant(0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
-        axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
+        fake_data = types.Constant(
+            0, shape=[10, 10, 3], dtype=types.FLOAT, device=device
+        )
+        axes = fn.random.uniform(
+            range=wrong_axes_range, shape=(2,), dtype=types.INT32
+        )
         padded = fn.pad(fake_data, axes=axes)
         return padded
 

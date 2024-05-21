@@ -74,7 +74,9 @@ def _tensor_to_string(self, show_data=True):
         + [f"shape={self.shape()})"]
     )
 
-    return f"{type_name}(\n{indent}" + _join_string(params, False, 0, ",\n" + indent)
+    return f"{type_name}(\n{indent}" + _join_string(
+        params, False, 0, ",\n" + indent
+    )
 
 
 def _tensorlist_to_string(self, show_data=True, indent=""):
@@ -105,14 +107,19 @@ def _tensorlist_to_string(self, show_data=True, indent=""):
     if data:
         if data.is_dense_tensor():
             data_str = np.array2string(
-                np.array(data.as_tensor()), prefix=spaces_indent, edgeitems=edgeitems
+                np.array(data.as_tensor()),
+                prefix=spaces_indent,
+                edgeitems=edgeitems,
             )
         else:
             data = list(map(np.array, data))
 
             # Triggers summarization if total number of elements exceeds 1000
             # (empty tensor is treated as 1 element).
-            crop = len(data) > 2 * edgeitems + 1 and sum(max(arr.size, 1) for arr in data) > 1000
+            crop = (
+                len(data) > 2 * edgeitems + 1
+                and sum(max(arr.size, 1) for arr in data) > 1000
+            )
             if crop:
                 data = data[:edgeitems] + data[-edgeitems:]
 
@@ -120,7 +127,9 @@ def _tensorlist_to_string(self, show_data=True, indent=""):
             sep = "\n" * data[0].ndim + spaces_indent
 
             data = [
-                np.array2string(tensor, prefix=spaces_indent, edgeitems=edgeitems)
+                np.array2string(
+                    tensor, prefix=spaces_indent, edgeitems=edgeitems
+                )
                 for tensor in data
             ]
             data_str = f"[{_join_string(data, crop, edgeitems, sep)}]"
@@ -137,7 +146,10 @@ def _tensorlist_to_string(self, show_data=True, indent=""):
     if len(shape_str) > 75:
         # Break shapes into separate lines.
         shape_str = _join_string(
-            shape, shape_crop, edgeitems, ", \n" + spaces_indent + " " * len(shape_prefix)
+            shape,
+            shape_crop,
+            edgeitems,
+            ", \n" + spaces_indent + " " * len(shape_prefix),
         )
 
     params = (
@@ -147,4 +159,6 @@ def _tensorlist_to_string(self, show_data=True, indent=""):
         + [f"num_samples={len(self)}", f"{shape_prefix}{shape_str}])"]
     )
 
-    return f"{type_name}(\n{spaces_indent}" + _join_string(params, False, 0, ",\n" + spaces_indent)
+    return f"{type_name}(\n{spaces_indent}" + _join_string(
+        params, False, 0, ",\n" + spaces_indent
+    )

@@ -68,21 +68,37 @@ def create_sample_source(shapes, dtype):
 @pipeline_def
 def images_pipeline(dev, shapes, border, in_dtype, mode):
     images, _ = fn.readers.file(
-        name="Reader", file_root=images_dir, prefetch_queue_depth=2, random_shuffle=True, seed=42
+        name="Reader",
+        file_root=images_dir,
+        prefetch_queue_depth=2,
+        random_shuffle=True,
+        seed=42,
     )
     images = fn.experimental.decoders.image(
-        images, device="cpu", output_type=types.RGB, dtype=np_type_to_dali(in_dtype)
+        images,
+        device="cpu",
+        output_type=types.RGB,
+        dtype=np_type_to_dali(in_dtype),
     )
     if dev == "gpu":
         images = images.gpu()
     filters, anchors = fn.external_source(
         source=create_filter_anchor_source(shapes), batch=False, num_outputs=2
     )
-    fill_val_limit = 1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
-    fill_values = fn.random.uniform(range=[0, fill_val_limit], dtype=np_type_to_dali(in_dtype))
+    fill_val_limit = (
+        1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
+    )
+    fill_values = fn.random.uniform(
+        range=[0, fill_val_limit], dtype=np_type_to_dali(in_dtype)
+    )
     if border == "constant":
         convolved = fn.experimental.filter(
-            images, filters, fill_values, anchor=anchors, border=border, mode=mode
+            images,
+            filters,
+            fill_values,
+            anchor=anchors,
+            border=border,
+            mode=mode,
         )
     else:
         convolved = fn.experimental.filter(
@@ -92,14 +108,22 @@ def images_pipeline(dev, shapes, border, in_dtype, mode):
 
 
 @pipeline_def
-def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtype, mode, dev):
+def sample_pipeline(
+    sample_shapes, sample_layout, filter_shapes, border, in_dtype, mode, dev
+):
     samples = fn.external_source(
-        source=create_sample_source(sample_shapes, in_dtype), batch=False, layout=sample_layout
+        source=create_sample_source(sample_shapes, in_dtype),
+        batch=False,
+        layout=sample_layout,
     )
     filters, anchors = fn.external_source(
-        source=create_filter_anchor_source(filter_shapes), batch=False, num_outputs=2
+        source=create_filter_anchor_source(filter_shapes),
+        batch=False,
+        num_outputs=2,
     )
-    fill_val_limit = 1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
+    fill_val_limit = (
+        1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
+    )
     rand_fill_dtype = in_dtype if in_dtype != np.float16 else np.float32
     fill_values = fn.random.uniform(
         range=[0, fill_val_limit], dtype=np_type_to_dali(rand_fill_dtype)
@@ -108,7 +132,12 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
     in_samples = samples.gpu() if dev == "gpu" else samples
     if border == "constant":
         convolved = fn.experimental.filter(
-            in_samples, filters, fill_values, anchor=anchors, border=border, mode=mode
+            in_samples,
+            filters,
+            fill_values,
+            anchor=anchors,
+            border=border,
+            mode=mode,
         )
     else:
         convolved = fn.experimental.filter(
@@ -181,10 +210,20 @@ def test_image_pipeline(dev, dtype, batch_size, border, mode):
         kernels = [np.array(kernel) for kernel in kernels]
         anchors = [np.array(anchor) for anchor in anchors]
         fill_values = [np.array(fv) for fv in fill_values]
-        assert len(filtered_imgs) == len(imgs) == len(kernels) == len(anchors) == len(fill_values)
+        assert (
+            len(filtered_imgs)
+            == len(imgs)
+            == len(kernels)
+            == len(anchors)
+            == len(fill_values)
+        )
         baseline = [
-            filter_baseline(img, kernel, anchor, border, fill_value, mode, has_channels=True)
-            for img, kernel, anchor, fill_value in zip(imgs, kernels, anchors, fill_values)
+            filter_baseline(
+                img, kernel, anchor, border, fill_value, mode, has_channels=True
+            )
+            for img, kernel, anchor, fill_value in zip(
+                imgs, kernels, anchors, fill_values
+            )
         ]
         check_batch(filtered_imgs, baseline, max_allowed_error=atol)
 
@@ -242,7 +281,12 @@ sample_2d_cases = tuple(
             (
                 np.uint16,
                 "FCHW",
-                [(4, 3, 501, 127), (5, 1, 600, 600), (2, 10, 1026, 741), (1, 7, 200, 500)],
+                [
+                    (4, 3, 501, 127),
+                    (5, 1, 600, 600),
+                    (2, 10, 1026, 741),
+                    (1, 7, 200, 500),
+                ],
                 [(3, 3), (8, 5), (10, 4), (70, 1), (1, 70)],
                 8,
                 "clamp",
@@ -276,7 +320,12 @@ sample_3d_cases = (
         "gpu",
         np.uint8,
         "DHWC",
-        [(300, 300, 300, 3), (128, 256, 50, 1), (200, 200, 200, 2), (128, 64, 50, 1)],
+        [
+            (300, 300, 300, 3),
+            (128, 256, 50, 1),
+            (200, 200, 200, 2),
+            (128, 64, 50, 1),
+        ],
         [(3, 3, 3), (31, 1, 1), (1, 31, 1), (1, 1, 31)],
         4,
         "101",
@@ -329,7 +378,14 @@ sample_3d_cases = (
 @attr("slow")
 @params(*(sample_2d_cases + sample_3d_cases))
 def slow_test_samples(
-    dev, dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border, mode
+    dev,
+    dtype,
+    sample_layout,
+    sample_shapes,
+    filter_shapes,
+    batch_size,
+    border,
+    mode,
 ):
     num_iters = 2
 
@@ -362,9 +418,19 @@ def slow_test_samples(
         kernels = [np.array(kernel) for kernel in kernels]
         anchors = [np.array(anchor) for anchor in anchors]
         fill_values = [np.array(fv) for fv in fill_values]
-        assert len(flt_samples) == len(samples) == len(kernels) == len(anchors) == len(fill_values)
+        assert (
+            len(flt_samples)
+            == len(samples)
+            == len(kernels)
+            == len(anchors)
+            == len(fill_values)
+        )
         baseline = [
-            filter_baseline_layout(sample_layout, sample, kernel, anchor, border, fill_value, mode)
-            for sample, kernel, anchor, fill_value in zip(samples, kernels, anchors, fill_values)
+            filter_baseline_layout(
+                sample_layout, sample, kernel, anchor, border, fill_value, mode
+            )
+            for sample, kernel, anchor, fill_value in zip(
+                samples, kernels, anchors, fill_values
+            )
         ]
         check_batch(flt_samples, baseline, max_allowed_error=atol)

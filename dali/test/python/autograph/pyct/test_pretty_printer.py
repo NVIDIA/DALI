@@ -36,11 +36,18 @@ class PrettyPrinterTest(unittest.TestCase):
         node = ast.FunctionDef(
             name="f",
             args=ast.arguments(
-                args=[ast.Name(id="a", ctx=ast.Param())], vararg=None, kwarg=None, defaults=[]
+                args=[ast.Name(id="a", ctx=ast.Param())],
+                vararg=None,
+                kwarg=None,
+                defaults=[],
             ),
             body=[
                 ast.Return(
-                    ast.BinOp(op=ast.Add(), left=ast.Name(id="a", ctx=ast.Load()), right=ast.Num(1))
+                    ast.BinOp(
+                        op=ast.Add(),
+                        left=ast.Name(id="a", ctx=ast.Load()),
+                        right=ast.Num(1),
+                    )
                 )
             ],
             decorator_list=[],

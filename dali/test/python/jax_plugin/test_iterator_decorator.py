@@ -26,9 +26,9 @@ batch_size = 3
 
 def test_dali_iterator_decorator_functional():
     # given
-    iter = data_iterator(iterator_function_def, output_map=["data"], reader_name="reader")(
-        batch_size=batch_size, device_id=0, num_threads=4
-    )
+    iter = data_iterator(
+        iterator_function_def, output_map=["data"], reader_name="reader"
+    )(batch_size=batch_size, device_id=0, num_threads=4)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -64,7 +64,9 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     def iterator_function(num_shards):
         return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(num_shards=2, num_threads=4, device_id=0, batch_size=batch_size)
+    iter = iterator_function(
+        num_shards=2, num_threads=4, device_id=0, batch_size=batch_size
+    )
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -81,7 +83,9 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 # arguments that might have been added to the iterator __init__
 def test_iterator_decorator_api_match_iterator_init():
     # given the list of arguments for the iterator __init__ method
-    iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
+    iterator_init_args = inspect.getfullargspec(
+        DALIGenericIterator.__init__
+    ).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
 

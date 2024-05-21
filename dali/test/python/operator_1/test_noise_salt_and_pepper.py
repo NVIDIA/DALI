@@ -26,14 +26,18 @@ images_dir = os.path.join(test_data_root, "db", "single", "png")
 dump_images = False
 
 
-def salt_and_pepper_noise_ref(x, prob, salt_vs_pepper, per_channel, salt_val, pepper_val):
+def salt_and_pepper_noise_ref(
+    x, prob, salt_vs_pepper, per_channel, salt_val, pepper_val
+):
     x = np.array(x, dtype=np.float32)
     salt_prob = prob * salt_vs_pepper
     pepper_prob = prob * (1.0 - salt_vs_pepper)
     nchannels = x.shape[-1]
     mask_sh = x.shape if per_channel else x.shape[:-1]
     mask = np.random.choice(
-        [pepper_val, np.nan, salt_val], p=[pepper_prob, 1 - prob, salt_prob], size=mask_sh
+        [pepper_val, np.nan, salt_val],
+        p=[pepper_prob, 1 - prob, salt_prob],
+        size=mask_sh,
     )
     if not per_channel:
         mask = np.stack([mask] * nchannels, axis=-1)
@@ -43,7 +47,13 @@ def salt_and_pepper_noise_ref(x, prob, salt_vs_pepper, per_channel, salt_val, pe
 
 @pipeline_def
 def pipe_salt_and_pepper_noise(
-    prob, salt_vs_pepper, channel_first, per_channel, salt_val, pepper_val, device="cpu"
+    prob,
+    salt_vs_pepper,
+    channel_first,
+    per_channel,
+    salt_val,
+    pepper_val,
+    device="cpu",
 ):
     encoded, _ = fn.readers.file(file_root=images_dir)
     in_data = fn.decoders.image(encoded, output_type=types.RGB)
@@ -64,7 +74,9 @@ def pipe_salt_and_pepper_noise(
     return in_data, out_data, prob_arg, salt_vs_pepper_arg
 
 
-def verify_salt_and_pepper(output, input, prob, salt_vs_pepper, per_channel, salt_val, pepper_val):
+def verify_salt_and_pepper(
+    output, input, prob, salt_vs_pepper, per_channel, salt_val, pepper_val
+):
     assert output.shape == input.shape
     height, width, nchannels = output.shape
     npixels = height * width
@@ -86,7 +98,9 @@ def verify_salt_and_pepper(output, input, prob, salt_vs_pepper, per_channel, sal
     salt_count = np.count_nonzero(np.logical_and(salt_mask, in_pixel_mask))
     pepper_count = np.count_nonzero(np.logical_and(pepper_mask, in_pixel_mask))
     pixel_count = np.count_nonzero(in_pixel_mask)
-    assert (np.logical_or(passthrough_mask, np.logical_or(salt_mask, pepper_mask))).all()
+    assert (
+        np.logical_or(passthrough_mask, np.logical_or(salt_mask, pepper_mask))
+    ).all()
     actual_noise_prob = (pepper_count + salt_count) / pixel_count
     actual_salt_vs_pepper = salt_count / (salt_count + pepper_count)
     np.testing.assert_allclose(actual_noise_prob, prob, atol=1e-2)
@@ -136,7 +150,12 @@ def _testimpl_operator_noise_salt_and_pepper(
             prob = float(prob_arg[s])
             salt_vs_pepper = float(salt_vs_pepper_arg[s])
             sample_ref = salt_and_pepper_noise_ref(
-                sample_in, prob, salt_vs_pepper, per_channel, salt_val, pepper_val
+                sample_in,
+                prob,
+                salt_vs_pepper,
+                per_channel,
+                salt_val,
+                pepper_val,
             )
             psnr_out = PSNR(sample_out, sample_in)
             psnr_ref = PSNR(sample_ref, sample_in)
@@ -155,7 +174,13 @@ def _testimpl_operator_noise_salt_and_pepper(
                     cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB),
                 )
             verify_salt_and_pepper(
-                sample_out, sample_in, prob, salt_vs_pepper, per_channel, salt_val, pepper_val
+                sample_out,
+                sample_in,
+                prob,
+                salt_vs_pepper,
+                per_channel,
+                salt_val,
+                pepper_val,
             )
             np.testing.assert_allclose(psnr_out, psnr_ref, atol=1)
 
@@ -169,7 +194,9 @@ def test_operator_noise_salt_and_pepper():
             for channel_first in [False, True]:
                 for pepper_val, salt_val in [(None, None), (10, 50)]:
                     for prob in probs:
-                        salt_and_pepper_prob = random.choice(salt_and_pepper_probs)
+                        salt_and_pepper_prob = random.choice(
+                            salt_and_pepper_probs
+                        )
                         batch_size = random.choice([1, 3])
                         yield (
                             _testimpl_operator_noise_salt_and_pepper,

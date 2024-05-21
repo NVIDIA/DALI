@@ -139,11 +139,21 @@ def test_pipeline_inputs_prefetch_queue_depth(use_copy_kernel, blocking):
         batch_size = rng.integers(1, max_batch_size)
         random_in = rng.random(size=(batch_size, 4, 6, 2))
         in_list_cpu = [
-            rng.integers(low=-max_test_value, high=max_test_value, size=(5, 3, 2))
+            rng.integers(
+                low=-max_test_value, high=max_test_value, size=(5, 3, 2)
+            )
             for _ in range(batch_size)
         ]
 
-        numpy, cupy, torch_cpu, torch_gpu, tensor_cpu, tensor_gpu, out_list_cpu = p.run(
+        (
+            numpy,
+            cupy,
+            torch_cpu,
+            torch_gpu,
+            tensor_cpu,
+            tensor_gpu,
+            out_list_cpu,
+        ) = p.run(
             numpy=random_in,
             cupy=cp.array(random_in),
             torch_cpu=torch.Tensor(random_in),
@@ -178,17 +188,29 @@ def test_pipeline_inputs_exec_pipelined(use_copy_kernel, blocking):
 
     rng = default_rng()
     n_iterations = 8
-    p = identity_pipe(use_copy_kernel, blocking, exec_pipelined=False, exec_async=False)
+    p = identity_pipe(
+        use_copy_kernel, blocking, exec_pipelined=False, exec_async=False
+    )
     p.build()
     for _ in range(n_iterations):
         batch_size = rng.integers(1, max_batch_size)
         random_in = rng.random(size=(batch_size, 4, 6, 2))
         in_list_cpu = [
-            rng.integers(low=-max_test_value, high=max_test_value, size=(5, 3, 2))
+            rng.integers(
+                low=-max_test_value, high=max_test_value, size=(5, 3, 2)
+            )
             for _ in range(batch_size)
         ]
 
-        numpy, cupy, torch_cpu, torch_gpu, tensor_cpu, tensor_gpu, out_list_cpu = p.run(
+        (
+            numpy,
+            cupy,
+            torch_cpu,
+            torch_gpu,
+            tensor_cpu,
+            tensor_gpu,
+            out_list_cpu,
+        ) = p.run(
             numpy=random_in,
             cupy=cp.array(random_in),
             torch_cpu=torch.Tensor(random_in),
@@ -209,7 +231,10 @@ def test_pipeline_inputs_exec_pipelined(use_copy_kernel, blocking):
             assert np.all(np.isclose(to_array(tst), ref))
 
 
-@raises(RuntimeError, glob="*`prefetch_queue_depth` in Pipeline constructor shall be set to 1*")
+@raises(
+    RuntimeError,
+    glob="*`prefetch_queue_depth` in Pipeline constructor shall be set to 1*",
+)
 def test_incorrect_prefetch_queue_depth():
     p = identity_pipe(False, False)
     p.build()

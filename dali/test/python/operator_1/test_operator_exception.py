@@ -207,7 +207,9 @@ Current pipeline object is no longer valid."""
 
 
 def test_conditional_split():
-    @pipeline_def(enable_conditionals=True, batch_size=10, num_threads=4, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, batch_size=10, num_threads=4, device_id=0
+    )
     def non_scalar_condition():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         stacked = fn.stack(pred, pred)
@@ -238,7 +240,9 @@ encountered:
 
 
 def test_conditional_merge():
-    @pipeline_def(enable_conditionals=True, batch_size=10, num_threads=4, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, batch_size=10, num_threads=4, device_id=0
+    )
     def non_scalar_condition():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         if pred:

@@ -37,7 +37,9 @@ class MelFilterBankPipeline(Pipeline):
         num_threads=1,
         device_id=0,
     ):
-        super(MelFilterBankPipeline, self).__init__(batch_size, num_threads, device_id)
+        super(MelFilterBankPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
@@ -63,7 +65,15 @@ class MelFilterBankPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, input_data):
+def mel_fbank_func(
+    nfilter,
+    sample_rate,
+    freq_low,
+    freq_high,
+    normalize,
+    mel_formula,
+    input_data,
+):
     in_shape = input_data.shape
     axis = -2 if len(in_shape) > 1 else 0
     fftbin_size = in_shape[axis]
@@ -112,13 +122,26 @@ class MelFilterBankPythonPipeline(Pipeline):
         func=mel_fbank_func,
     ):
         super(MelFilterBankPythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=12345,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = "cpu"
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
 
-        function = partial(func, nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula)
+        function = partial(
+            func,
+            nfilter,
+            sample_rate,
+            freq_low,
+            freq_high,
+            normalize,
+            mel_formula,
+        )
         self.mel_fbank = ops.PythonFunction(function=function)
         self.layout = layout
         self.freq_major = layout.find("f") != len(layout) - 1
@@ -135,7 +158,11 @@ class MelFilterBankPythonPipeline(Pipeline):
 
     def define_graph(self):
         self.data = self.inputs()
-        mel_fbank = self._transposed(self.mel_fbank) if self.need_transpose else self.mel_fbank
+        mel_fbank = (
+            self._transposed(self.mel_fbank)
+            if self.need_transpose
+            else self.mel_fbank
+        )
         out = mel_fbank(self.data)
         return out
 
@@ -201,7 +228,14 @@ def test_operator_mel_filter_bank_vs_python():
         for batch_size in [1, 3]:
             for normalize in [True, False]:
                 for mel_formula in ["htk", "slaney"]:
-                    for nfilter, sample_rate, freq_low, freq_high, shape, layout in [
+                    for (
+                        nfilter,
+                        sample_rate,
+                        freq_low,
+                        freq_high,
+                        shape,
+                        layout,
+                    ) in [
                         (4, 16000.0, 0.0, 8000.0, (17,), "f"),
                         (4, 16000.0, 0.0, 8000.0, (17, 1), "ft"),
                         (128, 16000.0, 0.0, 8000.0, (513, 100), "ft"),

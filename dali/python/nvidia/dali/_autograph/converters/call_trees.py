@@ -58,7 +58,9 @@ class _ArgTemplateBuilder(object):
 
     def _consume_args(self):
         if self._arg_accumulator:
-            self._argspec.append(gast.Tuple(elts=self._arg_accumulator, ctx=gast.Load()))
+            self._argspec.append(
+                gast.Tuple(elts=self._arg_accumulator, ctx=gast.Load())
+            )
             self._arg_accumulator = []
 
     def add_arg(self, a):
@@ -68,7 +70,9 @@ class _ArgTemplateBuilder(object):
         self._consume_args()
         self._argspec.append(
             gast.Call(
-                gast.Name("tuple", ctx=gast.Load(), annotation=None, type_comment=None),
+                gast.Name(
+                    "tuple", ctx=gast.Load(), annotation=None, type_comment=None
+                ),
                 args=[a],
                 keywords=(),
             )
@@ -146,7 +150,9 @@ class CallTreeTransformer(converter.Base):
         """Ties together all keyword and **kwarg arguments in a single dict."""
         if node.keywords:
             return gast.Call(
-                gast.Name("dict", ctx=gast.Load(), annotation=None, type_comment=None),
+                gast.Name(
+                    "dict", ctx=gast.Load(), annotation=None, type_comment=None
+                ),
                 args=(),
                 keywords=node.keywords,
             )

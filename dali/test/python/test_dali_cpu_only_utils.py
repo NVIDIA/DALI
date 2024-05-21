@@ -50,7 +50,11 @@ def setup_test_nemo_asr_reader_cpu():
         os.path.join(dir_name, "dali_test_4C.wav"),
     ]
 
-    freqs = [np.array([0.02]), np.array([0.01, 0.012]), np.array([0.01, 0.012, 0.013, 0.014])]
+    freqs = [
+        np.array([0.02]),
+        np.array([0.01, 0.012]),
+        np.array([0.01, 0.012, 0.013, 0.014]),
+    ]
     rates = [22050, 22050, 12347]
     lengths = [10000, 54321, 12345]
 
@@ -76,7 +80,9 @@ def setup_test_nemo_asr_reader_cpu():
         "dali test 4C",
     ]
     nemo_asr_manifest = os.path.join(dir_name, "nemo_asr_manifest.json")
-    create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
+    create_manifest_file(
+        nemo_asr_manifest, names, lengths, rates, ref_text_literal
+    )
 
     return tmp_dir, nemo_asr_manifest
 

@@ -30,10 +30,22 @@ caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 
 class ReshapePipeline(Pipeline):
     def __init__(
-        self, device, batch_size, relative, use_wildcard, num_threads=3, device_id=0, num_gpus=1
+        self,
+        device,
+        batch_size,
+        relative,
+        use_wildcard,
+        num_threads=3,
+        device_id=0,
+        num_gpus=1,
     ):
         super(ReshapePipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=True,
+            exec_pipelined=True,
         )
         self.device = device
         self.input = ops.readers.Caffe(
@@ -46,9 +58,13 @@ class ReshapePipeline(Pipeline):
         WC = -1 if use_wildcard else W * 3
         if relative:
             rel_shape = (-1, 3) if use_wildcard else (1, 3)
-            self.reshape = ops.Reshape(device=device, rel_shape=rel_shape, layout="ab")
+            self.reshape = ops.Reshape(
+                device=device, rel_shape=rel_shape, layout="ab"
+            )
         else:
-            self.reshape = ops.Reshape(device=device, shape=(H, WC), layout="ab")
+            self.reshape = ops.Reshape(
+                device=device, shape=(H, WC), layout="ab"
+            )
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
@@ -63,7 +79,9 @@ class ReshapePipeline(Pipeline):
 
 
 def CollapseChannels(image):
-    new_shape = np.array([image.shape[0], image.shape[1] * image.shape[2]]).astype(np.int32)
+    new_shape = np.array(
+        [image.shape[0], image.shape[1] * image.shape[2]]
+    ).astype(np.int32)
     return new_shape
 
 
@@ -73,9 +91,22 @@ def CollapseChannelsWildcard(image):
 
 
 class ReshapeWithInput(Pipeline):
-    def __init__(self, device, batch_size, use_wildcard, num_threads=3, device_id=0, num_gpus=1):
+    def __init__(
+        self,
+        device,
+        batch_size,
+        use_wildcard,
+        num_threads=3,
+        device_id=0,
+        num_gpus=1,
+    ):
         super(ReshapeWithInput, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = device
         self.input = ops.readers.Caffe(
@@ -102,17 +133,31 @@ def MakeTallFunc(relative, wildcard):
             return np.array([-1 if wildcard else 2, 0.5, 1]).astype(np.float32)
         else:
             h, w, c = image.shape
-            return np.array([-1 if wildcard else 2 * h, w / 2, c]).astype(np.int32)
+            return np.array([-1 if wildcard else 2 * h, w / 2, c]).astype(
+                np.int32
+            )
 
     return func
 
 
 class ReshapeWithArgInput(Pipeline):
     def __init__(
-        self, device, batch_size, relative, use_wildcard, num_threads=3, device_id=0, num_gpus=1
+        self,
+        device,
+        batch_size,
+        relative,
+        use_wildcard,
+        num_threads=3,
+        device_id=0,
+        num_gpus=1,
     ):
         super(ReshapeWithArgInput, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = device
         self.input = ops.readers.Caffe(
@@ -120,7 +165,9 @@ class ReshapeWithArgInput(Pipeline):
         )
         self.resize = ops.Resize(device="cpu")
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
-        self.gen_shapes = ops.PythonFunction(function=MakeTallFunc(relative, use_wildcard))
+        self.gen_shapes = ops.PythonFunction(
+            function=MakeTallFunc(relative, use_wildcard)
+        )
         self.reshape = ops.Reshape(device=device)
         self.relative = relative
 
@@ -237,9 +284,16 @@ def test_reshape_arg_input():
 
 
 class ReinterpretPipelineWithDefaultShape(Pipeline):
-    def __init__(self, device, batch_size, num_threads=3, device_id=0, num_gpus=1):
+    def __init__(
+        self, device, batch_size, num_threads=3, device_id=0, num_gpus=1
+    ):
         super(ReinterpretPipelineWithDefaultShape, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=True,
+            exec_pipelined=True,
         )
         self.device = device
         self.ext_src = ops.ExternalSource()
@@ -284,13 +338,22 @@ def test_reinterpret_default_shape():
 
 
 class ReinterpretPipelineWildcardDim(Pipeline):
-    def __init__(self, device, batch_size, num_threads=3, device_id=0, num_gpus=1):
+    def __init__(
+        self, device, batch_size, num_threads=3, device_id=0, num_gpus=1
+    ):
         super(ReinterpretPipelineWildcardDim, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=True,
+            exec_pipelined=True,
         )
         self.device = device
         self.ext_src = ops.ExternalSource()
-        self.reinterpret = ops.Reinterpret(device=device, shape=(20, 2), dtype=types.INT32)
+        self.reinterpret = ops.Reinterpret(
+            device=device, shape=(20, 2), dtype=types.INT32
+        )
 
     def define_graph(self):
         input = self.input = self.ext_src()
@@ -303,7 +366,10 @@ class ReinterpretPipelineWildcardDim(Pipeline):
         return [input, reinterpreted]
 
     def iter_setup(self):
-        data = [np.random.randint(0, 255, [10, 16], dtype=np.uint8) for i in range(self.batch_size)]
+        data = [
+            np.random.randint(0, 255, [10, 16], dtype=np.uint8)
+            for i in range(self.batch_size)
+        ]
         self.feed_input(self.input, data)
 
 
@@ -332,11 +398,15 @@ def get_data(shapes):
 
 @pipeline_def
 def reshape_pipe(shapes, src_dims=None, rel_shape=None):
-    data = fn.external_source(lambda: get_data(shapes), batch=True, device="cpu")
+    data = fn.external_source(
+        lambda: get_data(shapes), batch=True, device="cpu"
+    )
     return fn.reshape(data, src_dims=src_dims, rel_shape=rel_shape)
 
 
-def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_shapes):
+def _testimpl_reshape_src_dims_arg(
+    src_dims, rel_shape, shapes, expected_out_shapes
+):
     batch_size = len(shapes)
     pipe = reshape_pipe(
         batch_size=batch_size,
@@ -357,7 +427,12 @@ def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_sha
 def test_reshape_src_dims_arg():
     # src_dims, rel_shape, shapes, expected_out_shapes
     args = [
-        ([0, 1], None, [[200, 300, 1], [300, 400, 1]], [(200, 300), (300, 400)]),
+        (
+            [0, 1],
+            None,
+            [[200, 300, 1], [300, 400, 1]],
+            [(200, 300), (300, 400)],
+        ),
         (
             [1, 2, 0],
             None,
@@ -410,7 +485,11 @@ def test_reshape_src_dims_throw_error(src_dims, rel_shape, shapes, err_regex):
 def test_trailing_wildcard(rel_shape):
     shapes = [[480, 640], [320, 240]]
     pipe = reshape_pipe(
-        batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, rel_shape=rel_shape
+        batch_size=len(shapes),
+        num_threads=1,
+        device_id=0,
+        shapes=shapes,
+        rel_shape=rel_shape,
     )
     pipe.build()
     (out,) = pipe.run()
@@ -422,11 +501,16 @@ def test_trailing_wildcard(rel_shape):
 def test_invalid_wildcard(rel_shape):
     shapes = [[480, 640], [320, 240]]
     pipe = reshape_pipe(
-        batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, rel_shape=rel_shape
+        batch_size=len(shapes),
+        num_threads=1,
+        device_id=0,
+        shapes=shapes,
+        rel_shape=rel_shape,
     )
     pipe.build()
     err_glob = (
-        "*`rel_shape` has more elements (3) than*dimensions in the input (2)*" "use `src_dims`*"
+        "*`rel_shape` has more elements (3) than*dimensions in the input (2)*"
+        "use `src_dims`*"
     )
     with assert_raises(RuntimeError, glob=err_glob):
         pipe.run()
@@ -435,9 +519,15 @@ def test_invalid_wildcard(rel_shape):
 def test_wildcard_zero_volume():
     shapes = [[480, 640], [320, 0]]
     pipe = reshape_pipe(
-        batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, rel_shape=[-1, 1]
+        batch_size=len(shapes),
+        num_threads=1,
+        device_id=0,
+        shapes=shapes,
+        rel_shape=[-1, 1],
     )
     pipe.build()
-    err_glob = "*Cannot infer*dimension 0 when the volume*is 0. Input shape:*320 x 0"
+    err_glob = (
+        "*Cannot infer*dimension 0 when the volume*is 0. Input shape:*320 x 0"
+    )
     with assert_raises(RuntimeError, glob=err_glob):
         pipe.run()

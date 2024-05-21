@@ -64,21 +64,35 @@ class PyBuiltinsTest(unittest.TestCase):
         self.assertListEqual(list(py_builtins.range_(2, 0, -1)), [2, 1])
 
     def test_enumerate(self):
-        self.assertListEqual(list(py_builtins.enumerate_([3, 2, 1])), [(0, 3), (1, 2), (2, 1)])
-        self.assertListEqual(list(py_builtins.enumerate_([3, 2, 1], 5)), [(5, 3), (6, 2), (7, 1)])
+        self.assertListEqual(
+            list(py_builtins.enumerate_([3, 2, 1])), [(0, 3), (1, 2), (2, 1)]
+        )
+        self.assertListEqual(
+            list(py_builtins.enumerate_([3, 2, 1], 5)), [(5, 3), (6, 2), (7, 1)]
+        )
         self.assertListEqual(list(py_builtins.enumerate_([-8], -3)), [(-3, -8)])
 
     def test_zip(self):
-        self.assertListEqual(list(py_builtins.zip_([3, 2, 1], [1, 2, 3])), [(3, 1), (2, 2), (1, 3)])
-        self.assertListEqual(list(py_builtins.zip_([4, 5, 6], [-1, -2])), [(4, -1), (5, -2)])
+        self.assertListEqual(
+            list(py_builtins.zip_([3, 2, 1], [1, 2, 3])),
+            [(3, 1), (2, 2), (1, 3)],
+        )
+        self.assertListEqual(
+            list(py_builtins.zip_([4, 5, 6], [-1, -2])), [(4, -1), (5, -2)]
+        )
 
     def test_map(self):
         def increment(x):
             return x + 1
 
         add_list = lambda x, y: x + y
-        self.assertListEqual(list(py_builtins.map_(increment, [4, 5, 6])), [5, 6, 7])
-        self.assertListEqual(list(py_builtins.map_(add_list, [3, 2, 1], [-1, -2, -3])), [2, 0, -2])
+        self.assertListEqual(
+            list(py_builtins.map_(increment, [4, 5, 6])), [5, 6, 7]
+        )
+        self.assertListEqual(
+            list(py_builtins.map_(add_list, [3, 2, 1], [-1, -2, -3])),
+            [2, 0, -2],
+        )
 
     def test_next_normal(self):
         iterator = iter([1, 2, 3])
@@ -100,7 +114,9 @@ class PyBuiltinsTest(unittest.TestCase):
         def test_fn():
             l = 1  # pylint:disable=unused-variable # noqa: F841
             with self._basic_function_scope() as test_scope:
-                return py_builtins.eval_in_original_context(eval, ("l",), test_scope)
+                return py_builtins.eval_in_original_context(
+                    eval, ("l",), test_scope
+                )
 
         self.assertEqual(test_fn(), 1)
 
@@ -113,7 +129,9 @@ class PyBuiltinsTest(unittest.TestCase):
                     # Note: a user function without a top-level function scope should
                     # never be found in user code; it's only possible in generated code.
                     l = 2  # pylint:disable=unused-variable # noqa: F841
-                    return py_builtins.eval_in_original_context(eval, ("l",), test_scope)
+                    return py_builtins.eval_in_original_context(
+                        eval, ("l",), test_scope
+                    )
 
                 return inner_fn()
 
@@ -214,7 +232,9 @@ class PyBuiltinsTest(unittest.TestCase):
 
             def test_method(self):
                 with test_case_self._basic_function_scope() as test_scope:
-                    b = py_builtins.super_in_original_context(super, (), test_scope)
+                    b = py_builtins.super_in_original_context(
+                        super, (), test_scope
+                    )
                     return b.overridden_method(1)
 
         tc = TestSubclass()
@@ -287,8 +307,13 @@ class PyBuiltinsTest(unittest.TestCase):
         self.assertEqual(tc.test_method(1), 21)
 
     def test_filter(self):
-        self.assertListEqual(list(py_builtins.filter_(lambda x: x == "b", ["a", "b", "c"])), ["b"])
-        self.assertListEqual(list(py_builtins.filter_(lambda x: x < 3, [3, 2, 1])), [2, 1])
+        self.assertListEqual(
+            list(py_builtins.filter_(lambda x: x == "b", ["a", "b", "c"])),
+            ["b"],
+        )
+        self.assertListEqual(
+            list(py_builtins.filter_(lambda x: x < 3, [3, 2, 1])), [2, 1]
+        )
 
     def test_any(self):
         self.assertEqual(py_builtins.any_([False, True, False]), True)
@@ -300,11 +325,17 @@ class PyBuiltinsTest(unittest.TestCase):
 
     def test_sorted(self):
         self.assertListEqual(py_builtins.sorted_([2, 3, 1]), [1, 2, 3])
-        self.assertListEqual(py_builtins.sorted_([2, 3, 1], key=lambda x: -x), [3, 2, 1])
-        self.assertListEqual(py_builtins.sorted_([2, 3, 1], reverse=True), [3, 2, 1])
         self.assertListEqual(
-            py_builtins.sorted_([2, 3, 1], key=lambda x: -x, reverse=True), [1, 2, 3]
+            py_builtins.sorted_([2, 3, 1], key=lambda x: -x), [3, 2, 1]
+        )
+        self.assertListEqual(
+            py_builtins.sorted_([2, 3, 1], reverse=True), [3, 2, 1]
+        )
+        self.assertListEqual(
+            py_builtins.sorted_([2, 3, 1], key=lambda x: -x, reverse=True),
+            [1, 2, 3],
         )
         self.assertEqual(
-            py_builtins.sorted_([[4, 3], [2, 1]], key=lambda x: sum(x)), [[2, 1], [4, 3]]
+            py_builtins.sorted_([[4, 3], [2, 1]], key=lambda x: sum(x)),
+            [[2, 1], [4, 3]],
         )

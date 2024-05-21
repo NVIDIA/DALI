@@ -44,7 +44,11 @@ def _remove_file(file_name):
 def load_source(source, delete_on_exit):
     """Loads the given source code as a Python module."""
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", prefix="__autograph_generated_file", delete=False, encoding="utf-8"
+        mode="w",
+        suffix=".py",
+        prefix="__autograph_generated_file",
+        delete=False,
+        encoding="utf-8",
     ) as f:
         module_name = os.path.basename(f.name[:-3])
         file_name = f.name
@@ -61,7 +65,9 @@ def load_source(source, delete_on_exit):
     return module, file_name
 
 
-def load_ast(nodes, indentation="  ", include_source_map=False, delete_on_exit=True):
+def load_ast(
+    nodes, indentation="  ", include_source_map=False, delete_on_exit=True
+):
     """Loads the given AST as a Python module.
 
     Compiling the AST code this way ensures that the source code is readable by
@@ -88,7 +94,9 @@ def load_ast(nodes, indentation="  ", include_source_map=False, delete_on_exit=T
     module, _ = load_source(source, delete_on_exit)
 
     if include_source_map:
-        source_map = origin_info.create_source_map(nodes, source, module.__file__)
+        source_map = origin_info.create_source_map(
+            nodes, source, module.__file__
+        )
     else:
         source_map = None
 

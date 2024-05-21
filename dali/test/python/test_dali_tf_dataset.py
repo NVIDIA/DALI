@@ -22,12 +22,17 @@ from nose_utils import raises
 from test_utils_tensorflow import get_image_pipeline
 
 
-@raises(ValueError, "Two structures don't have the same sequence length*length 3*length 2")
+@raises(
+    ValueError,
+    "Two structures don't have the same sequence length*length 3*length 2",
+)
 def test_different_num_shapes_dtypes():
     batch_size = 12
     num_threads = 4
 
-    dataset_pipe, shapes, dtypes = get_image_pipeline(batch_size, num_threads, "cpu")
+    dataset_pipe, shapes, dtypes = get_image_pipeline(
+        batch_size, num_threads, "cpu"
+    )
     dtypes = tuple(dtypes[0:2])
 
     with tf.device("/cpu:0"):
@@ -40,7 +45,10 @@ def test_different_num_shapes_dtypes():
         )
 
 
-@raises(RuntimeError, "some operators*cannot be used with TensorFlow Dataset API and DALIIterator")
+@raises(
+    RuntimeError,
+    "some operators*cannot be used with TensorFlow Dataset API and DALIIterator",
+)
 def test_python_operator_not_allowed_in_tf_dataset_error():
     pipeline = Pipeline(1, 1, 0, exec_pipelined=False, exec_async=False)
     with pipeline:

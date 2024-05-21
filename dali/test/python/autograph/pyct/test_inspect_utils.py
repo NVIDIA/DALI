@@ -132,7 +132,9 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertTrue(inspect_utils.isnamedtuple(NamedTupleSubclass))
 
     def assertSourceIdentical(self, actual, expected):
-        self.assertEqual(textwrap.dedent(actual).strip(), textwrap.dedent(expected).strip())
+        self.assertEqual(
+            textwrap.dedent(actual).strip(), textwrap.dedent(expected).strip()
+        )
 
     def test_getimmediatesource_basic(self):
         def test_decorator(f):
@@ -151,7 +153,9 @@ class InspectUtilsTest(unittest.TestCase):
             """Test docstring."""
             return [a]
 
-        self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
+        self.assertSourceIdentical(
+            inspect_utils.getimmediatesource(test_fn), expected
+        )
 
     def test_getimmediatesource_noop_decorator(self):
         def test_decorator(f):
@@ -169,7 +173,9 @@ class InspectUtilsTest(unittest.TestCase):
             """Test docstring."""
             return [a]
 
-        self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
+        self.assertSourceIdentical(
+            inspect_utils.getimmediatesource(test_fn), expected
+        )
 
     def test_getimmediatesource_functools_wrapper(self):
         def wrapper_decorator(f):
@@ -192,7 +198,9 @@ class InspectUtilsTest(unittest.TestCase):
             """Test docstring."""
             return [a]
 
-        self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
+        self.assertSourceIdentical(
+            inspect_utils.getimmediatesource(test_fn), expected
+        )
 
     def test_getimmediatesource_functools_wrapper_different_module(self):
         expected = textwrap.dedent(
@@ -208,7 +216,9 @@ class InspectUtilsTest(unittest.TestCase):
             """Test docstring."""
             return [a]
 
-        self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
+        self.assertSourceIdentical(
+            inspect_utils.getimmediatesource(test_fn), expected
+        )
 
     def test_getimmediatesource_normal_decorator_different_module(self):
         expected = textwrap.dedent(
@@ -223,9 +233,13 @@ class InspectUtilsTest(unittest.TestCase):
             """Test docstring."""
             return [a]
 
-        self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
+        self.assertSourceIdentical(
+            inspect_utils.getimmediatesource(test_fn), expected
+        )
 
-    def test_getimmediatesource_normal_functional_decorator_different_module(self):
+    def test_getimmediatesource_normal_functional_decorator_different_module(
+        self,
+    ):
         expected = textwrap.dedent(
             """
     def functional_wrapper(*args, **kwargs):
@@ -238,7 +252,9 @@ class InspectUtilsTest(unittest.TestCase):
             """Test docstring."""
             return [a]
 
-        self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
+        self.assertSourceIdentical(
+            inspect_utils.getimmediatesource(test_fn), expected
+        )
 
     def test_getnamespace_globals(self):
         ns = inspect_utils.getnamespace(factory)
@@ -336,7 +352,9 @@ class InspectUtilsTest(unittest.TestCase):
             prev_level = current_level
 
         self.assertIsNone(inspect_utils.getqualifiedname(ns, inspect_utils))
-        self.assertIsNotNone(inspect_utils.getqualifiedname(ns, foo, max_depth=10000000000))
+        self.assertIsNotNone(
+            inspect_utils.getqualifiedname(ns, foo, max_depth=10000000000)
+        )
 
     def test_getqualifiedname_cycles(self):
         foo = object()
@@ -361,26 +379,56 @@ class InspectUtilsTest(unittest.TestCase):
             mods.append(mod)
 
         self.assertIsNone(inspect_utils.getqualifiedname(ns, inspect_utils))
-        self.assertIsNotNone(inspect_utils.getqualifiedname(ns, foo, max_depth=10000000000))
+        self.assertIsNotNone(
+            inspect_utils.getqualifiedname(ns, foo, max_depth=10000000000)
+        )
 
     def test_getmethodclass(self):
         self.assertEqual(inspect_utils.getmethodclass(free_function), None)
         self.assertEqual(inspect_utils.getmethodclass(free_factory()), None)
 
-        self.assertEqual(inspect_utils.getmethodclass(TestClass.member_function), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(TestClass.decorated_member), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(TestClass.fn_decorated_member), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(TestClass.wrap_decorated_member), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(TestClass.static_method), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(TestClass.class_method), TestClass)
+        self.assertEqual(
+            inspect_utils.getmethodclass(TestClass.member_function), TestClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(TestClass.decorated_member), TestClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(TestClass.fn_decorated_member),
+            TestClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(TestClass.wrap_decorated_member),
+            TestClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(TestClass.static_method), TestClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(TestClass.class_method), TestClass
+        )
 
         test_obj = TestClass()
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.member_function), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.decorated_member), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.fn_decorated_member), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.wrap_decorated_member), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.static_method), TestClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.class_method), TestClass)
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.member_function), TestClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.decorated_member), TestClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.fn_decorated_member),
+            TestClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.wrap_decorated_member),
+            TestClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.static_method), TestClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.class_method), TestClass
+        )
 
     def test_getmethodclass_locals(self):
         def local_function():
@@ -404,16 +452,37 @@ class InspectUtilsTest(unittest.TestCase):
 
         self.assertEqual(inspect_utils.getmethodclass(local_function), None)
 
-        self.assertEqual(inspect_utils.getmethodclass(LocalClass.member_function), LocalClass)
-        self.assertEqual(inspect_utils.getmethodclass(LocalClass.decorated_member), LocalClass)
-        self.assertEqual(inspect_utils.getmethodclass(LocalClass.fn_decorated_member), LocalClass)
-        self.assertEqual(inspect_utils.getmethodclass(LocalClass.wrap_decorated_member), LocalClass)
+        self.assertEqual(
+            inspect_utils.getmethodclass(LocalClass.member_function), LocalClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(LocalClass.decorated_member),
+            LocalClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(LocalClass.fn_decorated_member),
+            LocalClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(LocalClass.wrap_decorated_member),
+            LocalClass,
+        )
 
         test_obj = LocalClass()
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.member_function), LocalClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.decorated_member), LocalClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.fn_decorated_member), LocalClass)
-        self.assertEqual(inspect_utils.getmethodclass(test_obj.wrap_decorated_member), LocalClass)
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.member_function), LocalClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.decorated_member), LocalClass
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.fn_decorated_member),
+            LocalClass,
+        )
+        self.assertEqual(
+            inspect_utils.getmethodclass(test_obj.wrap_decorated_member),
+            LocalClass,
+        )
 
     def test_getmethodclass_callables(self):
         class TestCallable(object):
@@ -442,10 +511,19 @@ class InspectUtilsTest(unittest.TestCase):
             def baz(self):
                 pass
 
-        self.assertIs(inspect_utils.getdefiningclass(Subclass.foo, Subclass), Subclass)
-        self.assertIs(inspect_utils.getdefiningclass(Subclass.bar, Subclass), Superclass)
-        self.assertIs(inspect_utils.getdefiningclass(Subclass.baz, Subclass), Subclass)
-        self.assertIs(inspect_utils.getdefiningclass(Subclass.class_method, Subclass), Superclass)
+        self.assertIs(
+            inspect_utils.getdefiningclass(Subclass.foo, Subclass), Subclass
+        )
+        self.assertIs(
+            inspect_utils.getdefiningclass(Subclass.bar, Subclass), Superclass
+        )
+        self.assertIs(
+            inspect_utils.getdefiningclass(Subclass.baz, Subclass), Subclass
+        )
+        self.assertIs(
+            inspect_utils.getdefiningclass(Subclass.class_method, Subclass),
+            Superclass,
+        )
 
     def test_isbuiltin(self):
         self.assertTrue(inspect_utils.isbuiltin(enumerate))
@@ -475,10 +553,14 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertTrue(inspect_utils.isconstructor(OrdinaryClass))
         self.assertTrue(inspect_utils.isconstructor(OrdinaryCallableClass))
         self.assertTrue(inspect_utils.isconstructor(Metaclass))
-        self.assertTrue(inspect_utils.isconstructor(Metaclass("TestClass", (), {})))
+        self.assertTrue(
+            inspect_utils.isconstructor(Metaclass("TestClass", (), {}))
+        )
         self.assertTrue(inspect_utils.isconstructor(CallableMetaclass))
 
-        self.assertFalse(inspect_utils.isconstructor(CallableMetaclass("TestClass", (), {})))
+        self.assertFalse(
+            inspect_utils.isconstructor(CallableMetaclass("TestClass", (), {}))
+        )
 
     def test_isconstructor_abc_callable(self):
         @six.add_metaclass(abc.ABCMeta)
@@ -498,7 +580,9 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertTrue(inspect_utils.isconstructor(AbcSubclass))
 
     def test_getfutureimports_functions(self):
-        imps = inspect_utils.getfutureimports(basic_definitions.function_with_print)
+        imps = inspect_utils.getfutureimports(
+            basic_definitions.function_with_print
+        )
         self.assertNotIn("absolute_import", imps)
         self.assertNotIn("division", imps)
         self.assertNotIn("print_function", imps)
@@ -512,7 +596,9 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertNotIn("generators", imps)
 
     def test_getfutureimports_methods(self):
-        imps = inspect_utils.getfutureimports(basic_definitions.SimpleClass.method_with_print)
+        imps = inspect_utils.getfutureimports(
+            basic_definitions.SimpleClass.method_with_print
+        )
         self.assertNotIn("absolute_import", imps)
         self.assertNotIn("division", imps)
         self.assertNotIn("print_function", imps)

@@ -29,7 +29,9 @@ class NamerTest(unittest.TestCase):
         namer = naming.Namer({})
         self.assertEqual("temp", namer.new_symbol("temp", set()))
         self.assertEqual("temp_1", namer.new_symbol("temp", set()))
-        self.assertEqual(("temp", "temp_1"), tuple(sorted(namer.generated_names)))
+        self.assertEqual(
+            ("temp", "temp_1"), tuple(sorted(namer.generated_names))
+        )
 
     def test_new_symbol_avoids_conflicts(self):
         namer = naming.Namer({"temp": 1})
@@ -37,4 +39,6 @@ class NamerTest(unittest.TestCase):
         self.assertEqual("temp_1", namer.new_symbol("temp", set()))
         # temp_2 is reserved in the local namespace
         self.assertEqual("temp_3", namer.new_symbol("temp", set(("temp_2",))))
-        self.assertEqual(("temp_1", "temp_3"), tuple(sorted(namer.generated_names)))
+        self.assertEqual(
+            ("temp_1", "temp_3"), tuple(sorted(namer.generated_names))
+        )

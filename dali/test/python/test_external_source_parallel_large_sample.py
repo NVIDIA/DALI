@@ -18,7 +18,11 @@ from nose.tools import with_setup
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 
-from test_external_source_parallel_utils import setup_function, teardown_function, capture_processes
+from test_external_source_parallel_utils import (
+    setup_function,
+    teardown_function,
+    capture_processes,
+)
 
 
 def large_sample_cb(sample_info):
@@ -55,7 +59,9 @@ def _test_large_sample(start_method):
             idx_in_epoch = batch_size * batch_idx + idx_in_batch
             expected_val = idx_in_epoch * 1024 * 1024
             a = np.array(out[idx_in_batch])
-            assert a.shape == (512,), "Expected shape (512,) but got {}".format(a.shape)
+            assert a.shape == (512,), "Expected shape (512,) but got {}".format(
+                a.shape
+            )
             for val in a.flat:
                 assert val == expected_val, (
                     f"Unexpected value in batch: got {val}, expected {expected_val}, "

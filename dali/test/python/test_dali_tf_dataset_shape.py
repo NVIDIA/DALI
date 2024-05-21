@@ -45,7 +45,9 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple=False):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
+            self.reader = ops.readers.File(
+                file_root=data_path, file_list=file_list_path
+            )
             self.decoder = ops.decoders.Image(device="mixed")
 
         def define_graph(self):
@@ -54,7 +56,9 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple=False):
             return image
 
     pipe = TestPipeline(batch_size=1, seed=0)
-    ds = dali_tf.DALIDataset(pipe, batch_size=1, output_dtypes=types, output_shapes=shapes)
+    ds = dali_tf.DALIDataset(
+        pipe, batch_size=1, output_dtypes=types, output_shapes=shapes
+    )
     # for clarity, we could have used the previous `pipe`
     pipe_ref = TestPipeline(batch_size=1, seed=0, device_id=0, num_threads=4)
     pipe_ref.build()
@@ -93,17 +97,26 @@ def test_batch_1_mixed_tuple():
         (1, None, None, 3),
         (None, None, 3),
     ]:
-        yield raises(ValueError, "The two structures don't have the same sequence length.")(
-            dali_pipe_batch_1
-        ), shape, (tf.uint8,)
+        yield raises(
+            ValueError,
+            "The two structures don't have the same sequence length.",
+        )(dali_pipe_batch_1), shape, (tf.uint8,)
         expected_msg = (
-            "Dimension value must be integer or None * got value * " "with type '<class 'tuple'>'"
+            "Dimension value must be integer or None * got value * "
+            "with type '<class 'tuple'>'"
         )
-        yield raises(TypeError, expected_msg)(dali_pipe_batch_1), (shape,), tf.uint8
+        yield raises(TypeError, expected_msg)(dali_pipe_batch_1), (
+            shape,
+        ), tf.uint8
 
 
 def test_batch_1_wrong_shape():
-    for shape in [(2, None, None, None), (None, None, 4), (2, None, None, 4), (None, 0, None, 3)]:
+    for shape in [
+        (2, None, None, None),
+        (None, None, 4),
+        (2, None, None, 4),
+        (None, 0, None, 3),
+    ]:
         yield raises(
             tf.errors.InvalidArgumentError,
             "The shape provided for output `0` is not compatible with the "
@@ -115,7 +128,9 @@ def dali_pipe_batch_N(shapes, types, batch):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
+            self.reader = ops.readers.File(
+                file_root=data_path, file_list=file_list_path
+            )
             self.decoder = ops.decoders.Image(device="mixed")
             self.resize = ops.Resize(device="gpu", resize_x=200, resize_y=200)
 
@@ -126,7 +141,9 @@ def dali_pipe_batch_N(shapes, types, batch):
             return resized
 
     pipe = TestPipeline(batch_size=batch, seed=0)
-    ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
+    ds = dali_tf.DALIDataset(
+        pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes
+    )
     ds_iter = iter(ds)
     for _ in range(10):
         (image,) = ds_iter.next()
@@ -144,13 +161,17 @@ def test_batch_N_valid_shapes():
         output_shape = (batch, 200, 200, 3)
         for i in range(2 ** len(output_shape)):
             noned_shape = tuple(
-                (dim if i & (2**idx) else None) for idx, dim in enumerate(output_shape)
+                (dim if i & (2**idx) else None)
+                for idx, dim in enumerate(output_shape)
             )
             yield dali_pipe_batch_N, noned_shape, tf.uint8, batch
     # Omitted batch of size `1`
     output_shape = (200, 200, 3)
     for i in range(2 ** len(output_shape)):
-        noned_shape = tuple((dim if i & (2**idx) else None) for idx, dim in enumerate(output_shape))
+        noned_shape = tuple(
+            (dim if i & (2**idx) else None)
+            for idx, dim in enumerate(output_shape)
+        )
         yield dali_pipe_batch_N, noned_shape, tf.uint8, 1
 
 
@@ -158,7 +179,9 @@ def dali_pipe_multiple_out(shapes, types, batch):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
+            self.reader = ops.readers.File(
+                file_root=data_path, file_list=file_list_path
+            )
             self.decoder = ops.decoders.Image(device="mixed")
             self.resize = ops.Resize(device="gpu", resize_x=200, resize_y=200)
 
@@ -169,7 +192,9 @@ def dali_pipe_multiple_out(shapes, types, batch):
             return resized, label.gpu()
 
     pipe = TestPipeline(batch_size=batch, seed=0)
-    ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes)
+    ds = dali_tf.DALIDataset(
+        pipe, batch_size=batch, output_dtypes=types, output_shapes=shapes
+    )
     ds_iter = iter(ds)
     for _ in range(10):
         image, label = ds_iter.next()
@@ -198,22 +223,27 @@ def test_multiple_input_valid_shapes():
 def test_multiple_input_invalid():
     for batch in [1, 10]:
         for shapes in [(None,), (batch, 200, 200, 3, None), (None, None, None)]:
-            yield raises(ValueError, "The two structures don't have the same sequence length.")(
-                dali_pipe_multiple_out
-            ), shapes, (tf.uint8, tf.uint8), batch
+            yield raises(
+                ValueError,
+                "The two structures don't have the same sequence length.",
+            )(dali_pipe_multiple_out), shapes, (tf.uint8, tf.uint8), batch
 
 
 def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.constant = ops.Constant(dtype=dali_type, idata=[1, 1], shape=[1, 2, 1])
+            self.constant = ops.Constant(
+                dtype=dali_type, idata=[1, 1], shape=[1, 2, 1]
+            )
 
         def define_graph(self):
             return self.constant().gpu()
 
     pipe = TestPipeline(batch_size=batch, seed=0)
-    ds = dali_tf.DALIDataset(pipe, batch_size=batch, output_dtypes=tf_type, output_shapes=shapes)
+    ds = dali_tf.DALIDataset(
+        pipe, batch_size=batch, output_dtypes=tf_type, output_shapes=shapes
+    )
     ds_iter = iter(ds)
     for _ in range(10):
         (out,) = ds_iter.next()
@@ -248,7 +278,11 @@ def test_artificial_match():
 
 def test_artificial_no_match():
     batch = 10
-    for shape in [(batch + 1, None, None, None), (None, None, 3), (batch, 2, 1, 1)]:
+    for shape in [
+        (batch + 1, None, None, None),
+        (None, None, 3),
+        (batch, 2, 1, 1),
+    ]:
         yield raises(
             tf.errors.InvalidArgumentError,
             "The shape provided for output `0` is not compatible with the "
@@ -260,7 +294,9 @@ def dali_pipe_types(tf_type, dali_type):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.constant = ops.Constant(dtype=dali_type, idata=[1, 1], shape=[2])
+            self.constant = ops.Constant(
+                dtype=dali_type, idata=[1, 1], shape=[2]
+            )
 
         def define_graph(self):
             return self.constant().gpu()
@@ -321,7 +357,9 @@ def dali_pipe_deprecated(
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
-            self.constant = ops.Constant(dtype=dali_type, idata=[1, 1], shape=[2])
+            self.constant = ops.Constant(
+                dtype=dali_type, idata=[1, 1], shape=[2]
+            )
 
         def define_graph(self):
             return self.constant().gpu()
@@ -362,7 +400,10 @@ def test_deprecated():
         4,
         2,
     ], tf.uint8, dali_types.UINT8, 4, 1
-    yield dali_pipe_deprecated, {"output_shapes": ((4, 2),), "dtypes": [tf.uint8]}, [
+    yield dali_pipe_deprecated, {
+        "output_shapes": ((4, 2),),
+        "dtypes": [tf.uint8],
+    }, [
         4,
         2,
     ], tf.uint8, dali_types.UINT8, 4, 1
@@ -374,7 +415,10 @@ def test_deprecated():
         4,
         2,
     ], tf.uint8, dali_types.UINT8, 4, 1
-    yield dali_pipe_deprecated, {"shapes": [[4, 2]], "output_dtypes": (tf.uint8,)}, [
+    yield dali_pipe_deprecated, {
+        "shapes": [[4, 2]],
+        "output_dtypes": (tf.uint8,),
+    }, [
         4,
         2,
     ], tf.uint8, dali_types.UINT8, 4, 1

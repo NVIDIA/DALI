@@ -138,7 +138,9 @@ def generate_data(dims, batch_size, batch_norm, axes, dtype=None):
     elif dtype is not np.float32:
         scale = 255
     return [
-        (scale * (np.random.rand(*s).astype(np.float32) * (1 + i) - i)).astype(dtype)
+        (scale * (np.random.rand(*s).astype(np.float32) * (1 + i) - i)).astype(
+            dtype
+        )
         for i, s in enumerate(shapes)
     ]
 
@@ -157,7 +159,10 @@ def custom_mean(batch_norm, axes):
     else:
 
         def per_sample_mean(batch):
-            ret = [x.mean(axis=axes, keepdims=True, dtype=np.float32) + bias for x in batch]
+            ret = [
+                x.mean(axis=axes, keepdims=True, dtype=np.float32) + bias
+                for x in batch
+            ]
             return ret
 
         return per_sample_mean
@@ -182,14 +187,18 @@ def custom_stddev(batch_norm, axes):
             mean = mean_func(batch)
             out = []
             for i in range(len(batch)):
-                stddev = bias * np.sqrt(((batch[i] - mean[i]) ** 2).mean(axis=axes, keepdims=True))
+                stddev = bias * np.sqrt(
+                    ((batch[i] - mean[i]) ** 2).mean(axis=axes, keepdims=True)
+                )
                 out.append(stddev)
             return out
 
         return per_sample_stddev
 
 
-def normalize_list(whole_batch, data_batch, axes=None, mean=None, stddev=None, ddof=0, eps=0):
+def normalize_list(
+    whole_batch, data_batch, axes=None, mean=None, stddev=None, ddof=0, eps=0
+):
     if whole_batch:
         return batch_norm(data_batch, axes, mean, stddev, ddof, eps)
     else:
@@ -198,7 +207,14 @@ def normalize_list(whole_batch, data_batch, axes=None, mean=None, stddev=None, d
         if type(stddev) is not list:
             stddev = [stddev] * len(data_batch)
         return [
-            normalize(data_batch[i].astype(np.float), axes, mean[i], stddev[i], ddof, eps)
+            normalize(
+                data_batch[i].astype(np.float),
+                axes,
+                mean[i],
+                stddev[i],
+                ddof,
+                eps,
+            )
             for i in range(len(data_batch))
         ]
 
@@ -245,7 +261,12 @@ class NormalizePipeline(Pipeline):
         num_gpus=1,
     ):
         super(NormalizePipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=7865,
+            exec_async=False,
+            exec_pipelined=False,
         )
         common_args = {
             "device": device,
@@ -283,11 +304,19 @@ class NormalizePipeline(Pipeline):
         self.ddof = 2 if axes is not None and len(axes) > 0 else 0
         self.eps = 0.25
 
-        self.mean = ops.PythonFunction(function=custom_mean(batch, axes), batch_processing=True)
-        self.stddev = ops.PythonFunction(function=custom_stddev(batch, axes), batch_processing=True)
+        self.mean = ops.PythonFunction(
+            function=custom_mean(batch, axes), batch_processing=True
+        )
+        self.stddev = ops.PythonFunction(
+            function=custom_stddev(batch, axes), batch_processing=True
+        )
         self.normalize = ops.Normalize(**common_args, ddof=self.ddof)
-        self.scalar_mean = ops.Normalize(**common_args, mean=1, ddof=self.ddof, epsilon=self.eps)
-        self.scalar_stddev = ops.Normalize(**common_args, stddev=2, epsilon=self.eps)
+        self.scalar_mean = ops.Normalize(
+            **common_args, mean=1, ddof=self.ddof, epsilon=self.eps
+        )
+        self.scalar_stddev = ops.Normalize(
+            **common_args, stddev=2, epsilon=self.eps
+        )
         self.scalar_params = ops.Normalize(**common_args, mean=1, stddev=2)
 
     def define_graph(self):
@@ -312,7 +341,13 @@ class NormalizePipeline(Pipeline):
 
         out = [data, mean, stddev, normalized, scalar_mean, scalar_stddev]
         if not self.batch:
-            out += [ext_mean, ext_stddev, ext_all, scalar_mean_ext, scalar_stddev_ext]
+            out += [
+                ext_mean,
+                ext_stddev,
+                ext_all,
+                scalar_mean_ext,
+                scalar_stddev_ext,
+            ]
         if not self.has_axes:
             out.append(scalar_params)
         return out
@@ -349,8 +384,12 @@ class NormalizePipeline(Pipeline):
                 check_float(l1, l2, eps)
 
         ref = normalize_list(batch, data, axes, ddof=self.ddof)
-        ref_scalar_mean = normalize_list(batch, data, axes, mean=1, ddof=self.ddof, eps=self.eps)
-        ref_scalar_stddev = normalize_list(batch, data, axes, stddev=2, eps=self.eps)
+        ref_scalar_mean = normalize_list(
+            batch, data, axes, mean=1, ddof=self.ddof, eps=self.eps
+        )
+        ref_scalar_stddev = normalize_list(
+            batch, data, axes, stddev=2, eps=self.eps
+        )
         shift_scale(ref, shift, scale)
         shift_scale(ref_scalar_mean, shift, scale)
         shift_scale(ref_scalar_stddev, shift, scale)
@@ -362,11 +401,23 @@ class NormalizePipeline(Pipeline):
         check(scalar_stddev, ref_scalar_stddev)
 
         if not batch:
-            ref_ext_mean = normalize_list(batch, data, axes, mean=mean, ddof=self.ddof)
-            ref_ext_stddev = normalize_list(batch, data, axes, stddev=stddev, ddof=self.ddof)
-            ref_ext_all = normalize_list(batch, data, axes, mean=mean, stddev=stddev)
+            ref_ext_mean = normalize_list(
+                batch, data, axes, mean=mean, ddof=self.ddof
+            )
+            ref_ext_stddev = normalize_list(
+                batch, data, axes, stddev=stddev, ddof=self.ddof
+            )
+            ref_ext_all = normalize_list(
+                batch, data, axes, mean=mean, stddev=stddev
+            )
             ref_scalar_mean_ext = normalize_list(
-                batch, data, axes, mean=1, stddev=stddev, ddof=self.ddof, eps=self.eps
+                batch,
+                data,
+                axes,
+                mean=1,
+                stddev=stddev,
+                ddof=self.ddof,
+                eps=self.eps,
             )
             ref_scalar_stddev_ext = normalize_list(
                 batch, data, axes, mean=mean, stddev=2, eps=self.eps
@@ -385,12 +436,20 @@ class NormalizePipeline(Pipeline):
             check(scalar_stddev_ext, ref_scalar_stddev_ext)
 
         if scalar_params is not None:
-            ref_scalar_params = normalize_list(batch, data, axes, mean=1, stddev=2)
+            ref_scalar_params = normalize_list(
+                batch, data, axes, mean=1, stddev=2
+            )
             shift_scale(ref_scalar_params, shift, scale)
             check(scalar_params, ref_scalar_params)
 
     def iter_setup(self):
-        data = generate_data(self.dims, self.batch_size, self.batch, self.axes, dtype=self.in_type)
+        data = generate_data(
+            self.dims,
+            self.batch_size,
+            self.batch,
+            self.axes,
+            dtype=self.in_type,
+        )
         self.feed_input(self.input_data, data)
 
 
@@ -436,7 +495,9 @@ def _run_test(
     scale=None,
 ):
     kind = "inter-sample" if batch_norm else "per-sample"
-    msg = "{0}, {1}, batch = {2}, dim = {3}".format(device, kind, batch_size, dim)
+    msg = "{0}, {1}, batch = {2}, dim = {3}".format(
+        device, kind, batch_size, dim
+    )
     if axes is not None:
         msg += " axes = {}".format(axes)
     if axis_names is not None:
@@ -448,7 +509,16 @@ def _run_test(
     print(msg)
 
     pipe = NormalizePipeline(
-        device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale
+        device,
+        batch_size,
+        dim,
+        axes,
+        axis_names,
+        batch_norm,
+        out_type,
+        in_type,
+        shift,
+        scale,
     )
     pipe.build()
     for iter in range(2):

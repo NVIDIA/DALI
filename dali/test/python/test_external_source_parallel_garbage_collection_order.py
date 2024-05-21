@@ -21,7 +21,9 @@ from test_utils import get_dali_extra_path
 import numpy as np
 
 data_root = get_dali_extra_path()
-jpeg_file = os.path.join(data_root, "db", "single", "jpeg", "510", "ship-1083562_640.jpg")
+jpeg_file = os.path.join(
+    data_root, "db", "single", "jpeg", "510", "ship-1083562_640.jpg"
+)
 batch_size = 4
 
 
@@ -33,7 +35,9 @@ def cb(sample_info):
 
 @pipeline_def
 def simple_pipeline():
-    jpegs, labels = fn.external_source(source=cb, num_outputs=2, parallel=True, batch=False)
+    jpegs, labels = fn.external_source(
+        source=cb, num_outputs=2, parallel=True, batch=False
+    )
     images = fn.decoders.image(jpegs, device="cpu")
     return images, labels
 
@@ -65,10 +69,16 @@ def test_no_segfault():
         for _ in range(2):
             for workers_num in range(1, 5):
                 mp = multiprocessing.get_context("spawn")
-                process = mp.Process(target=_test_no_segfault, args=(method, workers_num))
+                process = mp.Process(
+                    target=_test_no_segfault, args=(method, workers_num)
+                )
                 process.start()
                 process.join()
                 if process.exitcode != os.EX_OK:
                     if signal.SIGSEGV == -process.exitcode:
-                        raise RuntimeError("Process terminated with signal SIGSEGV")
-                    raise RuntimeError("Process exited with {} code".format(process.exitcode))
+                        raise RuntimeError(
+                            "Process terminated with signal SIGSEGV"
+                        )
+                    raise RuntimeError(
+                        "Process exited with {} code".format(process.exitcode)
+                    )

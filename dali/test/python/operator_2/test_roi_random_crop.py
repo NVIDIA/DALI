@@ -23,7 +23,9 @@ np.random.seed(4321)
 
 
 def random_shape(min_sh, max_sh, ndim):
-    return np.array([np.random.randint(min_sh, max_sh) for s in range(ndim)], dtype=np.int32)
+    return np.array(
+        [np.random.randint(min_sh, max_sh) for s in range(ndim)], dtype=np.int32
+    )
 
 
 def batch_gen(max_batch_size, sample_shape_fn, dtype=np.float32):
@@ -48,7 +50,9 @@ def check_roi_random_crop(
     in_shape_max=500,
     niter=3,
 ):
-    pipe = dali.pipeline.Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0, seed=1234)
+    pipe = dali.pipeline.Pipeline(
+        batch_size=max_batch_size, num_threads=4, device_id=0, seed=1234
+    )
     with pipe:
         assert in_shape_min < in_shape_max
 
@@ -92,10 +96,16 @@ def check_roi_random_crop(
 
         outs = [
             fn.roi_random_crop(
-                crop_shape=crop_shape, roi_start=roi_start, roi_shape=roi_shape, device="cpu"
+                crop_shape=crop_shape,
+                roi_start=roi_start,
+                roi_shape=roi_shape,
+                device="cpu",
             ),
             fn.roi_random_crop(
-                crop_shape=crop_shape, roi_start=roi_start, roi_end=roi_end, device="cpu"
+                crop_shape=crop_shape,
+                roi_start=roi_start,
+                roi_end=roi_end,
+                device="cpu",
             ),
             fn.roi_random_crop(
                 shape_like_in,
@@ -139,7 +149,9 @@ def check_roi_random_crop(
             roi_shape = np.array(outputs[2][s]).tolist()
             crop_shape = np.array(outputs[3][s]).tolist()
 
-            def check_crop_start(crop_start, roi_start, roi_shape, crop_shape, in_shape=None):
+            def check_crop_start(
+                crop_start, roi_start, roi_shape, crop_shape, in_shape=None
+            ):
                 ndim = len(crop_start)
                 roi_end = [roi_start[d] + roi_shape[d] for d in range(ndim)]
                 crop_end = [crop_start[d] + crop_shape[d] for d in range(ndim)]
@@ -157,11 +169,18 @@ def check_roi_random_crop(
 
             for idx in range(4, 6):
                 check_crop_start(
-                    np.array(outputs[idx][s]).tolist(), roi_start, roi_shape, crop_shape
+                    np.array(outputs[idx][s]).tolist(),
+                    roi_start,
+                    roi_shape,
+                    crop_shape,
                 )
             for idx in range(6, 10):
                 check_crop_start(
-                    np.array(outputs[idx][s]).tolist(), roi_start, roi_shape, crop_shape, in_shape
+                    np.array(outputs[idx][s]).tolist(),
+                    roi_start,
+                    roi_shape,
+                    crop_shape,
+                    in_shape,
                 )
 
 
@@ -178,7 +197,11 @@ def test_roi_random_crop():
             roi_extent_max,
             crop_extent_min,
             crop_extent_max,
-        ) in [(20, 50, 10, 20, 30, 40), (20, 50, 100, 140, 30, 40), (0, 1, 10, 20, 80, 100)]:
+        ) in [
+            (20, 50, 10, 20, 30, 40),
+            (20, 50, 100, 140, 30, 40),
+            (0, 1, 10, 20, 80, 100),
+        ]:
             yield (
                 check_roi_random_crop,
                 ndim,
@@ -206,7 +229,9 @@ def check_roi_random_crop_error(
 ):
     batch_size = 3
     niter = 3
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
+    pipe = dali.pipeline.Pipeline(
+        batch_size=batch_size, num_threads=4, device_id=0, seed=1234
+    )
     with pipe:
         inputs = [] if shape_like_in is None else [shape_like_in]
         out = fn.roi_random_crop(

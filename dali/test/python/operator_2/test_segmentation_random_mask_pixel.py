@@ -23,34 +23,49 @@ np.random.seed(4321)
 
 
 def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
+    pipe = dali.pipeline.Pipeline(
+        batch_size=batch_size, num_threads=4, device_id=0, seed=1234
+    )
     with pipe:
         # Input mask
         in_shape_dims = [
-            fn.cast(fn.random.uniform(range=(min_extent, max_extent + 1)), dtype=types.INT32)
+            fn.cast(
+                fn.random.uniform(range=(min_extent, max_extent + 1)),
+                dtype=types.INT32,
+            )
             for _ in range(ndim)
         ]
         in_shape = fn.stack(*in_shape_dims)
-        in_mask = fn.cast(fn.random.uniform(range=(0, 2), shape=in_shape), dtype=types.INT32)
+        in_mask = fn.cast(
+            fn.random.uniform(range=(0, 2), shape=in_shape), dtype=types.INT32
+        )
 
         #  > 0
         fg_pixel1 = fn.segmentation.random_mask_pixel(in_mask, foreground=1)
         #  >= 0.99
-        fg_pixel2 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, threshold=0.99)
+        fg_pixel2 = fn.segmentation.random_mask_pixel(
+            in_mask, foreground=1, threshold=0.99
+        )
         #  == 2
-        fg_pixel3 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, value=2)
+        fg_pixel3 = fn.segmentation.random_mask_pixel(
+            in_mask, foreground=1, value=2
+        )
 
         rnd_pixel = fn.segmentation.random_mask_pixel(in_mask, foreground=0)
 
         coin_flip = fn.random.coin_flip(probability=0.7)
-        fg_biased = fn.segmentation.random_mask_pixel(in_mask, foreground=coin_flip)
+        fg_biased = fn.segmentation.random_mask_pixel(
+            in_mask, foreground=coin_flip
+        )
 
         # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice
         # We want to force the center adjustment, thus the large crop shape
         crop_shape = in_shape - 2
         anchor = fn.cast(fg_pixel1, dtype=types.INT32) - crop_shape // 2
         anchor = math.min(math.max(0, anchor), in_shape - crop_shape)
-        out_mask = fn.slice(in_mask, anchor, crop_shape, axes=tuple(range(ndim)))
+        out_mask = fn.slice(
+            in_mask, anchor, crop_shape, axes=tuple(range(ndim))
+        )
 
     pipe.set_outputs(
         in_mask,
@@ -85,7 +100,10 @@ def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
             assert in_mask[tuple(fg_biased)] > 0 or not coin_flip
 
             for d in range(ndim):
-                assert 0 <= anchor[d] and anchor[d] + crop_shape[d] <= in_mask.shape[d]
+                assert (
+                    0 <= anchor[d]
+                    and anchor[d] + crop_shape[d] <= in_mask.shape[d]
+                )
             assert out_mask.shape == tuple(crop_shape)
 
 

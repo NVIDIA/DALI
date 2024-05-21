@@ -474,7 +474,9 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
 
     def test_live_in_list_comprehension_expression(self):
         def test_fn(y, s):
-            s += foo([x for x in y])  # pylint:disable=undefined-variable # noqa: F821
+            s += foo(  # pylint:disable=undefined-variable # noqa: F821
+                [x for x in y]
+            )
 
         node = self._parse_and_analyze(test_fn)
         fn_body = node.body

@@ -26,9 +26,9 @@ from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 if isinstance(paddle.__version__, str):
-    assert LooseVersion(paddle.__version__) == LooseVersion("0.0.0") or LooseVersion(
-        paddle.__version__
-    ) >= LooseVersion(
+    assert LooseVersion(paddle.__version__) == LooseVersion(
+        "0.0.0"
+    ) or LooseVersion(paddle.__version__) >= LooseVersion(
         "2.0.0"
     ), "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
 
@@ -79,7 +79,9 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
         stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
-        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=non_blocking)
+        dali_tensor.copy_to_external(
+            c_type_pointer, stream, non_blocking=non_blocking
+        )
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return ptr
@@ -245,7 +247,9 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         output_map = [isinstance(v, str) and v or v[0] for v in output_map]
-        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
+        assert len(set(output_map)) == len(
+            output_map
+        ), "output_map names should be distinct"
         self.output_map = output_map
 
         _DaliBaseIterator.__init__(
@@ -300,7 +304,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             category_lengths = dict()
             for cat, out in category_outputs.items():
                 lod = self.normalized_map[cat]
-                assert out.is_dense_tensor() or lod > 0, "non-dense tensor lists must have LoD > 0"
+                assert (
+                    out.is_dense_tensor() or lod > 0
+                ), "non-dense tensor lists must have LoD > 0"
 
                 if lod > 0:
                     # +1 for batch dim
@@ -330,12 +336,16 @@ class DALIGenericIterator(_DaliBaseIterator):
                 lod_tensor._set_dims(category_shapes[cat])
                 seq_len = category_lengths[cat]
                 lod_tensor.set_recursive_sequence_lengths(seq_len)
-                lod_tensor._mutable_data(category_place[cat], category_pd_type[cat])
+                lod_tensor._mutable_data(
+                    category_place[cat], category_pd_type[cat]
+                )
             data_batches[i] = pd_tensors
 
             stream = paddle.device.cuda.current_stream(dev_id).cuda_stream
             for cat, tensor in category_tensors.items():
-                ptr = pd_tensors[cat]._mutable_data(category_place[cat], category_pd_type[cat])
+                ptr = pd_tensors[cat]._mutable_data(
+                    category_place[cat], category_pd_type[cat]
+                )
                 feed_ndarray(tensor, ptr, stream)
 
         self._schedule_runs()
@@ -361,7 +371,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             ):
                 # First calculate how much data is required to
                 # return exactly self._size entries.
-                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+                diff = self._num_gpus * self.batch_size - (
+                    self._counter - self._size
+                )
                 # Figure out how many GPUs to grab from.
                 num_gpus_to_grab = int(math.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU
@@ -378,7 +390,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 output[-1] = output[-1].copy()
                 for cat in self.output_map:
                     lod_tensor = output[-1][cat]
-                    output[-1][cat] = lod_tensor_clip(lod_tensor, data_from_last_gpu)
+                    output[-1][cat] = lod_tensor_clip(
+                        lod_tensor, data_from_last_gpu
+                    )
                 return output
 
         return data_batches

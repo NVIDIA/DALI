@@ -50,7 +50,9 @@ class BreakCanonicalizationTest(converter_testing.TestCase):
         anno.setanno(node.body[0], anno.Basic.DIRECTIVES, fake_annotation)
         node = break_statements.transform(node, ctx)
 
-        self.assertIs(anno.getanno(node.body[1], anno.Basic.DIRECTIVES), fake_annotation)
+        self.assertIs(
+            anno.getanno(node.body[1], anno.Basic.DIRECTIVES), fake_annotation
+        )
 
     def test_for_loop(self):
         def f(a):
@@ -76,7 +78,9 @@ class BreakCanonicalizationTest(converter_testing.TestCase):
         fake_annotation = object()
         anno.setanno(node.body[0], anno.Basic.DIRECTIVES, fake_annotation)
         node = break_statements.transform(node, ctx)
-        self.assertIs(anno.getanno(node.body[1], anno.Basic.DIRECTIVES), fake_annotation)
+        self.assertIs(
+            anno.getanno(node.body[1], anno.Basic.DIRECTIVES), fake_annotation
+        )
 
     def test_nested(self):
         def f(x):

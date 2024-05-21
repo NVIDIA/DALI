@@ -39,7 +39,10 @@ def _find_originating_frame(caller_fn_scope, innermost=True):
         # Note it should not be normally possible to get false positives this way
         # because the function scope object is not accessible to user code (barring
         # call stack introspection).
-        if ctx_frame.f_locals.get(caller_fn_scope.name, None) is caller_fn_scope:
+        if (
+            ctx_frame.f_locals.get(caller_fn_scope.name, None)
+            is caller_fn_scope
+        ):
             result = ctx_frame
             if innermost:
                 break
@@ -181,7 +184,9 @@ def _py_len(s):
 def print_(*objects, **kwargs):
     """Overload of the print builtin."""
     # Note: Python 2.6 doesn't support explicit keywords after starargs.
-    unknown_kwargs = tuple(set(kwargs.keys()) - set(("sep", "end", "file", "flush")))
+    unknown_kwargs = tuple(
+        set(kwargs.keys()) - set(("sep", "end", "file", "flush"))
+    )
     if unknown_kwargs:
         raise ValueError("invalid keyword arguments: {}".format(unknown_kwargs))
     if hooks._DISPATCH.detect_overload_print_(objects):

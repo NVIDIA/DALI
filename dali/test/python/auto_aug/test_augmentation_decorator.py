@@ -32,7 +32,11 @@ def sample_info(cb):
 
 
 def ref_param(
-    mag_range, mag_range_num_elements, bins_batch, mag_signs_batch=None, mag_to_param=None
+    mag_range,
+    mag_range_num_elements,
+    bins_batch,
+    mag_signs_batch=None,
+    mag_to_param=None,
 ):
     if isinstance(mag_range, tuple):
         assert len(mag_range) == 2
@@ -41,7 +45,10 @@ def ref_param(
     magnitudes = [mag_range[mag_bin] for mag_bin in bins_batch]
     if mag_signs_batch is not None:
         assert len(mag_signs_batch) == len(magnitudes)
-        magnitudes = [mag * ((-1) ** negate) for mag, negate in zip(magnitudes, mag_signs_batch)]
+        magnitudes = [
+            mag * ((-1) ** negate)
+            for mag, negate in zip(magnitudes, mag_signs_batch)
+        ]
     mag_to_param = mag_to_param if mag_to_param is not None else np.array
     return np.array([mag_to_param(mag) for mag in magnitudes])
 
@@ -49,7 +56,9 @@ def ref_param(
 def test_magnitude_is_none():
     @augmentation
     def pass_through_sample(data, param):
-        assert param is None, "If the `mag_range` is not specified the param should be None"
+        assert (
+            param is None
+        ), "If the `mag_range` is not specified the param should be None"
         return data
 
     data = types.Constant(42)
@@ -72,7 +81,9 @@ def test_lo_hi_mag_range():
             types.Constant(42), magnitude_bin=const_bin, num_magnitude_bins=5
         )
         dyn_mag = pass_through_mag(
-            types.Constant(42), magnitude_bin=idx_in_batch, num_magnitude_bins=11
+            types.Constant(42),
+            magnitude_bin=idx_in_batch,
+            num_magnitude_bins=11,
         )
         return const_mag, dyn_mag
 
@@ -97,8 +108,12 @@ def test_explicit_mag_range():
     @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
     def pipeline():
         idx_in_batch = sample_info(lambda info: info.idx_in_batch)
-        const_mag = pass_through_mag(types.Constant(42), magnitude_bin=const_bin)
-        dyn_mag = pass_through_mag(types.Constant(42), magnitude_bin=idx_in_batch)
+        const_mag = pass_through_mag(
+            types.Constant(42), magnitude_bin=const_bin
+        )
+        dyn_mag = pass_through_mag(
+            types.Constant(42), magnitude_bin=idx_in_batch
+        )
         return const_mag, dyn_mag
 
     p = pipeline()
@@ -116,7 +131,9 @@ def test_explicit_mag_range():
     (((101, 150), 50, False, None)),
     (((701, 710), 10, True, None)),
 )
-def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const_mag):
+def test_randomly_negate(
+    mag_range, num_magnitude_bins, use_implicit_sign, const_mag
+):
     batch_size = 64
 
     @augmentation(mag_range=mag_range, randomly_negate=True)
@@ -128,20 +145,26 @@ def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const
         magnitude_bin = (
             const_mag
             if const_mag is not None
-            else sample_info(lambda info: info.idx_in_batch % num_magnitude_bins)
+            else sample_info(
+                lambda info: info.idx_in_batch % num_magnitude_bins
+            )
         )
         if not use_implicit_sign:
             magnitude_sign = sample_info(lambda info: info.idx_in_batch % 2)
             magnitude_bin = signed_bin(magnitude_bin, magnitude_sign)
 
         return pass_through_mag(
-            types.Constant(42), magnitude_bin=magnitude_bin, num_magnitude_bins=num_magnitude_bins
+            types.Constant(42),
+            magnitude_bin=magnitude_bin,
+            num_magnitude_bins=num_magnitude_bins,
         )
 
     if not use_implicit_sign:
         p = pipeline()
     else:
-        warn_glob = "but unsigned `magnitude_bin` was passed to the augmentation call"
+        warn_glob = (
+            "but unsigned `magnitude_bin` was passed to the augmentation call"
+        )
         with assert_warns(Warning, glob=warn_glob):
             p = pipeline()
     p.build()
@@ -181,7 +204,9 @@ def test_no_randomly_negate(const_mag):
         magnitude_bin = (
             const_mag
             if const_mag is not None
-            else sample_info(lambda info: info.idx_in_batch % num_magnitude_bins)
+            else sample_info(
+                lambda info: info.idx_in_batch % num_magnitude_bins
+            )
         )
 
         # make sure that the augmentation declared without `randomly_negate` ignores the signed_bin
@@ -203,8 +228,13 @@ def test_no_randomly_negate(const_mag):
     check_batch(magnitudes, ref_magnitudes, max_allowed_error=0)
 
 
-@params((((201, 211), 11, 7, np.uint16, "cpu")), (((101, 107), 7, None, np.float32, "gpu")))
-def test_mag_to_param(mag_range, num_magnitude_bins, const_mag, dtype, param_device):
+@params(
+    (((201, 211), 11, 7, np.uint16, "cpu")),
+    (((101, 107), 7, None, np.float32, "gpu")),
+)
+def test_mag_to_param(
+    mag_range, num_magnitude_bins, const_mag, dtype, param_device
+):
     batch_size = 31
 
     def mag_to_param(magnitude):
@@ -225,7 +255,9 @@ def test_mag_to_param(mag_range, num_magnitude_bins, const_mag, dtype, param_dev
         magnitude_bin = (
             const_mag
             if const_mag is not None
-            else sample_info(lambda info: info.idx_in_batch % num_magnitude_bins)
+            else sample_info(
+                lambda info: info.idx_in_batch % num_magnitude_bins
+            )
         )
 
         return pass_through_mag(
@@ -298,7 +330,8 @@ def test_augmentation_nested_decorator_fail():
         return data
 
     with assert_raises(
-        Exception, glob="The `@augmentation` was applied to already decorated Augmentation."
+        Exception,
+        glob="The `@augmentation` was applied to already decorated Augmentation.",
     ):
         augmentation(dummy, mag_range=(5, 10))
 
@@ -381,13 +414,17 @@ def test_no_required_kwargs():
     pipeline(aug, {"extra": None, "another_extra": 42, "extra_with_default": 7})
     pipeline(aug, {"extra": None, "another_extra": 42})
 
-    with assert_raises(Exception, glob="not provided to the call: another_extra"):
+    with assert_raises(
+        Exception, glob="not provided to the call: another_extra"
+    ):
         pipeline(aug, {"extra": None})
 
     with assert_raises(Exception, glob="not provided to the call: extra"):
         pipeline(aug, {"another_extra": 42})
 
-    with assert_raises(Exception, glob="not provided to the call: extra, another_extra"):
+    with assert_raises(
+        Exception, glob="not provided to the call: extra, another_extra"
+    ):
         pipeline(aug, {})
 
 
@@ -408,15 +445,25 @@ def test_unused_kwargs():
 
     forbid_unused_kwargs(augments, {}, "dummy")
     forbid_unused_kwargs(
-        augments, {"one_param": 1, "another_param": 2, "yet_another_param": 3}, "dummy"
+        augments,
+        {"one_param": 1, "another_param": 2, "yet_another_param": 3},
+        "dummy",
     )
 
-    with assert_raises(Exception, glob="The kwarg `amnother_param` is not used"):
+    with assert_raises(
+        Exception, glob="The kwarg `amnother_param` is not used"
+    ):
         forbid_unused_kwargs(
-            augments, {"one_param": 1, "amnother_param": 2, "yet_another_param": 3}, "dummy"
+            augments,
+            {"one_param": 1, "amnother_param": 2, "yet_another_param": 3},
+            "dummy",
         )
 
-    with assert_raises(Exception, glob="The kwargs `amnother_param, yemt_another_param` are"):
+    with assert_raises(
+        Exception, glob="The kwargs `amnother_param, yemt_another_param` are"
+    ):
         forbid_unused_kwargs(
-            augments, {"one_param": 1, "amnother_param": 2, "yemt_another_param": 3}, "dummy"
+            augments,
+            {"one_param": 1, "amnother_param": 2, "yemt_another_param": 3},
+            "dummy",
         )

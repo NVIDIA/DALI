@@ -25,15 +25,21 @@ from test_utils import compare_pipelines, get_dali_extra_path
 
 
 def general_corner_case(
-    test_batch_size=base.test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
+    test_batch_size=base.test_batch_size,
+    dtypes=None,
+    missing_component_behavior="",
+    **kwargs,
 ):
     num_samples = 1000
-    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    tar_file_path = os.path.join(
+        get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"
+    )
     index_file = base.generate_temp_index_file(tar_file_path)
 
     extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = sorted(
-        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+        glob(extract_dir.name + "/*"),
+        key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]),
     )
 
     compare_pipelines(
@@ -81,7 +87,9 @@ def test_read_ahead():
 def test_single_sample():
     test_batch_size = 1
     num_samples = 1
-    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/single.tar")
+    tar_file_path = os.path.join(
+        get_dali_extra_path(), "db/webdataset/sample-tar/single.tar"
+    )
     index_file = base.generate_temp_index_file(tar_file_path)
 
     extract_dir = base.generate_temp_extract(tar_file_path)
@@ -98,7 +106,11 @@ def test_single_sample():
             num_threads=1,
         ),
         base.file_reader_pipeline(
-            equivalent_files, ["txt"], batch_size=test_batch_size, device_id=0, num_threads=1
+            equivalent_files,
+            ["txt"],
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1,
         ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size) * 10,
@@ -118,7 +130,9 @@ def test_single_sample():
 def test_single_sample_and_junk():
     test_batch_size = 1
     num_samples = 1
-    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/single_junk.tar")
+    tar_file_path = os.path.join(
+        get_dali_extra_path(), "db/webdataset/sample-tar/single_junk.tar"
+    )
     index_file = base.generate_temp_index_file(tar_file_path)
 
     extract_dir = base.generate_temp_extract(tar_file_path)
@@ -134,7 +148,11 @@ def test_single_sample_and_junk():
             num_threads=1,
         ),
         base.file_reader_pipeline(
-            equivalent_files, ["txt"], batch_size=test_batch_size, device_id=0, num_threads=1
+            equivalent_files,
+            ["txt"],
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1,
         ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size) * 10,
@@ -154,7 +172,9 @@ def test_single_sample_and_junk():
 def test_wide_sample():
     test_batch_size = 1
     num_samples = 1
-    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/wide.tar")
+    tar_file_path = os.path.join(
+        get_dali_extra_path(), "db/webdataset/sample-tar/wide.tar"
+    )
     index_file = base.generate_temp_index_file(tar_file_path)
 
     extract_dir = base.generate_temp_extract(tar_file_path)
@@ -196,9 +216,15 @@ def test_argument_errors():
     def paths_index_paths_error():
         webdataset_pipeline = base.webdataset_raw_pipeline(
             [
-                os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
-                os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"),
-                os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"),
+                os.path.join(
+                    get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"
+                ),
+                os.path.join(
+                    get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"
+                ),
+                os.path.join(
+                    get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"
+                ),
             ],
             ["test.idx"],
             ["jpg", "cls"],
@@ -237,7 +263,9 @@ def test_argument_errors():
 
 
 def general_index_error(
-    index_file_contents, tar_file_path="db/webdataset/MNIST/devel-0.tar", ext="jpg"
+    index_file_contents,
+    tar_file_path="db/webdataset/MNIST/devel-0.tar",
+    ext="jpg",
 ):
     index_file = tempfile.NamedTemporaryFile()
     index_file.write(index_file_contents)
@@ -256,19 +284,32 @@ def general_index_error(
 
 
 def test_index_errors():
-    assert_raises(RuntimeError, general_index_error, b"", glob="no version signature found")
+    assert_raises(
+        RuntimeError,
+        general_index_error,
+        b"",
+        glob="no version signature found",
+    )
     assert_raises(
         RuntimeError,
         general_index_error,
         b"v0.1",
         glob="Unsupported version of the index file (v0.1).",
     )
-    assert_raises(RuntimeError, general_index_error, b"v1.1", glob="no sample count found")
     assert_raises(
-        RuntimeError, general_index_error, b"v1.1 -1", glob="sample count must be positive"
+        RuntimeError, general_index_error, b"v1.1", glob="no sample count found"
     )
     assert_raises(
-        RuntimeError, general_index_error, b"v1.1 1\n", glob="no extensions provided for the sample"
+        RuntimeError,
+        general_index_error,
+        b"v1.1 -1",
+        glob="sample count must be positive",
+    )
+    assert_raises(
+        RuntimeError,
+        general_index_error,
+        b"v1.1 1\n",
+        glob="no extensions provided for the sample",
     )
     assert_raises(
         RuntimeError,

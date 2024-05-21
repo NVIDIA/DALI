@@ -188,14 +188,18 @@ def _check_absdiff():
             right = np.array([j, j], dtype=np.int8)
             diff = _get_absdiff(left, right)
             expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
-            assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+            assert np.array_equal(
+                diff, expected_diff
+            ), f"{diff} {expected_diff} {i} {j}"
     for i in range(0, 255):
         for j in range(0, 255):
             left = np.array([i, i], dtype=np.uint8)
             right = np.array([j, j], dtype=np.uint8)
             diff = _get_absdiff(left, right)
             expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
-            assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+            assert np.array_equal(
+                diff, expected_diff
+            ), f"{diff} {expected_diff} {i} {j}"
 
 
 def get_absdiff(left, right):
@@ -285,30 +289,40 @@ def check_batch(
         batch_size = len(batch1)
 
     def _verify_batch_size(batch):
-        if isinstance(batch, dali.backend.TensorListCPU) or isinstance(batch, list):
+        if isinstance(batch, dali.backend.TensorListCPU) or isinstance(
+            batch, list
+        ):
             tested_batch_size = len(batch)
         else:
             tested_batch_size = batch.shape[0]
         assert (
             tested_batch_size == batch_size
-        ), "Incorrect batch size. Expected: {}, actual: {}".format(batch_size, tested_batch_size)
+        ), "Incorrect batch size. Expected: {}, actual: {}".format(
+            batch_size, tested_batch_size
+        )
 
     _verify_batch_size(batch1)
     _verify_batch_size(batch2)
 
     # Check layouts where possible
     for batch in [batch1, batch2]:
-        if expected_layout is not None and isinstance(batch, dali.backend.TensorListCPU):
+        if expected_layout is not None and isinstance(
+            batch, dali.backend.TensorListCPU
+        ):
             assert (
                 batch.layout() == expected_layout
-            ), 'Unexpected layout, expected "{}", got "{}".'.format(expected_layout, batch.layout())
+            ), 'Unexpected layout, expected "{}", got "{}".'.format(
+                expected_layout, batch.layout()
+            )
 
     if (
         compare_layouts
         and isinstance(batch1, dali.backend.TensorListCPU)
         and isinstance(batch2, dali.backend.TensorListCPU)
     ):
-        assert batch1.layout() == batch2.layout(), 'Layout mismatch "{}" != "{}"'.format(
+        assert (
+            batch1.layout() == batch2.layout()
+        ), 'Layout mismatch "{}" != "{}"'.format(
             batch1.layout(), batch2.layout()
         )
 
@@ -317,8 +331,12 @@ def check_batch(
         left = np.array(batch1[i])
         right = np.array(batch2[i])
         err_err = None
-        assert left.shape == right.shape, "Shape mismatch {} != {}".format(left.shape, right.shape)
-        assert left.size == right.size, "Size mismatch {} != {}".format(left.size, right.size)
+        assert left.shape == right.shape, "Shape mismatch {} != {}".format(
+            left.shape, right.shape
+        )
+        assert left.size == right.size, "Size mismatch {} != {}".format(
+            left.size, right.size
+        )
         if left.size != 0:
             try:
                 # Do the difference calculation on a type that allows subtraction
@@ -349,7 +367,9 @@ def check_batch(
                 if hasattr(batch2[i], "source_info"):
                     error_msg += f"\nRHS data source: {batch2[i].source_info()}"
 
-                dump_as_core_artifacts(batch1[i].source_info(), left, right, sample_idx=i)
+                dump_as_core_artifacts(
+                    batch1[i].source_info(), left, right, sample_idx=i
+                )
                 assert False, error_msg
 
 
@@ -386,10 +406,14 @@ def compare_pipelines(
         assert len(out1) == len(out2)
         for i in range(len(out1)):
             out1_data = (
-                out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) else out1[i]
+                out1[i].as_cpu()
+                if isinstance(out1[i][0], dali.backend_impl.TensorGPU)
+                else out1[i]
             )
             out2_data = (
-                out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) else out2[i]
+                out2[i].as_cpu()
+                if isinstance(out2[i][0], dali.backend_impl.TensorGPU)
+                else out2[i]
             )
             if isinstance(expected_layout, tuple):
                 current_expected_layout = expected_layout[i]
@@ -418,10 +442,13 @@ class RandomDataIterator(object):
         for _ in range(self.batch_size):
             if dtype == np.float32:
                 self.test_data.append(
-                    np.array(self.np_rng.random(shape) * (1.0), dtype=dtype) - 0.5
+                    np.array(self.np_rng.random(shape) * (1.0), dtype=dtype)
+                    - 0.5
                 )
             else:
-                self.test_data.append(np.array(self.np_rng.random(shape) * 255, dtype=dtype))
+                self.test_data.append(
+                    np.array(self.np_rng.random(shape) * 255, dtype=dtype)
+                )
 
     def __iter__(self):
         self.i = 0
@@ -484,15 +511,23 @@ class RandomlyShapedDataIterator(object):
                 min_val = self.val_range[0]
                 max_val = self.val_range[1]
                 self.test_data.append(
-                    np.array(self.np_rng.random(shape) * (max_val - min_val), dtype=self.dtype)
+                    np.array(
+                        self.np_rng.random(shape) * (max_val - min_val),
+                        dtype=self.dtype,
+                    )
                     + min_val
                 )
             elif self.dtype == np.float32:
                 self.test_data.append(
-                    np.array(self.np_rng.random(shape) * (1.0), dtype=self.dtype) - 0.5
+                    np.array(
+                        self.np_rng.random(shape) * (1.0), dtype=self.dtype
+                    )
+                    - 0.5
                 )
             else:
-                self.test_data.append(np.array(self.np_rng.random(shape) * 255, dtype=self.dtype))
+                self.test_data.append(
+                    np.array(self.np_rng.random(shape) * 255, dtype=self.dtype)
+                )
 
         batch = self.test_data
         self.i = (self.i + 1) % self.n
@@ -578,7 +613,11 @@ def dali_type(t):
 def py_buffer_from_address(address, shape, dtype, gpu=False):
     import_numpy()
 
-    buff = {"data": (address, False), "shape": tuple(shape), "typestr": np.dtype(dtype).str}
+    buff = {
+        "data": (address, False),
+        "shape": tuple(shape),
+        "typestr": np.dtype(dtype).str,
+    }
 
     class py_holder(object):
         pass
@@ -621,7 +660,9 @@ class check_output_pattern:
             pattern = re.compile(self.pattern_)
             pattern_found = pattern.search(our_data) or pattern.search(err_data)
         else:
-            pattern_found = (self.pattern_ in our_data or self.pattern_ in err_data,)
+            pattern_found = (
+                self.pattern_ in our_data or self.pattern_ in err_data,
+            )
 
         assert pattern_found, (
             f"Pattern: ``{self.pattern_}`` \n not found in out: \n"
@@ -729,7 +770,11 @@ def to_array(dali_out):
 
 
 def module_functions(
-    cls, prefix="", remove_prefix="", check_non_module=False, allowed_private_modules=[]
+    cls,
+    prefix="",
+    remove_prefix="",
+    check_non_module=False,
+    allowed_private_modules=[],
 ):
     res = []
     if hasattr(cls, "_schema_name"):
@@ -744,9 +789,15 @@ def module_functions(
         for c_name, c in inspect.getmembers(cls):
 
             def public_or_allowed(c_name):
-                return not c_name.startswith("_") or c_name in allowed_private_modules
+                return (
+                    not c_name.startswith("_")
+                    or c_name in allowed_private_modules
+                )
 
-            if public_or_allowed(c_name) and c_name not in sys.builtin_module_names:
+            if (
+                public_or_allowed(c_name)
+                and c_name not in sys.builtin_module_names
+            ):
                 res += module_functions(
                     c,
                     cls.__name__,
@@ -775,7 +826,8 @@ def restrict_python_version(major, minor=None):
     def decorator(test_case):
         version_info = sys.version_info
         if version_info.major > major or (
-            version_info.major == major and (minor is None or version_info.minor >= minor)
+            version_info.major == major
+            and (minor is None or version_info.minor >= minor)
         ):
             return test_case
         return lambda: _test_skipped(
@@ -787,7 +839,11 @@ def restrict_python_version(major, minor=None):
 
 
 def generator_random_data(
-    batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3), dtype=None, val_range=[0, 255]
+    batch_size,
+    min_sh=(10, 10, 3),
+    max_sh=(100, 100, 3),
+    dtype=None,
+    val_range=[0, 255],
 ):
     import_numpy()
     if dtype is None:
@@ -799,9 +855,13 @@ def generator_random_data(
         out = []
         for _ in range(batch_size):
             shape = [
-                np.random.randint(min_sh[d], max_sh[d] + 1, dtype=np.int32) for d in range(ndim)
+                np.random.randint(min_sh[d], max_sh[d] + 1, dtype=np.int32)
+                for d in range(ndim)
             ]
-            arr = np.array(np.random.uniform(val_range[0], val_range[1], shape), dtype=dtype)
+            arr = np.array(
+                np.random.uniform(val_range[0], val_range[1], shape),
+                dtype=dtype,
+            )
             out += [arr]
         return out
 
@@ -847,7 +907,10 @@ def generator_random_axes_for_3d_input(
                 axes_sh = axes[i].shape if axes[i].shape[0] > 0 else [ndim]
                 range_start, range_end, dtype = extra_out_desc[out_idx]
                 extra_out.append(
-                    np.array(np.random.uniform(range_start, range_end, axes_sh), dtype=dtype)
+                    np.array(
+                        np.random.uniform(range_start, range_end, axes_sh),
+                        dtype=dtype,
+                    )
                 )
             extra_outputs.append(extra_out)
         return tuple([axes] + extra_outputs)
@@ -857,7 +920,9 @@ def generator_random_axes_for_3d_input(
 
 def as_array(tensor):
     import_numpy()
-    return np.array(tensor.as_cpu() if isinstance(tensor, TensorGPU) else tensor)
+    return np.array(
+        tensor.as_cpu() if isinstance(tensor, TensorGPU) else tensor
+    )
 
 
 def python_function(*inputs, function, **kwargs):
@@ -869,8 +934,12 @@ def python_function(*inputs, function, **kwargs):
     This utility separates the data nodes from non data nodes automatically,
     so that you can simply call `python_function(data_node, non_pipeline_data, function=my_fun)`.
     """
-    node_inputs = [inp for inp in inputs if isinstance(inp, dali.data_node.DataNode)]
-    const_inputs = [inp for inp in inputs if not isinstance(inp, dali.data_node.DataNode)]
+    node_inputs = [
+        inp for inp in inputs if isinstance(inp, dali.data_node.DataNode)
+    ]
+    const_inputs = [
+        inp for inp in inputs if not isinstance(inp, dali.data_node.DataNode)
+    ]
 
     def is_data_node(input):
         return isinstance(input, dali.data_node.DataNode)
@@ -879,7 +948,8 @@ def python_function(*inputs, function, **kwargs):
         iter_exec_inputs = (inp for inp in exec_inputs)
         iter_const_inputs = (inp for inp in const_inputs)
         iteration_inputs = [
-            next(iter_exec_inputs if is_data_node(inp) else iter_const_inputs) for inp in inputs
+            next(iter_exec_inputs if is_data_node(inp) else iter_const_inputs)
+            for inp in inputs
         ]
         return function(*iteration_inputs)
 
@@ -900,7 +970,9 @@ def has_operator(operator):
 
             @functools.wraps(fun)
             def dummy_case(*args, **kwargs):
-                print(f"Omitting test case for unsupported operator: `{operator}`")
+                print(
+                    f"Omitting test case for unsupported operator: `{operator}`"
+                )
 
             return dummy_case
         else:

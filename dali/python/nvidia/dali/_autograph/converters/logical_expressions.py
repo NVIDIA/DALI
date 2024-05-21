@@ -67,14 +67,18 @@ class LogicalExpressionTransformer(converter.Base):
 
     def _as_binary_operation(self, op, arg1, arg2):
         template = templates.replace_as_expression(
-            "arg1 is arg2", arg1=arg1, arg2=arg2  # Note: `is` will be replaced with `op` below.
+            "arg1 is arg2",
+            arg1=arg1,
+            arg2=arg2,  # Note: `is` will be replaced with `op` below.
         )
         template.ops[0] = op
         return template
 
     def _as_unary_function(self, func_name, arg):
         return templates.replace_as_expression(
-            "func_name(arg)", func_name=parser.parse_expression(func_name), arg=arg
+            "func_name(arg)",
+            func_name=parser.parse_expression(func_name),
+            arg=arg,
         )
 
     def _process_binop(self, op, left, right):
@@ -97,7 +101,9 @@ class LogicalExpressionTransformer(converter.Base):
             binary_comparison = self._process_binop(op, left, right)
             if op_tree is not None:
                 op_tree = self._as_binary_function(
-                    "ag__.and_", self._as_lambda(op_tree), self._as_lambda(binary_comparison)
+                    "ag__.and_",
+                    self._as_lambda(op_tree),
+                    self._as_lambda(binary_comparison),
                 )
             else:
                 op_tree = binary_comparison
@@ -122,7 +128,9 @@ class LogicalExpressionTransformer(converter.Base):
         while node_values:
             left = node_values.pop()
             right = self._as_binary_function(
-                self._overload_of(node.op), self._as_lambda(left), self._as_lambda(right)
+                self._overload_of(node.op),
+                self._as_lambda(left),
+                self._as_lambda(right),
             )
         return right
 

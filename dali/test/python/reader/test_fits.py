@@ -31,7 +31,9 @@ def enum_product(*params):
     return tuple((i,) + t for i, t in enumerate(itertools.product(*params)))
 
 
-def create_fits_file(np_rng, filename, shape, type=np.int32, compressed=False, hdus=1):
+def create_fits_file(
+    np_rng, filename, shape, type=np.int32, compressed=False, hdus=1
+):
     hdu_list = [fits.PrimaryHDU(header=None)]
     for i in range(hdus):
         data = np_rng.randint(100, size=shape).astype(type)
@@ -99,8 +101,26 @@ def get_dtypes(compression):
 # Test shapes, for each number of dims, astropy & fits do not handle dims = ()
 test_shapes = {
     1: [(10,), (12,), (10,), (20,), (10,), (12,), (13,), (19,)],
-    2: [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)],
-    3: [(6, 2, 5), (5, 6, 2), (3, 3, 3), (10, 1, 8), (8, 8, 3), (2, 2, 3), (8, 4, 3), (1, 10, 1)],
+    2: [
+        (10, 10),
+        (12, 10),
+        (10, 12),
+        (20, 15),
+        (10, 11),
+        (12, 11),
+        (13, 11),
+        (19, 10),
+    ],
+    3: [
+        (6, 2, 5),
+        (5, 6, 2),
+        (3, 3, 3),
+        (10, 1, 8),
+        (8, 8, 3),
+        (2, 2, 3),
+        (8, 4, 3),
+        (1, 10, 1),
+    ],
     4: [
         (2, 6, 2, 5),
         (5, 1, 6, 2),
@@ -132,12 +152,16 @@ def _testimpl_types_and_shapes(
     with tempfile.TemporaryDirectory() as test_data_root:
         # setup file
         filenames = ["test_{:02d}.fits".format(i) for i in range(nsamples)]
-        full_paths = [os.path.join(test_data_root, fname) for fname in filenames]
+        full_paths = [
+            os.path.join(test_data_root, fname) for fname in filenames
+        ]
         for i in range(nsamples):
             compressed = compressed_arg
             if compressed is None:
                 compressed = random.choice([False, True])
-            create_fits_file(np_rng, full_paths[i], shapes[i], type, compressed, num_outputs)
+            create_fits_file(
+                np_rng, full_paths[i], shapes[i], type, compressed, num_outputs
+            )
 
         # load manually, we skip primary HDU since it only stores metadata
         # astropy returns data from each HDUs as a ndarray
@@ -214,7 +238,9 @@ def test_reading_uncompressed(i, dtype, ndim, device):
 
 @params(*enum_product(get_dtypes(True), [1, 2, 3], ["cpu", "gpu"]))
 def test_reading_compressed(i, dtype, ndim, device):
-    assert ndim <= 3  # astropy doesn't support compression of images with more dimensions
+    assert (
+        ndim <= 3
+    )  # astropy doesn't support compression of images with more dimensions
     rng = np.random.default_rng(42 + i)
     np_rng = np.random.RandomState(12345 + i)
     compressed = True
@@ -240,12 +266,18 @@ def test_reading_compressed(i, dtype, ndim, device):
     "cpu",
 )
 def test_concurrent_pipelines(device):
-    test_data_path = os.path.join(get_dali_extra_path(), "db/single/fits/compressed/")
+    test_data_path = os.path.join(
+        get_dali_extra_path(), "db/single/fits/compressed/"
+    )
 
     pipelines = []
     for _ in range(5):
         pipeline = FitsReaderPipeline(
-            test_data_path, device=device, device_id=0, num_threads=4, batch_size=1
+            test_data_path,
+            device=device,
+            device_id=0,
+            num_threads=4,
+            batch_size=1,
         )
         pipeline.build()
         pipelines.append(pipeline)
@@ -257,4 +289,7 @@ def test_concurrent_pipelines(device):
             if expected_output is None:
                 expected_output = pipeline_output
             else:
-                assert np.all(pipeline_output[0].as_array() == expected_output[0].as_array())
+                assert np.all(
+                    pipeline_output[0].as_array()
+                    == expected_output[0].as_array()
+                )

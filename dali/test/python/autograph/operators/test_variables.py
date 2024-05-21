@@ -33,7 +33,9 @@ class SpecialValuesTest(unittest.TestCase):
 
         self.assertIsInstance(undefined_symbol.foo, variables.Undefined)
         self.assertIsInstance(undefined_symbol[0], variables.Undefined)
-        self.assertNotIsInstance(undefined_symbol.__class__, variables.Undefined)
+        self.assertNotIsInstance(
+            undefined_symbol.__class__, variables.Undefined
+        )
 
     def test_read(self):
         self.assertEqual(variables.ld(1), 1)
@@ -43,5 +45,7 @@ class SpecialValuesTest(unittest.TestCase):
         self.assertIsNone(variables.ld(None))
 
     def test_read_undefined(self):
-        with self.assertRaisesRegex(UnboundLocalError, "used before assignment"):
+        with self.assertRaisesRegex(
+            UnboundLocalError, "used before assignment"
+        ):
             variables.ld(variables.Undefined("a"))

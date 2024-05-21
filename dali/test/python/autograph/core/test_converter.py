@@ -49,8 +49,13 @@ class ConversionOptionsTest(converter_testing.TestCase):
 
         self.assertEqual(opts.recursive, reparsed_opts.recursive)
         self.assertEqual(opts.user_requested, False)
-        self.assertEqual(opts.internal_convert_user_code, reparsed_opts.internal_convert_user_code)
-        self.assertEqual(opts.optional_features, reparsed_opts.optional_features)
+        self.assertEqual(
+            opts.internal_convert_user_code,
+            reparsed_opts.internal_convert_user_code,
+        )
+        self.assertEqual(
+            opts.optional_features, reparsed_opts.optional_features
+        )
 
 
 class ConverterBaseTest(converter_testing.TestCase):
@@ -70,7 +75,9 @@ class ConverterBaseTest(converter_testing.TestCase):
             "other_arg": parser.parse_expression("bar"),
         }
         c = TestConverter(ctx)
-        value = c.get_definition_directive(symbol_a, directive_key, "test_arg", None)
+        value = c.get_definition_directive(
+            symbol_a, directive_key, "test_arg", None
+        )
         self.assertEqual(value.id, "foo")
 
     def test_get_definition_directive_default(self):
@@ -85,7 +92,10 @@ class ConverterBaseTest(converter_testing.TestCase):
         symbol_a = node.body[1].value
         c = TestConverter(ctx)
         value = c.get_definition_directive(
-            symbol_a, directive_key, "test_arg", parser.parse_expression("default")
+            symbol_a,
+            directive_key,
+            "test_arg",
+            parser.parse_expression("default"),
         )
         self.assertEqual(value.id, "default")
 
@@ -111,7 +121,9 @@ class ConverterBaseTest(converter_testing.TestCase):
             "other_arg": parser.parse_expression("baz"),
         }
         c = TestConverter(ctx)
-        value = c.get_definition_directive(symbol_a, directive_key, "test_arg", None)
+        value = c.get_definition_directive(
+            symbol_a, directive_key, "test_arg", None
+        )
         self.assertEqual(value.id, "foo")
 
     def test_get_definition_directive_multiple_inconsistent(self):
@@ -135,4 +147,6 @@ class ConverterBaseTest(converter_testing.TestCase):
         }
         c = TestConverter(ctx)
         with self.assertRaises(ValueError):
-            c.get_definition_directive(symbol_a, directive_key, "test_arg", None)
+            c.get_definition_directive(
+                symbol_a, directive_key, "test_arg", None
+            )

@@ -24,33 +24,51 @@ def test_select_impls():
     # Without supporting nested structures it encountered a ((DataNode, DataNode),) branch output
     # and crashed.
 
-    def _select_fwd(op_range_lo, op_range_hi, ops, selected_op_idx, op_args, op_kwargs):
+    def _select_fwd(
+        op_range_lo, op_range_hi, ops, selected_op_idx, op_args, op_kwargs
+    ):
         assert op_range_lo <= op_range_hi
         if op_range_lo == op_range_hi:
             return ops[op_range_lo](*op_args, **op_kwargs)
         mid = (op_range_lo + op_range_hi) // 2
         if selected_op_idx <= mid:
-            ret = _select_fwd(op_range_lo, mid, ops, selected_op_idx, op_args, op_kwargs)
+            ret = _select_fwd(
+                op_range_lo, mid, ops, selected_op_idx, op_args, op_kwargs
+            )
         else:
-            ret = _select_fwd(mid + 1, op_range_hi, ops, selected_op_idx, op_args, op_kwargs)
+            ret = _select_fwd(
+                mid + 1, op_range_hi, ops, selected_op_idx, op_args, op_kwargs
+            )
         return ret
 
-    def _select_unpack(op_range_lo, op_range_hi, ops, selected_op_idx, op_args, op_kwargs):
+    def _select_unpack(
+        op_range_lo, op_range_hi, ops, selected_op_idx, op_args, op_kwargs
+    ):
         assert op_range_lo <= op_range_hi
         if op_range_lo == op_range_hi:
             return ops[op_range_lo](*op_args, **op_kwargs)
         mid = (op_range_lo + op_range_hi) // 2
         if selected_op_idx <= mid:
-            a, b = _select_unpack(op_range_lo, mid, ops, selected_op_idx, op_args, op_kwargs)
+            a, b = _select_unpack(
+                op_range_lo, mid, ops, selected_op_idx, op_args, op_kwargs
+            )
         else:
-            a, b = _select_unpack(mid + 1, op_range_hi, ops, selected_op_idx, op_args, op_kwargs)
+            a, b = _select_unpack(
+                mid + 1, op_range_hi, ops, selected_op_idx, op_args, op_kwargs
+            )
         return a, b
 
-    def select(ops, selected_op_idx, *op_args, unpacking_select=False, **op_kwargs):
+    def select(
+        ops, selected_op_idx, *op_args, unpacking_select=False, **op_kwargs
+    ):
         if unpacking_select:
-            return _select_unpack(0, len(ops) - 1, ops, selected_op_idx, op_args, op_kwargs)
+            return _select_unpack(
+                0, len(ops) - 1, ops, selected_op_idx, op_args, op_kwargs
+            )
         else:
-            return _select_fwd(0, len(ops) - 1, ops, selected_op_idx, op_args, op_kwargs)
+            return _select_fwd(
+                0, len(ops) - 1, ops, selected_op_idx, op_args, op_kwargs
+            )
 
     def rotate(image, label):
         image = fn.rotate(image, angle=42)
@@ -60,14 +78,22 @@ def test_select_impls():
         image = fn.color_twist(image, saturation=0)
         return image, label
 
-    @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, num_threads=4, batch_size=8, device_id=0
+    )
     def pipeline(unpacking_select):
-        image = types.Constant(np.full((200, 300, 3), 42, dtype=np.uint8), device="cpu")
+        image = types.Constant(
+            np.full((200, 300, 3), 42, dtype=np.uint8), device="cpu"
+        )
         label = types.Constant(np.array(1), device="cpu")
         ops = [rotate, color]
         op_idx = fn.random.uniform(values=list(range(len(ops))))
         image, label = select(
-            ops, op_idx, image=image, label=label, unpacking_select=unpacking_select
+            ops,
+            op_idx,
+            image=image,
+            label=label,
+            unpacking_select=unpacking_select,
         )
         return image, label
 
@@ -81,9 +107,13 @@ def test_select_impls():
 
 
 def test_dicts():
-    @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, num_threads=4, batch_size=8, device_id=0
+    )
     def pipeline():
-        pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
+        pred = fn.external_source(
+            source=lambda x: np.array(x.idx_in_batch % 2), batch=False
+        )
         if pred:
             out = {"out": np.array(2)}
         else:
@@ -95,9 +125,13 @@ def test_dicts():
     (out,) = pipe.run()
     check_batch(out, [i % 2 + 1 for i in range(8)])
 
-    @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, num_threads=4, batch_size=8, device_id=0
+    )
     def pipeline_op():
-        pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
+        pred = fn.external_source(
+            source=lambda x: np.array(x.idx_in_batch % 2), batch=False
+        )
         data = types.Constant(np.array(42), device="cpu")
         if pred:
             out = {"out": data - 1}
@@ -112,9 +146,13 @@ def test_dicts():
 
 
 def test_tuples():
-    @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, num_threads=4, batch_size=8, device_id=0
+    )
     def pipeline():
-        pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
+        pred = fn.external_source(
+            source=lambda x: np.array(x.idx_in_batch % 2), batch=False
+        )
         data = types.Constant(np.array(42), device="cpu")
         if pred:
             out = (data, data + 10, data + 20)
@@ -136,9 +174,13 @@ def test_tuples():
 
 
 def test_nesting_error():
-    @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, num_threads=4, batch_size=8, device_id=0
+    )
     def pipeline():
-        pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
+        pred = fn.external_source(
+            source=lambda x: np.array(x.idx_in_batch % 2), batch=False
+        )
         if pred:
             out = {"out": np.array(2), "mismatched": np.array(9999)}
         else:

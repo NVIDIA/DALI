@@ -1,0 +1,16 @@
+--- internal_tools/lint.py
++++ internal_tools/lint.py
+@@ -187,7 +187,12 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
+         n_subproc=n_subproc,
+     )
+ 
+-    if cc_code != 0 or inc_code != 0 or tf_plugin_code != 0 or sdist_plugin_code != 0:
++    if (
++        cc_code != 0
++        or inc_code != 0
++        or tf_plugin_code != 0
++        or sdist_plugin_code != 0
++    ):
+         sys.exit(1)
+     sys.exit(0)
+ 

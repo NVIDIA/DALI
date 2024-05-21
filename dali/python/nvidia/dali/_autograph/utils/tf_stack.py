@@ -62,7 +62,9 @@ class StackTraceTransform(object):
         if self._thread_key is None:
             self._thread_key = _get_thread_key()
         else:
-            assert self._thread_key == _get_thread_key(), "Shared across threads?"
+            assert (
+                self._thread_key == _get_thread_key()
+            ), "Shared across threads?"
 
         stack = self._stack_dict[self._thread_key]
         self.parent = stack[-1]
@@ -193,7 +195,9 @@ class CustomModuleFilter(StackTraceFilter):
                     module_file = module_file[: -len(init_py)]
                 self._filtered_filenames.add(module_file)
             except TypeError as e:
-                raise TypeError(f"{module} is a built-in module and cannot be filtered.") from e
+                raise TypeError(
+                    f"{module} is a built-in module and cannot be filtered."
+                ) from e
         self._cached_set = None
 
     def get_filtered_filenames(self):

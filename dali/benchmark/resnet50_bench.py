@@ -39,15 +39,29 @@ def make_batch(size):
 
 
 class C2Pipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, pipelined=True, exec_async=True):
+    def __init__(
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        pipelined=True,
+        exec_async=True,
+    ):
         super(C2Pipe, self).__init__(
-            batch_size, num_threads, device_id, exec_pipelined=pipelined, exec_async=exec_async
+            batch_size,
+            num_threads,
+            device_id,
+            exec_pipelined=pipelined,
+            exec_async=exec_async,
         )
         self.input = ops.ExternalSource()
         self.decode = ops.ImageDecoder(device="cpu", output_type=types.RGB)
         self.rcm = ops.FastResizeCropMirror(crop=(224, 224))
         self.np = ops.CropMirrorNormalize(
-            device="gpu", dtype=types.FLOAT16, mean=[128.0, 128.0, 128.0], std=[1.0, 1.0, 1.0]
+            device="gpu",
+            dtype=types.FLOAT16,
+            mean=[128.0, 128.0, 128.0],
+            std=[1.0, 1.0, 1.0],
         )
         self.uniform = ops.random.Uniform(range=(0.0, 1.0))
         self.resize_uniform = ops.random.Uniform(range=(256.0, 480.0))
@@ -72,9 +86,20 @@ class C2Pipe(Pipeline):
 
 
 class HybridPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, pipelined=True, exec_async=True):
+    def __init__(
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        pipelined=True,
+        exec_async=True,
+    ):
         super(HybridPipe, self).__init__(
-            batch_size, num_threads, device_id, exec_pipelined=pipelined, exec_async=exec_async
+            batch_size,
+            num_threads,
+            device_id,
+            exec_pipelined=pipelined,
+            exec_async=exec_async,
         )
         self.input = ops.ExternalSource()
         self.decode = ops.ImageDecoder(device="mixed", output_type=types.RGB)
@@ -95,7 +120,10 @@ class HybridPipe(Pipeline):
         images = self.decode(self.jpegs)
         resized = self.resize(images, resize_shorter=self.resize_uniform())
         output = self.cmnp(
-            resized, mirror=self.mirror(), crop_pos_x=self.uniform(), crop_pos_y=self.uniform()
+            resized,
+            mirror=self.mirror(),
+            crop_pos_x=self.uniform(),
+            crop_pos_y=self.uniform(),
         )
         return output
 
@@ -111,7 +139,9 @@ def run_benchmarks(PipeType, args):
         exec_async = executor > 1
         for batch_size in args.batch_sizes:
             for num_threads in args.thread_counts:
-                pipe = PipeType(batch_size, num_threads, 0, pipelined, exec_async)
+                pipe = PipeType(
+                    batch_size, num_threads, 0, pipelined, exec_async
+                )
                 pipe.build()
                 start_time = timer()
                 for i in range(args.num_iters):
@@ -130,15 +160,25 @@ def run_benchmarks(PipeType, args):
 
 
 def get_args():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "--batch-sizes", default=[128], help="Comma separated list of batch sizes to run"
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        "--thread-counts", default=[1, 2, 3, 4], help="Comma separated list of thread counts"
+        "--batch-sizes",
+        default=[128],
+        help="Comma separated list of batch sizes to run",
     )
-    parser.add_argument("--executors", default=[2], help="List of executors to run")
-    parser.add_argument("--num-iters", type=int, default=100, help="Number of iterations to run")
+    parser.add_argument(
+        "--thread-counts",
+        default=[1, 2, 3, 4],
+        help="Comma separated list of thread counts",
+    )
+    parser.add_argument(
+        "--executors", default=[2], help="List of executors to run"
+    )
+    parser.add_argument(
+        "--num-iters", type=int, default=100, help="Number of iterations to run"
+    )
     return parser.parse_args()
 
 

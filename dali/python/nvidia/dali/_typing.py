@@ -39,7 +39,9 @@ class CudaArrayInterface(Protocol):
     def __cuda_array_interface__(self) -> Any: ...
 
 
-TensorLikeIn: TypeAlias = Union[ArrayInterface, Sequence[int], Sequence[float], int, float]
+TensorLikeIn: TypeAlias = Union[
+    ArrayInterface, Sequence[int], Sequence[float], int, float
+]
 """
 Constant input to the operator, that is expressed by a single tensor. Such input represents
 one sample that is repeated (broadcast) to form a batch.

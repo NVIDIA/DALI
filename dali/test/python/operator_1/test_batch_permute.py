@@ -23,7 +23,9 @@ from nose_utils import raises
 def _test_permutation_generator(allow_repetitions, no_fixed):
     batch_size = 10
     pipe = Pipeline(batch_size, 1, None)
-    perm = fn.batch_permutation(allow_repetitions=allow_repetitions, no_fixed_points=no_fixed)
+    perm = fn.batch_permutation(
+        allow_repetitions=allow_repetitions, no_fixed_points=no_fixed
+    )
     pipe.set_outputs(perm)
 
     pipe.build()
@@ -85,7 +87,9 @@ def _test_permute_batch_fixed(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
     data = fn.external_source(
-        source=lambda: gen_data(batch_size, np.int16), device=device, layout="abc"
+        source=lambda: gen_data(batch_size, np.int16),
+        device=device,
+        layout="abc",
     )
     idxs = [4, 8, 0, 6, 3, 5, 2, 9, 7, 1]
     pipe.set_outputs(data, fn.permute_batch(data, indices=idxs))
@@ -112,10 +116,16 @@ def _test_permute_batch_out_of_range(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
     data = fn.external_source(
-        source=lambda: gen_data(batch_size, np.int32), device=device, layout="abc"
+        source=lambda: gen_data(batch_size, np.int32),
+        device=device,
+        layout="abc",
     )
     perm = fn.batch_permutation()
-    pipe.set_outputs(data, fn.permute_batch(data, indices=[0, 1, 2, 3, 4, 5, 10, 7, 8, 9]), perm)
+    pipe.set_outputs(
+        data,
+        fn.permute_batch(data, indices=[0, 1, 2, 3, 4, 5, 10, 7, 8, 9]),
+        perm,
+    )
     pipe.build()
     pipe.run()
 

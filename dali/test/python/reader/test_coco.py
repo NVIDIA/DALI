@@ -50,7 +50,9 @@ images = list(test_data.keys())
 expected_ids = list(s.id for s in test_data.values())
 
 
-def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False):
+def check_operator_coco_reader_custom_order(
+    order=None, add_invalid_paths=False
+):
     batch_size = 2
     if not order:
         order = range(len(test_data))
@@ -105,7 +107,9 @@ def test_operator_coco_reader_custom_order():
 def test_operator_coco_reader_label_remap(avoid_remap):
     batch_size = 2
     images = list(test_data.keys())
-    ids_map = {s.id: s.cls if avoid_remap else s.mapped_cls for s in test_data.values()}
+    ids_map = {
+        s.id: s.cls if avoid_remap else s.mapped_cls for s in test_data.values()
+    }
 
     pipeline = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipeline:
@@ -133,7 +137,9 @@ def test_operator_coco_reader_label_remap(avoid_remap):
 
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, "db", "coco_pixelwise", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco_pixelwise", "instances.json")
+    train_annotations = os.path.join(
+        test_data_root, "db", "coco_pixelwise", "instances.json"
+    )
 
     coco_dir = os.path.join(test_data_root, "db", "coco")
     coco_dir_imgs = os.path.join(coco_dir, "images")
@@ -142,13 +148,22 @@ def test_operator_coco_reader_same_images():
 
     for file_root, _ in [
         (coco_dir_imgs, os.path.join(coco_dir, "instances.json")),
-        (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, "instances.json")),
-        (coco_pixelwise_dir_imgs, os.path.join(coco_pixelwise_dir, "instances_rle_counts.json")),
+        (
+            coco_pixelwise_dir_imgs,
+            os.path.join(coco_pixelwise_dir, "instances.json"),
+        ),
+        (
+            coco_pixelwise_dir_imgs,
+            os.path.join(coco_pixelwise_dir, "instances_rle_counts.json"),
+        ),
     ]:
         pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
         with pipe:
             inputs1, boxes1, labels1, *_ = fn.readers.coco(
-                file_root=file_root, annotations_file=train_annotations, name="reader1", seed=1234
+                file_root=file_root,
+                annotations_file=train_annotations,
+                name="reader1",
+                seed=1234,
             )
             inputs2, boxes2, labels2, *_ = fn.readers.coco(
                 file_root=file_root,
@@ -163,7 +178,15 @@ def test_operator_coco_reader_same_images():
                 name="reader3",
             )
             pipe.set_outputs(
-                inputs1, boxes1, labels1, inputs2, boxes2, labels2, inputs3, boxes3, labels3
+                inputs1,
+                boxes1,
+                labels1,
+                inputs2,
+                boxes2,
+                labels2,
+                inputs3,
+                boxes3,
+                labels3,
             )
         pipe.build()
 
@@ -213,7 +236,9 @@ batch_size_alias_test = 64
 
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
-def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_masks):
+def coco_pipe(
+    coco_op, file_root, annotations_file, polygon_masks, pixelwise_masks
+):
     inputs, boxes, labels, *_ = coco_op(
         file_root=file_root,
         annotations_file=annotations_file,
@@ -226,17 +251,31 @@ def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_mas
 def test_coco_reader_alias():
     def check_coco_reader_alias(polygon_masks, pixelwise_masks):
         new_pipe = coco_pipe(
-            fn.readers.coco, file_root, train_annotations, polygon_masks, pixelwise_masks
+            fn.readers.coco,
+            file_root,
+            train_annotations,
+            polygon_masks,
+            pixelwise_masks,
         )
         legacy_pipe = coco_pipe(
-            fn.coco_reader, file_root, train_annotations, polygon_masks, pixelwise_masks
+            fn.coco_reader,
+            file_root,
+            train_annotations,
+            polygon_masks,
+            pixelwise_masks,
         )
         compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
 
     file_root = os.path.join(test_data_root, "db", "coco_pixelwise", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco_pixelwise", "instances.json")
+    train_annotations = os.path.join(
+        test_data_root, "db", "coco_pixelwise", "instances.json"
+    )
 
-    for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
+    for polygon_masks, pixelwise_masks in [
+        (None, None),
+        (True, None),
+        (None, True),
+    ]:
         yield check_coco_reader_alias, polygon_masks, pixelwise_masks
 
 
@@ -285,12 +324,16 @@ def test_coco_include_crowd(include_iscrowd):
             if include_iscrowd or iscrowd == 0:
                 assert np.all(boxes[idx] == np.array(anno["bbox"][j]))
                 idx += 1
-    assert any(all_iscrowd), "At least one annotation should include `iscrowd=1`"
+    assert any(
+        all_iscrowd
+    ), "At least one annotation should include `iscrowd=1`"
 
 
 def test_coco_empty_annotations_pix():
     file_root = os.path.join(test_data_root, "db", "coco_dummy", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco_dummy", "instances.json")
+    train_annotations = os.path.join(
+        test_data_root, "db", "coco_dummy", "instances.json"
+    )
 
     @pipeline_def(batch_size=1, device_id=0, num_threads=4)
     def coco_pipe():
@@ -317,20 +360,29 @@ def test_coco_empty_annotations_pix():
     anno_mapping = {}
     for elm in annotations["annotations"]:
         image_id = elm["image_id"]
-        anno_mapping[image_id] = anno_mapping.get(image_id, False) or "segmentation" in elm
+        anno_mapping[image_id] = (
+            anno_mapping.get(image_id, False) or "segmentation" in elm
+        )
 
     for _ in range(number_of_samples):
         mask, image_ids = pipe.run()
         image_ids = int(image_ids.as_array())
         max_mask = np.max(np.array(mask.as_tensor()))
-        assert (max_mask != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or (
-            max_mask == 0 and not (image_ids in anno_mapping and anno_mapping[image_ids])
+        assert (
+            max_mask != 0
+            and image_ids in anno_mapping
+            and anno_mapping[image_ids]
+        ) or (
+            max_mask == 0
+            and not (image_ids in anno_mapping and anno_mapping[image_ids])
         )
 
 
 def test_coco_empty_annotations_poly():
     file_root = os.path.join(test_data_root, "db", "coco_dummy", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco_dummy", "instances.json")
+    train_annotations = os.path.join(
+        test_data_root, "db", "coco_dummy", "instances.json"
+    )
 
     @pipeline_def(batch_size=1, device_id=0, num_threads=4)
     def coco_pipe():
@@ -357,21 +409,28 @@ def test_coco_empty_annotations_poly():
     anno_mapping = {}
     for elm in annotations["annotations"]:
         image_id = elm["image_id"]
-        anno_mapping[image_id] = anno_mapping.get(image_id, False) or "segmentation" in elm
+        anno_mapping[image_id] = (
+            anno_mapping.get(image_id, False) or "segmentation" in elm
+        )
 
     for _ in range(number_of_samples):
         poly, vert, image_ids = pipe.run()
         image_ids = int(image_ids.as_array())
         poly = np.array(poly.as_tensor()).size
         vert = np.array(vert.as_tensor()).size
-        assert (poly != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or (
-            vert == 0 and not (image_ids in anno_mapping and anno_mapping[image_ids])
+        assert (
+            poly != 0 and image_ids in anno_mapping and anno_mapping[image_ids]
+        ) or (
+            vert == 0
+            and not (image_ids in anno_mapping and anno_mapping[image_ids])
         )
 
 
 def test_coco_pix_mask_ratio():
     file_root = os.path.join(test_data_root, "db", "coco_dummy", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco_dummy", "instances.json")
+    train_annotations = os.path.join(
+        test_data_root, "db", "coco_dummy", "instances.json"
+    )
 
     batch_size = 2
 

@@ -57,7 +57,8 @@ class Context(object):
 # TODO(mdan): Move to a standalone file.
 class EntityInfo(
     collections.namedtuple(
-        "EntityInfo", ("name", "source_code", "source_file", "future_features", "namespace")
+        "EntityInfo",
+        ("name", "source_code", "source_file", "future_features", "namespace"),
     )
 ):
     """Contains information about a Python entity.
@@ -409,7 +410,9 @@ class Base(NodeStateTracker, gast.NodeTransformer):
                         value_el = values.elts[i]
                     else:
                         value_el = gast.Subscript(values, i, ctx=gast.Store())
-                    self.apply_to_single_assignments(target_el, value_el, apply_fn)
+                    self.apply_to_single_assignments(
+                        target_el, value_el, apply_fn
+                    )
             else:
                 # TODO(mdan): Look into allowing to rewrite the AST here.
                 apply_fn(target, values)
@@ -451,13 +454,17 @@ class Base(NodeStateTracker, gast.NodeTransformer):
                 # When the replacement is a list, it is assumed that the list came
                 # from a template that contained a number of statements, which
                 # themselves are standalone and don't require an enclosing Expr.
-                if isinstance(result.value, (list, tuple, gast.Assign, gast.AugAssign)):
+                if isinstance(
+                    result.value, (list, tuple, gast.Assign, gast.AugAssign)
+                ):
                     result = result.value
 
             # By default, all replacements receive the origin info of the replaced
             # node.
             if result is not node and result is not None:
-                inherited_origin = anno.getanno(node, anno.Basic.ORIGIN, default=parent_origin)
+                inherited_origin = anno.getanno(
+                    node, anno.Basic.ORIGIN, default=parent_origin
+                )
                 if inherited_origin is not None:
                     nodes_to_adjust = result
                     if isinstance(result, (list, tuple)):
@@ -531,7 +538,9 @@ class CodeGenerator(NodeStateTracker, gast.NodeVisitor):
             # node.
             eof_after = len(self._output_code)
             if eof_before - eof_after:
-                inherited_origin = anno.getanno(node, anno.Basic.ORIGIN, default=parent_origin)
+                inherited_origin = anno.getanno(
+                    node, anno.Basic.ORIGIN, default=parent_origin
+                )
                 if inherited_origin is not None:
                     self.source_map[(eof_before, eof_after)] = inherited_origin
             return ret

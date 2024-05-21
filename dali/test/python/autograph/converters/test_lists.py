@@ -94,7 +94,9 @@ class ListTest(converter_testing.TestCase):
             s = l.pop()
             return s, l
 
-        tr = self.transform(f, (directives_converter, lists), operator_overload=OperatorList())
+        tr = self.transform(
+            f, (directives_converter, lists), operator_overload=OperatorList()
+        )
 
         ts, tl = tr()
 

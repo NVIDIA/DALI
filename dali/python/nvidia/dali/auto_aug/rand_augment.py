@@ -20,7 +20,9 @@ from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core import signed_bin, _Augmentation
-from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs as _forbid_unused_kwargs
+from nvidia.dali.auto_aug.core._args import (
+    forbid_unused_kwargs as _forbid_unused_kwargs,
+)
 from nvidia.dali.auto_aug.core._utils import (
     get_translations as _get_translations,
     pretty_select as _pretty_select,
@@ -113,7 +115,9 @@ def rand_augment(
     if use_shape:
         aug_kwargs["shape"] = shape
     if monotonic_mag:
-        augmentations = get_rand_augment_suite(use_shape, max_translate_abs, max_translate_rel)
+        augmentations = get_rand_augment_suite(
+            use_shape, max_translate_abs, max_translate_rel
+        )
     else:
         augmentations = get_rand_augment_non_monotonic_suite(
             use_shape, max_translate_abs, max_translate_rel
@@ -128,7 +132,9 @@ def rand_augment(
                 f"does not contain augmentation with this name. "
                 f"The augmentations in the suite are: {', '.join(augmentation_names)}."
             )
-    selected_augments = [aug for aug in augmentations if aug.name not in excluded]
+    selected_augments = [
+        aug for aug in augmentations if aug.name not in excluded
+    ]
     return apply_rand_augment(
         selected_augments,
         data,
@@ -195,7 +201,8 @@ def apply_rand_augment(
         )
     if n == 0:
         warnings.warn(
-            "The `apply_rand_augment` was called with `n=0`, " "no augmentation will be applied.",
+            "The `apply_rand_augment` was called with `n=0`, "
+            "no augmentation will be applied.",
             Warning,
         )
         return data
@@ -206,15 +213,27 @@ def apply_rand_augment(
         )
     shape = tuple() if n == 1 else (n,)
     op_idx = fn.random.uniform(
-        values=list(range(len(augmentations))), seed=seed, shape=shape, dtype=types.INT32
+        values=list(range(len(augmentations))),
+        seed=seed,
+        shape=shape,
+        dtype=types.INT32,
     )
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
-    mag_bin = signed_bin(m, seed=seed, shape=shape) if use_signed_magnitudes else m
+    mag_bin = (
+        signed_bin(m, seed=seed, shape=shape) if use_signed_magnitudes else m
+    )
     _forbid_unused_kwargs(augmentations, kwargs, "apply_rand_augment")
     for level_idx in range(n):
-        level_mag_bin = mag_bin if not use_signed_magnitudes or n == 1 else mag_bin[level_idx]
+        level_mag_bin = (
+            mag_bin
+            if not use_signed_magnitudes or n == 1
+            else mag_bin[level_idx]
+        )
         op_kwargs = dict(
-            data=data, magnitude_bin=level_mag_bin, num_magnitude_bins=num_magnitude_bins, **kwargs
+            data=data,
+            magnitude_bin=level_mag_bin,
+            num_magnitude_bins=num_magnitude_bins,
+            **kwargs,
         )
         level_op_idx = op_idx if n == 1 else op_idx[level_idx]
         data = _pretty_select(

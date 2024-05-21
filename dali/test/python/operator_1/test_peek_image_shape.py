@@ -27,7 +27,9 @@ file_types = {"jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k"}
 def run_decode(data_path, out_type):
     batch_size = 4
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    input, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="reader")
+    input, _ = fn.readers.file(
+        file_root=data_path, shard_id=0, num_shards=1, name="reader"
+    )
     decoded = fn.decoders.image(input, output_type=types.RGB)
     decoded_shape = fn.shapes(decoded)
     raw_shape = fn.peek_image_shape(input, dtype=out_type)
@@ -42,17 +44,19 @@ def run_decode(data_path, out_type):
             # as we are asking for a particular color space it may
             # differ from the source image, so don't compare it
             image = images.at(i)
-            shape_type = np.int64 if out_type is None else dali_type_to_np(out_type)
+            shape_type = (
+                np.int64 if out_type is None else dali_type_to_np(out_type)
+            )
             for d in range(len(image.shape) - 1):
-                assert image.shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(
-                    image.shape[d], decoded_shape.at(i)[d]
-                )
+                assert (
+                    image.shape[d] == decoded_shape.at(i)[d]
+                ), "{} vs {}".format(image.shape[d], decoded_shape.at(i)[d])
                 assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(
                     image.shape[d], raw_shape.at(i)[d]
                 )
-                assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(
-                    raw_shape.at(i)[d].dtyp, shape_type
-                )
+                assert (
+                    raw_shape.at(i)[d].dtype == shape_type
+                ), "{} vs {}".format(raw_shape.at(i)[d].dtyp, shape_type)
 
 
 test_types = [

@@ -29,7 +29,9 @@ class NodeSampler(object):
 
     def sample(self):
         nodes, magnitudes = zip(*self.sample_map.items())
-        return np.random.choice(nodes, p=np.array(magnitudes, dtype="float32") / np.sum(magnitudes))
+        return np.random.choice(
+            nodes, p=np.array(magnitudes, dtype="float32") / np.sum(magnitudes)
+        )
 
 
 class StatementSampler(NodeSampler):
@@ -144,7 +146,9 @@ class CodeGenerator(object):
         return statements
 
     def generate_Name(self, ctx=gast.Load()):
-        variable_name = "_" + "".join(random.choice(string.ascii_lowercase) for _ in range(4))
+        variable_name = "_" + "".join(
+            random.choice(string.ascii_lowercase) for _ in range(4)
+        )
         return gast.Name(variable_name, ctx=ctx, annotation=None)
 
     def generate_BinOp(self):
@@ -176,7 +180,9 @@ class CodeGenerator(object):
         # Generate right-hand side
         value_node = self.generate_expression()
         # Put it all together
-        node = gast_util.compat_assign(targets=[target_node], value=value_node, type_comment=None)
+        node = gast_util.compat_assign(
+            targets=[target_node], value=value_node, type_comment=None
+        )
         return node
 
     def generate_If(self):
@@ -185,12 +191,16 @@ class CodeGenerator(object):
 
         # Generate true branch statements
         body = self.sample_node_list(
-            low=1, high=N_CONTROLFLOW_STATEMENTS // 2, generator=self.generate_statement
+            low=1,
+            high=N_CONTROLFLOW_STATEMENTS // 2,
+            generator=self.generate_statement,
         )
 
         # Generate false branch statements
         orelse = self.sample_node_list(
-            low=1, high=N_CONTROLFLOW_STATEMENTS // 2, generator=self.generate_statement
+            low=1,
+            high=N_CONTROLFLOW_STATEMENTS // 2,
+            generator=self.generate_statement,
         )
 
         node = gast.If(test, body, orelse)
@@ -201,7 +211,9 @@ class CodeGenerator(object):
 
         test = self.generate_Compare()
         body = self.sample_node_list(
-            low=1, high=N_CONTROLFLOW_STATEMENTS, generator=self.generate_statement
+            low=1,
+            high=N_CONTROLFLOW_STATEMENTS,
+            generator=self.generate_statement,
         )
         orelse = []  # not generating else statements
 
@@ -228,7 +240,9 @@ class CodeGenerator(object):
 
         # Generate the function body
         body = self.sample_node_list(
-            low=1, high=N_FUNCTIONDEF_STATEMENTS, generator=self.generate_statement
+            low=1,
+            high=N_FUNCTIONDEF_STATEMENTS,
+            generator=self.generate_statement,
         )
         body.append(self.generate_Return())
         fn_name = self.generate_Name().id

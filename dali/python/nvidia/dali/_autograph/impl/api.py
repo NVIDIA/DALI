@@ -95,7 +95,12 @@ class _ErrorMetadata(error_utils.ErrorMetadataBase):
 
     def create_exception(self, source_error):
         preferred_type = type(source_error)
-        if preferred_type in (errors.PyCTError, AutoGraphError, ConversionError, StagingError):
+        if preferred_type in (
+            errors.PyCTError,
+            AutoGraphError,
+            ConversionError,
+            StagingError,
+        ):
             return preferred_type(self.get_message())
 
         exc = super(_ErrorMetadata, self).create_exception(source_error)
@@ -126,7 +131,9 @@ def _attach_error_metadata(e, f):
 
     cause_tb = traceback.extract_tb(sys.exc_info()[2])[1:]
 
-    e.ag_error_metadata = _ErrorMetadata(cause_tb, metadata, message, source_map, __file__)
+    e.ag_error_metadata = _ErrorMetadata(
+        cause_tb, metadata, message, source_map, __file__
+    )
 
 
 class StackTraceMapper(tf_stack.StackTraceMapper):
@@ -156,7 +163,9 @@ class StackTraceMapper(tf_stack.StackTraceMapper):
 
         for key, value in parent_map.items():
             filename, lineno, _, _ = value
-            value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
+            value_loc = origin_info.LineLocation(
+                filename=filename, lineno=lineno
+            )
             if value_loc in self._source_map:
                 origin = self._source_map[value_loc]
                 effective_source_map[key] = (
@@ -187,7 +196,9 @@ class PyToLib(transpiler.PyToPy):
         self._extra_locals = None
 
     def get_transformed_name(self, node):
-        return self._name + "__" + super(PyToLib, self).get_transformed_name(node)
+        return (
+            self._name + "__" + super(PyToLib, self).get_transformed_name(node)
+        )
 
     def get_extra_locals(self):
         if self._extra_locals is None:
@@ -202,7 +213,9 @@ class PyToLib(transpiler.PyToPy):
             ag_internal.Feature = converter.Feature
             ag_internal.utils = utils
             ag_internal.FunctionScope = function_wrappers.FunctionScope
-            ag_internal.with_function_scope = function_wrappers.with_function_scope
+            ag_internal.with_function_scope = (
+                function_wrappers.with_function_scope
+            )
             # TODO(mdan): Add safeguards against name clashes.
             # We don't want to create a submodule because we want the operators to be
             # accessible as ag__.<operator>
@@ -260,7 +273,8 @@ def _convert_actual(entity, program_ctx):
     # TODO(mdan): Put these extra fields inside __autograph_info__.
     if not hasattr(entity, "__code__"):
         raise ValueError(
-            "Cannot apply autograph to a function that doesn't " "expose a __code__ object."
+            "Cannot apply autograph to a function that doesn't "
+            "expose a __code__ object."
         )
 
     transformed, module, source_map = _TRANSPILER.transform(entity, program_ctx)
@@ -333,11 +347,15 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
       Any, the result of executing a possibly-converted `f` with the given
         arguments.
     """
-    logging.log(1, "Converted call: %s\n    args: %s\n    kwargs: %s\n", f, args, kwargs)
+    logging.log(
+        1, "Converted call: %s\n    args: %s\n    kwargs: %s\n", f, args, kwargs
+    )
 
     if options is None:
         if caller_fn_scope is None:
-            raise ValueError("either caller_fn_scope or options must have a value")
+            raise ValueError(
+                "either caller_fn_scope or options must have a value"
+            )
         options = caller_fn_scope.callopts
 
     if conversion.is_in_allowlist_cache(f, options):
@@ -361,16 +379,30 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
         if kwargs is not None:
             new_kwargs.update(kwargs)
         new_args = f.args + args
-        logging.log(3, "Forwarding call of partial %s with\n%s\n%s\n", f, new_args, new_kwargs)
+        logging.log(
+            3,
+            "Forwarding call of partial %s with\n%s\n%s\n",
+            f,
+            new_args,
+            new_kwargs,
+        )
         return converted_call(
-            f.func, new_args, new_kwargs, caller_fn_scope=caller_fn_scope, options=options
+            f.func,
+            new_args,
+            new_kwargs,
+            caller_fn_scope=caller_fn_scope,
+            options=options,
         )
 
     if inspect_utils.isbuiltin(f):
         if f is eval:
-            return py_builtins.eval_in_original_context(f, args, caller_fn_scope)
+            return py_builtins.eval_in_original_context(
+                f, args, caller_fn_scope
+            )
         if f is super:
-            return py_builtins.super_in_original_context(f, args, caller_fn_scope)
+            return py_builtins.super_in_original_context(
+                f, args, caller_fn_scope
+            )
         if f is globals:
             return py_builtins.globals_in_original_context(caller_fn_scope)
         if f is locals:
@@ -415,7 +447,9 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
             raise NotImplementedError('unknown callable type "%s"' % type(f))
 
     except Exception as e:  # pylint:disable=broad-except
-        logging.log(1, "Error transforming entity %s", target_entity, exc_info=True)
+        logging.log(
+            1, "Error transforming entity %s", target_entity, exc_info=True
+        )
         if is_autograph_strict_conversion_mode():
             raise
         return _fall_back_unconverted(f, args, kwargs, options, e)
@@ -428,7 +462,9 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
         and target_entity.__code__.co_filename == "<string>"
     ):
         # TODO(mdan): __globals__['txt'] might work in Py3.
-        logging.log(2, "Permanently allowed: %s: dynamic code (exec?)", target_entity)
+        logging.log(
+            2, "Permanently allowed: %s: dynamic code (exec?)", target_entity
+        )
         return _call_unconverted(f, args, kwargs, options)
 
     try:
@@ -437,7 +473,9 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
         if logging.has_verbosity(2):
             _log_callargs(converted_f, effective_args, kwargs)
     except Exception as e:  # pylint:disable=broad-except
-        logging.log(1, "Error transforming entity %s", target_entity, exc_info=True)
+        logging.log(
+            1, "Error transforming entity %s", target_entity, exc_info=True
+        )
         if is_autograph_strict_conversion_mode():
             raise
         return _fall_back_unconverted(f, args, kwargs, options, e)
@@ -577,13 +615,17 @@ def tf_convert(f, ctx, convert_by_default=True, user_requested=False):
     #     # The context is disabled here, but should be enabled in user user_fn
     #     tf_convert(user_fn, ctx=ctx)
     if ctx.status == ag_ctx.Status.ENABLED:
-        wrapper_factory = convert(recursive=True, user_requested=user_requested, conversion_ctx=ctx)
+        wrapper_factory = convert(
+            recursive=True, user_requested=user_requested, conversion_ctx=ctx
+        )
     elif ctx.status == ag_ctx.Status.DISABLED:
         wrapper_factory = do_not_convert
     elif ctx.status == ag_ctx.Status.UNSPECIFIED:
         if convert_by_default:
             wrapper_factory = convert(
-                recursive=True, user_requested=user_requested, conversion_ctx=ctx
+                recursive=True,
+                user_requested=user_requested,
+                conversion_ctx=ctx,
             )
         else:
             wrapper_factory = call_with_unspecified_conversion_status
@@ -617,7 +659,9 @@ def _log_callargs(f, args, kwargs):
     else:
         callargs = inspect.getcallargs(f, *args)
 
-    formatted_callargs = "\n".join("    {}: {}".format(k, v) for k, v in callargs.items())
+    formatted_callargs = "\n".join(
+        "    {}: {}".format(k, v) for k, v in callargs.items()
+    )
     logging.log(2, "Calling %s with\n%s\n", f, formatted_callargs)
 
 
@@ -654,7 +698,10 @@ def do_not_convert(func=None):
 
 # TODO(mdan): Make private.
 def convert(
-    recursive=False, optional_features=None, user_requested=True, conversion_ctx=ag_ctx.NullCtx()
+    recursive=False,
+    optional_features=None,
+    user_requested=True,
+    conversion_ctx=ag_ctx.NullCtx(),
 ):
     """Decorator that compiles a function to use TensorFlow ops.
 
@@ -777,14 +824,26 @@ def to_graph(entity, recursive=True, experimental_optional_features=None):
             )
         )
         return autograph_artifact(_convert_actual(entity, program_ctx))
-    except (ValueError, AttributeError, KeyError, NameError, AssertionError) as e:
+    except (
+        ValueError,
+        AttributeError,
+        KeyError,
+        NameError,
+        AssertionError,
+    ) as e:
         logging.error(1, "Error converting %s", entity, exc_info=True)
-        raise ConversionError("converting {}: {}: {}".format(entity, e.__class__.__name__, str(e)))
+        raise ConversionError(
+            "converting {}: {}: {}".format(entity, e.__class__.__name__, str(e))
+        )
 
 
 @export_symbol(v1=["autograph.to_graph"])
 def to_graph_v1(
-    entity, recursive=True, arg_values=None, arg_types=None, experimental_optional_features=None
+    entity,
+    recursive=True,
+    arg_values=None,
+    arg_types=None,
+    experimental_optional_features=None,
 ):
     """Converts a Python entity into a TensorFlow graph.
 
@@ -846,7 +905,9 @@ def to_graph_v1(
     del arg_types
     del arg_values
     return to_graph(
-        entity, recursive=recursive, experimental_optional_features=experimental_optional_features
+        entity,
+        recursive=recursive,
+        experimental_optional_features=experimental_optional_features,
     )
 
 
@@ -901,7 +962,9 @@ def to_code_v1(
     del arg_types
     del indentation
     return to_code(
-        entity, recursive=recursive, experimental_optional_features=experimental_optional_features
+        entity,
+        recursive=recursive,
+        experimental_optional_features=experimental_optional_features,
     )
 
 
@@ -988,7 +1051,9 @@ def initialize_autograph(
     _TRANSPILER = PyToLib(converter_name, operator_overload)
     convert_rules = tuple(config.Convert(name) for name in convert_modules)
     # Add the name of the initialized library to know libraries to stop recursive conversion
-    do_not_convert_rules = tuple(config.DoNotConvert(name) for name in do_not_convert_modules)
+    do_not_convert_rules = tuple(
+        config.DoNotConvert(name) for name in do_not_convert_modules
+    )
     config.CONVERSION_RULES = (
         (config.DoNotConvert(converter_name),)
         + convert_rules

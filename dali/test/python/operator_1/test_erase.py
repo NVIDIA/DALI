@@ -127,11 +127,16 @@ def erase_func(anchor, shape, axis_names, axes, layout, fill_value, image):
         end = roi_ends[region_idx]
         assert len(start) == len(end)
         if len(start) == 3:
-            image[start[0] : end[0], start[1] : end[1], start[2] : end[2]] = fill_value
-        elif len(start) == 4:
-            image[start[0] : end[0], start[1] : end[1], start[2] : end[2], start[3] : end[3]] = (
+            image[start[0] : end[0], start[1] : end[1], start[2] : end[2]] = (
                 fill_value
             )
+        elif len(start) == 4:
+            image[
+                start[0] : end[0],
+                start[1] : end[1],
+                start[2] : end[2],
+                start[3] : end[3],
+            ] = fill_value
         else:
             assert False
     return image
@@ -154,7 +159,11 @@ class ErasePythonPipeline(Pipeline):
         device_id=0,
     ):
         super(ErasePythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
@@ -164,12 +173,24 @@ class ErasePythonPipeline(Pipeline):
             self.fill_value_iterator = fill_value
             self.fill_value_inputs = ops.ExternalSource()
             fill_value = None
-            function = partial(erase_func, anchor, shape, axis_names, axes, data_layout)
+            function = partial(
+                erase_func, anchor, shape, axis_names, axes, data_layout
+            )
         else:
             self.fill_value_iterator = None
-            function = partial(erase_func, anchor, shape, axis_names, axes, data_layout, fill_value)
+            function = partial(
+                erase_func,
+                anchor,
+                shape,
+                axis_names,
+                axes,
+                data_layout,
+                fill_value,
+            )
 
-        self.erase = ops.PythonFunction(function=function, output_layouts=data_layout)
+        self.erase = ops.PythonFunction(
+            function=function, output_layouts=data_layout
+        )
 
     def define_graph(self):
         self.data = self.inputs()
@@ -189,7 +210,15 @@ class ErasePythonPipeline(Pipeline):
 
 
 def check_operator_erase_vs_python(
-    device, batch_size, input_shape, anchor, shape, axis_names, axes, input_layout, fill_value
+    device,
+    batch_size,
+    input_shape,
+    anchor,
+    shape,
+    axis_names,
+    axes,
+    input_layout,
+    fill_value,
 ):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
@@ -197,8 +226,12 @@ def check_operator_erase_vs_python(
     fill_value_arg1 = fill_value
     fill_value_arg2 = fill_value
     if fill_value == "random":
-        fill_eii1 = RandomDataIterator(batch_size, shape=input_shape[-1:], dtype=np.float32)
-        fill_eii2 = RandomDataIterator(batch_size, shape=input_shape[-1:], dtype=np.float32)
+        fill_eii1 = RandomDataIterator(
+            batch_size, shape=input_shape[-1:], dtype=np.float32
+        )
+        fill_eii2 = RandomDataIterator(
+            batch_size, shape=input_shape[-1:], dtype=np.float32
+        )
         fill_value_arg1 = iter(fill_eii1)
         fill_value_arg2 = iter(fill_eii2)
 
@@ -238,8 +271,24 @@ def test_operator_erase_vs_python():
         ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), 0),
         ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), None),
         ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), -1),
-        ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), (118, 185, 0)),
-        ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), "random"),
+        (
+            "HWC",
+            (60, 80, 3),
+            "HW",
+            None,
+            (4, 2, 3, 4),
+            (50, 10, 10, 50),
+            (118, 185, 0),
+        ),
+        (
+            "HWC",
+            (60, 80, 3),
+            "HW",
+            None,
+            (4, 2, 3, 4),
+            (50, 10, 10, 50),
+            "random",
+        ),
         ("HWC", (60, 80, 3), "H", None, (4,), (7,), 0),
         ("HWC", (60, 80, 3), "H", None, (4, 15), (7, 8), 0),
         ("HWC", (60, 80, 3), "W", None, (4,), (7,), 0),
@@ -259,7 +308,15 @@ def test_operator_erase_vs_python():
 
     for device in ["cpu"]:
         for batch_size in [1, 8]:
-            for input_layout, input_shape, axis_names, axes, anchor, shape, fill_value in rois:
+            for (
+                input_layout,
+                input_shape,
+                axis_names,
+                axes,
+                anchor,
+                shape,
+                fill_value,
+            ) in rois:
                 assert len(input_layout) == len(input_shape)
                 assert len(anchor) == len(shape)
                 if axis_names:
@@ -416,7 +473,9 @@ def test_operator_erase_with_normalized_coords():
                     (True, False),
                     (False, True),
                 ]:
-                    anchor_norm_arg = anchor_norm if normalized_anchor else anchor
+                    anchor_norm_arg = (
+                        anchor_norm if normalized_anchor else anchor
+                    )
                     shape_norm_arg = shape_norm if normalized_shape else shape
                     yield (
                         check_operator_erase_with_normalized_coords,

@@ -29,7 +29,9 @@ def capture_processes(pool):
         pool_processes.extend(pool.pids())
         proc_pool = pool.pool
         pool_threads.append(proc_pool._observer.thread)
-    check_shm_for_dali("All shm chunks should be closed after initial pool setup, found {}")
+    check_shm_for_dali(
+        "All shm chunks should be closed after initial pool setup, found {}"
+    )
 
 
 def setup_function():
@@ -50,7 +52,9 @@ def teardown_function():
     global pool_processes
     global pool_threads
     global pools
-    assert len(pool_processes), "No processes where tracked - did the test call capture_processes?"
+    assert len(
+        pool_processes
+    ), "No processes where tracked - did the test call capture_processes?"
     pools_not_collected = [pool_ref() is not None for pool_ref in pools]
     current_process = psutil.Process()
     children_pids = [process.pid for process in current_process.children()]
@@ -76,7 +80,9 @@ def check_shm_for_dali(msg):
         if os.path.isdir(shm_path):
             shm_handles = os.listdir(shm_path)
             for handle in shm_handles:
-                assert "nvidia_dali_" not in handle, msg.format(shm_path + handle)
+                assert "nvidia_dali_" not in handle, msg.format(
+                    shm_path + handle
+                )
 
 
 def setup_module():

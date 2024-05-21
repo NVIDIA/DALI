@@ -148,7 +148,13 @@ class ActivityAnalyzerTestBase(unittest.TestCase):
             "  Got:      %s\n"
             "  Missing:  %s\n"
             "  Extra:    %s\n"
-            % (name.upper(), expected, actual, expected - actual, actual - expected),
+            % (
+                name.upper(),
+                expected,
+                actual,
+                expected - actual,
+                actual - expected,
+            ),
         )
 
     def assertScopeIs(self, scope, used, modified):
@@ -168,8 +174,12 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
     def test_import_from(self):
         def test_fn():
-            from x import a  # pylint:disable=g-import-not-at-top,unused-variable # noqa: F401
-            from y import z as b  # pylint:disable=g-import-not-at-top,unused-variable # noqa: F401
+            from x import (
+                a,
+            )  # pylint:disable=g-import-not-at-top,unused-variable # noqa: F401
+            from y import (
+                z as b,
+            )  # pylint:disable=g-import-not-at-top,unused-variable # noqa: F401
 
         node, _ = self._parse_and_analyze(test_fn)
         scope = anno.getanno(node.body[0], anno.Static.SCOPE)
@@ -210,7 +220,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         call_node = node.body[2].value
         # We basically need to detect which variables are captured by the call
         # arguments.
-        self.assertScopeIs(anno.getanno(call_node, NodeAnno.ARGS_SCOPE), ("a", "b"), ())
+        self.assertScopeIs(
+            anno.getanno(call_node, NodeAnno.ARGS_SCOPE), ("a", "b"), ()
+        )
 
     def test_call_args_attributes(self):
         def foo(*_):
@@ -223,7 +235,11 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         call_node = node.body[1].value
-        self.assertScopeIs(anno.getanno(call_node, NodeAnno.ARGS_SCOPE), ("a", "a.b", "a.c"), ())
+        self.assertScopeIs(
+            anno.getanno(call_node, NodeAnno.ARGS_SCOPE),
+            ("a", "a.b", "a.c"),
+            (),
+        )
 
     def test_call_args_subscripts(self):
         def foo(*_):
@@ -238,7 +254,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         node, _ = self._parse_and_analyze(test_fn)
         call_node = node.body[2].value
         self.assertScopeIs(
-            anno.getanno(call_node, NodeAnno.ARGS_SCOPE), ("a", "a[0]", "a[b]", "b"), ()
+            anno.getanno(call_node, NodeAnno.ARGS_SCOPE),
+            ("a", "a[0]", "a[b]", "b"),
+            (),
         )
 
     def test_while(self):
@@ -251,11 +269,17 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         while_node = node.body[1]
-        self.assertScopeIs(anno.getanno(while_node, NodeAnno.BODY_SCOPE), ("b",), ("b", "c"))
         self.assertScopeIs(
-            anno.getanno(while_node, NodeAnno.BODY_SCOPE).parent, ("a", "b", "c"), ("b", "c")
+            anno.getanno(while_node, NodeAnno.BODY_SCOPE), ("b",), ("b", "c")
         )
-        self.assertScopeIs(anno.getanno(while_node, NodeAnno.COND_SCOPE), ("b",), ())
+        self.assertScopeIs(
+            anno.getanno(while_node, NodeAnno.BODY_SCOPE).parent,
+            ("a", "b", "c"),
+            ("b", "c"),
+        )
+        self.assertScopeIs(
+            anno.getanno(while_node, NodeAnno.COND_SCOPE), ("b",), ()
+        )
 
     def test_for(self):
         def test_fn(a):
@@ -267,10 +291,16 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         for_node = node.body[1]
-        self.assertScopeIs(anno.getanno(for_node, NodeAnno.ITERATE_SCOPE), (), ("_"))
-        self.assertScopeIs(anno.getanno(for_node, NodeAnno.BODY_SCOPE), ("b",), ("b", "c"))
         self.assertScopeIs(
-            anno.getanno(for_node, NodeAnno.BODY_SCOPE).parent, ("a", "b", "c"), ("b", "c", "_")
+            anno.getanno(for_node, NodeAnno.ITERATE_SCOPE), (), ("_")
+        )
+        self.assertScopeIs(
+            anno.getanno(for_node, NodeAnno.BODY_SCOPE), ("b",), ("b", "c")
+        )
+        self.assertScopeIs(
+            anno.getanno(for_node, NodeAnno.BODY_SCOPE).parent,
+            ("a", "b", "c"),
+            ("b", "c", "_"),
         )
 
     def test_if(self):
@@ -287,14 +317,20 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         if_node = node.body[0]
-        self.assertScopeIs(anno.getanno(if_node, NodeAnno.BODY_SCOPE), ("x", "y"), ("x", "y", "z"))
+        self.assertScopeIs(
+            anno.getanno(if_node, NodeAnno.BODY_SCOPE),
+            ("x", "y"),
+            ("x", "y", "z"),
+        )
         self.assertScopeIs(
             anno.getanno(if_node, NodeAnno.BODY_SCOPE).parent,
             ("x", "y", "z", "u"),
             ("x", "y", "z", "u"),
         )
         self.assertScopeIs(
-            anno.getanno(if_node, NodeAnno.ORELSE_SCOPE), ("x", "y"), ("x", "y", "u")
+            anno.getanno(if_node, NodeAnno.ORELSE_SCOPE),
+            ("x", "y"),
+            ("x", "y", "u"),
         )
         self.assertScopeIs(
             anno.getanno(if_node, NodeAnno.ORELSE_SCOPE).parent,
@@ -314,10 +350,20 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         if_node = node.body[0]
-        self.assertScopeIs(anno.getanno(if_node, NodeAnno.BODY_SCOPE), ("a", "a.c"), ("a.b", "d"))
-        self.assertScopeIs(anno.getanno(if_node, NodeAnno.ORELSE_SCOPE), ("a", "a.c"), ("a.b", "d"))
         self.assertScopeIs(
-            anno.getanno(if_node, NodeAnno.BODY_SCOPE).parent, ("a", "a.c", "d"), ("a.b", "d")
+            anno.getanno(if_node, NodeAnno.BODY_SCOPE),
+            ("a", "a.c"),
+            ("a.b", "d"),
+        )
+        self.assertScopeIs(
+            anno.getanno(if_node, NodeAnno.ORELSE_SCOPE),
+            ("a", "a.c"),
+            ("a.b", "d"),
+        )
+        self.assertScopeIs(
+            anno.getanno(if_node, NodeAnno.BODY_SCOPE).parent,
+            ("a", "a.c", "d"),
+            ("a.b", "d"),
         )
 
     def test_if_subscripts(self):
@@ -333,10 +379,16 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         node, _ = self._parse_and_analyze(test_fn)
         if_node = node.body[0]
         self.assertScopeIs(
-            anno.getanno(if_node, NodeAnno.BODY_SCOPE), ("a", "b", "c", "a[c]"), ("a[b]", "d")
+            anno.getanno(if_node, NodeAnno.BODY_SCOPE),
+            ("a", "b", "c", "a[c]"),
+            ("a[b]", "d"),
         )
         # TODO(mdan): Should subscript writes (a[0] = 1) be considered to read "a"?
-        self.assertScopeIs(anno.getanno(if_node, NodeAnno.ORELSE_SCOPE), ("a", "e"), ("a[0]", "d"))
+        self.assertScopeIs(
+            anno.getanno(if_node, NodeAnno.ORELSE_SCOPE),
+            ("a", "e"),
+            ("a[0]", "d"),
+        )
         self.assertScopeIs(
             anno.getanno(if_node, NodeAnno.ORELSE_SCOPE).parent,
             ("a", "b", "c", "d", "e", "a[c]"),
@@ -354,8 +406,12 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         inner_if_node = node.body[0].body[0]
-        self.assertScopeIs(anno.getanno(inner_if_node, NodeAnno.BODY_SCOPE), ("b",), ("a",))
-        self.assertScopeIs(anno.getanno(inner_if_node, NodeAnno.ORELSE_SCOPE), ("b",), ("a",))
+        self.assertScopeIs(
+            anno.getanno(inner_if_node, NodeAnno.BODY_SCOPE), ("b",), ("a",)
+        )
+        self.assertScopeIs(
+            anno.getanno(inner_if_node, NodeAnno.ORELSE_SCOPE), ("b",), ("a",)
+        )
 
     def test_nested_function(self):
         def test_fn(a):
@@ -418,7 +474,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         node, _ = self._parse_and_analyze(test_fn)
         fn_def_node = node.body[0]
 
-        self.assertScopeIs(anno.getanno(fn_def_node, anno.Static.SCOPE), ("a",), ("f",))
+        self.assertScopeIs(
+            anno.getanno(fn_def_node, anno.Static.SCOPE), ("a",), ("f",)
+        )
 
         scope = anno.getanno(fn_def_node, NodeAnno.BODY_SCOPE)
         self.assertScopeIs(scope, ("x", "y"), ("y",))
@@ -447,7 +505,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("a", "a[0]"), ("a[0]",))
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("a", "a[0]"), ("a[0]",)
+        )
 
     def test_return_vars_are_read(self):
         def test_fn(a, b, c):  # pylint: disable=unused-argument # noqa: F841
@@ -455,8 +515,12 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("c",), ())
-        self.assertScopeIs(anno.getanno(node.body[0], anno.Static.SCOPE), ("c",), ())
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("c",), ()
+        )
+        self.assertScopeIs(
+            anno.getanno(node.body[0], anno.Static.SCOPE), ("c",), ()
+        )
 
     def test_raise_names_are_read(self):
         def test_fn(a, b, c):  # pylint: disable=unused-argument # noqa: F841
@@ -464,8 +528,12 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("b",), ())
-        self.assertScopeIs(anno.getanno(node.body[0], anno.Static.SCOPE), ("b",), ())
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("b",), ()
+        )
+        self.assertScopeIs(
+            anno.getanno(node.body[0], anno.Static.SCOPE), ("b",), ()
+        )
 
     def test_except_exposes_names(self):
         def test_fn(a, b, c):  # pylint: disable=unused-argument
@@ -476,7 +544,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("c",), ("b",))
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("c",), ("b",)
+        )
 
     def test_except_hides_exception_var_name(self):
         def test_fn(a, b, c):  # pylint: disable=unused-argument
@@ -487,7 +557,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("a",), ("b",))
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("a",), ("b",)
+        )
 
     def test_aug_assign(self):
         def test_fn(a, b):
@@ -495,7 +567,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("a", "b"), ("a"))
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("a", "b"), ("a")
+        )
 
     def test_aug_assign_rvalues(self):
         a = dict(bar=3)
@@ -508,7 +582,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
-        self.assertScopeIs(anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("foo", "x"), ())
+        self.assertScopeIs(
+            anno.getanno(fn_node, NodeAnno.BODY_SCOPE), ("foo", "x"), ()
+        )
 
     def test_lambda(self):
         def test_fn(a, b):
@@ -589,7 +665,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         self.assertSymbolSetsAre(("b",), scope.params.keys(), "lambda params")
 
     def test_lambda_complex(self):
-        def test_fn(a, b, c, d, e):  # pylint: disable=unused-argument # noqa: F841
+        def test_fn(
+            a, b, c, d, e
+        ):  # pylint: disable=unused-argument # noqa: F841
             a = (lambda a, b, c=e: a + b + c)(d, 1, 2) + b  # noqa: F841
 
         node, _ = self._parse_and_analyze(test_fn)
@@ -611,10 +689,14 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         self.assertSymbolSetsAre(("a", "b", "c"), scope.bound, "BOUND")
 
         scope = anno.getanno(lam_def_node.args, anno.Static.SCOPE)
-        self.assertSymbolSetsAre(("a", "b", "c"), scope.params.keys(), "lambda params")
+        self.assertSymbolSetsAre(
+            ("a", "b", "c"), scope.params.keys(), "lambda params"
+        )
 
     def test_lambda_nested(self):
-        def test_fn(a, b, c, d, e, f):  # pylint: disable=unused-argument # noqa: F841
+        def test_fn(
+            a, b, c, d, e, f
+        ):  # pylint: disable=unused-argument # noqa: F841
             # fmt: off
             a = lambda a, b: d(lambda b=f: a + b + c)  # pylint: disable=undefined-variable  # noqa: F841, E501
             # fmt: on
@@ -638,7 +720,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         self.assertSymbolSetsAre(("a", "b"), scope.bound, "BOUND")
 
         scope = anno.getanno(outer_lam_def.args, anno.Static.SCOPE)
-        self.assertSymbolSetsAre(("a", "b"), scope.params.keys(), "lambda params")
+        self.assertSymbolSetsAre(
+            ("a", "b"), scope.params.keys(), "lambda params"
+        )
 
         inner_lam_def = outer_lam_def.body.args[0]
 
@@ -666,7 +750,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
     def test_comprehension_targets_are_isolated_list_function_w_generator(self):
         def test_fn(a):
-            b = list(c for c in a)  # pylint:disable=unused-variable  # noqa: F841
+            b = list(  # pylint:disable=unused-variable  # noqa: F841
+                c for c in a
+            )
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
@@ -711,8 +797,12 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
         body_scope = anno.getanno(fn_node, NodeAnno.BODY_SCOPE)
-        self.assertScopeIs(body_scope, ("global_a", "global_b", "c"), ("global_a",))
-        self.assertSetEqual(body_scope.globals, set((QN("global_a"), QN("global_b"))))
+        self.assertScopeIs(
+            body_scope, ("global_a", "global_b", "c"), ("global_a",)
+        )
+        self.assertSetEqual(
+            body_scope.globals, set((QN("global_a"), QN("global_b")))
+        )
         global_a_scope = anno.getanno(fn_node.body[0], anno.Static.SCOPE)
         self.assertScopeIs(global_a_scope, ("global_a",), ())
 
@@ -728,7 +818,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node
         body_scope = anno.getanno(fn_node, NodeAnno.BODY_SCOPE)
-        self.assertScopeIs(body_scope, ("nonlocal_a", "nonlocal_b", "c"), ("nonlocal_a",))
+        self.assertScopeIs(
+            body_scope, ("nonlocal_a", "nonlocal_b", "c"), ("nonlocal_a",)
+        )
         nonlocal_a_scope = anno.getanno(fn_node.body[0], anno.Static.SCOPE)
         self.assertScopeIs(nonlocal_a_scope, ("nonlocal_a",), ())
 
@@ -748,7 +840,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         ann_assign_scope = anno.getanno(fn_node.body[0], anno.Static.SCOPE)
         self.assertScopeIs(ann_assign_scope, ("b", "c"), ("a",))
-        self.assertSymbolSetsAre(("b",), ann_assign_scope.annotations, "annotations")
+        self.assertSymbolSetsAre(
+            ("b",), ann_assign_scope.annotations, "annotations"
+        )
 
     def test_pure_definition(self):
         b = int
@@ -766,7 +860,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         ann_assign_scope = anno.getanno(fn_node.body[0], anno.Static.SCOPE)
         self.assertScopeIs(ann_assign_scope, ("b",), ("a",))
-        self.assertSymbolSetsAre(("b",), ann_assign_scope.annotations, "annotations")
+        self.assertSymbolSetsAre(
+            ("b",), ann_assign_scope.annotations, "annotations"
+        )
 
     def test_function_def_annotations(self):
         b = int
@@ -780,7 +876,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         fn_scope = anno.getanno(fn_node, anno.Static.SCOPE)
         self.assertScopeIs(fn_scope, ("b", "c"), ("test_fn",))
-        self.assertSymbolSetsAre(("b", "c"), fn_scope.annotations, "annotations")
+        self.assertSymbolSetsAre(
+            ("b", "c"), fn_scope.annotations, "annotations"
+        )
 
         body_scope = anno.getanno(fn_node, NodeAnno.BODY_SCOPE)
         self.assertScopeIs(body_scope, ("a",), ())

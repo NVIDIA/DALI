@@ -33,14 +33,20 @@ _test_root = Path(get_dali_extra_path())
 # passed here would fail mypy checks, as well as printing the runtime error
 def expect_data_node(*inputs: DataNode) -> None:
     for input in inputs:
-        assert isinstance(input, DataNode), f"Expected DataNode, got {input} of type {type(input)}"
+        assert isinstance(
+            input, DataNode
+        ), f"Expected DataNode, got {input} of type {type(input)}"
 
 
 def expect_pipeline(pipe: Pipeline) -> None:
-    assert isinstance(pipe, Pipeline), f"Expected Pipeline, got {pipe} of type {type(pipe)}"
+    assert isinstance(
+        pipe, Pipeline
+    ), f"Expected Pipeline, got {pipe} of type {type(pipe)}"
 
 
-def expect_tensor_list(*tls: Union[tensors.TensorListCPU, tensors.TensorListGPU]) -> None:
+def expect_tensor_list(
+    *tls: Union[tensors.TensorListCPU, tensors.TensorListGPU]
+) -> None:
     for tl in tls:
         assert isinstance(
             tl, (tensors.TensorListCPU, tensors.TensorListGPU)
@@ -51,7 +57,9 @@ def test_rn50_pipe():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_pipe():
         enc, label = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            files=[
+                str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")
+            ],
             name="FileReader",
         )
         imgs = fn.decoders.image(enc, device="mixed")
@@ -66,7 +74,9 @@ def test_rn50_pipe():
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
         )
-        expect_data_node(enc, label, imgs, rng, resized, normalized, label.gpu())
+        expect_data_node(
+            enc, label, imgs, rng, resized, normalized, label.gpu()
+        )
         return normalized, label.gpu()
 
     pipe = rn50_pipe()
@@ -83,11 +93,15 @@ def test_rn50_pipe_mis():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_pipe():
         enc_0, label_0 = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            files=[
+                str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")
+            ],
             name="FileReader_0",
         )
         enc_1, label_1 = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4345504_1280.jpg")],
+            files=[
+                str(_test_root / "db/single/jpeg/113/snail-4345504_1280.jpg")
+            ],
             name="FileReader_1",
         )
         imgs = fn.decoders.image([enc_0, enc_1], device="mixed")
@@ -144,7 +158,9 @@ def test_rn50_ops_pipe():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_ops_pipe():
         Reader = ops.readers.File(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            files=[
+                str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")
+            ],
             name="FileReader",
         )
         Decoder = ops.decoders.Image(device="mixed")
@@ -188,27 +204,59 @@ def test_copy_tensor_constant():
         const_tuple = fn.copy((4, 5))
         const_torch = fn.copy(torch.full((1, 1), 6))
         const_np = fn.copy(np.full((1, 1), 7))
-        expect_data_node(const_int, const_float, const_list, const_tuple, const_torch, const_np)
-        return const_int, const_float, const_list, const_tuple, const_torch, const_np
+        expect_data_node(
+            const_int,
+            const_float,
+            const_list,
+            const_tuple,
+            const_torch,
+            const_np,
+        )
+        return (
+            const_int,
+            const_float,
+            const_list,
+            const_tuple,
+            const_torch,
+            const_np,
+        )
 
     pipe = const_copy_pipe()
     expect_pipeline(pipe)
     pipe.build()
-    const_int, const_float, const_list, const_tuple, const_torch, const_np = pipe.run()
-    expect_tensor_list(const_int, const_float, const_list, const_tuple, const_torch, const_np)
+    const_int, const_float, const_list, const_tuple, const_torch, const_np = (
+        pipe.run()
+    )
+    expect_tensor_list(
+        const_int, const_float, const_list, const_tuple, const_torch, const_np
+    )
     assert np.array_equal(np.array(const_int.as_tensor()), np.full((10,), 1))
-    assert np.array_equal(np.array(const_float.as_tensor()), np.full((10,), 2.0))
-    assert np.array_equal(np.array(const_list.as_tensor()), np.full((10, 2), [2, 3]))
-    assert np.array_equal(np.array(const_tuple.as_tensor()), np.full((10, 2), [4, 5]))
-    assert np.array_equal(np.array(const_torch.as_tensor()), np.full((10, 1, 1), 6))
-    assert np.array_equal(np.array(const_np.as_tensor()), np.full((10, 1, 1), 7))
+    assert np.array_equal(
+        np.array(const_float.as_tensor()), np.full((10,), 2.0)
+    )
+    assert np.array_equal(
+        np.array(const_list.as_tensor()), np.full((10, 2), [2, 3])
+    )
+    assert np.array_equal(
+        np.array(const_tuple.as_tensor()), np.full((10, 2), [4, 5])
+    )
+    assert np.array_equal(
+        np.array(const_torch.as_tensor()), np.full((10, 1, 1), 6)
+    )
+    assert np.array_equal(
+        np.array(const_np.as_tensor()), np.full((10, 1, 1), 7)
+    )
 
 
 def test_cond_pipe():
-    @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=10, device_id=0, num_threads=4, enable_conditionals=True
+    )
     def cond_pipe():
         enc, label = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            files=[
+                str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")
+            ],
             name="FileReader",
         )
         imgs = fn.decoders.image(enc, device="mixed")
@@ -233,12 +281,18 @@ def test_cond_pipe():
 def test_es_pipe():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def es_pipe():
-        single_output = fn.external_source(source=lambda: np.array([0]), batch=False)
+        single_output = fn.external_source(
+            source=lambda: np.array([0]), batch=False
+        )
         out_1, out_2 = fn.external_source(
-            source=lambda: (np.array([1]), np.array([2])), num_outputs=2, batch=False
+            source=lambda: (np.array([1]), np.array([2])),
+            num_outputs=2,
+            batch=False,
         )
         out_3, out_4 = fn.external_source(
-            source=lambda: [np.array([3]), np.array([4])], num_outputs=2, batch=False
+            source=lambda: [np.array([3]), np.array([4])],
+            num_outputs=2,
+            batch=False,
         )
         expect_data_node(single_output, out_1, out_2, out_3, out_4)
         return single_output, out_1, out_2, out_3, out_4
@@ -265,11 +319,15 @@ def test_python_function_pipe():
         assert isinstance(zeros, DataNode)
         # Here we try out a cast, as we don't provide overloads based on num_outputs values,
         # there is one if we don't touch the num_values.
-        ones = fn.python_function(zeros, function=lambda x: x + np.full((10, 1), 1))
+        ones = fn.python_function(
+            zeros, function=lambda x: x + np.full((10, 1), 1)
+        )
         twos, zeros_2 = cast(
             Sequence[DataNode],
             fn.python_function(
-                zeros, function=lambda x: (x + np.full((10, 1), 2), x), num_outputs=2
+                zeros,
+                function=lambda x: (x + np.full((10, 1), 2), x),
+                num_outputs=2,
             ),
         )
         fn.python_function(zeros, function=print, num_outputs=0)
@@ -295,7 +353,9 @@ def test_pytorch_plugin():
 
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def torch_pipe():
-        ops_fn = dali_torch.TorchPythonFunction(lambda: torch.full((10, 1), 0), num_outputs=1)
+        ops_fn = dali_torch.TorchPythonFunction(
+            lambda: torch.full((10, 1), 0), num_outputs=1
+        )
         zeros = ops_fn()
         # Do a narrowing assertion, as the actual type depends on the value of num_outputs
         # parameter and we do not provide overload resolution based on it
@@ -305,13 +365,17 @@ def test_pytorch_plugin():
         ones, zeros_2 = cast(
             Sequence[DataNode],
             dali_torch.fn.torch_python_function(
-                zeros, function=lambda x: (x + torch.full((10, 1), 1), x), num_outputs=2
+                zeros,
+                function=lambda x: (x + torch.full((10, 1), 1), x),
+                num_outputs=2,
             ),
         )
         twos = dali_torch.fn.torch_python_function(
             zeros, function=lambda x: x + torch.full((10, 1), 2)
         )
-        dali_torch.fn.torch_python_function(zeros, function=print, num_outputs=0)
+        dali_torch.fn.torch_python_function(
+            zeros, function=print, num_outputs=0
+        )
         expect_data_node(zeros, zeros_2, ones, twos)
         return zeros + twos - twos, ones
 

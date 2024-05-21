@@ -82,7 +82,10 @@ class SymbolRenamer(gast.NodeTransformer):
         qn = anno.getanno(node, anno.Basic.QN)
         if qn in self.name_map:
             new_node = gast.Name(
-                str(self.name_map[qn]), ctx=node.ctx, annotation=None, type_comment=None
+                str(self.name_map[qn]),
+                ctx=node.ctx,
+                annotation=None,
+                type_comment=None,
             )
             # All annotations get carried over.
             for k in anno.keys(node):
@@ -316,7 +319,9 @@ def parallel_walk(node, other):
         yield n, o
 
         if isinstance(n, str):
-            assert isinstance(o, str), "The check above should have ensured this"
+            assert isinstance(
+                o, str
+            ), "The check above should have ensured this"
             continue
         if n is None:
             assert o is None, "The check above should have ensured this"
@@ -329,9 +334,13 @@ def parallel_walk(node, other):
                 continue
 
             if isinstance(n_child, (list, tuple)):
-                if not isinstance(o_child, (list, tuple)) or len(n_child) != len(o_child):
+                if not isinstance(o_child, (list, tuple)) or len(
+                    n_child
+                ) != len(o_child):
                     raise ValueError(
-                        "inconsistent values for field {}: {} and {}".format(f, n_child, o_child)
+                        "inconsistent values for field {}: {} and {}".format(
+                            f, n_child, o_child
+                        )
                     )
                 node_stack.extend(n_child)
                 other_stack.extend(o_child)
@@ -342,5 +351,7 @@ def parallel_walk(node, other):
 
             elif n_child != o_child:
                 raise ValueError(
-                    "inconsistent values for field {}: {} and {}".format(f, n_child, o_child)
+                    "inconsistent values for field {}: {} and {}".format(
+                        f, n_child, o_child
+                    )
                 )

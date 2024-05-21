@@ -82,17 +82,27 @@ class LookupTablePythonOpPipeline(Pipeline):
         dictionary={},
         default_value=0.0,
     ):
-        super().__init__(batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False)
+        super().__init__(
+            batch_size,
+            num_threads,
+            device_id,
+            exec_async=False,
+            exec_pipelined=False,
+        )
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.data_shape = data_shape
         self.data_layout = data_layout
 
         def lookup_table_func(input_data):
-            return function(input_data, dictionary=dictionary, default_value=default_value)
+            return function(
+                input_data, dictionary=dictionary, default_value=default_value
+            )
 
         self.lookup = ops.PythonFunction(
-            function=lookup_table_func, output_layouts=data_layout, batch_processing=False
+            function=lookup_table_func,
+            output_layouts=data_layout,
+            batch_processing=False,
         )
         self.cast = ops.Cast(dtype=dtype)
 

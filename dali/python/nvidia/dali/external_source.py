@@ -17,7 +17,10 @@ from nvidia.dali import backend as _b
 from nvidia.dali import tensors as _tensors
 from nvidia.dali import types as _types
 from nvidia.dali import _autograph
-from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
+from nvidia.dali._multiproc.messages import (
+    TaskArgs as _TaskArgs,
+    SampleRange as _SampleRange,
+)
 import nvidia.dali.types
 from nvidia.dali._utils import dali_trace as _dali_trace
 from nvidia.dali._utils.external_source_impl import (
@@ -28,7 +31,9 @@ from nvidia.dali._utils.external_source_impl import (
 
 
 def _get_batch_shape(data):
-    if isinstance(data, (list, tuple, _tensors.TensorListCPU, _tensors.TensorListGPU)):
+    if isinstance(
+        data, (list, tuple, _tensors.TensorListCPU, _tensors.TensorListGPU)
+    ):
         if len(data) == 0:
             return [], True
         if callable(data[0].shape):
@@ -59,7 +64,9 @@ def _check_data_batch(data, batch_size, layout):
                         "All tensors in a batch must have the same number of dimensions"
                     )
         if layout is not None and layout != "" and dim != len(layout):
-            raise RuntimeError(f"The layout '{layout}' cannot describe {dim}-dimensional data")
+            raise RuntimeError(
+                f"The layout '{layout}' cannot describe {dim}-dimensional data"
+            )
 
 
 def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
@@ -88,7 +95,11 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
                 _check_data_batch(data, batch_size, layout)
                 checked = True
             if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
-                inp = type(datum)(datum, layout=layout) if layout is not None else datum
+                inp = (
+                    type(datum)(datum, layout=layout)
+                    if layout is not None
+                    else datum
+                )
             elif is_dlpack:
                 if is_gpu_data:
                     inp = _tensors.TensorGPU(datum, layout or "")
@@ -190,7 +201,9 @@ class _ExternalSourceGroup(object):
                 f"{len(self.instances)} outputs, but received mask of length {len(pruned_mask)}."
             )
         self.utilized_instances = [
-            instance for instance, is_pruned in zip(self.instances, pruned_mask) if not is_pruned
+            instance
+            for instance, is_pruned in zip(self.instances, pruned_mask)
+            if not is_pruned
         ]
 
     def callback_args(self, idx_in_batch, epoch_idx, batch_size=0, lead=0):
@@ -211,7 +224,9 @@ class _ExternalSourceGroup(object):
                 epoch_idx,
             )
         elif self.batch_info:
-            arg = nvidia.dali.types.BatchInfo(self.current_iter + lead, epoch_idx)
+            arg = nvidia.dali.types.BatchInfo(
+                self.current_iter + lead, epoch_idx
+            )
         else:
             arg = self.current_iter + lead
         return (arg,)
@@ -224,8 +239,11 @@ class _ExternalSourceGroup(object):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
         # entires in the pipeline are zero-copy and cannot be overwritten.
         context = pool.contexts[context_i]
-        while context.scheduled_ahead < self.prefetch_queue_depth and self.schedule_batch(
-            pool, context_i, context.scheduled_ahead, batch_size, epoch_idx
+        while (
+            context.scheduled_ahead < self.prefetch_queue_depth
+            and self.schedule_batch(
+                pool, context_i, context.scheduled_ahead, batch_size, epoch_idx
+            )
         ):
             pass
 
@@ -233,24 +251,32 @@ class _ExternalSourceGroup(object):
         """Schedule computing new batch from source callback by the parallel pool."""
         if self.batch:
             return pool.schedule_batch(
-                context_i, _TaskArgs.make_batch(self.callback_args(None, epoch_idx, lead=lead))
+                context_i,
+                _TaskArgs.make_batch(
+                    self.callback_args(None, epoch_idx, lead=lead)
+                ),
             )
         else:
             sample_range_start = self.current_sample + batch_size * lead
             sample_range_end = sample_range_start + batch_size
             iteration = self.current_iter + lead
-            sample_range = _SampleRange(sample_range_start, sample_range_end, iteration, epoch_idx)
+            sample_range = _SampleRange(
+                sample_range_start, sample_range_end, iteration, epoch_idx
+            )
             work_batch = _TaskArgs.make_sample(sample_range)
             return pool.schedule_batch(context_i, work_batch)
 
-    def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
+    def schedule_and_receive(
+        self, pipeline, pool, context_i, batch_size, epoch_idx
+    ):
         """Obtain the computed results of calling source callback in parallel pool and feed
         the results to the ExternalSource nodes in `pipeline`.
         Schedule the execution of the source callback in the pool to compute next batch.
         Used by the parallel ExternalSource variant.
 
         Args:
-            context_i (int): Index of the callback (in the list of parallel groups)"""
+            context_i (int): Index of the callback (in the list of parallel groups)
+        """
         try:
             callback_out = pool.receive_batch(context_i)
             self.current_sample += batch_size
@@ -267,10 +293,13 @@ class _ExternalSourceGroup(object):
         Used for the sequential ExternalSource variant."""
         try:
             if self.batch:
-                callback_out = self.callback(*self.callback_args(None, epoch_idx))
+                callback_out = self.callback(
+                    *self.callback_args(None, epoch_idx)
+                )
             else:
                 callback_out = [
-                    self.callback(*self.callback_args(i, epoch_idx)) for i in range(batch_size)
+                    self.callback(*self.callback_args(i, epoch_idx))
+                    for i in range(batch_size)
                 ]
             self.current_sample += batch_size
             self.current_iter += 1
@@ -288,15 +317,26 @@ class _ExternalSourceGroup(object):
                     data = callback_out[op._output_index]
                 else:
                     # extract a single output
-                    data = [callback_out[i][op._output_index] for i in range(batch_size)]
+                    data = [
+                        callback_out[i][op._output_index]
+                        for i in range(batch_size)
+                    ]
                 pipeline._feed_input(
-                    op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel
+                    op._name,
+                    data,
+                    op._layout,
+                    self._cuda_stream,
+                    self.use_copy_kernel,
                 )
         else:
             data = callback_out
             op = self.utilized_instances[0]
             pipeline._feed_input(
-                op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel
+                op._name,
+                data,
+                op._layout,
+                self._cuda_stream,
+                self.use_copy_kernel,
             )
 
 
@@ -629,7 +669,9 @@ Keyword Args
 
         import nvidia.dali.ops
 
-        self._init_args, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
+        self._init_args, self._call_args = nvidia.dali.ops._separate_kwargs(
+            kwargs
+        )
 
         if "_module" not in self._init_args:
             self._init_args.update({"_module": "nvidia.dali.ops"})
@@ -638,10 +680,14 @@ Keyword Args
 
         operator_name = self._operator_name()
 
-        callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
+        callback, source_desc = _get_callback_from_source(
+            source, cycle, batch_info or False
+        )
 
         if name is not None and num_outputs is not None:
-            raise ValueError(f"`num_outputs` is not compatible with named `{operator_name}`")
+            raise ValueError(
+                f"`num_outputs` is not compatible with named `{operator_name}`"
+            )
 
         self._name = name
         self._num_outputs = num_outputs
@@ -655,7 +701,9 @@ Keyword Args
         self._batch_info = batch_info
         self._repeat_last = repeat_last
         if _dali_trace.is_tracing_enabled():
-            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+            self._definition_frame_end = self._init_args.pop(
+                "_definition_frame_end", None
+            )
 
         self._spec.AddArg("device", device)
         self._spec.AddArg("repeat_last", repeat_last)
@@ -704,7 +752,9 @@ Keyword Args
         if batch_info is None:
             batch_info = self._batch_info or False
         elif self._batch_info is not None:
-            raise ValueError("The argument ``batch_info`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``batch_info`` already specified in constructor."
+            )
 
         if source is None:
             if cycle is not None:
@@ -724,8 +774,12 @@ Keyword Args
             source_desc = self._source_desc
         else:
             if self._callback is not None:
-                raise RuntimeError("``source`` already specified in constructor.")
-            callback, source_desc = _get_callback_from_source(source, cycle, self._batch_info)
+                raise RuntimeError(
+                    "``source`` already specified in constructor."
+                )
+            callback, source_desc = _get_callback_from_source(
+                source, cycle, self._batch_info
+            )
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc
@@ -739,12 +793,16 @@ Keyword Args
         if parallel is None:
             parallel = self._parallel or False
         elif self._parallel is not None:
-            raise ValueError("The argument ``parallel`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``parallel`` already specified in constructor."
+            )
 
         if batch is None:
             batch = self._batch
         elif self._batch is not None:
-            raise ValueError("The argument ``batch`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``batch`` already specified in constructor."
+            )
 
         # By default parallel is False, so batch will be True
         if batch is None:
@@ -767,7 +825,9 @@ Keyword Args
         if no_copy is None:
             no_copy = self._no_copy
         elif self._no_copy is not None:
-            raise ValueError("The argument ``no_copy`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``no_copy`` already specified in constructor."
+            )
 
         if parallel:
             if prefetch_queue_depth is None:
@@ -840,13 +900,17 @@ Keyword Args
 
         if self._layout is not None:
             if layout is not None:
-                raise RuntimeError("``layout`` already specified in constructor.")
+                raise RuntimeError(
+                    "``layout`` already specified in constructor."
+                )
             else:
                 layout = self._layout
 
         if self._dtype is not None:
             if dtype is not None:
-                raise RuntimeError("``dtype`` already specified in constructor.")
+                raise RuntimeError(
+                    "``dtype`` already specified in constructor."
+                )
             else:
                 dtype = self._dtype
 
@@ -858,13 +922,17 @@ Keyword Args
 
         if self._cuda_stream is not None:
             if cuda_stream is not None:
-                raise RuntimeError("``cuda_stream`` already specified in constructor.")
+                raise RuntimeError(
+                    "``cuda_stream`` already specified in constructor."
+                )
             else:
                 cuda_stream = self._cuda_stream
 
         if self._use_copy_kernel is not None:
             if use_copy_kernel is not None:
-                raise RuntimeError("``use_copy_kernel`` already specified in constructor.")
+                raise RuntimeError(
+                    "``use_copy_kernel`` already specified in constructor."
+                )
             else:
                 use_copy_kernel = self._use_copy_kernel
 
@@ -873,7 +941,10 @@ Keyword Args
         else:
             self._name = name
 
-        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
+        if (
+            _dali_trace.is_tracing_enabled()
+            and self._definition_frame_end is None
+        ):
             self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
         if name is not None and self._num_outputs is not None:
@@ -894,12 +965,16 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {"no_copy": no_copy}
-            group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
+            group = _ExternalSourceGroup(
+                callback, source_desc, True, **group_common_kwargs
+            )
             for i in range(self._num_outputs):
                 if dtype is not None:
                     if isinstance(dtype, (list, tuple)):
                         kwargs["dtype"] = (
-                            dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
+                            dtype[i]
+                            if i < len(dtype)
+                            else nvidia.dali.types.DALIDataType.NO_TYPE
                         )
                     else:
                         kwargs["dtype"] = dtype
@@ -917,7 +992,9 @@ Keyword Args
                     kwargs["layout"] = this_layout
 
                 args, arg_inputs = _separate_kwargs(kwargs)
-                op_instance = _OperatorInstance([], arg_inputs, args, self._init_args, self)
+                op_instance = _OperatorInstance(
+                    [], arg_inputs, args, self._init_args, self
+                )
                 op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group
@@ -940,11 +1017,17 @@ Keyword Args
                 kwargs["layout"] = layout
 
             args, arg_inputs = _separate_kwargs(kwargs)
-            op_instance = _OperatorInstance([], arg_inputs, args, self._init_args, self)
+            op_instance = _OperatorInstance(
+                [], arg_inputs, args, self._init_args, self
+            )
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(
-                callback, source_desc, False, [op_instance], **group_common_kwargs
+                callback,
+                source_desc,
+                False,
+                [op_instance],
+                **group_common_kwargs,
             )
             op_instance._layout = layout
             op_instance._batch = batch
@@ -957,14 +1040,19 @@ Keyword Args
 
         Only valid after `__init__` kwargs were split into `_init_args` and `_call_args`.
         """
-        return f"{self._init_args['_module']}.{self._init_args['_display_name']}"
+        return (
+            f"{self._init_args['_module']}.{self._init_args['_display_name']}"
+        )
 
     __doc__ += _args_doc
     __call__.__doc__ += _args_doc
 
 
 def _is_external_source_with_callback(op_instance):
-    return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
+    return (
+        isinstance(op_instance._op, ExternalSource)
+        and op_instance._callback is not None
+    )
 
 
 def _is_external_source(op_instance):
@@ -1079,8 +1167,13 @@ def external_source(
         )
     else:
         if _dali_trace.is_tracing_enabled():
-            kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
-        kwargs.update({"_module": "nvidia.dali.fn", "_display_name": "external_source"})
+            kwargs = {
+                **kwargs,
+                "_definition_frame_end": _dali_trace.get_stack_depth() - 1,
+            }
+        kwargs.update(
+            {"_module": "nvidia.dali.fn", "_display_name": "external_source"}
+        )
         result = _external_source(
             source,
             num_outputs,

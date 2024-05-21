@@ -18,7 +18,9 @@ from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core import _Augmentation, Policy, signed_bin
-from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs as _forbid_unused_kwargs
+from nvidia.dali.auto_aug.core._args import (
+    forbid_unused_kwargs as _forbid_unused_kwargs,
+)
 from nvidia.dali.auto_aug.core._utils import (
     get_translations as _get_translations,
     pretty_select as _pretty_select,
@@ -99,13 +101,20 @@ def auto_augment(
         (max_translate_abs, "max_translate_abs"),
         (max_translate_rel, "max_translate_rel"),
     )
-    if not isinstance(policy_name, str) or policy_name not in predefined_policies:
-        policies_str = ", ".join([f"`{name}`" for name in predefined_policies.keys()])
+    if (
+        not isinstance(policy_name, str)
+        or policy_name not in predefined_policies
+    ):
+        policies_str = ", ".join(
+            [f"`{name}`" for name in predefined_policies.keys()]
+        )
         raise Exception(
             f"The `policy_name` must be a string that takes one of the values: {policies_str}"
         )
     if policy_name in policies_without_translation:
-        shape_arg = next((name for arg, name in shape_related_args if arg is not None), None)
+        shape_arg = next(
+            (name for arg, name in shape_related_args if arg is not None), None
+        )
         if shape_arg is not None:
             raise Exception(
                 f"The policy `{policy_name}` does not contain any augmentations that rely on the "
@@ -186,21 +195,29 @@ def apply_auto_augment(
         A batch of transformed samples.
     """
     if len(policy.sub_policies) == 0:
-        raise Exception(f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call.")
+        raise Exception(
+            f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call."
+        )
     max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
     should_run = fn.random.uniform(
         range=[0, 1], shape=(max_policy_len,), dtype=types.FLOAT, seed=seed
     )
     sub_policy_id = fn.random.uniform(
-        values=list(range(len(policy.sub_policies))), seed=seed, dtype=types.INT32
+        values=list(range(len(policy.sub_policies))),
+        seed=seed,
+        dtype=types.INT32,
     )
     run_probabilities = _sub_policy_to_probability_map(policy)[sub_policy_id]
     magnitude_bins = _sub_policy_to_magnitude_bin_map(policy)[sub_policy_id]
     aug_ids, augmentations = _sub_policy_to_augmentation_map(policy)
     aug_ids = aug_ids[sub_policy_id]
     if any(aug.randomly_negate for aug in policy.augmentations.values()):
-        magnitude_bins = signed_bin(magnitude_bins, seed=seed, shape=(max_policy_len,))
-    _forbid_unused_kwargs(policy.augmentations.values(), kwargs, "apply_auto_augment")
+        magnitude_bins = signed_bin(
+            magnitude_bins, seed=seed, shape=(max_policy_len,)
+        )
+    _forbid_unused_kwargs(
+        policy.augmentations.values(), kwargs, "apply_auto_augment"
+    )
     for stage_id in range(max_policy_len):
         if should_run[stage_id] < run_probabilities[stage_id]:
             op_kwargs = dict(
@@ -335,7 +352,9 @@ def get_reduced_cifar10_policy(
     brightness = a.brightness.augmentation((0.1, 1.9), False, None)
     color = a.color.augmentation((0.1, 1.9), False, None)
     contrast = a.contrast.augmentation((0.1, 1.9), False, None)
-    sharpness = a.sharpness.augmentation((0.1, 1.9), False, a.sharpness_kernel_shifted)
+    sharpness = a.sharpness.augmentation(
+        (0.1, 1.9), False, a.sharpness_kernel_shifted
+    )
     posterize = a.posterize.augmentation((0, 4), False, a.poster_mask_uint8)
     solarize = a.solarize.augmentation((0, 256), False)
     invert = a.invert
@@ -460,7 +479,9 @@ def get_reduced_image_net_policy() -> Policy:
     rotate = a.rotate.augmentation((0, 30), True)
     color = a.color.augmentation((0.1, 1.9), False, None)
     contrast = a.contrast.augmentation((0.1, 1.9), False, None)
-    sharpness = a.sharpness.augmentation((0.1, 1.9), False, a.sharpness_kernel_shifted)
+    sharpness = a.sharpness.augmentation(
+        (0.1, 1.9), False, a.sharpness_kernel_shifted
+    )
     posterize = a.posterize.augmentation((0, 4), False, a.poster_mask_uint8)
     solarize = a.solarize.augmentation((0, 256), False)
     invert = a.invert
@@ -503,7 +524,11 @@ def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
     prob = np.array(
-        [[0.0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))], dtype=np.float32
+        [
+            [0.0 for _ in range(max_policy_len)]
+            for _ in range(len(sub_policies))
+        ],
+        dtype=np.float32,
     )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
@@ -515,7 +540,8 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
     magnitude_bin = np.array(
-        [[0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))], dtype=np.int32
+        [[0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))],
+        dtype=np.int32,
     )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
@@ -564,10 +590,14 @@ def _sub_policy_to_augmentation_matrix_map(
     )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
-            augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][augment]
+            augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][
+                augment
+            ]
     return augments_by_id, augmentations
 
 
-def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
+def _sub_policy_to_augmentation_map(
+    policy: Policy,
+) -> Tuple[_DataNode, List[List[_Augmentation]]]:
     matrix, augments = _sub_policy_to_augmentation_matrix_map(policy)
     return types.Constant(matrix), augments

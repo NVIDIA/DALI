@@ -58,7 +58,9 @@ class DocEntry:
                         )
                 self.operator_refs = operator_refs
             elif not isinstance(operator_refs, OpReference):
-                raise TypeError("Expected a single op_reference or a list of them to be provided")
+                raise TypeError(
+                    "Expected a single op_reference or a list of them to be provided"
+                )
             else:
                 # Single OpReference, normalize to list
                 self.operator_refs = [operator_refs]
@@ -158,13 +160,19 @@ def _collect_references(base_path, entry_name, operator_refs, result_dict):
             result_dict[op_ref.operator] = []
 
         result_dict[op_ref.operator].append(
-            (op_ref.docstring, str((base_path / entry_name).with_suffix(".html")), op_ref)
+            (
+                op_ref.docstring,
+                str((base_path / entry_name).with_suffix(".html")),
+                op_ref,
+            )
         )
 
 
 def _document_examples(path, result_dict={}):
     if not path.endswith(".py"):
-        raise ValueError(f"Expected a path to Python index file (ending with '.py'), got {path}")
+        raise ValueError(
+            f"Expected a path to Python index file (ending with '.py'), got {path}"
+        )
     rst_file = Path(path).with_suffix(".rst")
     doc_contents = _obtain_doc(path)
     tab = " " * 3
@@ -181,7 +189,9 @@ def _document_examples(path, result_dict={}):
     canonical_path = Path(path)
     base_path = canonical_path.parent
     for entry in doc_contents.entries:
-        _collect_references(base_path, entry.name_to_sphinx(), entry.operator_refs, result_dict)
+        _collect_references(
+            base_path, entry.name_to_sphinx(), entry.operator_refs, result_dict
+        )
         # For Python index files do the recursion on the actual value stored in entry.name
         if entry.python_index:
             _document_examples(str(base_path / entry.name), result_dict)

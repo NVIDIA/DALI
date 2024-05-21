@@ -63,8 +63,13 @@ def test_enum_constant_capture(converter):
     assert tensor.shape() == [(3,)] * batch_size
     # Compare the cast values with Python values
     for i in range(batch_size):
-        assert np.array_equal(np.array(scalar_as_int[i]), np.array(scalar_v.value))
-        assert np.array_equal(np.array(tensor_as_int[i]), np.array([elem.value for elem in list_v]))
+        assert np.array_equal(
+            np.array(scalar_as_int[i]), np.array(scalar_v.value)
+        )
+        assert np.array_equal(
+            np.array(tensor_as_int[i]),
+            np.array([elem.value for elem in list_v]),
+        )
     with assert_raises(
         TypeError,
         glob="DALI enum types cannot be used with buffer protocol*"
@@ -75,12 +80,18 @@ def test_enum_constant_capture(converter):
 
 def test_scalar_constant():
     with assert_raises(
-        TypeError, glob="Expected scalar value of type 'bool', 'int' or 'float', got *.DALIDataType"
+        TypeError,
+        glob="Expected scalar value of type 'bool', 'int' or 'float', got *.DALIDataType",
     ):
         types.ScalarConstant(types.DALIDataType.INT16)
 
 
-@params(*[(1.0, types.DALIDataType.DATA_TYPE), (types.DALIImageType.RGB, types.DALIDataType.FLOAT)])
+@params(
+    *[
+        (1.0, types.DALIDataType.DATA_TYPE),
+        (types.DALIImageType.RGB, types.DALIDataType.FLOAT),
+    ]
+)
 def test_prohibited_cast(param, dtype):
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def pipeline():

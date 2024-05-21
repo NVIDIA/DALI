@@ -78,11 +78,17 @@ def get_translations(
     )
     if use_shape:
         translate_x = a.translate_x.augmentation((0, max_translate_width), True)
-        translate_y = a.translate_y.augmentation((0, max_translate_height), True)
+        translate_y = a.translate_y.augmentation(
+            (0, max_translate_height), True
+        )
         return [translate_x, translate_y]
     else:
-        translate_x = a.translate_x_no_shape.augmentation((0, max_translate_width), True)
-        translate_y = a.translate_y_no_shape.augmentation((0, max_translate_height), True)
+        translate_x = a.translate_x_no_shape.augmentation(
+            (0, max_translate_width), True
+        )
+        translate_y = a.translate_y_no_shape.augmentation(
+            (0, max_translate_height), True
+        )
         return [translate_x, translate_y]
 
 

@@ -59,7 +59,10 @@ def stubgen(header_filepath, out_file=sys.stdout):
         ret_type = entry.group(1)
         func_name = entry.group(2)
         args = entry.group(3)
-        print("{} {}({}) {{\n}}\n\n".format(ret_type, func_name, args), file=out_file)
+        print(
+            "{} {}({}) {{\n}}\n\n".format(ret_type, func_name, args),
+            file=out_file,
+        )
 
 
 if __name__ == "__main__":
@@ -69,9 +72,14 @@ if __name__ == "__main__":
         description="Produces an empty stub implementation of a C header"
     )
     parser.add_argument(
-        "header_filepath", metavar="header", type=str, help="Path to the header file"
+        "header_filepath",
+        metavar="header",
+        type=str,
+        help="Path to the header file",
     )
-    parser.add_argument("--output", metavar="output", type=str, help="Path to the output file")
+    parser.add_argument(
+        "--output", metavar="output", type=str, help="Path to the output file"
+    )
     args = parser.parse_args()
 
     f = open(args.output, "w+") if args.output is not None else sys.stdout

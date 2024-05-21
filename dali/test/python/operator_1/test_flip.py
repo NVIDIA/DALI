@@ -43,7 +43,9 @@ class FlipPipeline(Pipeline):
             path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus
         )
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
-        self.flip = ops.Flip(device=self.device, vertical=is_vertical, horizontal=is_horizontal)
+        self.flip = ops.Flip(
+            device=self.device, vertical=is_vertical, horizontal=is_horizontal
+        )
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -57,7 +59,9 @@ class FlipPipeline(Pipeline):
 
 class SynthFlipPipeline(Pipeline):
     def __init__(self, batch_size, layout, data_iterator, device):
-        super(SynthFlipPipeline, self).__init__(batch_size, seed=1234, num_threads=4, device_id=0)
+        super(SynthFlipPipeline, self).__init__(
+            batch_size, seed=1234, num_threads=4, device_id=0
+        )
         self.device = device
         self.iterator = data_iterator
         self.layout = layout
@@ -69,7 +73,10 @@ class SynthFlipPipeline(Pipeline):
         self.data = self.input()
         data = self.data.gpu() if self.device == "gpu" else self.data
         flipped = self.flip(
-            data, horizontal=self.coin(), vertical=self.coin(), depthwise=self.coin()
+            data,
+            horizontal=self.coin(),
+            vertical=self.coin(),
+            depthwise=self.coin(),
         )
 
         return flipped
@@ -111,11 +118,15 @@ class SynthPythonFlipPipeline(Pipeline):
         def fun(d, hor, ver, depth):
             return numpy_flip(d, h_dim, v_dim, d_dim, hor, ver, depth)
 
-        self.python_flip = ops.PythonFunction(function=fun, output_layouts=layout)
+        self.python_flip = ops.PythonFunction(
+            function=fun, output_layouts=layout
+        )
 
     def define_graph(self):
         self.data = self.input()
-        flipped = self.python_flip(self.data, self.coin(), self.coin(), self.coin())
+        flipped = self.python_flip(
+            self.data, self.coin(), self.coin(), self.coin()
+        )
         return flipped
 
     def iter_setup(self):

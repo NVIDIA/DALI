@@ -147,22 +147,30 @@ class ParserTest(unittest.TestCase):
         node, source = parser.parse_entity(l[0], future_features=())
         expected_node_src = "lambda x: (lambda y: ((x + y) + 1))"
         self.assertAstMatches(node, expected_node_src)
-        self.assertMatchesWithPotentialGarbage(source, "lambda x: lambda y: x + y + 1", ",")
+        self.assertMatchesWithPotentialGarbage(
+            source, "lambda x: lambda y: x + y + 1", ","
+        )
 
         node, source = parser.parse_entity(l[0](0), future_features=())
         expected_node_src = "lambda y: ((x + y) + 1)"
         self.assertAstMatches(node, expected_node_src)
-        self.assertMatchesWithPotentialGarbage(source, "lambda y: x + y + 1", ",")
+        self.assertMatchesWithPotentialGarbage(
+            source, "lambda y: x + y + 1", ","
+        )
 
         node, source = parser.parse_entity(l[1], future_features=())
         expected_node_src = "lambda x: (lambda y: ((x + y) + 2))"
         self.assertAstMatches(node, expected_node_src)
-        self.assertMatchesWithPotentialGarbage(source, "lambda x: lambda y: x + y + 2", ",")
+        self.assertMatchesWithPotentialGarbage(
+            source, "lambda x: lambda y: x + y + 2", ","
+        )
 
         node, source = parser.parse_entity(l[1](0), future_features=())
         expected_node_src = "lambda y: ((x + y) + 2)"
         self.assertAstMatches(node, expected_node_src)
-        self.assertMatchesWithPotentialGarbage(source, "lambda y: x + y + 2", ",")
+        self.assertMatchesWithPotentialGarbage(
+            source, "lambda y: x + y + 2", ","
+        )
 
     def test_parse_lambda_complex_body(self):
         # fmt: off
@@ -202,7 +210,9 @@ class ParserTest(unittest.TestCase):
             node, source = parser.parse_entity(lam, future_features=())
             expected_node_src = "lambda x: x"
             self.assertAstMatches(node, expected_node_src)
-            self.assertMatchesWithPotentialGarbage(source, "lambda x: x", ", named_arg=1)")
+            self.assertMatchesWithPotentialGarbage(
+                source, "lambda x: x", ", named_arg=1)"
+            )
 
         do_parse_and_test(lambda x: x, named_arg=1)  # Intentional line break
 
@@ -326,14 +336,30 @@ string"""
             test=gast.Constant(1, kind=None),
             body=[
                 gast_util.compat_assign(
-                    targets=[gast.Name("a", ctx=gast.Store(), annotation=None, type_comment=None)],
-                    value=gast.Name("b", ctx=gast.Load(), annotation=None, type_comment=None),
+                    targets=[
+                        gast.Name(
+                            "a",
+                            ctx=gast.Store(),
+                            annotation=None,
+                            type_comment=None,
+                        )
+                    ],
+                    value=gast.Name(
+                        "b", ctx=gast.Load(), annotation=None, type_comment=None
+                    ),
                     type_comment=None,
                 )
             ],
             orelse=[
                 gast_util.compat_assign(
-                    targets=[gast.Name("a", ctx=gast.Store(), annotation=None, type_comment=None)],
+                    targets=[
+                        gast.Name(
+                            "a",
+                            ctx=gast.Store(),
+                            annotation=None,
+                            type_comment=None,
+                        )
+                    ],
                     value=gast.Constant("c", kind=None),
                     type_comment=None,
                 )

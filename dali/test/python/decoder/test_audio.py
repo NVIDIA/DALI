@@ -22,9 +22,17 @@ import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 from test_utils import compare_pipelines, get_files
 
-names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
+names = [
+    "/tmp/dali_test_1C.wav",
+    "/tmp/dali_test_2C.wav",
+    "/tmp/dali_test_4C.wav",
+]
 
-freqs = [np.array([0.02]), np.array([0.01, 0.012]), np.array([0.01, 0.012, 0.013, 0.014])]
+freqs = [
+    np.array([0.02]),
+    np.array([0.01, 0.012]),
+    np.array([0.01, 0.012, 0.013, 0.014]),
+]
 rates = [16000, 22050, 12347]
 lengths = [10000, 54321, 12345]
 
@@ -64,8 +72,12 @@ class DecoderPipeline(Pipeline):
         )
         self.file_source = ops.ExternalSource()
         self.plain_decoder = ops.decoders.Audio(dtype=types.INT16)
-        self.resampling_decoder = ops.decoders.Audio(sample_rate=rate1, dtype=types.INT16)
-        self.downmixing_decoder = ops.decoders.Audio(downmix=True, dtype=types.INT16)
+        self.resampling_decoder = ops.decoders.Audio(
+            sample_rate=rate1, dtype=types.INT16
+        )
+        self.downmixing_decoder = ops.decoders.Audio(
+            downmix=True, dtype=types.INT16
+        )
         self.resampling_downmixing_decoder = ops.decoders.Audio(
             sample_rate=rate2, downmix=True, quality=50, dtype=types.FLOAT
         )
@@ -75,7 +87,9 @@ class DecoderPipeline(Pipeline):
         dec_plain, rates_plain = self.plain_decoder(self.raw_file)
         dec_res, rates_res = self.resampling_decoder(self.raw_file)
         dec_mix, rates_mix = self.downmixing_decoder(self.raw_file)
-        dec_res_mix, rates_res_mix = self.resampling_downmixing_decoder(self.raw_file)
+        dec_res_mix, rates_res_mix = self.resampling_downmixing_decoder(
+            self.raw_file
+        )
         out = [
             dec_plain,
             dec_res,
@@ -116,10 +130,17 @@ def test_decoded_vs_generated():
             ref_len[3] = lengths[idx] * rate2 / rates[idx]
 
             ref0 = generate_waveforms(ref_len[0], freqs[idx]) * 32767
-            ref1 = generate_waveforms(ref_len[1], freqs[idx] * (rates[idx] / rate1)) * 32767
+            ref1 = (
+                generate_waveforms(
+                    ref_len[1], freqs[idx] * (rates[idx] / rate1)
+                )
+                * 32767
+            )
             ref2 = generate_waveforms(ref_len[2], freqs[idx]) * 32767
             ref2 = ref2.mean(axis=1, keepdims=1)
-            ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
+            ref3 = generate_waveforms(
+                ref_len[3], freqs[idx] * (rates[idx] / rate2)
+            )
             ref3 = ref3.mean(axis=1, keepdims=1)
 
             assert out[4].at(i) == rates[idx]
@@ -140,7 +161,9 @@ def test_decoded_vs_generated():
             rosa_in1 = plain.astype(np.float32)
             rosa1 = rosa_resample(rosa_in1, rates[idx], rate1)
             rosa_in3 = rosa_in1 / 32767
-            rosa3 = rosa_resample(rosa_in3.mean(axis=1, keepdims=1), rates[idx], rate2)
+            rosa3 = rosa_resample(
+                rosa_in3.mean(axis=1, keepdims=1), rates[idx], rate2
+            )
 
             assert np.allclose(res, rosa1, rtol=0, atol=32767 * 1e-3)
             assert np.allclose(res_mix, rosa3, rtol=0, atol=3e-3)
@@ -155,14 +178,22 @@ batch_size_alias_test = 16
 def decoder_pipe(decoder_op, fnames, sample_rate, downmix, quality, dtype):
     encoded, _ = fn.readers.file(files=fnames)
     decoded, rates = decoder_op(
-        encoded, sample_rate=sample_rate, downmix=downmix, quality=quality, dtype=dtype
+        encoded,
+        sample_rate=sample_rate,
+        downmix=downmix,
+        quality=quality,
+        dtype=dtype,
     )
     return decoded, rates
 
 
 def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
-    new_pipe = decoder_pipe(fn.decoders.audio, names, sample_rate, downmix, quality, dtype)
-    legacy_pipe = decoder_pipe(fn.audio_decoder, names, sample_rate, downmix, quality, dtype)
+    new_pipe = decoder_pipe(
+        fn.decoders.audio, names, sample_rate, downmix, quality, dtype
+    )
+    legacy_pipe = decoder_pipe(
+        fn.audio_decoder, names, sample_rate, downmix, quality, dtype
+    )
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 

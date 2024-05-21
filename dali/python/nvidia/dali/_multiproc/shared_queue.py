@@ -21,7 +21,12 @@ from nvidia.dali._multiproc.shared_batch import _align_up as align_up
 
 
 class QueueMeta(Structure):
-    _fields = ("capacity", "i"), ("size", "i"), ("begining", "i"), ("is_closed", "i")
+    _fields = (
+        ("capacity", "i"),
+        ("size", "i"),
+        ("begining", "i"),
+        ("is_closed", "i"),
+    )
 
 
 class ShmQueue:
@@ -62,7 +67,9 @@ class ShmQueue:
         self._init_offsets()
 
     def _init_offsets(self):
-        self.msgs_offsets = [i * self.msg_size + self.meta_size for i in range(self.capacity)]
+        self.msgs_offsets = [
+            i * self.msg_size + self.meta_size for i in range(self.capacity)
+        ]
 
     def _read_meta(self):
         self.meta.unpack_from(self.shm.buf, 0)
@@ -85,10 +92,13 @@ class ShmQueue:
         if num_samples is not None and num_samples < num_take:
             num_take = num_samples
         recv = [
-            self._read_msg((self.meta.begining + i) % self.meta.capacity) for i in range(num_take)
+            self._read_msg((self.meta.begining + i) % self.meta.capacity)
+            for i in range(num_take)
         ]
         self.meta.size -= num_take
-        self.meta.begining = (self.meta.begining + num_take) % self.meta.capacity
+        self.meta.begining = (
+            self.meta.begining + num_take
+        ) % self.meta.capacity
         self._write_meta()
         return recv
 
@@ -142,7 +152,9 @@ class ShmQueue:
                 self.is_closed = True
                 return
             msgs_len = len(msgs)
-            next_slot = (self.meta.begining + self.meta.size) % self.meta.capacity
+            next_slot = (
+                self.meta.begining + self.meta.size
+            ) % self.meta.capacity
             for msg in msgs:
                 self._write_msg(next_slot, msg)
                 next_slot = (next_slot + 1) % self.meta.capacity

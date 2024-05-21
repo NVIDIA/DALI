@@ -63,7 +63,9 @@ def iteration_test(args):
 
         samples_no = pipes[0].epoch_size("Reader")
         if args.benchmark_iters is None:
-            expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
+            expected_iters = samples_no // args.batch_size + (
+                samples_no % args.batch_size != 0
+            )
         else:
             expected_iters = args.benchmark_iters
 

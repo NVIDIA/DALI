@@ -69,7 +69,8 @@ def gather_files(path: str, patterns: list, antipatterns: list):
     curr_path = os.getcwd()
     os.chdir(path)
     positive_iterators = [
-        glob.iglob(os.path.join("**", pattern), recursive=True) for pattern in patterns
+        glob.iglob(os.path.join("**", pattern), recursive=True)
+        for pattern in patterns
     ]
     linted_files = itertools.chain(*positive_iterators)
     linted_files = (os.path.join(path, file) for file in linted_files)
@@ -91,7 +92,8 @@ def gen_cmd(dali_root_dir, file_list, process_includes=False):
         "--quiet",
         "--linelength=100",
         "--headers=h,cuh",
-        "--root=" + os.path.join(dali_root_dir, "include" if process_includes else ""),
+        "--root="
+        + os.path.join(dali_root_dir, "include" if process_includes else ""),
     ]
     cmd.extend(file_list)
     return cmd
@@ -110,7 +112,9 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
         cmds.append(
             gen_cmd(
                 dali_root_dir=dali_root_dir,
-                file_list=file_list[process_idx * diff : (process_idx + 1) * diff],
+                file_list=file_list[
+                    process_idx * diff : (process_idx + 1) * diff
+                ],
                 process_includes=process_includes,
             )
         )
@@ -122,7 +126,8 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
         )
     )
     subprocesses = [
-        subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for cmd in cmds
+        subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for cmd in cmds
     ]
     success = True
     for subproc in subprocesses:
@@ -156,10 +161,16 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
     )
 
     cc_code = lint(
-        dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False, n_subproc=n_subproc
+        dali_root_dir=dali_root_dir,
+        file_list=cc_files,
+        process_includes=False,
+        n_subproc=n_subproc,
     )
     inc_code = lint(
-        dali_root_dir=dali_root_dir, file_list=inc_files, process_includes=True, n_subproc=n_subproc
+        dali_root_dir=dali_root_dir,
+        file_list=inc_files,
+        process_includes=True,
+        n_subproc=n_subproc,
     )
 
     tf_plugin_code = lint(
@@ -176,7 +187,12 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
         n_subproc=n_subproc,
     )
 
-    if cc_code != 0 or inc_code != 0 or tf_plugin_code != 0 or sdist_plugin_code != 0:
+    if (
+        cc_code != 0
+        or inc_code != 0
+        or tf_plugin_code != 0
+        or sdist_plugin_code != 0
+    ):
         sys.exit(1)
     sys.exit(0)
 
@@ -189,13 +205,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "dali_root_path",
         type=str,
-        help="Root path of DALI repository " "(pointed directory should contain `.git` folder)",
+        help="Root path of DALI repository "
+        "(pointed directory should contain `.git` folder)",
     )
     parser.add_argument(
-        "--nproc", type=int, default=1, help="Number of processes to spawn for linter verification"
+        "--nproc",
+        type=int,
+        default=1,
+        help="Number of processes to spawn for linter verification",
     )
     parser.add_argument(
-        "--file-list", nargs="*", help="List of files. This overrides the default scenario"
+        "--file-list",
+        nargs="*",
+        help="List of files. This overrides the default scenario",
     )
     args = parser.parse_args()
     assert args.nproc > 0

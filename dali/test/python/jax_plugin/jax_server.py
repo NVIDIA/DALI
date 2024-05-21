@@ -28,7 +28,8 @@ import nvidia.dali.plugin.jax as dax
 
 def print_devices(process_id):
     log.info(
-        f"Local devices = {jax.local_device_count()}, " f"global devices = {jax.device_count()}"
+        f"Local devices = {jax.local_device_count()}, "
+        f"global devices = {jax.device_count()}"
     )
 
     log.info("All devices: ")
@@ -47,13 +48,17 @@ def print_devices_details(devices_list, process_id):
 
 
 def test_lax_workflow(process_id):
-    array_from_dali = dax.integration._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32))
+    array_from_dali = dax.integration._to_jax_array(
+        get_dali_tensor_gpu(1, (1), np.int32)
+    )
 
     assert (
         array_from_dali.device() == jax.local_devices()[0]
     ), "Array should be backed by the device local to current process."
 
-    sum_across_devices = jax.pmap(lambda x: jax.lax.psum(x, "i"), axis_name="i")(array_from_dali)
+    sum_across_devices = jax.pmap(
+        lambda x: jax.lax.psum(x, "i"), axis_name="i"
+    )(array_from_dali)
 
     assert sum_across_devices[0] == len(
         jax.devices()
@@ -78,7 +83,9 @@ def run_distributed_sharing_test(sharding, process_id):
     assert len(dali_sharded_array.device_buffers) == 1
     assert dali_sharded_array.device_buffer == jnp.array([process_id])
     assert dali_sharded_array.device_buffer.device() == jax.local_devices()[0]
-    assert dali_sharded_array.device_buffer.device() == jax.devices()[process_id]
+    assert (
+        dali_sharded_array.device_buffer.device() == jax.devices()[process_id]
+    )
 
 
 def test_positional_sharding_workflow(process_id):
@@ -100,7 +107,9 @@ def test_named_sharding_workflow(process_id):
 
 def run_multiprocess_workflow(process_id=0):
     jax.distributed.initialize(
-        coordinator_address="localhost:12321", num_processes=2, process_id=process_id
+        coordinator_address="localhost:12321",
+        num_processes=2,
+        process_id=process_id,
     )
 
     log.basicConfig(level=log.INFO, format=f"PID {process_id}: %(message)s")

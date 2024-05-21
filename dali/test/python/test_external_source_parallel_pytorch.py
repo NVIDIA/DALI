@@ -42,7 +42,12 @@ def test_pytorch_cuda_context():
     _ = torch.ones([1, 1], dtype=torch.float32, device=cuda0)
     callback = utils.ExtCallback((4, 5), 10, np.int32)
     pipe = utils.create_pipe(
-        callback, "cpu", 5, py_num_workers=6, py_start_method="fork", parallel=True
+        callback,
+        "cpu",
+        5,
+        py_num_workers=6,
+        py_start_method="fork",
+        parallel=True,
     )
     pipe.start_py_workers()
 
@@ -53,7 +58,9 @@ def test_pytorch():
 
 class ExtCallbackTorchCuda(utils.ExtCallback):
     def __call__(self, sample_info):
-        return torch.tensor(super().__call__(sample_info), device=torch.device("cuda:0"))
+        return torch.tensor(
+            super().__call__(sample_info), device=torch.device("cuda:0")
+        )
 
 
 @raises(
@@ -65,6 +72,11 @@ class ExtCallbackTorchCuda(utils.ExtCallback):
 def test_pytorch_cuda():
     callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)
     pipe = utils.create_pipe(
-        callback, "cpu", 5, py_num_workers=6, py_start_method="spawn", parallel=True
+        callback,
+        "cpu",
+        5,
+        py_num_workers=6,
+        py_start_method="spawn",
+        parallel=True,
     )
     utils.build_and_run_pipeline(pipe)

@@ -27,7 +27,11 @@ from nvidia.dali._autograph.pyct import transformer
 class TransformerTest(unittest.TestCase):
     def _simple_context(self):
         entity_info = transformer.EntityInfo(
-            name="Test_fn", source_code=None, source_file=None, future_features=(), namespace=None
+            name="Test_fn",
+            source_code=None,
+            source_file=None,
+            future_features=(),
+            namespace=None,
         )
         return transformer.Context(entity_info, None, None)
 
@@ -86,15 +90,23 @@ class TransformerTest(unittest.TestCase):
         self.assertDifferentAnno(fn_body[0], outer_while_body[0], "loop_state")
 
         first_if_body = outer_while_body[1].body
-        self.assertDifferentAnno(outer_while_body[0], first_if_body[0], "cond_state")
+        self.assertDifferentAnno(
+            outer_while_body[0], first_if_body[0], "cond_state"
+        )
         self.assertSameAnno(outer_while_body[0], first_if_body[0], "loop_state")
 
         first_inner_while_body = first_if_body[1].body
-        self.assertSameAnno(first_if_body[0], first_inner_while_body[0], "cond_state")
-        self.assertDifferentAnno(first_if_body[0], first_inner_while_body[0], "loop_state")
+        self.assertSameAnno(
+            first_if_body[0], first_inner_while_body[0], "cond_state"
+        )
+        self.assertDifferentAnno(
+            first_if_body[0], first_inner_while_body[0], "loop_state"
+        )
 
         second_if_body = outer_while_body[2].body
-        self.assertDifferentAnno(first_if_body[0], second_if_body[0], "cond_state")
+        self.assertDifferentAnno(
+            first_if_body[0], second_if_body[0], "cond_state"
+        )
         self.assertSameAnno(first_if_body[0], second_if_body[0], "loop_state")
 
         second_inner_while_body = second_if_body[1].body
@@ -137,14 +149,21 @@ class TransformerTest(unittest.TestCase):
         self.assertSameAnno(outer_if_body[0], outer_if_body[2], "cond_state")
 
         inner_if_body = outer_if_body[1].body
-        self.assertDifferentAnno(inner_if_body[0], outer_if_body[0], "cond_state")
+        self.assertDifferentAnno(
+            inner_if_body[0], outer_if_body[0], "cond_state"
+        )
 
     def test_visit_block_postprocessing(self):
         class TestTransformer(transformer.Base):
             def _process_body_item(self, node):
                 if isinstance(node, gast.Assign) and (node.value.id == "y"):
                     if_node = gast.If(
-                        gast.Name("x", ctx=gast.Load(), annotation=None, type_comment=None),
+                        gast.Name(
+                            "x",
+                            ctx=gast.Load(),
+                            annotation=None,
+                            type_comment=None,
+                        ),
                         [node],
                         [],
                     )
@@ -152,7 +171,9 @@ class TransformerTest(unittest.TestCase):
                 return node, None
 
             def visit_FunctionDef(self, node):
-                node.body = self.visit_block(node.body, after_visit=self._process_body_item)
+                node.body = self.visit_block(
+                    node.body, after_visit=self._process_body_item
+                )
                 return node
 
         def test_function(x, y):
@@ -194,7 +215,9 @@ class TransformerTest(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             node = tr.visit(node)
         obtained_message = str(cm.exception)
-        expected_message = r'expected "ast.AST", got "\<(type|class) \'list\'\>"'
+        expected_message = (
+            r'expected "ast.AST", got "\<(type|class) \'list\'\>"'
+        )
         self.assertRegex(obtained_message, expected_message)
 
     def test_robust_error_on_ast_corruption(self):
@@ -248,7 +271,9 @@ class TransformerTest(unittest.TestCase):
 
         created_pass_node = node.body[1]
         # Takes the line number of the if statement.
-        self.assertEqual(anno.getanno(created_pass_node, anno.Basic.ORIGIN).loc.lineno, 102)
+        self.assertEqual(
+            anno.getanno(created_pass_node, anno.Basic.ORIGIN).loc.lineno, 102
+        )
 
     def test_origin_info_preserved_in_moved_nodes(self):
         class TestTransformer(transformer.Base):
@@ -271,14 +296,22 @@ class TransformerTest(unittest.TestCase):
         assign_node = node.body[1]
         aug_assign_node = node.body[2]
         # Keep their original line numbers.
-        self.assertEqual(anno.getanno(assign_node, anno.Basic.ORIGIN).loc.lineno, 103)
-        self.assertEqual(anno.getanno(aug_assign_node, anno.Basic.ORIGIN).loc.lineno, 104)
+        self.assertEqual(
+            anno.getanno(assign_node, anno.Basic.ORIGIN).loc.lineno, 103
+        )
+        self.assertEqual(
+            anno.getanno(aug_assign_node, anno.Basic.ORIGIN).loc.lineno, 104
+        )
 
 
 class CodeGeneratorTest(unittest.TestCase):
     def _simple_context(self):
         entity_info = transformer.EntityInfo(
-            name="test_fn", source_code=None, source_file=None, future_features=(), namespace=None
+            name="test_fn",
+            source_code=None,
+            source_file=None,
+            future_features=(),
+            namespace=None,
         )
         return transformer.Context(entity_info, None, None)
 
@@ -296,7 +329,9 @@ class CodeGeneratorTest(unittest.TestCase):
                 self.emit("if ")
                 # This is just for simplicity. A real generator will walk the tree and
                 # emit proper code.
-                self.emit(parser.unparse(node.test, include_encoding_marker=False))
+                self.emit(
+                    parser.unparse(node.test, include_encoding_marker=False)
+                )
                 self.emit(" {\n")
                 self.visit_block(node.body)
                 self.emit("} else {\n")

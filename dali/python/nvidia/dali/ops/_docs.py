@@ -65,27 +65,43 @@ Args
             )
             dox = schema.GetInputDox(i)
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
+            ret += (
+                _numpydoc_formatter(input_name, input_type_str, dox, optional)
+                + "\n"
+            )
     else:
         for i in range(schema.MinNumInput()):
-            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            input_type_str = "TensorList" + _supported_layouts_str(
+                schema.GetSupportedLayouts(i)
+            )
             dox = "Input to the operator."
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
+            ret += (
+                _numpydoc_formatter(input_name, input_type_str, dox, False)
+                + "\n"
+            )
 
         extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
         if extra_opt_args == 1:
             i = schema.MinNumInput()
-            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            input_type_str = "TensorList" + _supported_layouts_str(
+                schema.GetSupportedLayouts(i)
+            )
             dox = "Input to the operator."
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
+            ret += (
+                _numpydoc_formatter(input_name, input_type_str, dox, True)
+                + "\n"
+            )
         elif extra_opt_args > 1:
             input_type_str = "TensorList"
             generic_name = _names._get_generic_input_name(False)
             input_name = f"{generic_name}[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
+            ret += (
+                _numpydoc_formatter(input_name, input_type_str, dox, True)
+                + "\n"
+            )
 
     ret += "\n"
     return ret
@@ -110,7 +126,9 @@ def _get_kwargs(schema):
             meta = schema.DeprecatedArgMeta(arg)
             msg = meta["msg"]
             assert msg is not None
-            deprecation_warning = ".. warning::\n\n    " + msg.replace("\n", "\n    ")
+            deprecation_warning = ".. warning::\n\n    " + msg.replace(
+                "\n", "\n    "
+            )
             renamed_arg = meta["renamed_to"]
             # Renamed and removed arguments won't show full documentation (only warning box)
             skip_full_doc = renamed_arg or meta["removed"]
@@ -133,9 +151,13 @@ def _get_kwargs(schema):
             if schema.IsArgumentOptional(arg):
                 type_name += ", optional"
                 if schema.HasArgumentDefaultValue(arg):
-                    default_value_string = schema.GetArgumentDefaultValueString(arg)
+                    default_value_string = schema.GetArgumentDefaultValueString(
+                        arg
+                    )
                     default_value = ast.literal_eval(default_value_string)
-                    type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
+                    type_name += ", default = `{}`".format(
+                        _default_converter(dtype, default_value)
+                    )
             doc += schema.GetArgumentDox(arg).rstrip("\n")
             if schema.ArgSupportsPerFrameInput(arg):
                 doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
@@ -229,7 +251,11 @@ Keyword args
 def _supported_layouts_str(supported_layouts):
     if len(supported_layouts) == 0:
         return ""
-    return " (" + ", ".join(["'" + str(layout) + "'" for layout in supported_layouts]) + ")"
+    return (
+        " ("
+        + ", ".join(["'" + str(layout) + "'" for layout in supported_layouts])
+        + ")"
+    )
 
 
 def _docstring_prefix_from_inputs(op_name):
@@ -270,7 +296,9 @@ Args
 ----
 """
         dox = "Input to the operator.\n"
-        fmt = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
+        fmt = "TensorList" + _supported_layouts_str(
+            schema.GetSupportedLayouts(0)
+        )
         ret += _numpydoc_formatter(input_name, fmt, dox, optional=False)
         return ret
     return ""
@@ -291,7 +319,11 @@ def _docstring_generator_call(op_name):
         ret = _docstring_prefix_auto(op_name)
     else:
         op_full_name, _, _ = _names._process_op_name(op_name)
-        ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
+        ret = (
+            "See :meth:`nvidia.dali.ops."
+            + op_full_name
+            + "` class for complete information.\n"
+        )
     if schema.AppendKwargsSection():
         # Kwargs section
         tensor_kwargs = _get_kwargs(schema)

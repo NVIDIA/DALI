@@ -30,14 +30,21 @@ def make_batch_select_masks(
         nmasks = random.randint(*npolygons_range)
         available_masks = list(range(nmasks))
         selected_masks.append(
-            np.array(random.sample(available_masks, random.randint(1, nmasks)), dtype=np.int32)
+            np.array(
+                random.sample(available_masks, random.randint(1, nmasks)),
+                dtype=np.int32,
+            )
         )
         vertex_count = 0
         mask_id = 0
         curr_polygons = np.zeros([nmasks, 3], dtype=np.int32)
         for m in range(nmasks):
             nvertices = random.randint(*nvertices_range)
-            curr_polygons[m, :] = (mask_id, vertex_count, vertex_count + nvertices)
+            curr_polygons[m, :] = (
+                mask_id,
+                vertex_count,
+                vertex_count + nvertices,
+            )
             vertex_count = vertex_count + nvertices
             mask_id = mask_id + 1
         polygons.append(curr_polygons)
@@ -51,5 +58,10 @@ def make_batch_select_masks(
                 )
             )
         else:
-            vertices.append(np.array(np.random.rand(vertex_count, vertex_ndim), dtype=vertex_dtype))
+            vertices.append(
+                np.array(
+                    np.random.rand(vertex_count, vertex_ndim),
+                    dtype=vertex_dtype,
+                )
+            )
     return polygons, vertices, selected_masks

@@ -33,7 +33,9 @@ def numba_function(
     in_types: List[DALIDataType],
     outs_ndim: List[int],
     ins_ndim: List[int],
-    setup_fn: Optional[Callable[[Sequence[Sequence[Any]], Sequence[Sequence[Any]], None]]] = None,
+    setup_fn: Optional[
+        Callable[[Sequence[Sequence[Any]], Sequence[Sequence[Any]], None]]
+    ] = None,
     batch_processing: bool = False,
     blocks: Optional[Sequence[int]] = None,
     threads_per_block: Optional[Sequence[int]] = None,
@@ -45,5 +47,6 @@ def numba_function(
 ) -> Union[DataNode, Sequence[DataNode]]:
     """Invokes a njit compiled Numba function.
 
-    The run function should be a Python function that can be compiled in Numba ``nopython`` mode."""
+    The run function should be a Python function that can be compiled in Numba ``nopython`` mode.
+    """
     ...

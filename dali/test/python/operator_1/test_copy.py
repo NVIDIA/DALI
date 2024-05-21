@@ -49,7 +49,11 @@ def check_copy(shape, layout, dev, dtype=np.uint8):
 
 
 def test_copy():
-    for shape, layout in [([4, 2, 3], "HWC"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
+    for shape, layout in [
+        ([4, 2, 3], "HWC"),
+        ([6, 1], "FX"),
+        ([8, 10, 10, 3], "FHWC"),
+    ]:
         for device in ["cpu", "gpu"]:
             for dtype in [np.uint8, np.float16, np.int32]:
                 yield check_copy, shape, layout, device, dtype

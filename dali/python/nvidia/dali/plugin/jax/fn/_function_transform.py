@@ -83,7 +83,9 @@ def with_sharding(callback, sharding):
             f"got {jax.local_device_count()}"
         )
 
-    if not isinstance(sharding, (jax.sharding.NamedSharding, jax.sharding.PositionalSharding)):
+    if not isinstance(
+        sharding, (jax.sharding.NamedSharding, jax.sharding.PositionalSharding)
+    ):
         raise ValueError(
             f"The value passed as `sharding` must be an instance of `NamedSharding` or "
             f"`PositionalSharding`, got value of a type {type(sharding)}"
@@ -92,10 +94,18 @@ def with_sharding(callback, sharding):
     def as_sharded_array(array: jax.Array) -> jax.Array:
         array_shape = array.shape
         if isinstance(sharding, jax.sharding.NamedSharding):
-            global_shape = (sharding.mesh.size * array_shape[0], *array_shape[1:])
+            global_shape = (
+                sharding.mesh.size * array_shape[0],
+                *array_shape[1:],
+            )
         else:
-            global_shape = (sharding.shape[0] * array_shape[0], *array_shape[1:])
-        return jax.make_array_from_single_device_arrays(global_shape, sharding, [array])
+            global_shape = (
+                sharding.shape[0] * array_shape[0],
+                *array_shape[1:],
+            )
+        return jax.make_array_from_single_device_arrays(
+            global_shape, sharding, [array]
+        )
 
     def as_single_device_array(sharded_array: jax.Array) -> jax.Array:
         local_arrays = [x.data for x in sharded_array.addressable_shards]
@@ -123,6 +133,10 @@ def jax_callback_wrapper(function, sharding, device):
     assert device in ("cpu", "gpu")
 
     dl_pack_wrapper = (
-        with_cpu_dl_tensors_as_arrays if device == "cpu" else with_gpu_dl_tensors_as_arrays
+        with_cpu_dl_tensors_as_arrays
+        if device == "cpu"
+        else with_gpu_dl_tensors_as_arrays
     )
-    return dl_pack_wrapper(function if sharding is None else with_sharding(function, sharding))
+    return dl_pack_wrapper(
+        function if sharding is None else with_sharding(function, sharding)
+    )

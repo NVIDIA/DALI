@@ -106,18 +106,25 @@ class AstToCfgTest(unittest.TestCase):
             matched = False
             for cfg_node in graph.index.values():
                 if repr(cfg_node) == node_repr:
-                    if self._as_set(prev) == frozenset(map(repr, cfg_node.prev)) and self._as_set(
-                        next_
-                    ) == frozenset(map(repr, cfg_node.next)):
+                    if self._as_set(prev) == frozenset(
+                        map(repr, cfg_node.prev)
+                    ) and self._as_set(next_) == frozenset(
+                        map(repr, cfg_node.next)
+                    ):
                         matched = True
                         break
             if not matched:
-                self.fail('match failed for node "%s" in graph:\n%s' % (node_repr, graph))
+                self.fail(
+                    'match failed for node "%s" in graph:\n%s'
+                    % (node_repr, graph)
+                )
 
     def assertGraphEnds(self, graph, entry_repr, exit_reprs):
         """Tests whether the CFG has the specified entry and exits."""
         self.assertEqual(repr(graph.entry), entry_repr)
-        self.assertSetEqual(frozenset(map(repr, graph.exit)), frozenset(exit_reprs))
+        self.assertSetEqual(
+            frozenset(map(repr, graph.exit)), frozenset(exit_reprs)
+        )
 
     def assertStatementEdges(self, graph, edges):
         """Tests whether the CFG contains the specified statement edges."""
@@ -125,14 +132,24 @@ class AstToCfgTest(unittest.TestCase):
             matched = False
             partial_matches = []
             self.assertSetEqual(
-                frozenset(graph.stmt_next.keys()), frozenset(graph.stmt_prev.keys())
+                frozenset(graph.stmt_next.keys()),
+                frozenset(graph.stmt_prev.keys()),
             )
             for stmt_ast_node in graph.stmt_next:
-                ast_repr = "%s:%s" % (stmt_ast_node.__class__.__name__, stmt_ast_node.lineno)
+                ast_repr = "%s:%s" % (
+                    stmt_ast_node.__class__.__name__,
+                    stmt_ast_node.lineno,
+                )
                 if ast_repr == node_repr:
-                    actual_next = frozenset(map(repr, graph.stmt_next[stmt_ast_node]))
-                    actual_prev = frozenset(map(repr, graph.stmt_prev[stmt_ast_node]))
-                    partial_matches.append((actual_prev, node_repr, actual_next))
+                    actual_next = frozenset(
+                        map(repr, graph.stmt_next[stmt_ast_node])
+                    )
+                    actual_prev = frozenset(
+                        map(repr, graph.stmt_prev[stmt_ast_node])
+                    )
+                    partial_matches.append(
+                        (actual_prev, node_repr, actual_next)
+                    )
                     if (
                         self._as_set(prev_node_reprs) == actual_prev
                         and self._as_set(next_node_reprs) == actual_next
@@ -140,7 +157,9 @@ class AstToCfgTest(unittest.TestCase):
                         matched = True
                         break
             if not matched:
-                self.fail("edges mismatch for %s: %s" % (node_repr, partial_matches))
+                self.fail(
+                    "edges mismatch for %s: %s" % (node_repr, partial_matches)
+                )
 
     def test_straightline(self):
         def test_fn(a):
@@ -537,7 +556,11 @@ class AstToCfgTest(unittest.TestCase):
             graph,
             (
                 (("a", "a = 2"), "(a > 0)", ("(a > 1)", "a = 3")),
-                (("(a > 0)", "continue", "a = 1"), "(a > 1)", ("(a > 3)", "a = 2")),
+                (
+                    ("(a > 0)", "continue", "a = 1"),
+                    "(a > 1)",
+                    ("(a > 3)", "a = 2"),
+                ),
                 ("(a > 1)", "(a > 3)", ("continue", "a = 1")),
                 ("(a > 3)", "continue", "(a > 1)"),
                 ("(a > 3)", "a = 1", "(a > 1)"),
@@ -653,7 +676,11 @@ class AstToCfgTest(unittest.TestCase):
         self.assertGraphMatches(
             graph,
             (
-                (("a", "continue", "a = 1"), "range(0, a)", ("(a > 1)", "a = 2")),
+                (
+                    ("a", "continue", "a = 1"),
+                    "range(0, a)",
+                    ("(a > 1)", "a = 2"),
+                ),
                 ("range(0, a)", "(a > 1)", ("continue", "a = 0")),
                 ("(a > 1)", "continue", "range(0, a)"),
                 ("(a > 1)", "a = 0", "a = 1"),
@@ -780,7 +807,11 @@ class AstToCfgTest(unittest.TestCase):
             graph,
             (
                 (("a", "a = 2"), "range(0, a)", ("range(1, a)", "a = 3")),
-                (("range(0, a)", "continue", "b += 1"), "range(1, a)", ("(a > 3)", "a = 2")),
+                (
+                    ("range(0, a)", "continue", "b += 1"),
+                    "range(1, a)",
+                    ("(a > 3)", "a = 2"),
+                ),
                 ("range(1, a)", "(a > 3)", ("continue", "b += 1")),
                 ("(a > 3)", "continue", "range(1, a)"),
                 ("(a > 3)", "b += 1", "range(1, a)"),
@@ -814,7 +845,11 @@ class AstToCfgTest(unittest.TestCase):
             graph,
             (
                 (("a", "a = 2"), "range(0, a)", ("range(1, a)", "a = 3")),
-                (("range(0, a)", "b += 1"), "range(1, a)", ("(a > 2)", "a = 2")),
+                (
+                    ("range(0, a)", "b += 1"),
+                    "range(1, a)",
+                    ("(a > 2)", "a = 2"),
+                ),
                 ("range(1, a)", "(a > 2)", ("break", "b += 1")),
                 ("(a > 2)", "break", "a = 2"),
                 ("(a > 2)", "b += 1", "range(1, a)"),
@@ -1059,7 +1094,11 @@ class AstToCfgTest(unittest.TestCase):
             fn_graph,
             (
                 ("a", "(lambda b: (a + b))", "(lambda b: (a + b))(a)"),
-                (("(lambda b: (a + b))", "pass"), "(lambda b: (a + b))(a)", "pass"),
+                (
+                    ("(lambda b: (a + b))", "pass"),
+                    "(lambda b: (a + b))(a)",
+                    "pass",
+                ),
                 ("(lambda b: (a + b))(a)", "pass", "(lambda b: (a + b))(a)"),
             ),
         )
@@ -1086,7 +1125,11 @@ class AstToCfgTest(unittest.TestCase):
             fn_graph,
             (
                 ("a", "(lambda b: (a + b))", "(lambda b: (a + b))(a)"),
-                (("(lambda b: (a + b))", "pass"), "(lambda b: (a + b))(a)", "pass"),
+                (
+                    ("(lambda b: (a + b))", "pass"),
+                    "(lambda b: (a + b))(a)",
+                    "pass",
+                ),
                 ("(lambda b: (a + b))(a)", "pass", "(lambda b: (a + b))(a)"),
             ),
         )

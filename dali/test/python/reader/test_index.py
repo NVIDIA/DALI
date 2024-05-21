@@ -38,14 +38,22 @@ def skip_second(src, dst):
 
 def test_tfrecord():
     class TFRecordPipeline(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, data, data_idx):
-            super(TFRecordPipeline, self).__init__(batch_size, num_threads, device_id)
+        def __init__(
+            self, batch_size, num_threads, device_id, num_gpus, data, data_idx
+        ):
+            super(TFRecordPipeline, self).__init__(
+                batch_size, num_threads, device_id
+            )
             self.input = ops.readers.TFRecord(
                 path=data,
                 index_path=data_idx,
                 features={
-                    "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
-                    "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                    "image/encoded": tfrec.FixedLenFeature(
+                        (), tfrec.string, ""
+                    ),
+                    "image/class/label": tfrec.FixedLenFeature(
+                        [1], tfrec.int64, -1
+                    ),
                 },
             )
 
@@ -55,7 +63,9 @@ def test_tfrecord():
             return images
 
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx_org = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx_org = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
     tfrecord_idx = "tfr_train.idx"
 
     idx_files_dir = tempfile.TemporaryDirectory()
@@ -86,13 +96,17 @@ def test_tfrecord_odirect():
             index_path=index_path,
             dont_use_mmap=dont_use_mmap,
             use_o_direct=use_o_direct,
-            features={"image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)},
+            features={
+                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)
+            },
             name="Reader",
         )
         return input["image/class/label"]
 
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
 
     pipe = tfrecord_pipe(tfrecord, tfrecord_idx, True, True)
     pipe_ref = tfrecord_pipe(tfrecord, tfrecord_idx, False, False)
@@ -107,7 +121,9 @@ def test_tfrecord_odirect():
 
 
 @cartesian_params(((1, 2, 1), (3, 1, 2)), (True, False), (True, False))
-def test_tfrecord_pad_last_batch(batch_description, dont_use_mmap, use_o_direct):
+def test_tfrecord_pad_last_batch(
+    batch_description, dont_use_mmap, use_o_direct
+):
     if not dont_use_mmap and use_o_direct:
         raise SkipTest("Cannot use O_DIRECT with mmap")
     num_samples, batch_size, num_shards = batch_description
@@ -120,13 +136,17 @@ def test_tfrecord_pad_last_batch(batch_description, dont_use_mmap, use_o_direct)
             num_shards=num_shards,
             dont_use_mmap=dont_use_mmap,
             use_o_direct=use_o_direct,
-            features={"image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)},
+            features={
+                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)
+            },
             name="Reader",
         )
         return input["image/class/label"]
 
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
 
     idx_files_dir = tempfile.TemporaryDirectory()
     recordio_idx = "rio_train.idx"
@@ -156,18 +176,29 @@ def test_tfrecord_pad_last_batch(batch_description, dont_use_mmap, use_o_direct)
 
 def test_recordio():
     class MXNetReaderPipeline(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, data, data_idx):
-            super(MXNetReaderPipeline, self).__init__(batch_size, num_threads, device_id)
+        def __init__(
+            self, batch_size, num_threads, device_id, num_gpus, data, data_idx
+        ):
+            super(MXNetReaderPipeline, self).__init__(
+                batch_size, num_threads, device_id
+            )
             self.input = ops.readers.MXNet(
-                path=[data], index_path=[data_idx], shard_id=device_id, num_shards=num_gpus
+                path=[data],
+                index_path=[data_idx],
+                shard_id=device_id,
+                num_shards=num_gpus,
             )
 
         def define_graph(self):
             images, _ = self.input(name="Reader")
             return images
 
-    recordio = os.path.join(get_dali_extra_path(), "db", "recordio", "train.rec")
-    recordio_idx_org = os.path.join(get_dali_extra_path(), "db", "recordio", "train.idx")
+    recordio = os.path.join(
+        get_dali_extra_path(), "db", "recordio", "train.rec"
+    )
+    recordio_idx_org = os.path.join(
+        get_dali_extra_path(), "db", "recordio", "train.idx"
+    )
     recordio_idx = "rio_train.idx"
 
     idx_files_dir = tempfile.TemporaryDirectory()
@@ -194,16 +225,22 @@ def test_wrong_feature_shape():
         "image/object/bbox": tfrec.FixedLenFeature([], tfrec.float32, -1.0),
         "image/object/class/label": tfrec.FixedLenFeature([], tfrec.int64, -1),
     }
-    test_dummy_data_path = os.path.join(get_dali_extra_path(), "db", "coco_dummy")
+    test_dummy_data_path = os.path.join(
+        get_dali_extra_path(), "db", "coco_dummy"
+    )
     pipe = Pipeline(1, 1, 0)
     with pipe:
         input = fn.readers.tfrecord(
             path=os.path.join(test_dummy_data_path, "small_coco.tfrecord"),
-            index_path=os.path.join(test_dummy_data_path, "small_coco_index.idx"),
+            index_path=os.path.join(
+                test_dummy_data_path, "small_coco_index.idx"
+            ),
             features=features,
         )
     pipe.set_outputs(
-        input["image/encoded"], input["image/object/class/label"], input["image/object/bbox"]
+        input["image/encoded"],
+        input["image/object/class/label"],
+        input["image/object/bbox"],
     )
     pipe.build()
     # the error is raised because FixedLenFeature is used with insufficient shape to house the input
@@ -225,8 +262,12 @@ def mxnet_pipe(mxnet_op, path, index_path):
 
 
 def test_mxnet_reader_alias():
-    recordio = [os.path.join(get_dali_extra_path(), "db", "recordio", "train.rec")]
-    recordio_idx = [os.path.join(get_dali_extra_path(), "db", "recordio", "train.idx")]
+    recordio = [
+        os.path.join(get_dali_extra_path(), "db", "recordio", "train.rec")
+    ]
+    recordio_idx = [
+        os.path.join(get_dali_extra_path(), "db", "recordio", "train.idx")
+    ]
     new_pipe = mxnet_pipe(fn.readers.mxnet, recordio, recordio_idx)
     legacy_pipe = mxnet_pipe(fn.mxnet_reader, recordio, recordio_idx)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
@@ -247,7 +288,9 @@ def tfrecord_pipe(tfrecord_op, path, index_path):
 
 def test_tfrecord_reader_alias():
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
     new_pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
     legacy_pipe = tfrecord_pipe(fn.tfrecord_reader, tfrecord, tfrecord_idx)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
@@ -262,15 +305,23 @@ def tfrecord_pipe_empty_fields(path, index_path):
             "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
             "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
             "does/not/exists": tfrec.VarLenFeature(tfrec.int64, -1),
-            "does/not/exists/as/well": tfrec.FixedLenFeature([1], tfrec.float32, 0.0),
+            "does/not/exists/as/well": tfrec.FixedLenFeature(
+                [1], tfrec.float32, 0.0
+            ),
         },
     )
-    return inputs["image/encoded"], inputs["does/not/exists"], inputs["does/not/exists/as/well"]
+    return (
+        inputs["image/encoded"],
+        inputs["does/not/exists"],
+        inputs["does/not/exists/as/well"],
+    )
 
 
 def test_tfrecord_reader_alias2():
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
     pipe = tfrecord_pipe_empty_fields(tfrecord, tfrecord_idx)
     pipe.build()
     out = pipe.run()
@@ -289,13 +340,17 @@ def test_tfrecord_reader_alias2():
 
 
 def test_tfrecord_reader_scalars():
-    test_dummy_data_path = os.path.join(get_dali_extra_path(), "db", "coco_dummy")
+    test_dummy_data_path = os.path.join(
+        get_dali_extra_path(), "db", "coco_dummy"
+    )
 
     @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
     def tfrecord_pipe_scalars():
         data = fn.readers.tfrecord(
             path=os.path.join(test_dummy_data_path, "small_coco.tfrecord"),
-            index_path=os.path.join(test_dummy_data_path, "small_coco_index.idx"),
+            index_path=os.path.join(
+                test_dummy_data_path, "small_coco_index.idx"
+            ),
             features={
                 "image/height": tfrec.FixedLenFeature((), tfrec.int64, -1),
             },
@@ -309,15 +364,21 @@ def test_tfrecord_reader_scalars():
     for tensor in out[0]:
         data = np.array(tensor)
         assert data.dtype == np.int64
-        assert data.shape == (), f"Unexpected shape. Expected scalar, got {data.shape}"
+        assert (
+            data.shape == ()
+        ), f"Unexpected shape. Expected scalar, got {data.shape}"
 
 
 def test_conditionals():
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
 
     @pipeline_def()
-    def get_dali_pipeline(tfrec_filenames, tfrec_idx_filenames, shard_id, num_gpus):
+    def get_dali_pipeline(
+        tfrec_filenames, tfrec_idx_filenames, shard_id, num_gpus
+    ):
         inputs = fn.readers.tfrecord(
             path=tfrec_filenames,
             index_path=tfrec_idx_filenames,
@@ -328,17 +389,29 @@ def test_conditionals():
             seed=42,
             features={
                 "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
-                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                "image/class/label": tfrec.FixedLenFeature(
+                    [1], tfrec.int64, -1
+                ),
                 "image/class/text": tfrec.FixedLenFeature([], tfrec.string, ""),
-                "image/object/bbox/xmin": tfrec.VarLenFeature(tfrec.float32, 0.0),
-                "image/object/bbox/ymin": tfrec.VarLenFeature(tfrec.float32, 0.0),
-                "image/object/bbox/xmax": tfrec.VarLenFeature(tfrec.float32, 0.0),
-                "image/object/bbox/ymax": tfrec.VarLenFeature(tfrec.float32, 0.0),
+                "image/object/bbox/xmin": tfrec.VarLenFeature(
+                    tfrec.float32, 0.0
+                ),
+                "image/object/bbox/ymin": tfrec.VarLenFeature(
+                    tfrec.float32, 0.0
+                ),
+                "image/object/bbox/xmax": tfrec.VarLenFeature(
+                    tfrec.float32, 0.0
+                ),
+                "image/object/bbox/ymax": tfrec.VarLenFeature(
+                    tfrec.float32, 0.0
+                ),
             },
         )
 
         encoded = inputs["image/encoded"]
-        images = fn.decoders.image(encoded, device="mixed", output_type=types.RGB)
+        images = fn.decoders.image(
+            encoded, device="mixed", output_type=types.RGB
+        )
         images = fn.resize(images, device="gpu", resize_shorter=256)
 
         labels = inputs["image/class/label"].gpu()
@@ -347,7 +420,13 @@ def test_conditionals():
         return images, labels
 
     pipe_base = get_dali_pipeline(
-        tfrecord, tfrecord_idx, shard_id=0, num_gpus=1, device_id=0, num_threads=4, batch_size=32
+        tfrecord,
+        tfrecord_idx,
+        shard_id=0,
+        num_gpus=1,
+        device_id=0,
+        num_threads=4,
+        batch_size=32,
     )
 
     pipe_cond = get_dali_pipeline(
@@ -385,7 +464,9 @@ def test_wrong_feature_type():
         return inputs["image/encoded"]
 
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
-    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    tfrecord_idx = os.path.join(
+        get_dali_extra_path(), "db", "tfrecord", "train.idx"
+    )
     pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
     pipe.build()
     pipe.run()

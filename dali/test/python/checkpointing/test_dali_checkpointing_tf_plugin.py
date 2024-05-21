@@ -55,28 +55,40 @@ def check_pipeline_checkpointing(pipeline_factory, output_dtypes, **kwargs):
 
 
 def test_random():
-    @pipeline_def(num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True)
+    @pipeline_def(
+        num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True
+    )
     def pipeline():
         return fn.random.uniform(dtype=DALIDataType.FLOAT)
 
-    check_pipeline_checkpointing(pipeline, (tf.float32,), warmup_iters=7, test_iters=10)
+    check_pipeline_checkpointing(
+        pipeline, (tf.float32,), warmup_iters=7, test_iters=10
+    )
 
 
 def test_reader():
-    @pipeline_def(num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True)
+    @pipeline_def(
+        num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True
+    )
     def pipeline():
         jpeg, label = fn.readers.file(
             file_root=images_dir, pad_last_batch=False, random_shuffle=True
         )
         return (jpeg, label)
 
-    check_pipeline_checkpointing(pipeline, (tf.uint8, tf.int32), warmup_iters=7, test_iters=10)
+    check_pipeline_checkpointing(
+        pipeline, (tf.uint8, tf.int32), warmup_iters=7, test_iters=10
+    )
 
 
 def test_inputs_unsupported():
-    @pipeline_def(num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True)
+    @pipeline_def(
+        num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True
+    )
     def external_source_pipe():
-        return fn.external_source(source=lambda x: np.array(x.iteration), batch=False)
+        return fn.external_source(
+            source=lambda x: np.array(x.iteration), batch=False
+        )
 
     p = external_source_pipe()
     p.build()
@@ -90,6 +102,7 @@ def test_inputs_unsupported():
             device_id=0,
         )
         with assert_raises(
-            Exception, regex="Checkpointing is not supported for DALI dataset with inputs."
+            Exception,
+            regex="Checkpointing is not supported for DALI dataset with inputs.",
         ):
             check_dataset_checkpointing(dataset, warmup_iters=1, test_iters=1)

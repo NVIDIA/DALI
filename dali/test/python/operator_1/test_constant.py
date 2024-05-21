@@ -48,16 +48,26 @@ except ModuleNotFoundError:
 
 class ConstantPipeline(Pipeline):
     def __init__(self, device):
-        super().__init__(10, 3, device_id=0, exec_async=True, exec_pipelined=True)
+        super().__init__(
+            10, 3, device_id=0, exec_async=True, exec_pipelined=True
+        )
         self.const1 = ops.Constant(device=device, fdata=(1.25, 2.5, 3))
-        self.const2 = ops.Constant(device=device, idata=(1, 2, 3, 4), shape=(2, 1, 2))
-        self.const3 = ops.Constant(device=device, idata=(-1, 1, 2, 3, 4), dtype=types.UINT8)
+        self.const2 = ops.Constant(
+            device=device, idata=(1, 2, 3, 4), shape=(2, 1, 2)
+        )
+        self.const3 = ops.Constant(
+            device=device, idata=(-1, 1, 2, 3, 4), dtype=types.UINT8
+        )
         self.const4 = ops.Constant(
-            device=device, fdata=(0.25, 1.25, 2.25, 3.25, 4.25), dtype=types.FLOAT16
+            device=device,
+            fdata=(0.25, 1.25, 2.25, 3.25, 4.25),
+            dtype=types.FLOAT16,
         )
         self.const5 = ops.Constant(device=device, fdata=5.5, shape=(100, 100))
         self.const6 = ops.Constant(device=device, idata=-4, shape=(10, 20))
-        self.const7 = ops.Constant(device=device, idata=[0, 1, 0], dtype=types.BOOL)
+        self.const7 = ops.Constant(
+            device=device, idata=[0, 1, 0], dtype=types.BOOL
+        )
 
     def define_graph(self):
         return (
@@ -73,7 +83,9 @@ class ConstantPipeline(Pipeline):
 
 class ConstantFnPipeline(Pipeline):
     def __init__(self, device, array_interface):
-        super().__init__(10, 3, device_id=0, exec_async=True, exec_pipelined=True)
+        super().__init__(
+            10, 3, device_id=0, exec_async=True, exec_pipelined=True
+        )
         self.device = device
         self.array = array_interface[0]
         self.dtype = array_interface[1]
@@ -85,16 +97,24 @@ class ConstantFnPipeline(Pipeline):
         return [
             types.Constant(device=device, value=(1.25, 2.5, 3)),
             types.Constant(
-                device=device, value=self.array([[[1, 2]], [[3, 4]]], dtype=self.dtype("int32"))
-            ),
-            types.Constant(
-                device=device, value=self.array([0, 1, 2, 3, 4], dtype=self.dtype("uint8"))
+                device=device,
+                value=self.array(
+                    [[[1, 2]], [[3, 4]]], dtype=self.dtype("int32")
+                ),
             ),
             types.Constant(
                 device=device,
-                value=self.array([0.25, 1.25, 2.25, 3.25, 4.25], dtype=self.dtype("float16")),
+                value=self.array([0, 1, 2, 3, 4], dtype=self.dtype("uint8")),
             ),
-            types.Constant(device=device, value=5.5, shape=(100, 100), name="large"),
+            types.Constant(
+                device=device,
+                value=self.array(
+                    [0.25, 1.25, 2.25, 3.25, 4.25], dtype=self.dtype("float16")
+                ),
+            ),
+            types.Constant(
+                device=device, value=5.5, shape=(100, 100), name="large"
+            ),
             types.Constant(device=device, value=-4, shape=(10, 20)),
             types.Constant(device=device, value=[False, True, False]),
         ]
@@ -160,7 +180,10 @@ def _test_scalar_constant_promotion(device):
 
     pipe = scalar_constant_pipeline(device)
     pipe.build()
-    ref = [np.array(1.25, dtype=np.float32), np.array([1, 2, 3, 4], dtype=np.int32)]
+    ref = [
+        np.array(1.25, dtype=np.float32),
+        np.array([1, 2, 3, 4], dtype=np.int32),
+    ]
     for iter in range(3):
         out = pipe.run()
         if device == "gpu":
@@ -192,11 +215,22 @@ def test_variable_batch():
     batches = [
         [np.array(1), np.array(2)],
         [np.array(1)],
-        [np.array(1), np.array(2), np.array(3), np.array(4), np.array(5), np.array(5)],
+        [
+            np.array(1),
+            np.array(2),
+            np.array(3),
+            np.array(4),
+            np.array(5),
+            np.array(5),
+        ],
     ]
     dummy = fn.external_source(batches, cycle=True)
     val = np.float32([[1, 2], [3, 4]])
-    pipe.set_outputs(types.Constant(val, device="cpu"), types.Constant(val, device="gpu"), dummy)
+    pipe.set_outputs(
+        types.Constant(val, device="cpu"),
+        types.Constant(val, device="gpu"),
+        dummy,
+    )
     pipe.build()
     for batch in batches:
         cpu, gpu, _ = pipe.run()

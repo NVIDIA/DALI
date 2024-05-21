@@ -135,9 +135,16 @@ class ProgressiveJpeg(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.files = {
-            (decoding_method, decoding_step): cls.generate_file(decoding_method, decoding_step)
+            (decoding_method, decoding_step): cls.generate_file(
+                decoding_method, decoding_step
+            )
             for decoding_method in ("huffman", "arithmetic")
-            for decoding_step in ("ac_first", "ac_refine", "dc_first", "dc_refine")
+            for decoding_step in (
+                "ac_first",
+                "ac_refine",
+                "dc_first",
+                "dc_refine",
+            )
         }
 
     @classmethod
@@ -156,7 +163,9 @@ class ProgressiveJpeg(unittest.TestCase):
 
         @pipeline_def(batch_size=1, device_id=0, num_threads=4)
         def pipeline():
-            data, _ = fn.readers.file(files=self.files[(decoding_method, decoding_step)].name)
+            data, _ = fn.readers.file(
+                files=self.files[(decoding_method, decoding_step)].name
+            )
             return fn.decoders.image(data, device=decoding_device)
 
         pretty_decoding_dev = "CPU" if decoding_device == "cpu" else "MIXED"

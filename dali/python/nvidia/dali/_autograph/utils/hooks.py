@@ -69,7 +69,9 @@ class OperatorBase:
     def detect_overload_for_stmt(self, iter_):
         return self.detect_overload(iter_)
 
-    def for_stmt(self, iter_, extra_test, body, get_state, set_state, symbol_names, opts):
+    def for_stmt(
+        self, iter_, extra_test, body, get_state, set_state, symbol_names, opts
+    ):
         pass
 
     def detect_overload_while_stmt(self, test):
@@ -81,7 +83,9 @@ class OperatorBase:
     def detect_overload_if_stmt(self, cond):
         return self.detect_overload(cond)
 
-    def if_stmt(self, cond, body, orelse, get_state, set_state, symbol_names, nouts):
+    def if_stmt(
+        self, cond, body, orelse, get_state, set_state, symbol_names, nouts
+    ):
         pass
 
     def detect_overload_assert_stmt(self, expression1):

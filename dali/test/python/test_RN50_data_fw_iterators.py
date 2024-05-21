@@ -23,7 +23,15 @@ data_paths = ["/data/imagenet/train-jpeg"]
 
 class RN50Pipeline(Pipeline):
     def __init__(
-        self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        num_gpus,
+        data_paths,
+        prefetch,
+        fp16,
+        nhwc,
     ):
         super(RN50Pipeline, self).__init__(
             batch_size, num_threads, device_id, prefetch_queue_depth=prefetch
@@ -31,7 +39,9 @@ class RN50Pipeline(Pipeline):
         self.input = ops.readers.File(
             file_root=data_paths[0], shard_id=device_id, num_shards=num_gpus
         )
-        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.decoders.Image(
+            device="mixed", output_type=types.RGB
+        )
         self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
 
         layout = types.args.nhwc if nhwc else types.NCHW
@@ -60,13 +70,28 @@ parser = argparse.ArgumentParser(
     description="Test RN50 augmentation pipeline with different FW iterators"
 )
 parser.add_argument(
-    "-g", "--gpus", default=1, type=int, metavar="N", help="number of GPUs (default: 1)"
+    "-g",
+    "--gpus",
+    default=1,
+    type=int,
+    metavar="N",
+    help="number of GPUs (default: 1)",
 )
 parser.add_argument(
-    "-b", "--batch_size", default=13, type=int, metavar="N", help="batch size (default: 13)"
+    "-b",
+    "--batch_size",
+    default=13,
+    type=int,
+    metavar="N",
+    help="batch size (default: 13)",
 )
 parser.add_argument(
-    "-p", "--print-freq", default=10, type=int, metavar="N", help="print frequency (default: 10)"
+    "-p",
+    "--print-freq",
+    default=10,
+    type=int,
+    metavar="N",
+    help="print frequency (default: 10)",
 )
 parser.add_argument(
     "-j",
@@ -77,18 +102,34 @@ parser.add_argument(
     help="number of data loading workers (default: 3)",
 )
 parser.add_argument(
-    "--prefetch", default=2, type=int, metavar="N", help="prefetch queue depth (default: 2)"
+    "--prefetch",
+    default=2,
+    type=int,
+    metavar="N",
+    help="prefetch queue depth (default: 2)",
 )
-parser.add_argument("--separate_queue", action="store_true", help="Use separate queues executor")
 parser.add_argument(
-    "--cpu_size", default=2, type=int, metavar="N", help="cpu prefetch queue depth (default: 2)"
+    "--separate_queue", action="store_true", help="Use separate queues executor"
 )
 parser.add_argument(
-    "--gpu_size", default=2, type=int, metavar="N", help="gpu prefetch queue depth (default: 2)"
+    "--cpu_size",
+    default=2,
+    type=int,
+    metavar="N",
+    help="cpu prefetch queue depth (default: 2)",
+)
+parser.add_argument(
+    "--gpu_size",
+    default=2,
+    type=int,
+    metavar="N",
+    help="gpu prefetch queue depth (default: 2)",
 )
 parser.add_argument("--fp16", action="store_true", help="Run fp16 pipeline")
 parser.add_argument(
-    "--nhwc", action="store_true", help="Use args.nhwc data instead of default NCHW"
+    "--nhwc",
+    action="store_true",
+    help="Use args.nhwc data instead of default NCHW",
 )
 parser.add_argument(
     "-i",
@@ -99,7 +140,12 @@ parser.add_argument(
     help="Number of iterations to run (default: -1 - whole data set)",
 )
 parser.add_argument(
-    "-e", "--epochs", default=1, type=int, metavar="N", help="Number of epochs to run (default: 1)"
+    "-e",
+    "--epochs",
+    default=1,
+    type=int,
+    metavar="N",
+    help="Number of epochs to run (default: 1)",
 )
 parser.add_argument("--framework", type=str)
 args = parser.parse_args()
@@ -232,19 +278,25 @@ def test_fw_iter(IteratorClass, args):
 
 
 def import_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
+    from nvidia.dali.plugin.mxnet import (
+        DALIClassificationIterator as MXNetIterator,
+    )
 
     return MXNetIterator
 
 
 def import_pytorch():
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIClassificationIterator as PyTorchIterator,
+    )
 
     return PyTorchIterator
 
 
 def import_paddle():
-    from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
+    from nvidia.dali.plugin.paddle import (
+        DALIClassificationIterator as PaddleIterator,
+    )
 
     return PaddleIterator
 
@@ -281,7 +333,9 @@ Iterators = {
     "paddle": [import_paddle],
 }
 
-assert args.framework in Iterators, "Error, framework {} not supported".format(args.framework)
+assert args.framework in Iterators, "Error, framework {} not supported".format(
+    args.framework
+)
 for imports in Iterators[args.framework]:
     IteratorClass = imports()
     test_fw_iter(IteratorClass, args)

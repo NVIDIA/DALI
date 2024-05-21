@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.auto_aug.core._augmentation import signed_bin, Augmentation as _Augmentation
+from nvidia.dali.auto_aug.core._augmentation import (
+    signed_bin,
+    Augmentation as _Augmentation,
+)
 from nvidia.dali.auto_aug.core.decorator import augmentation
 from nvidia.dali.auto_aug.core._select import select
 from nvidia.dali.auto_aug.core.policy import Policy

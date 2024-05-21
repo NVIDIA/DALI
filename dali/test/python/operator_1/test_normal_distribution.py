@@ -24,7 +24,10 @@ test_types = [types.INT8, types.INT16, types.INT32, types.FLOAT, types.FLOAT64]
 
 
 def random_shape(max_shape):
-    return np.array([1 if s == 1 else np.random.randint(1, s) for s in max_shape], dtype=np.int32)
+    return np.array(
+        [1 if s == 1 else np.random.randint(1, s) for s in max_shape],
+        dtype=np.int32,
+    )
 
 
 def random_shape_or_empty(max_shape):
@@ -33,7 +36,8 @@ def random_shape_or_empty(max_shape):
         return np.array([200, 0, 3], np.int32)
     else:
         return np.array(
-            [1 if s == 1 else np.random.randint(1, s) for s in max_shape], dtype=np.int32
+            [1 if s == 1 else np.random.randint(1, s) for s in max_shape],
+            dtype=np.int32,
         )
 
 
@@ -53,7 +57,10 @@ def check_normal_distribution(
     num_threads=3,
 ):
     pipe = Pipeline(
-        batch_size=batch_size, device_id=device_id, num_threads=num_threads, seed=123456
+        batch_size=batch_size,
+        device_id=device_id,
+        num_threads=num_threads,
+        seed=123456,
     )
     with pipe:
         shape_like_in = None
@@ -80,19 +87,24 @@ def check_normal_distribution(
                 shape_arg = shape
             # Can't make an empty list constant
             shape_out = types.Constant(
-                shape if shape is not None and shape != () else (1,), dtype=types.INT32
+                shape if shape is not None and shape != () else (1,),
+                dtype=types.INT32,
             )
 
         mean_arg = None
         stddev_arg = None
         if variable_dist_params:
             mean_arg = fn.external_source(
-                lambda: np.array(np.random.uniform(low=-100.0, high=100.0), dtype=np.float32),
+                lambda: np.array(
+                    np.random.uniform(low=-100.0, high=100.0), dtype=np.float32
+                ),
                 device="cpu",
                 batch=False,
             )
             stddev_arg = fn.external_source(
-                lambda: np.array(np.random.uniform(low=1.0, high=100.0), dtype=np.float32),
+                lambda: np.array(
+                    np.random.uniform(low=1.0, high=100.0), dtype=np.float32
+                ),
                 device="cpu",
                 batch=False,
             )
@@ -101,14 +113,23 @@ def check_normal_distribution(
             stddev_arg = stddev
         inputs = [shape_like_in] if shape_like_in is not None else []
         out = fn.random.normal(
-            *inputs, device=device, shape=shape_arg, mean=mean_arg, stddev=stddev_arg, dtype=dtype
+            *inputs,
+            device=device,
+            shape=shape_arg,
+            mean=mean_arg,
+            stddev=stddev_arg,
+            dtype=dtype,
         )
         pipe.set_outputs(out, shape_out, mean_arg, stddev_arg)
     pipe.build()
     for i in range(niter):
         outputs = pipe.run()
         out, shapes, means, stddevs = tuple(
-            outputs[i].as_cpu() if isinstance(outputs[i], TensorListGPU) else outputs[i]
+            (
+                outputs[i].as_cpu()
+                if isinstance(outputs[i], TensorListGPU)
+                else outputs[i]
+            )
             for i in range(len(outputs))
         )
         for sample_idx in range(batch_size):
@@ -118,7 +139,9 @@ def check_normal_distribution(
             sample_shape = np.array(shapes[sample_idx])
             mean = np.array(means[sample_idx])
             stddev = np.array(stddevs[sample_idx])
-            assert (sample.shape == sample_shape).all(), f"{sample.shape} != {sample_shape}"
+            assert (
+                sample.shape == sample_shape
+            ).all(), f"{sample.shape} != {sample_shape}"
 
             data = sample.flatten()
             data_len = len(data)
@@ -161,7 +184,9 @@ def test_normal_distribution():
                 (0.0, 0.0, True),
             ]:
                 for shape in [(100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
-                    use_shape_like_in = False if shape is None else random.choice([True, False])
+                    use_shape_like_in = (
+                        False if shape is None else random.choice([True, False])
+                    )
                     variable_shape = random.choice([True, False])
                     shape_arg = None
                     if variable_shape:

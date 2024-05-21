@@ -25,7 +25,9 @@ from collections.abc import Iterable
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
-from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
+from nvidia.dali.pipeline.experimental import (
+    pipeline_def as experimental_pipeline_def,
+)
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 from nose_utils import assert_raises
@@ -62,7 +64,8 @@ test_data_shape = [10, 20, 3]
 
 def get_data():
     out = [
-        np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)
+        np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+        for _ in range(batch_size)
     ]
     return out
 
@@ -75,7 +78,9 @@ def test_tensorflow_build_check():
         data = types.Constant(1)
         return data
 
-    pipe = get_dali_pipe(batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
+    pipe = get_dali_pipe(
+        batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1
+    )
     pipe.build()
     pipe.run()
 
@@ -84,7 +89,9 @@ def test_move_to_device_end():
     test_data_shape = [1, 3, 0, 4]
 
     def get_data():
-        out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [
+            np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)
+        ]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
@@ -103,7 +110,9 @@ def test_move_to_device_middle():
     test_data_shape = [1, 3, 0, 4]
 
     def get_data():
-        out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [
+            np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)
+        ]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
@@ -125,7 +134,9 @@ def check_bad_device(device_id, error_msg):
     test_data_shape = [1, 3, 0, 4]
 
     def get_data():
-        out = [np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [
+            np.empty(test_data_shape, dtype=np.uint8) for _ in range(batch_size)
+        ]
         return out
 
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=device_id)
@@ -190,7 +201,9 @@ def check_single_input(
         exec_pipelined=exec_pipelined,
     )
     with pipe:
-        data = fn.external_source(source=get_data, layout=input_layout, batch=batch, cycle=cycle)
+        data = fn.external_source(
+            source=get_data, layout=input_layout, batch=batch, cycle=cycle
+        )
         processed = op(data, **kwargs)
         if isinstance(processed, Iterable):
             pipe.set_outputs(*processed)
@@ -255,7 +268,9 @@ def test_crop_cpu():
 
 
 def test_color_space_coversion_cpu():
-    check_single_input(fn.color_space_conversion, image_type=types.BGR, output_type=types.RGB)
+    check_single_input(
+        fn.color_space_conversion, image_type=types.BGR, output_type=types.RGB
+    )
 
 
 def test_cast_cpu():
@@ -264,7 +279,9 @@ def test_cast_cpu():
 
 def test_cast_like_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-    out = fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
+    out = fn.cast_like(
+        np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32)
+    )
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):
@@ -276,7 +293,9 @@ def test_resize_cpu():
 
 
 def test_tensor_resize_cpu():
-    check_single_input(fn.experimental.tensor_resize, sizes=[50, 50], axes=[0, 1])
+    check_single_input(
+        fn.experimental.tensor_resize, sizes=[50, 50], axes=[0, 1]
+    )
 
 
 def test_per_frame_cpu():
@@ -339,7 +358,9 @@ def test_image_decoder_crop_cpu():
 
 
 def test_experimental_image_decoder_crop_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image_crop, crop=(10, 10))
+    _test_image_decoder_args_cpu(
+        fn.experimental.decoders.image_crop, crop=(10, 10)
+    )
 
 
 def test_image_decoder_random_crop_cpu():
@@ -360,7 +381,10 @@ def test_uniform_device():
 
 def test_random_choice_cpu():
     check_single_input(
-        fn.random.choice, input_layout=None, get_data=lambda: np.array(5), batch=False
+        fn.random.choice,
+        input_layout=None,
+        get_data=lambda: np.array(5),
+        batch=False,
     )
 
 
@@ -412,7 +436,9 @@ def test_grid_mask_cpu():
 
 
 def test_multi_paste_cpu():
-    check_single_input(fn.multi_paste, in_ids=np.array([0, 1]), output_size=test_data_shape)
+    check_single_input(
+        fn.multi_paste, in_ids=np.array([0, 1]), output_size=test_data_shape
+    )
 
 
 def test_roi_random_crop_cpu():
@@ -427,7 +453,15 @@ def test_roi_random_crop_cpu():
 def test_random_object_bbox_cpu():
     get_data = [
         np.int32([[1, 0, 0, 0], [1, 2, 2, 1], [1, 1, 2, 0], [2, 0, 0, 1]]),
-        np.int32([[0, 3, 3, 0], [1, 0, 1, 2], [0, 1, 1, 0], [0, 2, 0, 1], [0, 2, 2, 1]]),
+        np.int32(
+            [
+                [0, 3, 3, 0],
+                [1, 0, 1, 2],
+                [0, 1, 1, 0],
+                [0, 2, 0, 1],
+                [0, 2, 2, 1],
+            ]
+        ),
     ]
     check_single_input(
         fn.segmentation.random_object_bbox,
@@ -516,11 +550,15 @@ def get_audio_data():
 
 
 def test_preemphasis_filter_cpu():
-    check_single_input(fn.preemphasis_filter, get_data=get_audio_data, input_layout=None)
+    check_single_input(
+        fn.preemphasis_filter, get_data=get_audio_data, input_layout=None
+    )
 
 
 def test_power_spectrum_cpu():
-    check_single_input(fn.power_spectrum, get_data=get_audio_data, input_layout=None)
+    check_single_input(
+        fn.power_spectrum, get_data=get_audio_data, input_layout=None
+    )
 
 
 def test_spectrogram_cpu():
@@ -546,11 +584,18 @@ def test_mel_filter_bank_cpu():
 
 
 def test_to_decibels_cpu():
-    check_single_input(fn.to_decibels, get_data=get_audio_data, input_layout=None)
+    check_single_input(
+        fn.to_decibels, get_data=get_audio_data, input_layout=None
+    )
 
 
 def test_audio_resample():
-    check_single_input(fn.audio_resample, get_data=get_audio_data, input_layout=None, scale=1.25)
+    check_single_input(
+        fn.audio_resample,
+        get_data=get_audio_data,
+        input_layout=None,
+        scale=1.25,
+    )
 
 
 def test_mfcc_cpu():
@@ -567,7 +612,9 @@ def test_mfcc_cpu():
 
 
 def test_fast_resize_crop_mirror_cpu():
-    check_single_input(fn.fast_resize_crop_mirror, crop=[5, 5], resize_shorter=10)
+    check_single_input(
+        fn.fast_resize_crop_mirror, crop=[5, 5], resize_shorter=10
+    )
 
 
 def test_resize_crop_mirror_cpu():
@@ -616,9 +663,10 @@ def test_coord_flip_cpu():
 
     def get_data():
         out = [
-            (np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+                / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -631,9 +679,10 @@ def test_bb_flip_cpu():
 
     def get_data():
         out = [
-            (np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+                / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -655,12 +704,17 @@ def test_lookup_table_cpu():
 
     def get_data():
         out = [
-            np.random.randint(0, 5, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)
+            np.random.randint(0, 5, size=test_data_shape, dtype=np.uint8)
+            for _ in range(batch_size)
         ]
         return out
 
     check_single_input(
-        fn.lookup_table, keys=[1, 3], values=[10, 50], get_data=get_data, input_layout=None
+        fn.lookup_table,
+        keys=[1, 3],
+        values=[10, 50],
+        get_data=get_data,
+        input_layout=None,
     )
 
 
@@ -669,18 +723,18 @@ def test_slice_cpu():
 
     def get_anchors():
         out = [
-            (np.random.randint(1, 256, size=anch_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(1, 256, size=anch_shape, dtype=np.uint8) / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
 
     def get_shape():
         out = [
-            (np.random.randint(1, 256, size=anch_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(1, 256, size=anch_shape, dtype=np.uint8) / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -702,18 +756,18 @@ def _test_image_decoder_slice_cpu(decoder_type):
 
     def get_anchors():
         out = [
-            (np.random.randint(1, 128, size=anch_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(1, 128, size=anch_shape, dtype=np.uint8) / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
 
     def get_shape():
         out = [
-            (np.random.randint(1, 128, size=anch_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(1, 128, size=anch_shape, dtype=np.uint8) / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -757,7 +811,9 @@ def test_pad_cpu():
 
 
 def test_mxnet_reader_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)  # noqa: F841
+    pipe = Pipeline(  # noqa: F841
+        batch_size=batch_size, num_threads=4, device_id=None
+    )
     out, _ = fn.readers.mxnet(
         path=os.path.join(recordio_dir, "train.rec"),
         index_path=os.path.join(recordio_dir, "train.idx"),
@@ -842,7 +898,10 @@ def test_nemo_asr_reader_cpu():
 
 def test_video_reader():
     check_no_input(
-        fn.experimental.readers.video, filenames=video_files, labels=[0, 1], sequence_length=10
+        fn.experimental.readers.video,
+        filenames=video_files,
+        labels=[0, 1],
+        sequence_length=10,
     )
 
 
@@ -851,7 +910,9 @@ def test_copy_cpu():
 
 
 def test_element_extract_cpu():
-    check_single_input(fn.element_extract, element_map=[0, 3], input_layout=None)
+    check_single_input(
+        fn.element_extract, element_map=[0, 3], input_layout=None
+    )
 
 
 def test_bbox_paste_cpu():
@@ -860,9 +921,10 @@ def test_bbox_paste_cpu():
 
     def get_data():
         out = [
-            (np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+                / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -871,7 +933,9 @@ def test_bbox_paste_cpu():
     paste_posx = fn.random.uniform(range=(0, 1))
     paste_posy = fn.random.uniform(range=(0, 1))
     paste_ratio = fn.random.uniform(range=(1, 2))
-    processed = fn.bbox_paste(data, paste_x=paste_posx, paste_y=paste_posy, ratio=paste_ratio)
+    processed = fn.bbox_paste(
+        data, paste_x=paste_posx, paste_y=paste_posy, ratio=paste_ratio
+    )
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -884,9 +948,10 @@ def test_random_bbox_crop_cpu():
 
     def get_boxes():
         out = [
-            (np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8)
+                / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -922,9 +987,10 @@ def test_ssd_random_crop_cpu():
 
     def get_boxes():
         out = [
-            (np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8)
+                / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -959,7 +1025,10 @@ def test_sequence_rearrange_cpu():
         return out
 
     check_single_input(
-        fn.sequence_rearrange, new_order=[0, 4, 1, 3, 2], get_data=get_data, input_layout="FHWC"
+        fn.sequence_rearrange,
+        new_order=[0, 4, 1, 3, 2],
+        get_data=get_data,
+        input_layout="FHWC",
     )
 
 
@@ -969,9 +1038,10 @@ def test_box_encoder_cpu():
 
     def get_boxes():
         out = [
-            (np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(
-                dtype=np.float32
-            )
+            (
+                np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8)
+                / 255
+            ).astype(dtype=np.float32)
             for _ in range(batch_size)
         ]
         return out
@@ -1007,9 +1077,18 @@ def test_python_function_cpu():
         return np.array(Image.fromarray(image).resize((50, 10)))
 
     pipe = Pipeline(  # noqa: F841
-        batch_size=batch_size, num_threads=4, device_id=None, exec_async=False, exec_pipelined=False
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=None,
+        exec_async=False,
+        exec_pipelined=False,
     )
-    check_single_input(fn.python_function, function=resize, exec_async=False, exec_pipelined=False)
+    check_single_input(
+        fn.python_function,
+        function=resize,
+        exec_async=False,
+        exec_pipelined=False,
+    )
 
 
 def test_constant_cpu():
@@ -1022,7 +1101,11 @@ def test_dump_image_cpu():
 
 def test_sequence_reader_cpu():
     check_no_input(
-        fn.readers.sequence, file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1
+        fn.readers.sequence,
+        file_root=sequence_dir,
+        sequence_length=2,
+        shard_id=0,
+        num_shards=1,
     )
 
 
@@ -1081,19 +1164,26 @@ def test_segmentation_select_masks():
     def get_data_source(*args, **kwargs):
         return lambda: make_batch_select_masks(*args, **kwargs)
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, seed=1234)
+    pipe = Pipeline(
+        batch_size=batch_size, num_threads=4, device_id=None, seed=1234
+    )
     with pipe:
         polygons, vertices, selected_masks = fn.external_source(
             num_outputs=3,
             device="cpu",
             source=get_data_source(
-                batch_size, vertex_ndim=2, npolygons_range=(1, 5), nvertices_range=(3, 10)
+                batch_size,
+                vertex_ndim=2,
+                npolygons_range=(1, 5),
+                nvertices_range=(3, 10),
             ),
         )
         out_polygons, out_vertices = fn.segmentation.select_masks(
             selected_masks, polygons, vertices, reindex_masks=False
         )
-    pipe.set_outputs(polygons, vertices, selected_masks, out_polygons, out_vertices)
+    pipe.set_outputs(
+        polygons, vertices, selected_masks, out_polygons, out_vertices
+    )
     pipe.build()
     for _ in range(3):
         pipe.run()
@@ -1131,7 +1221,9 @@ def test_reduce_variance_cpu():
 
 
 def test_arithm_ops_cpu():
-    pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size, num_threads=4, device_id=None)
+    pipe = pipeline_arithm_ops_cpu(
+        get_data, batch_size=batch_size, num_threads=4, device_id=None
+    )
     pipe.build()
     for _ in range(3):
         pipe.run()
@@ -1222,10 +1314,15 @@ def test_squeeze_cpu():
     test_data_shape = [10, 20, 3, 1, 1]
 
     def get_data():
-        out = [np.zeros(shape=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [
+            np.zeros(shape=test_data_shape, dtype=np.uint8)
+            for _ in range(batch_size)
+        ]
         return out
 
-    check_single_input(fn.squeeze, axis_names="YZ", get_data=get_data, input_layout="HWCYZ")
+    check_single_input(
+        fn.squeeze, axis_names="YZ", get_data=get_data, input_layout="HWCYZ"
+    )
 
 
 @nottest
@@ -1305,10 +1402,14 @@ def test_get_property():
 
 def test_video_decoder():
     def get_data():
-        filename = os.path.join(get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+        filename = os.path.join(
+            get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4"
+        )
         return np.fromfile(filename, dtype=np.uint8)
 
-    check_single_input(fn.experimental.decoders.video, "", get_data, batch=False)
+    check_single_input(
+        fn.experimental.decoders.video, "", get_data, batch=False
+    )
 
 
 def test_tensor_list_cpu():
@@ -1321,7 +1422,9 @@ def test_tensor_list_cpu():
 def test_video_input():
     @pipeline_def(batch_size=3, num_threads=1, device_id=None)
     def video_input_pipeline(input_name):
-        vid = fn.experimental.inputs.video(name=input_name, sequence_length=7, blocking=False)
+        vid = fn.experimental.inputs.video(
+            name=input_name, sequence_length=7, blocking=False
+        )
         return vid
 
     input_name = "VIDEO_INPUT"
@@ -1345,7 +1448,9 @@ def test_conditional():
             output = types.Constant(np.array([0]), device="cpu")
         return output
 
-    cond_pipe = conditional_pipeline(batch_size=5, num_threads=1, device_id=None)
+    cond_pipe = conditional_pipeline(
+        batch_size=5, num_threads=1, device_id=None
+    )
     cond_pipe.build()
     cond_pipe.run()
 
@@ -1362,18 +1467,25 @@ def test_conditional():
         negated = fn._conditional.not_(pred)
         return merged, negated, pred_validated
 
-    pipe = explicit_conditional_ops_pipeline(batch_size=5, num_threads=1, device_id=None)
+    pipe = explicit_conditional_ops_pipeline(
+        batch_size=5, num_threads=1, device_id=None
+    )
     pipe.build()
     pipe.run()
 
 
 def get_shape_data():
-    out = [np.random.randint(100, 800, size=(2,), dtype=np.int64) for _ in range(batch_size)]
+    out = [
+        np.random.randint(100, 800, size=(2,), dtype=np.int64)
+        for _ in range(batch_size)
+    ]
     return out
 
 
 def test_random_crop_generator_cpu():
-    check_single_input(fn.random_crop_generator, get_data=get_shape_data, input_layout=None)
+    check_single_input(
+        fn.random_crop_generator, get_data=get_shape_data, input_layout=None
+    )
 
 
 tested_methods = [
@@ -1578,18 +1690,22 @@ excluded_methods = [
 
 def test_coverage():
     methods = module_functions(
-        fn, remove_prefix="nvidia.dali.fn", allowed_private_modules=["_conditional"]
+        fn,
+        remove_prefix="nvidia.dali.fn",
+        allowed_private_modules=["_conditional"],
     )
     methods += module_functions(dmath, remove_prefix="nvidia.dali")
     exclude = "|".join(
         [
-            "(^" + x.replace(".", r"\.").replace("*", ".*").replace("?", ".") + "$)"
+            "(^"
+            + x.replace(".", r"\.").replace("*", ".*").replace("?", ".")
+            + "$)"
             for x in excluded_methods
         ]
     )
     exclude = re.compile(exclude)
     methods = [x for x in methods if not exclude.match(x)]
     # we are fine with covering more we can easily list, like numba
-    assert set(methods).difference(set(tested_methods)) == set(), "Test doesn't cover:\n {}".format(
-        set(methods) - set(tested_methods)
-    )
+    assert (
+        set(methods).difference(set(tested_methods)) == set()
+    ), "Test doesn't cover:\n {}".format(set(methods) - set(tested_methods))

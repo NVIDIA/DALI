@@ -1,0 +1,57 @@
+[
+    {
+        "name": "1.38 (current release)",
+        "version": "1.38 (current release)",
+        "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
+    },
+    {
+        "name": "main (unstable)",
+        "version": "main",
+        "url": "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    },
+    {
+        "name": "1.37.1",
+        "version": "1.37.1",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_37_1/user-guide/"
+    },
+    {
+        "name": "1.37",
+        "version": "1.37",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_37_0/user-guide/"
+    },
+    {
+        "name": "1.36",
+        "version": "1.36",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_36_0/user-guide/"
+    },
+    {
+        "name": "1.35",
+        "version": "1.35",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_35_0/user-guide/"
+    },
+    {
+        "name": "1.34",
+        "version": "1.34",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_34_0/user-guide/"
+    },
+    {
+        "name": "1.33",
+        "version": "1.33",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_33_0/user-guide/docs/"
+    },
+    {
+        "name": "1.32",
+        "version": "1.32",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_32_0/user-guide/docs/"
+    },
+    {
+        "name": "1.31",
+        "version": "1.31",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/dali_1_31_0/user-guide/docs/"
+    },
+    {
+        "name": "older releases",
+        "version": "archives",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/"
+    }
+]

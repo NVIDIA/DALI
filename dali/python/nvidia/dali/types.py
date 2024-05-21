@@ -63,13 +63,22 @@ _known_types = {
     DALIDataType._INT32_VEC: ("int", _to_list(int)),
     DALIDataType._STRING_VEC: ("str", _to_list(str)),
     DALIDataType._FLOAT_VEC: ("float", _to_list(float)),
-    DALIDataType.IMAGE_TYPE: ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
-    DALIDataType.DATA_TYPE: ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
+    DALIDataType.IMAGE_TYPE: (
+        "nvidia.dali.types.DALIImageType",
+        lambda x: DALIImageType(int(x)),
+    ),
+    DALIDataType.DATA_TYPE: (
+        "nvidia.dali.types.DALIDataType",
+        lambda x: DALIDataType(int(x)),
+    ),
     DALIDataType.INTERP_TYPE: (
         "nvidia.dali.types.DALIInterpType",
         lambda x: DALIInterpType(int(x)),
     ),
-    DALIDataType.TENSOR_LAYOUT: (":ref:`layout str<layout_str_doc>`", lambda x: str(x)),
+    DALIDataType.TENSOR_LAYOUT: (
+        ":ref:`layout str<layout_str_doc>`",
+        lambda x: str(x),
+    ),
     DALIDataType.PYTHON_OBJECT: ("object", lambda x: x),
     DALIDataType._TENSOR_LAYOUT_VEC: (
         ":ref:`layout str<layout_str_doc>`",
@@ -91,9 +100,13 @@ _vector_types = {
 }
 
 if _tfrecord_support:
-    _known_types[DALIDataType.FEATURE] = ("nvidia.dali.tfrecord.Feature", tfrec.Feature)
+    _known_types[DALIDataType.FEATURE] = (
+        "nvidia.dali.tfrecord.Feature",
+        tfrec.Feature,
+    )
     _known_types[DALIDataType._FEATURE_VEC] = (
-        "nvidia.dali.tfrecord.Feature or " "list of nvidia.dali.tfrecord.Feature",
+        "nvidia.dali.tfrecord.Feature or "
+        "list of nvidia.dali.tfrecord.Feature",
         _to_list(tfrec.Feature),
     )
     _known_types[DALIDataType._FEATURE_DICT] = (
@@ -208,7 +221,11 @@ _float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
 _int_like_types = _bool_types + _int_types
 _all_types = _bool_types + _int_types + _float_types
 
-_enum_types = [DALIDataType.IMAGE_TYPE, DALIDataType.DATA_TYPE, DALIDataType.INTERP_TYPE]
+_enum_types = [
+    DALIDataType.IMAGE_TYPE,
+    DALIDataType.DATA_TYPE,
+    DALIDataType.INTERP_TYPE,
+]
 
 
 class ScalarConstant(object):
@@ -238,7 +255,9 @@ class ScalarConstant(object):
 
     def __init__(self, value, dtype=None):
         self.shape = []
-        value_dtype = getattr(value, "dtype", None)  # handle 0D tensors and numpy scalars
+        value_dtype = getattr(
+            value, "dtype", None
+        )  # handle 0D tensors and numpy scalars
         if value_dtype is not None:
             dali_type = to_dali_type(value.dtype)
             if dali_type in _int_types:
@@ -264,7 +283,9 @@ class ScalarConstant(object):
             elif self.dtype in _float_types:
                 self.value = float(value)
             else:
-                raise TypeError(f"DALI ScalarConstant can only hold one of: {_all_types} types.")
+                raise TypeError(
+                    f"DALI ScalarConstant can only hold one of: {_all_types} types."
+                )
         elif isinstance(value, bool):
             self.value = value
             self.dtype = DALIDataType.BOOL
@@ -356,7 +377,12 @@ class ScalarConstant(object):
 
 def _is_scalar_shape(shape):
     return (
-        shape is None or shape == () or shape == [] or shape == 1 or shape == [1] or shape == (1,)
+        shape is None
+        or shape == ()
+        or shape == []
+        or shape == 1
+        or shape == [1]
+        or shape == (1,)
     )  # legacy pseudo-scalars
 
 
@@ -464,12 +490,18 @@ def to_dali_type(framework_type):
         t = t[6:]
     t = _type_name_to_dali_type.get(t)
     if t is None:
-        raise TypeError(f"'{framework_type}' could not be converted into any known DALIDataType.")
+        raise TypeError(
+            f"'{framework_type}' could not be converted into any known DALIDataType."
+        )
     return t
 
 
 def _is_compatible_array_type(value):
-    return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
+    return (
+        _is_numpy_array(value)
+        or _is_mxnet_array(value)
+        or _is_torch_tensor(value)
+    )
 
 
 def _preprocess_constant_array_type(value):
@@ -528,7 +560,9 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
                     has_bools = True
                 elif isinstance(x, int):
                     has_ints = True
-                elif isinstance(x, (DALIDataType, DALIImageType, DALIInterpType)):
+                elif isinstance(
+                    x, (DALIDataType, DALIImageType, DALIInterpType)
+                ):
                     has_enums = True
                     enum_type = type(x)
                     break
@@ -585,7 +619,13 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         device = "cpu"
 
     return fn.constant(
-        device=device, fdata=fdata, idata=idata, shape=shape, dtype=dtype, layout=layout, **kwargs
+        device=device,
+        fdata=fdata,
+        idata=idata,
+        shape=shape,
+        dtype=dtype,
+        layout=layout,
+        **kwargs,
     )
 
 

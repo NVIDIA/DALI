@@ -46,7 +46,12 @@ def modify_layout(layout, output_dim, axis=None, axis_name=None):
 
 def random_3d_tensors_batch():
     return [
-        np.random.randint(0, num_classes, size=np.random.randint(2, 8, size=(3,)), dtype=np.int32)
+        np.random.randint(
+            0,
+            num_classes,
+            size=np.random.randint(2, 8, size=(3,)),
+            dtype=np.int32,
+        )
         for _ in range(batch_size)
     ]
 
@@ -57,14 +62,23 @@ def random_scalars_batch():
 
 def random_scalar_like_tensors_batch(nested_level):
     return [
-        np.array([np.random.randint(0, num_classes)], dtype=np.int32).reshape((1,) * nested_level)
+        np.array([np.random.randint(0, num_classes)], dtype=np.int32).reshape(
+            (1,) * nested_level
+        )
         for x in range(batch_size)
     ]
 
 
 class OneHotPipeline(Pipeline):
     def __init__(
-        self, num_classes, source, axis=-1, num_threads=1, layout=None, axis_name=None, device="cpu"
+        self,
+        num_classes,
+        source,
+        axis=-1,
+        num_threads=1,
+        layout=None,
+        axis_name=None,
+        device="cpu",
     ):
         super(OneHotPipeline, self).__init__(batch_size, num_threads, 0)
         self.is_gpu = device == "gpu"
@@ -98,7 +112,9 @@ def one_hot_3_axes(input, axis):
             for i1 in range(input[i].shape[1]):
                 for i2 in range(input[i].shape[2]):
                     in_coord = (i0, i1, i2)
-                    out_coord = insert_as_axis(in_coord, input[i][in_coord], axis, total_axes)
+                    out_coord = insert_as_axis(
+                        in_coord, input[i][in_coord], axis, total_axes
+                    )
                     result[out_coord] = 1
         results.append(result)
     return results
@@ -112,7 +128,12 @@ def one_hot(input):
 
 
 def check_one_hot_operator(
-    source, device="cpu", axis=-1, expected_output_dim=None, axis_name=None, initial_layout=None
+    source,
+    device="cpu",
+    axis=-1,
+    expected_output_dim=None,
+    axis_name=None,
+    initial_layout=None,
 ):
     pipeline = OneHotPipeline(
         num_classes=num_classes,
@@ -129,11 +150,19 @@ def check_one_hot_operator(
     input_batch = list(map(np.array, input_batch))
     expected_output_dim = expected_output_dim or len(input_batch[0].shape) + 1
     reference = (
-        one_hot_3_axes(input_batch, axis) if expected_output_dim == 4 else one_hot(input_batch)
+        one_hot_3_axes(input_batch, axis)
+        if expected_output_dim == 4
+        else one_hot(input_batch)
     )
-    expected_layout = modify_layout(initial_layout, expected_output_dim, axis, axis_name)
+    expected_layout = modify_layout(
+        initial_layout, expected_output_dim, axis, axis_name
+    )
     check_batch(
-        outputs, reference, batch_size, max_allowed_error=0, expected_layout=expected_layout
+        outputs,
+        reference,
+        batch_size,
+        max_allowed_error=0,
+        expected_layout=expected_layout,
     )
 
 
@@ -141,13 +170,17 @@ def test_one_hot_scalar():
     np.random.seed(42)
     for device in ["cpu", "gpu"]:
         for i in range(10):
-            yield partial(check_one_hot_operator, axis_name="O"), random_scalars_batch, device
+            yield partial(
+                check_one_hot_operator, axis_name="O"
+            ), random_scalars_batch, device
 
 
 def test_one_hot_legacy():
     np.random.seed(42)
     for device in ["cpu", "gpu"]:
-        for j in range(1, 5):  # test 1..4 levels of nested 'multi-dimensional' scalars
+        for j in range(
+            1, 5
+        ):  # test 1..4 levels of nested 'multi-dimensional' scalars
             layout = get_initial_layout(j)
 
             class RandomScalarLikeTensors:
@@ -200,7 +233,10 @@ def test_one_hot_reset_layout():
         return random_scalar_like_tensors_batch(3)
 
     yield partial(
-        check_one_hot_operator, axis=None, expected_output_dim=1, initial_layout=layout
+        check_one_hot_operator,
+        axis=None,
+        expected_output_dim=1,
+        initial_layout=layout,
     ), random_scalar_like_tensors, "cpu"
 
 
@@ -209,20 +245,27 @@ def test_one_hot_custom_layout_axis_name():
     layout = get_initial_layout(3)
     for axis_name in "Xx01":
         yield partial(
-            check_one_hot_operator, axis=-1, initial_layout=layout, axis_name=axis_name
+            check_one_hot_operator,
+            axis=-1,
+            initial_layout=layout,
+            axis_name=axis_name,
         ), random_3d_tensors_batch
 
 
 @raises(RuntimeError, glob="Unsupported axis_name value")
 def test_too_long_axis_name():
     np.random.seed(42)
-    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="CD")
+    check_one_hot_operator(
+        random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="CD"
+    )
 
 
 @raises(RuntimeError, glob="Unsupported axis_name value")
 def test_empty_string_axis_name():
     np.random.seed(42)
-    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name="")
+    check_one_hot_operator(
+        random_3d_tensors_batch, axis=-1, initial_layout="ABC", axis_name=""
+    )
 
 
 @raises(RuntimeError, glob="Input layout mismatch")

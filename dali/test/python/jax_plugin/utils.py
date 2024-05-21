@@ -38,7 +38,9 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
     @pipeline_def(num_threads=1, batch_size=1)
     def dali_pipeline():
-        values = types.Constant(value=np.full(shape, value, dtype), device="gpu")
+        values = types.Constant(
+            value=np.full(shape, value, dtype), device="gpu"
+        )
 
         return values
 
@@ -63,7 +65,10 @@ def sequential_pipeline(batch_size, shape):
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
     def sequential_pipeline_def():
         data = fn.external_source(
-            source=numpy_sequential_tensors, num_outputs=1, batch=False, dtype=types.INT32
+            source=numpy_sequential_tensors,
+            num_outputs=1,
+            batch=False,
+            dtype=types.INT32,
         )
         data = data[0].gpu()
         return data

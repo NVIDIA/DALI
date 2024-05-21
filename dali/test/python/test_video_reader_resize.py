@@ -23,7 +23,12 @@ video_directory_multiple_resolutions = "/tmp/video_resolution/"
 pipeline_params = {"num_threads": 8, "device_id": 0, "seed": 0}
 
 video_reader_params = [
-    {"device": "gpu", "file_root": video_directory, "sequence_length": 32, "random_shuffle": False},
+    {
+        "device": "gpu",
+        "file_root": video_directory,
+        "sequence_length": 32,
+        "random_shuffle": False,
+    },
     {
         "device": "gpu",
         "file_root": video_directory_multiple_resolutions,
@@ -39,15 +44,27 @@ resize_params = [
         "interp_type": types.DALIInterpType.INTERP_CUBIC,
         "minibatch_size": 8,
     },
-    {"resize_x": 300, "interp_type": types.DALIInterpType.INTERP_CUBIC, "minibatch_size": 8},
+    {
+        "resize_x": 300,
+        "interp_type": types.DALIInterpType.INTERP_CUBIC,
+        "minibatch_size": 8,
+    },
     {
         "resize_x": 300,
         "resize_y": 200,
         "interp_type": types.DALIInterpType.INTERP_LANCZOS3,
         "minibatch_size": 8,
     },
-    {"resize_shorter": 300, "interp_type": types.DALIInterpType.INTERP_CUBIC, "minibatch_size": 8},
-    {"resize_longer": 500, "interp_type": types.DALIInterpType.INTERP_CUBIC, "minibatch_size": 8},
+    {
+        "resize_shorter": 300,
+        "interp_type": types.DALIInterpType.INTERP_CUBIC,
+        "minibatch_size": 8,
+    },
+    {
+        "resize_longer": 500,
+        "interp_type": types.DALIInterpType.INTERP_CUBIC,
+        "minibatch_size": 8,
+    },
     {
         "resize_x": 300,
         "resize_y": 200,
@@ -64,7 +81,9 @@ resize_params = [
 ]
 
 
-def video_reader_pipeline_base(video_reader, batch_size, video_reader_params, resize_params={}):
+def video_reader_pipeline_base(
+    video_reader, batch_size, video_reader_params, resize_params={}
+):
     pipeline = dali.pipeline.Pipeline(batch_size=batch_size, **pipeline_params)
     with pipeline:
         outputs = video_reader(**video_reader_params, **resize_params)
@@ -76,14 +95,21 @@ def video_reader_pipeline_base(video_reader, batch_size, video_reader_params, re
     return pipeline
 
 
-def video_reader_resize_pipeline(batch_size, video_reader_params, resize_params):
+def video_reader_resize_pipeline(
+    batch_size, video_reader_params, resize_params
+):
     return video_reader_pipeline_base(
-        dali.fn.readers.video_resize, batch_size, video_reader_params, resize_params
+        dali.fn.readers.video_resize,
+        batch_size,
+        video_reader_params,
+        resize_params,
     )
 
 
 def video_reader_pipeline(batch_size, video_reader_params):
-    return video_reader_pipeline_base(dali.fn.readers.video, batch_size, video_reader_params)
+    return video_reader_pipeline_base(
+        dali.fn.readers.video, batch_size, video_reader_params
+    )
 
 
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
@@ -99,7 +125,9 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
     gt_pipeline = dali.Pipeline(batch_size=1, **pipeline_params)
 
     with gt_pipeline:
-        resized_frame = dali.fn.external_source(source=get_next_frame, num_outputs=1)
+        resized_frame = dali.fn.external_source(
+            source=get_next_frame, num_outputs=1
+        )
         resized_frame = resized_frame[0].gpu()
         resized_frame = dali.fn.resize(resized_frame, **resize_params)
         gt_pipeline.set_outputs(resized_frame)
@@ -108,7 +136,9 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
     return gt_pipeline
 
 
-def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_length):
+def compare_video_resize_pipelines(
+    pipeline, gt_pipeline, batch_size, video_length
+):
     global_sample_id = 0
     (batch_gpu,) = pipeline.run()
     batch = batch_gpu.as_cpu()
@@ -128,12 +158,19 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
 
 
 def run_for_params(batch_size, video_reader_params, resize_params):
-    pipeline = video_reader_resize_pipeline(batch_size, video_reader_params, resize_params)
+    pipeline = video_reader_resize_pipeline(
+        batch_size, video_reader_params, resize_params
+    )
 
-    gt_pipeline = ground_truth_pipeline(batch_size, video_reader_params, resize_params)
+    gt_pipeline = ground_truth_pipeline(
+        batch_size, video_reader_params, resize_params
+    )
 
     compare_video_resize_pipelines(
-        pipeline, gt_pipeline, batch_size, video_reader_params["sequence_length"]
+        pipeline,
+        gt_pipeline,
+        batch_size,
+        video_reader_params["sequence_length"],
     )
 
     # The intermediate pipeline from ground_truth_pipeline gets entangled in cell objects

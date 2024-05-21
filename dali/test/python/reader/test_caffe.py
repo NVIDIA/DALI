@@ -25,16 +25,28 @@ from test_utils import get_dali_extra_path
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 c2lmdb_db_folder = os.path.join(test_data_root, "db", "c2lmdb")
-c2lmdb_no_label_db_folder = os.path.join(test_data_root, "db", "c2lmdb_no_label")
+c2lmdb_no_label_db_folder = os.path.join(
+    test_data_root, "db", "c2lmdb_no_label"
+)
 
 
 class CaffeReaderPipeline(Pipeline):
-    def __init__(self, path, batch_size, num_threads=1, device_id=0, num_gpus=1):
-        super(CaffeReaderPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.Caffe(path=path, shard_id=device_id, num_shards=num_gpus)
+    def __init__(
+        self, path, batch_size, num_threads=1, device_id=0, num_gpus=1
+    ):
+        super(CaffeReaderPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
+        self.input = ops.readers.Caffe(
+            path=path, shard_id=device_id, num_shards=num_gpus
+        )
 
         self.decode = ops.decoders.ImageCrop(
-            device="cpu", crop=(224, 224), crop_pos_x=0.3, crop_pos_y=0.2, output_type=types.RGB
+            device="cpu",
+            crop=(224, 224),
+            crop_pos_x=0.3,
+            crop_pos_y=0.2,
+            output_type=types.RGB,
         )
 
     def define_graph(self):
@@ -44,7 +56,9 @@ class CaffeReaderPipeline(Pipeline):
         return images, labels
 
 
-def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, num_threads2):
+def check_reader_path_vs_paths(
+    paths, batch_size1, batch_size2, num_threads1, num_threads2
+):
     """
     test: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder],
     with different batch_size and num_threads

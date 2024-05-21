@@ -25,9 +25,13 @@ from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_both_tf_and_dali_conditionals():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True, batch_size=5, num_threads=4, device_id=0
+    )
     def dali_conditional_pipeline():
-        iter_id = fn.external_source(source=lambda x: np.array(x.iteration), batch=False)
+        iter_id = fn.external_source(
+            source=lambda x: np.array(x.iteration), batch=False
+        )
         if iter_id & 1 == 0:
             output = types.Constant(np.array(-1), device="cpu")
         else:

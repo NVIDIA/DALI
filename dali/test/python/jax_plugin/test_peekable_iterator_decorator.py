@@ -28,9 +28,9 @@ batch_shape = (batch_size, 1)
 
 def test_dali_iterator_decorator_all_pipeline_args_in_call():
     # given
-    iter = peekable_data_iterator(iterator_function_def, output_map=["data"], reader_name="reader")(
-        batch_size=batch_size, device_id=0, num_threads=4
-    )
+    iter = peekable_data_iterator(
+        iterator_function_def, output_map=["data"], reader_name="reader"
+    )(batch_size=batch_size, device_id=0, num_threads=4)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -54,7 +54,9 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     def iterator_function(num_shards):
         return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(num_shards=2, num_threads=4, device_id=0, batch_size=batch_size)
+    iter = iterator_function(
+        num_shards=2, num_threads=4, device_id=0, batch_size=batch_size
+    )
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -71,12 +73,16 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 # arguments that might have been added to the iterator __init__
 def test_iterator_decorator_api_match_iterator_init():
     # given the list of arguments for the iterator __init__ method
-    iterator_init_args = inspect.getfullargspec(DALIGenericPeekableIterator.__init__).args
+    iterator_init_args = inspect.getfullargspec(
+        DALIGenericPeekableIterator.__init__
+    ).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
 
     # given the list of arguments for the iterator decorator
-    iterator_decorator_args = inspect.getfullargspec(peekable_data_iterator).args
+    iterator_decorator_args = inspect.getfullargspec(
+        peekable_data_iterator
+    ).args
     iterator_decorator_args.remove("pipeline_fn")
     iterator_decorator_args.remove("devices")
 

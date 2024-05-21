@@ -47,7 +47,9 @@ def setUpModule():
 
     g_tmpdir = tempfile.TemporaryDirectory()
     g_root = g_tmpdir.__enter__()
-    g_files = [str(i) + " x.dat" for i in range(10)]  # name with a space in the middle!
+    g_files = [
+        str(i) + " x.dat" for i in range(10)
+    ]  # name with a space in the middle!
     populate(g_root, g_files)
 
 
@@ -142,12 +144,19 @@ def test_file_reader_relpath_file_list():
 
 
 def _test_file_reader_filter(
-    filters, glob_filters, batch_size, num_threads, subpath, case_sensitive_filter
+    filters,
+    glob_filters,
+    batch_size,
+    num_threads,
+    subpath,
+    case_sensitive_filter,
 ):
     pipe = Pipeline(batch_size, num_threads, 0)
     root = os.path.join(os.environ["DALI_EXTRA_PATH"], subpath)
     files, labels = fn.readers.file(
-        file_root=root, file_filters=filters, case_sensitive_filter=case_sensitive_filter
+        file_root=root,
+        file_filters=filters,
+        case_sensitive_filter=case_sensitive_filter,
     )
     pipe.set_outputs(files, labels)
     pipe.build()
@@ -169,7 +178,11 @@ def _test_file_reader_filter(
 
 
 def test_file_reader_filters():
-    for filters in [["*.jpg"], ["*.jpg", "*.png", "*.jpeg"], ["dog*.jpg", "cat*.png", "*.jpg"]]:
+    for filters in [
+        ["*.jpg"],
+        ["*.jpg", "*.png", "*.jpeg"],
+        ["dog*.jpg", "cat*.png", "*.jpg"],
+    ]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
         yield (
@@ -223,7 +236,9 @@ def test_invalid_number_of_shards():
     @pipeline_def(batch_size=1, device_id=0, num_threads=4)
     def get_test_pipe():
         root = os.path.join(os.environ["DALI_EXTRA_PATH"], "db/single/mixed")
-        files, labels = fn.readers.file(file_root=root, shard_id=0, num_shards=9999)
+        files, labels = fn.readers.file(
+            file_root=root, shard_id=0, num_shards=9999
+        )
         return files, labels
 
     pipe = get_test_pipe()

@@ -39,14 +39,18 @@ class SliceTransformer(converter.Base):
         template = """
       target = ag__.set_item(target, key, item)
     """
-        return templates.replace(template, target=target.value, key=target.slice, item=value)
+        return templates.replace(
+            template, target=target.value, key=target.slice, item=value
+        )
 
     def visit_Assign(self, node):
         node = self.generic_visit(node)
         # TODO(mdan): Support unpackings and multiple assignments.
         if len(node.targets) != 1:
             raise NotImplementedError("multiple assignment")
-        replacement = self._process_single_assignment(node.targets[0], node.value)
+        replacement = self._process_single_assignment(
+            node.targets[0], node.value
+        )
         if replacement is not None:
             return replacement
         return node
@@ -75,7 +79,9 @@ class SliceTransformer(converter.Base):
           key,
           opts=ag__.GetItemOpts(element_dtype=dtype))
     """
-        return templates.replace_as_expression(template, target=node.value, key=s, dtype=dtype)
+        return templates.replace_as_expression(
+            template, target=node.value, key=s, dtype=dtype
+        )
 
 
 def transform(node, ctx):

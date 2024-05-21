@@ -82,7 +82,9 @@ def remap_pipe(remap_op, maps_data, img_size):
     img, _ = fn.readers.file(file_root=data_dir)
     img = fn.decoders.image(img)
     img = fn.resize(img, size=img_size)
-    mapx, mapy = fn.external_source(source=maps_data, batch=True, cycle=True, num_outputs=2)
+    mapx, mapy = fn.external_source(
+        source=maps_data, batch=True, cycle=True, num_outputs=2
+    )
     if remap_op == "dali":
         return fn.experimental.remap(
             img.gpu(),
@@ -110,8 +112,14 @@ class RemapTest(unittest.TestCase):
 
     @params("identity", "xflip", "yflip", "xyflip", "random")
     def test_remap(self, map_mode):
-        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-        dpipe = remap_pipe("dali", maps, self.img_size, **self.common_dali_pipe_params)
+        maps = [
+            update_map(
+                mode=map_mode, shape=self.img_size, nimages=self.batch_size
+            )
+        ]
+        dpipe = remap_pipe(
+            "dali", maps, self.img_size, **self.common_dali_pipe_params
+        )
         cpipe = remap_pipe(
             "cv",
             maps,
@@ -120,13 +128,19 @@ class RemapTest(unittest.TestCase):
             exec_pipelined=False,
             **self.common_dali_pipe_params,
         )
-        self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=0.01)
+        self._compare_pipelines_pixelwise(
+            dpipe, cpipe, N_iterations=2, eps=0.01
+        )
 
     def benchmark_remap_against_cv(self, map_mode):
         import torch.cuda.nvtx as nvtx
 
         nvtx.range_push("Benchmark against OpenCV")
-        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
+        maps = [
+            update_map(
+                mode=map_mode, shape=self.img_size, nimages=self.batch_size
+            )
+        ]
         dpipe = remap_pipe(
             "dali",
             maps,
@@ -150,22 +164,34 @@ class RemapTest(unittest.TestCase):
         dtime = self._measure_time(dpipe.run)
         ctime = self._measure_time(cpipe.run)
         nvtx.range_pop()
-        print(f"DALI Pipeline average time: {dtime}. OpenCV Pipeline average time: {ctime}.")
+        print(
+            f"DALI Pipeline average time: {dtime}. OpenCV Pipeline average time: {ctime}."
+        )
 
     def benchmark_remap_isolated(self, map_mode):
         import torch.cuda.nvtx as nvtx
 
         nvtx.range_push("Benchmark isolated")
-        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
+        maps = [
+            update_map(
+                mode=map_mode, shape=self.img_size, nimages=self.batch_size
+            )
+        ]
         dpipe = remap_pipe(
-            "dali", maps, self.img_size, **self.common_dali_pipe_params, prefetch_queue_depth=1
+            "dali",
+            maps,
+            self.img_size,
+            **self.common_dali_pipe_params,
+            prefetch_queue_depth=1,
         )
         dpipe.build()
         avg_time = self._measure_time(dpipe.run)
         nvtx.range_pop()
         print(f"DALI Pipeline average execution time: {avg_time} seconds.")
 
-    def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=0.01):
+    def _compare_pipelines_pixelwise(
+        self, pipe1, pipe2, N_iterations, eps=0.01
+    ):
         pipe1.build()
         pipe2.build()
         for _ in range(N_iterations):

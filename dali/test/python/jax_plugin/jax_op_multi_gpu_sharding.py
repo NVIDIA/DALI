@@ -38,7 +38,8 @@ def print_devices_details(devices_list):
 
 def print_devices():
     log.info(
-        f"Local devices = {jax.local_device_count()}, " f"global devices = {jax.device_count()}"
+        f"Local devices = {jax.local_device_count()}, "
+        f"global devices = {jax.device_count()}"
     )
 
     log.info("All devices: ")
@@ -91,7 +92,8 @@ def run_sharding_permute(cluster_size, proc_id):
         # but different across processes.
         sample = fn.external_source(
             lambda sample_info: np.array(
-                [[sample_info.idx_in_batch, shard_id, num_shards]], dtype=np.int32
+                [[sample_info.idx_in_batch, shard_id, num_shards]],
+                dtype=np.int32,
             ),
             batch=False,
         )
@@ -101,14 +103,18 @@ def run_sharding_permute(cluster_size, proc_id):
 
     batch_size = 7
 
-    iterator = iterator_function(batch_size=cluster_size * batch_size, num_threads=4)
+    iterator = iterator_function(
+        batch_size=cluster_size * batch_size, num_threads=4
+    )
     local_devices = jax.local_devices()
     assert len(local_devices) == 1, f"{len(local_devices)}!= 1"
     local_device = local_devices[0]
     for out in iterator:
         data = out["data"]
         data_devices = list(data.devices())
-        assert len(data_devices) == cluster_size, f"{len(data_devices)}!= {cluster_size}"
+        assert (
+            len(data_devices) == cluster_size
+        ), f"{len(data_devices)}!= {cluster_size}"
         local_arrays = [x.data for x in data.addressable_shards]
         assert len(local_arrays) == 1, f"{len(local_arrays)}!= 1"
         local_array = local_arrays[0]
@@ -117,7 +123,10 @@ def run_sharding_permute(cluster_size, proc_id):
         array_device = array_devices[0]
         assert array_device == local_device, f"{array_device}!= {local_device}"
         ref = jax.numpy.array(
-            [[[i, 1 - proc_id if i % 2 else proc_id, cluster_size]] for i in range(batch_size)]
+            [
+                [[i, 1 - proc_id if i % 2 else proc_id, cluster_size]]
+                for i in range(batch_size)
+            ]
         )
         assert jax.numpy.array_equal(local_array, ref), f"{local_array}!= {ref}"
 
@@ -131,11 +140,17 @@ if __name__ == "__main__":
     proc_id = args.id
     assert 0 <= proc_id < cluster_size, f"{proc_id}, {cluster_size}"
 
-    log.basicConfig(level=log.INFO, format=f"PID {(os.getpid(), args.id)}: %(message)s")
+    log.basicConfig(
+        level=log.INFO, format=f"PID {(os.getpid(), args.id)}: %(message)s"
+    )
     jax.distributed.initialize(
-        coordinator_address="localhost:12321", num_processes=cluster_size, process_id=proc_id
+        coordinator_address="localhost:12321",
+        num_processes=cluster_size,
+        process_id=proc_id,
     )
     print_devices()
-    assert cluster_size == len(jax.devices()), f"{cluster_size} != {len(jax.devices())}"
+    assert cluster_size == len(
+        jax.devices()
+    ), f"{cluster_size} != {len(jax.devices())}"
 
     run_sharding_permute(cluster_size=2, proc_id=args.id)

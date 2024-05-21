@@ -38,7 +38,9 @@ def check_serialize_deserialize(batch):
         writer = SharedBatchWriter(shm_chunk, batch)
         batch_meta = SharedBatchMeta.from_writer(writer)
         deserialized_batch = deserialize_batch(shm_chunk, batch_meta)
-        assert len(batch) == len(deserialized_batch), "Lengths before and after should be the same"
+        assert len(batch) == len(
+            deserialized_batch
+        ), "Lengths before and after should be the same"
         for i in range(len(batch)):
             np.testing.assert_array_equal(batch[i], deserialized_batch[i])
 
@@ -54,13 +56,17 @@ def test_serialize_deserialize():
         [],
     ]:
         for dtype in [np.int8, np.float, np.int32]:
-            yield check_serialize_deserialize, [np.full(s, 42, dtype=dtype) for s in shapes]
+            yield check_serialize_deserialize, [
+                np.full(s, 42, dtype=dtype) for s in shapes
+            ]
 
 
 def test_serialize_deserialize_random():
     for max_shape in [(12, 200, 100, 3), (200, 300, 3), (300, 2)]:
         for dtype in [np.uint8, np.float]:
-            rsdi = RandomlyShapedDataIterator(10, max_shape=max_shape, dtype=dtype)
+            rsdi = RandomlyShapedDataIterator(
+                10, max_shape=max_shape, dtype=dtype
+            )
             for i, batch in enumerate(rsdi):
                 if i == 10:
                     break
@@ -88,14 +94,25 @@ def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
         socket_r = None
     proc = mp.Process(
         target=worker,
-        args=(start_method, socket_r, task_queue, res_queue, worker_cb, worker_params),
+        args=(
+            start_method,
+            socket_r,
+            task_queue,
+            res_queue,
+            worker_cb,
+            worker_params,
+        ),
     )
     proc.start()
     try:
         if start_method == "spawn":
             pid = os.getppid()
-            multiprocessing.reduction.send_handle(socket_w, task_queue.shm.handle, pid)
-            multiprocessing.reduction.send_handle(socket_w, res_queue.shm.handle, pid)
+            multiprocessing.reduction.send_handle(
+                socket_w, task_queue.shm.handle, pid
+            )
+            multiprocessing.reduction.send_handle(
+                socket_w, res_queue.shm.handle, pid
+            )
         yield task_queue, res_queue
     finally:
         if not proc.exitcode:
@@ -119,8 +136,12 @@ def test_queue_full_assertion():
             for one_by_one in (True, False):
                 mp = multiprocessing.get_context(start_method)
                 queue = ShmQueue(mp, capacity)
-                msgs = [ShmMessageDesc(i, i, i, i, i) for i in range(capacity + 1)]
-                yield raises(RuntimeError, "The queue is full")(_put_msgs), queue, msgs, one_by_one
+                msgs = [
+                    ShmMessageDesc(i, i, i, i, i) for i in range(capacity + 1)
+                ]
+                yield raises(RuntimeError, "The queue is full")(
+                    _put_msgs
+                ), queue, msgs, one_by_one
 
 
 def copy_callback(task_queue, res_queue, num_samples):
@@ -132,7 +153,9 @@ def copy_callback(task_queue, res_queue, num_samples):
     return msgs
 
 
-def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs, send_one_by_one):
+def _test_queue_recv(
+    start_method, worker_params, capacity, send_msgs, recv_msgs, send_one_by_one
+):
     count = 0
 
     def next_i():
@@ -140,7 +163,9 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
         count += 1
         return count
 
-    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) as (
+    with setup_queue_and_worker(
+        start_method, capacity, copy_callback, worker_params
+    ) as (
         task_queue,
         res_queue,
     ):
@@ -148,7 +173,9 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
         received = 0
         for send_msg, recv_msg in zip(send_msgs, recv_msgs):
             msgs = [
-                ShmMessageDesc(next_i(), -next_i(), next_i(), next_i(), next_i())
+                ShmMessageDesc(
+                    next_i(), -next_i(), next_i(), next_i(), next_i()
+                )
                 for i in range(send_msg)
             ]
             all_msgs.extend(msgs)
@@ -159,7 +186,10 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
                 received += 1
                 recv_msg_values = recv_msg.get_values()
                 assert len(msg_values) == len(recv_msg_values)
-                assert all(msg == recv_msg for msg, recv_msg in zip(msg_values, recv_msg_values))
+                assert all(
+                    msg == recv_msg
+                    for msg, recv_msg in zip(msg_values, recv_msg_values)
+                )
 
 
 def test_queue_recv():
@@ -167,9 +197,14 @@ def test_queue_recv():
     send_msgs = [(1, 1, 1), (7, 6, 5), (19, 5, 4, 9), (100, 100, 5)]
     recv_msgs = [(1, 1, 1), (5, 1, 12), (19, 1, 5, 12), (100, 95, 10)]
     for start_method in ("spawn", "fork"):
-        for capacity, send_msg, recv_msg in zip(capacities, send_msgs, recv_msgs):
+        for capacity, send_msg, recv_msg in zip(
+            capacities, send_msgs, recv_msgs
+        ):
             for send_one_by_one in (True, False):
-                for worker_params in ({"num_samples": 1}, {"num_samples": None}):
+                for worker_params in (
+                    {"num_samples": 1},
+                    {"num_samples": None},
+                ):
                     yield (
                         _test_queue_recv,
                         start_method,
@@ -191,7 +226,10 @@ def _test_queue_large(start_method, msg_values):
             [recv_msg] = res_queue.get()
             recv_msg_values = recv_msg.get_values()
             assert len(values) == len(recv_msg_values)
-            assert all(msg == recv_msg for msg, recv_msg in zip(values, recv_msg_values))
+            assert all(
+                msg == recv_msg
+                for msg, recv_msg in zip(values, recv_msg_values)
+            )
 
 
 def test_queue_large():
@@ -212,12 +250,15 @@ def test_queue_large_failure():
     max_int32 = 2**31 - 1
     max_uint32 = 2**32 - 1
     error_message = (
-        "Failed to serialize object as C-like structure. " "Tried to populate following fields:"
+        "Failed to serialize object as C-like structure. "
+        "Tried to populate following fields:"
     )
     for start_method in ("spawn", "fork"):
-        yield raises(RuntimeError, error_message)(_test_queue_large), start_method, [
+        yield raises(RuntimeError, error_message)(
+            _test_queue_large
+        ), start_method, [
             (max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)
         ]
-        yield raises(RuntimeError, error_message)(_test_queue_large), start_method, [
-            (max_int32, max_int32, -1, 0, 0)
-        ]
+        yield raises(RuntimeError, error_message)(
+            _test_queue_large
+        ), start_method, [(max_int32, max_int32, -1, 0, 0)]

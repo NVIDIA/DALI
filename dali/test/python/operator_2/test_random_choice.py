@@ -48,9 +48,12 @@ def check_sample(sample, size, a, p, idx):
     ).all(), "Bucketing is different between pipeline output and expected numpy output."
 
     stat = st.chisquare(
-        sample_counts / np.sum(sample_counts), expected_counts / np.sum(expected_counts)
+        sample_counts / np.sum(sample_counts),
+        expected_counts / np.sum(expected_counts),
     )
-    assert stat.pvalue >= 0.01, f"{stat} - distributions do not match for {idx}."
+    assert (
+        stat.pvalue >= 0.01
+    ), f"{stat} - distributions do not match for {idx}."
 
 
 @params(
@@ -97,7 +100,9 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
     """
 
     if kind in {"scalar", "0d"}:
-        assert elem_shape == (), "elem_shape must be empty tuple for scalar and 0d case"
+        assert (
+            elem_shape == ()
+        ), "elem_shape must be empty tuple for scalar and 0d case"
     sampling_offset = 5  # offset compared to the index in the batch
     batch_size = 8
     if output_shape is None or output_shape == ():
@@ -129,9 +134,13 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
     def choice_pipe():
         a, p = fn.external_source(inp, batch=False, num_outputs=2)
         if not shape_like:
-            choice = fn.random.choice(a, p=p if use_p else None, shape=output_shape)
+            choice = fn.random.choice(
+                a, p=p if use_p else None, shape=output_shape
+            )
         else:
-            choice = fn.random.choice(a, np.full(output_shape, 42), p=p if use_p else None)
+            choice = fn.random.choice(
+                a, np.full(output_shape, 42), p=p if use_p else None
+            )
         return choice, a, p
 
     tuple_output_shape = output_shape if output_shape is not None else ()
@@ -166,7 +175,9 @@ def test_choice_0_prob():
     for _ in range(3):
         (out,) = pipe.run()
         for i in range(2):
-            assert (out[i] == np.full(10, 1)).all(), "Expected all outputs to be 1."
+            assert (
+                out[i] == np.full(10, 1)
+            ).all(), "Expected all outputs to be 1."
 
 
 @params(
@@ -185,22 +196,30 @@ def test_choice_1_elem(input, expected_output, p):
     for _ in range(3):
         (out,) = pipe.run()
         for i in range(2):
-            assert (out[i] == expected_output).all(), f"Expected {expected_output}, got {out[i]}."
+            assert (
+                out[i] == expected_output
+            ).all(), f"Expected {expected_output}, got {out[i]}."
 
 
 def test_choice_64_bit_type():
     @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
     def choice_pipe():
-        a = fn.external_source(lambda: np.array(1 << 40, dtype=np.int64), batch=False)
+        a = fn.external_source(
+            lambda: np.array(1 << 40, dtype=np.int64), batch=False
+        )
         return fn.random.choice(a)
 
     pipe = choice_pipe()
     pipe.build()
     for _ in range(3):
         (out,) = pipe.run()
-        assert out.dtype == types.INT64, f"Expected {types.INT64}, got {out.dtype}."
+        assert (
+            out.dtype == types.INT64
+        ), f"Expected {types.INT64}, got {out.dtype}."
         for i in range(2):
-            assert (0 <= np.array(out[i]) < (1 << 40)).all(), f"Output out of range: {out[i]}."
+            assert (
+                0 <= np.array(out[i]) < (1 << 40)
+            ).all(), f"Output out of range: {out[i]}."
 
 
 @params(
@@ -281,14 +300,19 @@ def test_choice_validation(args, kwargs, expected_error):
 def test_enum_choice():
     batch_size = 8
 
-    interps_to_sample = [types.DALIInterpType.INTERP_LINEAR, types.DALIInterpType.INTERP_CUBIC]
+    interps_to_sample = [
+        types.DALIInterpType.INTERP_LINEAR,
+        types.DALIInterpType.INTERP_CUBIC,
+    ]
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
     def choice_pipeline():
         interp = fn.random.choice(interps_to_sample, shape=[100])
         interp_as_int = fn.cast(interp, dtype=types.INT32)
         imgs = fn.resize(
-            fn.random.uniform(range=[0, 255], dtype=types.UINT8, shape=(100, 100, 3)),
+            fn.random.uniform(
+                range=[0, 255], dtype=types.UINT8, shape=(100, 100, 3)
+            ),
             size=(25, 25),
             interp_type=interp[0],
         )

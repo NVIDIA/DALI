@@ -38,7 +38,10 @@ def test_dali_tf_dataset_cpu_only():
     batch_size = 3
     value = random.randint(0, 1000)
     pipe = get_dali_pipe(
-        batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value
+        batch_size=batch_size,
+        device_id=types.CPU_ONLY_DEVICE_ID,
+        num_threads=1,
+        value=value,
     )
     with tf.device("/cpu"):
         ds = dali_tf.DALIDataset(

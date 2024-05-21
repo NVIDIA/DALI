@@ -14,8 +14,14 @@
 
 import sys
 import traceback
-from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filter
-from nvidia.dali._autograph import is_frame_ag_call_entrypoint, is_frame_ag_call_unconverted
+from nvidia.dali._autograph.utils.tf_stack import (
+    get_frame_map,
+    get_frame_filter,
+)
+from nvidia.dali._autograph import (
+    is_frame_ag_call_entrypoint,
+    is_frame_ag_call_unconverted,
+)
 
 
 _origin_trace_enabled = True
@@ -130,7 +136,9 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
                 # If we are in the same function region, we replace previous entry so we keep only
                 # the last one
                 assert origin_stack_summary
-                if _is_matching_function(origin_stack_summary[-1], current_function_region):
+                if _is_matching_function(
+                    origin_stack_summary[-1], current_function_region
+                ):
                     if _collapse_ag_frames:
                         origin_stack_summary.pop()
                 else:

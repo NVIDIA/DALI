@@ -26,7 +26,9 @@ class Feature:
     and nvidia.dali.tfrecord.VarLenFeature helper functions to obtain the instances.
     """
 
-def FixedLenFeature(__shape: List[int], __dtype: int, __default_value: object, /) -> Feature:
+def FixedLenFeature(
+    __shape: List[int], __dtype: int, __default_value: object, /
+) -> Feature:
     """Equivalent of TensorFlow's FixedLenFeature"""
     ...
 
@@ -36,6 +38,8 @@ def VarLenFeature(__dtype: int, __default_value: object, /) -> Feature:
     ...
 
 @overload
-def VarLenFeature(__partial_shape: List[int], __dtype: int, __default_value: object, /) -> Feature:
+def VarLenFeature(
+    __partial_shape: List[int], __dtype: int, __default_value: object, /
+) -> Feature:
     """Equivalent of TensorFlow's VarLenFeature"""
     ...

@@ -45,7 +45,9 @@ class InputImagesIter(object):
             "cat-2184682_640.tiff",
             "cat-3113513_640.tiff",
         ]
-        self.files = [os.path.join(images_dir, "0", filename) for filename in filenames]
+        self.files = [
+            os.path.join(images_dir, "0", filename) for filename in filenames
+        ]
         shuffle(self.files)
 
     def _load_next(self):
@@ -88,11 +90,17 @@ def _compare_to_cv_distortion(in_img, out_img, q, no):
     if dump_images or (dump_broken and not diff_in_range):
         i, j = no
         cv2.imwrite(
-            f"./reference_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB)
+            f"./reference_q{q}_sample{i}_{j}.bmp",
+            cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB),
         )
-        cv2.imwrite(f"./output_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB))
+        cv2.imwrite(
+            f"./output_q{q}_sample{i}_{j}.bmp",
+            cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB),
+        )
 
-    assert diff_in_range, f"Absolute difference with the reference is too big: {np.average(diff)}"
+    assert (
+        diff_in_range
+    ), f"Absolute difference with the reference is too big: {np.average(diff)}"
 
 
 def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
@@ -100,7 +108,9 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
     def jpeg_distortion_pipe(device="cpu", quality=None):
         if layout == "FHWC":
             iii = InputImagesIter(sequence_length)
-            in_tensors = fn.external_source(source=iii, layout="FHWC", batch=False)
+            in_tensors = fn.external_source(
+                source=iii, layout="FHWC", batch=False
+            )
         else:
             encoded, _ = fn.readers.file(file_root=images_dir)
             in_tensors = fn.decoders.image(encoded, device="cpu")
@@ -112,7 +122,11 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
         return (out_tensors, in_tensors, quality)
 
     pipe = jpeg_distortion_pipe(
-        device=device, quality=quality, batch_size=batch_size, num_threads=2, device_id=0
+        device=device,
+        quality=quality,
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
     )
     pipe.build()
     for _ in range(3):
@@ -127,7 +141,9 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
             q = int(np.array(quality[i]))
             if layout == "FHWC":
                 for j in range(in_tensor.shape[0]):
-                    _compare_to_cv_distortion(in_tensor[j], out_tensor[j], q, (i, j))
+                    _compare_to_cv_distortion(
+                        in_tensor[j], out_tensor[j], q, (i, j)
+                    )
             else:
                 _compare_to_cv_distortion(in_tensor, out_tensor, q, (i, 0))
 
@@ -140,7 +156,9 @@ def test_jpeg_compression_distortion():
                     yield _testimpl_jpeg_compression_distortion, batch_size, device, quality, layout
 
 
-def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, quality):
+def _testimpl_jpeg_compression_distortion_sequence(
+    batch_size, device, seq_len, quality
+):
     @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
     def jpeg_distortion_pipe(device="cpu", quality=None):
         iii = InputImagesIter(seq_len)
@@ -156,7 +174,9 @@ def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, 
             outs.append(fn.slice(tmp, axes=(0,), start=(i,), end=(i + 1,)))
             # Second, distorted slice of the input
             slice_in = fn.slice(inputs, axes=(0,), start=(i,), end=(i + 1,))
-            outs.append(fn.jpeg_compression_distortion(slice_in, quality=quality))
+            outs.append(
+                fn.jpeg_compression_distortion(slice_in, quality=quality)
+            )
         return tuple(outs)
 
     pipe = jpeg_distortion_pipe(device=device, quality=quality)

@@ -32,7 +32,9 @@ def converts(callback, sample, baseline):
 test_array = np.array([[42, 42], [42, 42]], dtype=np.uint8)
 
 
-def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_disallowed):
+def run_checks(
+    samples_allowed, batches_allowed, samples_disallowed, batches_disallowed
+):
     for sample, baseline in samples_allowed:
         yield passes_assert, external_source_impl.assert_cpu_sample_data_type, sample
         yield converts, external_source_impl.sample_to_numpy, sample, baseline
@@ -63,7 +65,10 @@ def non_uniform_tl():
 
 
 def test_regular_containers():
-    samples_cpu = [(test_array, test_array), (tensors.TensorCPU(test_array), test_array)]
+    samples_cpu = [
+        (test_array, test_array),
+        (tensors.TensorCPU(test_array), test_array),
+    ]
     batches_cpu = [
         ([test_array], [test_array]),
         ([test_array] * 4, [test_array] * 4),
@@ -75,11 +80,15 @@ def test_regular_containers():
 
 
 def test_non_uniform_batch():
-    batches_disallowed = [[test_array, np.array([[42, 42]], dtype=np.uint8)], non_uniform_tl()]
+    batches_disallowed = [
+        [test_array, np.array([[42, 42]], dtype=np.uint8)],
+        non_uniform_tl(),
+    ]
     for b in batches_disallowed:
-        yield raises(ValueError, "Uniform input is required (batch of tensors of equal shapes)")(
-            external_source_impl.batch_to_numpy
-        ), b
+        yield raises(
+            ValueError,
+            "Uniform input is required (batch of tensors of equal shapes)",
+        )(external_source_impl.batch_to_numpy), b
 
 
 @attr("pytorch")

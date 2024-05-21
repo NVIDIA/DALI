@@ -111,7 +111,9 @@ class _Classification:
     def __init__(self, data, type_name, arg_constant_len=-1):
         from nvidia.dali._debug_mode import DataNodeDebug
 
-        is_batch, device, extracted = self._classify_data(data, type_name, arg_constant_len)
+        is_batch, device, extracted = self._classify_data(
+            data, type_name, arg_constant_len
+        )
         self.is_batch = is_batch
         self.device = device
         self.data = extracted
@@ -151,7 +153,9 @@ class _Classification:
                 raise RuntimeError(f"Unsupported array type '{type(arr)}'.")
 
             arr = _types._preprocess_constant_array_type(arr)
-            arr = _tensors.TensorListCPU([_tensors.TensorCPU(arr)] * arg_constant_len)
+            arr = _tensors.TensorListCPU(
+                [_tensors.TensorCPU(arr)] * arg_constant_len
+            )
             return True, "cpu", arr
 
         if isinstance(data, list):
@@ -163,14 +167,17 @@ class _Classification:
             data_list = []
 
             for d in data:
-                is_batch, device, val = _Classification._classify_data(d, type_name, -1)
+                is_batch, device, val = _Classification._classify_data(
+                    d, type_name, -1
+                )
                 is_batch_list.append(is_batch)
                 device_list.append(device)
                 data_list.append(val)
 
             if any([device != device_list[0] for device in device_list]):
                 raise RuntimeError(
-                    f"{type_name} has batches of data on CPU and on GPU, " "which is not supported."
+                    f"{type_name} has batches of data on CPU and on GPU, "
+                    "which is not supported."
                 )
 
             if all(is_batch_list):
@@ -184,7 +191,9 @@ class _Classification:
                     _transform_data_to_tensorlist(data_list, len(data_list)),
                 )
             else:
-                raise RuntimeError(f"{type_name} has inconsistent batch classification.")
+                raise RuntimeError(
+                    f"{type_name} has inconsistent batch classification."
+                )
 
         else:
             if isinstance(data, DataNodeDebug):
@@ -202,7 +211,9 @@ class _Classification:
                     return classify_array_kwarg(data)
                 else:
                     return classify_array_input(data)
-            if hasattr(data, "__cuda_array_interface__") or isinstance(data, _tensors.TensorGPU):
+            if hasattr(data, "__cuda_array_interface__") or isinstance(
+                data, _tensors.TensorGPU
+            ):
                 return False, "gpu", data
 
         return False, "cpu", data
@@ -239,7 +250,11 @@ def _arithm_op(name, *inputs):
 
     if device == "gpu":
         inputs = list(
-            input._as_gpu() if isinstance(input, _tensors.TensorListCPU) else input
+            (
+                input._as_gpu()
+                if isinstance(input, _tensors.TensorListCPU)
+                else input
+            )
             for input in inputs
         )
 
@@ -359,7 +374,9 @@ def _rxor(self, other):
 _stateless_operators_cache = {}
 
 
-def _create_backend_op(spec, device, num_inputs, num_outputs, call_args_names, op_name):
+def _create_backend_op(
+    spec, device, num_inputs, num_outputs, call_args_names, op_name
+):
     inp_device = "cpu" if device == "mixed" else device
     out_device = "gpu" if device == "mixed" else device
 
@@ -379,7 +396,9 @@ def _create_backend_op(spec, device, num_inputs, num_outputs, call_args_names, o
     elif device == "mixed":
         backend_op = _b.EagerOperatorMixed(spec)
     else:
-        raise ValueError(f"Incorrect device type '{device}' in eager operator '{op_name}'.")
+        raise ValueError(
+            f"Incorrect device type '{device}' in eager operator '{op_name}'."
+        )
 
     return backend_op
 
@@ -397,7 +416,11 @@ def _eager_op_object_factory(op_class, op_name):
             kwargs["batch_size"] = 0
 
             _, init_args, _ = _prep_args(
-                [], kwargs, op_name, op_name, _callable_op_factory.disqualified_arguments
+                [],
+                kwargs,
+                op_name,
+                op_name,
+                _callable_op_factory.disqualified_arguments,
             )
             device_id = init_args.pop("device_id")
             init_args.pop("max_batch_size")
@@ -409,7 +432,11 @@ def _eager_op_object_factory(op_class, op_name):
 
         def __call__(self, *inputs, **kwargs):
             inputs, init_args, call_args = _prep_args(
-                inputs, kwargs, op_name, op_name, _callable_op_factory.disqualified_arguments
+                inputs,
+                kwargs,
+                op_name,
+                op_name,
+                _callable_op_factory.disqualified_arguments,
             )
 
             if not self.built:
@@ -419,7 +446,12 @@ def _eager_op_object_factory(op_class, op_name):
 
                 self._spec.AddArg("max_batch_size", init_args["max_batch_size"])
                 self._backend_op = _create_backend_op(
-                    self._spec, self._device, len(inputs), num_outputs, call_args.keys(), op_name
+                    self._spec,
+                    self._device,
+                    len(inputs),
+                    num_outputs,
+                    call_args.keys(),
+                    op_name,
                 )
                 self.built = True
 
@@ -439,7 +471,9 @@ def _expose_eager_op_as_object(op_class, submodule):
     """
 
     op_name = op_class.schema_name
-    module = _internal.get_submodule("nvidia.dali.experimental.eager", submodule)
+    module = _internal.get_submodule(
+        "nvidia.dali.experimental.eager", submodule
+    )
     op = _eager_op_object_factory(op_class, op_name)
     setattr(module, op_name, op)
 
@@ -457,7 +491,12 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
             ) + self.schema.CalculateAdditionalOutputs(self._spec)
 
             self._backend_op = _create_backend_op(
-                self._spec, self._device, num_inputs, num_outputs, call_args_names, op_name
+                self._spec,
+                self._device,
+                num_inputs,
+                num_outputs,
+                call_args_names,
+                op_name,
             )
 
     return EagerOperatorBase
@@ -496,7 +535,11 @@ def _create_state_submodule(name):
 
             for name, submodule_class in StateSubmodule._submodules.items():
                 # Adds nested submodules.
-                setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
+                setattr(
+                    self,
+                    name,
+                    submodule_class(self._operator_cache, self._seed_generator),
+                )
 
         __name__ = name
 
@@ -504,7 +547,9 @@ def _create_state_submodule(name):
 
 
 def _callable_op_factory(op_class, op_name, num_inputs, call_args_names):
-    class EagerOperator(_eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)):
+    class EagerOperator(
+        _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)
+    ):
         def __call__(self, inputs, kwargs):
             # Here all kwargs are supposed to be TensorLists.
             output = self._backend_op(inputs, kwargs)
@@ -517,11 +562,17 @@ def _callable_op_factory(op_class, op_name, num_inputs, call_args_names):
     return EagerOperator
 
 
-_callable_op_factory.disqualified_arguments = {"bytes_per_sample_hint", "preserve", "seed"}
+_callable_op_factory.disqualified_arguments = {
+    "bytes_per_sample_hint",
+    "preserve",
+    "seed",
+}
 
 
 def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
-    class EagerOperator(_eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)):
+    class EagerOperator(
+        _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)
+    ):
         def __init__(self, call_args, *, max_batch_size, **kwargs):
             pad_last_batch = kwargs.get("pad_last_batch", False)
             kwargs["pad_last_batch"] = True
@@ -532,7 +583,9 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
             self._iter = 0
 
             epoch_size = self._backend_op.reader_meta()["epoch_size"]
-            self._num_iters = (epoch_size + max_batch_size - 1) // max_batch_size
+            self._num_iters = (
+                epoch_size + max_batch_size - 1
+            ) // max_batch_size
 
             # Size of the last batch in an epoch.
             if pad_last_batch or epoch_size % max_batch_size == 0:
@@ -555,7 +608,8 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
                 if self._iter == self._num_iters:
                     # Return potentially partial batch at the end of an epoch.
                     outputs = [
-                        _slice_tensorlist(tl_output, self._last_batch_size) for tl_output in outputs
+                        _slice_tensorlist(tl_output, self._last_batch_size)
+                        for tl_output in outputs
                     ]
 
                 if len(outputs) == 1:
@@ -604,7 +658,9 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         device_id = 0
 
     if device == "cpu" and input_device == "gpu":
-        raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+        raise ValueError(
+            "An operator with device='cpu' cannot accept GPU inputs."
+        )
 
     if device != "cpu" and device != "gpu":
         raise ValueError(f"Incorrect device type '{device}'.")
@@ -613,7 +669,9 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         if op_name in _ops.mixed_ops():
             device = "mixed"
         else:
-            raise ValueError(f"Operator '{wrapper_name}' not registered for mixed.")
+            raise ValueError(
+                f"Operator '{wrapper_name}' not registered for mixed."
+            )
 
     return device, device_id
 
@@ -621,7 +679,9 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
 def _disqualify_arguments(op_name, kwargs, disqualified_args):
     for key in disqualified_args:
         if key in kwargs:
-            raise RuntimeError(f"Argument '{key}' is not supported by eager operator '{op_name}'.")
+            raise RuntimeError(
+                f"Argument '{key}' is not supported by eager operator '{op_name}'."
+            )
 
 
 def _choose_batch_size(inputs, batch_size=-1):
@@ -633,7 +693,9 @@ def _choose_batch_size(inputs, batch_size=-1):
         for input in inputs:
             if hasattr(input, "__len__"):
                 input_batch_size = len(input)
-            if isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+            if isinstance(
+                input, (_tensors.TensorListCPU, _tensors.TensorListGPU)
+            ):
                 # TensorList inputs have priority for choosing batch size.
                 break
 
@@ -660,7 +722,9 @@ def _prep_args(inputs, kwargs, op_name, wrapper_name, disqualified_arguments):
         inputs = list(inputs)
 
         for i, input in enumerate(inputs):
-            if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+            if not isinstance(
+                input, (_tensors.TensorListCPU, _tensors.TensorListGPU)
+            ):
                 inputs[i] = _transform_data_to_tensorlist(input, batch_size)
 
         return inputs
@@ -694,7 +758,9 @@ def _prep_args(inputs, kwargs, op_name, wrapper_name, disqualified_arguments):
 def _desc_call_args(inputs, args):
     """Returns string description of call arguments (inputs and input arguments) to use as part of
     the caching key."""
-    return str([(inp.dtype, inp.layout(), len(inp[0].shape())) for inp in inputs]) + str(
+    return str(
+        [(inp.dtype, inp.layout(), len(inp[0].shape())) for inp in inputs]
+    ) + str(
         sorted(
             [
                 (key, value.dtype, value.layout(), len(value[0].shape()))
@@ -708,7 +774,11 @@ def _gen_cache_key(op_name, inputs, init_args, call_args):
     """Creating cache key consisting of operator name, description of inputs, input arguments
     and init args. Each call arg is described by dtype, layout and dim.
     """
-    return op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
+    return (
+        op_name
+        + _desc_call_args(inputs, call_args)
+        + str(sorted(init_args.items()))
+    )
 
 
 def _wrap_stateless(op_class, op_name, wrapper_name):
@@ -718,7 +788,11 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
 
     def wrapper(*inputs, **kwargs):
         inputs, init_args, call_args = _prep_args(
-            inputs, kwargs, op_name, wrapper_name, _callable_op_factory.disqualified_arguments
+            inputs,
+            kwargs,
+            op_name,
+            wrapper_name,
+            _callable_op_factory.disqualified_arguments,
         )
 
         key = _gen_cache_key(op_name, inputs, init_args, call_args)
@@ -740,7 +814,11 @@ def _wrap_stateful(op_class, op_name, wrapper_name):
 
     def wrapper(self, *inputs, **kwargs):
         inputs, init_args, call_args = _prep_args(
-            inputs, kwargs, op_name, wrapper_name, _callable_op_factory.disqualified_arguments
+            inputs,
+            kwargs,
+            op_name,
+            wrapper_name,
+            _callable_op_factory.disqualified_arguments,
         )
 
         key = _gen_cache_key(op_name, inputs, init_args, call_args)
@@ -749,7 +827,9 @@ def _wrap_stateful(op_class, op_name, wrapper_name):
             # Creating a new operator instance with deterministically generated seed, so if we
             # preserve the order of operator calls in different instances of rng_state, they
             # return the same results.
-            seed = self._seed_generator.integers(_wrap_stateful.seed_upper_bound)
+            seed = self._seed_generator.integers(
+                _wrap_stateful.seed_upper_bound
+            )
             self._operator_cache[key] = _callable_op_factory(
                 op_class, wrapper_name, len(inputs), call_args.keys()
             )(**init_args, seed=seed)
@@ -773,15 +853,21 @@ def _wrap_iterator(op_class, op_name, wrapper_name):
 
     def wrapper(*inputs, **kwargs):
         if len(inputs) > 0:
-            raise ValueError("Iterator type eager operators should not receive any inputs.")
+            raise ValueError(
+                "Iterator type eager operators should not receive any inputs."
+            )
 
         inputs, init_args, call_args = _prep_args(
-            inputs, kwargs, op_name, wrapper_name, _iterator_op_factory.disqualified_arguments
+            inputs,
+            kwargs,
+            op_name,
+            wrapper_name,
+            _iterator_op_factory.disqualified_arguments,
         )
 
-        op = _iterator_op_factory(op_class, wrapper_name, len(inputs), call_args.keys())(
-            call_args, **init_args
-        )
+        op = _iterator_op_factory(
+            op_class, wrapper_name, len(inputs), call_args.keys()
+        )(call_args, **init_args)
 
         return op
 
@@ -805,10 +891,14 @@ def _get_eager_target_module(parent_module, submodules, make_hidden):
     """Returns target module inside ``parent_module`` if specified, otherwise inside eager."""
     if parent_module is None:
         # Exposing to nvidia.dali.experimental.eager module.
-        parent_module = _internal.get_submodule("nvidia.dali", "experimental.eager")
+        parent_module = _internal.get_submodule(
+            "nvidia.dali", "experimental.eager"
+        )
     else:
         # Exposing to experimental.eager submodule of the specified parent module.
-        parent_module = _internal.get_submodule(sys.modules[parent_module], "experimental.eager")
+        parent_module = _internal.get_submodule(
+            sys.modules[parent_module], "experimental.eager"
+        )
 
     if make_hidden:
         op_module = _internal.get_submodule(parent_module, submodules[:-1])
@@ -818,7 +908,9 @@ def _get_eager_target_module(parent_module, submodules, make_hidden):
     return op_module
 
 
-def _wrap_eager_op(op_class, submodules, parent_module, wrapper_name, wrapper_doc, make_hidden):
+def _wrap_eager_op(
+    op_class, submodules, parent_module, wrapper_name, wrapper_doc, make_hidden
+):
     """Exposes eager operator to the appropriate module
     (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
@@ -849,7 +941,9 @@ def _wrap_eager_op(op_class, submodules, parent_module, wrapper_name, wrapper_do
             # If operator is not stateful, generator, deprecated or excluded expose it as stateless.
             wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
-        op_module = _get_eager_target_module(parent_module, submodules, make_hidden)
+        op_module = _get_eager_target_module(
+            parent_module, submodules, make_hidden
+        )
 
     if not hasattr(op_module, wrapper_name):
         wrapper.__name__ = wrapper_name

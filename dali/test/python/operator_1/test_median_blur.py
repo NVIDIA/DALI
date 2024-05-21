@@ -45,7 +45,10 @@ def ref_func(img, ksize, layout):
 
 
 @dali.pipeline_def(
-    num_threads=NUM_THREADS, device_id=DEV_ID, exec_pipelined=False, exec_async=False
+    num_threads=NUM_THREADS,
+    device_id=DEV_ID,
+    exec_pipelined=False,
+    exec_async=False,
 )
 def reference_pipe(data_src, layout, ksize_src):
     img = fn.external_source(source=data_src, batch=True, layout=layout)
@@ -61,7 +64,9 @@ def reference_pipe(data_src, layout, ksize_src):
 
 @dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def median_blur_pipe(data_src, layout, ksize_src):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
+    img = fn.external_source(
+        source=data_src, batch=True, layout=layout, device="gpu"
+    )
     ksize = fn.external_source(source=ksize_src)
     ksize = fn.cat(ksize, ksize)
     return fn.experimental.median_blur(img, window_size=ksize)
@@ -69,7 +74,9 @@ def median_blur_pipe(data_src, layout, ksize_src):
 
 @dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def median_blur_cksize_pipe(data_src, layout, ksize):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
+    img = fn.external_source(
+        source=data_src, batch=True, layout=layout, device="gpu"
+    )
     return fn.experimental.median_blur(img, window_size=ksize)
 
 
@@ -78,7 +85,10 @@ def ksize_src(bs, lo, hi, seed):
     np_rng = np.random.default_rng(seed=seed)
 
     def gen_ksize():
-        return np_rng.integers(lo // 2, hi // 2 + 1, size=(1), dtype=np.int32) * 2 + 1
+        return (
+            np_rng.integers(lo // 2, hi // 2 + 1, size=(1), dtype=np.int32) * 2
+            + 1
+        )
 
     while True:
         ksize = [gen_ksize() for _ in range(bs)]
@@ -103,17 +113,31 @@ def test_median_blur_vs_ocv(bs, layout, dtype, channels, max_ksize):
         max_shape[0] = 32
 
     data1 = test_utils.RandomlyShapedDataIterator(
-        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+        batch_size=bs,
+        min_shape=min_shape,
+        max_shape=max_shape,
+        dtype=dtype,
+        seed=SEED,
     )
     data2 = test_utils.RandomlyShapedDataIterator(
-        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+        batch_size=bs,
+        min_shape=min_shape,
+        max_shape=max_shape,
+        dtype=dtype,
+        seed=SEED,
     )
     ksize1 = ksize_src(bs, 3, max_ksize, SEED)
     ksize2 = ksize_src(bs, 3, max_ksize, SEED)
     pipe1 = median_blur_pipe(
-        data_src=data1, layout=layout, ksize_src=ksize1, batch_size=bs, prefetch_queue_depth=1
+        data_src=data1,
+        layout=layout,
+        ksize_src=ksize1,
+        batch_size=bs,
+        prefetch_queue_depth=1,
     )
-    pipe2 = reference_pipe(data_src=data2, layout=layout, ksize_src=ksize2, batch_size=bs)
+    pipe2 = reference_pipe(
+        data_src=data2, layout=layout, ksize_src=ksize2, batch_size=bs
+    )
     test_utils.compare_pipelines(pipe1, pipe2, batch_size=bs, N_iterations=10)
 
 
@@ -133,10 +157,18 @@ def test_median_blur_const_ksize_vs_ocv(bs, layout, dtype, channels, ksize):
         max_shape[0] = 32
 
     data1 = test_utils.RandomlyShapedDataIterator(
-        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+        batch_size=bs,
+        min_shape=min_shape,
+        max_shape=max_shape,
+        dtype=dtype,
+        seed=SEED,
     )
     data2 = test_utils.RandomlyShapedDataIterator(
-        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+        batch_size=bs,
+        min_shape=min_shape,
+        max_shape=max_shape,
+        dtype=dtype,
+        seed=SEED,
     )
     if isinstance(ksize, tuple):
         cv_ksize = ksize[0]
@@ -144,7 +176,13 @@ def test_median_blur_const_ksize_vs_ocv(bs, layout, dtype, channels, ksize):
         cv_ksize = ksize
     ksize1 = ksize_src(bs, cv_ksize, cv_ksize, SEED)
     pipe1 = median_blur_cksize_pipe(
-        data_src=data1, layout=layout, ksize=ksize, batch_size=bs, prefetch_queue_depth=1
+        data_src=data1,
+        layout=layout,
+        ksize=ksize,
+        batch_size=bs,
+        prefetch_queue_depth=1,
     )
-    pipe2 = reference_pipe(data_src=data2, layout=layout, ksize_src=ksize1, batch_size=bs)
+    pipe2 = reference_pipe(
+        data_src=data2, layout=layout, ksize_src=ksize1, batch_size=bs
+    )
     test_utils.compare_pipelines(pipe1, pipe2, batch_size=bs, N_iterations=10)

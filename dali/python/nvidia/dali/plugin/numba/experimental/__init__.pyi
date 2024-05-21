@@ -22,7 +22,8 @@ from nvidia.dali._typing import TensorLikeIn
 class NumbaFunction:
     """Invokes a njit compiled Numba function.
 
-    The run function should be a Python function that can be compiled in Numba ``nopython`` mode."""
+    The run function should be a Python function that can be compiled in Numba ``nopython`` mode.
+    """
 
     def __init__(
         self,

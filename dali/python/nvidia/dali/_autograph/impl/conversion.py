@@ -39,7 +39,9 @@ def _is_of_known_loaded_module(f, module_name):
 
 def _is_known_loaded_type(f, module_name, entity_name):
     """Tests whether the function or method is an instance of a known type."""
-    if module_name not in sys.modules or not hasattr(sys.modules[module_name], entity_name):
+    if module_name not in sys.modules or not hasattr(
+        sys.modules[module_name], entity_name
+    ):
         return False
     type_entity = getattr(sys.modules[module_name], entity_name)
     if isinstance(f, type_entity):
@@ -67,13 +69,15 @@ def is_unsupported(o):
     """Checks whether an entity is supported by AutoGraph at all."""
 
     # TODO(b/122265385): Remove this bypass.
-    if _is_known_loaded_type(o, "wrapt", "FunctionWrapper") or _is_known_loaded_type(
-        o, "wrapt", "BoundFunctionWrapper"
-    ):
+    if _is_known_loaded_type(
+        o, "wrapt", "FunctionWrapper"
+    ) or _is_known_loaded_type(o, "wrapt", "BoundFunctionWrapper"):
         logging.warning(
             "{} appears to be decorated by wrapt, which is not yet supported"
             " by AutoGraph. The function will run as-is."
-            " You may still apply AutoGraph before the wrapt decorator.".format(o)
+            " You may still apply AutoGraph before the wrapt decorator.".format(
+                o
+            )
         )
         logging.log(2, "Permanently allowed: %s: wrapt decorated", o)
         return True
@@ -92,14 +96,17 @@ def is_unsupported(o):
     # Other built-in modules are permanently allowed.
     # TODO(mdan): Figure out how to do this consistently for all stdlib modules.
     if any(
-        _is_of_known_loaded_module(o, m) for m in ("collections", "pdb", "copy", "inspect", "re")
+        _is_of_known_loaded_module(o, m)
+        for m in ("collections", "pdb", "copy", "inspect", "re")
     ):
         logging.log(2, "Permanently allowed: %s: part of builtin module", o)
         return True
 
     # Custom ops and kernels are also permanently allowed.
     # See tensorflow.framework.load_library.
-    if hasattr(o, "__module__") and hasattr(o.__module__, "_IS_TENSORFLOW_PLUGIN"):
+    if hasattr(o, "__module__") and hasattr(
+        o.__module__, "_IS_TENSORFLOW_PLUGIN"
+    ):
         logging.log(2, "Permanently allowed: %s: TensorFlow plugin", o)
         return True
 
@@ -107,7 +114,9 @@ def is_unsupported(o):
 
 
 # TODO(mdan): allow_namedtuple_subclass should be hardcoded to True.
-def is_allowlisted(o, check_call_override=True, allow_namedtuple_subclass=False):
+def is_allowlisted(
+    o, check_call_override=True, allow_namedtuple_subclass=False
+):
     """Checks whether an entity is allowed for use in graph mode.
 
     Examples of allowed entities include all members of the tensorflow
@@ -146,10 +155,16 @@ def is_allowlisted(o, check_call_override=True, allow_namedtuple_subclass=False)
     # The check for __code__ below is because isgeneratorfunction crashes
     # without one.
     if hasattr(o, "__code__") and inspect.isgeneratorfunction(o):
-        logging.log(2, "Allowlisted: %s: generator functions are not converted", o)
+        logging.log(
+            2, "Allowlisted: %s: generator functions are not converted", o
+        )
         return True
 
-    if check_call_override and not inspect.isclass(o) and hasattr(o, "__call__"):
+    if (
+        check_call_override
+        and not inspect.isclass(o)
+        and hasattr(o, "__call__")
+    ):
         # Callable objects: allowed if their __call__ method is.
         # The type check avoids infinite recursion around the __call__ method
         # of function objects.
@@ -179,14 +194,20 @@ def is_allowlisted(o, check_call_override=True, allow_namedtuple_subclass=False)
         owner_class = inspect_utils.getmethodclass(o)
         if owner_class is not None:
             if issubclass(owner_class, unittest.TestCase):
-                logging.log(2, "Allowlisted: %s: method of TestCase subclass", o)
+                logging.log(
+                    2, "Allowlisted: %s: method of TestCase subclass", o
+                )
                 return True
 
             owner_class = inspect_utils.getdefiningclass(o, owner_class)
             if is_allowlisted(
-                owner_class, check_call_override=False, allow_namedtuple_subclass=True
+                owner_class,
+                check_call_override=False,
+                allow_namedtuple_subclass=True,
             ):
-                logging.log(2, "Allowlisted: %s: owner is allowed %s", o, owner_class)
+                logging.log(
+                    2, "Allowlisted: %s: owner is allowed %s", o, owner_class
+                )
                 return True
 
     if inspect_utils.isnamedtuple(o):
@@ -194,7 +215,9 @@ def is_allowlisted(o, check_call_override=True, allow_namedtuple_subclass=False)
         # because they don't expose source code. But we assume they are safe for
         # graph mode since they are just containers.
         if allow_namedtuple_subclass:
-            if not any(inspect_utils.isnamedtuple(base) for base in o.__bases__):
+            if not any(
+                inspect_utils.isnamedtuple(base) for base in o.__bases__
+            ):
                 logging.log(2, "Allowlisted: %s: named tuple", o)
                 return True
         else:

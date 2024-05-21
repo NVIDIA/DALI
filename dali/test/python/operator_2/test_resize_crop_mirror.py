@@ -26,14 +26,20 @@ db_2d_folder = os.path.join(test_data_root, "db", "lmdb")
 def rcm_pipe(device, mode, roi_start=None, roi_end=None):
     roi_relative = True if roi_start or roi_end else None
     files, labels = fn.readers.caffe(path=db_2d_folder, random_shuffle=True)
-    images = fn.decoders.image(files, device="mixed" if device == "gpu" else "cpu")
+    images = fn.decoders.image(
+        files, device="mixed" if device == "gpu" else "cpu"
+    )
     flip_x = fn.random.coin_flip(dtype=types.INT32)
     flip_y = fn.random.coin_flip(dtype=types.INT32)
     flip = flip_x | (flip_y * 2)
     if mode == "not_larger":  # avoid invalid crops
-        size = fn.random.uniform(range=(800, 1000), shape=(2,), dtype=types.FLOAT)
+        size = fn.random.uniform(
+            range=(800, 1000), shape=(2,), dtype=types.FLOAT
+        )
     else:
-        size = fn.random.uniform(range=(224, 480), shape=(2,), dtype=types.FLOAT)
+        size = fn.random.uniform(
+            range=(224, 480), shape=(2,), dtype=types.FLOAT
+        )
     crop_w = fn.random.uniform(range=(100, 224), dtype=types.FLOAT)
     crop_h = fn.random.uniform(range=(100, 224), dtype=types.FLOAT)
     crop_x = fn.random.uniform(range=(0, 1))
@@ -59,7 +65,13 @@ def rcm_pipe(device, mode, roi_start=None, roi_end=None):
         roi_end=roi_end,
         roi_relative=roi_relative,
     )
-    cropped = fn.crop(resized, crop_w=crop_w, crop_h=crop_h, crop_pos_x=crop_x, crop_pos_y=crop_y)
+    cropped = fn.crop(
+        resized,
+        crop_w=crop_w,
+        crop_h=crop_h,
+        crop_pos_x=crop_x,
+        crop_pos_y=crop_y,
+    )
     flipped = fn.flip(cropped, horizontal=flip_x, vertical=flip_y)
     return out, flipped
 

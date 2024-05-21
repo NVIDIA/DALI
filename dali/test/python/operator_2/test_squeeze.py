@@ -26,11 +26,15 @@ def get_data(shapes):
 
 @pipeline_def
 def squeeze_pipe(shapes, axes=None, axis_names=None, layout=None):
-    data = fn.external_source(lambda: get_data(shapes), layout=layout, batch=True, device="cpu")
+    data = fn.external_source(
+        lambda: get_data(shapes), layout=layout, batch=True, device="cpu"
+    )
     return fn.squeeze(data, axes=axes, axis_names=axis_names)
 
 
-def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, expected_layout):
+def _testimpl_squeeze(
+    axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
+):
     batch_size = len(shapes)
     pipe = squeeze_pipe(
         batch_size=batch_size,
@@ -53,7 +57,14 @@ def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, exp
 def test_squeeze():
     # axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
     args = [
-        ([1], None, "XYZ", [(300, 1, 200), (10, 1, 10)], [(300, 200), (10, 10)], "XZ"),
+        (
+            [1],
+            None,
+            "XYZ",
+            [(300, 1, 200), (10, 1, 10)],
+            [(300, 200), (10, 10)],
+            "XZ",
+        ),
         ([1, 2], None, "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
         ([0, 2], None, "XYZ", [(1, 300, 1), (1, 10, 1)], [(300,), (10,)], "Y"),
         (
@@ -70,14 +81,28 @@ def test_squeeze():
             ],
             "BD",
         ),
-        (None, "Z", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300, 1), (10, 1)], "XY"),
+        (
+            None,
+            "Z",
+            "XYZ",
+            [(300, 1, 1), (10, 1, 1)],
+            [(300, 1), (10, 1)],
+            "XY",
+        ),
         (None, "ZY", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
         ([0], None, "X", [(1)], [()], ""),
         ([1], None, "XYZ", [(100, 0, 0)], [(100, 0)], "XZ"),
         (None, "Z", "XYZ", [(100, 0, 0)], [(100, 0)], "XY"),
         (None, "X", "XYZ", [(100, 0, 0)], [(0, 0)], "YZ"),
     ]
-    for axes, axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
+    for (
+        axes,
+        axis_names,
+        layout,
+        shapes,
+        expected_out_shapes,
+        expected_layout,
+    ) in args:
         yield (
             _testimpl_squeeze,
             axes,
@@ -121,7 +146,9 @@ def test_squeeze_throw_error():
         "Specified at least twice same dimension to remove.",
     ]
     assert len(expected_errors) == len(args_list)
-    for (axes, axis_names, layout, shapes), error_msg in zip(args_list, expected_errors):
+    for (axes, axis_names, layout, shapes), error_msg in zip(
+        args_list, expected_errors
+    ):
         yield raises(RuntimeError, error_msg)(
             _test_squeeze_throw_error
         ), axes, axis_names, layout, shapes

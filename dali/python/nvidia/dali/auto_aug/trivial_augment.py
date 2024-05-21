@@ -18,7 +18,9 @@ from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core import _Augmentation, signed_bin
-from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs as _forbid_unused_kwargs
+from nvidia.dali.auto_aug.core._args import (
+    forbid_unused_kwargs as _forbid_unused_kwargs,
+)
 from nvidia.dali.auto_aug.core._utils import (
     get_translations as _get_translations,
     pretty_select as _pretty_select,
@@ -99,9 +101,15 @@ def trivial_augment_wide(
                 f"does not contain augmentation with this name. "
                 f"The augmentations in the suite are: {', '.join(augmentation_names)}."
             )
-    selected_augments = [aug for aug in augmentations if aug.name not in excluded]
+    selected_augments = [
+        aug for aug in augmentations if aug.name not in excluded
+    ]
     return apply_trivial_augment(
-        selected_augments, data, num_magnitude_bins=num_magnitude_bins, seed=seed, **aug_kwargs
+        selected_augments,
+        data,
+        num_magnitude_bins=num_magnitude_bins,
+        seed=seed,
+        **aug_kwargs,
     )
 
 
@@ -158,9 +166,14 @@ def apply_trivial_augment(
         magnitude_bin = signed_bin(magnitude_bin, seed=seed)
     _forbid_unused_kwargs(augmentations, kwargs, "apply_trivial_augment")
     op_kwargs = dict(
-        data=data, magnitude_bin=magnitude_bin, num_magnitude_bins=num_magnitude_bins, **kwargs
+        data=data,
+        magnitude_bin=magnitude_bin,
+        num_magnitude_bins=num_magnitude_bins,
+        **kwargs,
     )
-    op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
+    op_idx = fn.random.uniform(
+        values=list(range(len(augmentations))), seed=seed, dtype=types.INT32
+    )
     return _pretty_select(
         augmentations,
         op_idx,

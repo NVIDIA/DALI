@@ -23,7 +23,9 @@ from nvidia.dali.auto_aug.core import augmentation, Policy
 from nvidia.dali.pipeline import do_not_convert
 from nose2.tools import params
 from test_utils import load_test_operator_plugin
-from nvidia.dali.pipeline.experimental import pipeline_def as pipeline_def_experimental
+from nvidia.dali.pipeline.experimental import (
+    pipeline_def as pipeline_def_experimental,
+)
 
 
 load_test_operator_plugin()
@@ -114,7 +116,9 @@ def compare_traces(dali_tbs, python_tbs, end_glob=origin_trace_glob):
         # Check if we skipped just one frame in python_tb (2 lines)
         assert dali_tb.count("\n") == python_tb.count("\n") + 2, err
         assert dali_tb.startswith(python_tb), err
-        assert re.match(regex, dali_tb), f"{dali_tb} didn't match the expected end traceback"
+        assert re.match(
+            regex, dali_tb
+        ), f"{dali_tb} didn't match the expected end traceback"
 
 
 test_modes = ["dali.fn", "dali.ops"]
@@ -130,7 +134,9 @@ def test_trace_almost_trivial(test_mode):
 
     python_tbs = capture_python_traces(pipe)
 
-    dali_regular_pipe = pipeline_def(batch_size=2, num_threads=1, device_id=0)(pipe)
+    dali_regular_pipe = pipeline_def(batch_size=2, num_threads=1, device_id=0)(
+        pipe
+    )
     dali_regular_tbs = capture_dali_traces(dali_regular_pipe)
     compare_traces(dali_regular_tbs, python_tbs)
 
@@ -139,7 +145,9 @@ def test_trace_almost_trivial_debug():
     global op_mode
     op_mode = "dali.fn"
 
-    @pipeline_def_experimental(batch_size=2, num_threads=1, device_id=0, debug=True)
+    @pipeline_def_experimental(
+        batch_size=2, num_threads=1, device_id=0, debug=True
+    )
     def pipe():
         return origin_trace()
 
@@ -167,7 +175,9 @@ def test_trace_scope(test_mode):
     return {"fn.origin_trace_dump()" if test_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
 """
     regex = fnmatch.translate(glob)
-    assert re.match(regex, dali_tbs[0]), f"{dali_tbs[0]} didn't match expected traceback"
+    assert re.match(
+        regex, dali_tbs[0]
+    ), f"{dali_tbs[0]} didn't match expected traceback"
 
 
 @params(*test_modes)
@@ -189,7 +199,9 @@ def test_trace_push_current(test_mode):
     return {"fn.origin_trace_dump()" if test_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
 """
     regex = fnmatch.translate(glob)
-    assert re.match(regex, dali_tbs[0]), f"{dali_tbs[0]} didn't match expected traceback"
+    assert re.match(
+        regex, dali_tbs[0]
+    ), f"{dali_tbs[0]} didn't match expected traceback"
 
 
 @params(*test_modes)
@@ -214,7 +226,9 @@ def test_trace_recursive(test_mode):
 
     python_tbs = capture_python_traces(pipe)
 
-    dali_regular_pipe = pipeline_def(batch_size=2, num_threads=1, device_id=0)(pipe)
+    dali_regular_pipe = pipeline_def(batch_size=2, num_threads=1, device_id=0)(
+        pipe
+    )
     dali_regular_tbs = capture_dali_traces(dali_regular_pipe)
     compare_traces(dali_regular_tbs, python_tbs)
 
@@ -271,11 +285,15 @@ def test_trace_auto_aug(test_mode):
             ],
         )
 
-    @pipeline_def(batch_size=2, num_threads=1, device_id=0, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=2, num_threads=1, device_id=0, enable_conditionals=True
+    )
     def pipe():
         images = np.full((100, 100, 3), 42, dtype=np.uint8)
 
-        augmented_images = auto_augment.apply_auto_augment(my_custom_policy(), images)
+        augmented_images = auto_augment.apply_auto_augment(
+            my_custom_policy(), images
+        )
 
         return augmented_images
 
@@ -293,7 +311,9 @@ def test_trace_auto_aug(test_mode):
     return {"fn.origin_trace_dump()" if test_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
 """
     regex = fnmatch.translate(stacktrace_glob)
-    assert re.match(regex, dali_cond_tbs[0]), f"{dali_cond_tbs[0]} didn't match expected traceback"
+    assert re.match(
+        regex, dali_cond_tbs[0]
+    ), f"{dali_cond_tbs[0]} didn't match expected traceback"
 
 
 @params(*test_modes)

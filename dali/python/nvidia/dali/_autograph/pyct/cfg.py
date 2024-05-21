@@ -90,7 +90,9 @@ class Node(object):
 
 
 class Graph(
-    collections.namedtuple("Graph", ["entry", "exit", "error", "index", "stmt_prev", "stmt_next"])
+    collections.namedtuple(
+        "Graph", ["entry", "exit", "error", "index", "stmt_prev", "stmt_next"]
+    )
 ):
     """A Control Flow Graph.
 
@@ -197,15 +199,21 @@ class GraphVisitor(object):
         raise NotImplementedError("Subclasses must implement this.")
 
     def reset(self):
-        self.in_ = {node: self.init_state(node) for node in self.graph.index.values()}
-        self.out = {node: self.init_state(node) for node in self.graph.index.values()}
+        self.in_ = {
+            node: self.init_state(node) for node in self.graph.index.values()
+        }
+        self.out = {
+            node: self.init_state(node) for node in self.graph.index.values()
+        }
 
     def can_ignore(self, node):
         """Returns True if the node can safely be assumed not to touch variables."""
         ast_node = node.ast_node
         if anno.hasanno(ast_node, anno.Basic.SKIP_PROCESSING):
             return True
-        return isinstance(ast_node, (gast.Break, gast.Continue, gast.Raise, gast.Pass))
+        return isinstance(
+            ast_node, (gast.Break, gast.Continue, gast.Raise, gast.Pass)
+        )
 
     def _visit_internal(self, mode):
         """Visits the CFG, breadth-first."""
@@ -420,7 +428,9 @@ class GraphBuilder(object):
         if node not in self.finally_sections:
             return cursor
         for guard_section_id in self.finally_sections[node]:
-            guard_begin, guard_ends = self.finally_section_subgraphs[guard_section_id]
+            guard_begin, guard_ends = self.finally_section_subgraphs[
+                guard_section_id
+            ]
             self._connect_nodes(cursor, guard_begin)
             cursor = guard_ends
         del self.finally_sections[node]
@@ -682,26 +692,37 @@ class AstToCfg(gast.NodeVisitor):
         self.generic_visit(node)
         self.builder.add_ordinary_node(node)
 
-    def _process_exit_statement(self, node, exits_nodes_of_type, may_exit_via_except=False):
+    def _process_exit_statement(
+        self, node, exits_nodes_of_type, may_exit_via_except=False
+    ):
         self.generic_visit(node)
         # Note: this is safe because we process functions separately.
-        try_node, guards = self._get_enclosing_finally_scopes(exits_nodes_of_type)
-        assert try_node is not None, "{} that is not enclosed by any of {}".format(
+        try_node, guards = self._get_enclosing_finally_scopes(
+            exits_nodes_of_type
+        )
+        assert (
+            try_node is not None
+        ), "{} that is not enclosed by any of {}".format(
             node, exits_nodes_of_type
         )
 
         node = self.builder.add_exit_node(node, try_node, guards)
 
         if may_exit_via_except:
-            except_guards = self._get_enclosing_except_scopes(exits_nodes_of_type)
+            except_guards = self._get_enclosing_except_scopes(
+                exits_nodes_of_type
+            )
             self.builder.connect_raise_node(node, except_guards)
 
     def _process_continue_statement(self, node, *loops_to_nodes_of_type):
         # Note: this is safe because we process functions separately.
-        try_node, guards = self._get_enclosing_finally_scopes(tuple(loops_to_nodes_of_type))
+        try_node, guards = self._get_enclosing_finally_scopes(
+            tuple(loops_to_nodes_of_type)
+        )
         if try_node is None:
             raise ValueError(
-                "%s that is not enclosed by any of %s" % (node, loops_to_nodes_of_type)
+                "%s that is not enclosed by any of %s"
+                % (node, loops_to_nodes_of_type)
             )
         self.builder.add_continue_node(node, try_node, guards)
 
@@ -798,7 +819,9 @@ class AstToCfg(gast.NodeVisitor):
         self._process_basic_statement(node)
 
     def visit_Raise(self, node):
-        self._process_exit_statement(node, (gast.FunctionDef,), may_exit_via_except=True)
+        self._process_exit_statement(
+            node, (gast.FunctionDef,), may_exit_via_except=True
+        )
         self.builder.errors.add(node)
 
     def visit_Assert(self, node):
@@ -867,7 +890,9 @@ class AstToCfg(gast.NodeVisitor):
         # Also include the "extra loop test" annotation, to capture things like the
         # control variable for return and break in for loops.
         if anno.hasanno(node, anno.Basic.EXTRA_LOOP_TEST):
-            self._process_basic_statement(anno.getanno(node, anno.Basic.EXTRA_LOOP_TEST))
+            self._process_basic_statement(
+                anno.getanno(node, anno.Basic.EXTRA_LOOP_TEST)
+            )
         for stmt in node.body:
             self.visit(stmt)
         self.builder.exit_loop_section(node)

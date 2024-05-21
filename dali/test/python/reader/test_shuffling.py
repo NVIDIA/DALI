@@ -57,7 +57,12 @@ class COCOReaderPipeline(Pipeline):
 
 test_data_root = get_dali_extra_path()
 coco_folder = os.path.join(test_data_root, "db", "coco")
-datasets = [[os.path.join(coco_folder, "images"), os.path.join(coco_folder, "instances.json")]]
+datasets = [
+    [
+        os.path.join(coco_folder, "images"),
+        os.path.join(coco_folder, "instances.json"),
+    ]
+]
 
 
 def test_shuffling_patterns():
@@ -99,7 +104,13 @@ def test_shuffling_patterns():
 
 
 def check_shuffling_patterns(
-    dataset, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num, len_ref_img_ids
+    dataset,
+    num_gpus,
+    batch_size,
+    stick_to_shard,
+    shuffle_after_epoch,
+    dry_run_num,
+    len_ref_img_ids,
 ):
     random_shuffle = not shuffle_after_epoch
     pad_last_batch = batch_size != 1
@@ -135,7 +146,8 @@ def check_shuffling_patterns(
                 shard_size = dataset_size // num_gpus
             else:
                 shard_size = (
-                    dataset_size * (n + 1 + mod) // num_gpus - dataset_size * (n + mod) // num_gpus
+                    dataset_size * (n + 1 + mod) // num_gpus
+                    - dataset_size * (n + mod) // num_gpus
                 )
             iters = shard_size // batch_size
             if shard_size != iters * batch_size:
@@ -152,7 +164,8 @@ def check_shuffling_patterns(
             shard_size = dataset_size // num_gpus
         else:
             shard_size = (
-                dataset_size * (n + 1 + mod) // num_gpus - dataset_size * (n + mod) // num_gpus
+                dataset_size * (n + 1 + mod) // num_gpus
+                - dataset_size * (n + mod) // num_gpus
             )
         iters = shard_size // batch_size
         if shard_size != iters * batch_size:
@@ -165,7 +178,9 @@ def check_shuffling_patterns(
     assert len(new_img_ids) == len_ref_img_ids
 
 
-def gather_ids(pipes, epochs_run=0, batch_size=1, num_gpus_arg=None, gpus_arg=None):
+def gather_ids(
+    pipes, epochs_run=0, batch_size=1, num_gpus_arg=None, gpus_arg=None
+):
     dataset_size = pipes[0].epoch_size("Reader")
     num_gpus = len(pipes)
     if num_gpus_arg:
@@ -229,9 +244,9 @@ def test_global_shuffle_random_shuffle():
 
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
 
-    assert img_ids_list_set[0].union(img_ids_list_set[1]) == img_ids_list_set_new[0].union(
-        img_ids_list_set_new[1]
-    )
+    assert img_ids_list_set[0].union(
+        img_ids_list_set[1]
+    ) == img_ids_list_set_new[0].union(img_ids_list_set_new[1])
 
 
 def test_global_shuffle_random_shuffle_2():
@@ -256,10 +271,14 @@ def test_global_shuffle_random_shuffle_2():
     for pipe in pipes:
         pipe.build()
 
-    img_ids_list, img_ids_list_set, _ = gather_ids(pipes, num_gpus_arg=2, gpus_arg=[0])
+    img_ids_list, img_ids_list_set, _ = gather_ids(
+        pipes, num_gpus_arg=2, gpus_arg=[0]
+    )
     assert len(img_ids_list) == len(img_ids_list_set)
 
-    img_ids_list_new, img_ids_list_new_set, _ = gather_ids(pipes, num_gpus_arg=2, gpus_arg=[0])
+    img_ids_list_new, img_ids_list_new_set, _ = gather_ids(
+        pipes, num_gpus_arg=2, gpus_arg=[0]
+    )
 
     assert len(img_ids_list_new) == len(img_ids_list_new_set)
     assert len(img_ids_list_set.intersection(img_ids_list_new_set)) != 0
@@ -293,9 +312,9 @@ def test_global_shuffle_dont_mix_epochs():
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
-    assert img_ids_list_set[0].union(img_ids_list_set[1]) == img_ids_list_set_new[0].union(
-        img_ids_list_set_new[1]
-    )
+    assert img_ids_list_set[0].union(
+        img_ids_list_set[1]
+    ) == img_ids_list_set_new[0].union(img_ids_list_set_new[1])
 
 
 def test_dont_mix_epochs():
@@ -372,7 +391,9 @@ def test_pad_last_batch_epoch_size():
         pipe.build()
         size = pipe.epoch_size("Reader")
         print(reference_size, size, num_gpus)
-        assert size == int(math.ceil(reference_size * 1.0 / num_gpus)) * num_gpus
+        assert (
+            size == int(math.ceil(reference_size * 1.0 / num_gpus)) * num_gpus
+        )
 
 
 def test_pad_last_batch():
@@ -408,7 +429,9 @@ def test_pad_last_batch():
     assert len(set(mirrored_data)) == 1
     assert len(img_ids_list) != len(img_ids_list_set)
 
-    next_img_ids_list, _, _ = gather_ids(pipes, epochs_run, batch_size=batch_size)
+    next_img_ids_list, _, _ = gather_ids(
+        pipes, epochs_run, batch_size=batch_size
+    )
 
     next_img_ids_list = np.concatenate(next_img_ids_list)
     next_img_ids_list_set = set(next_img_ids_list)

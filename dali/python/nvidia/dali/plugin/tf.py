@@ -20,10 +20,15 @@ from tensorflow.python.framework import tensor_shape
 from nvidia.dali import types
 from nvidia.dali import internal as _internal
 
-from nvidia.dali.external_source import _is_external_source, _has_external_source
+from nvidia.dali.external_source import (
+    _is_external_source,
+    _has_external_source,
+)
 from nvidia.dali.external_source import _is_external_source_with_callback
 
-from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc
+from nvidia.dali._utils.external_source_impl import (
+    _get_generator_from_source_desc,
+)
 from nvidia.dali._utils.external_source_impl import _cycle_enabled
 
 from distutils.version import LooseVersion
@@ -236,7 +241,9 @@ def DALIIteratorWrapper(
         serialized_pipeline = serialize_pipeline(pipeline)
 
     # if batch_size is not provided we need to extract if from the shape arg
-    if (not isinstance(shapes, Iterable) or len(shapes) == 0) and batch_size == -1:
+    if (
+        not isinstance(shapes, Iterable) or len(shapes) == 0
+    ) and batch_size == -1:
         raise Exception(
             "shapes and batch_size arguments cannot be empty, "
             "please provide at leas one shape argument element with the BATCH size "
@@ -288,7 +295,9 @@ def DALIIteratorWrapper(
     for i in range(len(dtypes)):
         if i < len(sparse) and sparse[i]:
             new_out.append(
-                tf.SparseTensor(indices=out[j], values=out[j + 1], dense_shape=out[j + 2])
+                tf.SparseTensor(
+                    indices=out[j], values=out[j + 1], dense_shape=out[j + 2]
+                )
             )
             j += 3
         else:
@@ -345,7 +354,9 @@ def _insert_experimental_member(member, name):
     setattr(experimental_module, name, member)
 
 
-def _get_external_source_param(input_name, input_value, name_es_map, param_name):
+def _get_external_source_param(
+    input_name, input_value, name_es_map, param_name
+):
     """Get value of the parameter `param_name` specified for the External Source node
        named `input_name`. It can be specified either via `input_value` or in the op instance
        passed in `name_es_map`.
@@ -442,8 +453,12 @@ if dataset_compatible_tensorflow():
             dtypes=None,
             shapes=None,
         ):
-            output_shapes = self._handle_deprecation(output_shapes, shapes, "shapes")
-            output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
+            output_shapes = self._handle_deprecation(
+                output_shapes, shapes, "shapes"
+            )
+            output_dtypes = self._handle_deprecation(
+                output_dtypes, dtypes, "dtypes"
+            )
 
             if not self._check_dtypes(output_dtypes, tf.DType):
                 raise TypeError(
@@ -465,7 +480,9 @@ if dataset_compatible_tensorflow():
                 output_dtypes = (output_dtypes,)
                 output_shapes = (output_shapes,)
 
-            output_classes = nest.map_structure(lambda _: tf.Tensor, output_dtypes)
+            output_classes = nest.map_structure(
+                lambda _: tf.Tensor, output_dtypes
+            )
 
             self._pipeline_instance = pipeline  # keep the live Pipeline object
             self._pipeline_serialized = serialize_pipeline(pipeline)
@@ -532,7 +549,8 @@ if dataset_compatible_tensorflow():
                 # keys are str
                 if not isinstance(input_name, str):
                     raise TypeError(
-                        error_str + f". Expected the keys (representing the input names) to be of "
+                        error_str
+                        + f". Expected the keys (representing the input names) to be of "
                         f"type `str`, got: `{input_name}` of type: "
                         f"{input_name} instead."
                     )
@@ -540,9 +558,12 @@ if dataset_compatible_tensorflow():
                 # values are tf.data.Dataset or Input
                 is_dataset_only = isinstance(input_value, dataset_ops.DatasetV2)
                 experimental = _get_experimental()
-                if not is_dataset_only and not isinstance(input_value, experimental.Input):
+                if not is_dataset_only and not isinstance(
+                    input_value, experimental.Input
+                ):
                     raise TypeError(
-                        error_str + ". Expected the values of the dictionary (representing the "
+                        error_str
+                        + ". Expected the values of the dictionary (representing the "
                         "inputs) to be of type `tf.data.Dataset` or "
                         f"`nvidia.dali.plugin.tf.Input` got: `{input_value}` of type: "
                         f"{type(input_value)} instead."
@@ -564,19 +585,30 @@ if dataset_compatible_tensorflow():
 
                 if is_dataset_only:
                     # Set the defaults used in lookup
-                    as_input = experimental.Input(input_value, layout=None, batch=False)
+                    as_input = experimental.Input(
+                        input_value, layout=None, batch=False
+                    )
                 else:
                     as_input = input_value
 
                 # TODO(klecki): Do we want all Python-only ES parameters to be overridable here?
-                layout = _get_external_source_param(input_name, as_input, name_es_map, "layout")
+                layout = _get_external_source_param(
+                    input_name, as_input, name_es_map, "layout"
+                )
                 in_layouts_list.append(layout or "")
 
                 # Batched mode is supported by default
-                batched = _get_external_source_param(input_name, as_input, name_es_map, "batch")
+                batched = _get_external_source_param(
+                    input_name, as_input, name_es_map, "batch"
+                )
                 in_batched_list.append(batched if batched is not None else True)
 
-            return in_datasets_list, in_names_list, in_layouts_list, in_batched_list
+            return (
+                in_datasets_list,
+                in_names_list,
+                in_layouts_list,
+                in_batched_list,
+            )
 
         def _input_lists_from_source(self, callbacked_es_map):
             # TODO(klecki): Warn about this in the doc.
@@ -595,11 +627,15 @@ if dataset_compatible_tensorflow():
 
             for input_name, external_source in callbacked_es_map.items():
                 in_names_list.append(input_name)
-                layout = _get_external_source_param(input_name, None, callbacked_es_map, "layout")
+                layout = _get_external_source_param(
+                    input_name, None, callbacked_es_map, "layout"
+                )
                 in_layouts_list.append(layout or "")
 
                 # Batched mode is supported by default
-                batched = _get_external_source_param(input_name, None, callbacked_es_map, "batch")
+                batched = _get_external_source_param(
+                    input_name, None, callbacked_es_map, "batch"
+                )
                 in_batched_list.append(batched if batched is not None else True)
 
                 source_desc = external_source._op._source_desc
@@ -615,18 +651,27 @@ if dataset_compatible_tensorflow():
                         source_desc, self._batch_size, external_source._batch
                     )
                     signature = _get_signature(dtype, shape)
-                    dataset = tf.data.Dataset.from_generator(tf_gen, output_signature=signature)
+                    dataset = tf.data.Dataset.from_generator(
+                        tf_gen, output_signature=signature
+                    )
                     if _cycle_enabled(source_desc.cycle):
                         dataset = dataset.repeat()
                     # if DALIDataset was placed on GPU, we need to add the copy targeting
                     # that device (with proper id).
                     if is_dali_on_gpu:
                         dataset = dataset.apply(
-                            tf.data.experimental.copy_to_device(dali_device_spec.to_string())
+                            tf.data.experimental.copy_to_device(
+                                dali_device_spec.to_string()
+                            )
                         )
                     in_datasets_list.append(dataset)
 
-            return in_datasets_list, in_names_list, in_layouts_list, in_batched_list
+            return (
+                in_datasets_list,
+                in_names_list,
+                in_layouts_list,
+                in_batched_list,
+            )
 
         def _setup_inputs(self, input_datasets):
             """Verify the input specification and assign it to private members in
@@ -651,13 +696,19 @@ if dataset_compatible_tensorflow():
 
             name_es_map, callbacked_es_map = self._get_name_es_instance_map()
 
-            inputs_from_dict = self._input_lists_from_input_datasets(input_datasets, name_es_map)
+            inputs_from_dict = self._input_lists_from_input_datasets(
+                input_datasets, name_es_map
+            )
 
-            inputs_from_source = self._input_lists_from_source(callbacked_es_map)
+            inputs_from_source = self._input_lists_from_source(
+                callbacked_es_map
+            )
 
             # Check if someone passed an entry in `input_datasets` for the ES with callback
             if not input_datasets.keys().isdisjoint(callbacked_es_map.keys()):
-                overlapped = input_datasets.keys().intersection(callbacked_es_map.keys())
+                overlapped = input_datasets.keys().intersection(
+                    callbacked_es_map.keys()
+                )
                 raise ValueError(
                     "Double specification of External Source input is not allowed. "
                     f"External Source nodes named: `{overlapped}` got inputs specified"
@@ -667,7 +718,9 @@ if dataset_compatible_tensorflow():
 
             # We covered all inputs
             non_matched = (
-                set(name_es_map.keys()) - set(input_datasets.keys()) - set(callbacked_es_map.keys())
+                set(name_es_map.keys())
+                - set(input_datasets.keys())
+                - set(callbacked_es_map.keys())
             )
             if len(non_matched) != 0:
                 raise ValueError(
@@ -677,16 +730,27 @@ if dataset_compatible_tensorflow():
                     f"{list(input_datasets.keys())}."
                 )
 
-            self._input_datasets = tuple(inputs_from_dict[0] + inputs_from_source[0])
-            self._input_names = tuple(inputs_from_dict[1] + inputs_from_source[1])
-            self._input_layouts = tuple(inputs_from_dict[2] + inputs_from_source[2])
+            self._input_datasets = tuple(
+                inputs_from_dict[0] + inputs_from_source[0]
+            )
+            self._input_names = tuple(
+                inputs_from_dict[1] + inputs_from_source[1]
+            )
+            self._input_layouts = tuple(
+                inputs_from_dict[2] + inputs_from_source[2]
+            )
             # Map it to integers, to pass as vector<int> instead of vector<bool> to C++
-            self._input_batched = tuple(int(b) for b in inputs_from_dict[3] + inputs_from_source[3])
+            self._input_batched = tuple(
+                int(b) for b in inputs_from_dict[3] + inputs_from_source[3]
+            )
 
         def _assert_pipeline_instance(self):
             """Ensure that the pipeline is built, and check if the Python part is available."""
             self._pipeline_instance.build()
-            if not self._pipeline_instance._py_graph_built and self._pipeline_instance._built:
+            if (
+                not self._pipeline_instance._py_graph_built
+                and self._pipeline_instance._built
+            ):
                 raise ValueError(
                     "Deserialized pipelines cannot be used with `input_datasets`. "
                     "Please provide a pipeline that was created directly in Python "
@@ -794,7 +858,9 @@ if dataset_compatible_tensorflow():
         def _as_variant_tensor(self):
             return _dali_tf_module.dali_dataset(
                 # Experimental dataset inputs
-                nest.map_structure(lambda d: d._variant_tensor, self._input_datasets),
+                nest.map_structure(
+                    lambda d: d._variant_tensor, self._input_datasets
+                ),
                 # Description of inputs
                 input_names=self._input_names,
                 input_layouts=self._input_layouts,
@@ -884,10 +950,14 @@ if dataset_inputs_compatible_tensorflow():
             @functools.wraps(_DALIDatasetV2.__init__)
             def __init__(self, pipeline, **kwargs):
                 dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
-                super(DALIDatasetWithInputs, self).__init__(dataset_impl, dataset_options())
+                super(DALIDatasetWithInputs, self).__init__(
+                    dataset_impl, dataset_options()
+                )
 
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
-        _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
+        _insert_experimental_member(
+            DALIDatasetWithInputs, "DALIDatasetWithInputs"
+        )
 
         class Input:
             def __init__(self, dataset, *, layout=None, batch=False):
@@ -920,7 +990,9 @@ else:
                 )
 
         DALIDatasetWithInputs.__doc__ = _experimental_dataset_docstring
-        _insert_experimental_member(DALIDatasetWithInputs, "DALIDatasetWithInputs")
+        _insert_experimental_member(
+            DALIDatasetWithInputs, "DALIDatasetWithInputs"
+        )
 
         class Input:
             def __init__(self, *args, **kwargs):

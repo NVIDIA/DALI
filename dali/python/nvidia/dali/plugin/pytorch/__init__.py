@@ -20,7 +20,12 @@ from typing import Any, Dict, List
 from nvidia.dali import internal as _internal
 from nvidia.dali import ops
 from nvidia.dali import types
-from nvidia.dali.backend import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU
+from nvidia.dali.backend import (
+    TensorCPU,
+    TensorGPU,
+    TensorListCPU,
+    TensorListGPU,
+)
 from nvidia.dali.pipeline import Pipeline
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
@@ -33,9 +38,13 @@ import numpy as np
 
 from . import fn  # noqa: F401
 
-from nvidia.dali.plugin.pytorch._torch_function import TorchPythonFunction as TorchPythonFunction
+from nvidia.dali.plugin.pytorch._torch_function import (
+    TorchPythonFunction as TorchPythonFunction,
+)
 
-_internal._adjust_operator_module(TorchPythonFunction, sys.modules[__name__], [])
+_internal._adjust_operator_module(
+    TorchPythonFunction, sys.modules[__name__], []
+)
 
 ops._wrap_op(TorchPythonFunction, "fn", __name__)
 
@@ -93,7 +102,9 @@ def feed_ndarray(
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
         stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
-        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=non_blocking)
+        dali_tensor.copy_to_external(
+            c_type_pointer, stream, non_blocking=non_blocking
+        )
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return arr
@@ -202,7 +213,9 @@ class DALIGenericIterator(_DaliBaseIterator):
         prepare_first_batch: bool = True,
     ) -> None:
         # check the assert first as _DaliBaseIterator would run the prefetch
-        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
+        assert len(set(output_map)) == len(
+            output_map
+        ), "output_map names should be distinct"
         self._output_categories = set(output_map)
         self.output_map = output_map
 
@@ -260,7 +273,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             torch_cpu_device = torch.device("cpu")
             # check category and device
             for category in self._output_categories:
-                category_torch_type[category] = to_torch_type[category_tensors[category].dtype]
+                category_torch_type[category] = to_torch_type[
+                    category_tensors[category].dtype
+                ]
                 if type(category_tensors[category]) is TensorGPU:
                     if not torch_gpu_device:
                         torch_gpu_device = torch.device("cuda", dev_id)
@@ -282,8 +297,12 @@ class DALIGenericIterator(_DaliBaseIterator):
             for category, tensor in category_tensors.items():
                 if isinstance(tensor, (TensorGPU, TensorListGPU)):
                     # Using same cuda_stream used by torch.zeros to set the memory
-                    stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                    feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
+                    stream = torch.cuda.current_stream(
+                        device=pyt_tensors[category].device
+                    )
+                    feed_ndarray(
+                        tensor, pyt_tensors[category], cuda_stream=stream
+                    )
                 else:
                     feed_ndarray(tensor, pyt_tensors[category])
 
@@ -309,7 +328,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 and self._size > 0
             ):
                 # First calculate how much data is required to return exactly self._size entries.
-                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+                diff = self._num_gpus * self.batch_size - (
+                    self._counter - self._size
+                )
                 # Figure out how many GPUs to grab from.
                 numGPUs_tograb = int(np.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU
@@ -325,7 +346,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 output = data_batches[0:numGPUs_tograb]
                 output[-1] = output[-1].copy()
                 for category in self._output_categories:
-                    output[-1][category] = output[-1][category][0:data_fromlastGPU]
+                    output[-1][category] = output[-1][category][
+                        0:data_fromlastGPU
+                    ]
                 return output
 
         return data_batches
@@ -575,7 +598,9 @@ class DALIRaggedIterator(_DaliBaseIterator):
             DALIRaggedIterator.SPARSE_COO_TAG,
         }
 
-        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
+        assert len(set(output_map)) == len(
+            output_map
+        ), "output_map names should be distinct"
         assert (
             output_types is None or set(output_types) <= self._output_tags
         ), "Only DENSE_TAG, SPARSE_LIST_TAG and SPARSE_COO_TAG are allowed"
@@ -597,7 +622,9 @@ class DALIRaggedIterator(_DaliBaseIterator):
         self._first_batch = None
         if self._prepare_first_batch:
             try:
-                self._first_batch = self._first_batch = DALIRaggedIterator.__next__(self)
+                self._first_batch = self._first_batch = (
+                    DALIRaggedIterator.__next__(self)
+                )
                 # call to `next` sets _ever_consumed to True but if we are just calling it from
                 # here we should set if to False again
                 self._ever_consumed = False
@@ -637,7 +664,9 @@ class DALIRaggedIterator(_DaliBaseIterator):
                     or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
                 ):
                     category_tensors[category] = out.as_tensor()
-                    category_shapes[category] = category_tensors[category].shape()
+                    category_shapes[category] = category_tensors[
+                        category
+                    ].shape()
                 else:
                     category_tensors[category] = [x for x in out]
                     category_shapes[category] = [x.shape() for x in out]
@@ -684,8 +713,12 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 ):
                     if isinstance(tensor, (TensorGPU, TensorListGPU)):
                         # Using same cuda_stream used by torch.zeros to set the memory
-                        stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                        feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
+                        stream = torch.cuda.current_stream(
+                            device=pyt_tensors[category].device
+                        )
+                        feed_ndarray(
+                            tensor, pyt_tensors[category], cuda_stream=stream
+                        )
                     else:
                         feed_ndarray(tensor, pyt_tensors[category])
                 else:
@@ -696,22 +729,37 @@ class DALIRaggedIterator(_DaliBaseIterator):
                                 device=pyt_tensors[category][k].device
                             )
                             feed_ndarray(
-                                single_tensor, pyt_tensors[category][k], cuda_stream=stream
+                                single_tensor,
+                                pyt_tensors[category][k],
+                                cuda_stream=stream,
                             )
                         else:
-                            feed_ndarray(single_tensor, pyt_tensors[category][k])
+                            feed_ndarray(
+                                single_tensor, pyt_tensors[category][k]
+                            )
 
-                    if self._outputs_types[j] == DALIRaggedIterator.SPARSE_COO_TAG:
+                    if (
+                        self._outputs_types[j]
+                        == DALIRaggedIterator.SPARSE_COO_TAG
+                    ):
                         values = torch.hstack(pyt_tensors[category])
 
                         indices = [
                             [(i, j) for j in range(shape[0])]
                             for i, shape in enumerate(category_shapes[category])
                         ]
-                        indices = [indice for el_indices in indices for indice in el_indices]
-                        indices = torch.LongTensor(indices, device=values.device)
+                        indices = [
+                            indice
+                            for el_indices in indices
+                            for indice in el_indices
+                        ]
+                        indices = torch.LongTensor(
+                            indices, device=values.device
+                        )
 
-                        pyt_tensors[category] = torch.sparse_coo_tensor(indices.T, values)
+                        pyt_tensors[category] = torch.sparse_coo_tensor(
+                            indices.T, values
+                        )
 
         self._schedule_runs()
 
@@ -735,7 +783,9 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 and self._size > 0
             ):
                 # First calculate how much data is required to return exactly self._size entries.
-                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+                diff = self._num_gpus * self.batch_size - (
+                    self._counter - self._size
+                )
                 # Figure out how many GPUs to grab from.
                 numGPUs_tograb = int(np.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU
@@ -751,7 +801,9 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 output = data_batches[0:numGPUs_tograb]
                 output[-1] = output[-1].copy()
                 for category in self._output_categories:
-                    output[-1][category] = output[-1][category][0:data_fromlastGPU]
+                    output[-1][category] = output[-1][category][
+                        0:data_fromlastGPU
+                    ]
                 return output
 
         return data_batches

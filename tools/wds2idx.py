@@ -94,7 +94,9 @@ class IndexCreator:
             stderr=subprocess.PIPE,
         )
 
-        tar_blocks = tar_blocks_proc.communicate()[0].split(b"\n")  # block <n>: <filepath>
+        tar_blocks = tar_blocks_proc.communicate()[0].split(
+            b"\n"
+        )  # block <n>: <filepath>
         tar_types_sizes = tar_types_sizes_proc.communicate()[0].split(
             b"\n"
         )  # <type>... <size> <date> <name>
@@ -110,7 +112,11 @@ class IndexCreator:
             if entry_type != b"-":
                 continue
 
-            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")])
+            offset = int(
+                blocks_line[
+                    blocks_line.find(b"block") + 6 : blocks_line.find(b":")
+                ]
+            )
             # according to https://www.loc.gov/preservation/digital/formats/fdd/fdd000531.shtml#:~:text=A%20tar%20(tape%20archive)%20file,are%20not%20compressed%20archive%20files. # noqa: E501, W505
             # each data record is preceded by 512-byte header. `tar --list --block-num --file`
             # return the position (counted in 512-byte blocks) of the header for a given entry.
@@ -126,7 +132,8 @@ class IndexCreator:
     def _get_data_tarfile(self):
         """Retreives the data about the offset, name and size of each component
         using the tarfile module, while also filtering out non-file entries
-        Intended as a fallback for the gnu tar version (since it is much slower)"""
+        Intended as a fallback for the gnu tar version (since it is much slower)
+        """
 
         print(
             "Warning: tar utility not found. Falling back to tarfile."
@@ -149,19 +156,25 @@ class IndexCreator:
         report_step = 100000
 
         if self.verbose:
-            print(f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect")
+            print(
+                f"time: {time.time() - pre_time:.2f} count: {counter} stage: collect"
+            )
 
         # Aggregates extensions in samples
         aggregated_data = []
         last_basename = None
 
         for offset, name, size in (
-            self._get_data_tar() if which("tar") is not None else self._get_data_tarfile()
+            self._get_data_tar()
+            if which("tar") is not None
+            else self._get_data_tarfile()
         ):
             if counter % report_step == 0 and counter > 0:
                 cur_time = time.time()
                 if self.verbose:
-                    print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect")
+                    print(
+                        f"time: {cur_time - pre_time:.2f} count: {counter} stage: collect"
+                    )
             counter += 1
 
             basename, extension = IndexCreator.split_name(name)
@@ -180,19 +193,29 @@ class IndexCreator:
             raise ValueError("Webdataset Tar File empty")
 
         # Constructs the index file out of the aggregated extensions
-        self.fidx.write(f"{IndexCreator.index_file_version} {len(aggregated_data)}\n")
+        self.fidx.write(
+            f"{IndexCreator.index_file_version} {len(aggregated_data)}\n"
+        )
         for bundle in aggregated_data:
             if counter % report_step == 0:
                 cur_time = time.time()
                 if self.verbose:
-                    print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: index")
-            self.fidx.write(" ".join(map(lambda component: " ".join(map(str, component)), bundle)))
+                    print(
+                        f"time: {cur_time - pre_time:.2f} count: {counter} stage: index"
+                    )
+            self.fidx.write(
+                " ".join(
+                    map(lambda component: " ".join(map(str, component)), bundle)
+                )
+            )
             self.fidx.write("\n")
             counter += 1
 
         cur_time = time.time()
         if self.verbose:
-            print(f"time: {cur_time - pre_time:.2f} count: {counter} stage: done")
+            print(
+                f"time: {cur_time - pre_time:.2f} count: {counter} stage: done"
+            )
 
 
 def parse_args():
@@ -208,7 +231,10 @@ def parse_args():
     )
     args = parser.parse_args()
     if args.index is None:
-        args.index = args.archive[: args.archive.find(".", args.archive.rfind("/") + 2)] + ".idx"
+        args.index = (
+            args.archive[: args.archive.find(".", args.archive.rfind("/") + 2)]
+            + ".idx"
+        )
     args.archive = os.path.abspath(args.archive)
     args.index = os.path.abspath(args.index)
     return args

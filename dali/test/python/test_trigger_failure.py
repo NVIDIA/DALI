@@ -15,5 +15,6 @@
 
 def failure_test_trigger():
     raise RuntimeError(
-        "This test is intended to always fail to allow for verification" " of CI scripting."
+        "This test is intended to always fail to allow for verification"
+        " of CI scripting."
     )

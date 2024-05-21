@@ -42,13 +42,15 @@ class FilesDataSet:
                 [
                     file_path
                     for file_path in map(
-                        lambda name: os.path.join(dir_path, name), os.listdir(dir_path)
+                        lambda name: os.path.join(dir_path, name),
+                        os.listdir(dir_path),
                     )
                     if os.path.isfile(file_path)
                 ],
             )
             for (dir_name, dir_path) in map(
-                lambda name: (name, os.path.join(data_path, name)), os.listdir(data_path)
+                lambda name: (name, os.path.join(data_path, name)),
+                os.listdir(data_path),
             )
             if os.path.isdir(dir_path)
         ]
@@ -123,12 +125,16 @@ class BatchLoader(SampleLoader):
         files_paths, labels = tuple(
             zip(
                 *[
-                    self.data_set.get_sample(self.batch_size * batch_i + i, epoch_idx)
+                    self.data_set.get_sample(
+                        self.batch_size * batch_i + i, epoch_idx
+                    )
                     for i in range(self.batch_size)
                 ]
             )
         )
-        return [self.read_file(file_path) for file_path in files_paths], np.array(labels)
+        return [
+            self.read_file(file_path) for file_path in files_paths
+        ], np.array(labels)
 
 
 class CV2SampleLoader(SampleLoader):
@@ -210,7 +216,9 @@ def file_reader_pipeline(
             random_shuffle=True,
         )
         dev = "mixed" if read_encoded else "cpu"
-        images = dali.fn.decoders.image(images, device=dev, output_type=types.RGB)
+        images = dali.fn.decoders.image(
+            images, device=dev, output_type=types.RGB
+        )
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
@@ -221,7 +229,9 @@ class ExternalSourcePipeline(dali.pipeline.Pipeline):
         super().__init__(**kwargs)
         if source_mode == "generator":
             self.loader, self.data_set_len = create_dataset_generator(
-                data_path, batch_size=kwargs["batch_size"], read_encoded=read_encoded
+                data_path,
+                batch_size=kwargs["batch_size"],
+                read_encoded=read_encoded,
             )
         else:
             self.data_set_len = None
@@ -230,12 +240,18 @@ class ExternalSourcePipeline(dali.pipeline.Pipeline):
             else:
                 loader_sample, loader_batch = CV2SampleLoader, CV2BatchLoader
             if source_mode == "batch":
-                self.loader = loader_batch(data_path, batch_size=kwargs["batch_size"])
+                self.loader = loader_batch(
+                    data_path, batch_size=kwargs["batch_size"]
+                )
             else:
                 self.loader = loader_sample(data_path)
 
     def epoch_size(self, *args, **kwargs):
-        return self.data_set_len if self.data_set_len is not None else len(self.loader.data_set)
+        return (
+            self.data_set_len
+            if self.data_set_len is not None
+            else len(self.loader.data_set)
+        )
 
 
 def external_source_pipeline(
@@ -267,7 +283,9 @@ def external_source_pipeline(
             batch_info=source_mode == "batch",
         )
         if read_encoded:
-            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
+            images = dali.fn.decoders.image(
+                images, device="mixed", output_type=types.RGB
+            )
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
@@ -307,13 +325,17 @@ def external_source_parallel_pipeline(
             batch_info=source_mode == "batch",
         )
         if read_encoded:
-            images = dali.fn.decoders.image(images, device="mixed", output_type=types.RGB)
+            images = dali.fn.decoders.image(
+                images, device="mixed", output_type=types.RGB
+            )
         images = common_pipeline(images.gpu())
         pipe.set_outputs(images, labels)
     return pipe
 
 
-def get_pipe_factories(test_pipes, parallel_pipe, file_reader_pipe, scalar_pipe):
+def get_pipe_factories(
+    test_pipes, parallel_pipe, file_reader_pipe, scalar_pipe
+):
     result = []
     if "parallel" in test_pipes:
         result.append(parallel_pipe)
@@ -328,9 +350,16 @@ def parse_test_arguments(supports_distributed):
     parser = argparse.ArgumentParser(
         description="Compare external source vs filereader performance in RN50 data pipeline case"
     )
-    parser.add_argument("data_path", type=str, help="Directory path of training dataset")
     parser.add_argument(
-        "-b", "--batch_size", default=1024, type=int, metavar="N", help="batch size"
+        "data_path", type=str, help="Directory path of training dataset"
+    )
+    parser.add_argument(
+        "-b",
+        "--batch_size",
+        default=1024,
+        type=int,
+        metavar="N",
+        help="batch size",
     )
     parser.add_argument(
         "-j",
@@ -348,10 +377,17 @@ def parse_test_arguments(supports_distributed):
         help="number of python external source workers (default: 3)",
     )
     parser.add_argument(
-        "--epochs", default=2, type=int, metavar="N", help="Number of epochs to run"
+        "--epochs",
+        default=2,
+        type=int,
+        metavar="N",
+        help="Number of epochs to run",
     )
     parser.add_argument(
-        "--benchmark_iters", type=int, metavar="N", help="Number of iterations to run in each epoch"
+        "--benchmark_iters",
+        type=int,
+        metavar="N",
+        help="Number of iterations to run in each epoch",
     )
     parser.add_argument(
         "--worker_init",
@@ -361,7 +397,11 @@ def parse_test_arguments(supports_distributed):
         help="Python workers initialization method",
     )
     parser.add_argument(
-        "--prefetch", default=2, type=int, metavar="N", help="Pipeline cpu/gpu prefetch queue depth"
+        "--prefetch",
+        default=2,
+        type=int,
+        metavar="N",
+        help="Pipeline cpu/gpu prefetch queue depth",
     )
     parser.add_argument(
         "--reader_queue_depth",
@@ -397,7 +437,14 @@ def parse_test_arguments(supports_distributed):
     )
 
     if not supports_distributed:
-        parser.add_argument("-g", "--gpus", default=1, type=int, metavar="N", help="number of GPUs")
+        parser.add_argument(
+            "-g",
+            "--gpus",
+            default=1,
+            type=int,
+            metavar="N",
+            help="number of GPUs",
+        )
     args = parser.parse_args()
 
     if "WORLD_SIZE" in os.environ:

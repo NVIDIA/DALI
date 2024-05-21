@@ -57,5 +57,12 @@ class ExtCallbackMXCuda(ExtCallback):
 @with_setup(setup_function)
 def test_mxnet_cuda():
     callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, "cpu", 5, py_num_workers=6, py_start_method="spawn", parallel=True)
+    pipe = create_pipe(
+        callback,
+        "cpu",
+        5,
+        py_num_workers=6,
+        py_start_method="spawn",
+        parallel=True,
+    )
     build_and_run_pipeline(pipe)

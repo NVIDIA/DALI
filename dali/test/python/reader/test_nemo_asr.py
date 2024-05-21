@@ -47,7 +47,11 @@ names = [
     os.path.join(tmp_dir.name, "dali_test_4C.wav"),
 ]
 
-freqs = [np.array([0.02]), np.array([0.01, 0.012]), np.array([0.01, 0.012, 0.013, 0.014])]
+freqs = [
+    np.array([0.02]),
+    np.array([0.01, 0.012]),
+    np.array([0.01, 0.012, 0.013, 0.014]),
+]
 rates = [22050, 22050, 12347]
 lengths = [10000, 54321, 12345]
 
@@ -78,17 +82,28 @@ ref_text_literal = [
 ]
 nemo_asr_manifest = os.path.join(tmp_dir.name, "nemo_asr_manifest.json")
 create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
-ref_text = [np.frombuffer(bytes(s, "utf8"), dtype=np.uint8) for s in ref_text_literal]
+ref_text = [
+    np.frombuffer(bytes(s, "utf8"), dtype=np.uint8) for s in ref_text_literal
+]
 
 ref_text_non_ascii_literal = [
     "dzień dobry",
     "доброе утро",
     "这是一个测试",
 ]
-nemo_asr_manifest_non_ascii = os.path.join(tmp_dir.name, "nemo_asr_manifest_non_ascii.json")
-create_manifest_file(nemo_asr_manifest_non_ascii, names, lengths, rates, ref_text_non_ascii_literal)
+nemo_asr_manifest_non_ascii = os.path.join(
+    tmp_dir.name, "nemo_asr_manifest_non_ascii.json"
+)
+create_manifest_file(
+    nemo_asr_manifest_non_ascii,
+    names,
+    lengths,
+    rates,
+    ref_text_non_ascii_literal,
+)
 ref_text_non_ascii = [
-    np.frombuffer(bytes(s, "utf8"), dtype=np.uint8) for s in ref_text_non_ascii_literal
+    np.frombuffer(bytes(s, "utf8"), dtype=np.uint8)
+    for s in ref_text_non_ascii_literal
 ]
 
 rate1 = 16000
@@ -98,7 +113,11 @@ rate2 = 44100
 class NemoAsrReaderPipeline(Pipeline):
     def __init__(self, batch_size=8):
         super(NemoAsrReaderPipeline, self).__init__(
-            batch_size=batch_size, num_threads=1, device_id=0, exec_async=True, exec_pipelined=True
+            batch_size=batch_size,
+            num_threads=1,
+            device_id=0,
+            exec_async=True,
+            exec_pipelined=True,
         )
 
     def define_graph(self):
@@ -226,21 +245,28 @@ def test_decoded_vs_generated():
             ref_plain_f = ref_i[idx].astype(np.float32) / 32767
             np.testing.assert_allclose(audio_plain_f, ref_plain_f, rtol=1e-4)
 
-            ref_downmix_i_float = ref_i[idx].astype(np.float32).mean(axis=1, keepdims=1)
+            ref_downmix_i_float = (
+                ref_i[idx].astype(np.float32).mean(axis=1, keepdims=1)
+            )
 
             ref_downmix_i = ref_downmix_i_float.astype(np.int16).flatten()
             np.testing.assert_allclose(audio_downmix_i, ref_downmix_i, atol=1)
 
             ref_downmix_f = (ref_downmix_i_float / 32767).flatten()
-            np.testing.assert_allclose(audio_downmix_f, ref_downmix_f, rtol=1e-4)
+            np.testing.assert_allclose(
+                audio_downmix_f, ref_downmix_f, rtol=1e-4
+            )
 
             ref_resampled1_float = generate_waveforms(
-                lengths[idx] * rate1 / rates[idx], freqs[idx] * (rates[idx] / rate1)
+                lengths[idx] * rate1 / rates[idx],
+                freqs[idx] * (rates[idx] / rate1),
             )
-            ref_resampled1_downmix = ref_resampled1_float.astype(np.float32).mean(
-                axis=1, keepdims=1
+            ref_resampled1_downmix = ref_resampled1_float.astype(
+                np.float32
+            ).mean(axis=1, keepdims=1)
+            ref_resampled1_i = (
+                (ref_resampled1_downmix * 32767).astype(np.int16).flatten()
             )
-            ref_resampled1_i = (ref_resampled1_downmix * 32767).astype(np.int16).flatten()
             # resampling - allow for 1e-3 dynamic range error
             np.testing.assert_allclose(
                 audio_resampled1_i, ref_resampled1_i, atol=round(32767 * 1e-3)
@@ -248,15 +274,20 @@ def test_decoded_vs_generated():
 
             ref_resampled1_f = ref_resampled1_downmix.flatten()
             # resampling - allow for 1e-3 dynamic range error
-            np.testing.assert_allclose(audio_resampled1_f, ref_resampled1_f, atol=1e-3)
+            np.testing.assert_allclose(
+                audio_resampled1_f, ref_resampled1_f, atol=1e-3
+            )
 
             ref_resampled2_float = generate_waveforms(
-                lengths[idx] * rate2 / rates[idx], freqs[idx] * (rates[idx] / rate2)
+                lengths[idx] * rate2 / rates[idx],
+                freqs[idx] * (rates[idx] / rate2),
             )
-            ref_resampled2_downmix = ref_resampled2_float.astype(np.float32).mean(
-                axis=1, keepdims=1
+            ref_resampled2_downmix = ref_resampled2_float.astype(
+                np.float32
+            ).mean(axis=1, keepdims=1)
+            ref_resampled2_i = (
+                (ref_resampled2_downmix * 32767).astype(np.int16).flatten()
             )
-            ref_resampled2_i = (ref_resampled2_downmix * 32767).astype(np.int16).flatten()
             # resampling - allow for 1e-3 dynamic range error
             np.testing.assert_allclose(
                 audio_resampled2_i, ref_resampled2_i, atol=round(32767 * 1e-3)
@@ -264,7 +295,9 @@ def test_decoded_vs_generated():
 
             ref_resampled2_f = ref_resampled2_downmix.flatten()
             # resampling - allow for 1e-3 dynamic range error
-            np.testing.assert_allclose(audio_resampled2_f, ref_resampled2_f, atol=1e-3)
+            np.testing.assert_allclose(
+                audio_resampled2_f, ref_resampled2_f, atol=1e-3
+            )
 
             np.testing.assert_equal(text, ref_text[idx])
 
@@ -273,7 +306,9 @@ def test_decoded_vs_generated():
 
             # Checking that we don't have any trailing zeros
             # (those won't be caught by the string comparison)
-            ref_text_non_ascii_literal_bytes = bytes(ref_text_non_ascii_literal[idx], "utf8")
+            ref_text_non_ascii_literal_bytes = bytes(
+                ref_text_non_ascii_literal[idx], "utf8"
+            )
             assert (
                 text_non_ascii.tobytes() == ref_text_non_ascii_literal_bytes
             ), f"'{text_non_ascii.tobytes()}' != '{ref_text_non_ascii_literal_bytes}'"
@@ -323,12 +358,24 @@ def test_nemo_asr_reader_alias():
         for dtype in [types.INT16, types.FLOAT]:
             for downmix in [True, False]:
                 new_pipe = nemo_pipe(
-                    fn.readers.nemo_asr, [nemo_asr_manifest], read_sr, read_text, dtype, downmix
+                    fn.readers.nemo_asr,
+                    [nemo_asr_manifest],
+                    read_sr,
+                    read_text,
+                    dtype,
+                    downmix,
                 )
                 legacy_pipe = nemo_pipe(
-                    fn.nemo_asr_reader, [nemo_asr_manifest], read_sr, read_text, dtype, downmix
+                    fn.nemo_asr_reader,
+                    [nemo_asr_manifest],
+                    read_sr,
+                    read_text,
+                    dtype,
+                    downmix,
                 )
-                compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+                compare_pipelines(
+                    new_pipe, legacy_pipe, batch_size_alias_test, 50
+                )
 
 
 def test_nemo_asr_reader_pad_last_batch():
@@ -406,7 +453,9 @@ def test_read_idxs():
         audio1, idx1 = pipe1.run()
         audio2, idx2 = pipe2.run()
         for s in range(batch_size):
-            np.testing.assert_array_equal(np.array(audio1[s]), np.array(audio2[s]))
+            np.testing.assert_array_equal(
+                np.array(audio1[s]), np.array(audio2[s])
+            )
             np.testing.assert_array_equal(np.array(idx1[s]), np.array(idx2[s]))
             idx = np.array(idx1[s])[0]
             assert idx >= 0 and idx < total_samples

@@ -45,7 +45,8 @@ fn_modules = {
 exclude_fn_members = {}
 
 installation_page_url = (
-    "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
+    "https://docs.nvidia.com/deeplearning/dali/user-guide/"
+    + "docs/installation.html"
 )
 
 mod_aditional_doc = {
@@ -87,11 +88,15 @@ def get_functions(module):
     or hidden members. No nested modules would be reported."""
     result = []
     # Take all public members of given module
-    public_members = list(filter(lambda x: not str(x).startswith("_"), dir(module)))
+    public_members = list(
+        filter(lambda x: not str(x).startswith("_"), dir(module))
+    )
     for member_name in public_members:
         member = getattr(module, member_name)
         # Just user-defined functions
-        if inspect.isfunction(member) and not member.__module__.endswith("hidden"):
+        if inspect.isfunction(member) and not member.__module__.endswith(
+            "hidden"
+        ):
             result.append(member_name)
     return result
 
@@ -157,7 +162,9 @@ def single_module_file(module, funs_in_module, references):
     result += "\n"
 
     result += f"The following table lists all operations available in ``{module}`` module:\n"
-    result += operations_table.operations_table_str(get_schema_names(module, funs_in_module))
+    result += operations_table.operations_table_str(
+        get_schema_names(module, funs_in_module)
+    )
     result += "\n\n"
 
     result += ".. toctree::\n   :hidden:\n\n"
@@ -185,15 +192,22 @@ def fn_autodoc(out_filename, generated_path, references):
         # the rest is within the same directory, so there is no need for that
         all_modules_str += f"   {generated_path / module}\n"
 
-        single_module_str = single_module_file(module, funs_in_module, references)
+        single_module_str = single_module_file(
+            module, funs_in_module, references
+        )
         with open(generated_path / (module + ".rst"), "w") as module_file:
             module_file.write(single_module_str)
 
         for fun in funs_in_module:
             full_name = f"{module}.{fun}"
-            if module in exclude_fn_members and fun in exclude_fn_members[module]:
+            if (
+                module in exclude_fn_members
+                and fun in exclude_fn_members[module]
+            ):
                 continue
-            with open(generated_path / (full_name + ".rst"), "w") as function_file:
+            with open(
+                generated_path / (full_name + ".rst"), "w"
+            ) as function_file:
                 single_file_str = single_fun_file(full_name, references)
                 function_file.write(single_file_str)
 

@@ -74,19 +74,26 @@ def check_pipeline_checkpointing_native(pipeline_factory):
     pipe = pipeline_factory(**pipeline_args)
     pipe.build()
 
-    iterations_in_epoch = calculate_iterations_in_epoch(pipe, pipeline_args["batch_size"])
+    iterations_in_epoch = calculate_iterations_in_epoch(
+        pipe, pipeline_args["batch_size"]
+    )
     for _ in range(warmup_epochs * iterations_in_epoch):
         pipe.run()
 
     restored = pipeline_factory(**pipeline_args, checkpoint=pipe.checkpoint())
-    compare_pipelines(pipe, restored, pipeline_args["batch_size"], comparsion_iterations)
+    compare_pipelines(
+        pipe, restored, pipeline_args["batch_size"], comparsion_iterations
+    )
 
 
 def check_single_input_operator_pipeline(op, device, **kwargs):
     @pipeline_def
     def pipeline():
         data, _ = fn.readers.file(
-            name="Reader", file_root=images_dir, pad_last_batch=True, random_shuffle=True
+            name="Reader",
+            file_root=images_dir,
+            pad_last_batch=True,
+            random_shuffle=True,
         )
         decoding_device = "mixed" if device == "gpu" else "cpu"
         decoded = fn.decoders.image_random_crop(data, device=decoding_device)
@@ -98,7 +105,9 @@ def check_single_input_operator_pipeline(op, device, **kwargs):
 
 
 def check_single_input_operator(op, device, **kwargs):
-    pipeline_factory = check_single_input_operator_pipeline(op, device, **kwargs)
+    pipeline_factory = check_single_input_operator_pipeline(
+        op, device, **kwargs
+    )
     check_pipeline_checkpointing_native(pipeline_factory)
 
 
@@ -113,8 +122,15 @@ def check_no_input_operator(op, device, **kwargs):
 # Readers section
 
 
-def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch, **kwargs):
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_checkpointing=True)
+def check_reader_checkpointing(
+    reader, num_epochs, batch_size, iters_into_epoch, **kwargs
+):
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_checkpointing=True,
+    )
     def pipeline():
         result = reader(name="Reader", **kwargs)
         if isinstance(result, list):
@@ -131,8 +147,12 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
         p.reader_meta()["Reader"]["epoch_size"] // num_shards > 2
     ), "Trivial test case: at least 2 samples per shard required"
 
-    iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
-    assert iterations_in_epoch >= (iters_into_epoch or 0), "Not enough iterations in epoch"
+    iterations_in_epoch = calculate_iterations_in_epoch(
+        p, batch_size, num_shards
+    )
+    assert iterations_in_epoch >= (
+        iters_into_epoch or 0
+    ), "Not enough iterations in epoch"
 
     for epoch in range(num_epochs):
         for i in range(iterations_in_epoch):
@@ -144,7 +164,9 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
     restored = pipeline(checkpoint=p.checkpoint())
     restored.build()
 
-    compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
+    compare_pipelines(
+        p, restored, batch_size, (num_shards + 1) * iterations_in_epoch
+    )
 
 
 @params(
@@ -479,7 +501,8 @@ def test_webdataset_reader(
         os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"),
     ]
     index_files = [
-        webdataset_base.generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths
+        webdataset_base.generate_temp_index_file(tar_file_path)
+        for tar_file_path in tar_file_paths
     ]
 
     check_reader_checkpointing(
@@ -525,7 +548,11 @@ def test_nemo_asr_reader(
     initial_fill=1024,
 ):
     nemo_dir = os.path.join(data_root, "db", "audio", "wav")
-    wav_files = [os.path.join(nemo_dir, f) for f in os.listdir(nemo_dir) if f.endswith(".wav")]
+    wav_files = [
+        os.path.join(nemo_dir, f)
+        for f in os.listdir(nemo_dir)
+        if f.endswith(".wav")
+    ]
 
     manifest = tempfile.NamedTemporaryFile("w")
     for i, f in enumerate(wav_files):
@@ -601,7 +628,9 @@ def test_numpy_reader(
     iters_into_epoch=None,
     initial_fill=1024,
 ):
-    numpy_dir = os.path.join(data_root, "db", "3D", "MRI", "Knee", "npy_2d_slices", "STU00001")
+    numpy_dir = os.path.join(
+        data_root, "db", "3D", "MRI", "Knee", "npy_2d_slices", "STU00001"
+    )
 
     # GDS doesn't support overlayfs, so we need to use runner's scratch
     gds_data_root = "/scratch/"
@@ -636,16 +665,24 @@ def test_multiple_readers(num_iters):
     my_images = os.path.join(images_dir, "134")
     files = [os.path.join(my_images, f) for f in os.listdir(my_images)]
 
-    @pipeline_def(batch_size=1, device_id=0, num_threads=4, enable_checkpointing=True)
+    @pipeline_def(
+        batch_size=1, device_id=0, num_threads=4, enable_checkpointing=True
+    )
     def pipeline():
         # Reader with epoch size = 2
         a_enc, _ = fn.readers.file(
-            name="Reader1", files=files[:2], pad_last_batch=True, random_shuffle=True
+            name="Reader1",
+            files=files[:2],
+            pad_last_batch=True,
+            random_shuffle=True,
         )
 
         # Reader with epoch size = 3
         b_enc, _ = fn.readers.file(
-            name="Reader2", files=files[:3], pad_last_batch=True, random_shuffle=True
+            name="Reader2",
+            files=files[:3],
+            pad_last_batch=True,
+            random_shuffle=True,
         )
 
         a = fn.decoders.image_random_crop(a_enc)
@@ -688,10 +725,18 @@ class VideoConfig:
     (0, 2),
     (
         BaseDecoderConfig(
-            shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+            shard_id=0,
+            num_shards=1,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=True,
         ),
         BaseDecoderConfig(
-            shard_id=4, num_shards=7, stick_to_shard=True, pad_last_batch=True, random_shuffle=False
+            shard_id=4,
+            num_shards=7,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=False,
         ),
         BaseDecoderConfig(
             shard_id=6,
@@ -715,9 +760,16 @@ class VideoConfig:
 )
 @reader_signed_off("readers.video", "video_reader")
 def test_video_reader(
-    num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+    num_epochs,
+    batch_size,
+    iters_into_epoch,
+    config: BaseDecoderConfig,
+    video: VideoConfig,
 ):
-    files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
+    files = [
+        os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4")
+        for i in range(5)
+    ]
 
     check_reader_checkpointing(
         fn.readers.video,
@@ -752,7 +804,11 @@ def test_video_reader(
     (0, 3),
     (
         BaseDecoderConfig(
-            shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+            shard_id=0,
+            num_shards=1,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=True,
         ),
         BaseDecoderConfig(
             shard_id=6,
@@ -773,9 +829,16 @@ def test_video_reader(
 )
 @reader_signed_off("readers.video_resize", "video_reader_resize")
 def test_video_reader_resize_reader(
-    num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+    num_epochs,
+    batch_size,
+    iters_into_epoch,
+    config: BaseDecoderConfig,
+    video: VideoConfig,
 ):
-    files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
+    files = [
+        os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4")
+        for i in range(5)
+    ]
 
     check_reader_checkpointing(
         fn.readers.video_resize,
@@ -814,7 +877,11 @@ def test_video_reader_resize_reader(
     (0, 2),
     (
         BaseDecoderConfig(
-            shard_id=1, num_shards=2, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+            shard_id=1,
+            num_shards=2,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=True,
         ),
         BaseDecoderConfig(
             shard_id=2,
@@ -828,10 +895,18 @@ def test_video_reader_resize_reader(
 )
 @reader_signed_off("experimental.readers.video")
 def test_experimental_video_reader(
-    device, num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+    device,
+    num_epochs,
+    batch_size,
+    iters_into_epoch,
+    config: BaseDecoderConfig,
+    video: VideoConfig,
 ):
     files = [
-        os.path.join(get_dali_extra_path(), "db", "video", "vfr", f"test_{i}.mp4") for i in (1, 2)
+        os.path.join(
+            get_dali_extra_path(), "db", "video", "vfr", f"test_{i}.mp4"
+        )
+        for i in (1, 2)
     ]
 
     check_reader_checkpointing(
@@ -889,7 +964,9 @@ def test_random_uniform(device, shape):
 
 @random_signed_off("segmentation.random_object_bbox")
 def test_random_object_bbox():
-    check_single_input_operator(fn.segmentation.random_object_bbox, "cpu", format="box")
+    check_single_input_operator(
+        fn.segmentation.random_object_bbox, "cpu", format="box"
+    )
 
 
 @random_signed_off("segmentation.random_mask_pixel")
@@ -900,7 +977,11 @@ def test_random_mask_pixel():
 @random_signed_off("roi_random_crop")
 def test_roi_random_crop():
     check_single_input_operator(
-        fn.roi_random_crop, "cpu", crop_shape=(10, 10), roi_start=(0, 0), roi_end=(30, 30)
+        fn.roi_random_crop,
+        "cpu",
+        crop_shape=(10, 10),
+        roi_start=(0, 0),
+        roi_end=(30, 30),
     )
 
 
@@ -908,8 +989,12 @@ def test_roi_random_crop():
 def test_ssd_random_crop():
     @pipeline_def
     def pipeline():
-        data = fn.random.uniform(shape=(100, 100), dtype=types.DALIDataType.UINT8)
-        bbox = fn.random.uniform(shape=(7, 4), range=[0, 100], dtype=types.DALIDataType.FLOAT)
+        data = fn.random.uniform(
+            shape=(100, 100), dtype=types.DALIDataType.UINT8
+        )
+        bbox = fn.random.uniform(
+            shape=(7, 4), range=[0, 100], dtype=types.DALIDataType.FLOAT
+        )
         labels = fn.random.uniform(shape=(1,), dtype=types.DALIDataType.INT32)
         return fn.ssd_random_crop(data, bbox, labels, device="cpu")[0]
 
@@ -937,7 +1022,9 @@ def test_random_bbox_crop():
     def wrapper(input, **kwargs):
         bboxes = fn.cast(input[:, :4, 0], dtype=types.DALIDataType.FLOAT)
         bboxes /= fn.reductions.max(bboxes, axes=(0, 1))
-        out = fn.random_bbox_crop(bboxes, bbox_layout="xyXY", input_shape=(2000, 2000), **kwargs)
+        out = fn.random_bbox_crop(
+            bboxes, bbox_layout="xyXY", input_shape=(2000, 2000), **kwargs
+        )
         return out[0]
 
     check_single_input_operator(wrapper, "cpu")
@@ -987,7 +1074,9 @@ def test_image_random_crop(device):
 # External source
 
 
-def check_external_source_pipeline_checkpointing(pipeline_factory, iterations, compare_iterations):
+def check_external_source_pipeline_checkpointing(
+    pipeline_factory, iterations, compare_iterations
+):
     def run_and_reset(pipe):
         try:
             return pipe.run()
@@ -1013,7 +1102,9 @@ def check_external_source_pipeline_checkpointing(pipeline_factory, iterations, c
     compare_external_source_pipelines(p1, p2, compare_iterations)
 
 
-def make_external_source_test_pipeline_factory(source, mode, batch_size, parallel, **kwargs):
+def make_external_source_test_pipeline_factory(
+    source, mode, batch_size, parallel, **kwargs
+):
     kwargs["parallel"] = parallel
     if mode == "idx":
         kwargs["batch"] = True
@@ -1053,14 +1144,24 @@ def make_dummy_source(epoch_size, batch_size, mode):
         def src(idx):
             if idx.iteration >= epoch_size:
                 raise StopIteration()
-            return [np.asarray([idx.epoch_idx, idx.iteration, i]) for i in range(batch_size)]
+            return [
+                np.asarray([idx.epoch_idx, idx.iteration, i])
+                for i in range(batch_size)
+            ]
 
     elif mode == "sample_info":
 
         def src(idx):
             if idx.idx_in_epoch >= epoch_size * batch_size:
                 raise StopIteration()
-            return np.asarray([idx.epoch_idx, idx.iteration, idx.idx_in_epoch, idx.idx_in_batch])
+            return np.asarray(
+                [
+                    idx.epoch_idx,
+                    idx.iteration,
+                    idx.idx_in_epoch,
+                    idx.idx_in_batch,
+                ]
+            )
 
     return src
 
@@ -1073,10 +1174,14 @@ def make_dummy_source(epoch_size, batch_size, mode):
     (True, False),  # parallel
 )
 @reader_signed_off("external_source")
-def test_external_source_checkpointing(dataset_info, iterations, mode, parallel):
+def test_external_source_checkpointing(
+    dataset_info, iterations, mode, parallel
+):
     epoch_size, batch_size = dataset_info
     source = make_dummy_source(epoch_size, batch_size, mode)
-    pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
+    pf = make_external_source_test_pipeline_factory(
+        source, mode, batch_size, parallel
+    )
     check_external_source_pipeline_checkpointing(pf, iterations, 2 * epoch_size)
 
 
@@ -1094,7 +1199,9 @@ def test_external_source_unsupported(kind, parallel):
         def source():
             return 42
 
-    @pipeline_def(batch_size=1, num_threads=1, device_id=0, enable_checkpointing=True)
+    @pipeline_def(
+        batch_size=1, num_threads=1, device_id=0, enable_checkpointing=True
+    )
     def pipeline():
         return fn.external_source(source=source)
 
@@ -1111,7 +1218,9 @@ def test_auto_augment(device):
     @pipeline_def(enable_conditionals=True)
     def pipeline():
         data, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        image = fn.decoders.image(
+            data, device="cpu" if device == "cpu" else "mixed"
+        )
         return aa.auto_augment(image)
 
     check_pipeline_checkpointing_native(pipeline)
@@ -1122,7 +1231,9 @@ def test_rand_augment(device):
     @pipeline_def(enable_conditionals=True)
     def pipeline():
         data, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        image = fn.decoders.image(
+            data, device="cpu" if device == "cpu" else "mixed"
+        )
         return ra.rand_augment(image, n=2, m=15)
 
     check_pipeline_checkpointing_native(pipeline)
@@ -1133,7 +1244,9 @@ def test_trivial_augment(device):
     @pipeline_def(enable_conditionals=True)
     def pipeline():
         data, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        image = fn.decoders.image(
+            data, device="cpu" if device == "cpu" else "mixed"
+        )
         return ta.trivial_augment_wide(image)
 
     check_pipeline_checkpointing_native(pipeline)
@@ -1143,7 +1256,12 @@ def test_trivial_augment(device):
 def test_multiple_restores(warmup_epochs, warmup_iters, run_epochs, run_iters):
     batch_size = 4
 
-    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, enable_checkpointing=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        enable_checkpointing=True,
+    )
     def pipeline():
         data, _ = fn.readers.file(name="Reader", file_root=images_dir)
         return fn.decoders.image(data, device="cpu")
@@ -1192,12 +1310,16 @@ def test_coverage():
     excluded_ops = unsupported_readers + unsupported_ops
 
     fn_ops = module_functions(
-        fn, remove_prefix="nvidia.dali.fn", allowed_private_modules=["_conditional"]
+        fn,
+        remove_prefix="nvidia.dali.fn",
+        allowed_private_modules=["_conditional"],
     )
     assert len(fn_ops), "There should be some DALI ops in the `fn`, got nothing"
     if excluded_ops:
         exclude = "|".join(
-            "(^" + pattern.replace(".", r"\.").replace("*", ".*").replace("?", ".") + "$)"
+            "(^"
+            + pattern.replace(".", r"\.").replace("*", ".*").replace("?", ".")
+            + "$)"
             for pattern in excluded_ops
         )
         exclude = re.compile(exclude)

@@ -57,7 +57,14 @@ class LoaderTest(unittest.TestCase):
         node = gast.FunctionDef(
             name="f",
             args=gast.arguments(
-                args=[gast.Name("a", ctx=gast.Param(), annotation=None, type_comment=None)],
+                args=[
+                    gast.Name(
+                        "a",
+                        ctx=gast.Param(),
+                        annotation=None,
+                        type_comment=None,
+                    )
+                ],
                 posonlyargs=[],
                 vararg=None,
                 kwonlyargs=[],
@@ -69,7 +76,12 @@ class LoaderTest(unittest.TestCase):
                 gast.Return(
                     gast.BinOp(
                         op=gast.Add(),
-                        left=gast.Name("a", ctx=gast.Load(), annotation=None, type_comment=None),
+                        left=gast.Name(
+                            "a",
+                            ctx=gast.Load(),
+                            annotation=None,
+                            type_comment=None,
+                        ),
                         right=gast.Constant(1, kind=None),
                     )
                 )
@@ -106,7 +118,10 @@ class LoaderTest(unittest.TestCase):
         )
         module, _ = loader.load_source(test_source, delete_on_exit=True)
         self.assertEqual(module.f(1), 2)
-        self.assertEqual(module.f.__doc__, "日本語 Δθₜ ← Δθₜ₋₁ + ∇Q(sₜ, aₜ)(rₜ + γₜ₊₁ max Q(⋅))")
+        self.assertEqual(
+            module.f.__doc__,
+            "日本語 Δθₜ ← Δθₜ₋₁ + ∇Q(sₜ, aₜ)(rₜ + γₜ₊₁ max Q(⋅))",
+        )
 
     def test_cleanup(self):
         test_source = textwrap.dedent("")

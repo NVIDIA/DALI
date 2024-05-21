@@ -53,7 +53,9 @@ LEAVE = lambda _1, _2, _3: False
 ANY = object()
 
 
-class ASTEdgePattern(collections.namedtuple("ASTEdgePattern", ["parent", "field", "child"])):
+class ASTEdgePattern(
+    collections.namedtuple("ASTEdgePattern", ["parent", "field", "child"])
+):
     """A pattern defining a type of AST edge.
 
     This consists of three components:
@@ -151,7 +153,9 @@ class AnfTransformer(transformer.Base):
 
     def _do_transform_node(self, node):
         temp_name = self._gensym.new_name()
-        temp_assign = templates.replace("temp_name = expr", temp_name=temp_name, expr=node)[0]
+        temp_assign = templates.replace(
+            "temp_name = expr", temp_name=temp_name, expr=node
+        )[0]
         self._add_pending_statement(temp_assign)
         answer = templates.replace("temp_name", temp_name=temp_name)[0]
         return answer
@@ -202,7 +206,9 @@ class AnfTransformer(transformer.Base):
             setattr(
                 node,
                 field,
-                self._ensure_node_in_anf(parent_supplied, field_supplied, getattr(node, field)),
+                self._ensure_node_in_anf(
+                    parent_supplied, field_supplied, getattr(node, field)
+                ),
             )
         return node
 
@@ -249,13 +255,19 @@ class AnfTransformer(transformer.Base):
         return self._visit_strict_statement(node)
 
     def visit_Delete(self, node):
-        return self._visit_strict_statement(node, children_ok_to_transform=False)
+        return self._visit_strict_statement(
+            node, children_ok_to_transform=False
+        )
 
     def visit_Assign(self, node):
-        return self._visit_strict_statement(node, children_ok_to_transform=False)
+        return self._visit_strict_statement(
+            node, children_ok_to_transform=False
+        )
 
     def visit_AugAssign(self, node):
-        return self._visit_strict_statement(node, children_ok_to_transform=False)
+        return self._visit_strict_statement(
+            node, children_ok_to_transform=False
+        )
 
     def visit_Print(self, node):
         return self._visit_strict_statement(node)
@@ -281,7 +293,8 @@ class AnfTransformer(transformer.Base):
 
     def visit_AsyncFor(self, node):
         msg = (
-            "Nontrivial AsyncFor nodes not supported yet " "(need to think through the semantics)."
+            "Nontrivial AsyncFor nodes not supported yet "
+            "(need to think through the semantics)."
         )
         return self._visit_trivial_only_statement(node, msg)
 
@@ -322,7 +335,9 @@ class AnfTransformer(transformer.Base):
         # thereby need to live outside the body.
         for item in node.items:
             self.visit(item)
-        node.items = [self._ensure_node_in_anf(node, "items", n) for n in node.items]
+        node.items = [
+            self._ensure_node_in_anf(node, "items", n) for n in node.items
+        ]
         contexts_stmts = self._consume_pending_statements()
         # This generic_visit will revisit node.items, but that is correct because by
         # this point the node.items link has been checked.  It may be somewhat
@@ -336,7 +351,8 @@ class AnfTransformer(transformer.Base):
 
     def visit_AsyncWith(self, node):
         msg = (
-            "Nontrivial AsyncWith nodes not supported yet " "(need to think through the semantics)."
+            "Nontrivial AsyncWith nodes not supported yet "
+            "(need to think through the semantics)."
         )
         return self._visit_trivial_only_statement(node, msg)
 
@@ -361,7 +377,9 @@ class AnfTransformer(transformer.Base):
     # Global and Nonlocal should be correct by default.
 
     def visit_Expr(self, node):
-        return self._visit_strict_statement(node, children_ok_to_transform=False)
+        return self._visit_strict_statement(
+            node, children_ok_to_transform=False
+        )
 
     # Pass, Break, and Continue should be correct by default.
 
@@ -432,7 +450,10 @@ class AnfTransformer(transformer.Base):
         raise ValueError(msg)
 
     def visit_Await(self, node):
-        msg = "Nontrivial Await nodes not supported yet " "(need to think through the semantics)."
+        msg = (
+            "Nontrivial Await nodes not supported yet "
+            "(need to think through the semantics)."
+        )
         return self._visit_trivial_only_expression(node, msg)
 
     def visit_Yield(self, node):
@@ -440,7 +461,8 @@ class AnfTransformer(transformer.Base):
 
     def visit_YieldFrom(self, node):
         msg = (
-            "Nontrivial YieldFrom nodes not supported yet " "(need to unit-test them in Python 2)."
+            "Nontrivial YieldFrom nodes not supported yet "
+            "(need to unit-test them in Python 2)."
         )
         return self._visit_trivial_only_expression(node, msg)
 
@@ -472,7 +494,8 @@ class AnfTransformer(transformer.Base):
 
     def visit_JoinedStr(self, node):
         msg = (
-            "Nontrivial JoinedStr nodes not supported yet " "(need to unit-test them in Python 2)."
+            "Nontrivial JoinedStr nodes not supported yet "
+            "(need to unit-test them in Python 2)."
         )
         return self._visit_trivial_only_expression(node, msg)
 

@@ -63,7 +63,11 @@ class _SignedMagnitudeBin:
         else:
             magnitude_bin = self._magnitude_bin[idx]
         cls = self.__class__
-        return cls(magnitude_bin, self._random_sign[idx], self._signed_magnitude_idx[idx])
+        return cls(
+            magnitude_bin,
+            self._random_sign[idx],
+            self._signed_magnitude_idx[idx],
+        )
 
     @classmethod
     def create_from_bin(
@@ -79,7 +83,9 @@ class _SignedMagnitudeBin:
                 f"or `types.Constant`) representing batch of ints from "
                 f"`[0..num_magnitude_bins-1]` range. Got {magnitude_bin} instead."
             )
-        if random_sign is not None and any(arg is not None for arg in (seed, shape)):
+        if random_sign is not None and any(
+            arg is not None for arg in (seed, shape)
+        ):
             raise Exception(
                 "The `random_sign` cannot be specified together with neither `seed` nor `shape`."
             )
@@ -100,7 +106,9 @@ class _SignedMagnitudeBin:
                 magnitude = -magnitude
             return magnitude
 
-        return np.array([remap_bin_idx(bin_idx) for bin_idx in range(2 * len(magnitudes))])
+        return np.array(
+            [remap_bin_idx(bin_idx) for bin_idx in range(2 * len(magnitudes))]
+        )
 
     @property
     def bin(self):
@@ -137,7 +145,9 @@ def signed_bin(
         A batch of {0, 1} integers. For augmentations declared with `randomly_negate=True`,
         it determines if the magnitude is negated (for 1) or not (for 0).
     """
-    return _SignedMagnitudeBin.create_from_bin(magnitude_bin, random_sign, seed, shape)
+    return _SignedMagnitudeBin.create_from_bin(
+        magnitude_bin, random_sign, seed, shape
+    )
 
 
 class Augmentation:
@@ -166,7 +176,9 @@ class Augmentation:
 
     def __repr__(self):
         params = [
-            f"{name}={repr(val)}" for name, val in self._get_config().items() if val is not None
+            f"{name}={repr(val)}"
+            for name, val in self._get_config().items()
+            if val is not None
         ]
         return f"Augmentation({', '.join([repr(self.op)] + params)})"
 
@@ -174,7 +186,9 @@ class Augmentation:
         self,
         data: _DataNode,
         *,
-        magnitude_bin: Optional[Union[int, _DataNode, _SignedMagnitudeBin]] = None,
+        magnitude_bin: Optional[
+            Union[int, _DataNode, _SignedMagnitudeBin]
+        ] = None,
         num_magnitude_bins: Optional[int] = None,
         **kwargs,
     ) -> _DataNode:
@@ -208,9 +222,15 @@ class Augmentation:
         """
         num_mandatory_positional_args = 2
         param_device = self._infer_param_device(data)
-        params = self._get_param(magnitude_bin, num_magnitude_bins, param_device)
-        op_kwargs = filter_extra_accepted_kwargs(self.op, kwargs, num_mandatory_positional_args)
-        missing_args = get_missing_kwargs(self.op, kwargs, num_mandatory_positional_args)
+        params = self._get_param(
+            magnitude_bin, num_magnitude_bins, param_device
+        )
+        op_kwargs = filter_extra_accepted_kwargs(
+            self.op, kwargs, num_mandatory_positional_args
+        )
+        missing_args = get_missing_kwargs(
+            self.op, kwargs, num_mandatory_positional_args
+        )
         if missing_args:
             raise MissingArgException(
                 f"The augmentation `{self.name}` requires following named argument(s) "
@@ -329,7 +349,10 @@ class Augmentation:
         if mag_range is None:
             return None
         if self._has_custom_magnitudes():
-            if num_magnitude_bins is not None and len(mag_range) != num_magnitude_bins:
+            if (
+                num_magnitude_bins is not None
+                and len(mag_range) != num_magnitude_bins
+            ):
                 raise Exception(
                     f"The augmentation `{self.name}` has nd.array of length {len(mag_range)} "
                     f"specified as the `mag_range`. However, the `num_magnitude_bins` "
@@ -362,7 +385,9 @@ class Augmentation:
                 f"so when called, it requires `magnitude_bin` parameter to select "
                 f"the magnitude from the `mag_range`.\nError in augmentation: {self}."
             )
-        if self.randomly_negate and not isinstance(magnitude_bin, _SignedMagnitudeBin):
+        if self.randomly_negate and not isinstance(
+            magnitude_bin, _SignedMagnitudeBin
+        ):
             magnitude_bin = signed_bin(magnitude_bin)
             warnings.warn(
                 f"The augmentation `{self.name}` was declared with `random_negate=True`, "
@@ -375,13 +400,17 @@ class Augmentation:
                 Warning,
             )
         if self.randomly_negate:
-            assert isinstance(magnitude_bin, _SignedMagnitudeBin)  # by the two checks above
+            assert isinstance(
+                magnitude_bin, _SignedMagnitudeBin
+            )  # by the two checks above
             if isinstance(magnitude_bin.bin, int):
                 magnitudes = [magnitudes[magnitude_bin.bin]]
                 param_idx = magnitude_bin.random_sign
             else:
                 param_idx = magnitude_bin.signed_magnitude_idx
-            magnitudes = _SignedMagnitudeBin._remap_to_signed_magnitudes(magnitudes)
+            magnitudes = _SignedMagnitudeBin._remap_to_signed_magnitudes(
+                magnitudes
+            )
             params = self._map_mags_to_params(magnitudes)
             params = types.Constant(params, device=param_device)
             return params[param_idx]

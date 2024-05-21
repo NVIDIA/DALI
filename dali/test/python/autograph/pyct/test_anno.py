@@ -59,7 +59,11 @@ class AnnoTest(unittest.TestCase):
         self.assertFalse(anno.hasanno(node_2, "bar"))
 
     def test_duplicate(self):
-        node = ast.If(test=ast.Num(1), body=[ast.Expr(ast.Name("bar", ast.Load()))], orelse=[])
+        node = ast.If(
+            test=ast.Num(1),
+            body=[ast.Expr(ast.Name("bar", ast.Load()))],
+            orelse=[],
+        )
         anno.setanno(node, "spam", 1)
         anno.setanno(node, "ham", 1)
         anno.setanno(node.body[0], "ham", 1)

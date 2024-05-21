@@ -32,7 +32,9 @@ class ConditionalExpressionTransformer(converter.Base):
             lambda: false_expr,
             expr_repr)
     """
-        expr_repr = parser.unparse(node.test, include_encoding_marker=False).strip()
+        expr_repr = parser.unparse(
+            node.test, include_encoding_marker=False
+        ).strip()
         return templates.replace_as_expression(
             template,
             test=node.test,

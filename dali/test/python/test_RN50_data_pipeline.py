@@ -42,7 +42,11 @@ class CommonPipeline(Pipeline):
         shard_id,
     ):
         super(CommonPipeline, self).__init__(
-            batch_size, num_threads, device_id, random_shuffle, prefetch_queue_depth=prefetch
+            batch_size,
+            num_threads,
+            device_id,
+            random_shuffle,
+            prefetch_queue_depth=prefetch,
         )
         print(f"decoder type: {decoder_type}")
         if "experimental" in decoder_type:
@@ -52,7 +56,9 @@ class CommonPipeline(Pipeline):
 
         if "roi" in decoder_type:
             print("Using nvJPEG with ROI decoding")
-            self.decode_gpu = decoders_module.ImageRandomCrop(device="mixed", output_type=types.RGB)
+            self.decode_gpu = decoders_module.ImageRandomCrop(
+                device="mixed", output_type=types.RGB
+            )
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
         elif "cached" in decoder_type:
             assert decoder_cache_params["cache_enabled"]
@@ -74,7 +80,9 @@ class CommonPipeline(Pipeline):
             self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
         else:
             print("Using nvJPEG")
-            self.decode_gpu = decoders_module.Image(device="mixed", output_type=types.RGB)
+            self.decode_gpu = decoders_module.Image(
+                device="mixed", output_type=types.RGB
+            )
             self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
 
         layout = types.NHWC if nhwc else types.NCHW
@@ -190,7 +198,9 @@ class TFRecordPipeline(CommonPipeline):
             stick_to_shard=cache_enabled,
             features={
                 "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
-                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                "image/class/label": tfrec.FixedLenFeature(
+                    [1], tfrec.int64, -1
+                ),
             },
         )
 
@@ -240,7 +250,10 @@ class WebdatasetPipeline(CommonPipeline):
 
 
 test_data = {
-    FileReadPipeline: [["/data/imagenet/train-jpeg"], ["/data/imagenet/val-jpeg"]],
+    FileReadPipeline: [
+        ["/data/imagenet/train-jpeg"],
+        ["/data/imagenet/val-jpeg"],
+    ],
     MXNetReaderPipeline: [
         [
             "/data/imagenet/train-480-val-256-recordio/train.rec",
@@ -251,8 +264,14 @@ test_data = {
             "/data/imagenet/train-480-val-256-recordio/val.idx",
         ],
     ],
-    CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"], ["/data/imagenet/val-lmdb-256x256"]],
-    Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"], ["/data/imagenet/val-c2lmdb-256"]],
+    CaffeReadPipeline: [
+        ["/data/imagenet/train-lmdb-256x256"],
+        ["/data/imagenet/val-lmdb-256x256"],
+    ],
+    Caffe2ReadPipeline: [
+        ["/data/imagenet/train-c2lmdb-480"],
+        ["/data/imagenet/val-c2lmdb-256"],
+    ],
     TFRecordPipeline: [
         [
             "/data/imagenet/train-val-tfrecord-480/train-*",
@@ -299,10 +318,20 @@ parser.add_argument(
     help="number of GPUs run in parallel by this test (default: 1)",
 )
 parser.add_argument(
-    "-b", "--batch", default=512, type=int, metavar="N", help="batch size (default: 512)"
+    "-b",
+    "--batch",
+    default=512,
+    type=int,
+    metavar="N",
+    help="batch size (default: 512)",
 )
 parser.add_argument(
-    "-p", "--print-freq", default=10, type=int, metavar="N", help="print frequency (default: 10)"
+    "-p",
+    "--print-freq",
+    default=10,
+    type=int,
+    metavar="N",
+    help="print frequency (default: 10)",
 )
 parser.add_argument(
     "-j",
@@ -313,17 +342,33 @@ parser.add_argument(
     help="number of data loading workers (default: 3)",
 )
 parser.add_argument(
-    "--prefetch", default=2, type=int, metavar="N", help="prefetch queue depth (default: 2)"
+    "--prefetch",
+    default=2,
+    type=int,
+    metavar="N",
+    help="prefetch queue depth (default: 2)",
 )
-parser.add_argument("--separate_queue", action="store_true", help="Use separate queues executor")
 parser.add_argument(
-    "--cpu_size", default=2, type=int, metavar="N", help="cpu prefetch queue depth (default: 2)"
+    "--separate_queue", action="store_true", help="Use separate queues executor"
 )
 parser.add_argument(
-    "--gpu_size", default=2, type=int, metavar="N", help="gpu prefetch queue depth (default: 2)"
+    "--cpu_size",
+    default=2,
+    type=int,
+    metavar="N",
+    help="cpu prefetch queue depth (default: 2)",
+)
+parser.add_argument(
+    "--gpu_size",
+    default=2,
+    type=int,
+    metavar="N",
+    help="gpu prefetch queue depth (default: 2)",
 )
 parser.add_argument("--fp16", action="store_true", help="Run fp16 pipeline")
-parser.add_argument("--nhwc", action="store_true", help="Use NHWC data instead of default NCHW")
+parser.add_argument(
+    "--nhwc", action="store_true", help="Use NHWC data instead of default NCHW"
+)
 parser.add_argument(
     "-i",
     "--iters",
@@ -332,7 +377,9 @@ parser.add_argument(
     metavar="N",
     help="Number of iterations to run (default: -1 - whole data set)",
 )
-parser.add_argument("--epochs", default=2, type=int, metavar="N", help="Number of epochs to run")
+parser.add_argument(
+    "--epochs", default=2, type=int, metavar="N", help="Number of epochs to run"
+)
 parser.add_argument(
     "--decoder_type",
     default="",
@@ -340,9 +387,19 @@ parser.add_argument(
     metavar="N",
     help="roi, cached, (default: regular nvjpeg). Also admit +experimental",
 )
-parser.add_argument("--cache_size", default=0, type=int, metavar="N", help="Cache size (in MB)")
-parser.add_argument("--cache_threshold", default=0, type=int, metavar="N", help="Cache threshold")
-parser.add_argument("--cache_type", default="none", type=str, metavar="N", help="Cache type")
+parser.add_argument(
+    "--cache_size", default=0, type=int, metavar="N", help="Cache size (in MB)"
+)
+parser.add_argument(
+    "--cache_threshold",
+    default=0,
+    type=int,
+    metavar="N",
+    help="Cache threshold",
+)
+parser.add_argument(
+    "--cache_type", default="none", type=str, metavar="N", help="Cache type"
+)
 parser.add_argument(
     "--reader_queue_depth",
     default=1,
@@ -350,14 +407,19 @@ parser.add_argument(
     metavar="N",
     help="prefetch queue depth (default: 1)",
 )
-parser.add_argument("--read_shuffle", action="store_true", help="Shuffle data when reading")
+parser.add_argument(
+    "--read_shuffle", action="store_true", help="Shuffle data when reading"
+)
 parser.add_argument(
     "--disable_mmap",
     action="store_true",
     help="Disable mmap for DALI readers. Used for network filesystem tests.",
 )
 parser.add_argument(
-    "-s", "--small", action="store_true", help="use small dataset, DALI_EXTRA_PATH needs to be set"
+    "-s",
+    "--small",
+    action="store_true",
+    help="use small dataset, DALI_EXTRA_PATH needs to be set",
 )
 parser.add_argument(
     "--number_of_shards",
@@ -596,7 +658,9 @@ for pipe_name in test_data.keys():
         else:
             iters = args.iters
 
-        print("RUN {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
+        print(
+            "RUN {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__)
+        )
         print(data_set)
         end = time.time()
         for i in range(args.epochs):

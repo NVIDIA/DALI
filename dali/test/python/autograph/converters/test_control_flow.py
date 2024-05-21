@@ -407,8 +407,12 @@ class IfStatementTest(ControlFlowTestBase):
 
             return x.b, x.c, z
 
-        self.assertTransformedResult(f, (Foo(), custom_constant(True)), (7, 11, 13))
-        self.assertTransformedResult(f, (Foo(), custom_constant(False)), (2, 3, 5))
+        self.assertTransformedResult(
+            f, (Foo(), custom_constant(True)), (7, 11, 13)
+        )
+        self.assertTransformedResult(
+            f, (Foo(), custom_constant(False)), (2, 3, 5)
+        )
 
     def test_unbalanced_composite(self):
         class Foo(object):
@@ -472,7 +476,9 @@ class ForStatementTest(ControlFlowTestBase):
 
     def test_tuple_unpacking(self):
         def f(x_list):
-            z = custom_constant(0)  # pylint:disable=undefined-variable # noqa: F821
+            z = custom_constant(
+                0
+            )  # pylint:disable=undefined-variable # noqa: F821
             for i, x in enumerate(x_list):
                 z = z + x + i
             return z
@@ -486,12 +492,16 @@ class ForStatementTest(ControlFlowTestBase):
                 s += custom_constant([a for a in range(n)])
             return s
 
-        self.assertTransformedResult(f, (custom_constant([1, 2, 3]), 5), list(range(5)) * 4)
+        self.assertTransformedResult(
+            f, (custom_constant([1, 2, 3]), 5), list(range(5)) * 4
+        )
 
 
 class AdvancedControlFlowTest(ControlFlowTestBase):
     def assertTransformedEquivalent(self, f, *inputs):
-        tr = self.transform(f, (break_statements, continue_statements, control_flow))
+        tr = self.transform(
+            f, (break_statements, continue_statements, control_flow)
+        )
         self.assertEqual(f(*inputs), tr(*inputs))
 
     def test_while_with_else(self):

@@ -33,11 +33,16 @@ def init_video_data():
         os.environ["DALI_EXTRA_PATH"], "db", "video", "sintel", "video_files"
     )
 
-    video_files = [os.path.join(video_directory, f) for f in sorted(os.listdir(video_directory))]
+    video_files = [
+        os.path.join(video_directory, f)
+        for f in sorted(os.listdir(video_directory))
+    ]
 
     video_pipe = dali.pipeline.Pipeline(batch_size, 3, 0, seed=16)
     with video_pipe:
-        input = fn.readers.video(device="gpu", filenames=video_files, sequence_length=32, stride=5)
+        input = fn.readers.video(
+            device="gpu", filenames=video_files, sequence_length=32, stride=5
+        )
         video_pipe.set_outputs(input)
 
     video_pipe.build()
@@ -86,7 +91,9 @@ def resize_PIL(channel_first, interp, w, h):
             frame = input[i]
             if channel_first:
                 frame = frame.transpose([1, 2, 0])
-            out_frame = PIL.Image.fromarray(frame).resize([w, h], resample=pil_resample)
+            out_frame = PIL.Image.fromarray(frame).resize(
+                [w, h], resample=pil_resample
+            )
             out_frame = np.array(out_frame)
             if channel_first:
                 out_frame = out_frame.transpose([2, 0, 1])
@@ -97,12 +104,18 @@ def resize_PIL(channel_first, interp, w, h):
 
 
 def create_ref_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
-    pipe = dali.pipeline.Pipeline(batch_size, 1, 0, 0, exec_async=False, exec_pipelined=False)
+    pipe = dali.pipeline.Pipeline(
+        batch_size, 1, 0, 0, exec_async=False, exec_pipelined=False
+    )
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
-        ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout=layout)
+        ext = fn.external_source(
+            GetSequences(channel_first, seq_len, batch_size), layout=layout
+        )
         pil_resized = fn.python_function(
-            ext, function=resize_PIL(channel_first, interp, w, h), batch_processing=False
+            ext,
+            function=resize_PIL(channel_first, interp, w, h),
+            batch_processing=False,
         )
         if dtype is not None:  # unfortunately, PIL can't quite handle that
             pil_resized = fn.cast(pil_resized, dtype=dtype)
@@ -115,9 +128,16 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
     pipe = dali.pipeline.Pipeline(batch_size, 1, 0, 0)
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
-        ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout=layout)
+        ext = fn.external_source(
+            GetSequences(channel_first, seq_len, batch_size), layout=layout
+        )
         resize_cpu_out = fn.resize(
-            ext, resize_x=w, resize_y=h, interp_type=interp, dtype=dtype, save_attrs=True
+            ext,
+            resize_x=w,
+            resize_y=h,
+            interp_type=interp,
+            dtype=dtype,
+            save_attrs=True,
         )
         resize_gpu_out = fn.resize(
             ext.gpu(),
@@ -132,9 +152,14 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
         dali_resized_gpu, size_gpu = resize_gpu_out
         # extract just HW part from the input shape
         ext_size = fn.slice(
-            fn.cast(fn.shapes(ext), dtype=types.INT32), 2 if channel_first else 1, 2, axes=[0]
+            fn.cast(fn.shapes(ext), dtype=types.INT32),
+            2 if channel_first else 1,
+            2,
+            axes=[0],
         )
-        pipe.set_outputs(dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu)
+        pipe.set_outputs(
+            dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu
+        )
     return pipe
 
 
@@ -185,5 +210,7 @@ def test_resize():
     ]:
         for dtype in [None, types.UINT8, types.FLOAT]:
             layout = "FCHW" if channel_first else "FHWC"
-            channel_first = not channel_first  # alternating pattern cuts number of cases by half
+            channel_first = (
+                not channel_first
+            )  # alternating pattern cuts number of cases by half
             yield _test_resize, layout, interp, dtype, w, h

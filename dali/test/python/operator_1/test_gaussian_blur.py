@@ -88,14 +88,20 @@ def gaussian_cv(image, sigma, window_size):
     sigma_x, sigma_y = to_cv_sigma(sigma)
     window_size_cv = to_cv_win_size(window_size)
     # compute on floats and round like a sane person (in mathematically complicit way)
-    blurred = cv2.GaussianBlur(np.float32(image), window_size_cv, sigmaX=sigma_x, sigmaY=sigma_y)
+    blurred = cv2.GaussianBlur(
+        np.float32(image), window_size_cv, sigmaX=sigma_x, sigmaY=sigma_y
+    )
     return np.uint8(blurred + 0.5)
 
 
-def gaussian_baseline(image, sigma, window_size, axes=2, skip_axes=0, dtype=np.uint8):
+def gaussian_baseline(
+    image, sigma, window_size, axes=2, skip_axes=0, dtype=np.uint8
+):
     sigma_xyz = to_cv_sigma(sigma, axes)
     win_xyz = to_cv_win_size(window_size, axes, sigma)
-    filters = [cv2.getGaussianKernel(win_xyz[i], sigma_xyz[i]) for i in range(axes)]
+    filters = [
+        cv2.getGaussianKernel(win_xyz[i], sigma_xyz[i]) for i in range(axes)
+    ]
     filters = [np.float32(f).squeeze() for f in filters]
     filters.reverse()
     for i in reversed(range(axes)):
@@ -114,11 +120,15 @@ def gaussian_baseline(image, sigma, window_size, axes=2, skip_axes=0, dtype=np.u
 def get_gaussian_pipe(batch_size, sigma, window_size, op_type):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
-        input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+        input, _ = fn.readers.file(
+            file_root=images_dir, shard_id=0, num_shards=1
+        )
         decoded = fn.decoders.image(input, device="cpu", output_type=types.RGB)
         if op_type == "gpu":
             decoded = decoded.gpu()
-        blurred = fn.gaussian_blur(decoded, device=op_type, sigma=sigma, window_size=window_size)
+        blurred = fn.gaussian_blur(
+            decoded, device=op_type, sigma=sigma, window_size=window_size
+        )
         pipe.set_outputs(blurred, decoded)
     return pipe
 
@@ -133,7 +143,13 @@ def check_gaussian_blur(batch_size, sigma, window_size, op_type="cpu"):
             input = input.as_cpu()
         input = to_batch(input, batch_size)
         baseline_cv = [gaussian_cv(img, sigma, window_size) for img in input]
-        check_batch(result, baseline_cv, batch_size, max_allowed_error=1, expected_layout="HWC")
+        check_batch(
+            result,
+            baseline_cv,
+            batch_size,
+            max_allowed_error=1,
+            expected_layout="HWC",
+        )
 
 
 def test_image_gaussian_blur():
@@ -219,7 +235,11 @@ def check_generic_gaussian_blur(
         if op_type == "gpu":
             input = input.gpu()
         blurred = fn.gaussian_blur(
-            input, device=op_type, sigma=sigma, window_size=window_size, dtype=out_dtype
+            input,
+            device=op_type,
+            sigma=sigma,
+            window_size=window_size,
+            dtype=out_dtype,
         )
         pipe.set_outputs(blurred, input)
     pipe.build()
@@ -232,12 +252,18 @@ def check_generic_gaussian_blur(
         input = to_batch(input, batch_size)
         skip_axes = count_skip_axes(layout)
         baseline = [
-            gaussian_baseline(img, sigma, window_size, axes, skip_axes, dtype=result_type)
+            gaussian_baseline(
+                img, sigma, window_size, axes, skip_axes, dtype=result_type
+            )
             for img in input
         ]
         max_error = 1 if result_type != np.float32 else 1e-04
         check_batch(
-            result, baseline, batch_size, max_allowed_error=max_error, expected_layout=layout
+            result,
+            baseline,
+            batch_size,
+            max_allowed_error=max_error,
+            expected_layout=layout,
         )
 
 
@@ -336,7 +362,9 @@ def check_per_sample_gaussian_blur(
             sigma_arg = None
 
         if window_size_dim is not None:
-            window_radius = fn.random.uniform(range=[5, 10], shape=[window_size_dim])
+            window_radius = fn.random.uniform(
+                range=[5, 10], shape=[window_size_dim]
+            )
             window_size = fn.cast(window_radius, dtype=types.INT32) * 2 + 1
             window_arg = window_size
         else:
@@ -346,7 +374,9 @@ def check_per_sample_gaussian_blur(
         input = fn.external_source(data, layout=layout)
         if op_type == "gpu":
             input = input.gpu()
-        blurred = fn.gaussian_blur(input, device=op_type, sigma=sigma_arg, window_size=window_arg)
+        blurred = fn.gaussian_blur(
+            input, device=op_type, sigma=sigma_arg, window_size=window_arg
+        )
         pipe.set_outputs(blurred, input, sigma, window_size)
     pipe.build()
 
@@ -363,8 +393,18 @@ def check_per_sample_gaussian_blur(
             sigma_arg = sigma[i] if sigma is not None else None
             window_arg = window_size[i] if window_size_dim is not None else None
             skip_axes = count_skip_axes(layout)
-            baseline.append(gaussian_baseline(input[i], sigma_arg, window_arg, axes, skip_axes))
-        check_batch(result, baseline, batch_size, max_allowed_error=1, expected_layout=layout)
+            baseline.append(
+                gaussian_baseline(
+                    input[i], sigma_arg, window_arg, axes, skip_axes
+                )
+            )
+        check_batch(
+            result,
+            baseline,
+            batch_size,
+            max_allowed_error=1,
+            expected_layout=layout,
+        )
 
 
 # TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
@@ -401,7 +441,15 @@ def check_fail_gaussian_blur(
 ):
     with assert_raises(RuntimeError, regex=err_regex):
         check_generic_gaussian_blur(
-            batch_size, sigma, window_size, shape, layout, axes, op_type, in_dtype, out_dtype
+            batch_size,
+            sigma,
+            window_size,
+            shape,
+            layout,
+            axes,
+            op_type,
+            in_dtype,
+            out_dtype,
         )
 
 
@@ -542,7 +590,11 @@ def test_per_frame():
     video_test_cases = [
         (fn.gaussian_blur, {"window_size": 3}, []),
         (fn.gaussian_blur, {}, [ArgCb("window_size", window_size, True)]),
-        (fn.gaussian_blur, {}, [ArgCb("window_size", per_axis_window_size, True)]),
+        (
+            fn.gaussian_blur,
+            {},
+            [ArgCb("window_size", per_axis_window_size, True)],
+        ),
         (fn.gaussian_blur, {}, [ArgCb("sigma", sigma, True)]),
         (
             fn.gaussian_blur,

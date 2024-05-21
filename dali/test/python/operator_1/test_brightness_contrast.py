@@ -56,7 +56,9 @@ def dali_type_to_np(dtype):
         assert False
 
 
-def bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype):
+def bricon_ref(
+    input, brightness, brightness_shift, contrast, contrast_center, out_dtype
+):
     output_range = max_range(out_dtype)
     output = brightness_shift * output_range + brightness * (
         contrast_center + contrast * (input - contrast_center)
@@ -84,7 +86,12 @@ def bri_pipe(data_iterator, dtype, dev="cpu"):
     inp = fn.external_source(source=data_iterator)
     if dev == "gpu":
         inp = inp.gpu()
-    return fn.brightness(inp, brightness=brightness, brightness_shift=brightness_shift, dtype=dtype)
+    return fn.brightness(
+        inp,
+        brightness=brightness,
+        brightness_shift=brightness_shift,
+        dtype=dtype,
+    )
 
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
@@ -95,7 +102,9 @@ def con_pipe(data_iterator, contrast_center, dtype, dev="cpu"):
     inp = fn.external_source(source=data_iterator)
     if dev == "gpu":
         inp = inp.gpu()
-    return fn.contrast(inp, contrast=contrast, contrast_center=contrast_center, dtype=dtype)
+    return fn.contrast(
+        inp, contrast=contrast, contrast_center=contrast_center, dtype=dtype
+    )
 
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
@@ -120,7 +129,10 @@ def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev="cpu"):
         )
     elif bri:
         return fn.brightness_contrast(
-            inp, brightness=brightness, brightness_shift=brightness_shift, dtype=dtype
+            inp,
+            brightness=brightness,
+            brightness_shift=brightness_shift,
+            dtype=dtype,
         )
     elif con:
         return fn.brightness_contrast(
@@ -128,7 +140,13 @@ def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev="cpu"):
         )
 
 
-@pipeline_def(num_threads=4, device_id=0, seed=1234, exec_pipelined=False, exec_async=False)
+@pipeline_def(
+    num_threads=4,
+    device_id=0,
+    seed=1234,
+    exec_pipelined=False,
+    exec_async=False,
+)
 def bricon_ref_pipe(data_iterator, contrast_center, dtype, has_3_dims=False):
     brightness, brightness_shift = brightness_params()
     contrast = contrast_param()
@@ -148,23 +166,37 @@ def bricon_ref_pipe(data_iterator, contrast_center, dtype, has_3_dims=False):
     )
 
 
-def check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center):
+def check_equivalence(
+    device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center
+):
     batch_size = 32
     n_iters = 16
-    shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
-    ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
-    ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
+    shape = (
+        (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
+    )
+    ri1 = RandomDataIterator(
+        batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype)
+    )
+    ri2 = RandomDataIterator(
+        batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype)
+    )
     contrast_center = (
-        None if not use_const_contr_center else 0.4 * max_range(dali_type_to_np(inp_dtype))
+        None
+        if not use_const_contr_center
+        else 0.4 * max_range(dali_type_to_np(inp_dtype))
     )
 
     if op == "brightness":
         pipe1 = bri_pipe(ri1, out_dtype, device, batch_size=batch_size)
     else:
-        pipe1 = con_pipe(ri1, contrast_center, out_dtype, device, batch_size=batch_size)
+        pipe1 = con_pipe(
+            ri1, contrast_center, out_dtype, device, batch_size=batch_size
+        )
     bri = op == "brightness"
     con = op == "contrast"
-    pipe2 = bricon_pipe(ri2, contrast_center, bri, con, out_dtype, device, batch_size=batch_size)
+    pipe2 = bricon_pipe(
+        ri2, contrast_center, bri, con, out_dtype, device, batch_size=batch_size
+    )
     if out_dtype in [np.half, np.single, np.double]:
         eps = 1e-4
     else:
@@ -179,7 +211,12 @@ def test_equivalence():
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
                 for op in ["brightness", "contrast"]:
                     for has_3_dims, use_const_contr_center in rng.sample(
-                        [(b1, b2) for b1 in [True, False] for b2 in [True, False]], 2
+                        [
+                            (b1, b2)
+                            for b1 in [True, False]
+                            for b2 in [True, False]
+                        ],
+                        2,
                     ):
                         yield (
                             check_equivalence,
@@ -192,19 +229,41 @@ def test_equivalence():
                         )
 
 
-def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center):
+def check_vs_ref(
+    device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center
+):
     batch_size = 32
     n_iters = 8
-    shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
-    ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
-    ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
+    shape = (
+        (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
+    )
+    ri1 = RandomDataIterator(
+        batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype)
+    )
+    ri2 = RandomDataIterator(
+        batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype)
+    )
     contrast_center = (
-        None if not use_const_contr_center else 0.4 * max_range(dali_type_to_np(inp_dtype))
+        None
+        if not use_const_contr_center
+        else 0.4 * max_range(dali_type_to_np(inp_dtype))
     )
     pipe1 = bricon_ref_pipe(
-        ri1, contrast_center, out_dtype, has_3_dims=has_3_dims, batch_size=batch_size
+        ri1,
+        contrast_center,
+        out_dtype,
+        has_3_dims=has_3_dims,
+        batch_size=batch_size,
     )
-    pipe2 = bricon_pipe(ri2, contrast_center, True, True, out_dtype, device, batch_size=batch_size)
+    pipe2 = bricon_pipe(
+        ri2,
+        contrast_center,
+        True,
+        True,
+        out_dtype,
+        device,
+        batch_size=batch_size,
+    )
     if out_dtype in [np.half, np.single, np.double]:
         eps = 1e-4
     else:
@@ -218,7 +277,8 @@ def test_vs_ref():
         for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
                 for has_3_dims, use_const_contr_center in rng.sample(
-                    [(b1, b2) for b1 in [True, False] for b2 in [True, False]], 2
+                    [(b1, b2) for b1 in [True, False] for b2 in [True, False]],
+                    2,
                 ):
                     yield (
                         check_vs_ref,
@@ -244,7 +304,11 @@ def test_video():
         return np.float32(sample_desc.rng.random())
 
     video_test_cases = [
-        (fn.brightness, {"dtype": types.INT32}, [ArgCb("brightness", brightness, True)]),
+        (
+            fn.brightness,
+            {"dtype": types.INT32},
+            [ArgCb("brightness", brightness, True)],
+        ),
         (
             fn.brightness,
             {"dtype": types.UINT8},
@@ -253,13 +317,24 @@ def test_video():
                 ArgCb("brightness", brightness, False),
             ],
         ),
-        (fn.contrast, {"dtype": types.FLOAT}, [ArgCb("contrast", contrast, True)]),
         (
             fn.contrast,
             {"dtype": types.FLOAT},
-            [ArgCb("contrast", contrast, True), ArgCb("contrast_center", contrast_center, False)],
+            [ArgCb("contrast", contrast, True)],
         ),
-        (fn.contrast, {"dtype": types.UINT8}, [ArgCb("contrast_center", contrast_center, True)]),
+        (
+            fn.contrast,
+            {"dtype": types.FLOAT},
+            [
+                ArgCb("contrast", contrast, True),
+                ArgCb("contrast_center", contrast_center, False),
+            ],
+        ),
+        (
+            fn.contrast,
+            {"dtype": types.UINT8},
+            [ArgCb("contrast_center", contrast_center, True)],
+        ),
         (
             fn.brightness_contrast,
             {"dtype": types.UINT8},

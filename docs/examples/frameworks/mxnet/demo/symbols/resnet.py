@@ -60,9 +60,15 @@ def residual_unit(
         # the same as https://github.com/facebook/fb.resnet.torch#notes,
         # a bit difference with origin paper
         bn1 = mx.sym.BatchNorm(
-            data=data, fix_gamma=False, eps=2e-5, momentum=bn_mom, name=name + "_bn1"
+            data=data,
+            fix_gamma=False,
+            eps=2e-5,
+            momentum=bn_mom,
+            name=name + "_bn1",
         )
-        act1 = mx.sym.Activation(data=bn1, act_type="relu", name=name + "_relu1")
+        act1 = mx.sym.Activation(
+            data=bn1, act_type="relu", name=name + "_relu1"
+        )
         conv1 = mx.sym.Convolution(
             data=act1,
             num_filter=int(num_filter * 0.25),
@@ -74,9 +80,15 @@ def residual_unit(
             name=name + "_conv1",
         )
         bn2 = mx.sym.BatchNorm(
-            data=conv1, fix_gamma=False, eps=2e-5, momentum=bn_mom, name=name + "_bn2"
+            data=conv1,
+            fix_gamma=False,
+            eps=2e-5,
+            momentum=bn_mom,
+            name=name + "_bn2",
         )
-        act2 = mx.sym.Activation(data=bn2, act_type="relu", name=name + "_relu2")
+        act2 = mx.sym.Activation(
+            data=bn2, act_type="relu", name=name + "_relu2"
+        )
         conv2 = mx.sym.Convolution(
             data=act2,
             num_filter=int(num_filter * 0.25),
@@ -88,9 +100,15 @@ def residual_unit(
             name=name + "_conv2",
         )
         bn3 = mx.sym.BatchNorm(
-            data=conv2, fix_gamma=False, eps=2e-5, momentum=bn_mom, name=name + "_bn3"
+            data=conv2,
+            fix_gamma=False,
+            eps=2e-5,
+            momentum=bn_mom,
+            name=name + "_bn3",
         )
-        act3 = mx.sym.Activation(data=bn3, act_type="relu", name=name + "_relu3")
+        act3 = mx.sym.Activation(
+            data=bn3, act_type="relu", name=name + "_relu3"
+        )
         conv3 = mx.sym.Convolution(
             data=act3,
             num_filter=num_filter,
@@ -118,9 +136,15 @@ def residual_unit(
         return conv3 + shortcut
     else:
         bn1 = mx.sym.BatchNorm(
-            data=data, fix_gamma=False, momentum=bn_mom, eps=2e-5, name=name + "_bn1"
+            data=data,
+            fix_gamma=False,
+            momentum=bn_mom,
+            eps=2e-5,
+            name=name + "_bn1",
         )
-        act1 = mx.sym.Activation(data=bn1, act_type="relu", name=name + "_relu1")
+        act1 = mx.sym.Activation(
+            data=bn1, act_type="relu", name=name + "_relu1"
+        )
         conv1 = mx.sym.Convolution(
             data=act1,
             num_filter=num_filter,
@@ -132,9 +156,15 @@ def residual_unit(
             name=name + "_conv1",
         )
         bn2 = mx.sym.BatchNorm(
-            data=conv1, fix_gamma=False, momentum=bn_mom, eps=2e-5, name=name + "_bn2"
+            data=conv1,
+            fix_gamma=False,
+            momentum=bn_mom,
+            eps=2e-5,
+            name=name + "_bn2",
         )
-        act2 = mx.sym.Activation(data=bn2, act_type="relu", name=name + "_relu2")
+        act2 = mx.sym.Activation(
+            data=bn2, act_type="relu", name=name + "_relu2"
+        )
         conv2 = mx.sym.Convolution(
             data=act2,
             num_filter=num_filter,
@@ -200,7 +230,9 @@ def resnet(
     else:
         if dtype == "float16":
             data = mx.sym.Cast(data=data, dtype=np.float16)
-    data = mx.sym.BatchNorm(data=data, fix_gamma=True, eps=2e-5, momentum=bn_mom, name="bn_data")
+    data = mx.sym.BatchNorm(
+        data=data, fix_gamma=True, eps=2e-5, momentum=bn_mom, name="bn_data"
+    )
     (nchannel, height, width) = image_shape
     if height <= 32:  # such as cifar10
         body = mx.sym.Convolution(
@@ -224,9 +256,13 @@ def resnet(
             name="conv0",
             workspace=workspace,
         )
-        body = mx.sym.BatchNorm(data=body, fix_gamma=False, eps=2e-5, momentum=bn_mom, name="bn0")
+        body = mx.sym.BatchNorm(
+            data=body, fix_gamma=False, eps=2e-5, momentum=bn_mom, name="bn0"
+        )
         body = mx.sym.Activation(data=body, act_type="relu", name="relu0")
-        body = mx.sym.Pooling(data=body, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max")
+        body = mx.sym.Pooling(
+            data=body, kernel=(3, 3), stride=(2, 2), pad=(1, 1), pool_type="max"
+        )
 
     for i in range(num_stages):
         body = residual_unit(
@@ -250,11 +286,17 @@ def resnet(
                 workspace=workspace,
                 memonger=memonger,
             )
-    bn1 = mx.sym.BatchNorm(data=body, fix_gamma=False, eps=2e-5, momentum=bn_mom, name="bn1")
+    bn1 = mx.sym.BatchNorm(
+        data=body, fix_gamma=False, eps=2e-5, momentum=bn_mom, name="bn1"
+    )
     relu1 = mx.sym.Activation(data=bn1, act_type="relu", name="relu1")
     # Although kernel is not used here when global_pool=True, we should put one
     pool1 = mx.sym.Pooling(
-        data=relu1, global_pool=True, kernel=(7, 7), pool_type="avg", name="pool1"
+        data=relu1,
+        global_pool=True,
+        kernel=(7, 7),
+        pool_type="avg",
+        name="pool1",
     )
     flat = mx.sym.Flatten(data=pool1)
     fc1 = mx.sym.FullyConnected(data=flat, num_hidden=num_classes, name="fc1")
@@ -263,7 +305,14 @@ def resnet(
     return mx.sym.SoftmaxOutput(data=fc1, name="softmax")
 
 
-def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype="float32", **kwargs):
+def get_symbol(
+    num_classes,
+    num_layers,
+    image_shape,
+    conv_workspace=256,
+    dtype="float32",
+    **kwargs,
+):
     """
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
@@ -282,7 +331,9 @@ def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype="
             bottle_neck = False
         else:
             raise ValueError(
-                "no experiments done on num_layers {}, you can do it yourself".format(num_layers)
+                "no experiments done on num_layers {}, you can do it yourself".format(
+                    num_layers
+                )
             )
         units = per_unit * num_stages
     else:
@@ -309,7 +360,9 @@ def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype="
             units = [3, 30, 48, 8]
         else:
             raise ValueError(
-                "no experiments done on num_layers {}, you can do it yourself".format(num_layers)
+                "no experiments done on num_layers {}, you can do it yourself".format(
+                    num_layers
+                )
             )
 
     return resnet(

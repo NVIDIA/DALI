@@ -53,7 +53,9 @@ kittens = [f"../data/images/kitten/cat_{i}.jpg" for i in range(1, 9)]
 )
 def iterator_function(shard_id, num_shards):
     assert num_shards == 2
-    jpegs, _ = fn.readers.file(files=dogs if shard_id == 0 else kittens, name="image_reader")
+    jpegs, _ = fn.readers.file(
+        files=dogs if shard_id == 0 else kittens, name="image_reader"
+    )
     images = fn.decoders.image(jpegs, device="mixed")
     images = fn.resize(images, size=(244, 244))
 
@@ -80,5 +82,7 @@ def global_mixup(sample):
 local_batch_size = 8
 num_shards = 2
 
-iterator = iterator_function(batch_size=num_shards * local_batch_size, num_threads=4)
+iterator = iterator_function(
+    batch_size=num_shards * local_batch_size, num_threads=4
+)
 batch = next(iterator)

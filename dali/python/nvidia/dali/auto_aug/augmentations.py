@@ -51,62 +51,102 @@ def warp_y_param(magnitude):
     return [0, magnitude]
 
 
-@augmentation(mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_x_param)
+@augmentation(
+    mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_x_param
+)
 def shear_x(data, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
     return fn.warp_affine(
-        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+        data,
+        matrix=mt,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        inverse_map=False,
     )
 
 
-@augmentation(mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_y_param)
+@augmentation(
+    mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_y_param
+)
 def shear_y(data, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
     return fn.warp_affine(
-        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+        data,
+        matrix=mt,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        inverse_map=False,
     )
 
 
-@augmentation(mag_range=(0.0, 1.0), randomly_negate=True, mag_to_param=warp_x_param)
+@augmentation(
+    mag_range=(0.0, 1.0), randomly_negate=True, mag_to_param=warp_x_param
+)
 def translate_x(data, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[1]
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(
-        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+        data,
+        matrix=mt,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        inverse_map=False,
     )
 
 
 @augmentation(
-    mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_x_param, name="translate_x"
+    mag_range=(0, 250),
+    randomly_negate=True,
+    mag_to_param=warp_x_param,
+    name="translate_x",
 )
 def translate_x_no_shape(data, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(
-        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
-    )
-
-
-@augmentation(mag_range=(0.0, 1.0), randomly_negate=True, mag_to_param=warp_y_param)
-def translate_y(data, rel_offset, shape, fill_value=128, interp_type=None):
-    offset = rel_offset * shape[0]
-    mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(
-        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+        data,
+        matrix=mt,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        inverse_map=False,
     )
 
 
 @augmentation(
-    mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_y_param, name="translate_y"
+    mag_range=(0.0, 1.0), randomly_negate=True, mag_to_param=warp_y_param
+)
+def translate_y(data, rel_offset, shape, fill_value=128, interp_type=None):
+    offset = rel_offset * shape[0]
+    mt = fn.transforms.translation(offset=offset)
+    return fn.warp_affine(
+        data,
+        matrix=mt,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        inverse_map=False,
+    )
+
+
+@augmentation(
+    mag_range=(0, 250),
+    randomly_negate=True,
+    mag_to_param=warp_y_param,
+    name="translate_y",
 )
 def translate_y_no_shape(data, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(
-        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+        data,
+        matrix=mt,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        inverse_map=False,
     )
 
 
 @augmentation(mag_range=(0, 30), randomly_negate=True)
-def rotate(data, angle, fill_value=128, interp_type=None, rotate_keep_size=True):
+def rotate(
+    data, angle, fill_value=128, interp_type=None, rotate_keep_size=True
+):
     return fn.rotate(
         data,
         angle=angle,
@@ -120,16 +160,21 @@ def shift_enhance_range(magnitude):
     """The `enhance` operations (brightness, contrast, color, sharpness) accept magnitudes
     from [0, 2] range. However, the neutral magnitude is not 0 but 1 and the intuitive strength
     of the operation increases the further the magnitude is from 1. So, we specify magnitudes range
-    to be in [0, 1] range, expect it to be randomly negated and then shift it by 1"""
+    to be in [0, 1] range, expect it to be randomly negated and then shift it by 1
+    """
     return 1 + magnitude
 
 
-@augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range)
+@augmentation(
+    mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range
+)
 def brightness(data, parameter):
     return fn.brightness(data, brightness=parameter)
 
 
-@augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range)
+@augmentation(
+    mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range
+)
 def contrast(data, parameter):
     """
     It follows PIL implementation of Contrast enhancement which uses a channel-weighted
@@ -137,15 +182,21 @@ def contrast(data, parameter):
     """
     # assumes FHWC or HWC layout
     mean = fn.reductions.mean(data, axis_names="HW", keep_dims=True)
-    rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))
-    center = fn.reductions.sum(mean * rgb_weights, axis_names="C", keep_dims=True)
+    rgb_weights = types.Constant(
+        np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    )
+    center = fn.reductions.sum(
+        mean * rgb_weights, axis_names="C", keep_dims=True
+    )
     # it could be just `fn.contrast(data, contrast=parameter, contrast_center=center)`
     # but for GPU `data` the `center` is in GPU mem, and that cannot be passed
     # as named arg (i.e. `contrast_center`) to the operator
     return fn.cast_like(center + (data - center) * parameter, data)
 
 
-@augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range)
+@augmentation(
+    mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range
+)
 def color(data, parameter):
     return fn.saturation(data, saturation=parameter)
 
@@ -163,7 +214,10 @@ def sharpness_kernel_shifted(magnitude):
 
 
 @augmentation(
-    mag_range=(0, 0.9), randomly_negate=True, mag_to_param=sharpness_kernel, param_device="auto"
+    mag_range=(0, 0.9),
+    randomly_negate=True,
+    mag_to_param=sharpness_kernel,
+    param_device="auto",
 )
 def sharpness(data, kernel):
     """
@@ -190,7 +244,9 @@ def poster_mask_uint8(magnitude):
     return np.array(np.uint8(255) ^ removal_mask, dtype=np.uint8)
 
 
-@augmentation(mag_range=(0, 4), mag_to_param=poster_mask_uint8, param_device="auto")
+@augmentation(
+    mag_range=(0, 4), mag_to_param=poster_mask_uint8, param_device="auto"
+)
 def posterize(data, mask):
     return data & mask
 
@@ -205,11 +261,15 @@ def solarize(data, threshold):
 
 def solarize_add_shift(shift):
     if shift >= 128:
-        raise Exception("The solarize_add augmentation accepts shifts from 0 to 128")
+        raise Exception(
+            "The solarize_add augmentation accepts shifts from 0 to 128"
+        )
     return np.uint8(shift)
 
 
-@augmentation(mag_range=(0, 110), param_device="auto", mag_to_param=solarize_add_shift)
+@augmentation(
+    mag_range=(0, 110), param_device="auto", mag_to_param=solarize_add_shift
+)
 def solarize_add(data, shift):
     mask_shifted = data < types.Constant(128, dtype=types.UINT8)
     mask_id = mask_shifted ^ True
@@ -241,7 +301,9 @@ def auto_contrast(data, _):
     mask_scale = diff > 0
     mask_id = mask_scale ^ True
     # choose div so that scale ends up being 255 / diff if diff > 0 and 1 otherwise
-    div_by = diff * mask_scale + types.Constant(255, dtype=types.UINT8) * mask_id
+    div_by = (
+        diff * mask_scale + types.Constant(255, dtype=types.UINT8) * mask_id
+    )
     scale = 255 / div_by
     scaled = (data - lo * mask_scale) * scale
     return fn.cast_like(scaled, data)

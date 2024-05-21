@@ -30,7 +30,9 @@ def test_element_extract_operator():
 
     test_data = []
     for _ in range(batch_size):
-        test_data.append(np.array(np.random.rand(F, H, W, C) * 255, dtype=np.uint8))
+        test_data.append(
+            np.array(np.random.rand(F, H, W, C) * 255, dtype=np.uint8)
+        )
 
     class ExternalInputIterator(object):
         def __init__(self, batch_size):
@@ -53,21 +55,32 @@ def test_element_extract_operator():
 
     class ElementExtractPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
-            super(ElementExtractPipeline, self).__init__(batch_size, num_threads, device_id)
+            super(ElementExtractPipeline, self).__init__(
+                batch_size, num_threads, device_id
+            )
             self.inputs = ops.ExternalSource()
             # Extract first element in each sample
             self.element_extract_first = ops.ElementExtract(element_map=[0])
             # Extract last element in each sample
             self.element_extract_last = ops.ElementExtract(element_map=[F - 1])
             # Extract both first and last element in each sample to two separate outputs
-            self.element_extract_first_last = ops.ElementExtract(element_map=[0, F - 1])
+            self.element_extract_first_last = ops.ElementExtract(
+                element_map=[0, F - 1]
+            )
 
         def define_graph(self):
             self.sequences = self.inputs()
             first_element_1 = self.element_extract_first(self.sequences)
             last_element_1 = self.element_extract_last(self.sequences)
-            first_element_2, last_element_2 = self.element_extract_first_last(self.sequences)
-            return (first_element_1, last_element_1, first_element_2, last_element_2)
+            first_element_2, last_element_2 = self.element_extract_first_last(
+                self.sequences
+            )
+            return (
+                first_element_1,
+                last_element_1,
+                first_element_2,
+                last_element_2,
+            )
 
         def iter_setup(self):
             sequences = iterator.next()
@@ -117,7 +130,11 @@ def element_extract_pipe(shape, layout, element_map, dev, dtype):
     if dev == "gpu":
         input = input.gpu()
     elements = fn.element_extract(input, element_map=element_map)
-    result = (input,) + tuple(elements) if len(element_map) > 1 else (input, elements)
+    result = (
+        (input,) + tuple(elements)
+        if len(element_map) > 1
+        else (input, elements)
+    )
     return result
 
 
@@ -137,13 +154,26 @@ def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
 
 
 def test_element_extract_layout():
-    for shape, layout in [([4, 2, 2], "FHW"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
+    for shape, layout in [
+        ([4, 2, 2], "FHW"),
+        ([6, 1], "FX"),
+        ([8, 10, 10, 3], "FHWC"),
+    ]:
         for element_map in [[1, 3], [0], [2, 2], [0, 1, 2]]:
             for device in ["cpu", "gpu"]:
                 for dtype in [np.uint8, np.int32]:
                     yield check_element_extract, shape, layout, element_map, device, dtype
     for device in ["cpu", "gpu"]:
-        yield check_element_extract, [4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device
+        yield check_element_extract, [4, 3, 3], "FXY", [
+            0,
+            1,
+            2,
+            3,
+            3,
+            2,
+            1,
+            0,
+        ], device
 
 
 def test_raises():
@@ -170,6 +200,7 @@ def test_raises():
         check_element_extract([6, 1], "FX", [10], "cpu")
 
     with assert_raises(
-        RuntimeError, glob="Negative indices in `element_map` are not allowed, found: -5"
+        RuntimeError,
+        glob="Negative indices in `element_map` are not allowed, found: -5",
     ):
         check_element_extract([6, 1], "FX", [-5], "cpu")

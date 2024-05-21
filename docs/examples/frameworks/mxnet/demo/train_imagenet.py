@@ -26,7 +26,8 @@ import mxnet as mx  # noqa: F401, E402
 if __name__ == "__main__":
     # parse args
     parser = argparse.ArgumentParser(
-        description="train imagenet-1k", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description="train imagenet-1k",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     fit.add_fit_args(parser)
     data.add_data_args(parser)

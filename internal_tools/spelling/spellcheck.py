@@ -37,7 +37,9 @@ if __name__ == "__main__":
     )
     parser.parse_args()
 
-    cspell_out = json.loads(cspell("--show-context", "--reporter", "@cspell/cspell-json-reporter"))
+    cspell_out = json.loads(
+        cspell("--show-context", "--reporter", "@cspell/cspell-json-reporter")
+    )
 
     problems = [from_cspell_issue(issue) for issue in cspell_out["issues"]]
     print(f"Found {len(problems)} problems.")
@@ -46,10 +48,14 @@ if __name__ == "__main__":
     for problem in problems:
         lower = problem.word.lower()
         counts[lower] = counts.get(lower, 0) + 1
-    problems = list(sorted(problems, key=lambda p: (counts[p.word.lower()], p.word.lower())))
+    problems = list(
+        sorted(problems, key=lambda p: (counts[p.word.lower()], p.word.lower()))
+    )
 
     print(f"Writing the problems to file: {FIXME_FILE}")
     with open(FIXME_FILE, "w") as f:
         f.write("\n".join(p.export() for p in problems) + "\n")
 
-    print(f"Please now review {FIXME_FILE} and then run apply.py to apply the fixes")
+    print(
+        f"Please now review {FIXME_FILE} and then run apply.py to apply the fixes"
+    )

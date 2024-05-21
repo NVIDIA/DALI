@@ -41,7 +41,9 @@ def es_with_local_source(parallel=False):
             assert_autograph_artifact(source_local, True)
             return np.full((2,), 1)
 
-        return fn.external_source(source=source_local, parallel=parallel, batch=False)
+        return fn.external_source(
+            source=source_local, parallel=parallel, batch=False
+        )
 
     p = pipe_with_local()
     p.build()

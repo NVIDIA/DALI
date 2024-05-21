@@ -59,7 +59,9 @@ def sequential_sharded_pipeline(
         shard_offset = shard_size * shard_id
 
         def numpy_sequential_tensors(sample_info):
-            return np.full(shape, sample_info.idx_in_epoch + shard_offset, dtype=np.int32)
+            return np.full(
+                shape, sample_info.idx_in_epoch + shard_offset, dtype=np.int32
+            )
 
         return numpy_sequential_tensors
 
@@ -86,12 +88,20 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
 
     # given
     pipe_0 = sequential_sharded_pipeline(
-        batch_size=batch_size, shape=shape, device_id=0, shard_id=0, shard_size=batch_size
+        batch_size=batch_size,
+        shape=shape,
+        device_id=0,
+        shard_id=0,
+        shard_size=batch_size,
     )
     pipe_0.build()
 
     pipe_1 = sequential_sharded_pipeline(
-        batch_size=batch_size, shape=shape, device_id=1, shard_id=1, shard_size=batch_size
+        batch_size=batch_size,
+        shape=shape,
+        device_id=1,
+        shard_id=1,
+        shard_size=batch_size,
     )
     pipe_1.build()
 
@@ -107,7 +117,8 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
 
         # when
         jax_array = jax.device_put_sharded(
-            [jax_shard_0, jax_shard_1], [jax_shard_0.device(), jax_shard_1.device()]
+            [jax_shard_0, jax_shard_1],
+            [jax_shard_0.device(), jax_shard_1.device()],
         )
 
         # then
@@ -137,7 +148,9 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
             jax.numpy.stack(
                 [
                     jax.numpy.full(shape[1:], value, np.int32)
-                    for value in range(batch_id * batch_size, (batch_id + 1) * batch_size)
+                    for value in range(
+                        batch_id * batch_size, (batch_id + 1) * batch_size
+                    )
                 ]
             ),
         )
@@ -146,7 +159,9 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
             jax.numpy.stack(
                 [
                     jax.numpy.full(shape[1:], value, np.int32)
-                    for value in range((batch_id + 1) * batch_size, (batch_id + 2) * batch_size)
+                    for value in range(
+                        (batch_id + 1) * batch_size, (batch_id + 2) * batch_size
+                    )
                 ]
             ),
         )
@@ -181,7 +196,9 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
     output_names = ["data_0", "data_1", "data_2"]
 
     # when
-    dali_iterator = DALIGenericIterator([pipe_0, pipe_1], output_names, size=batch_size * 10)
+    dali_iterator = DALIGenericIterator(
+        [pipe_0, pipe_1], output_names, size=batch_size * 10
+    )
 
     for batch_id, batch in enumerate(dali_iterator):
         # then
@@ -195,8 +212,12 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
                 jax_array.device_buffers[0],
                 jax.numpy.stack(
                     [
-                        jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
-                        for value in range(batch_id * batch_size, (batch_id + 1) * batch_size)
+                        jax.numpy.full(
+                            shape[1:], value + output_id * 0.25, np.float32
+                        )
+                        for value in range(
+                            batch_id * batch_size, (batch_id + 1) * batch_size
+                        )
                     ]
                 ),
             )
@@ -204,8 +225,13 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
                 jax_array.device_buffers[1],
                 jax.numpy.stack(
                     [
-                        jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
-                        for value in range((batch_id + 1) * batch_size, (batch_id + 2) * batch_size)
+                        jax.numpy.full(
+                            shape[1:], value + output_id * 0.25, np.float32
+                        )
+                        for value in range(
+                            (batch_id + 1) * batch_size,
+                            (batch_id + 2) * batch_size,
+                        )
                     ]
                 ),
             )
@@ -287,8 +313,12 @@ def run_sharding_iterator_test(sharding):
                 jax_array,
                 jax.numpy.stack(
                     [
-                        jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
-                        for value in range(batch_id * batch_size, (batch_id + 2) * batch_size)
+                        jax.numpy.full(
+                            shape[1:], value + output_id * 0.25, np.float32
+                        )
+                        for value in range(
+                            batch_id * batch_size, (batch_id + 2) * batch_size
+                        )
                     ]
                 ),
             )
@@ -335,7 +365,9 @@ def run_sharded_iterator_test(iterator, num_iters=11):
     the output should be an array, where slices of this array are shards of the output.
     """
 
-    assert jax.device_count() == 2, "Sharded iterator test requires exactly 2 GPUs"
+    assert (
+        jax.device_count() == 2
+    ), "Sharded iterator test requires exactly 2 GPUs"
 
     batch_size_per_gpu = batch_size // jax.device_count()
 
@@ -364,7 +396,11 @@ def run_sharded_iterator_test(iterator, num_iters=11):
         for device_id in range(jax.device_count()):
             for i in range(batch_size_per_gpu):
                 ground_truth = jax.numpy.full(
-                    (1), batch_id * batch_size_per_gpu + i + device_id * iterator.size, np.int32
+                    (1),
+                    batch_id * batch_size_per_gpu
+                    + i
+                    + device_id * iterator.size,
+                    np.int32,
                 )
                 assert jnp.array_equal(
                     jax_array[sample_id], ground_truth
@@ -422,7 +458,9 @@ def test_positional_sharding_with_iterator_decorator():
     def iterator_function(shard_id, num_shards):
         return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
 
-    data_iterator_instance = iterator_function(batch_size=batch_size, num_threads=4)
+    data_iterator_instance = iterator_function(
+        batch_size=batch_size, num_threads=4
+    )
 
     # then
     run_sharded_iterator_test(data_iterator_instance)
@@ -451,7 +489,9 @@ def run_pmapped_iterator_test(iterator, num_iters=11):
     output.
     """
 
-    assert jax.device_count() == 2, "Sharded iterator test requires exactly 2 GPUs"
+    assert (
+        jax.device_count() == 2
+    ), "Sharded iterator test requires exactly 2 GPUs"
 
     batch_size_per_gpu = batch_size // jax.device_count()
 
@@ -480,7 +520,11 @@ def run_pmapped_iterator_test(iterator, num_iters=11):
         for device_id in range(jax.device_count()):
             for i in range(batch_size_per_gpu):
                 ground_truth = jax.numpy.full(
-                    (1), batch_id * batch_size_per_gpu + i + device_id * iterator.size, np.int32
+                    (1),
+                    batch_id * batch_size_per_gpu
+                    + i
+                    + device_id * iterator.size,
+                    np.int32,
                 )
                 assert jnp.array_equal(
                     jax_array[device_id][i], ground_truth
@@ -509,13 +553,18 @@ def test_iterator_decorator_with_devices():
     def iterator_function(shard_id, num_shards):
         return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
 
-    data_iterator_instance = iterator_function(batch_size=batch_size, num_threads=4)
+    data_iterator_instance = iterator_function(
+        batch_size=batch_size, num_threads=4
+    )
 
     # then
     run_pmapped_iterator_test(data_iterator_instance)
 
 
-@raises(ValueError, glob="Only one of `sharding` and `devices` arguments can be provided.")
+@raises(
+    ValueError,
+    glob="Only one of `sharding` and `devices` arguments can be provided.",
+)
 def test_sharding_and_devices_mutual_exclusivity():
     # given
     mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
@@ -525,7 +574,10 @@ def test_sharding_and_devices_mutual_exclusivity():
 
     # when
     @data_iterator(
-        output_map=output_map, sharding=sharding, devices=jax.devices(), reader_name="reader"
+        output_map=output_map,
+        sharding=sharding,
+        devices=jax.devices(),
+        reader_name="reader",
     )
     def iterator_function(shard_id, num_shards):
         return iterator_function_def(shard_id=shard_id, num_shards=num_shards)

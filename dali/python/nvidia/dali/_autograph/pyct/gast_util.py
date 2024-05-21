@@ -81,6 +81,10 @@ if get_gast_version() < LooseVersion("0.5"):
 else:
     compat_assign = _compat_assign_gast_5
 
-Module = functools.partial(gast.Module, type_ignores=None)  # pylint:disable=invalid-name
-Name = functools.partial(gast.Name, type_comment=None)  # pylint:disable=invalid-name
+Module = functools.partial(
+    gast.Module, type_ignores=None
+)  # pylint:disable=invalid-name
+Name = functools.partial(
+    gast.Name, type_comment=None
+)  # pylint:disable=invalid-name
 Str = functools.partial(gast.Constant, kind=None)  # pylint:disable=invalid-name

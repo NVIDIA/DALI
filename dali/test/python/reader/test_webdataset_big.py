@@ -32,11 +32,19 @@ def cross_check(
     num_multiplications = 4
     num_samples = 20 * num_multiplications
     tar_file_paths = [
-        os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/cross.tar")
+        os.path.join(
+            get_dali_extra_path(), "db/webdataset/sample-tar/cross.tar"
+        )
     ] * num_multiplications
-    index_files = [base.generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths]
+    index_files = [
+        base.generate_temp_index_file(tar_file_path)
+        for tar_file_path in tar_file_paths
+    ]
 
-    extract_dirs = [base.generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
+    extract_dirs = [
+        base.generate_temp_extract(tar_file_path)
+        for tar_file_path in tar_file_paths
+    ]
     equivalent_files = sum(
         (
             sorted(

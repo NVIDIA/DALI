@@ -42,7 +42,10 @@ def create_coco_pipeline(
     return_labels=False,
 ):
     pipe = Pipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=0, prefetch_queue_depth=1
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=0,
+        prefetch_queue_depth=1,
     )
     with pipe:
         _, _, labels, ids = fn.readers.coco(
@@ -67,7 +70,12 @@ def create_coco_pipeline(
 
 test_data_root = get_dali_extra_path()
 coco_folder = os.path.join(test_data_root, "db", "coco")
-data_sets = [[os.path.join(coco_folder, "images"), os.path.join(coco_folder, "instances.json")]]
+data_sets = [
+    [
+        os.path.join(coco_folder, "images"),
+        os.path.join(coco_folder, "instances.json"),
+    ]
+]
 image_data_set = os.path.join(test_data_root, "db", "single", "jpeg")
 
 
@@ -112,11 +120,18 @@ def test_mxnet_iterator_model_fit():
     num_gpus = 1
     batch_size = 1
 
-    def create_test_pipeline(batch_size, num_threads, device_id, num_gpus, data_paths):
-        pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
+    def create_test_pipeline(
+        batch_size, num_threads, device_id, num_gpus, data_paths
+    ):
+        pipe = Pipeline(
+            batch_size=batch_size, num_threads=num_threads, device_id=device_id
+        )
         with pipe:
             _, labels = fn.readers.file(
-                file_root=data_paths, shard_id=device_id, num_shards=num_gpus, name="Reader"
+                file_root=data_paths,
+                shard_id=device_id,
+                num_shards=num_gpus,
+                name="Reader",
             )
         pipe.set_outputs(labels)
         return pipe
@@ -146,13 +161,18 @@ def test_mxnet_iterator_model_fit():
             return ret
 
     dali_train_iter = MXNetIterator(
-        pipe, [("labels", MXNetIterator.LABEL_TAG)], size=pipe.epoch_size("Reader")
+        pipe,
+        [("labels", MXNetIterator.LABEL_TAG)],
+        size=pipe.epoch_size("Reader"),
     )
     data = mx.symbol.Variable("labels")
 
     # create a dummy model
     _ = mx.model.FeedForward.create(
-        data, X=MXNetIteratorWrapper(dali_train_iter), num_epoch=1, learning_rate=0.01
+        data,
+        X=MXNetIteratorWrapper(dali_train_iter),
+        num_epoch=1,
+        learning_rate=0.01,
     )
 
 
@@ -187,7 +207,10 @@ def test_mxnet_iterator_last_batch_no_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size
+        dali_train_iter,
+        lambda x: x.data[0].squeeze(-1).asnumpy(),
+        lambda x: x.pad,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -238,7 +261,9 @@ def test_mxnet_iterator_empty_array():
 
     def get_data():
         # create batch of [type_a, type_a, type_b, type_b, ...]
-        out = [[np.empty(test_data_shape, dtype=t)] * batch_size for t in np_types]
+        out = [
+            [np.empty(test_data_shape, dtype=t)] * batch_size for t in np_types
+        ]
         out = [val for pair in zip(out, out) for val in pair]
         return out
 
@@ -248,11 +273,19 @@ def test_mxnet_iterator_empty_array():
     pipe.build()
 
     # create map of [(data, type_a), (label, type_a), ...]
-    data_map = [("data_{}".format(i), MXNetIterator.DATA_TAG) for i, t in enumerate(np_types)]
-    label_map = [("label_{}".format(i), MXNetIterator.LABEL_TAG) for i, t in enumerate(np_types)]
+    data_map = [
+        ("data_{}".format(i), MXNetIterator.DATA_TAG)
+        for i, t in enumerate(np_types)
+    ]
+    label_map = [
+        ("label_{}".format(i), MXNetIterator.LABEL_TAG)
+        for i, t in enumerate(np_types)
+    ]
     out_map = [val for pair in zip(data_map, label_map) for val in pair]
 
-    iterator = MXNetIterator(pipe, output_map=out_map, size=size, dynamic_shape=True)
+    iterator = MXNetIterator(
+        pipe, output_map=out_map, size=size, dynamic_shape=True
+    )
 
     for batch in iterator:
         for d, t in zip(batch[0].data, np_types):
@@ -293,7 +326,10 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size
+        dali_train_iter,
+        lambda x: x.data[0].squeeze(-1).asnumpy(),
+        lambda x: x.pad,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -301,8 +337,13 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) == 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: x.data[0].squeeze(-1).asnumpy(),
+            lambda x: x.pad,
+            data_size,
+        )
     )
 
     assert len(next_img_ids_list) > data_size
@@ -341,7 +382,10 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, pad, remainder = gather_ids(
-        dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size
+        dali_train_iter,
+        lambda x: x.data[0].squeeze(-1).asnumpy(),
+        lambda x: x.pad,
+        data_size,
     )
 
     assert pad == remainder
@@ -350,8 +394,17 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) == 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, pad, remainder = gather_ids(
-        dali_train_iter, lambda x: x.data[0].squeeze(-1).asnumpy(), lambda x: x.pad, data_size
+    (
+        next_img_ids_list,
+        next_img_ids_list_set,
+        next_mirrored_data,
+        pad,
+        remainder,
+    ) = gather_ids(
+        dali_train_iter,
+        lambda x: x.data[0].squeeze(-1).asnumpy(),
+        lambda x: x.pad,
+        data_size,
     )
 
     assert pad == remainder
@@ -376,7 +429,9 @@ def check_iterator_results(
     rounded_shard_size,
 ):
     if pad and pipes_number == shards_num:
-        assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
+        assert (
+            len(set.intersection(*out_set)) == 0
+        ), "Shards should not overlaps in the epoch"
     if last_batch_policy == LastBatchPolicy.DROP:
         if pad:
             assert len(set.union(*out_set)) <= sum(
@@ -412,14 +467,22 @@ def check_iterator_results(
             for id in range(shards_num)
         ]
         shard_end = [
-            int((((id + shard_id_mod) % shards_num) + 1) * data_set_size / shards_num)
+            int(
+                (((id + shard_id_mod) % shards_num) + 1)
+                * data_set_size
+                / shards_num
+            )
             for id in range(shards_num)
         ]
         shard_sizes = [
-            int((id + 1) * data_set_size / shards_num) - int(id * data_set_size / shards_num)
+            int((id + 1) * data_set_size / shards_num)
+            - int(id * data_set_size / shards_num)
             for id in ids
         ]
-        per_gpu_counter = [c - (e - b) for c, b, e in zip(per_gpu_counter, shard_beg, shard_end)]
+        per_gpu_counter = [
+            c - (e - b)
+            for c, b, e in zip(per_gpu_counter, shard_beg, shard_end)
+        ]
         if pad:
             assert len(set.union(*out_set)) == sum(shard_sizes)
         for id_list, id_set, size in zip(img_ids_list, out_set, shard_sizes):
@@ -445,7 +508,13 @@ def check_iterator_results(
     epoch_counter += 1
 
     # these values are modified so return them
-    return (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size)
+    return (
+        ids,
+        sample_counter,
+        per_gpu_counter,
+        epoch_counter,
+        rounded_shard_size,
+    )
 
 
 @attr("mxnet")
@@ -479,13 +548,19 @@ def check_mxnet_iterator_pass_reader_name(
         p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
-    rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
+    rounded_shard_size = (
+        math.ceil(math.ceil(data_set_size / shards_num) / batch_size)
+        * batch_size
+    )
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
 
-    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+    if (
+        batch_size > data_set_size // shards_num
+        and last_batch_policy == LastBatchPolicy.DROP
+    ):
         assert_raises(
             RuntimeError,
             MXNetIterator,
@@ -543,7 +618,13 @@ def check_mxnet_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        (
+            ids,
+            sample_counter,
+            per_gpu_counter,
+            epoch_counter,
+            rounded_shard_size,
+        ) = ret
 
 
 @attr("mxnet")
@@ -612,11 +693,16 @@ def test_gluon_iterator_last_batch_no_pad_last_batch():
     )
 
     dali_train_iter = GluonIterator(
-        pipes, size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL
+        pipes,
+        size=pipes[0].epoch_size("Reader"),
+        last_batch_policy=LastBatchPolicy.FILL,
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: x[0].squeeze(-1).asnumpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -648,11 +734,16 @@ def test_gluon_iterator_last_batch_pad_last_batch():
     )
 
     dali_train_iter = GluonIterator(
-        pipes, size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.FILL
+        pipes,
+        size=pipes[0].epoch_size("Reader"),
+        last_batch_policy=LastBatchPolicy.FILL,
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: x[0].squeeze(-1).asnumpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -660,8 +751,13 @@ def test_gluon_iterator_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) == 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: x[0].squeeze(-1).asnumpy(),
+            lambda x: 0,
+            data_size,
+        )
     )
 
     assert len(next_img_ids_list) > data_size
@@ -693,11 +789,16 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
     )
 
     dali_train_iter = GluonIterator(
-        pipes, size=pipes[0].epoch_size("Reader"), last_batch_policy=LastBatchPolicy.PARTIAL
+        pipes,
+        size=pipes[0].epoch_size("Reader"),
+        last_batch_policy=LastBatchPolicy.PARTIAL,
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: x[0].squeeze(-1).asnumpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) == data_size
@@ -705,8 +806,17 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, pad, remainder = gather_ids(
-        dali_train_iter, lambda x: x[0].squeeze(-1).asnumpy(), lambda x: 0, data_size
+    (
+        next_img_ids_list,
+        next_img_ids_list_set,
+        next_mirrored_data,
+        pad,
+        remainder,
+    ) = gather_ids(
+        dali_train_iter,
+        lambda x: x[0].squeeze(-1).asnumpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(next_img_ids_list) == data_size
@@ -787,13 +897,19 @@ def check_gluon_iterator_pass_reader_name(
         p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
-    rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
+    rounded_shard_size = (
+        math.ceil(math.ceil(data_set_size / shards_num) / batch_size)
+        * batch_size
+    )
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
 
-    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+    if (
+        batch_size > data_set_size // shards_num
+        and last_batch_policy == LastBatchPolicy.DROP
+    ):
         assert_raises(
             RuntimeError,
             GluonIterator,
@@ -807,7 +923,10 @@ def check_gluon_iterator_pass_reader_name(
         return
     else:
         dali_train_iter = GluonIterator(
-            pipes, reader_name="Reader", last_batch_policy=last_batch_policy, auto_reset=auto_reset
+            pipes,
+            reader_name="Reader",
+            last_batch_policy=last_batch_policy,
+            auto_reset=auto_reset,
         )
 
     for _ in range(iters):
@@ -857,7 +976,13 @@ def check_gluon_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        (
+            ids,
+            sample_counter,
+            per_gpu_counter,
+            epoch_counter,
+            rounded_shard_size,
+        ) = ret
 
 
 @attr("gluon")
@@ -904,7 +1029,9 @@ def test_gluon_iterator_pass_reader_name_autoreset():
 
 @attr("pytorch")
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     num_gpus = 1
     batch_size = 100
@@ -933,7 +1060,10 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: x["data"].squeeze(-1).numpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -943,7 +1073,9 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
 
 @attr("pytorch")
 def test_pytorch_iterator_last_batch_pad_last_batch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     num_gpus = 1
     batch_size = 100
@@ -972,7 +1104,10 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: x["data"].squeeze(-1).numpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -980,8 +1115,13 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) == 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: x["data"].squeeze(-1).numpy(),
+            lambda x: 0,
+            data_size,
+        )
     )
 
     assert len(next_img_ids_list) > data_size
@@ -991,7 +1131,9 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
 
 @attr("pytorch")
 def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     num_gpus = 1
     batch_size = 100
@@ -1021,7 +1163,10 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: x["data"].squeeze(-1).numpy(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) == data_size
@@ -1029,8 +1174,13 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x["data"].squeeze(-1).numpy(), lambda x: 0, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: x["data"].squeeze(-1).numpy(),
+            lambda x: 0,
+            data_size,
+        )
     )
 
     # there is no mirroring as data in the output is just cut off,
@@ -1118,8 +1268,13 @@ def test_jax_iterator_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) == 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: x["data"].squeeze(-1), lambda x: 0, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: x["data"].squeeze(-1),
+            lambda x: 0,
+            data_size,
+        )
     )
 
     assert len(next_img_ids_list) > data_size
@@ -1127,13 +1282,21 @@ def test_jax_iterator_last_batch_pad_last_batch():
     assert len(set(next_mirrored_data)) == 1
 
 
-def create_custom_pipeline(batch_size, num_threads, device_id, num_gpus, data_paths):
+def create_custom_pipeline(
+    batch_size, num_threads, device_id, num_gpus, data_paths
+):
     pipe = Pipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=0, prefetch_queue_depth=1
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=0,
+        prefetch_queue_depth=1,
     )
     with pipe:
         jpegs, _ = fn.readers.file(
-            file_root=data_paths, shard_id=device_id, num_shards=num_gpus, name="Reader"
+            file_root=data_paths,
+            shard_id=device_id,
+            num_shards=num_gpus,
+            name="Reader",
         )
         images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
         images = fn.random_resized_crop(images, size=(224, 224))
@@ -1174,7 +1337,9 @@ def test_pytorch_iterator_feed_ndarray():
         out_data = outs[0].as_tensor()
         device = torch.device("cuda", gpu_id)
         arr = torch.zeros(out_data.shape(), dtype=torch.float32, device=device)
-        feed_ndarray(out_data, arr, cuda_stream=torch.cuda.current_stream(device=device))
+        feed_ndarray(
+            out_data, arr, cuda_stream=torch.cuda.current_stream(device=device)
+        )
         np.testing.assert_equal(arr.cpu().numpy(), outs[0].as_cpu().as_array())
 
 
@@ -1198,7 +1363,10 @@ def check_pytorch_iterator_feed_ndarray_types(data_type):
     shape = [3, 9]
     if np.issubdtype(data_type, np.integer):
         arr = np.random.randint(
-            np.iinfo(data_type).min, high=np.iinfo(data_type).max, size=shape, dtype=data_type
+            np.iinfo(data_type).min,
+            high=np.iinfo(data_type).max,
+            size=shape,
+            dtype=data_type,
         )
     elif data_type == np.bool_:
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
@@ -1351,7 +1519,10 @@ def check_mxnet_iterator_feed_ndarray_types(data_type):
     shape = [3, 9]
     if np.issubdtype(data_type, np.integer):
         arr = np.random.randint(
-            np.iinfo(data_type).min, high=np.iinfo(data_type).max, size=shape, dtype=data_type
+            np.iinfo(data_type).min,
+            high=np.iinfo(data_type).max,
+            size=shape,
+            dtype=data_type,
         )
     elif data_type == np.bool_:
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
@@ -1366,7 +1537,16 @@ def check_mxnet_iterator_feed_ndarray_types(data_type):
 @attr("mxnet")
 def test_mxnet_iterator_feed_ndarray_types():
     # MXNet doesn't support int16
-    types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_, np.int32, np.int64]
+    types = [
+        np.float32,
+        np.float64,
+        np.float16,
+        np.uint8,
+        np.int8,
+        np.bool_,
+        np.int32,
+        np.int64,
+    ]
     for data_type in types:
         yield check_mxnet_iterator_feed_ndarray_types, data_type
 
@@ -1399,19 +1579,27 @@ def test_paddle_iterator_feed_ndarray():
         lod_tensor._set_dims(out_data.shape())
         gpu_place = paddle.CUDAPlace(gpu_id)
 
-        ptr = lod_tensor._mutable_data(gpu_place, paddle.framework.core.VarDesc.VarType.FP32)
+        ptr = lod_tensor._mutable_data(
+            gpu_place, paddle.framework.core.VarDesc.VarType.FP32
+        )
         np.array(lod_tensor)
         # Using DALI's internal stream
         feed_ndarray(out_data, ptr, cuda_stream=None)
-        np.testing.assert_equal(np.array(lod_tensor), outs[0].as_cpu().as_array())
+        np.testing.assert_equal(
+            np.array(lod_tensor), outs[0].as_cpu().as_array()
+        )
 
         lod_tensor2 = paddle.framework.core.LoDTensor()
         lod_tensor2._set_dims(out_data.shape())
 
-        ptr2 = lod_tensor2._mutable_data(gpu_place, paddle.framework.core.VarDesc.VarType.FP32)
+        ptr2 = lod_tensor2._mutable_data(
+            gpu_place, paddle.framework.core.VarDesc.VarType.FP32
+        )
         np.array(lod_tensor2)
         feed_ndarray(out_data, ptr2, cuda_stream=0)  # Using default stream
-        np.testing.assert_equal(np.array(lod_tensor2), outs[0].as_cpu().as_array())
+        np.testing.assert_equal(
+            np.array(lod_tensor2), outs[0].as_cpu().as_array()
+        )
 
 
 @attr("paddle")
@@ -1434,7 +1622,10 @@ def check_paddle_iterator_feed_ndarray_types(data_type):
     shape = [3, 9]
     if np.issubdtype(data_type, np.integer):
         arr = np.random.randint(
-            np.iinfo(data_type).min, high=np.iinfo(data_type).max, size=shape, dtype=data_type
+            np.iinfo(data_type).min,
+            high=np.iinfo(data_type).max,
+            size=shape,
+            dtype=data_type,
         )
     elif data_type == np.bool_:
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
@@ -1476,7 +1667,9 @@ def check_pytorch_iterator_pass_reader_name(
     last_batch_policy,
     auto_reset=False,
 ):
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     pipes = [
         create_coco_pipeline(
@@ -1497,13 +1690,19 @@ def check_pytorch_iterator_pass_reader_name(
         p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
-    rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
+    rounded_shard_size = (
+        math.ceil(math.ceil(data_set_size / shards_num) / batch_size)
+        * batch_size
+    )
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
 
-    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+    if (
+        batch_size > data_set_size // shards_num
+        and last_batch_policy == LastBatchPolicy.DROP
+    ):
         assert_raises(
             RuntimeError,
             PyTorchIterator,
@@ -1561,7 +1760,13 @@ def check_pytorch_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        (
+            ids,
+            sample_counter,
+            per_gpu_counter,
+            epoch_counter,
+            rounded_shard_size,
+        ) = ret
 
 
 @attr("pytorch")
@@ -1637,7 +1842,10 @@ def test_paddle_iterator_last_batch_no_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: np.array(x["data"]).squeeze(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -1676,7 +1884,10 @@ def test_paddle_iterator_last_batch_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: np.array(x["data"]).squeeze(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) > data_size
@@ -1684,8 +1895,13 @@ def test_paddle_iterator_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) == 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: np.array(x["data"]).squeeze(),
+            lambda x: 0,
+            data_size,
+        )
     )
 
     assert len(next_img_ids_list) > data_size
@@ -1725,7 +1941,10 @@ def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
     )
 
     img_ids_list, img_ids_list_set, mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size
+        dali_train_iter,
+        lambda x: np.array(x["data"]).squeeze(),
+        lambda x: 0,
+        data_size,
     )
 
     assert len(img_ids_list) == data_size
@@ -1733,8 +1952,13 @@ def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
     dali_train_iter.reset()
-    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = gather_ids(
-        dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = (
+        gather_ids(
+            dali_train_iter,
+            lambda x: np.array(x["data"]).squeeze(),
+            lambda x: 0,
+            data_size,
+        )
     )
 
     # there is no mirroring as data in the output is just cut off,
@@ -1776,13 +2000,19 @@ def check_paddle_iterator_pass_reader_name(
         p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
-    rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
+    rounded_shard_size = (
+        math.ceil(math.ceil(data_set_size / shards_num) / batch_size)
+        * batch_size
+    )
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
     per_gpu_counter = [0] * shards_num
     epoch_counter = 0
     sample_counter = 0
 
-    if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
+    if (
+        batch_size > data_set_size // shards_num
+        and last_batch_policy == LastBatchPolicy.DROP
+    ):
         assert_raises(
             RuntimeError,
             PaddleIterator,
@@ -1840,7 +2070,13 @@ def check_paddle_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        (
+            ids,
+            sample_counter,
+            per_gpu_counter,
+            epoch_counter,
+            rounded_shard_size,
+        ) = ret
 
 
 @attr("paddle")
@@ -1899,7 +2135,9 @@ class TestIterator:
         batch = []
         # setting -1 means that no total iteration limit is set
         if self.i < self.n and self.total_n != 0:
-            batch = [np.arange(0, 10, dtype=np.uint8) for _ in range(self.batch_size)]
+            batch = [
+                np.arange(0, 10, dtype=np.uint8) for _ in range(self.batch_size)
+            ]
             self.i += 1
             self.total_n -= 1
             return batch
@@ -1917,9 +2155,14 @@ class TestIterator:
 
 
 @nottest
-def create_test_iter_pipeline(batch_size, device_id, data_source, num_threads=4):
+def create_test_iter_pipeline(
+    batch_size, device_id, data_source, num_threads=4
+):
     pipe = Pipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=0, prefetch_queue_depth=1
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=0,
+        prefetch_queue_depth=1,
     )
     with pipe:
         outs = fn.external_source(source=data_source)
@@ -1928,7 +2171,14 @@ def create_test_iter_pipeline(batch_size, device_id, data_source, num_threads=4)
 
 
 def check_stop_iter(
-    fw_iter, iterator_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+    fw_iter,
+    iterator_name,
+    batch_size,
+    epochs,
+    iter_num,
+    total_iter_num,
+    auto_reset,
+    infinite,
 ):
     it = TestIterator(iter_num, batch_size, total_iter_num)
     pipe = create_test_iter_pipeline(batch_size, 0, it)
@@ -1958,7 +2208,9 @@ def check_stop_iter_fail_multi(fw_iter):
     batch_size = 1
     iter_num = 1
     pipes = [
-        create_test_iter_pipeline(batch_size, 0, TestIterator(iter_num, batch_size))
+        create_test_iter_pipeline(
+            batch_size, 0, TestIterator(iter_num, batch_size)
+        )
         for _ in range(2)
     ]
     fw_iter(pipes, -1, False)
@@ -1969,7 +2221,9 @@ def check_stop_iter_fail_single(fw_iter):
     batch_size = 1
     iter_num = 1
     pipes = [
-        create_test_iter_pipeline(batch_size, 0, TestIterator(iter_num, batch_size))
+        create_test_iter_pipeline(
+            batch_size, 0, TestIterator(iter_num, batch_size)
+        )
         for _ in range(1)
     ]
     fw_iter(pipes, 0, False)
@@ -1984,7 +2238,14 @@ def stop_iteration_case_generator():
                 for batch_size in [1, 10, 100]:
                     for auto_reset in [True, False]:
                         for infinite in [False, True]:
-                            args = (batch_size, epochs, iter_num, total_iters, auto_reset, infinite)
+                            args = (
+                                batch_size,
+                                epochs,
+                                iter_num,
+                                total_iters,
+                                auto_reset,
+                                infinite,
+                            )
                             yield args
 
 
@@ -2053,7 +2314,9 @@ def check_external_source_autoreset(Iterator, *args, to_np=None, **kwargs):
     assert counter == iter_limit * runs
 
 
-def check_external_source_variable_size(Iterator, *args, iter_size=-1, to_np=None, **kwargs):
+def check_external_source_variable_size(
+    Iterator, *args, iter_size=-1, to_np=None, **kwargs
+):
     max_batch_size = 1
     iter_limit = 4
     runs = 3
@@ -2101,7 +2364,10 @@ def test_stop_iteration_mxnet():
 
     def fw_iter(pipe, size, auto_reset):
         return MXNetIterator(
-            pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset
+            pipe,
+            [("data", MXNetIterator.DATA_TAG)],
+            size=size,
+            auto_reset=auto_reset,
         )
 
     iter_name = "MXNetIterator"
@@ -2114,7 +2380,14 @@ def test_stop_iteration_mxnet():
         infinite,
     ) in stop_iteration_case_generator():
         check_stop_iter(
-            fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+            fw_iter,
+            iter_name,
+            batch_size,
+            epochs,
+            iter_num,
+            total_iter_num,
+            auto_reset,
+            infinite,
         )
 
 
@@ -2124,7 +2397,10 @@ def test_stop_iteration_mxnet_fail_multi():
 
     def fw_iter(pipe, size, auto_reset):
         return MXNetIterator(
-            pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset
+            pipe,
+            [("data", MXNetIterator.DATA_TAG)],
+            size=size,
+            auto_reset=auto_reset,
         )
 
     check_stop_iter_fail_multi(fw_iter)
@@ -2136,7 +2412,10 @@ def test_stop_iteration_mxnet_fail_single():
 
     def fw_iter(pipe, size, auto_reset):
         return MXNetIterator(
-            pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset
+            pipe,
+            [("data", MXNetIterator.DATA_TAG)],
+            size=size,
+            auto_reset=auto_reset,
         )
 
     check_stop_iter_fail_single(fw_iter)
@@ -2156,7 +2435,9 @@ def test_mxnet_external_source_autoreset():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 
     check_external_source_autoreset(
-        MXNetIterator, [("data", MXNetIterator.DATA_TAG)], to_np=lambda x: x[0].data[0].asnumpy()
+        MXNetIterator,
+        [("data", MXNetIterator.DATA_TAG)],
+        to_np=lambda x: x[0].data[0].asnumpy(),
     )
 
 
@@ -2223,13 +2504,19 @@ def check_mxnet_iterator_properties(prepare_ahead):
         prepare_first_batch=prepare_ahead,
     )
     counter = 0
-    assert getattr(it, "provide_data")[0].shape == tuple([max_batch_size] + test_data_shape)
-    assert getattr(it, "provide_label")[0].shape == tuple([max_batch_size] + test_label_shape)
+    assert getattr(it, "provide_data")[0].shape == tuple(
+        [max_batch_size] + test_data_shape
+    )
+    assert getattr(it, "provide_label")[0].shape == tuple(
+        [max_batch_size] + test_label_shape
+    )
     for _ in range(runs):
         for j, data in enumerate(it):
             assert (data_to_np(data[0]) == np.stack(dataset[j][0])).all()
             assert (label_to_np(data[0]) == np.stack(dataset[j][1])).all()
-            assert getattr(it, "provide_data")[0].shape == tuple([max_batch_size] + test_data_shape)
+            assert getattr(it, "provide_data")[0].shape == tuple(
+                [max_batch_size] + test_data_shape
+            )
             assert getattr(it, "provide_label")[0].shape == tuple(
                 [max_batch_size] + test_label_shape
             )
@@ -2275,17 +2562,29 @@ def test_mxnet_external_source_variable_size_fail():
 
 @attr("gluon")
 @params(*stop_iteration_case_generator())
-def test_stop_iteration_gluon(batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite):
+def test_stop_iteration_gluon(
+    batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+):
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     def fw_iter(pipe, size, auto_reset):
         return GluonIterator(
-            pipe, size, output_types=[GluonIterator.DENSE_TAG], auto_reset=auto_reset
+            pipe,
+            size,
+            output_types=[GluonIterator.DENSE_TAG],
+            auto_reset=auto_reset,
         )
 
     iter_name = "GluonIterator"
     check_stop_iter(
-        fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+        fw_iter,
+        iter_name,
+        batch_size,
+        epochs,
+        iter_num,
+        total_iter_num,
+        auto_reset,
+        infinite,
     )
 
 
@@ -2323,7 +2622,9 @@ def test_gluon_external_source_autoreset():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     check_external_source_autoreset(
-        GluonIterator, output_types=[GluonIterator.DENSE_TAG], to_np=lambda x: x[0][0].asnumpy()
+        GluonIterator,
+        output_types=[GluonIterator.DENSE_TAG],
+        to_np=lambda x: x[0][0].asnumpy(),
     )
 
 
@@ -2344,7 +2645,9 @@ def test_gluon_external_source_variable_size_pass():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     check_external_source_variable_size(
-        GluonIterator, output_types=[GluonIterator.DENSE_TAG], to_np=lambda x: x[0].asnumpy()
+        GluonIterator,
+        output_types=[GluonIterator.DENSE_TAG],
+        to_np=lambda x: x[0].asnumpy(),
     )
 
 
@@ -2367,11 +2670,17 @@ def test_gluon_external_source_variable_size_fail():
 
 @attr("pytorch")
 @params(*stop_iteration_case_generator())
-def test_stop_iteration_pytorch(batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite):
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+def test_stop_iteration_pytorch(
+    batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+):
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     def fw_iter(pipe, size, auto_reset):
-        return PyTorchIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return PyTorchIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     iter_name = "PyTorchIterator"
 
@@ -2389,43 +2698,61 @@ def test_stop_iteration_pytorch(batch_size, epochs, iter_num, total_iter_num, au
 
 @attr("pytorch")
 def test_stop_iteration_pytorch_fail_multi():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     def fw_iter(pipe, size, auto_reset):
-        return PyTorchIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return PyTorchIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     check_stop_iter_fail_multi(fw_iter)
 
 
 @attr("pytorch")
 def test_stop_iteration_pytorch_fail_single():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     def fw_iter(pipe, size, auto_reset):
-        return PyTorchIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return PyTorchIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     check_stop_iter_fail_single(fw_iter)
 
 
 @attr("pytorch")
 def test_pytorch_iterator_wrapper_first_iteration():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
-    check_iterator_wrapper_first_iteration(PyTorchIterator, output_map=["data"], size=100)
+    check_iterator_wrapper_first_iteration(
+        PyTorchIterator, output_map=["data"], size=100
+    )
 
 
 @attr("pytorch")
 def test_pytorch_external_source_autoreset():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     check_external_source_autoreset(
-        PyTorchIterator, output_map=["data"], to_np=lambda x: x[0]["data"].numpy()
+        PyTorchIterator,
+        output_map=["data"],
+        to_np=lambda x: x[0]["data"].numpy(),
     )
 
 
 @attr("pytorch")
 def test_pytorch_external_source_do_not_prepare():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     check_external_source_autoreset(
         PyTorchIterator,
@@ -2437,16 +2764,23 @@ def test_pytorch_external_source_do_not_prepare():
 
 @attr("pytorch")
 def test_pytorch_external_source_variable_size_pass():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     check_external_source_variable_size(
-        PyTorchIterator, output_map=["data"], to_np=lambda x: x["data"].numpy(), dynamic_shape=True
+        PyTorchIterator,
+        output_map=["data"],
+        to_np=lambda x: x["data"].numpy(),
+        dynamic_shape=True,
     )
 
 
 @attr("pytorch")
 def test_pytorch_external_source_variable_size_fail():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     assert_raises(
         AssertionError,
@@ -2464,11 +2798,17 @@ def test_pytorch_external_source_variable_size_fail():
 
 @attr("paddle")
 @params(*stop_iteration_case_generator())
-def test_stop_iteration_paddle(batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite):
+def test_stop_iteration_paddle(
+    batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+):
     def fw_iter(pipe, size, auto_reset):
-        from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+        from nvidia.dali.plugin.paddle import (
+            DALIGenericIterator as PaddleIterator,
+        )
 
-        return PaddleIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return PaddleIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     iter_name = "PaddleIterator"
 
@@ -2489,7 +2829,9 @@ def test_stop_iteration_paddle_fail_multi():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     def fw_iter(pipe, size, auto_reset):
-        return PaddleIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return PaddleIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     check_stop_iter_fail_multi(fw_iter)
 
@@ -2499,7 +2841,9 @@ def test_stop_iteration_paddle_fail_single():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     def fw_iter(pipe, size, auto_reset):
-        return PaddleIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return PaddleIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     check_stop_iter_fail_single(fw_iter)
 
@@ -2508,7 +2852,9 @@ def test_stop_iteration_paddle_fail_single():
 def test_paddle_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
-    check_iterator_wrapper_first_iteration(PaddleIterator, output_map=["data"], size=100)
+    check_iterator_wrapper_first_iteration(
+        PaddleIterator, output_map=["data"], size=100
+    )
 
 
 @attr("paddle")
@@ -2516,7 +2862,9 @@ def test_paddle_external_source_autoreset():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     check_external_source_autoreset(
-        PaddleIterator, output_map=["data"], to_np=lambda x: np.array(x[0]["data"])
+        PaddleIterator,
+        output_map=["data"],
+        to_np=lambda x: np.array(x[0]["data"]),
     )
 
 
@@ -2537,7 +2885,10 @@ def test_paddle_external_source_variable_size_pass():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     check_external_source_variable_size(
-        PaddleIterator, output_map=["data"], to_np=lambda x: np.array(x["data"]), dynamic_shape=True
+        PaddleIterator,
+        output_map=["data"],
+        to_np=lambda x: np.array(x["data"]),
+        dynamic_shape=True,
     )
 
 
@@ -2561,11 +2912,15 @@ def test_paddle_external_source_variable_size_fail():
 
 @attr("jax")
 @params(*stop_iteration_case_generator())
-def test_stop_iteration_jax(batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite):
+def test_stop_iteration_jax(
+    batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+):
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
     def fw_iter(pipe, size, auto_reset):
-        return JaxIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return JaxIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     iter_name = "JaxIterator"
 
@@ -2586,7 +2941,9 @@ def test_stop_iteration_jax_fail_multi():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
     def fw_iter(pipe, size, auto_reset):
-        return JaxIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return JaxIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     check_stop_iter_fail_multi(fw_iter)
 
@@ -2596,7 +2953,9 @@ def test_stop_iteration_jax_fail_single():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
     def fw_iter(pipe, size, auto_reset):
-        return JaxIterator(pipe, output_map=["data"], size=size, auto_reset=auto_reset)
+        return JaxIterator(
+            pipe, output_map=["data"], size=size, auto_reset=auto_reset
+        )
 
     check_stop_iter_fail_single(fw_iter)
 
@@ -2605,14 +2964,18 @@ def test_stop_iteration_jax_fail_single():
 def test_jax_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
-    check_iterator_wrapper_first_iteration(JaxIterator, output_map=["data"], size=100)
+    check_iterator_wrapper_first_iteration(
+        JaxIterator, output_map=["data"], size=100
+    )
 
 
 @attr("jax")
 def test_jax_external_source_autoreset():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
-    check_external_source_autoreset(JaxIterator, output_map=["data"], to_np=lambda x: x["data"])
+    check_external_source_autoreset(
+        JaxIterator, output_map=["data"], to_np=lambda x: x["data"]
+    )
 
 
 @attr("jax")
@@ -2620,7 +2983,10 @@ def test_jax_external_source_do_not_prepare():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
     check_external_source_autoreset(
-        JaxIterator, output_map=["data"], to_np=lambda x: x["data"], prepare_first_batch=False
+        JaxIterator,
+        output_map=["data"],
+        to_np=lambda x: x["data"],
+        prepare_first_batch=False,
     )
 
 
@@ -2654,7 +3020,9 @@ def check_prepare_first_batch(Iterator, *args, to_np=None, **kwargs):
         outs = fn.external_source(source=get_data, num_outputs=1)
     pipe.set_outputs(*outs)
 
-    it = Iterator([pipe], *args, auto_reset=True, prepare_first_batch=False, **kwargs)
+    it = Iterator(
+        [pipe], *args, auto_reset=True, prepare_first_batch=False, **kwargs
+    )
     counter = 0
     for r in range(runs):
         if r == 0:
@@ -2685,13 +3053,17 @@ def test_gluon_prepare_first_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     check_prepare_first_batch(
-        GluonIterator, output_types=[GluonIterator.DENSE_TAG], to_np=lambda x: x[0].asnumpy()
+        GluonIterator,
+        output_types=[GluonIterator.DENSE_TAG],
+        to_np=lambda x: x[0].asnumpy(),
     )
 
 
 @attr("pytorch")
 def test_pytorch_prepare_first_batch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     check_prepare_first_batch(
         PyTorchIterator, output_map=["data"], to_np=lambda x: x["data"].numpy()
@@ -2711,7 +3083,9 @@ def test_paddle_prepare_first_batch():
 def test_jax_prepare_first_batch():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
-    check_prepare_first_batch(JaxIterator, output_map=["data"], to_np=lambda x: np.array(x["data"]))
+    check_prepare_first_batch(
+        JaxIterator, output_map=["data"], to_np=lambda x: np.array(x["data"])
+    )
 
 
 @pipeline_def
@@ -2784,7 +3158,9 @@ def check_iterator_build_error(ErrorType, Iterator, glob, *args, **kwargs):
 
 @attr("pytorch")
 def test_pytorch_wrong_last_batch_policy_type():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     check_iterator_build_error(
         ValueError,
@@ -2881,7 +3257,10 @@ def check_autoreset_iter(fw_iterator, extract_data, auto_reset_op, policy):
     pipeline = BoringPipeline(batch_size=batch_size, device_id=0, num_threads=1)
 
     loader = fw_iterator(
-        pipeline, reader_name="reader", auto_reset=auto_reset_op, last_batch_policy=policy
+        pipeline,
+        reader_name="reader",
+        auto_reset=auto_reset_op,
+        last_batch_policy=policy,
     )
     for _ in range(2):
         loader_iter = iter(loader)
@@ -2892,16 +3271,26 @@ def check_autoreset_iter(fw_iterator, extract_data, auto_reset_op, policy):
             for j, d in enumerate(extract_data(data)):
                 if policy is LastBatchPolicy.FILL:
                     if i * batch_size + j >= number_of_samples:
-                        assert d[0] == number_of_samples - 1, f"{d[0]} {number_of_samples - 1}"
+                        assert (
+                            d[0] == number_of_samples - 1
+                        ), f"{d[0]} {number_of_samples - 1}"
                     else:
-                        assert d[0] == i * batch_size + j, f"{d[0]} {i * batch_size + j}"
+                        assert (
+                            d[0] == i * batch_size + j
+                        ), f"{d[0]} {i * batch_size + j}"
                 else:
-                    assert d[0] == i * batch_size + j, f"{d[0]} {i * batch_size + j}"
+                    assert (
+                        d[0] == i * batch_size + j
+                    ), f"{d[0]} {i * batch_size + j}"
 
 
 def autoreset_iter_params():
     for auto_reset_op in ["yes", "no"]:
-        for policy in [LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL]:
+        for policy in [
+            LastBatchPolicy.FILL,
+            LastBatchPolicy.DROP,
+            LastBatchPolicy.PARTIAL,
+        ]:
             yield auto_reset_op, policy
 
 
@@ -2949,7 +3338,9 @@ def test_gluon_autoreset_iter(auto_reset_op, policy):
 @attr("pytorch")
 @params(*autoreset_iter_params())
 def test_pytorch_autoreset_iter(auto_reset_op, policy):
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    from nvidia.dali.plugin.pytorch import (
+        DALIGenericIterator as PyTorchIterator,
+    )
 
     def fw_iterator(pipeline, reader_name, auto_reset, last_batch_policy):
         return PyTorchIterator(
@@ -2970,7 +3361,9 @@ def test_pytorch_autoreset_iter(auto_reset_op, policy):
 @params(*autoreset_iter_params())
 def test_paddle_autoreset_iter(auto_reset_op, policy):
     def fw_iterator(pipeline, reader_name, auto_reset, last_batch_policy):
-        from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+        from nvidia.dali.plugin.paddle import (
+            DALIGenericIterator as PaddleIterator,
+        )
 
         return PaddleIterator(
             pipeline,

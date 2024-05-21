@@ -21,7 +21,9 @@ from nvidia.dali.ops._operators import python_function
 
 
 class TorchPythonFunction(
-    python_function._get_base_impl("TorchPythonFunction", "DLTensorPythonFunctionImpl")
+    python_function._get_base_impl(
+        "TorchPythonFunction", "DLTensorPythonFunctionImpl"
+    )
 ):
     ops.register_cpu_op("TorchPythonFunction")
     ops.register_gpu_op("TorchPythonFunction")
@@ -34,7 +36,9 @@ class TorchPythonFunction(
 
     def torch_wrapper(self, batch_processing, function, device, *args):
         func = (
-            function if device == "cpu" else lambda *ins: self._torch_stream_wrapper(function, *ins)
+            function
+            if device == "cpu"
+            else lambda *ins: self._torch_stream_wrapper(function, *ins)
         )
         if batch_processing:
             return ops.PythonFunction.function_wrapper_batch(
@@ -63,10 +67,19 @@ class TorchPythonFunction(
             self.stream = torch.cuda.Stream(device=pipeline.device_id)
         return super().__call__(*inputs, **kwargs)
 
-    def __init__(self, function, num_outputs=1, device="cpu", batch_processing=False, **kwargs):
+    def __init__(
+        self,
+        function,
+        num_outputs=1,
+        device="cpu",
+        batch_processing=False,
+        **kwargs,
+    ):
         self.stream = None
         super().__init__(
-            function=lambda *ins: self.torch_wrapper(batch_processing, function, device, *ins),
+            function=lambda *ins: self.torch_wrapper(
+                batch_processing, function, device, *ins
+            ),
             num_outputs=num_outputs,
             device=device,
             batch_processing=batch_processing,

@@ -64,14 +64,27 @@ def to_batch(tl, batch_size):
 
 
 def check_sequence_rearrange(
-    batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""
+    batch_size,
+    shape,
+    reorders,
+    persample_reorder=True,
+    op_type="cpu",
+    layout="",
 ):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
-        input = fn.external_source(lambda: get_sequences(batch_size, shape), layout=layout)
+        input = fn.external_source(
+            lambda: get_sequences(batch_size, shape), layout=layout
+        )
         frames = input.gpu() if op_type == "gpu" else input
-        order = fn.external_source(lambda: reorders) if persample_reorder else reorders
-        rearranged = fn.sequence_rearrange(frames, new_order=order, device=op_type)
+        order = (
+            fn.external_source(lambda: reorders)
+            if persample_reorder
+            else reorders
+        )
+        rearranged = fn.sequence_rearrange(
+            frames, new_order=order, device=op_type
+        )
         pipe.set_outputs(rearranged, input)
     pipe.build()
     result, input = pipe.run()
@@ -86,12 +99,24 @@ def check_sequence_rearrange(
 order_0 = ([3, 2, 1, 0], False)
 
 order_1 = (
-    [np.int32([3, 0]), np.int32([2, 1]), np.int32([1, 1]), np.int32([0, 1, 2]), np.int32([3])],
+    [
+        np.int32([3, 0]),
+        np.int32([2, 1]),
+        np.int32([1, 1]),
+        np.int32([0, 1, 2]),
+        np.int32([3]),
+    ],
     True,
 )
 
 order_2 = (
-    [np.int32([0]), np.int32([1]), np.int32([2]), np.int32([3]), np.int32([0, 1, 2, 3])],
+    [
+        np.int32([0]),
+        np.int32([1]),
+        np.int32([2]),
+        np.int32([3]),
+        np.int32([0, 1, 2, 3]),
+    ],
     True,
 )
 
@@ -105,9 +130,16 @@ def test_sequence_rearrange():
 
 
 def check_fail_sequence_rearrange(
-    batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""
+    batch_size,
+    shape,
+    reorders,
+    persample_reorder=True,
+    op_type="cpu",
+    layout="",
 ):
-    check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
+    check_sequence_rearrange(
+        batch_size, shape, reorders, persample_reorder, op_type, layout
+    )
 
 
 def test_fail_sequence_rearrange():
@@ -152,4 +184,6 @@ def test_wrong_layouts_sequence_rearrange():
                     "Expected sequence as the input, where outermost dimension represents"
                     ' frames dimension `F`, got data with layout = "H[WF]"'
                 ),
-            )(check_fail_sequence_rearrange), 5, shape, new_order, per_sample, dev, layout
+            )(
+                check_fail_sequence_rearrange
+            ), 5, shape, new_order, per_sample, dev, layout

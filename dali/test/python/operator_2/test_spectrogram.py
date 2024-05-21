@@ -42,11 +42,15 @@ class SpectrogramPipeline(Pipeline):
         num_threads=1,
         device_id=0,
     ):
-        super(SpectrogramPipeline, self).__init__(batch_size, num_threads, device_id)
+        super(SpectrogramPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        window_fn = window(window_length).tolist() if window is not None else None
+        window_fn = (
+            window(window_length).tolist() if window is not None else None
+        )
         self.fft = ops.Spectrogram(
             device=self.device,
             nfft=nfft,
@@ -89,7 +93,9 @@ def cos_win(n):
     return np.sin(phase).astype(np.float32)
 
 
-def spectrogram_func_librosa(nfft, win_len, win_step, window, center, input_data):
+def spectrogram_func_librosa(
+    nfft, win_len, win_step, window, center, input_data
+):
     # Squeeze to 1d
     if len(input_data.shape) > 1:
         input_data = np.squeeze(input_data)
@@ -134,14 +140,23 @@ class SpectrogramPythonPipeline(Pipeline):
         spectrogram_func=spectrogram_func_librosa,
     ):
         super(SpectrogramPythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=12345,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = "cpu"
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
 
-        function = partial(spectrogram_func, nfft, window_length, window_step, window, center)
-        self.spectrogram = ops.PythonFunction(function=function, output_layouts=["ft"])
+        function = partial(
+            spectrogram_func, nfft, window_length, window_step, window, center
+        )
+        self.spectrogram = ops.PythonFunction(
+            function=function, output_layouts=["ft"]
+        )
 
     def define_graph(self):
         self.data = self.inputs()
@@ -211,7 +226,14 @@ def test_operator_spectrogram_vs_python():
 
 
 def check_operator_spectrogram_vs_python_wave_1d(
-    device, batch_size, input_length, nfft, window_length, window_step, window, center
+    device,
+    batch_size,
+    input_length,
+    nfft,
+    window_length,
+    window_step,
+    window,
+    center,
 ):
     f = 4000  # [Hz]
     sr = 44100  # [Hz]
@@ -260,7 +282,9 @@ def test_operator_spectrogram_vs_python_wave():
                     # Note: center_windows=False and nfft > window_length doesn't work like librosa.
                     # Librosa seems to disregard window_length
                     # and extract windows of nfft size regardless
-                    for center in [False, True] if nfft == window_length else [True]:
+                    for center in (
+                        [False, True] if nfft == window_length else [True]
+                    ):
                         yield (
                             check_operator_spectrogram_vs_python_wave_1d,
                             device,
@@ -287,9 +311,13 @@ class AudioSpectrogramPipeline(Pipeline):
         num_threads=1,
         device_id=0,
     ):
-        super(AudioSpectrogramPipeline, self).__init__(batch_size, num_threads, device_id)
+        super(AudioSpectrogramPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.input = ops.readers.File(device="cpu", files=audio_files)
-        self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.decode = ops.decoders.Audio(
+            device="cpu", dtype=types.FLOAT, downmix=True
+        )
         self.fft = ops.Spectrogram(
             device=device,
             nfft=nfft,
@@ -323,14 +351,25 @@ class AudioSpectrogramPythonPipeline(Pipeline):
         spectrogram_func=spectrogram_func_librosa,
     ):
         super(AudioSpectrogramPythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=12345,
+            exec_async=False,
+            exec_pipelined=False,
         )
 
         self.input = ops.readers.File(device="cpu", files=audio_files)
-        self.decode = ops.decoders.Audio(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.decode = ops.decoders.Audio(
+            device="cpu", dtype=types.FLOAT, downmix=True
+        )
 
-        function = partial(spectrogram_func, nfft, window_length, window_step, None, center)
-        self.spectrogram = ops.PythonFunction(function=function, output_layouts=["ft"])
+        function = partial(
+            spectrogram_func, nfft, window_length, window_step, None, center
+        )
+        self.spectrogram = ops.PythonFunction(
+            function=function, output_layouts=["ft"]
+        )
         self.layout = layout
 
     def define_graph(self):
@@ -402,7 +441,9 @@ def test_operator_decoder_and_spectrogram():
                     # Note: center_windows=False and nfft > window_length doesn't work like librosa.
                     # Librosa seems to disregards window_length
                     # and extract windows of nfft size regardless
-                    for center in [False, True] if nfft == window_length else [True]:
+                    for center in (
+                        [False, True] if nfft == window_length else [True]
+                    ):
                         yield (
                             check_operator_decoder_and_spectrogram_vs_python,
                             device,

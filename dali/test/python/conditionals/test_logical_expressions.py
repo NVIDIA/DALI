@@ -30,12 +30,16 @@ def test_not():
 
     @pipeline_def(**kwargs)
     def regular_pipe():
-        boolean_input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
+        boolean_input = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=42
+        )
         return boolean_input == 0
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def not_pipe():
-        boolean_input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
+        boolean_input = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=42
+        )
         return not boolean_input
 
     pipes = [regular_pipe(), not_pipe()]
@@ -51,8 +55,12 @@ def test_and():
 
     @pipeline_def(**kwargs)
     def regular_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
         return (
@@ -63,8 +71,12 @@ def test_and():
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def and_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
         return (
@@ -86,8 +98,12 @@ def test_or():
 
     @pipeline_def(**kwargs)
     def regular_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
         return (
@@ -98,8 +114,12 @@ def test_or():
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def or_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
         return (
@@ -121,19 +141,42 @@ def test_complex_expression():
 
     @pipeline_def(**kwargs)
     def regular_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
-        boolean_input_2 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=12)
-        boolean_input_3 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=15)
-        return (boolean_input_0 | (boolean_input_1 & boolean_input_2)) | (boolean_input_3 == 0)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
+        boolean_input_2 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=12
+        )
+        boolean_input_3 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=15
+        )
+        return (boolean_input_0 | (boolean_input_1 & boolean_input_2)) | (
+            boolean_input_3 == 0
+        )
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def expr_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
-        boolean_input_2 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=12)
-        boolean_input_3 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=15)
-        return boolean_input_0 or boolean_input_1 and boolean_input_2 or not boolean_input_3
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
+        boolean_input_2 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=12
+        )
+        boolean_input_3 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=15
+        )
+        return (
+            boolean_input_0
+            or boolean_input_1
+            and boolean_input_2
+            or not boolean_input_3
+        )
 
     pipes = [regular_pipe(), expr_pipe()]
     for pipe in pipes:
@@ -148,8 +191,12 @@ def test_lazy_eval():
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def if_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
         if boolean_input_0:
             val = boolean_input_1 == False  # noqa: E712
         else:
@@ -158,8 +205,12 @@ def test_lazy_eval():
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def expr_pipe():
-        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
-        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_0 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=6
+        )
+        boolean_input_1 = fn.random.coin_flip(
+            dtype=types.DALIDataType.BOOL, seed=9
+        )
         val = boolean_input_0 and boolean_input_1 == False  # noqa: E712
         return val
 
@@ -180,11 +231,16 @@ def test_lazy_eval_with_oob():
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def expr_pipe():
-        boolean_tensor_input = types.Constant(np.bool_([True, True, False]), device="cpu")
+        boolean_tensor_input = types.Constant(
+            np.bool_([True, True, False]), device="cpu"
+        )
         index_input_1 = types.Constant(np.int32(1), device="cpu")
         index_input_42 = types.Constant(np.int32(42), device="cpu")
         # do an oob access in the right subexpression that won't be evaluated.
-        val = boolean_tensor_input[index_input_1] or boolean_tensor_input[index_input_42]
+        val = (
+            boolean_tensor_input[index_input_1]
+            or boolean_tensor_input[index_input_42]
+        )
         return val
 
     pipes = [base_pipe(), expr_pipe()]

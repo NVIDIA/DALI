@@ -17,13 +17,17 @@ import os
 import glob
 from test_utils import get_dali_extra_path
 
-test_data_root = os.path.join(get_dali_extra_path(), "db", "webdataset", "legacy_index_formats")
+test_data_root = os.path.join(
+    get_dali_extra_path(), "db", "webdataset", "legacy_index_formats"
+)
 
 
 @pipeline_def(batch_size=8, num_threads=4, device_id=0)
 def wds_index_file_pipeline(idx_path, device):
     jpg, cls = fn.readers.webdataset(
-        paths=[os.path.join(test_data_root, "data.tar")], index_paths=[idx_path], ext=["jpg", "cls"]
+        paths=[os.path.join(test_data_root, "data.tar")],
+        index_paths=[idx_path],
+        ext=["jpg", "cls"],
     )
     if device == "gpu":
         jpg = jpg.gpu()

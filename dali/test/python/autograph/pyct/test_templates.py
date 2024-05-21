@@ -110,9 +110,21 @@ class TemplatesTest(unittest.TestCase):
             template,
             block=[
                 gast_util.compat_assign(
-                    [gast.Name("a", ctx=ShouldBeReplaced, annotation=None, type_comment=None)],
+                    [
+                        gast.Name(
+                            "a",
+                            ctx=ShouldBeReplaced,
+                            annotation=None,
+                            type_comment=None,
+                        )
+                    ],
                     gast.BinOp(
-                        gast.Name("a", ctx=ShouldBeReplaced, annotation=None, type_comment=None),
+                        gast.Name(
+                            "a",
+                            ctx=ShouldBeReplaced,
+                            annotation=None,
+                            type_comment=None,
+                        ),
                         gast.Add(),
                         gast.Constant(1, kind=None),
                     ),
@@ -145,10 +157,14 @@ class TemplatesTest(unittest.TestCase):
         foo = 0
     """
 
-        node = templates.replace(template, foo=parser.parse_expression("a.b.c"))[0]
+        node = templates.replace(
+            template, foo=parser.parse_expression("a.b.c")
+        )[0]
         self.assertIsInstance(node.body[0].targets[0].ctx, gast.Store)
         self.assertIsInstance(node.body[0].targets[0].value.ctx, gast.Load)
-        self.assertIsInstance(node.body[0].targets[0].value.value.ctx, gast.Load)
+        self.assertIsInstance(
+            node.body[0].targets[0].value.value.ctx, gast.Load
+        )
 
     def test_replace_list_context(self):
         template = """
@@ -156,7 +172,9 @@ class TemplatesTest(unittest.TestCase):
         foo = 0
     """
 
-        node = templates.replace(template, foo=parser.parse_expression("[a, b]"))[0]
+        node = templates.replace(
+            template, foo=parser.parse_expression("[a, b]")
+        )[0]
         self.assertIsInstance(node.body[0].targets[0].ctx, gast.Store)
         self.assertIsInstance(node.body[0].targets[0].elts[0].ctx, gast.Store)
         self.assertIsInstance(node.body[0].targets[0].elts[1].ctx, gast.Store)
@@ -167,7 +185,9 @@ class TemplatesTest(unittest.TestCase):
         foo = 0
     """
 
-        node = templates.replace(template, foo=parser.parse_expression("(a, b)"))[0]
+        node = templates.replace(
+            template, foo=parser.parse_expression("(a, b)")
+        )[0]
         self.assertIsInstance(node.body[0].targets[0].ctx, gast.Store)
         self.assertIsInstance(node.body[0].targets[0].elts[0].ctx, gast.Store)
         self.assertIsInstance(node.body[0].targets[0].elts[1].ctx, gast.Store)
@@ -178,7 +198,9 @@ class TemplatesTest(unittest.TestCase):
         foo
     """
 
-        node = templates.replace(template, foo=parser.parse_expression("a + 2 * b / -c"))[0]
+        node = templates.replace(
+            template, foo=parser.parse_expression("a + 2 * b / -c")
+        )[0]
         self.assertIsInstance(node.body[0].left.ctx, gast.Load)
         self.assertIsInstance(node.body[0].right.left.right.ctx, gast.Load)
 
@@ -188,7 +210,9 @@ class TemplatesTest(unittest.TestCase):
         foo = 0
     """
 
-        node = templates.replace(template, foo=parser.parse_expression("bar(([a, b],)).baz"))[0]
+        node = templates.replace(
+            template, foo=parser.parse_expression("bar(([a, b],)).baz")
+        )[0]
         self.assertIsInstance(node.body[0].targets[0].ctx, gast.Store)
         function_call_arg = node.body[0].targets[0].value.args[0]
         self.assertIsInstance(function_call_arg.elts[0].ctx, gast.Load)
@@ -201,7 +225,9 @@ class TemplatesTest(unittest.TestCase):
         foo = 0
     """
 
-        node = templates.replace(template, foo=parser.parse_expression("foo(a[b]).bar"))[0]
+        node = templates.replace(
+            template, foo=parser.parse_expression("foo(a[b]).bar")
+        )[0]
         function_call_arg = node.body[0].targets[0].value.args[0]
         self.assertIsInstance(function_call_arg.ctx, gast.Load)
         self.assertIsInstance(function_call_arg.slice.ctx, gast.Load)
@@ -315,7 +341,9 @@ class TemplatesTest(unittest.TestCase):
         ]:
             replacement = _parse_with_unset_ctx(expression_source)
 
-            target_node = templates.replace(template, foo=replacement)[0].targets[0]
+            target_node = templates.replace(template, foo=replacement)[
+                0
+            ].targets[0]
             self.assertExpectedCtxSet(target_node, gast.Store)
 
             value_node = templates.replace(template, bar=replacement)[0].value

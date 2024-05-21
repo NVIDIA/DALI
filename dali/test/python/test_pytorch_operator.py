@@ -39,7 +39,13 @@ class CommonPipeline(Pipeline):
         device_id=DEVICE_ID,
         image_dir=images_dir,
     ):
-        super().__init__(batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False)
+        super().__init__(
+            batch_size,
+            num_threads,
+            device_id,
+            exec_async=False,
+            exec_pipelined=False,
+        )
         self.input = ops.readers.File(file_root=image_dir)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
 
@@ -83,7 +89,9 @@ class TorchPythonFunctionPipeline(CommonPipeline):
 
     def define_graph(self):
         images, labels = self.load()
-        return self.torch_function(images if self.device == "cpu" else images.gpu())
+        return self.torch_function(
+            images if self.device == "cpu" else images.gpu()
+        )
 
 
 def torch_operation(tensor):
@@ -110,7 +118,9 @@ def check_pytorch_operator(device):
         for i in range(len(output1)):
             res1 = output1.at(i)
             res2 = output2.at(i)
-            exp1_t, exp2_t = torch_operation(torch.from_numpy(preprocessed_output.at(i)))
+            exp1_t, exp2_t = torch_operation(
+                torch.from_numpy(preprocessed_output.at(i))
+            )
             assert numpy.allclose(res1, exp1_t.numpy())
             assert numpy.allclose(res2, exp2_t.numpy())
 
@@ -127,7 +137,10 @@ def check_pytorch_operator_batch_processing(device):
     pt_pipe.build()
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
-        tensors = [torch.from_numpy(preprocessed_output.at(i)) for i in range(BATCH_SIZE)]
+        tensors = [
+            torch.from_numpy(preprocessed_output.at(i))
+            for i in range(BATCH_SIZE)
+        ]
         exp1, exp2 = torch_batch_operation(tensors)
         output1, output2 = pt_pipe.run()
         if device == "gpu":

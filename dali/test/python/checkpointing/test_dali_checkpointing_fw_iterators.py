@@ -57,7 +57,9 @@ class FwTestBase:
         for out1, out2 in zip(outs1, outs2):
             self.compare_outs(out1, out2)
 
-    def check_pipeline_checkpointing(self, pipeline_factory, reader_name=None, size=-1):
+    def check_pipeline_checkpointing(
+        self, pipeline_factory, reader_name=None, size=-1
+    ):
         pipe = pipeline_factory(**pipeline_args)
         pipe.build()
 
@@ -74,7 +76,9 @@ class FwTestBase:
             for _ in iter:
                 pass
 
-        restored = pipeline_factory(**pipeline_args, checkpoint=iter.checkpoints()[0])
+        restored = pipeline_factory(
+            **pipeline_args, checkpoint=iter.checkpoints()[0]
+        )
         restored.build()
         iter2 = self.FwIterator(
             restored,
@@ -89,8 +93,12 @@ class FwTestBase:
         self.compare_iters(iter, iter2)
 
     def check_single_input_operator(self, op, device, **kwargs):
-        pipeline_factory = check_single_input_operator_pipeline(op, device, **kwargs)
-        self.check_pipeline_checkpointing(pipeline_factory, reader_name="Reader")
+        pipeline_factory = check_single_input_operator_pipeline(
+            op, device, **kwargs
+        )
+        self.check_pipeline_checkpointing(
+            pipeline_factory, reader_name="Reader"
+        )
 
     def check_no_input_operator(self, op, device, **kwargs):
         @pipeline_def
@@ -108,7 +116,9 @@ class FwTestBase:
             return images
 
         def make_iterator(**kwargs):
-            return iterator_fn(batch_size=8, enable_checkpointing=True, **kwargs)
+            return iterator_fn(
+                batch_size=8, enable_checkpointing=True, **kwargs
+            )
 
         iterator = make_iterator()
 
@@ -146,7 +156,12 @@ class FwTestBase:
         stick_to_shard,
         iters_into_epoch=None,
     ):
-        @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_checkpointing=True)
+        @pipeline_def(
+            batch_size=batch_size,
+            device_id=0,
+            num_threads=4,
+            enable_checkpointing=True,
+        )
         def pipeline():
             data, label = fn.readers.file(
                 name="Reader",
@@ -166,7 +181,10 @@ class FwTestBase:
         p.build()
 
         iter = self.FwIterator(
-            p, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader"
+            p,
+            output_map=self.output_map(with_labels=True),
+            auto_reset=True,
+            reader_name="Reader",
         )
         for epoch in range(num_epochs):
             for i, _ in enumerate(iter):
@@ -193,7 +211,9 @@ class FwTestBase:
 
     @cartesian_params(
         (
-            DatasetConfig(dataset_size=11 + 11 + 12, batch_size=4, num_shards=3),
+            DatasetConfig(
+                dataset_size=11 + 11 + 12, batch_size=4, num_shards=3
+            ),
             DatasetConfig(dataset_size=4 + 5, batch_size=3, num_shards=2),
         ),
         (2, 3, 7),
@@ -209,7 +229,11 @@ class FwTestBase:
         (True, False),  # stick_to_shard
     )
     def test_last_batch_policy(
-        self, dataset_config: DatasetConfig, iterations, last_batch_config, stick_to_shard
+        self,
+        dataset_config: DatasetConfig,
+        iterations,
+        last_batch_config,
+        stick_to_shard,
     ):
         policy, pad_last_batch = last_batch_config
         if last_batch_config not in self.supported_last_batch_policies():
@@ -248,13 +272,16 @@ class FwTestBase:
             def make_pipelines(checkpoints=None):
                 if not checkpoints:
                     return [
-                        make_pipeline(shard_id) for shard_id in range(dataset_config.num_shards)
+                        make_pipeline(shard_id)
+                        for shard_id in range(dataset_config.num_shards)
                     ]
                 else:
                     assert len(checkpoints) == dataset_config.num_shards
                     return [
                         make_pipeline(shard_id, checkpoint=cpt)
-                        for (shard_id, cpt) in zip(range(dataset_config.num_shards), checkpoints)
+                        for (shard_id, cpt) in zip(
+                            range(dataset_config.num_shards), checkpoints
+                        )
                     ]
 
             def make_iterator(pipes):
@@ -372,10 +399,14 @@ class FwTestBase:
         ("idx", "batch_info", "sample_info"),  # indexing mode
         (True, False),  # parallel
     )
-    def test_external_source_checkpointing(self, dataset_info, iterations, mode, parallel):
+    def test_external_source_checkpointing(
+        self, dataset_info, iterations, mode, parallel
+    ):
         epoch_size, batch_size = dataset_info
         source = make_dummy_source(epoch_size, batch_size, mode)
-        pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
+        pf = make_external_source_test_pipeline_factory(
+            source, mode, batch_size, parallel
+        )
         self.check_external_source_pipeline_checkpointing(
             pf, iterations, size=epoch_size * batch_size
         )
@@ -597,7 +628,9 @@ class TestJaxPeekable(FwTestBase):
 class TestPaddle(FwTestBase):
     def __init__(self):
         super().__init__()
-        from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddlePaddleIterator
+        from nvidia.dali.plugin.paddle import (
+            DALIGenericIterator as PaddlePaddleIterator,
+        )
 
         self.FwIterator = PaddlePaddleIterator
 
@@ -627,7 +660,10 @@ class TestMxnet(FwTestBase):
         if not with_labels:
             return [("data", self.FwIterator.DATA_TAG)]
         else:
-            return [("data", self.FwIterator.DATA_TAG), ("label", self.FwIterator.LABEL_TAG)]
+            return [
+                ("data", self.FwIterator.DATA_TAG),
+                ("label", self.FwIterator.LABEL_TAG),
+            ]
 
     def supported_last_batch_policies(self):
         return (

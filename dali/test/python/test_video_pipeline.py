@@ -31,14 +31,18 @@ PLENTY_VIDEO_DIRECTORY = "/tmp/many_video_files"
 VIDEO_FILES = os.listdir(VIDEO_DIRECTORY)
 PLENTY_VIDEO_FILES = os.listdir(PLENTY_VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + "/" + f for f in VIDEO_FILES]
-PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES]
+PLENTY_VIDEO_FILES = [
+    PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES
+]
 FILE_LIST = "/tmp/file_list.txt"
 MUTLIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/"
 
 test_data_root = get_dali_extra_path()
 video_data_root = os.path.join(test_data_root, "db", "video")
 corrupted_video_data_root = os.path.join(video_data_root, "corrupted")
-video_containers_data_root = os.path.join(test_data_root, "db", "video", "containers")
+video_containers_data_root = os.path.join(
+    test_data_root, "db", "video", "containers"
+)
 video_types = ["avi", "mov", "mkv", "mpeg"]
 
 ITER = 6
@@ -59,7 +63,9 @@ class VideoPipe(Pipeline):
         dtype=types.FLOAT,
         sequence_length=COUNT,
     ):
-        super().__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
+        super().__init__(
+            batch_size, num_threads=2, device_id=device_id, seed=12
+        )
         self.input = ops.readers.Video(
             device="gpu",
             filenames=data,
@@ -113,7 +119,10 @@ class VideoPipeRoot(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
         super().__init__(batch_size, num_threads=2, device_id=device_id)
         self.input = ops.readers.Video(
-            device="gpu", file_root=data, sequence_length=sequence_length, random_shuffle=True
+            device="gpu",
+            file_root=data,
+            sequence_length=sequence_length,
+            random_shuffle=True,
         )
 
     def define_graph(self):
@@ -132,8 +141,13 @@ def test_simple_videopipeline():
 
 
 def test_wrong_length_sequence_videopipeline():
-    pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000)
-    with assert_raises(RuntimeError, glob="There are no valid sequences in the provided dataset"):
+    pipe = VideoPipe(
+        batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000
+    )
+    with assert_raises(
+        RuntimeError,
+        glob="There are no valid sequences in the provided dataset",
+    ):
         pipe.build()
 
 
@@ -178,10 +192,14 @@ def test_file_list_videopipeline():
 def _test_file_list_starts_videopipeline(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-    list_file.write("{} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0))
+    list_file.write(
+        "{} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0)
+    )
     list_file.close()
 
-    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1)
+    pipe = VideoPipeList(
+        batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1
+    )
     pipe.build()
     reference_seq_num = pipe.reader_meta("Reader")["epoch_size"]
     del pipe
@@ -189,14 +207,22 @@ def _test_file_list_starts_videopipeline(start, end):
 
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     if end is None:
-        list_file.write("{} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start))
+        list_file.write(
+            "{} {} {}\n".format(
+                os.path.join(VIDEO_DIRECTORY, files[0]), 0, start
+            )
+        )
     else:
         list_file.write(
-            "{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end)
+            "{} {} {} {}\n".format(
+                os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end
+            )
         )
     list_file.close()
 
-    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1)
+    pipe = VideoPipeList(
+        batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1
+    )
     pipe.build()
     seq_num = pipe.reader_meta("Reader")["epoch_size"]
 
@@ -212,14 +238,25 @@ def _test_file_list_starts_videopipeline(start, end):
         elif end < 0:
             expected_seq_num += end
 
-    assert expected_seq_num == seq_num, "Reference is {}, expected is {}, obtained {}".format(
+    assert (
+        expected_seq_num == seq_num
+    ), "Reference is {}, expected is {}, obtained {}".format(
         reference_seq_num, expected_seq_num, seq_num
     )
     os.remove(list_file.name)
 
 
 def test_file_list_starts_ends_videopipeline():
-    ranges = [[0, None], [1, None], [0, -1], [2, None], [0, -2], [0, 1], [-1, None], [-3, -1]]
+    ranges = [
+        [0, None],
+        [1, None],
+        [0, -1],
+        [2, None],
+        [0, -2],
+        [0, 1],
+        [-1, None],
+        [-3, -1],
+    ]
     for r in ranges:
         yield _test_file_list_starts_videopipeline, r[0], r[1]
 
@@ -236,7 +273,10 @@ def test_source_info():
     list_file.close()
 
     pipe = VideoPipeList(
-        batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1, skip_vfr_check=True
+        batch_size=BATCH_SIZE,
+        data=list_file.name,
+        sequence_length=1,
+        skip_vfr_check=True,
     )
     pipe.build()
     samples_read = 0
@@ -249,12 +289,16 @@ def test_source_info():
     os.remove(list_file.name)
 
 
-def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_frame):
+def _create_file_list_include_preceding_frame_pipe(
+    file_list_include_preceding_frame,
+):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     # make sure that this is close enough to show only one frame
     list_file.write(
-        "{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 0.111, 0.112)
+        "{} {} {} {}\n".format(
+            os.path.join(VIDEO_DIRECTORY, files[0]), 0, 0.111, 0.112
+        )
     )
     list_file.close()
 
@@ -278,14 +322,18 @@ def test_file_list_include_preceding_frame():
         pipe.run()
     seq_num = pipe.reader_meta("Reader")["epoch_size"]
 
-    assert seq_num == 1, "Expected to get only 1 sample, received {}".format(seq_num)
+    assert seq_num == 1, "Expected to get only 1 sample, received {}".format(
+        seq_num
+    )
 
 
 def test_file_list_include_preceding_frame_fail():
     pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(False)
 
     # there should be no valid sequences
-    expected_msg = "Start time number should be lesser or equal to end time for a file"
+    expected_msg = (
+        "Start time number should be lesser or equal to end time for a file"
+    )
     with assert_raises(RuntimeError, glob=expected_msg):
         pipe.build()
     os.remove(list_file_name)
@@ -295,10 +343,16 @@ def _test_file_list_invalid_range(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     if end is None:
-        list_file.write("{} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start))
+        list_file.write(
+            "{} {} {}\n".format(
+                os.path.join(VIDEO_DIRECTORY, files[0]), 0, start
+            )
+        )
     else:
         list_file.write(
-            "{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end)
+            "{} {} {} {}\n".format(
+                os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end
+            )
         )
     list_file.close()
 
@@ -318,7 +372,11 @@ def test_file_list_invalid_range():
 def test_file_list_empty_range():
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-    list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 10, 10))
+    list_file.write(
+        "{} {} {} {}\n".format(
+            os.path.join(VIDEO_DIRECTORY, files[0]), 0, 10, 10
+        )
+    )
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
@@ -363,7 +421,12 @@ def test_multiple_resolution_videopipeline():
 def test_multi_gpu_video_pipeline():
     gpus = get_gpu_num()
     pipes = [
-        VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, device_id=d, num_shards=gpus)
+        VideoPipe(
+            batch_size=BATCH_SIZE,
+            data=VIDEO_FILES,
+            device_id=d,
+            num_shards=gpus,
+        )
         for d in range(gpus)
     ]
     for p in pipes:
@@ -377,7 +440,10 @@ def test_plenty_of_video_files():
     """
     # make sure that there is one sequence per video file
     pipe = VideoPipe(
-        batch_size=BATCH_SIZE, data=PLENTY_VIDEO_FILES, step=1000000, sequence_length=1
+        batch_size=BATCH_SIZE,
+        data=PLENTY_VIDEO_FILES,
+        step=1000000,
+        sequence_length=1,
     )
     pipe.build()
     iters = math.ceil(len(os.listdir(PLENTY_VIDEO_DIRECTORY)) / BATCH_SIZE)
@@ -409,7 +475,9 @@ def test_corrupted_videos():
         ),
     ]
     readers = [
-        lambda files: fn.readers.video(device="gpu", filenames=files, sequence_length=3),
+        lambda files: fn.readers.video(
+            device="gpu", filenames=files, sequence_length=3
+        ),
         lambda files: fn.experimental.readers.video(
             device="gpu", filenames=files, sequence_length=3
         ),
@@ -424,7 +492,9 @@ def test_corrupted_videos():
 
 def test_unsupported_codec():
     def reader_fn(files):
-        return fn.experimental.readers.video(device="cpu", filenames=files, sequence_length=3)
+        return fn.experimental.readers.video(
+            device="cpu", filenames=files, sequence_length=3
+        )
 
     wrong_video = os.path.join(video_data_root, "vp9", "vp9_0.mp4")
     msg = "Unsupported video codec"
@@ -464,7 +534,9 @@ def test_pad_sequence():
         return list(meta.values())[0]["epoch_size"]
 
     @pipeline_def(batch_size=1, num_threads=4, device_id=0)
-    def create_video_pipe(filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False):
+    def create_video_pipe(
+        filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False
+    ):
         fr, lab, fr_num, time_stamp = fn.readers.video(
             device="gpu",
             filenames=filenames,
@@ -484,7 +556,12 @@ def test_pad_sequence():
         return fr, lab, fr_num, time_stamp
 
     video_filename = [
-        os.path.join(video_data_root, "sintel", "video_files", "sintel_trailer-720p_2.mp4")
+        os.path.join(
+            video_data_root,
+            "sintel",
+            "video_files",
+            "sintel_trailer-720p_2.mp4",
+        )
     ]
     dali_pipe = create_video_pipe(video_filename)
     dali_pipe.build()
@@ -513,16 +590,34 @@ def test_pad_sequence():
     padded_sampl = 1
     # check padded sample
     # non padded frames should not be 0
-    assert np.any(np.array(out[0].as_cpu()[padded_sampl])[0:last_sample_frame_count]) != 0
+    assert (
+        np.any(
+            np.array(out[0].as_cpu()[padded_sampl])[0:last_sample_frame_count]
+        )
+        != 0
+    )
     # while padded one only 0
-    assert np.all(np.array(out[0].as_cpu()[padded_sampl])[last_sample_frame_count + 1 :]) == 0
+    assert (
+        np.all(
+            np.array(out[0].as_cpu()[padded_sampl])[
+                last_sample_frame_count + 1 :
+            ]
+        )
+        == 0
+    )
     assert np.array(out[2].as_cpu()[padded_sampl]) == step
     # non padded samples should have non negative timestamps
-    non_padded = np.array(out[3].as_cpu()[padded_sampl])[0:last_sample_frame_count]
+    non_padded = np.array(out[3].as_cpu()[padded_sampl])[
+        0:last_sample_frame_count
+    ]
     assert np.all(non_padded != np.array([-1] * last_sample_frame_count))
     # while padded one only -1
-    padded = np.array(out[3].as_cpu()[padded_sampl])[last_sample_frame_count + 1 :]
-    assert np.all(padded == np.array([-1] * (sequence_length - last_sample_frame_count)))
+    padded = np.array(out[3].as_cpu()[padded_sampl])[
+        last_sample_frame_count + 1 :
+    ]
+    assert np.all(
+        padded == np.array([-1] * (sequence_length - last_sample_frame_count))
+    )
 
     dali_pipe = create_video_pipe(
         batch_size=2,
@@ -542,7 +637,11 @@ def test_pad_sequence():
                 return i
 
     dali_pipe = create_video_pipe(
-        batch_size=1, filenames=video_filename, sequence_length=1, stride=1, pad_sequences=False
+        batch_size=1,
+        filenames=video_filename,
+        sequence_length=1,
+        stride=1,
+        pad_sequences=False,
     )
     dali_pipe.build()
 
@@ -621,7 +720,9 @@ def test_10bit_vid_reconfigure():
         )
         return a, b
 
-    pipe = video_decoder_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    pipe = video_decoder_pipeline(
+        batch_size=batch_size, num_threads=1, device_id=0
+    )
     pipe.build()
     for _ in range(iter):
         (a, b) = pipe.run()
@@ -641,7 +742,9 @@ def test_2gb_sequence():
         video, label = fn.readers.video(
             device="gpu",
             sequence_length=sequence_length,
-            filenames=os.path.join(video_data_root, "hevc", "sintel_trailer-720p.mp4"),
+            filenames=os.path.join(
+                video_data_root, "hevc", "sintel_trailer-720p.mp4"
+            ),
             labels=[],
         )
         return video, label

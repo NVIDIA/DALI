@@ -177,7 +177,10 @@ class ConversionOptions(object):
         return "ConversionOptions[{}]"
 
     def uses(self, feature):
-        return Feature.ALL in self.optional_features or feature in self.optional_features
+        return (
+            Feature.ALL in self.optional_features
+            or feature in self.optional_features
+        )
 
     def call_options(self):
         """Returns the corresponding options to be used for recursive conversion."""
@@ -210,13 +213,17 @@ class ConversionOptions(object):
 
         def list_of_features(values):
             return parser.parse_expression(
-                "({})".format(", ".join("ag__.{}".format(str(v)) for v in values))
+                "({})".format(
+                    ", ".join("ag__.{}".format(str(v)) for v in values)
+                )
             )
 
         expr_ast = templates.replace(
             template,
             recursive_val=parser.parse_expression(str(self.recursive)),
-            user_requested_val=parser.parse_expression(str(self.user_requested)),
+            user_requested_val=parser.parse_expression(
+                str(self.user_requested)
+            ),
             internal_convert_user_code_val=parser.parse_expression(
                 str(self.internal_convert_user_code)
             ),
@@ -226,7 +233,10 @@ class ConversionOptions(object):
 
 
 STANDARD_OPTIONS = ConversionOptions(
-    recursive=True, user_requested=False, internal_convert_user_code=True, optional_features=None
+    recursive=True,
+    user_requested=False,
+    internal_convert_user_code=True,
+    optional_features=None,
 )
 
 
@@ -284,7 +294,10 @@ class Base(transformer.Base):
 
         arg_values_found = []
         for def_ in defs:
-            if directive in def_.directives and arg in def_.directives[directive]:
+            if (
+                directive in def_.directives
+                and arg in def_.directives[directive]
+            ):
                 arg_values_found.append(def_.directives[directive][arg])
 
         if not arg_values_found:

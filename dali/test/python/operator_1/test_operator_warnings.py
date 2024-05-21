@@ -28,7 +28,12 @@ module_variants = [
         "",
         "Additional message",
     ),
-    (ops.DeprecationWarningOp(), "DeprecationWarningOp", "", "Additional message"),
+    (
+        ops.DeprecationWarningOp(),
+        "DeprecationWarningOp",
+        "",
+        "Additional message",
+    ),
     (
         fn.sub.deprecation_warning_op,
         "deprecation_warning_op",

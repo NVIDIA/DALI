@@ -28,7 +28,9 @@ dump_images = False
 
 def shot_noise_ref(x, factor):
     x = np.array(x, dtype=np.float32)
-    return (np.clip(np.random.poisson(x / factor) * factor, 0, 255)).astype(np.uint8)
+    return (np.clip(np.random.poisson(x / factor) * factor, 0, 255)).astype(
+        np.uint8
+    )
 
 
 @pipeline_def
@@ -44,7 +46,12 @@ def pipe_shot_noise(factor, device="cpu"):
 
 def _testimpl_operator_noise_shot(device, factor, batch_size, niter):
     pipe = pipe_shot_noise(
-        factor, device=device, batch_size=batch_size, num_threads=3, device_id=0, seed=12345
+        factor,
+        device=device,
+        batch_size=batch_size,
+        num_threads=3,
+        device_id=0,
+        seed=12345,
     )
     pipe.build()
     for _ in range(niter):

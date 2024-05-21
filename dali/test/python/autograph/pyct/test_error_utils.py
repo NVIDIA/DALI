@@ -96,7 +96,9 @@ class ErrorMetadataBaseTest(unittest.TestCase):
             cause_metadata=None,
             cause_message=cause_message,
             source_map={
-                origin_info.LineLocation(filename="/path/two.py", lineno=171): origin_info_value
+                origin_info.LineLocation(
+                    filename="/path/two.py", lineno=171
+                ): origin_info_value
             },
             converter_filename=None,
         )

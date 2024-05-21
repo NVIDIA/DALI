@@ -23,7 +23,9 @@ class Policy:
         self,
         name: str,
         num_magnitude_bins: int,
-        sub_policies: Sequence[Sequence[Tuple[Augmentation, float, Optional[int]]]],
+        sub_policies: Sequence[
+            Sequence[Tuple[Augmentation, float, Optional[int]]]
+        ],
     ):
         """
         Describes the augmentation policy as introduced in AutoAugment
@@ -55,7 +57,9 @@ class Policy:
             )
         for sub_policy in sub_policies:
             if not isinstance(sub_policy, (list, tuple)):
-                raise Exception(f"Each sub policy must be a list or tuple, got {sub_policy}.")
+                raise Exception(
+                    f"Each sub policy must be a list or tuple, got {sub_policy}."
+                )
             for op_desc in sub_policy:
                 if not isinstance(op_desc, (list, tuple)) or len(op_desc) != 3:
                     raise Exception(
@@ -94,7 +98,10 @@ class Policy:
                             f"magnitudes (as it has no `mag_range` specified). You can specify "
                             f"`None` instead of `{mag}` to silence this warning."
                         )
-                    if not isinstance(mag, int) or not 0 <= mag < self.num_magnitude_bins:
+                    if (
+                        not isinstance(mag, int)
+                        or not 0 <= mag < self.num_magnitude_bins
+                    ):
                         raise Exception(
                             f"Magnitude of the augmentation must be an integer from "
                             f"`[0, {num_magnitude_bins - 1}]` range. "
@@ -104,7 +111,11 @@ class Policy:
 
     @property
     def augmentations(self):
-        augments = set(aug for sub_policy in self.sub_policies for aug, p, mag in sub_policy)
+        augments = set(
+            aug
+            for sub_policy in self.sub_policies
+            for aug, p, mag in sub_policy
+        )
         augments = sorted(list(augments), key=lambda aug: aug.name)
         return {augment.name: augment for augment in augments}
 
@@ -115,7 +126,8 @@ class Policy:
         )
         sub_policies_repr_sep = "" if not sub_policies_repr else "\n\t"
         augmentations_repr = ",\n\t".join(
-            f"'{name}': {repr(augment)}" for name, augment in self.augmentations.items()
+            f"'{name}': {repr(augment)}"
+            for name, augment in self.augmentations.items()
         )
         augmentations_repr_sep = "" if not augmentations_repr else "\n\t"
         return (
@@ -133,7 +145,9 @@ def _sub_policy_with_unique_names(
     If not, rename them by adding enumeration to the names.
     The aim is to have non-ambiguous presentation.
     """
-    all_augments = [aug for sub_policy in sub_policies for aug, p, mag in sub_policy]
+    all_augments = [
+        aug for sub_policy in sub_policies for aug, p, mag in sub_policy
+    ]
     augments = set(all_augments)
     names = set(aug.name for aug in augments)
     if len(names) == len(augments):
@@ -148,5 +162,6 @@ def _sub_policy_with_unique_names(
             )
             i += 1
     return tuple(
-        tuple((remap_aug[aug], p, mag) for aug, p, mag in sub_policy) for sub_policy in sub_policies
+        tuple((remap_aug[aug], p, mag) for aug, p, mag in sub_policy)
+        for sub_policy in sub_policies
     )

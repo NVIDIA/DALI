@@ -21,8 +21,19 @@ from test_utils import RandomDataIterator
 
 
 class PowerSpectrumPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, axis, nfft, num_threads=1, device_id=0):
-        super(PowerSpectrumPipeline, self).__init__(batch_size, num_threads, device_id)
+    def __init__(
+        self,
+        device,
+        batch_size,
+        iterator,
+        axis,
+        nfft,
+        num_threads=1,
+        device_id=0,
+    ):
+        super(PowerSpectrumPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
@@ -53,14 +64,30 @@ def power_spectrum_numpy(nfft, axis, waveform):
     elif len(out_shape) == 2:
         out = power_spectrum[0 : out_shape[0], 0 : out_shape[1]]
     elif len(out_shape) == 3:
-        out = power_spectrum[0 : out_shape[0], 0 : out_shape[1], 0 : out_shape[2]]
+        out = power_spectrum[
+            0 : out_shape[0], 0 : out_shape[1], 0 : out_shape[2]
+        ]
     return out
 
 
 class PowerSpectrumNumpyPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, axis, nfft, num_threads=1, device_id=0):
+    def __init__(
+        self,
+        device,
+        batch_size,
+        iterator,
+        axis,
+        nfft,
+        num_threads=1,
+        device_id=0,
+    ):
         super(PowerSpectrumNumpyPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=12345,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = "cpu"
         self.iterator = iterator
@@ -83,8 +110,12 @@ def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
-        PowerSpectrumPipeline(device, batch_size, iter(eii1), axis=axis, nfft=nfft),
-        PowerSpectrumNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
+        PowerSpectrumPipeline(
+            device, batch_size, iter(eii1), axis=axis, nfft=nfft
+        ),
+        PowerSpectrumNumpyPipeline(
+            device, batch_size, iter(eii2), axis=axis, nfft=nfft
+        ),
         batch_size=batch_size,
         N_iterations=3,
         eps=1e-04,

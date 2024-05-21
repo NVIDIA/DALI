@@ -64,9 +64,14 @@ class QN(object):
 
         if attr is not None:
             if not isinstance(base, QN):
-                raise ValueError('for attribute QNs, base must be a QN; got instead "%s"' % base)
+                raise ValueError(
+                    'for attribute QNs, base must be a QN; got instead "%s"'
+                    % base
+                )
             if not isinstance(attr, str):
-                raise ValueError('attr may only be a string; got instead "%s"' % attr)
+                raise ValueError(
+                    'attr may only be a string; got instead "%s"' % attr
+                )
             self._parent = base
             # TODO(mdan): Get rid of the tuple - it can only have 1 or 2 elements now.
             self.qn = (base, attr)
@@ -114,7 +119,9 @@ class QN(object):
     @property
     def parent(self):
         if self._parent is None:
-            raise ValueError('Cannot get parent of simple name "%s".' % self.qn[0])
+            raise ValueError(
+                'Cannot get parent of simple name "%s".' % self.qn[0]
+            )
         return self._parent
 
     @property
@@ -202,18 +209,27 @@ class QN(object):
         # The caller must adjust the context appropriately.
         if self.has_subscript():
             return gast.Subscript(
-                value=self.parent.ast(), slice=self.qn[-1].ast(), ctx=CallerMustSetThis
+                value=self.parent.ast(),
+                slice=self.qn[-1].ast(),
+                ctx=CallerMustSetThis,
             )
         if self.has_attr():
-            return gast.Attribute(value=self.parent.ast(), attr=self.qn[-1], ctx=CallerMustSetThis)
+            return gast.Attribute(
+                value=self.parent.ast(), attr=self.qn[-1], ctx=CallerMustSetThis
+            )
 
         base = self.qn[0]
         if isinstance(base, str):
-            return gast.Name(base, ctx=CallerMustSetThis, annotation=None, type_comment=None)
+            return gast.Name(
+                base, ctx=CallerMustSetThis, annotation=None, type_comment=None
+            )
         elif isinstance(base, Literal):
             return gast.Constant(base.value, kind=None)
         else:
-            assert False, "the constructor should prevent types other than " "str and Literal"
+            assert False, (
+                "the constructor should prevent types other than "
+                "str and Literal"
+            )
 
 
 class QnResolver(gast.NodeTransformer):
@@ -231,7 +247,9 @@ class QnResolver(gast.NodeTransformer):
         node = self.generic_visit(node)
         if anno.hasanno(node.value, anno.Basic.QN):
             anno.setanno(
-                node, anno.Basic.QN, QN(anno.getanno(node.value, anno.Basic.QN), attr=node.attr)
+                node,
+                anno.Basic.QN,
+                QN(anno.getanno(node.value, anno.Basic.QN), attr=node.attr),
             )
         return node
 
@@ -255,7 +273,9 @@ class QnResolver(gast.NodeTransformer):
             anno.setanno(
                 node,
                 anno.Basic.QN,
-                QN(anno.getanno(node.value, anno.Basic.QN), subscript=subscript),
+                QN(
+                    anno.getanno(node.value, anno.Basic.QN), subscript=subscript
+                ),
             )
         return node
 

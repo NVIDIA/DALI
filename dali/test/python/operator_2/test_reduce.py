@@ -83,12 +83,24 @@ class Batch3D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([[[1, 0, 1], [2, 3, 1]], [[0, 4, 1], [0, 4, 1]]], dtype=self._data_type),
-                np.array([[[5, 0, 1], [6, 7, 1]], [[0, 8, 1], [0, 4, 1]]], dtype=self._data_type),
+                np.array(
+                    [[[1, 0, 1], [2, 3, 1]], [[0, 4, 1], [0, 4, 1]]],
+                    dtype=self._data_type,
+                ),
+                np.array(
+                    [[[5, 0, 1], [6, 7, 1]], [[0, 8, 1], [0, 4, 1]]],
+                    dtype=self._data_type,
+                ),
             ],
             [
-                np.array([[[9, 0, 3], [3, 3, 3]], [[7, 0, 3], [0, 6, 8]]], dtype=self._data_type),
-                np.array([[[7, 2, 3], [7, 8, 2]], [[3, 9, 2], [2, 6, 2]]], dtype=self._data_type),
+                np.array(
+                    [[[9, 0, 3], [3, 3, 3]], [[7, 0, 3], [0, 6, 8]]],
+                    dtype=self._data_type,
+                ),
+                np.array(
+                    [[[7, 2, 3], [7, 8, 2]], [[3, 9, 2], [2, 6, 2]]],
+                    dtype=self._data_type,
+                ),
             ],
         ]
 
@@ -131,7 +143,14 @@ def check_layout(tensor, in_layout, axes, keep_dims):
 
 
 def run_dali(
-    reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input=False, ddof=0, layout=None
+    reduce_fn,
+    batch_fn,
+    keep_dims,
+    axes,
+    output_type,
+    add_mean_input=False,
+    ddof=0,
+    layout=None,
 ):
     batch_size = batch_fn.batch_size()
 
@@ -211,7 +230,9 @@ def np_mean_square(input, keepdims=False, axis=None, dtype=None):
 
 
 def np_root_mean_square(input, keepdims=False, axis=None, dtype=None):
-    return np.sqrt(np_mean_square(input, keepdims=keepdims, axis=axis, dtype=dtype))
+    return np.sqrt(
+        np_mean_square(input, keepdims=keepdims, axis=axis, dtype=dtype)
+    )
 
 
 reduce_fns = {
@@ -226,7 +247,14 @@ reduce_fns = {
 }
 
 
-def run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type=None, layout=None):
+def run_reduce(
+    keep_dims,
+    reduction_name,
+    batch_gen,
+    input_type,
+    output_type=None,
+    layout=None,
+):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns[reduction_name]
 
@@ -243,7 +271,11 @@ def run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type=Non
         batch_fn.reset()
 
         np_res = run_numpy(
-            numpy_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type
+            numpy_reduce_fn,
+            batch_fn,
+            keep_dims=keep_dims,
+            axes=axes,
+            output_type=output_type,
         )
 
         for iteration in range(batch_fn.num_iter()):
@@ -296,7 +328,11 @@ def test_reduce_invalid_axes():
     for axes in batch_fn.valid_axes():
         with assert_raises(IndexError, glob="Axis index out of range"):
             dali_res_cpu, dali_res_gpu = run_dali(
-                dali_reduce_fn, batch_fn, keep_dims=False, axes=axes, output_type=np.uint8
+                dali_reduce_fn,
+                batch_fn,
+                keep_dims=False,
+                axes=axes,
+                output_type=np.uint8,
             )
 
 
@@ -304,7 +340,15 @@ def test_reduce_with_promotion():
     reductions = ["rms", "mean_square"]
 
     batch_gens = [Batch3D]
-    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
+    types = [
+        np.uint8,
+        np.int8,
+        np.uint16,
+        np.int16,
+        np.uint32,
+        np.int32,
+        np.float32,
+    ]
 
     rng = np.random.default_rng(1041)
     for keep_dims in [False, True]:
@@ -319,7 +363,15 @@ def test_reduce_with_promotion_with_overflow():
     reductions = ["sum", "mean"]
 
     batch_gens = [Batch3DOverflow]
-    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
+    types = [
+        np.uint8,
+        np.int8,
+        np.uint16,
+        np.int16,
+        np.uint32,
+        np.int32,
+        np.float32,
+    ]
 
     rng = np.random.default_rng(1042)
     for keep_dims in [False, True]:
@@ -363,7 +415,12 @@ def test_sum_with_output_type():
 
 
 def run_reduce_with_mean_input(
-    keep_dims, reduction_name, batch_gen, input_type, output_type=None, layout=None
+    keep_dims,
+    reduction_name,
+    batch_gen,
+    input_type,
+    output_type=None,
+    layout=None,
 ):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns[reduction_name]
@@ -448,12 +505,16 @@ def run_and_compare_with_layout(batch_gen, pipe):
         assert np.array_equal(reduced, reduced_by_name)
 
 
-def run_reduce_with_layout(batch_size, get_batch, reduction, axes, axis_names, batch_fn):
+def run_reduce_with_layout(
+    batch_size, get_batch, reduction, axes, axis_names, batch_fn
+):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         input = fn.external_source(source=get_batch, layout="ABC")
         reduced = reduction(input, keep_dims=False, axes=axes)
-        reduced_by_name = reduction(input, keep_dims=False, axis_names=axis_names)
+        reduced_by_name = reduction(
+            input, keep_dims=False, axis_names=axis_names
+        )
 
     pipe.set_outputs(reduced, reduced_by_name)
     pipe.build()
@@ -469,7 +530,9 @@ def run_reduce_with_layout_with_mean_input(
         input = fn.external_source(source=get_batch, layout="ABC")
         mean = fn.reductions.mean(input, axes=axes)
         reduced = reduction(input, mean, keep_dims=False, axes=axes)
-        reduced_by_name = reduction(input, mean, keep_dims=False, axis_names=axis_names)
+        reduced_by_name = reduction(
+            input, mean, keep_dims=False, axis_names=axis_names
+        )
 
     pipe.set_outputs(reduced, reduced_by_name)
     pipe.build()
@@ -551,7 +614,9 @@ def fast_large_random_batches(rank, batch_size, num_batches, lo=0, hi=1):
     if should_generate:
         _random_lo = lo
         _random_hi = hi
-        _random_buf = np.random.uniform(low=lo, high=hi, size=max_vol).astype(np.float32)
+        _random_buf = np.random.uniform(low=lo, high=hi, size=max_vol).astype(
+            np.float32
+        )
 
     data = []
     for _ in range(num_batches):
@@ -575,8 +640,14 @@ def _test_reduce_large_data(rank, axes, device, in_layout):
     num_batches = 2
     data = fast_large_random_batches(rank, batch_size, num_batches)
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == "gpu" else None)
-    input = fn.external_source(data, cycle=True, device=device, layout=in_layout)
+    pipe = Pipeline(
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0 if device == "gpu" else None,
+    )
+    input = fn.external_source(
+        data, cycle=True, device=device, layout=in_layout
+    )
     reduced = fn.reductions.sum(input, axes=axes)
     pipe.set_outputs(reduced)
     pipe.build()
@@ -599,7 +670,11 @@ def test_reduce_large_data():
                 layout = np.random.choice([None, "DALI"[:rank]])
                 axes = tuple(
                     filter(
-                        lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
+                        lambda x: x >= 0,
+                        (
+                            i if axis_mask & (1 << i) else -1
+                            for i in range(rank)
+                        ),
                     )
                 )
                 yield _test_reduce_large_data, rank, axes, device, layout
@@ -611,8 +686,14 @@ def _test_std_dev_large_data(rank, axes, device, in_layout):
     num_batches = 2
     data = fast_large_random_batches(rank, batch_size, num_batches)
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == "gpu" else None)
-    input = fn.external_source(data, cycle=True, device=device, layout=in_layout)
+    pipe = Pipeline(
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0 if device == "gpu" else None,
+    )
+    input = fn.external_source(
+        data, cycle=True, device=device, layout=in_layout
+    )
     mean = fn.reductions.mean(input, axes=axes)
     reduced = fn.reductions.std_dev(input, mean, axes=axes, ddof=0)
     pipe.set_outputs(reduced)
@@ -636,7 +717,11 @@ def test_std_dev_large_data():
                 layout = np.random.choice([None, "DALI"[:rank]])
                 axes = tuple(
                     filter(
-                        lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
+                        lambda x: x >= 0,
+                        (
+                            i if axis_mask & (1 << i) else -1
+                            for i in range(rank)
+                        ),
                     )
                 )
                 yield _test_std_dev_large_data, rank, axes, device, layout

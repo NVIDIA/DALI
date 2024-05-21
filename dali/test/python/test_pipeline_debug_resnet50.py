@@ -57,7 +57,10 @@ def rn50_pipeline_2(data_path):
     jpegs, _ = fn.readers.file(file_root=data_path)
     images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
     resized_images = fn.resize(
-        images, device="gpu", interp_type=types.INTERP_LINEAR, resize_shorter=resize_uniform
+        images,
+        device="gpu",
+        interp_type=types.INTERP_LINEAR,
+        resize_shorter=resize_uniform,
     )
     output = fn.crop_mirror_normalize(
         resized_images,
@@ -73,12 +76,16 @@ def rn50_pipeline_2(data_path):
     return output
 
 
-def run_benchmark(pipe_fun, batch_size, num_threads, num_samples, debug, data_path):
+def run_benchmark(
+    pipe_fun, batch_size, num_threads, num_samples, debug, data_path
+):
     num_iters = num_samples // batch_size
     times = np.empty(num_iters + 1)
 
     times[0] = time()
-    pipe = pipe_fun(data_path, batch_size=batch_size, num_threads=num_threads, debug=debug)
+    pipe = pipe_fun(
+        data_path, batch_size=batch_size, num_threads=num_threads, debug=debug
+    )
     pipe.build()
     build_time = time()
 
@@ -147,7 +154,9 @@ def test_rn50_benchmark(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument(
         "--batch-sizes",
         nargs="+",
@@ -156,32 +165,58 @@ def parse_args():
         help="List of batch sizes to run",
     )
     parser.add_argument(
-        "--thread-counts", nargs="+", type=int, default=[1, 2, 4, 8], help="List of thread counts"
+        "--thread-counts",
+        nargs="+",
+        type=int,
+        default=[1, 2, 4, 8],
+        help="List of thread counts",
     )
-    parser.add_argument("--num-samples", type=int, default=2048, help="Number of samples")
-    parser.add_argument("--data-path", type=str, help="Directory path of training dataset")
-    parser.add_argument("--save-dir", type=str, help="Directory where to save results")
+    parser.add_argument(
+        "--num-samples", type=int, default=2048, help="Number of samples"
+    )
+    parser.add_argument(
+        "--data-path", type=str, help="Directory path of training dataset"
+    )
+    parser.add_argument(
+        "--save-dir", type=str, help="Directory where to save results"
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     df = None
-    for pipe_fun, num_threads in product([rn50_pipeline, rn50_pipeline_2], args.thread_counts):
+    for pipe_fun, num_threads in product(
+        [rn50_pipeline, rn50_pipeline_2], args.thread_counts
+    ):
         if args.save_dir is not None:
             import pandas as pd
 
             save_file = os.path.join(
-                args.save_dir, f"bench_{pipe_fun.__name__}_threads_{num_threads}.csv"
+                args.save_dir,
+                f"bench_{pipe_fun.__name__}_threads_{num_threads}.csv",
             )
             if os.path.isfile(save_file):
                 df = pd.read_csv(save_file)
             else:
-                df = pd.DataFrame(columns=["type", "batch_size", "time", "iter_time", "avg_speed"])
+                df = pd.DataFrame(
+                    columns=[
+                        "type",
+                        "batch_size",
+                        "time",
+                        "iter_time",
+                        "avg_speed",
+                    ]
+                )
 
         for batch_size in args.batch_sizes:
             df = test_rn50_benchmark(
-                rn50_pipeline_2, batch_size, num_threads, args.num_samples, args.data_path, df
+                rn50_pipeline_2,
+                batch_size,
+                num_threads,
+                args.num_samples,
+                args.data_path,
+                df,
             )
 
         if df is not None:

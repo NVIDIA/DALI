@@ -41,7 +41,9 @@ def overexpose(image, multiplier):
 @augmentation(mag_range=(0.1, 0.9))
 def blend_edges(image, blend_factor):
     edges = fn.laplacian(image, window_size=5, dtype=types.UINT8)
-    return fn.cast_like((1.0 - blend_factor) * image + blend_factor * edges, image)
+    return fn.cast_like(
+        (1.0 - blend_factor) * image + blend_factor * edges, image
+    )
 
 
 def as_square_shape(edge_len):
@@ -50,7 +52,9 @@ def as_square_shape(edge_len):
 
 @augmentation(mag_range=(0.1, 0.7), mag_to_param=as_square_shape)
 def cutout(image, shape):
-    return fn.erase(image, shape=shape, anchor=[0, 0], normalized=True, fill_value=120)
+    return fn.erase(
+        image, shape=shape, anchor=[0, 0], normalized=True, fill_value=120
+    )
 
 
 @params(
@@ -63,26 +67,50 @@ def test_select(dev):
         batches = p.run()
         if dev == "gpu":
             batches = (batch.as_cpu() for batch in batches)
-        return tuple([np.array(sample) for sample in batch] for batch in batches)
+        return tuple(
+            [np.array(sample) for sample in batch] for batch in batches
+        )
 
     ops = [overexpose, blend_edges, cutout]
     num_magnitude_bins = 4
     batch_size = num_magnitude_bins * len(ops)
 
-    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+    )
     def pipeline_select():
         op_idx = sample_info(lambda info: info.idx_in_batch % len(ops))
-        magnitude_bin = sample_info(lambda info: info.idx_in_batch % num_magnitude_bins)
+        magnitude_bin = sample_info(
+            lambda info: info.idx_in_batch % num_magnitude_bins
+        )
         image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(image, device="cpu" if dev == "cpu" else "mixed")
-        return select(ops, op_idx, image, magnitude_bin=magnitude_bin, num_magnitude_bins=4)
+        image = fn.decoders.image(
+            image, device="cpu" if dev == "cpu" else "mixed"
+        )
+        return select(
+            ops,
+            op_idx,
+            image,
+            magnitude_bin=magnitude_bin,
+            num_magnitude_bins=4,
+        )
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
     def pipeline_refs():
-        magnitude_bin = sample_info(lambda info: info.idx_in_batch % num_magnitude_bins)
+        magnitude_bin = sample_info(
+            lambda info: info.idx_in_batch % num_magnitude_bins
+        )
         image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(image, device="cpu" if dev == "cpu" else "mixed")
-        return tuple(op(image, magnitude_bin=magnitude_bin, num_magnitude_bins=4) for op in ops)
+        image = fn.decoders.image(
+            image, device="cpu" if dev == "cpu" else "mixed"
+        )
+        return tuple(
+            op(image, magnitude_bin=magnitude_bin, num_magnitude_bins=4)
+            for op in ops
+        )
 
     (batch_select,) = _collect_batch(pipeline_select())
     ref_batches = _collect_batch(pipeline_refs())

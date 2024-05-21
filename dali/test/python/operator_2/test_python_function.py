@@ -50,7 +50,13 @@ def resize(image):
 
 class CommonPipeline(Pipeline):
     def __init__(
-        self, batch_size, num_threads, device_id, _seed, image_dir, prefetch_queue_depth=2
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        _seed,
+        image_dir,
+        prefetch_queue_depth=2,
     ):
         super().__init__(
             batch_size,
@@ -84,7 +90,14 @@ class BasicPipeline(CommonPipeline):
 
 class PythonOperatorPipeline(CommonPipeline):
     def __init__(
-        self, batch_size, num_threads, device_id, seed, image_dir, function, prefetch_queue_depth=2
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        seed,
+        image_dir,
+        function,
+        prefetch_queue_depth=2,
     ):
         super().__init__(
             batch_size,
@@ -116,7 +129,14 @@ class FlippingPipeline(CommonPipeline):
 
 class TwoOutputsPythonOperatorPipeline(CommonPipeline):
     def __init__(
-        self, batch_size, num_threads, device_id, seed, image_dir, function, op=ops.PythonFunction
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        seed,
+        image_dir,
+        function,
+        op=ops.PythonFunction,
     ):
         super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.python_function = op(function=function, num_outputs=2)
@@ -131,7 +151,14 @@ class TwoOutputsPythonOperatorPipeline(CommonPipeline):
 
 class MultiInputMultiOutputPipeline(CommonPipeline):
     def __init__(
-        self, batch_size, num_threads, device_id, seed, image_dir, function, batch_processing=False
+        self,
+        batch_size,
+        num_threads,
+        device_id,
+        seed,
+        image_dir,
+        function,
+        batch_processing=False,
     ):
         super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.python_function = ops.PythonFunction(
@@ -161,7 +188,9 @@ class DoubleLoadPipeline(CommonPipeline):
 class SinkTestPipeline(CommonPipeline):
     def __init__(self, batch_size, device_id, seed, image_dir, function):
         super().__init__(batch_size, 1, device_id, seed, image_dir)
-        self.python_function = ops.PythonFunction(function=function, num_outputs=0)
+        self.python_function = ops.PythonFunction(
+            function=function, num_outputs=0
+        )
 
     def define_graph(self):
         images, labels = self.load()
@@ -170,8 +199,12 @@ class SinkTestPipeline(CommonPipeline):
 
 
 class PythonOperatorInputSetsPipeline(PythonOperatorPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
-        super().__init__(batch_size, num_threads, device_id, seed, image_dir, function)
+    def __init__(
+        self, batch_size, num_threads, device_id, seed, image_dir, function
+    ):
+        super().__init__(
+            batch_size, num_threads, device_id, seed, image_dir, function
+        )
         self.python_function = ops.PythonFunction(function=function)
 
     def define_graph(self):
@@ -193,14 +226,18 @@ NUM_WORKERS = 6
 
 def run_case(func):
     pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
-    pyfunc_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func)
+    pyfunc_pipe = PythonOperatorPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func
+    )
     pipe.build()
     pyfunc_pipe.build()
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
         (output,) = pyfunc_pipe.run()
         for i in range(len(output)):
-            assert numpy.array_equal(output.at(i), func(preprocessed_output.at(i)))
+            assert numpy.array_equal(
+                output.at(i), func(preprocessed_output.at(i))
+            )
 
 
 def one_channel_normalize(image):
@@ -242,7 +279,9 @@ def Rotate(image):
 
 
 def Brightness(image):
-    return numpy.array(ImageEnhance.Brightness(Image.fromarray(image)).enhance(0.5))
+    return numpy.array(
+        ImageEnhance.Brightness(Image.fromarray(image)).enhance(0.5)
+    )
 
 
 def test_python_operator_one_channel_normalize():
@@ -258,8 +297,12 @@ def test_python_operator_bias():
 
 
 def test_python_operator_flip():
-    dali_flip = FlippingPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
-    numpy_flip = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, flip)
+    dali_flip = FlippingPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir
+    )
+    numpy_flip = PythonOperatorPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, flip
+    )
     dali_flip.build()
     numpy_flip.build()
     for it in range(ITERS):
@@ -292,7 +335,9 @@ class BrightnessPipeline(CommonPipeline):
 
 
 def test_python_operator_rotate():
-    dali_rotate = RotatePipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    dali_rotate = RotatePipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir
+    )
     numpy_rotate = PythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate
     )
@@ -309,7 +354,9 @@ def test_python_operator_rotate():
 
 
 def test_python_operator_brightness():
-    dali_brightness = BrightnessPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    dali_brightness = BrightnessPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir
+    )
     numpy_brightness = PythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Brightness
     )
@@ -319,7 +366,12 @@ def test_python_operator_brightness():
         (numpy_output,) = numpy_brightness.run()
         (dali_output,) = dali_brightness.run()
         for i in range(len(dali_output)):
-            assert numpy.allclose(numpy_output.at(i), dali_output.as_cpu().at(i), rtol=1e-5, atol=1)
+            assert numpy.allclose(
+                numpy_output.at(i),
+                dali_output.as_cpu().at(i),
+                rtol=1e-5,
+                atol=1,
+            )
 
 
 def invalid_function(image):
@@ -380,7 +432,9 @@ def multi_per_sample_compare(func, pipe, pyfunc_pipe):
         preprocessed_output1, preprocessed_output2 = pipe.run()
         out1, out2, out3 = pyfunc_pipe.run()
         for i in range(BATCH_SIZE):
-            pro1, pro2, pro3 = func(preprocessed_output1.at(i), preprocessed_output2.at(i))
+            pro1, pro2, pro3 = func(
+                preprocessed_output1.at(i), preprocessed_output2.at(i)
+            )
             assert numpy.array_equal(out1.at(i), pro1)
             assert numpy.array_equal(out2.at(i), pro2)
             assert numpy.array_equal(out3.at(i), pro3)
@@ -400,9 +454,17 @@ def multi_batch_compare(func, pipe, pyfunc_pipe):
 
 
 def run_multi_input_multi_output(func, compare, batch=False):
-    pipe = DoubleLoadPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pipe = DoubleLoadPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir
+    )
     pyfunc_pipe = MultiInputMultiOutputPipeline(
-        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func, batch_processing=batch
+        BATCH_SIZE,
+        NUM_WORKERS,
+        DEVICE_ID,
+        SEED,
+        images_dir,
+        func,
+        batch_processing=batch,
     )
     pipe.build()
     pyfunc_pipe.build()
@@ -425,7 +487,9 @@ def test_split_and_mix():
 
 
 def test_output_with_stride_mixed_types():
-    run_multi_input_multi_output(output_with_stride_mixed_types, multi_per_sample_compare)
+    run_multi_input_multi_output(
+        output_with_stride_mixed_types, multi_per_sample_compare
+    )
 
 
 def mix_and_split_batch(images1, images2):
@@ -444,11 +508,15 @@ def with_stride_mixed_types_batch(images1, images2):
 
 
 def test_split_and_mix_batch():
-    run_multi_input_multi_output(mix_and_split_batch, multi_batch_compare, batch=True)
+    run_multi_input_multi_output(
+        mix_and_split_batch, multi_batch_compare, batch=True
+    )
 
 
 def test_output_with_stride_mixed_types_batch():
-    run_multi_input_multi_output(with_stride_mixed_types_batch, multi_batch_compare, batch=True)
+    run_multi_input_multi_output(
+        with_stride_mixed_types_batch, multi_batch_compare, batch=True
+    )
 
 
 @raises(Exception, "must be a tuple")
@@ -507,7 +575,9 @@ SINK_PATH = tempfile.mkdtemp()
 
 
 def save(image):
-    Image.fromarray(image).save(SINK_PATH + "/sink_img" + str(time.process_time()) + ".jpg", "JPEG")
+    Image.fromarray(image).save(
+        SINK_PATH + "/sink_img" + str(time.process_time()) + ".jpg", "JPEG"
+    )
 
 
 def test_sink():
@@ -569,13 +639,20 @@ def test_func_with_side_effects():
         assert elems_one == [i for i in range(1, BATCH_SIZE + 1)]
         elems_two = [out_two.at(s)[0][0][0] for s in range(BATCH_SIZE)]
         elems_two.sort()
-        assert elems_two == [i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)]
+        assert elems_two == [
+            i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)
+        ]
 
 
 class AsyncPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed):
         super().__init__(
-            batch_size, num_threads, device_id, seed=_seed, exec_async=True, exec_pipelined=True
+            batch_size,
+            num_threads,
+            device_id,
+            seed=_seed,
+            exec_async=True,
+            exec_pipelined=True,
         )
         self.op = ops.PythonFunction(function=lambda: numpy.zeros([2, 2, 2]))
 
@@ -588,13 +665,22 @@ def test_output_layout():
     with pipe:
         images, _ = pipe.load()
         out1, out2 = fn.python_function(
-            images, function=lambda x: (x, x.mean(2)), num_outputs=2, output_layouts=["ABC", "DE"]
+            images,
+            function=lambda x: (x, x.mean(2)),
+            num_outputs=2,
+            output_layouts=["ABC", "DE"],
         )
         out3, out4 = fn.python_function(
-            images, function=lambda x: (x, x / 2), num_outputs=2, output_layouts="FGH"
+            images,
+            function=lambda x: (x, x / 2),
+            num_outputs=2,
+            output_layouts="FGH",
         )
         out5, out6 = fn.python_function(
-            images, function=lambda x: (x, x / 2), num_outputs=2, output_layouts=["IJK"]
+            images,
+            function=lambda x: (x, x / 2),
+            num_outputs=2,
+            output_layouts=["IJK"],
         )
 
         pipe.set_outputs(out1, out2, out3, out4, out5, out6)
@@ -612,7 +698,9 @@ def test_output_layout():
 def test_invalid_layouts_arg():
     pipe = Pipeline(1, 1, 0, 999, exec_async=False, exec_pipelined=False)
     with pipe:
-        out = fn.python_function(function=lambda: numpy.zeros((1, 1)), output_layouts=["HW", "HWC"])
+        out = fn.python_function(
+            function=lambda: numpy.zeros((1, 1)), output_layouts=["HW", "HWC"]
+        )
         pipe.set_outputs(out)
     pipe.build()
     pipe.run()
@@ -631,16 +719,22 @@ def test_python_function_conditionals():
     )
     def py_fun_pipeline():
         predicate = fn.external_source(
-            source=lambda sample_info: numpy.array(sample_info.idx_in_batch < batch_size / 2),
+            source=lambda sample_info: numpy.array(
+                sample_info.idx_in_batch < batch_size / 2
+            ),
             batch=False,
         )
         if predicate:
             out1, out2 = fn.python_function(
-                predicate, num_outputs=2, function=lambda _: (numpy.array(42), numpy.array(10))
+                predicate,
+                num_outputs=2,
+                function=lambda _: (numpy.array(42), numpy.array(10)),
             )
         else:
             out1 = fn.python_function(function=lambda: numpy.array(0))
-            out2 = types.Constant(numpy.array(0), device="cpu", dtype=types.INT64)
+            out2 = types.Constant(
+                numpy.array(0), device="cpu", dtype=types.INT64
+            )
         return out1, out2
 
     pipe = py_fun_pipeline()
@@ -657,13 +751,17 @@ def test_current_pipeline():
     pipe1 = Pipeline(13, 4, 0)
     with pipe1:
         dummy = types.Constant(numpy.ones((1)))
-        output = fn.python_function(dummy, function=lambda inp: verify_pipeline(pipe1, inp))
+        output = fn.python_function(
+            dummy, function=lambda inp: verify_pipeline(pipe1, inp)
+        )
         pipe1.set_outputs(output)
 
     pipe2 = Pipeline(6, 2, 0)
     with pipe2:
         dummy = types.Constant(numpy.ones((1)))
-        output = fn.python_function(dummy, function=lambda inp: verify_pipeline(pipe2, inp))
+        output = fn.python_function(
+            dummy, function=lambda inp: verify_pipeline(pipe2, inp)
+        )
         pipe2.set_outputs(output)
 
     pipe1.build()

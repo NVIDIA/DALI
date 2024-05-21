@@ -67,7 +67,9 @@ def get_pattern(glob=None, regex=None, match_case=None):
     return pattern
 
 
-def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kwargs):
+def assert_raises(
+    exception, *args, glob=None, regex=None, match_case=None, **kwargs
+):
     """
     Wrapper combining `nose.tools.assert_raises` and `nose.tools.assert_raises_regex`.
     Specify ``regex=pattern`` or ``glob=pattern`` to check error message of expected exception
@@ -85,7 +87,9 @@ def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kw
     return tools.assert_raises_regex(exception, pattern, *args, **kwargs)
 
 
-def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=None, **kwargs):
+def assert_warns(
+    exception=Warning, *args, glob=None, regex=None, match_case=None, **kwargs
+):
     if glob is None and regex is None:
         return tools.assert_warns(exception, *args, **kwargs)
 
@@ -118,7 +122,9 @@ def raises(exception, glob=None, regex=None, match_case=None):
 
     def decorator(func):
         def new_func(*args, **kwargs):
-            with assert_raises(exception, glob=glob, regex=regex, match_case=match_case):
+            with assert_raises(
+                exception, glob=glob, regex=regex, match_case=match_case
+            ):
                 return func(*args, **kwargs)
 
         return tools.make_decorator(func)(new_func)

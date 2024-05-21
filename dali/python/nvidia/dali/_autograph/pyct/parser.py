@@ -85,7 +85,12 @@ def dedent_block(code_string):
             block_indentation = tok_string
             block_level = len(block_indentation)
             break
-        elif tok_type not in (tokenize.NL, tokenize.NEWLINE, tokenize.STRING, tokenize.COMMENT):
+        elif tok_type not in (
+            tokenize.NL,
+            tokenize.NEWLINE,
+            tokenize.STRING,
+            tokenize.COMMENT,
+        ):
             block_indentation = ""
             break
 
@@ -160,7 +165,9 @@ def parse_entity(entity, future_features):
 
     source = dedent_block(original_source)
 
-    future_statements = tuple("from __future__ import {}".format(name) for name in future_features)
+    future_statements = tuple(
+        "from __future__ import {}".format(name) for name in future_features
+    )
     source = "\n".join(future_statements + (source,))
 
     return parse(source, preamble_len=len(future_features)), source
@@ -274,7 +281,9 @@ def _parse_lambda(lam):
     # Extract all lambda nodes from the shortlist.
     lambda_nodes = []
     for node in search_nodes:
-        lambda_nodes.extend(n for n in gast.walk(node) if isinstance(n, gast.Lambda))
+        lambda_nodes.extend(
+            n for n in gast.walk(node) if isinstance(n, gast.Lambda)
+        )
 
     # Filter down to lambda nodes which span our actual lambda.
     candidates = []
@@ -293,7 +302,9 @@ def _parse_lambda(lam):
 
     # Happy path: exactly one node found.
     if len(candidates) == 1:
-        ((node, minl, maxl),) = candidates  # pylint:disable=unbalanced-tuple-unpacking
+        ((node, minl, maxl),) = (
+            candidates  # pylint:disable=unbalanced-tuple-unpacking
+        )
         return _without_context(node, lines, minl, maxl)
 
     elif not candidates:
@@ -311,7 +322,9 @@ def _parse_lambda(lam):
 
     # Give up if could not narrow down to a single node.
     matches = "\n".join(
-        "Match {}:\n{}\n".format(i, unparse(node, include_encoding_marker=False))
+        "Match {}:\n{}\n".format(
+            i, unparse(node, include_encoding_marker=False)
+        )
         for i, (node, _, _) in enumerate(matches)
     )
     raise errors.UnsupportedLanguageElementError(
@@ -361,7 +374,9 @@ def parse_expression(src):
     node = parse(src, preamble_len=STANDARD_PREAMBLE_LEN, single_node=True)
     if __debug__:
         if not isinstance(node, gast.Expr):
-            raise ValueError("expected exactly one node of type Expr, got {}".format(node))
+            raise ValueError(
+                "expected exactly one node of type Expr, got {}".format(node)
+            )
     return node.value
 
 

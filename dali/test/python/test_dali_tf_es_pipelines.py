@@ -21,7 +21,9 @@ from nvidia.dali import Pipeline, fn
 from test_utils import RandomlyShapedDataIterator
 
 
-def get_sample_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
+def get_sample_one_arg_callback(
+    dtype, iter_limit=1000, batch_size=None, dense=True
+):
     def callback(x):
         if x.iteration > iter_limit:
             raise StopIteration()
@@ -36,7 +38,9 @@ def get_sample_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=T
     return callback
 
 
-def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
+def get_batch_one_arg_callback(
+    dtype, iter_limit=1000, batch_size=None, dense=True
+):
     def callback(x):
         if x > iter_limit:
             raise StopIteration()
@@ -50,7 +54,9 @@ def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=Tr
     return callback
 
 
-def get_batch_one_arg_callback_with_batch_info(dtype, iter_limit=1000, batch_size=None, dense=True):
+def get_batch_one_arg_callback_with_batch_info(
+    dtype, iter_limit=1000, batch_size=None, dense=True
+):
     def callback(x):
         if x.iteration > iter_limit:
             raise StopIteration()
@@ -141,7 +147,8 @@ def get_iterable(dtype, iter_limit=1000, batch_size=None, dense=True):
     max_shape = (20, 20)
     min_shape = max_shape  # if dense else None
     result = FiniteIterator(
-        iter(RandomlyShapedDataIterator(bs, min_shape, max_shape, 42, dtype)), iter_limit
+        iter(RandomlyShapedDataIterator(bs, min_shape, max_shape, 42, dtype)),
+        iter_limit,
     )
     if batch_size is None:
         return UnwrapIterator(iter(result))
@@ -183,7 +190,13 @@ es_configurations = [
 
 def get_external_source_pipe(es_args, dtype, es_device):
     def get_pipeline_desc(
-        batch_size, num_threads, device, device_id, shard_id, num_shards, def_for_dataset
+        batch_size,
+        num_threads,
+        device,
+        device_id,
+        shard_id,
+        num_shards,
+        def_for_dataset,
     ):
         pipe = Pipeline(batch_size, num_threads, device_id)
         with pipe:
@@ -225,11 +238,17 @@ def gen_tf_with_dali_external_source(test_run):
     for dtype in [np.uint8, np.int32, np.float32]:
         for get_callback, is_batched, cycle, batch_info in es_configurations:
             for dense in get_dense_options(is_batched):
-                for dev, es_dev in [("cpu", "cpu"), ("gpu", "cpu"), ("gpu", "gpu")]:
+                for dev, es_dev in [
+                    ("cpu", "cpu"),
+                    ("gpu", "cpu"),
+                    ("gpu", "gpu"),
+                ]:
                     for iter_limit in [3, 9, 10, 11, 100]:
                         bs = 12 if is_batched else None
                         es_args = {
-                            "source": get_callback(dtype, iter_limit, bs, dense),
+                            "source": get_callback(
+                                dtype, iter_limit, bs, dense
+                            ),
                             "batch": is_batched,
                             "cycle": cycle,
                             "batch_info": batch_info,

@@ -30,7 +30,8 @@ from nvidia.dali._autograph.impl import conversion
 class ConversionTest(unittest.TestCase):
     def _simple_program_ctx(self):
         return converter.ProgramContext(
-            options=converter.ConversionOptions(recursive=True), autograph_module=api
+            options=converter.ConversionOptions(recursive=True),
+            autograph_module=api,
         )
 
     def test_is_allowlisted(self):

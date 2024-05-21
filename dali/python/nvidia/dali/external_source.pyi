@@ -108,7 +108,9 @@ def external_source(
 # TODO(klecki): overloads with specific `batch` values can be considered
 @overload
 def external_source(
-    source: Optional[Union[Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
+    source: Optional[
+        Union[Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]
+    ] = None,
     num_outputs: int = ...,
     *,
     batch: Optional[bool] = None,

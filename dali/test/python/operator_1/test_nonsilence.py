@@ -25,7 +25,11 @@ audio_files = test_utils.get_files(os.path.join("db", "audio", "wav"), "wav")
 
 def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
     yt, index = librosa.effects.trim(
-        y=input_data, top_db=-cutoff_db, ref=ref, frame_length=frame_length, hop_length=hop_length
+        y=input_data,
+        top_db=-cutoff_db,
+        ref=ref,
+        frame_length=frame_length,
+        hop_length=hop_length,
     )
     # librosa's trim function calculates power with reference to center of window,
     # while DALI uses beginning of window. Hence the subtraction below
@@ -37,7 +41,9 @@ def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
 
 
 @pipeline_def
-def nonsilent_region_pipe(cutoff_value, window_size, reference_power, reset_interval):
+def nonsilent_region_pipe(
+    cutoff_value, window_size, reference_power, reset_interval
+):
     raw, _ = fn.readers.file(files=audio_files)
     audio, _ = fn.decoders.audio(raw, dtype=types.FLOAT, downmix=True)
     begin_cpu, len_cpu = fn.nonsilent_region(
@@ -74,7 +80,13 @@ def check_nonsilence_operator(
     ref = np.max if not reference_power else reference_power
     pipe.build()
     for _ in range(3):
-        audio_batch_cpu, begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = pipe.run()
+        (
+            audio_batch_cpu,
+            begin_batch_cpu,
+            len_batch_cpu,
+            begin_batch_gpu,
+            len_batch_gpu,
+        ) = pipe.run()
         for s in range(batch_size):
             audio_cpu = test_utils.as_array(audio_batch_cpu[s])
             begin_cpu = test_utils.as_array(begin_batch_cpu[s])
@@ -82,7 +94,9 @@ def check_nonsilence_operator(
             begin_gpu = test_utils.as_array(begin_batch_gpu[s])
             len_gpu = test_utils.as_array(len_batch_gpu[s])
 
-            ref_begin, ref_len = trim_ref(cutoff_value, ref, window_size, hop_length, audio_cpu)
+            ref_begin, ref_len = trim_ref(
+                cutoff_value, ref, window_size, hop_length, audio_cpu
+            )
             np.testing.assert_allclose(ref_begin, begin_cpu, atol=eps)
             np.testing.assert_allclose(ref_begin, begin_gpu, atol=eps)
             np.testing.assert_allclose(ref_len, len_cpu, atol=eps)
@@ -109,7 +123,9 @@ def test_cpu_vs_gpu():
     batch_size = 8
 
     @pipeline_def
-    def nonsilent_pipe(data_arr=None, window_size=256, cutoff_value=-10, reference_power=None):
+    def nonsilent_pipe(
+        data_arr=None, window_size=256, cutoff_value=-10, reference_power=None
+    ):
         if data_arr is None:
             raw, _ = fn.readers.file(files=audio_files)
             audio, _ = fn.decoders.audio(raw, dtype=types.INT16, downmix=True)
@@ -141,33 +157,51 @@ def test_cpu_vs_gpu():
         device_id=0,
     )
     pipe.build()
-    begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
+    begin_cpu, len_cpu, begin_gpu, len_gpu = [
+        test_utils.as_array(out[0]) for out in pipe.run()
+    ]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 1
 
     audio_arr[10:15] = 3000
     pipe = nonsilent_pipe(
-        data_arr=audio_arr, window_size=1, batch_size=1, num_threads=3, device_id=0
+        data_arr=audio_arr,
+        window_size=1,
+        batch_size=1,
+        num_threads=3,
+        device_id=0,
     )
     pipe.build()
-    begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
+    begin_cpu, len_cpu, begin_gpu, len_gpu = [
+        test_utils.as_array(out[0]) for out in pipe.run()
+    ]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 5
 
     window = 5
     pipe = nonsilent_pipe(
-        data_arr=audio_arr, window_size=5, batch_size=1, num_threads=3, device_id=0
+        data_arr=audio_arr,
+        window_size=5,
+        batch_size=1,
+        num_threads=3,
+        device_id=0,
     )
     pipe.build()
     outputs = pipe.run()
-    begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in outputs]
+    begin_cpu, len_cpu, begin_gpu, len_gpu = [
+        test_utils.as_array(out[0]) for out in outputs
+    ]
     assert begin_cpu == begin_gpu == (10 - window + 1)
     assert len_cpu == len_gpu == 13
 
-    pipe = nonsilent_pipe(batch_size=batch_size, num_threads=3, device_id=0, seed=42)
+    pipe = nonsilent_pipe(
+        batch_size=batch_size, num_threads=3, device_id=0, seed=42
+    )
     pipe.build()
     for _ in range(3):
-        begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = pipe.run()
+        begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = (
+            pipe.run()
+        )
         for s in range(batch_size):
             begin_cpu = test_utils.as_array(begin_batch_cpu[s])
             len_cpu = test_utils.as_array(len_batch_cpu[s])

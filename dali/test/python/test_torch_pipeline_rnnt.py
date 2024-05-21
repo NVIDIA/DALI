@@ -106,9 +106,15 @@ class FilterbankFeatures:
         self.pad_amount = pad_amount
         self.preemph = preemph
         window_fn = torch_windows.get(window, None)
-        self.window = window_fn(self.win_length, periodic=False) if window_fn else None
+        self.window = (
+            window_fn(self.win_length, periodic=False) if window_fn else None
+        )
         filters = librosa.filters.mel(
-            sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq
+            sr=sample_rate,
+            n_fft=self.n_fft,
+            n_mels=nfilt,
+            fmin=lowfreq,
+            fmax=highfreq,
         )
         self.fb = torch.tensor(filters, dtype=torch.float).unsqueeze(0)
 
@@ -116,7 +122,9 @@ class FilterbankFeatures:
     def normalize_batch(x, seq_len, normalize_type):
         constant = 1e-5
         if normalize_type == "per_feature":
-            x_mean = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
+            x_mean = torch.zeros(
+                (seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device
+            )
             x_std = torch.zeros_like(x_mean)
             for i in range(x.shape[0]):
                 x_mean[i, :] = x[i, :, : seq_len[i]].mean(dim=1)
@@ -153,7 +161,10 @@ class FilterbankFeatures:
 
         # do preemphasis
         if self.preemph is not None:
-            x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
+            x = torch.cat(
+                (x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]),
+                dim=1,
+            )
 
         # do stft
         x = torch.stft(
@@ -181,7 +192,9 @@ class FilterbankFeatures:
         # frame splicing if required
         if self.frame_splicing_stack > 1 or self.frame_splicing_subsample:
             x = stack_subsample_frames(
-                x, stacking=self.frame_splicing_stack, subsampling=self.frame_splicing_subsample
+                x,
+                stacking=self.frame_splicing_stack,
+                subsampling=self.frame_splicing_subsample,
             )
 
         # normalize if required
@@ -244,18 +257,24 @@ def torch_spectrogram(
     return spectrogram
 
 
-def torch_mel_fbank(spectrogram, sample_rate, device="cpu", nfilt=64, lowfreq=0, highfreq=None):
+def torch_mel_fbank(
+    spectrogram, sample_rate, device="cpu", nfilt=64, lowfreq=0, highfreq=None
+):
     spectrogram = torch.tensor(spectrogram, dtype=torch.float32)
     if device == "gpu":
         spectrogram = spectrogram.cuda()
     n_fft = 2 * (spectrogram.shape[0] - 1)
     filterbanks = torch.tensor(
-        librosa.filters.mel(sample_rate, n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
+        librosa.filters.mel(
+            sample_rate, n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq
+        ),
         dtype=torch.float,
     )
     if device == "gpu":
         filterbanks = filterbanks.cuda()
-    mel_spectrogram = torch.matmul(filterbanks.to(spectrogram.dtype), spectrogram)
+    mel_spectrogram = torch.matmul(
+        filterbanks.to(spectrogram.dtype), spectrogram
+    )
     mel_spectrogram = mel_spectrogram.cpu().numpy()
     return mel_spectrogram
 
@@ -284,7 +303,9 @@ def torch_normalize(mel_spec, normalize_type, seq_len=None, device="cpu"):
         seq_len = torch.tensor(mel_spec.shape[2]).unsqueeze(0)
     if device == "gpu":
         mel_spec = mel_spec.cuda()
-    out = FilterbankFeatures().normalize_batch(mel_spec, seq_len, normalize_type=normalize_type)
+    out = FilterbankFeatures().normalize_batch(
+        mel_spec, seq_len, normalize_type=normalize_type
+    )
     out = out.cpu().numpy().squeeze(0)
     return out
 
@@ -293,7 +314,9 @@ def torch_frame_splicing(mel_spec, stacking=1, subsampling=1, device="cpu"):
     mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze(0)
     if device == "gpu":
         mel_spec = mel_spec.cuda()
-    out = stack_subsample_frames(mel_spec, stacking=stacking, subsampling=subsampling)
+    out = stack_subsample_frames(
+        mel_spec, stacking=stacking, subsampling=subsampling
+    )
     out = out.cpu().numpy().squeeze(0)
     return out
 
@@ -302,14 +325,23 @@ def dali_frame_splicing_graph(x, nfeatures, x_len, stacking=1, subsampling=1):
     if stacking > 1:
         seq = [x]
         for n in range(1, stacking):
-            f = fn.slice(x, n, x_len, axes=(1,), out_of_bounds_policy="pad", fill_values=0)
+            f = fn.slice(
+                x,
+                n,
+                x_len,
+                axes=(1,),
+                out_of_bounds_policy="pad",
+                fill_values=0,
+            )
             seq.append(f)
         x = fn.cat(*seq, axis=0)
         nfeatures = nfeatures * stacking
     if subsampling > 1:
         out_len = (x_len + subsampling - 1) // subsampling
         m = fn.transforms.scale(scale=[subsampling, 1], center=[0.5, 0])
-        x = fn.reshape(x, rel_shape=[1, 1, -1], layout="HWC")  # Layout required by WarpAffine
+        x = fn.reshape(
+            x, rel_shape=[1, 1, -1], layout="HWC"
+        )  # Layout required by WarpAffine
         size = fn.stack(nfeatures, out_len)
         x = fn.warp_affine(x, matrix=m, size=size, interp_type=types.INTERP_NN)
         x = fn.reshape(x, rel_shape=[1, 1], layout="ft")
@@ -320,7 +352,9 @@ def torch_reflect_pad(x, pad_amount, device="cpu"):
     x = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
     if device == "gpu":
         x = x.cuda()
-    x = torch.nn.functional.pad(x.unsqueeze(1), (pad_amount, pad_amount), "reflect").squeeze(1)
+    x = torch.nn.functional.pad(
+        x.unsqueeze(1), (pad_amount, pad_amount), "reflect"
+    ).squeeze(1)
     x = x.cpu().numpy().squeeze(0)
     return x
 
@@ -356,7 +390,11 @@ def rnnt_train_pipe(
     norm_axes = [1] if normalize_type == "per_feature" else [0, 1]
     win_len, win_hop = win_args(sample_rate, window_size, window_stride)
     window_fn = torch_windows.get(window, None)
-    window_fn_arg = window_fn(win_len, periodic=False).numpy().tolist() if window_fn else None
+    window_fn_arg = (
+        window_fn(win_len, periodic=False).numpy().tolist()
+        if window_fn
+        else None
+    )
 
     data, _ = fn.readers.file(files=files, device="cpu", random_shuffle=False)
     audio, _ = fn.decoders.audio(data, dtype=types.FLOAT, downmix=True)
@@ -367,7 +405,9 @@ def rnnt_train_pipe(
 
     # Speed perturbation 0.85x - 1.15x
     if speed_perturb:
-        target_sr_factor = fn.random.uniform(device="cpu", range=(1 / 1.15, 1 / 0.85))
+        target_sr_factor = fn.random.uniform(
+            device="cpu", range=(1 / 1.15, 1 / 0.85)
+        )
         audio = fn.audio_resample(audio, scale=target_sr_factor)
 
     # Silence trimming
@@ -390,7 +430,9 @@ def rnnt_train_pipe(
         padded_audio = audio
 
     # Preemphasis filter
-    preemph_audio = fn.preemphasis_filter(padded_audio, preemph_coeff=preemph_coeff, border="zero")
+    preemph_audio = fn.preemphasis_filter(
+        padded_audio, preemph_coeff=preemph_coeff, border="zero"
+    )
 
     # Spectrogram
     spec_len = audio_len // win_hop + 1
@@ -405,7 +447,11 @@ def rnnt_train_pipe(
     )
     # Mel spectrogram
     mel_spec = fn.mel_filter_bank(
-        spec, sample_rate=sample_rate, nfilter=nfeatures, freq_low=lowfreq, freq_high=highfreq
+        spec,
+        sample_rate=sample_rate,
+        nfilter=nfeatures,
+        freq_low=lowfreq,
+        freq_high=highfreq,
     )
 
     # Log
@@ -428,7 +474,11 @@ def rnnt_train_pipe(
     # Normalization
     if normalize_type:
         norm_log_features = fn.normalize(
-            log_features_spliced, axes=norm_axes, device=device, epsilon=4e-5, ddof=1
+            log_features_spliced,
+            axes=norm_axes,
+            device=device,
+            epsilon=4e-5,
+            ddof=1,
         )
     else:
         norm_log_features = log_features_spliced
@@ -498,7 +548,8 @@ def _testimpl_rnnt_data_pipeline(
     for i in range(nrecordings):
         reference_data.append(
             ref_pipeline.forward(
-                torch.tensor([recordings[i]]), torch.tensor([recordings[i].shape[0]])
+                torch.tensor([recordings[i]]),
+                torch.tensor([recordings[i].shape[0]]),
             )
         )
 
@@ -544,7 +595,9 @@ def _testimpl_rnnt_data_pipeline(
             ) = [to_array(out[s]) for out in dali_out]
 
             ref = np.array(reference_data[i].squeeze(0))
-            assert ref.shape == norm_log_features.shape, f"{ref.shape}, {norm_log_features.shape}"
+            assert (
+                ref.shape == norm_log_features.shape
+            ), f"{ref.shape}, {norm_log_features.shape}"
             nfeatures, seq_len = ref.shape
 
             audio_ref = recordings[i]
@@ -553,8 +606,12 @@ def _testimpl_rnnt_data_pipeline(
             padded_audio_ref = torch_reflect_pad(audio, pad_amount)
             np.testing.assert_equal(padded_audio, padded_audio_ref)
 
-            preemph_audio_ref = torch_preemphasis(padded_audio_ref, preemph=preemph_coeff)
-            np.testing.assert_allclose(preemph_audio, preemph_audio_ref, atol=1e-4)
+            preemph_audio_ref = torch_preemphasis(
+                padded_audio_ref, preemph=preemph_coeff
+            )
+            np.testing.assert_allclose(
+                preemph_audio, preemph_audio_ref, atol=1e-4
+            )
 
             spec_ref = torch_spectrogram(
                 preemph_audio_ref,
@@ -572,27 +629,45 @@ def _testimpl_rnnt_data_pipeline(
             np.testing.assert_allclose(mel_spec, mel_spec_ref, atol=1e-4)
 
             log_features_ref = torch_log(mel_spec_ref)
-            np.testing.assert_allclose(log_features, log_features_ref, atol=1e-3)
+            np.testing.assert_allclose(
+                log_features, log_features_ref, atol=1e-3
+            )
             log_features_ref2 = torch_log(mel_spec)
-            np.testing.assert_allclose(log_features, log_features_ref2, atol=1e-4)
+            np.testing.assert_allclose(
+                log_features, log_features_ref2, atol=1e-4
+            )
 
             log_features_spliced_ref = torch_frame_splicing(
                 log_features_ref,
                 stacking=frame_splicing_stack,
                 subsampling=frame_splicing_subsample,
             )
-            np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref, atol=1e-3)
+            np.testing.assert_allclose(
+                log_features_spliced, log_features_spliced_ref, atol=1e-3
+            )
 
             log_features_spliced_ref2 = torch_frame_splicing(
-                log_features, stacking=frame_splicing_stack, subsampling=frame_splicing_subsample
+                log_features,
+                stacking=frame_splicing_stack,
+                subsampling=frame_splicing_subsample,
             )
-            np.testing.assert_allclose(log_features_spliced, log_features_spliced_ref2, atol=1e-4)
+            np.testing.assert_allclose(
+                log_features_spliced, log_features_spliced_ref2, atol=1e-4
+            )
 
-            norm_log_features_ref = torch_normalize(log_features_spliced_ref, normalize_type)
-            np.testing.assert_allclose(norm_log_features, norm_log_features_ref, atol=1e-3)
+            norm_log_features_ref = torch_normalize(
+                log_features_spliced_ref, normalize_type
+            )
+            np.testing.assert_allclose(
+                norm_log_features, norm_log_features_ref, atol=1e-3
+            )
 
-            norm_log_features_ref2 = torch_normalize(log_features_spliced, normalize_type)
-            np.testing.assert_allclose(norm_log_features, norm_log_features_ref2, atol=1e-4)
+            norm_log_features_ref2 = torch_normalize(
+                log_features_spliced, normalize_type
+            )
+            np.testing.assert_allclose(
+                norm_log_features, norm_log_features_ref2, atol=1e-4
+            )
 
             # Full pipeline
             np.testing.assert_allclose(norm_log_features, ref, atol=1e-3)

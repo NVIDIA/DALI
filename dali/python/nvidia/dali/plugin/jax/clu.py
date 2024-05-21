@@ -18,7 +18,10 @@ import numpy as np
 import jax.numpy as jnp
 
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-from nvidia.dali.plugin.jax.iterator import DALIGenericIterator, _data_iterator_impl
+from nvidia.dali.plugin.jax.iterator import (
+    DALIGenericIterator,
+    _data_iterator_impl,
+)
 from nvidia.dali.pipeline import Pipeline, DataNode
 
 from clu.data.dataset_iterator import ArraySpec, ElementSpec
@@ -266,7 +269,9 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
 
         for i in range(self._num_gpus):
             if not if_drop[i]:
-                is_nonpadding_shards.append(np.ones((self.batch_size,), dtype=bool))
+                is_nonpadding_shards.append(
+                    np.ones((self.batch_size,), dtype=bool)
+                )
             else:
                 is_nonpadding_shards.append(
                     np.concatenate(
@@ -280,11 +285,15 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         if self._sharding is None:
             return np.concatenate(is_nonpadding_shards)
 
-        return jax.device_put(jnp.concatenate(is_nonpadding_shards), self._sharding)
+        return jax.device_put(
+            jnp.concatenate(is_nonpadding_shards), self._sharding
+        )
 
 
 def peekable_data_iterator(
-    pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]] = None,
+    pipeline_fn: Optional[
+        Callable[..., Union[DataNode, Tuple[DataNode, ...]]]
+    ] = None,
     output_map: List[str] = [],
     size: int = -1,
     reader_name: Optional[str] = None,

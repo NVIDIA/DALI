@@ -163,21 +163,29 @@ class DALIGenericIterator(_DaliBaseIterator):
             self._first_batch = None
             return batch
 
-        pipelines_outputs = self._get_outputs()  # Can be accessed by outputs[device_id][output_id]
+        pipelines_outputs = (
+            self._get_outputs()
+        )  # Can be accessed by outputs[device_id][output_id]
 
         next_output = dict()
         for category_id, category_name in enumerate(self.output_map):
-            category_outputs = self._gather_outputs_for_category(pipelines_outputs, category_id)
+            category_outputs = self._gather_outputs_for_category(
+                pipelines_outputs, category_id
+            )
 
             if self._num_gpus == 1 and self._sharding is None:
                 next_output[category_name] = category_outputs[0]
             else:
                 self._assert_shards_shapes(category_outputs)
                 if self._sharding is not None:
-                    next_output[category_name] = self._build_output_with_sharding(category_outputs)
+                    next_output[category_name] = (
+                        self._build_output_with_sharding(category_outputs)
+                    )
                 else:
-                    next_output[category_name] = self._build_output_with_device_put(
-                        next_output, category_name, category_outputs
+                    next_output[category_name] = (
+                        self._build_output_with_device_put(
+                            next_output, category_name, category_outputs
+                        )
                     )
 
         self._schedule_runs()
@@ -193,12 +201,16 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         for pipeline_id in range(self._num_gpus):
             category_outputs.append(
-                _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor())
+                _to_jax_array(
+                    pipelines_outputs[pipeline_id][category_id].as_tensor()
+                )
             )
 
         return category_outputs
 
-    def _build_output_with_device_put(self, next_output, category_name, category_outputs):
+    def _build_output_with_device_put(
+        self, next_output, category_name, category_outputs
+    ):
         """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
         with pmapped JAX functions.
         """
@@ -208,7 +220,9 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         distinct_category_outputs_devices = set(category_outputs_devices)
 
-        if len(category_outputs_devices) != len(distinct_category_outputs_devices):
+        if len(category_outputs_devices) != len(
+            distinct_category_outputs_devices
+        ):
             if len(distinct_category_outputs_devices) != 1:
                 raise AssertionError(
                     "JAX iterator requires shards to be placed on \
@@ -219,7 +233,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return jnp.stack(category_outputs)
         else:
             # Build sharded JAX array as output for current category (compatible with pmap)
-            return jax.device_put_sharded(category_outputs, category_outputs_devices)
+            return jax.device_put_sharded(
+                category_outputs, category_outputs_devices
+            )
 
     def _build_output_with_sharding(self, category_outputs):
         """Builds sharded jax.Array with `jax.make_array_from_single_device_arrays`.
@@ -228,9 +244,15 @@ class DALIGenericIterator(_DaliBaseIterator):
         shard_shape = category_outputs[0].shape
 
         if isinstance(self._sharding, NamedSharding):
-            global_shape = (self._sharding.mesh.size * shard_shape[0], *shard_shape[1:])
+            global_shape = (
+                self._sharding.mesh.size * shard_shape[0],
+                *shard_shape[1:],
+            )
         else:
-            global_shape = (self._sharding.shape[0] * shard_shape[0], *shard_shape[1:])
+            global_shape = (
+                self._sharding.shape[0] * shard_shape[0],
+                *shard_shape[1:],
+            )
 
         return jax.make_array_from_single_device_arrays(
             global_shape, self._sharding, category_outputs
@@ -238,7 +260,9 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def _assert_shards_shapes(self, category_outputs):
         for shard in category_outputs:
-            assert shard.shape == category_outputs[0].shape, "Shards shapes have to be the same."
+            assert (
+                shard.shape == category_outputs[0].shape
+            ), "Shards shapes have to be the same."
 
 
 def default_num_threads_value() -> int:
@@ -272,7 +296,9 @@ def _data_iterator_impl(
     """
 
     if sharding is not None and devices is not None:
-        raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
+        raise ValueError(
+            "Only one of `sharding` and `devices` arguments can be provided."
+        )
 
     def data_iterator_decorator(func):
         def create_iterator(*args, checkpoints=None, **wrapper_kwargs):
@@ -288,7 +314,11 @@ def _data_iterator_impl(
                     wrapper_kwargs["device_id"] = 0
 
                 checkpoint = checkpoints[0] if checkpoints else None
-                pipelines = [pipeline_def_fn(*args, checkpoint=checkpoint, **wrapper_kwargs)]
+                pipelines = [
+                    pipeline_def_fn(
+                        *args, checkpoint=checkpoint, **wrapper_kwargs
+                    )
+                ]
 
                 return iterator_type(
                     pipelines=pipelines,
@@ -309,8 +339,12 @@ def _data_iterator_impl(
 
                 wrapper_kwargs["batch_size"] = batch_size_per_gpu
 
-                devices_to_use = devices if devices is not None else jax.local_devices()
-                num_shards = len(devices) if devices is not None else jax.device_count()
+                devices_to_use = (
+                    devices if devices is not None else jax.local_devices()
+                )
+                num_shards = (
+                    len(devices) if devices is not None else jax.device_count()
+                )
 
                 if devices is not None:
                     if jax.local_device_count() != jax.device_count():
@@ -372,11 +406,17 @@ def _data_iterator_impl(
 
         return create_iterator
 
-    return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
+    return (
+        data_iterator_decorator(pipeline_fn)
+        if pipeline_fn
+        else data_iterator_decorator
+    )
 
 
 def data_iterator(
-    pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]] = None,
+    pipeline_fn: Optional[
+        Callable[..., Union[DataNode, Tuple[DataNode, ...]]]
+    ] = None,
     output_map: List[str] = [],
     size: int = -1,
     reader_name: Optional[str] = None,

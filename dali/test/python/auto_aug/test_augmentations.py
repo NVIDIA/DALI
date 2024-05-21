@@ -22,13 +22,17 @@ from nose2.tools import params, cartesian_params
 import nvidia.dali.tensors as _tensors
 from nvidia.dali import fn, pipeline_def
 from nvidia.dali.auto_aug import augmentations as a
-from nvidia.dali.auto_aug.core._utils import get_translations as _get_translations
+from nvidia.dali.auto_aug.core._utils import (
+    get_translations as _get_translations,
+)
 
 from test_utils import get_dali_extra_path, check_batch
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
-vid_file = os.path.join(data_root, "db", "video", "sintel", "sintel_trailer-720p.mp4")
+vid_file = os.path.join(
+    data_root, "db", "video", "sintel", "sintel_trailer-720p.mp4"
+)
 
 
 def maybe_squeeze(img, axis=2):
@@ -73,13 +77,19 @@ def compare_against_baseline(
         data = get_data()
         op_data = data if dev != "gpu" else data.gpu()
         mag_bin = fn.external_source(
-            lambda info: np.array(info.idx_in_batch, dtype=np.int32), batch=False
+            lambda info: np.array(info.idx_in_batch, dtype=np.int32),
+            batch=False,
         )
         extra = {}
         if use_shape:
             shape = fn.shapes(data)
             extra["shape"] = shape[int(modality == "video") :]
-        output = dali_aug(op_data, num_magnitude_bins=batch_size, magnitude_bin=mag_bin, **extra)
+        output = dali_aug(
+            op_data,
+            num_magnitude_bins=batch_size,
+            magnitude_bin=mag_bin,
+            **extra,
+        )
         return output, data
 
     p = pipeline()
@@ -110,13 +120,18 @@ def compare_against_baseline(
     else:
         assert len(params) == len(data)
         ref_output = [
-            apply_to_sample(baseline_op, sample, param) for sample, param in zip(data, params)
+            apply_to_sample(baseline_op, sample, param)
+            for sample, param in zip(data, params)
         ]
 
     if post_proc is not None:
         output = [apply_to_sample(post_proc, sample) for sample in output]
-        ref_output = [apply_to_sample(post_proc, sample) for sample in ref_output]
-    check_batch(output, ref_output, eps=eps, max_allowed_error=max_allowed_error)
+        ref_output = [
+            apply_to_sample(post_proc, sample) for sample in ref_output
+        ]
+    check_batch(
+        output, ref_output, eps=eps, max_allowed_error=max_allowed_error
+    )
 
 
 def get_images():
@@ -145,11 +160,16 @@ def get_videos():
     (out,) = p.run()
 
     out = [np.array(sample) for sample in out]
-    vids = [np.stack([out[i * step + j] for j in range(step)]) for i in range(num_vids)]
+    vids = [
+        np.stack([out[i * step + j] for j in range(step)])
+        for i in range(num_vids)
+    ]
 
     def inner():
         return fn.external_source(
-            source=lambda source_info: vids[source_info.idx_in_batch % len(vids)],
+            source=lambda source_info: vids[
+                source_info.idx_in_batch % len(vids)
+            ],
             batch=False,
             layout="FHWC",
         )
@@ -172,7 +192,9 @@ def test_shear_x(modality, dev):
         )
 
     data_source = get_images if modality == "image" else get_videos()
-    shear_x = a.shear_x.augmentation(mag_range=(-0.3, 0.3), randomly_negate=False)
+    shear_x = a.shear_x.augmentation(
+        mag_range=(-0.3, 0.3), randomly_negate=False
+    )
     magnitudes = shear_x._get_magnitudes(default_batch_size)
     compare_against_baseline(
         shear_x,
@@ -201,7 +223,9 @@ def test_shear_y(modality, dev):
         )
 
     data_source = get_images if modality == "image" else get_videos()
-    shear_y = a.shear_y.augmentation(mag_range=(-0.3, 0.3), randomly_negate=False)
+    shear_y = a.shear_y.augmentation(
+        mag_range=(-0.3, 0.3), randomly_negate=False
+    )
     magnitudes = shear_y._get_magnitudes(default_batch_size)
     compare_against_baseline(
         shear_y,
@@ -261,7 +285,9 @@ def test_translate_x(modality, dev):
         )
 
     data_source = get_images if modality == "image" else get_videos()
-    translate_x = a.translate_x.augmentation(mag_range=(-1, 1), randomly_negate=False)
+    translate_x = a.translate_x.augmentation(
+        mag_range=(-1, 1), randomly_negate=False
+    )
     magnitudes = translate_x._get_magnitudes(default_batch_size)
     compare_against_baseline(
         translate_x,
@@ -322,7 +348,9 @@ def test_translate_y(modality, dev):
         )
 
     data_source = get_images if modality == "image" else get_videos()
-    translate_y = a.translate_y.augmentation(mag_range=(-1, 1), randomly_negate=False)
+    translate_y = a.translate_y.augmentation(
+        mag_range=(-1, 1), randomly_negate=False
+    )
     magnitudes = translate_y._get_magnitudes(default_batch_size)
     compare_against_baseline(
         translate_y,
@@ -344,7 +372,9 @@ def test_rotate(modality, dev):
     # Classification/ConvNets/image_classification/autoaugment.py
     def rotate_with_fill(img, magnitude):
         rot = img.convert("RGBA").rotate(magnitude, resample=Image.BILINEAR)
-        return Image.composite(rot, Image.new("RGBA", img.size, (128,) * 3), rot).convert(img.mode)
+        return Image.composite(
+            rot, Image.new("RGBA", img.size, (128,) * 3), rot
+        ).convert(img.mode)
 
     data_source = get_images if modality == "image" else get_videos()
     rotate = a.rotate.augmentation(mag_range=(-30, 30), randomly_negate=False)
@@ -411,7 +441,9 @@ def test_color(modality, dev):
         return ImageEnhance.Color(img).enhance(magnitude)
 
     data_source = get_images if modality == "image" else get_videos()
-    color = a.color.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, mag_to_param=None)
+    color = a.color.augmentation(
+        mag_range=(0.1, 1.9), randomly_negate=False, mag_to_param=None
+    )
     magnitudes = color._get_magnitudes(default_batch_size)
     compare_against_baseline(
         color,
@@ -438,7 +470,9 @@ def test_sharpness(modality, dev):
 
     data_source = get_images if modality == "image" else get_videos()
     sharpness = a.sharpness.augmentation(
-        mag_range=(0.1, 1.9), randomly_negate=False, mag_to_param=a.sharpness_kernel_shifted
+        mag_range=(0.1, 1.9),
+        randomly_negate=False,
+        mag_to_param=a.sharpness_kernel_shifted,
     )
     magnitudes = sharpness._get_magnitudes(default_batch_size)
     compare_against_baseline(
@@ -458,7 +492,9 @@ def test_posterize(modality, dev):
     data_source = get_images if modality == "image" else get_videos()
     # note, 0 is remapped to 1 as in tf implementation referred in the RA paper, thus (1, 8) range
     posterize = a.posterize.augmentation(param_device=dev, mag_range=(1, 8))
-    magnitudes = np.round(posterize._get_magnitudes(default_batch_size)).astype(np.int32)
+    magnitudes = np.round(posterize._get_magnitudes(default_batch_size)).astype(
+        np.int32
+    )
     compare_against_baseline(
         posterize,
         pil_baseline(ImageOps.posterize),
@@ -571,8 +607,12 @@ def test_auto_contrast_mono_channels(modality, dev):
         return (num_frames,) + shape
 
     rng = np.random.default_rng(seed=42)
-    const_single_channel = np.full(modal_shape((101, 205, 1)), 0, dtype=np.uint8)
-    const_multi_channel = np.full(modal_shape((200, 512, 3)), 255, dtype=np.uint8)
+    const_single_channel = np.full(
+        modal_shape((101, 205, 1)), 0, dtype=np.uint8
+    )
+    const_multi_channel = np.full(
+        modal_shape((200, 512, 3)), 255, dtype=np.uint8
+    )
     const_multi_per_channel = np.stack(
         [
             np.full(modal_shape((300, 300), 7), 254, dtype=np.uint8),
@@ -611,7 +651,13 @@ def test_auto_contrast_mono_channels(modality, dev):
     )
 
 
-@params(*tuple(itertools.product((True, False), (0, 1), ("height", "width", "both", "none"))))
+@params(
+    *tuple(
+        itertools.product(
+            (True, False), (0, 1), ("height", "width", "both", "none")
+        )
+    )
+)
 def test_translation_helper(use_shape, offset_fraction, extent):
     # make sure the translation helper processes the args properly
     # note, it only uses translate_y (as it is in imagenet policy)
@@ -629,7 +675,10 @@ def test_translation_helper(use_shape, offset_fraction, extent):
             param_shape = shape
             param_name = "max_translate_abs"
         if extent == "both":
-            param = [param_shape[0] * offset_fraction, param_shape[1] * offset_fraction]
+            param = [
+                param_shape[0] * offset_fraction,
+                param_shape[1] * offset_fraction,
+            ]
         elif extent == "height":
             param = [param_shape[0] * offset_fraction, 0]
         else:
@@ -637,7 +686,9 @@ def test_translation_helper(use_shape, offset_fraction, extent):
             param = [0, param_shape[1] * offset_fraction]
         params[param_name] = param
 
-    translate_x, translate_y = _get_translations(use_shape, default_abs, default_rel, **params)
+    translate_x, translate_y = _get_translations(
+        use_shape, default_abs, default_rel, **params
+    )
 
     if use_shape:
         assert translate_x.op is a.translate_x.op
@@ -659,13 +710,25 @@ def test_translation_helper(use_shape, offset_fraction, extent):
         expected_width = width * offset_fraction
 
     if extent == "both":
-        assert translate_x.mag_range == (0, expected_width), f"{mag_ranges} {expected_width}"
-        assert translate_y.mag_range == (0, expected_height), f"{mag_ranges} {expected_height}"
+        assert translate_x.mag_range == (
+            0,
+            expected_width,
+        ), f"{mag_ranges} {expected_width}"
+        assert translate_y.mag_range == (
+            0,
+            expected_height,
+        ), f"{mag_ranges} {expected_height}"
     elif extent == "height":
         assert translate_x.mag_range == (0, 0), f"{mag_ranges}"
-        assert translate_y.mag_range == (0, expected_height), f"{mag_ranges} {expected_height}"
+        assert translate_y.mag_range == (
+            0,
+            expected_height,
+        ), f"{mag_ranges} {expected_height}"
     elif extent == "width":
-        assert translate_x.mag_range == (0, expected_width), f"{mag_ranges} {expected_width}"
+        assert translate_x.mag_range == (
+            0,
+            expected_width,
+        ), f"{mag_ranges} {expected_width}"
         assert translate_y.mag_range == (0, 0), f"{mag_ranges}"
     else:
         assert extent == "none"

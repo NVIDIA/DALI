@@ -39,12 +39,18 @@ NUM_WORKERS = 6
 
 class PythonFunctionPipeline(Pipeline):
     def __init__(self, function, device, num_outputs=1):
-        super(PythonFunctionPipeline, self).__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED)
+        super(PythonFunctionPipeline, self).__init__(
+            BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED
+        )
         self.device = device
         self.reader = ops.readers.File(file_root=images_dir)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
-        self.norm = ops.CropMirrorNormalize(std=255.0, mean=0.0, device=device, output_layout="HWC")
-        self.func = ops.PythonFunction(device=device, function=function, num_outputs=num_outputs)
+        self.norm = ops.CropMirrorNormalize(
+            std=255.0, mean=0.0, device=device, output_layout="HWC"
+        )
+        self.func = ops.PythonFunction(
+            device=device, function=function, num_outputs=num_outputs
+        )
 
     def define_graph(self):
         jpegs, labels = self.reader()
@@ -68,7 +74,9 @@ def test_simple_arithm():
     validate_cpu_vs_gpu(arrays_arithmetic, arrays_arithmetic, num_outputs=2)
 
 
-square_diff_kernel = cupy.ElementwiseKernel("T x, T y", "T z", "z = x*x - y*y", "square_diff")
+square_diff_kernel = cupy.ElementwiseKernel(
+    "T x, T y", "T z", "z = x*x - y*y", "square_diff"
+)
 
 
 def square_diff(in1, in2):

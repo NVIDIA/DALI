@@ -109,11 +109,15 @@ def generate(
 
     max_size = 100000 // batch_size
     out = [
-        rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype)
+        rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(
+            in_dtype
+        )
         for _ in range(batch_size)
     ]
     out = replace_with_empty_volumes(rng, out, empty_volume_policy)
-    if np.issubdtype(in_dtype, np.floating) and np.issubdtype(out_dtype, np.integer):
+    if np.issubdtype(in_dtype, np.floating) and np.issubdtype(
+        out_dtype, np.integer
+    ):
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
             halfway = x[x - np.floor(x) == 0.5]
@@ -125,9 +129,13 @@ rng = np.random.default_rng(1234)
 
 
 @nottest
-def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_volume_policy=None):
+def _test_operator_cast(
+    ndim, batch_size, in_dtype, out_dtype, device, empty_volume_policy=None
+):
     def src():
-        return generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
+        return generate(
+            rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy
+        )
 
     @pipeline_def(
         batch_size=batch_size,
@@ -163,8 +171,12 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
                 matR = ref[i]
                 mask = np.logical_not(np.isclose(matO, matR, eps))
                 print(f"At sample {i}:\nI:\n{matI}\nO\n{matO}\nR\n{matR}")
-                print(f"Differences at {mask}:\nI:\n{matI[mask]}\nO\n{matO[mask]}\nR\n{matR[mask]}")
-                print(f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}.")
+                print(
+                    f"Differences at {mask}:\nI:\n{matI[mask]}\nO\n{matO[mask]}\nR\n{matR[mask]}"
+                )
+                print(
+                    f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}."
+                )
                 assert np.array_equal(out[i], ref[i])
 
 
@@ -227,7 +239,9 @@ def test_cast_like(devices, dtype_in, dtype_out):
             range=[0, 255], dtype=np_type_to_dali(dtype_in), device=device_left
         )
         data1 = fn.random.uniform(
-            range=[0, 255], dtype=np_type_to_dali(dtype_out), device=device_right
+            range=[0, 255],
+            dtype=np_type_to_dali(dtype_out),
+            device=device_right,
         )
         return fn.cast_like(data0, data1)
 

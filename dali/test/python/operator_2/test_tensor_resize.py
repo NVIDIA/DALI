@@ -24,7 +24,8 @@ data_1x1x2x2 = np.array([[[[1, 2], [3, 4]]]], dtype=np.float32)
 data_1x1x2x4 = np.array([[[[1, 2, 3, 4], [5, 6, 7, 8]]]], dtype=np.float32)
 
 data_1x1x4x4 = np.array(
-    [[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]], dtype=np.float32
+    [[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]],
+    dtype=np.float32,
 )
 
 
@@ -37,7 +38,9 @@ def run_and_compare(expected, data, device, resize_fn):
     p = pipe()
     p.build()
     out = p.run()
-    np.testing.assert_allclose(expected, as_array(out[0][0]), rtol=1e-3, atol=1e-7)
+    np.testing.assert_allclose(
+        expected, as_array(out[0][0]), rtol=1e-3, atol=1e-7
+    )
 
 
 @params("cpu", "gpu")
@@ -143,7 +146,11 @@ def test_resize_upsample_scales_linear(device):
 
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_LINEAR, antialias=False
+            input_data,
+            scales=scales,
+            alignment=0,
+            interp_type=types.INTERP_LINEAR,
+            antialias=False,
         )
 
     run_and_compare(expected, data, device, resize_fn)
@@ -160,7 +167,11 @@ def test_resize_downsample_scales_linear(device):
 
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_LINEAR, antialias=False
+            input_data,
+            scales=scales,
+            alignment=0,
+            interp_type=types.INTERP_LINEAR,
+            antialias=False,
         )
 
     run_and_compare(expected, data, device, resize_fn)
@@ -241,7 +252,16 @@ def test_resize_upsample_scales_cubic(device):
                         6.7265625,
                         6.9765625,
                     ],
-                    [5.9296875, 6.1796875, 6.7265625, 7.25, 7.75, 8.2734375, 8.8203125, 9.0703125],
+                    [
+                        5.9296875,
+                        6.1796875,
+                        6.7265625,
+                        7.25,
+                        7.75,
+                        8.2734375,
+                        8.8203125,
+                        9.0703125,
+                    ],
                     [
                         7.9296875,
                         8.1796875,
@@ -290,7 +310,11 @@ def test_resize_upsample_scales_cubic(device):
 
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
+            input_data,
+            scales=scales,
+            alignment=0,
+            interp_type=types.INTERP_CUBIC,
+            antialias=False,
         )
 
     run_and_compare(expected, data, device, resize_fn)
@@ -318,7 +342,11 @@ def test_resize_downsample_scales_cubic(device):
 
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
+            input_data,
+            scales=scales,
+            alignment=0,
+            interp_type=types.INTERP_CUBIC,
+            antialias=False,
         )
 
     run_and_compare(expected, data, device, resize_fn)
@@ -384,7 +412,18 @@ def test_resize_upsample_sizes_cubic(device):
                         8.16272222,
                         8.29572222,
                     ],
-                    [6.9265, 7.0595, 7.4375, 7.8955, 8.3, 8.7, 9.1045, 9.5625, 9.9405, 10.0735],
+                    [
+                        6.9265,
+                        7.0595,
+                        7.4375,
+                        7.8955,
+                        8.3,
+                        8.7,
+                        9.1045,
+                        9.5625,
+                        9.9405,
+                        10.0735,
+                    ],
                     [
                         8.70427778,
                         8.83727778,
@@ -441,7 +480,11 @@ def test_resize_upsample_sizes_cubic(device):
 
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(
-            input_data, sizes=sizes, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
+            input_data,
+            sizes=sizes,
+            alignment=0,
+            interp_type=types.INTERP_CUBIC,
+            antialias=False,
         )
 
     run_and_compare(expected, data, device, resize_fn)
@@ -470,7 +513,11 @@ def test_resize_downsample_sizes_cubic(device):
 
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(
-            input_data, sizes=sizes, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
+            input_data,
+            sizes=sizes,
+            alignment=0,
+            interp_type=types.INTERP_CUBIC,
+            antialias=False,
         )
 
     run_and_compare(expected, data, device, resize_fn)
@@ -481,7 +528,8 @@ def test_resize_upsample_resize_only_1d(device):
     data = data_1x1x2x2
     scales = np.array([1.0, 1.0, 1.0, 3.0], dtype=np.float32)
     expected = np.array(
-        [[[[1.0, 1.0, 1.0, 2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 4.0, 4.0, 4.0]]]], dtype=np.float32
+        [[[[1.0, 1.0, 1.0, 2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 4.0, 4.0, 4.0]]]],
+        dtype=np.float32,
     )
 
     def resize_fn(input_data):

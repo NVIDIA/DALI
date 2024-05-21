@@ -55,7 +55,9 @@ class ListCompTransformer(converter.Base):
         template = """
       target.append(elt)
     """
-        body = templates.replace(template, target=target, elt=list_comp_node.elt)
+        body = templates.replace(
+            template, target=target, elt=list_comp_node.elt
+        )
 
         for gen in reversed(list_comp_node.generators):
             for gen_if in reversed(gen.ifs):
@@ -68,7 +70,9 @@ class ListCompTransformer(converter.Base):
         for target in iter_:
           body
       """
-            body = templates.replace(template, iter_=gen.iter, target=gen.target, body=body)
+            body = templates.replace(
+                template, iter_=gen.iter, target=gen.target, body=body
+            )
 
         return initialization + body
 

@@ -65,7 +65,9 @@ def check_conditional_split_merge(dev, pred_gen):
     pipe_sm.build()
     pipe_true.build()
     pipe_false.build()
-    data_iter = RandomlyShapedDataIterator(bs, min_shape=(20, 20, 3), max_shape=(40, 30, 3))
+    data_iter = RandomlyShapedDataIterator(
+        bs, min_shape=(20, 20, 3), max_shape=(40, 30, 3)
+    )
     data_iter = iter(data_iter)
     for _ in range(test_iters):
         predicate = [pred_gen(i) for i in range(bs)]
@@ -118,13 +120,22 @@ def test_conditional_split_merge():
 def conditional_split_merge_reinterpret_pipe(dtype, layout, shape):
     batch_size = Pipeline.current().max_batch_size
     input = fn.external_source(
-        source=[[np.full((10, 10, 3), 42, dtype=np.int32) for _ in range(batch_size)]], cycle=True
+        source=[
+            [
+                np.full((10, 10, 3), 42, dtype=np.int32)
+                for _ in range(batch_size)
+            ]
+        ],
+        cycle=True,
     )
     pred = fn.external_source(
-        source=[[np.array(i % 2 == 0, dtype=bool) for i in range(batch_size)]], cycle=True
+        source=[[np.array(i % 2 == 0, dtype=bool) for i in range(batch_size)]],
+        cycle=True,
     )
     true_branch, false_branch = fn._conditional.split(input, predicate=pred)
-    false_changed = fn.reinterpret(false_branch, dtype=dtype, layout=layout, shape=shape)
+    false_changed = fn.reinterpret(
+        false_branch, dtype=dtype, layout=layout, shape=shape
+    )
     return fn._conditional.merge(true_branch, false_changed, predicate=pred)
 
 
@@ -136,7 +147,9 @@ def run_conditional_split_merge_reinterpret(dtype, layout, shape):
         "device_id": 0,
         "prefetch_queue_depth": 1,  # so that it's easier to use external source
     }
-    pipe = conditional_split_merge_reinterpret_pipe(dtype, layout, shape, **kwargs)
+    pipe = conditional_split_merge_reinterpret_pipe(
+        dtype, layout, shape, **kwargs
+    )
     pipe.build()
     pipe.run()
 

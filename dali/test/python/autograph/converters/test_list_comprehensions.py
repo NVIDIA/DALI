@@ -33,7 +33,9 @@ class ListCompTest(converter_testing.TestCase):
 
     def test_multiple_generators(self):
         def f(l):
-            s = [e * e for sublist in l for e in sublist]  # pylint:disable=g-complex-comprehension
+            s = [
+                e * e for sublist in l for e in sublist
+            ]  # pylint:disable=g-complex-comprehension
             return s
 
         self.assertTransformedEquivalent(f, [])

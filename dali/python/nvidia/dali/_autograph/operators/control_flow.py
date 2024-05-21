@@ -103,7 +103,9 @@ def for_stmt(iter_, extra_test, body, get_state, set_state, symbol_names, opts):
       opts: Optional dict of extra loop parameters.
     """
     if hooks._DISPATCH.detect_overload_for_stmt(iter_):
-        hooks._DISPATCH.for_stmt(iter_, extra_test, body, get_state, set_state, symbol_names, opts)
+        hooks._DISPATCH.for_stmt(
+            iter_, extra_test, body, get_state, set_state, symbol_names, opts
+        )
     else:
         _py_for_stmt(iter_, extra_test, body, None, None)
 
@@ -163,7 +165,9 @@ def while_stmt(test, body, get_state, set_state, symbol_names, opts):
     # TensorFlow: Multiple evaluations are acceptable in this case, so we're fine
     # with the re-evaluation of `test` that `_tf_while_stmt` will make.
     if hooks._DISPATCH.detect_overload_while_stmt(test):
-        hooks._DISPATCH.while_stmt(test, body, get_state, set_state, symbol_names, opts)
+        hooks._DISPATCH.while_stmt(
+            test, body, get_state, set_state, symbol_names, opts
+        )
         return
 
     # Normal Python: We already consumed one evaluation of `test`; consistently,

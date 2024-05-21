@@ -108,7 +108,13 @@ class WaterPythonPipeline(Pipeline):
         dtype=types.UINT8,
         prime_size=False,
     ):
-        super().__init__(batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False)
+        super().__init__(
+            batch_size,
+            num_threads,
+            device_id,
+            exec_async=False,
+            exec_pipelined=False,
+        )
         self.dtype = dtype
         self.prime_size = prime_size
         self.input = ops.readers.Caffe(
@@ -184,7 +190,9 @@ def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
     ampl_y = 3.0
 
     def python_func(img):
-        return python_water(img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y)
+        return python_water(
+            img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y
+        )
 
     compare_pipelines(
         WaterPipeline(
@@ -199,7 +207,9 @@ def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
             dtype=dtype,
             prime_size=prime_size,
         ),
-        WaterPythonPipeline(batch_size, python_func, dtype=dtype, prime_size=prime_size),
+        WaterPythonPipeline(
+            batch_size, python_func, dtype=dtype, prime_size=prime_size
+        ),
         batch_size=batch_size,
         N_iterations=niter,
         eps=8,

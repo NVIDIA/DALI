@@ -45,7 +45,9 @@ def _discover_autoserialize(module, visited):
         elif inspect.isfunction(obj) and _is_marked_autoserializable(obj):
             ret.append(obj)
     for mod in modules:
-        ret.extend(_discover_autoserialize(getattr(module, mod, None), visited=visited))
+        ret.extend(
+            _discover_autoserialize(getattr(module, mod, None), visited=visited)
+        )
     return ret
 
 

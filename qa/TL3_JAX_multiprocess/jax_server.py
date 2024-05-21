@@ -45,7 +45,9 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
     @pipeline_def(num_threads=1, batch_size=1)
     def dali_pipeline():
-        values = types.Constant(value=np.full(shape, value, dtype), device="gpu")
+        values = types.Constant(
+            value=np.full(shape, value, dtype), device="gpu"
+        )
 
         return values
 
@@ -58,7 +60,8 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
 def print_devices(process_id):
     log.info(
-        f"Local devices = {jax.local_device_count()}, " f"global devices = {jax.device_count()}"
+        f"Local devices = {jax.local_device_count()}, "
+        f"global devices = {jax.device_count()}"
     )
 
     log.info("All devices: ")
@@ -119,7 +122,9 @@ def test_named_sharding_workflow(process_id):
 
 def run_multiprocess_workflow(process_id=0, cluster_size=1):
     jax.distributed.initialize(
-        coordinator_address="localhost:12321", num_processes=cluster_size, process_id=process_id
+        coordinator_address="localhost:12321",
+        num_processes=cluster_size,
+        process_id=process_id,
     )
 
     log.basicConfig(format=f"PID {process_id}: %(message)s", level=log.INFO)

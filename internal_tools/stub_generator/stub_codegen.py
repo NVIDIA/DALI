@@ -49,7 +49,10 @@ def main():
         description="Generate dynamic loading stubs for CUDA and HIP APIs."
     )
     parser.add_argument(
-        "--unique_prefix", default="", type=str, help="Unique prefix for used in the stub"
+        "--unique_prefix",
+        default="",
+        type=str,
+        help="Unique prefix for used in the stub",
     )
     parser.add_argument("input", nargs="?", type=argparse.FileType("r"))
     parser.add_argument("output", nargs="?", type=argparse.FileType("w"))
@@ -128,12 +131,16 @@ void *{0}LoadSymbol(const char *name);
         arg_types = [arg.type.spelling for arg in cursor.get_arguments()]
         arg_names = [arg.spelling for arg in cursor.get_arguments()]
 
-        return_type = config["functions"][function_name].get("return_type", config["return_type"])
+        return_type = config["functions"][function_name].get(
+            "return_type", config["return_type"]
+        )
         not_found_error = config["functions"][function_name].get(
             "not_found_error", config["not_found_error"]
         )
 
-        header = function_header(return_type, function_name, zip(arg_types, arg_names))
+        header = function_header(
+            return_type, function_name, zip(arg_types, arg_names)
+        )
 
         implementation = function_impl.format(
             header,

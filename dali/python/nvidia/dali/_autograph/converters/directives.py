@@ -78,9 +78,17 @@ def _map_args(call_node, function):
     if unexpected_defaults:
         raise ValueError(
             "Unexpected keyword argument values, %s, for function %s"
-            % (zip(unexpected_defaults, [call_args[k] for k in unexpected_defaults]), function)
+            % (
+                zip(
+                    unexpected_defaults,
+                    [call_args[k] for k in unexpected_defaults],
+                ),
+                function,
+            )
         )
-    return {k: v for k, v in call_args.items() if v is not directives.UNSPECIFIED}
+    return {
+        k: v for k, v in call_args.items() if v is not directives.UNSPECIFIED
+    }
 
 
 class DirectivesTransformer(converter.Base):
@@ -89,7 +97,8 @@ class DirectivesTransformer(converter.Base):
     def _process_symbol_directive(self, call_node, directive):
         if len(call_node.args) < 1:
             raise ValueError(
-                '"%s" requires a positional first argument' " as the target" % directive.__name__
+                '"%s" requires a positional first argument'
+                " as the target" % directive.__name__
             )
         target = call_node.args[0]
         defs = anno.getanno(target, anno.Static.ORIG_DEFINITIONS)
@@ -100,10 +109,13 @@ class DirectivesTransformer(converter.Base):
     def _process_statement_directive(self, call_node, directive):
         if self.state[_LoopScope].statements_visited > 1:
             raise ValueError(
-                '"%s" must be the first statement in the loop block' % (directive.__name__)
+                '"%s" must be the first statement in the loop block'
+                % (directive.__name__)
             )
         if self.state[_LoopScope].level < 2:
-            raise ValueError('"%s" must be used inside a statement' % directive.__name__)
+            raise ValueError(
+                '"%s" must be used inside a statement' % directive.__name__
+            )
         target = self.state[_LoopScope].ast_node
         node_anno = anno.getanno(target, anno.Basic.DIRECTIVES, {})
         node_anno[directive] = _map_args(call_node, directive)
@@ -116,7 +128,9 @@ class DirectivesTransformer(converter.Base):
             defs = anno.getanno(node, anno.Static.DEFINITIONS, ())
             is_defined = bool(defs)
             if not is_defined and node.id in self.ctx.info.namespace:
-                anno.setanno(node, STATIC_VALUE, self.ctx.info.namespace[node.id])
+                anno.setanno(
+                    node, STATIC_VALUE, self.ctx.info.namespace[node.id]
+                )
         return node
 
     def visit_Attribute(self, node):
@@ -140,7 +154,9 @@ class DirectivesTransformer(converter.Base):
         node = self.generic_visit(node)
         if isinstance(node.value, gast.Call):
             call_node = node.value
-            static_val = anno.getanno(call_node.func, STATIC_VALUE, default=None)
+            static_val = anno.getanno(
+                call_node.func, STATIC_VALUE, default=None
+            )
             if static_val is not None:
                 # Note: directive calls are not output in the generated code, hence
                 # the removal from the code by returning None.

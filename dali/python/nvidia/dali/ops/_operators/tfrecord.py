@@ -34,7 +34,9 @@ if tfrecord_enabled():
     def _get_impl(name, schema_name, internal_schema_name):
 
         class _TFRecordReaderImpl(
-            ops.python_op_factory(name, schema_name, internal_schema_name, generated=False)
+            ops.python_op_factory(
+                name, schema_name, internal_schema_name, generated=False
+            )
         ):
             """custom wrappers around ops"""
 
@@ -48,7 +50,9 @@ if tfrecord_enabled():
                 else:
                     self._index_path = [index_path]
 
-                kwargs.update({"path": self._path, "index_path": self._index_path})
+                kwargs.update(
+                    {"path": self._path, "index_path": self._index_path}
+                )
                 self._features = features
 
                 super().__init__(**kwargs)
@@ -68,7 +72,9 @@ if tfrecord_enabled():
                             "to define the features to extract."
                         )
 
-                kwargs.update({"feature_names": feature_names, "features": features})
+                kwargs.update(
+                    {"feature_names": feature_names, "features": features}
+                )
 
                 # We won't have MIS as this op doesn't have any inputs (Reader)
                 linear_outputs = super().__call__(*inputs, **kwargs)
@@ -83,8 +89,12 @@ if tfrecord_enabled():
 
         return _TFRecordReaderImpl
 
-    class TFRecordReader(_get_impl("_TFRecordReader", "TFRecordReader", "_TFRecordReader")):
+    class TFRecordReader(
+        _get_impl("_TFRecordReader", "TFRecordReader", "_TFRecordReader")
+    ):
         pass
 
-    class TFRecord(_get_impl("_TFRecord", "readers__TFRecord", "readers___TFRecord")):
+    class TFRecord(
+        _get_impl("_TFRecord", "readers__TFRecord", "readers___TFRecord")
+    ):
         pass

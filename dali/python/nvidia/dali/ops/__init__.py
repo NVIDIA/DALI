@@ -35,7 +35,12 @@ from nvidia.dali.types import (  # noqa: F401
 )
 from nvidia.dali import _conditionals
 
-from nvidia.dali.ops import _registry, _names, _docs, _operator_utils  # noqa: F401
+from nvidia.dali.ops import (  # noqa: F401
+    _registry,
+    _names,
+    _docs,
+    _operator_utils,
+)
 
 from nvidia.dali._utils import dali_trace as _dali_trace
 
@@ -71,7 +76,10 @@ class _OpCounter(object):
 def _instantiate_constant_node(constant: _ScalarConstant, device: str):
     """Generate a DataNode (creating a Constant operator) based on the provided ScalarConstant."""
     return _Constant(
-        device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape
+        device=device,
+        value=constant.value,
+        dtype=constant.dtype,
+        shape=constant.shape,
     )
 
 
@@ -141,12 +149,18 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
             return False
         if is_arg_input_type(value):
             return True
-        if isinstance(value, (str, list, tuple, nvidia.dali.types.ScalarConstant)):
+        if isinstance(
+            value, (str, list, tuple, nvidia.dali.types.ScalarConstant)
+        ):
             return False
         return not nvidia.dali.types._is_scalar_value(value)
 
     def to_scalar(scalar):
-        return scalar.value if isinstance(scalar, nvidia.dali.types.ScalarConstant) else scalar
+        return (
+            scalar.value
+            if isinstance(scalar, nvidia.dali.types.ScalarConstant)
+            else scalar
+        )
 
     init_args = {}
     call_args = {}
@@ -251,7 +265,9 @@ def _resolve_double_definitions(current, previous, keep_old=True):
             # if an argument was specified in __init__ and in __call__ it is None, ignore it
             continue
         if k in previous:
-            raise ValueError(f"The argument `{k}` was already specified in __init__.")
+            raise ValueError(
+                f"The argument `{k}` was already specified in __init__."
+            )
         merged_result[k] = v
         new_result[k] = v
 
@@ -315,7 +331,9 @@ def _process_inputs(schema, spec, inputs, operator_name):
         return []
     for inp in inputs:
         if not isinstance(inp, _DataNode):
-            raise TypeError(f"Expected inputs of type 'DataNode'. Received input of type '{inp}'.")
+            raise TypeError(
+                f"Expected inputs of type 'DataNode'. Received input of type '{inp}'."
+            )
         spec.AddInput(inp.name, inp.device)
     return list(inputs)
 
@@ -376,20 +394,28 @@ class _OperatorInstance(object):
         self._relation_id = self._counter.id
 
         if _conditionals.conditionals_enabled():
-            inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
+            inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(
+                inputs, arg_inputs
+            )
             _conditionals.inject_implicit_scope_argument(op._schema, arg_inputs)
 
         self._process_instance_name(arguments)
         self._process_trace(arguments)
-        _process_arguments(op._schema, self._spec, arguments, op._operator_name())
+        _process_arguments(
+            op._schema, self._spec, arguments, op._operator_name()
+        )
 
-        self._inputs = _process_inputs(op._schema, self._spec, inputs, op._operator_name())
+        self._inputs = _process_inputs(
+            op._schema, self._spec, inputs, op._operator_name()
+        )
         self._inputs += _process_argument_inputs(
             op._schema, self._spec, arg_inputs, op._operator_name()
         )
 
         _handle_op_deprecation(
-            self._op.schema, _processed_arguments["_module"], _processed_arguments["_display_name"]
+            self._op.schema,
+            _processed_arguments["_module"],
+            _processed_arguments["_display_name"],
         )
 
         self._generate_outputs()
@@ -413,7 +439,9 @@ class _OperatorInstance(object):
         if name is not None:
             self._name = name
         else:
-            self._name = "__" + type(self._op).__name__ + "_" + str(self._counter.id)
+            self._name = (
+                "__" + type(self._op).__name__ + "_" + str(self._counter.id)
+            )
 
     def _process_trace(self, arguments):
         from nvidia.dali._debug_mode import _PipelineDebug
@@ -426,8 +454,12 @@ class _OperatorInstance(object):
             else:
                 start_frame = 0
             end_frame = self._op._definition_frame_end
-            stack_summary = _dali_trace.extract_stack(start_frame=start_frame, end_frame=end_frame)
-            filenames, linenos, names, lines = _dali_trace.preprocess_stack_summary(stack_summary)
+            stack_summary = _dali_trace.extract_stack(
+                start_frame=start_frame, end_frame=end_frame
+            )
+            filenames, linenos, names, lines = (
+                _dali_trace.preprocess_stack_summary(stack_summary)
+            )
 
             arguments["_origin_stack_filename"] = filenames
             arguments["_origin_stack_lineno"] = linenos
@@ -510,14 +542,18 @@ class _DaliOperatorMeta(type):
 
 def _check_arg_input(schema, op_name, name):
     if not schema.IsTensorArgument(name):
-        expected_type_name = _type_name_convert_to_string(schema.GetArgumentType(name), False)
+        expected_type_name = _type_name_convert_to_string(
+            schema.GetArgumentType(name), False
+        )
         raise TypeError(
             f"The argument `{name}` for operator `{op_name}` should not be a 'DataNode' but a "
             f"'{expected_type_name}'."
         )
 
 
-def python_op_factory(name, schema_name, internal_schema_name=None, generated=True):
+def python_op_factory(
+    name, schema_name, internal_schema_name=None, generated=True
+):
     """Generate the ops API class bindings for operator.
 
     Parameters
@@ -553,7 +589,9 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
 
             # Capture the ops API display name if it didn't arrive from fn API.
             if "_module" not in self._init_args:
-                self._init_args.update({"_module": Operator.__module__.replace(".hidden", "")})
+                self._init_args.update(
+                    {"_module": Operator.__module__.replace(".hidden", "")}
+                )
             if "_display_name" not in self._init_args:
                 self._init_args.update({"_display_name": type(self).__name__})
 
@@ -573,13 +611,21 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             # Stack frame is also processed by the operator instance and we need to remove it
             # before it is validated against Schema.
             if _dali_trace.is_tracing_enabled():
-                self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+                self._definition_frame_end = self._init_args.pop(
+                    "_definition_frame_end", None
+                )
             # Make sure that the internal name arguments are added first in case backend
             # needs them to report errors.
             name_internal_keys = ["_display_name", "_module"]
-            name_args = {key: self._init_args.pop(key) for key in name_internal_keys}
-            _process_arguments(self._schema, self._spec, name_args, operator_name)
-            _process_arguments(self._schema, self._spec, self._init_args, operator_name)
+            name_args = {
+                key: self._init_args.pop(key) for key in name_internal_keys
+            }
+            _process_arguments(
+                self._schema, self._spec, name_args, operator_name
+            )
+            _process_arguments(
+                self._schema, self._spec, self._init_args, operator_name
+            )
             self._init_args.update(name_args)
 
         @property
@@ -599,33 +645,48 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             return self._preserve
 
         def __call__(self, *inputs, **kwargs):
-            inputs = _preprocess_inputs(inputs, self._operator_name(), self._device, self._schema)
+            inputs = _preprocess_inputs(
+                inputs, self._operator_name(), self._device, self._schema
+            )
             input_sets = _build_input_sets(inputs, self._operator_name())
 
             args, arg_inputs = _separate_kwargs(kwargs)
 
             # Due to the fact that we already handled *some* args in init, we need to keep only
             # the new ones.
-            args = _resolve_double_definitions(args, self._init_args, keep_old=False)
+            args = _resolve_double_definitions(
+                args, self._init_args, keep_old=False
+            )
             if self._name is not None:
-                args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
+                args = _resolve_double_definitions(
+                    args, {"name": self._name}
+                )  # restore the name
 
-            if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
+            if (
+                _dali_trace.is_tracing_enabled()
+                and self._definition_frame_end is None
+            ):
                 self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
             self._preserve = (
-                self._preserve or args.get("preserve", False) or self._schema.IsNoPrune()
+                self._preserve
+                or args.get("preserve", False)
+                or self._schema.IsNoPrune()
             )
 
             # Adding argument inputs is fully delayed into call, so we just do the check
-            arg_inputs = _resolve_double_definitions(arg_inputs, self._call_args)
+            arg_inputs = _resolve_double_definitions(
+                arg_inputs, self._call_args
+            )
 
             # Create OperatorInstance for every input set.
             # OperatorInstance handles the creation of OpSpec and generation of output DataNodes
             op_instances = []
             for input_set in input_sets:
                 op_instances.append(
-                    _OperatorInstance(input_set, arg_inputs, args, self._init_args, self)
+                    _OperatorInstance(
+                        input_set, arg_inputs, args, self._init_args, self
+                    )
                 )
 
             # Tie the instances together
@@ -655,13 +716,18 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
     Operator.schema_name = schema_name
     Operator._internal_schema_name = internal_schema_name
     Operator._generated = generated
-    Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
+    Operator.__call__.__doc__ = _docs._docstring_generator_call(
+        Operator.schema_name
+    )
     return Operator
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
     return _functional._wrap_op(
-        op_class, submodule, parent_module, _docs._docstring_generator_fn(op_class.schema_name)
+        op_class,
+        submodule,
+        parent_module,
+        _docs._docstring_generator_fn(op_class.schema_name),
     )
 
 
@@ -689,7 +755,9 @@ def _load_ops():
             # The operator was inserted into nvidia.dali.ops.hidden module, let's import it here
             # so it would be usable, but not documented as coming from other module
             if make_hidden:
-                parent_module = _internal.get_submodule(ops_module, submodule[:-1])
+                parent_module = _internal.get_submodule(
+                    ops_module, submodule[:-1]
+                )
                 setattr(parent_module, op_name, op_class)
 
 
@@ -753,13 +821,18 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
         return (
             isinstance(x, (list))
             and any(isinstance(y, _DataNode) for y in x)
-            and all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
+            and all(
+                isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant))
+                for y in x
+            )
         )
 
     def get_input_device(schema, input_idx):
         default_input_device = "gpu" if device == "gpu" else "cpu"
         if schema:
-            input_device = schema.GetInputDevice(input_idx) or default_input_device
+            input_device = (
+                schema.GetInputDevice(input_idx) or default_input_device
+            )
         else:
             input_device = default_input_device
         return input_device
@@ -788,7 +861,9 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
             dev = get_input_device(schema, idx)
             # Process the single ScalarConstant or list possibly containing ScalarConstants
             # and promote each of them into a DataNode
-            inp = tree.map_structure(lambda val: _promote_scalar_constant(val, dev), inp)
+            inp = tree.map_structure(
+                lambda val: _promote_scalar_constant(val, dev), inp
+            )
 
         inputs[idx] = inp
     return inputs
@@ -812,13 +887,17 @@ from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
 )  # noqa: F401
 
 _internal._adjust_operator_module(PythonFunction, sys.modules[__name__], [])
-_internal._adjust_operator_module(DLTensorPythonFunction, sys.modules[__name__], [])
+_internal._adjust_operator_module(
+    DLTensorPythonFunction, sys.modules[__name__], []
+)
 
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 
 # Compose is only exposed for ops API, no fn bindings are generated
-from nvidia.dali.ops._operators.compose import Compose as Compose  # noqa: E402, F401
+from nvidia.dali.ops._operators.compose import (  # noqa: E402, F401
+    Compose as Compose,
+)
 
 _internal._adjust_operator_module(Compose, sys.modules[__name__], [])
 

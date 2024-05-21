@@ -1,0 +1,12 @@
+--- docs/autodoc_submodules.py
++++ docs/autodoc_submodules.py
+@@ -45,7 +45,8 @@ fn_modules = {
+ exclude_fn_members = {}
+ 
+ installation_page_url = (
+-    "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
++    "https://docs.nvidia.com/deeplearning/dali/user-guide/"
++    + "docs/installation.html"
+ )
+ 
+ mod_aditional_doc = {

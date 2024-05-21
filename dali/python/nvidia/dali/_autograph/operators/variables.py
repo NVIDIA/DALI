@@ -84,7 +84,9 @@ class Undefined(object):
         self.symbol_name = symbol_name
 
     def read(self):
-        raise UnboundLocalError("'{}' is used before assignment".format(self.symbol_name))
+        raise UnboundLocalError(
+            "'{}' is used before assignment".format(self.symbol_name)
+        )
 
     def __repr__(self):
         return self.symbol_name

@@ -61,7 +61,9 @@ def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
         get_pipeline_desc=external_source_tester(
             shape, dtype, FixedSampleIterator(tensor), batch=batch
         ),
-        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch),
+        to_dataset=external_source_converter_with_fixed_value(
+            shape, dtype, tensor, batch
+        ),
     )
 
 
@@ -80,9 +82,17 @@ def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
     iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
     run_tf_dataset_graph(
         dev,
-        get_pipeline_desc=external_source_tester(max_shape, dtype, iterator, batch=batch),
+        get_pipeline_desc=external_source_tester(
+            max_shape, dtype, iterator, batch=batch
+        ),
         to_dataset=external_source_converter_with_callback(
-            RandomSampleIterator, max_shape, dtype, 0, 1e10, min_shape, batch=batch
+            RandomSampleIterator,
+            max_shape,
+            dtype,
+            0,
+            1e10,
+            min_shape,
+            batch=batch,
         ),
     )
 
@@ -102,9 +112,17 @@ def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
     iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
     run_tf_dataset_graph(
         "gpu",
-        get_pipeline_desc=external_source_tester(max_shape, dtype, iterator, "gpu", batch=batch),
+        get_pipeline_desc=external_source_tester(
+            max_shape, dtype, iterator, "gpu", batch=batch
+        ),
         to_dataset=external_source_converter_with_callback(
-            RandomSampleIterator, max_shape, dtype, 0, 1e10, min_shape, batch=batch
+            RandomSampleIterator,
+            max_shape,
+            dtype,
+            0,
+            1e10,
+            min_shape,
+            batch=batch,
         ),
     )
 
@@ -121,9 +139,15 @@ def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
     run_tf_dataset_graph(
         dataset_dev,
         get_pipeline_desc=external_source_tester(
-            max_shape, dtype, RandomSampleIterator(max_shape, dtype(0)), es_dev, no_copy
+            max_shape,
+            dtype,
+            RandomSampleIterator(max_shape, dtype(0)),
+            es_dev,
+            no_copy,
         ),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype),
+        to_dataset=external_source_converter_with_callback(
+            RandomSampleIterator, max_shape, dtype
+        ),
     )
 
 
@@ -144,7 +168,11 @@ def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
         dev,
         to_stop_iter=True,
         get_pipeline_desc=external_source_tester(
-            max_shape, dtype, RandomSampleIterator(max_shape, dtype(0), start=0, stop=stop_samples)
+            max_shape,
+            dtype,
+            RandomSampleIterator(
+                max_shape, dtype(0), start=0, stop=stop_samples
+            ),
         ),
         to_dataset=external_source_converter_with_callback(
             RandomSampleIterator, max_shape, dtype, 0, stop_samples
@@ -171,13 +199,20 @@ def test_tf_dataset_with_stop_iter():
 def run_tf_dataset_multi_input(dev, start_values, input_names, batches):
     run_tf_dataset_graph(
         dev,
-        get_pipeline_desc=external_source_tester_multiple(start_values, input_names, batches),
-        to_dataset=external_source_converter_multiple(start_values, input_names, batches),
+        get_pipeline_desc=external_source_tester_multiple(
+            start_values, input_names, batches
+        ),
+        to_dataset=external_source_converter_multiple(
+            start_values, input_names, batches
+        ),
     )
 
 
 start_values = [
-    [np.full((2, 4), -42, dtype=np.int64), np.full((3, 5), -123.0, dtype=np.float32)],
+    [
+        np.full((2, 4), -42, dtype=np.int64),
+        np.full((3, 5), -123.0, dtype=np.float32),
+    ],
     [np.full((3, 5), -3.14, dtype=np.float32)],
     [
         np.full((2, 4), -42, dtype=np.int64),
@@ -186,15 +221,21 @@ start_values = [
     ],
 ]
 
-input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values]
+input_names = [
+    ["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values
+]
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_multi_input():
     for dev in ["cpu", "gpu"]:
         for starts, names in zip(start_values, input_names):
-            yield run_tf_dataset_multi_input, dev, starts, names, ["dataset" for _ in input_names]
-            for batches in list(itertools.product([True, False], repeat=len(input_names))):
+            yield run_tf_dataset_multi_input, dev, starts, names, [
+                "dataset" for _ in input_names
+            ]
+            for batches in list(
+                itertools.product([True, False], repeat=len(input_names))
+            ):
                 yield run_tf_dataset_multi_input, dev, starts, names, batches
 
 
@@ -209,11 +250,14 @@ def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
 
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_with_dali_external_source():
-    yield from gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
+    yield from gen_tf_with_dali_external_source(
+        run_tf_with_dali_external_source
+    )
 
 
 tf_dataset_wrong_placement_error_msg = (
-    r"TF device and DALI device mismatch. " r"TF device: [\w]*, DALI device: [\w]* for output"
+    r"TF device and DALI device mismatch. "
+    r"TF device: [\w]*, DALI device: [\w]* for output"
 )
 
 

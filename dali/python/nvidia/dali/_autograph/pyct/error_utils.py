@@ -22,7 +22,14 @@ from nvidia.dali._autograph.pyct import origin_info
 class FrameInfo(
     collections.namedtuple(
         "FrameInfo",
-        ("filename", "lineno", "function_name", "code", "is_converted", "is_allowlisted"),
+        (
+            "filename",
+            "lineno",
+            "function_name",
+            "code",
+            "is_converted",
+            "is_allowlisted",
+        ),
     )
 ):
     __slots__ = ()
@@ -159,7 +166,14 @@ class ErrorMetadataBase(object):
 
     __slots__ = ("translated_stack", "cause_message")
 
-    def __init__(self, callsite_tb, cause_metadata, cause_message, source_map, converter_filename):
+    def __init__(
+        self,
+        callsite_tb,
+        cause_metadata,
+        cause_message,
+        source_map,
+        converter_filename,
+    ):
         translated_stack = _stack_trace_inside_mapped_code(
             callsite_tb, source_map, converter_filename
         )
@@ -169,7 +183,9 @@ class ErrorMetadataBase(object):
             self.cause_message = cause_message
         else:
             # Daisy chain the translated stacks.
-            self.translated_stack = cause_metadata.translated_stack + (translated_stack[-1],)
+            self.translated_stack = cause_metadata.translated_stack + (
+                translated_stack[-1],
+            )
             self.cause_message = cause_metadata.cause_message
 
     def get_message(self):
@@ -217,7 +233,9 @@ class ErrorMetadataBase(object):
         if preferred_type in KNOWN_STRING_CONSTRUCTOR_ERRORS:
             to_ret = preferred_type(self.get_message())
         elif preferred_type is KeyError:
-            to_ret = MultilineMessageKeyError(self.get_message(), self.cause_message)
+            to_ret = MultilineMessageKeyError(
+                self.get_message(), self.cause_message
+            )
 
         if to_ret is not None:
             return to_ret.with_traceback(source_error.__traceback__)

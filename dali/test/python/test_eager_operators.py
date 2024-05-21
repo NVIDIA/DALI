@@ -24,7 +24,9 @@ from nose_utils import assert_raises, raises
 from test_utils import get_dali_extra_path
 
 
-@raises(RuntimeError, glob="Argument '*' is not supported by eager operator 'crop'.")
+@raises(
+    RuntimeError, glob="Argument '*' is not supported by eager operator 'crop'."
+)
 def _test_disqualified_argument(key):
     tl = tensors.TensorListCPU(np.zeros((8, 256, 256, 3)))
     eager.crop(tl, crop=[64, 64], **{key: 0})
@@ -48,7 +50,9 @@ def test_arithm_op_context_manager_enabled():
     tl_1 = tensors.TensorListCPU(np.ones((8, 16, 16)))
     tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
 
-    assert np.array_equal((tl_1 + tl_2).as_array(), np.full(shape=(8, 16, 16), fill_value=2))
+    assert np.array_equal(
+        (tl_1 + tl_2).as_array(), np.full(shape=(8, 16, 16), fill_value=2)
+    )
     eager.arithmetic(False)
 
 
@@ -134,7 +138,9 @@ def test_objective_eager_resize():
         ops.python_op_factory("Resize", "Resize"), "Resize"
     )
     tl = tensors.TensorListCPU(
-        np.random.default_rng().integers(256, size=(8, 200, 200, 3), dtype=np.uint8)
+        np.random.default_rng().integers(
+            256, size=(8, 200, 200, 3), dtype=np.uint8
+        )
     )
 
     obj_resize = resize_class(resize_x=50, resize_y=50)
@@ -162,7 +168,11 @@ def test_mixed_devices_decoder():
     pipe.build()
     (pipe_out,) = pipe.run()
 
-    jpeg, _ = next(eager.readers.file(file_root=file_root, batch_size=batch_size, seed=seed))
+    jpeg, _ = next(
+        eager.readers.file(
+            file_root=file_root, batch_size=batch_size, seed=seed
+        )
+    )
     eager_out = eager.decoders.image(jpeg, device="gpu")
 
     assert len(pipe_out) == len(eager_out)

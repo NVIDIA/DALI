@@ -39,7 +39,11 @@ def deprecation_warning(what):
 
 initialized = False
 if not initialized:
-    Init(OpSpec("CPUAllocator"), OpSpec("PinnedCPUAllocator"), OpSpec("GPUAllocator"))
+    Init(
+        OpSpec("CPUAllocator"),
+        OpSpec("PinnedCPUAllocator"),
+        OpSpec("GPUAllocator"),
+    )
     initialized = True
 
     # py3.12 warning
@@ -83,7 +87,9 @@ def check_cuda_runtime():
     if not cuda_checked:
         cuda_checked = True
         if GetCudaVersion() == -1:
-            deprecation_warning("GPU is not available. Only CPU operators are available.")
+            deprecation_warning(
+                "GPU is not available. Only CPU operators are available."
+            )
 
         if GetCufftVersion() == -1:
             deprecation_warning(

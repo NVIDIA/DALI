@@ -74,7 +74,9 @@ class BufShmChunk:
     @classmethod
     def allocate(cls, shm_chunk_id, initial_chunk_size):
         return cls(
-            shm_chunk_id, initial_chunk_size, shared_mem.SharedMem.allocate(initial_chunk_size)
+            shm_chunk_id,
+            initial_chunk_size,
+            shared_mem.SharedMem.allocate(initial_chunk_size),
         )
 
     def open_shm(self, handle):
@@ -140,7 +142,9 @@ class SharedBatchMeta:
 def deserialize_sample(buffer: BufShmChunk, sample):
     if isinstance(sample, SampleMeta):
         offset = sample.offset
-        assert offset % sample.dtype.itemsize == 0, "Sample offset is misaligned."
+        assert (
+            offset % sample.dtype.itemsize == 0
+        ), "Sample offset is misaligned."
         buffer = buffer.buf[offset : offset + sample.nbytes]
         return np.ndarray(sample.shape, dtype=sample.dtype, buffer=buffer)
     if isinstance(
@@ -154,7 +158,9 @@ def deserialize_sample(buffer: BufShmChunk, sample):
     return sample
 
 
-def deserialize_sample_meta(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
+def deserialize_sample_meta(
+    buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta
+):
     """Helper to deserialize SampleMeta from memory based on SharedBatchMeta."""
     sbm = shared_batch_meta
     if sbm.meta_size == 0:
@@ -185,7 +191,9 @@ def deserialize_batch(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
 
 def assert_valid_data_type(sample):
     """Check if the output of the callback is type that can be serialized"""
-    _apply_to_sample(lambda x: _assert_cpu_sample_data_type(x, _sample_error_msg), sample)
+    _apply_to_sample(
+        lambda x: _assert_cpu_sample_data_type(x, _sample_error_msg), sample
+    )
 
 
 def _apply_to_sample(func, sample, *args, nest_with_sample=0):
@@ -214,7 +222,8 @@ def _apply_to_sample(func, sample, *args, nest_with_sample=0):
         nest_group = sample, *args[0:nest_with_sample]
         scalar_args = args[nest_with_sample:]
         return type(sample)(
-            _apply_to_sample(func, *part, *scalar_args) for part in zip(*nest_group)
+            _apply_to_sample(func, *part, *scalar_args)
+            for part in zip(*nest_group)
         )
     else:
         # we unpacked all nesting levels, now is actual data:
@@ -229,7 +238,9 @@ class SharedBatchWriter:
     SAMPLE_ALIGNMENT = 128
     BUFFER_ALIGNMENT = 4096
 
-    def __init__(self, shm_chunk: BufShmChunk, batch, min_trailing_offset=1024 * 1024):
+    def __init__(
+        self, shm_chunk: BufShmChunk, batch, min_trailing_offset=1024 * 1024
+    ):
         import_numpy()
         self.shm_chunk = shm_chunk
         self.data_size = 0
@@ -248,7 +259,9 @@ class SharedBatchWriter:
             nonlocal data_size
             offset = _align_up(data_size, self.SAMPLE_ALIGNMENT)
             data_size = offset + np_array.nbytes
-            return SampleMeta(offset, np_array.shape, np_array.dtype, np_array.nbytes)
+            return SampleMeta(
+                offset, np_array.shape, np_array.dtype, np_array.nbytes
+            )
 
         meta = [_apply_to_sample(make_meta, sample) for sample in samples]
         return meta, data_size
@@ -257,30 +270,44 @@ class SharedBatchWriter:
         sample_size = meta.nbytes
         offset = meta.offset
         buffer = memview[offset : (offset + sample_size)]
-        shared_array = np.ndarray(np_array.shape, dtype=np_array.dtype, buffer=buffer)
+        shared_array = np.ndarray(
+            np_array.shape, dtype=np_array.dtype, buffer=buffer
+        )
         shared_array.ravel()[:] = np_array.ravel()[:]
 
     def _write_batch(self, batch):
         if not batch:
             return
         batch = [
-            _apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample)
+            _apply_to_sample(
+                lambda x: _sample_to_numpy(x, _sample_error_msg), sample
+            )
             for sample in batch
         ]
         meta, data_size = self._prepare_samples_meta(batch)
         serialized_meta = pickle.dumps(meta)
         self.meta_data_size = len(serialized_meta)
         self.data_size = _align_up(data_size, self.SAMPLE_ALIGNMENT)
-        self.total_size = _align_up(self.data_size + self.meta_data_size, self.SAMPLE_ALIGNMENT)
+        self.total_size = _align_up(
+            self.data_size + self.meta_data_size, self.SAMPLE_ALIGNMENT
+        )
         if self.shm_chunk.capacity < self.total_size:
-            resize_shm_chunk(self.shm_chunk, self.total_size + self.min_trailing_offset)
+            resize_shm_chunk(
+                self.shm_chunk, self.total_size + self.min_trailing_offset
+            )
         memview = self.shm_chunk.buf
         for sample, sample_meta in zip(batch, meta):
             _apply_to_sample(
-                self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1
+                self._add_array_to_batch,
+                sample,
+                sample_meta,
+                memview,
+                nest_with_sample=1,
             )
         # copy meta data at the end of shared memory chunk
-        buffer = memview[self.data_size : (self.data_size + self.meta_data_size)]
+        buffer = memview[
+            self.data_size : (self.data_size + self.meta_data_size)
+        ]
         buffer[:] = serialized_meta
 
 
@@ -293,11 +320,15 @@ def resize_shm_chunk(shm_chunk, needed_capacity):
 def read_shm_message(shm_chunk: BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
-    buffer = shm_chunk.buf[shm_message.offset : shm_message.offset + shm_message.num_bytes]
+    buffer = shm_chunk.buf[
+        shm_message.offset : shm_message.offset + shm_message.num_bytes
+    ]
     return pickle.loads(buffer)  # nosec B301
 
 
-def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize=True):
+def write_shm_message(
+    worker_id, shm_chunk: BufShmChunk, message, offset, resize=True
+):
     """
     Pickles `message` instances, stores it in the provided `shm` chunk at given offset and returns
     `ShmMessageDesc` instance describing the placement of the `message`.
@@ -318,4 +349,6 @@ def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize
             )
     buffer = shm_chunk.buf[offset : offset + num_bytes]
     buffer[:] = serialized_message
-    return ShmMessageDesc(worker_id, shm_chunk.shm_chunk_id, shm_chunk.capacity, offset, num_bytes)
+    return ShmMessageDesc(
+        worker_id, shm_chunk.shm_chunk_id, shm_chunk.capacity, offset, num_bytes
+    )

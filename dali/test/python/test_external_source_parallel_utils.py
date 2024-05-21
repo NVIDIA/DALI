@@ -47,11 +47,17 @@ class ExtCallback:
         self.data_iterator = None
         self.iterator_data_samples = []
         if random_data and not random_shape:
-            self.data_iterator = iter(RandomDataIterator(1, shape=dims, dtype=dtype))
+            self.data_iterator = iter(
+                RandomDataIterator(1, shape=dims, dtype=dtype)
+            )
         if random_data and random_shape:
-            self.data_iterator = iter(RandomlyShapedDataIterator(1, max_shape=dims, dtype=dtype))
+            self.data_iterator = iter(
+                RandomlyShapedDataIterator(1, max_shape=dims, dtype=dtype)
+            )
         if not random_data and random_shape:
-            raise ValueError("If random_shape is required the random_data is required to be True.")
+            raise ValueError(
+                "If random_shape is required the random_data is required to be True."
+            )
 
     def __call__(self, sample_info):
         if sample_info.idx_in_epoch >= self.epoch_size:
@@ -139,7 +145,14 @@ def check_callback(parallel_pipe, pipe, epoch_size, batch_size, dtype=None):
 
 @with_setup(setup_function, teardown_function)
 def _check_spawn_with_callback(
-    callback, callback_ref, batch_size, num_outputs, layout, workers_num, epoch_size, dtype
+    callback,
+    callback_ref,
+    batch_size,
+    num_outputs,
+    layout,
+    workers_num,
+    epoch_size,
+    dtype,
 ):
     pipe_parallel = create_pipe(
         callback,
@@ -152,7 +165,12 @@ def _check_spawn_with_callback(
         layout=layout,
     )
     pipe = create_pipe(
-        callback_ref, "cpu", batch_size, parallel=False, num_outputs=num_outputs, layout=layout
+        callback_ref,
+        "cpu",
+        batch_size,
+        parallel=False,
+        num_outputs=num_outputs,
+        layout=layout,
     )
     check_callback(pipe_parallel, pipe, epoch_size, batch_size, dtype)
 
@@ -171,10 +189,18 @@ def check_spawn_with_callback(
     for shape in shapes:
         for dtype in dtypes:
             callback = callback_class(
-                shape, epoch_size, dtype, random_data=random_data, random_shape=random_shape
+                shape,
+                epoch_size,
+                dtype,
+                random_data=random_data,
+                random_shape=random_shape,
             )
             callback_ref = callback_ref_class(
-                shape, epoch_size, dtype, random_data=random_data, random_shape=random_shape
+                shape,
+                epoch_size,
+                dtype,
+                random_data=random_data,
+                random_shape=random_shape,
             )
             for workers_num in [1, 4]:
                 for batch_size in [1, 16, 150]:
@@ -213,13 +239,22 @@ def check_stop_iteration_resume(pipe, batch_size, layout):
                 output.append(r)
         except StopIteration:
             pipe.reset()
-    assert len(outputs_epoch_1) == len(
-        outputs_epoch_2
-    ), "Epochs must have same number of iterations, " "but they have {} {} respectively".format(
-        len(outputs_epoch_1), len(outputs_epoch_2)
+    assert len(outputs_epoch_1) == len(outputs_epoch_2), (
+        "Epochs must have same number of iterations, "
+        "but they have {} {} respectively".format(
+            len(outputs_epoch_1), len(outputs_epoch_2)
+        )
     )
     for out_1, out_2 in zip(outputs_epoch_1, outputs_epoch_2):
-        check_batch(out_1, out_2, batch_size, 0, None, expected_layout=layout, compare_layouts=True)
+        check_batch(
+            out_1,
+            out_2,
+            batch_size,
+            0,
+            None,
+            expected_layout=layout,
+            compare_layouts=True,
+        )
 
 
 def check_layout(pipe, layout):

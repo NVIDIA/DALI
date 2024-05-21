@@ -29,7 +29,12 @@ from test_dali_cpu_only_utils import (
     setup_test_numpy_reader_cpu,
 )
 from test_detection_pipeline import coco_anchors
-from test_utils import check_batch, get_dali_extra_path, get_files, module_functions
+from test_utils import (
+    check_batch,
+    get_dali_extra_path,
+    get_files,
+    module_functions,
+)
 from segmentation_test_utils import make_batch_select_masks
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
@@ -60,25 +65,34 @@ sample_shape = [20, 20, 3]
 
 # Sample data of image-like shape and type, used in many tests to avoid multiple object creation.
 data = [
-    [rng.integers(0, 255, size=sample_shape, dtype=np.uint8) for _ in range(batch_size)]
+    [
+        rng.integers(0, 255, size=sample_shape, dtype=np.uint8)
+        for _ in range(batch_size)
+    ]
     for _ in range(data_size)
 ]
 
 # Sample data for audio operators.
 audio_data = [
-    [rng.random(size=[200], dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)
+    [rng.random(size=[200], dtype=np.float32) for _ in range(batch_size)]
+    for _ in range(data_size)
 ]
 
 # Sample data with single non-batch dimension.
 flat_data = [
-    [rng.integers(0, 255, size=[200], dtype=np.uint8) for _ in range(batch_size)]
+    [
+        rng.integers(0, 255, size=[200], dtype=np.uint8)
+        for _ in range(batch_size)
+    ]
     for _ in range(data_size)
 ]
 
 
 def get_tl(data, layout="HWC"):
     """Utility function to create a TensorListCPU with given data and layout."""
-    layout = "" if layout is None or (data.ndim != 4 and layout == "HWC") else layout
+    layout = (
+        "" if layout is None or (data.ndim != 4 and layout == "HWC") else layout
+    )
     return tensors.TensorListCPU(data, layout=layout)
 
 
@@ -225,7 +239,9 @@ def check_single_input(
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = pipe_fun(fn_op, kwargs, source=fn_source, layout=layout)
 
-    compare_eager_with_pipeline(pipe, eager_op, eager_source=eager_source, layout=layout, **kwargs)
+    compare_eager_with_pipeline(
+        pipe, eager_op, eager_source=eager_source, layout=layout, **kwargs
+    )
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -241,7 +257,13 @@ def no_input_source(*_):
 
 
 def check_no_input(
-    op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5, **kwargs
+    op_path,
+    *,
+    fn_op=None,
+    eager_op=None,
+    batch_size=batch_size,
+    N_iterations=5,
+    **kwargs,
 ):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = no_input_pipeline(fn_op, kwargs)
@@ -284,11 +306,19 @@ def check_single_input_stateful(
     pipe = pipe_fun(fn_op, kwargs, source=fn_source, layout=layout)
     kwargs.pop("seed", None)
 
-    compare_eager_with_pipeline(pipe, eager_op, eager_source=eager_source, layout=layout, **kwargs)
+    compare_eager_with_pipeline(
+        pipe, eager_op, eager_source=eager_source, layout=layout, **kwargs
+    )
 
 
 def check_no_input_stateful(
-    op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5, **kwargs
+    op_path,
+    *,
+    fn_op=None,
+    eager_op=None,
+    batch_size=batch_size,
+    N_iterations=5,
+    **kwargs,
 ):
     fn_op, eager_op, fn_seed = prep_stateful_operators(op_path)
     kwargs["seed"] = fn_seed
@@ -313,7 +343,13 @@ def reader_pipeline(op, kwargs):
 
 
 def check_reader(
-    op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=2, **kwargs
+    op_path,
+    *,
+    fn_op=None,
+    eager_op=None,
+    batch_size=batch_size,
+    N_iterations=2,
+    **kwargs,
 ):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = reader_pipeline(fn_op, kwargs)
@@ -332,10 +368,14 @@ def check_reader(
 
             for tensor_out_fn, tensor_out_eager in zip(out_fn, out_eager):
                 if i == len(iter_eager) - 1:
-                    tensor_out_fn = _slice_tensorlist(tensor_out_fn, len(tensor_out_eager))
+                    tensor_out_fn = _slice_tensorlist(
+                        tensor_out_fn, len(tensor_out_eager)
+                    )
 
                 assert type(tensor_out_fn) is type(tensor_out_eager)
-                check_batch(tensor_out_fn, tensor_out_eager, len(tensor_out_eager))
+                check_batch(
+                    tensor_out_fn, tensor_out_eager, len(tensor_out_eager)
+                )
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -458,7 +498,9 @@ def test_crop():
 
 
 def test_color_space_coversion():
-    check_single_input("color_space_conversion", image_type=types.BGR, output_type=types.RGB)
+    check_single_input(
+        "color_space_conversion", image_type=types.BGR, output_type=types.RGB
+    )
 
 
 def test_cast():
@@ -486,7 +528,9 @@ def test_resize():
 
 
 def test_tensor_resize_cpu():
-    check_single_input("experimental.tensor_resize", sizes=[50, 50], axes=[0, 1])
+    check_single_input(
+        "experimental.tensor_resize", sizes=[50, 50], axes=[0, 1]
+    )
 
 
 def test_per_frame():
@@ -557,12 +601,17 @@ def test_grid_mask():
 
 
 def test_multi_paste():
-    check_single_input("multi_paste", in_ids=np.array([0, 1]), output_size=sample_shape)
+    check_single_input(
+        "multi_paste", in_ids=np.array([0, 1]), output_size=sample_shape
+    )
 
 
 def test_nonsilent_region():
     data = [
-        [rng.integers(0, 255, size=[200], dtype=np.uint8) for _ in range(batch_size)]
+        [
+            rng.integers(0, 255, size=[200], dtype=np.uint8)
+            for _ in range(batch_size)
+        ]
     ] * data_size
     data[0][0][0] = 0
     data[0][1][0] = 0
@@ -636,7 +685,10 @@ def test_mel_filter_bank():
 def test_to_decibels():
     get_data = GetData(audio_data)
     check_single_input(
-        "to_decibels", fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None
+        "to_decibels",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
     )
 
 
@@ -714,7 +766,9 @@ def test_coord_flip():
     get_data = GetData(
         [
             [
-                (rng.integers(0, 255, size=[200, 2], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (
+                    rng.integers(0, 255, size=[200, 2], dtype=np.uint8) / 255
+                ).astype(dtype=np.float32)
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -722,7 +776,10 @@ def test_coord_flip():
     )
 
     check_single_input(
-        "coord_flip", fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None
+        "coord_flip",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
     )
 
 
@@ -730,7 +787,9 @@ def test_bb_flip():
     get_data = GetData(
         [
             [
-                (rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (
+                    rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255
+                ).astype(dtype=np.float32)
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -738,7 +797,10 @@ def test_bb_flip():
     )
 
     check_single_input(
-        "bb_flip", fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None
+        "bb_flip",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
     )
 
 
@@ -753,7 +815,10 @@ def test_normalize():
 def test_lookup_table():
     get_data = GetData(
         [
-            [rng.integers(0, 5, size=[100], dtype=np.uint8) for _ in range(batch_size)]
+            [
+                rng.integers(0, 5, size=[100], dtype=np.uint8)
+                for _ in range(batch_size)
+            ]
             for _ in range(data_size)
         ]
     )
@@ -782,7 +847,9 @@ def test_slice():
     get_anchors = GetData(
         [
             [
-                (rng.integers(1, 256, size=[2], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (rng.integers(1, 256, size=[2], dtype=np.uint8) / 255).astype(
+                    dtype=np.float32
+                )
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -791,7 +858,9 @@ def test_slice():
     get_shapes = GetData(
         [
             [
-                (rng.integers(1, 256, size=[2], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (rng.integers(1, 256, size=[2], dtype=np.uint8) / 255).astype(
+                    dtype=np.float32
+                )
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -799,7 +868,11 @@ def test_slice():
     )
 
     def eager_source(i, _):
-        return get_data_eager(i), get_anchors.eager_source(i), get_shapes.eager_source(i)
+        return (
+            get_data_eager(i),
+            get_anchors.eager_source(i),
+            get_shapes.eager_source(i),
+        )
 
     pipe = slice_pipeline(get_anchors.fn_source, get_shapes.fn_source)
     compare_eager_with_pipeline(
@@ -821,7 +894,9 @@ def test_image_decoder_slice():
     get_anchors = GetData(
         [
             [
-                (rng.integers(1, 128, size=[2], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (rng.integers(1, 128, size=[2], dtype=np.uint8) / 255).astype(
+                    dtype=np.float32
+                )
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -830,7 +905,9 @@ def test_image_decoder_slice():
     get_shapes = GetData(
         [
             [
-                (rng.integers(1, 128, size=[2], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (rng.integers(1, 128, size=[2], dtype=np.uint8) / 255).astype(
+                    dtype=np.float32
+                )
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -847,14 +924,21 @@ def test_image_decoder_slice():
             get_shapes.eager_source(i, None),
         )
 
-    pipe = image_decoder_slice_pipeline(get_anchors.fn_source, get_shapes.fn_source)
-    compare_eager_with_pipeline(pipe, eager.decoders.image_slice, eager_source=eager_source)
+    pipe = image_decoder_slice_pipeline(
+        get_anchors.fn_source, get_shapes.fn_source
+    )
+    compare_eager_with_pipeline(
+        pipe, eager.decoders.image_slice, eager_source=eager_source
+    )
 
 
 def test_pad():
     get_data = GetData(
         [
-            [rng.integers(0, 255, size=[5, 4, 3], dtype=np.uint8) for _ in range(batch_size)]
+            [
+                rng.integers(0, 255, size=[5, 4, 3], dtype=np.uint8)
+                for _ in range(batch_size)
+            ]
             for _ in range(data_size)
         ]
     )
@@ -930,7 +1014,9 @@ def test_nemo_asr_reader():
 
 
 def test_video_reader():
-    check_reader("experimental.readers.video", filenames=video_files, sequence_length=3)
+    check_reader(
+        "experimental.readers.video", filenames=video_files, sequence_length=3
+    )
 
 
 def test_copy():
@@ -945,7 +1031,9 @@ def test_bbox_paste():
     get_data = GetData(
         [
             [
-                (rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (
+                    rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255
+                ).astype(dtype=np.float32)
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -965,7 +1053,10 @@ def test_bbox_paste():
 def test_sequence_rearrange():
     get_data = GetData(
         [
-            [rng.integers(0, 255, size=[5, 10, 20, 3], dtype=np.uint8) for _ in range(batch_size)]
+            [
+                rng.integers(0, 255, size=[5, 10, 20, 3], dtype=np.uint8)
+                for _ in range(batch_size)
+            ]
             for _ in range(data_size)
         ]
     )
@@ -991,7 +1082,9 @@ def test_box_encoder():
     get_boxes = GetData(
         [
             [
-                (rng.integers(0, 255, size=[20, 4], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (
+                    rng.integers(0, 255, size=[20, 4], dtype=np.uint8) / 255
+                ).astype(dtype=np.float32)
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -999,7 +1092,10 @@ def test_box_encoder():
     )
     get_labels = GetData(
         [
-            [rng.integers(0, 255, size=[20, 1], dtype=np.int32) for _ in range(batch_size)]
+            [
+                rng.integers(0, 255, size=[20, 1], dtype=np.int32)
+                for _ in range(batch_size)
+            ]
             for _ in range(data_size)
         ]
     )
@@ -1009,7 +1105,10 @@ def test_box_encoder():
 
     pipe = box_encoder_pipeline(get_boxes.fn_source, get_labels.fn_source)
     compare_eager_with_pipeline(
-        pipe, eager.box_encoder, eager_source=eager_source, anchors=coco_anchors()
+        pipe,
+        eager.box_encoder,
+        eager_source=eager_source,
+        anchors=coco_anchors(),
     )
 
 
@@ -1117,7 +1216,10 @@ def segmentation_select_masks_input_pipeline(source):
 def test_segmentation_select_masks():
     data = [
         make_batch_select_masks(
-            batch_size, vertex_ndim=2, npolygons_range=(1, 5), nvertices_range=(3, 10)
+            batch_size,
+            vertex_ndim=2,
+            npolygons_range=(1, 5),
+            nvertices_range=(3, 10),
         )
         for _ in range(data_size)
     ]
@@ -1126,7 +1228,9 @@ def test_segmentation_select_masks():
     compare_eager_with_pipeline(
         pipe,
         eager.segmentation.select_masks,
-        eager_source=PipelineInput(segmentation_select_masks_input_pipeline, data),
+        eager_source=PipelineInput(
+            segmentation_select_masks_input_pipeline, data
+        ),
     )
 
 
@@ -1162,14 +1266,18 @@ def reduce_input_pipeline():
 def test_reduce_std():
     pipe = reduce_pipeline(fn.reductions.std_dev)
     compare_eager_with_pipeline(
-        pipe, eager_op=eager.reductions.std_dev, eager_source=PipelineInput(reduce_input_pipeline)
+        pipe,
+        eager_op=eager.reductions.std_dev,
+        eager_source=PipelineInput(reduce_input_pipeline),
     )
 
 
 def test_reduce_variance():
     pipe = reduce_pipeline(fn.reductions.variance)
     compare_eager_with_pipeline(
-        pipe, eager_op=eager.reductions.variance, eager_source=PipelineInput(reduce_input_pipeline)
+        pipe,
+        eager_op=eager.reductions.variance,
+        eager_source=PipelineInput(reduce_input_pipeline),
     )
 
 
@@ -1200,12 +1308,20 @@ def test_stack():
 
 
 def test_batch_permute():
-    check_single_input("permute_batch", indices=rng.permutation(batch_size).tolist())
+    check_single_input(
+        "permute_batch", indices=rng.permutation(batch_size).tolist()
+    )
 
 
 def test_squeeze():
     get_data = GetData(
-        [[np.zeros(shape=[10, 20, 3, 1, 1], dtype=np.uint8) for _ in range(batch_size)]] * data_size
+        [
+            [
+                np.zeros(shape=[10, 20, 3, 1, 1], dtype=np.uint8)
+                for _ in range(batch_size)
+            ]
+        ]
+        * data_size
     )
     check_single_input(
         "squeeze",
@@ -1348,9 +1464,21 @@ def test_random_resized_crop():
 def test_random_object_bbox():
     data = tensors.TensorListCPU(
         [
-            tensors.TensorCPU(np.int32([[1, 0, 0, 0], [1, 2, 2, 1], [1, 1, 2, 0], [2, 0, 0, 1]])),
             tensors.TensorCPU(
-                np.int32([[0, 3, 3, 0], [1, 0, 1, 2], [0, 1, 1, 0], [0, 2, 0, 1], [0, 2, 2, 1]])
+                np.int32(
+                    [[1, 0, 0, 0], [1, 2, 2, 1], [1, 1, 2, 0], [2, 0, 0, 1]]
+                )
+            ),
+            tensors.TensorCPU(
+                np.int32(
+                    [
+                        [0, 3, 3, 0],
+                        [1, 0, 1, 2],
+                        [0, 1, 1, 0],
+                        [0, 2, 0, 1],
+                        [0, 2, 2, 1],
+                    ]
+                )
             ),
         ]
     )
@@ -1362,7 +1490,10 @@ def test_random_object_bbox():
         return data
 
     check_single_input_stateful(
-        "segmentation.random_object_bbox", fn_source=fn_source, eager_source=eager_source, layout=""
+        "segmentation.random_object_bbox",
+        fn_source=fn_source,
+        eager_source=eager_source,
+        layout="",
     )
 
 
@@ -1397,7 +1528,9 @@ def test_random_bbox_crop():
     get_boxes = GetData(
         [
             [
-                (rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                (
+                    rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255
+                ).astype(dtype=np.float32)
                 for _ in range(batch_size)
             ]
             for _ in range(data_size)
@@ -1405,7 +1538,10 @@ def test_random_bbox_crop():
     )
     get_labels = GetData(
         [
-            [rng.integers(0, 255, size=[200, 1], dtype=np.int32) for _ in range(batch_size)]
+            [
+                rng.integers(0, 255, size=[200, 1], dtype=np.int32)
+                for _ in range(batch_size)
+            ]
             for _ in range(data_size)
         ]
     )
@@ -1415,7 +1551,9 @@ def test_random_bbox_crop():
 
     _, eager_op, fn_seed = prep_stateful_operators("random_bbox_crop")
 
-    pipe = random_bbox_crop_pipeline(get_boxes.fn_source, get_labels.fn_source, fn_seed)
+    pipe = random_bbox_crop_pipeline(
+        get_boxes.fn_source, get_labels.fn_source, fn_seed
+    )
 
     compare_eager_with_pipeline(
         pipe,
@@ -1429,7 +1567,9 @@ def test_random_bbox_crop():
 
 
 def test_random_choice_cpu():
-    shape_batch_list = [[np.array(i + 3) for i in range(batch_size)] for _ in range(data_size)]
+    shape_batch_list = [
+        [np.array(i + 3) for i in range(batch_size)] for _ in range(data_size)
+    ]
 
     data = GetData(shape_batch_list)
 
@@ -1459,7 +1599,10 @@ def test_batch_permutation():
 
 def test_random_crop_generator_cpu():
     shape_batch_list = [
-        [np.random.randint(100, 800, size=(2,), dtype=np.int64) for _ in range(batch_size)]
+        [
+            np.random.randint(100, 800, size=(2,), dtype=np.int64)
+            for _ in range(batch_size)
+        ]
         for _ in range(data_size)
     ]
 
@@ -1474,9 +1617,12 @@ def test_random_crop_generator_cpu():
 
 
 def test_video_decoder():
-    filename = os.path.join(get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+    filename = os.path.join(
+        get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4"
+    )
     data = [
-        [np.fromfile(filename, dtype=np.uint8) for _ in range(batch_size)] for _ in range(data_size)
+        [np.fromfile(filename, dtype=np.uint8) for _ in range(batch_size)]
+        for _ in range(data_size)
     ]
 
     data = GetData(data)
@@ -1634,18 +1780,26 @@ def test_coverage():
     `dali/python/nvidia/dali/_utils/eager_utils.py`.
     """
 
-    methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
-    methods += module_functions(eager.rng_state(), remove_prefix="rng_state", check_non_module=True)
+    methods = module_functions(
+        eager, remove_prefix="nvidia.dali.experimental.eager"
+    )
+    methods += module_functions(
+        eager.rng_state(), remove_prefix="rng_state", check_non_module=True
+    )
     # TODO(ksztenderski): Add coverage for GPU operators.
     exclude = "|".join(
         [
-            "(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)"  # noqa: W605
+            "(^"
+            + x.replace(".", "\.")  # noqa: W605
+            .replace("*", ".*")
+            .replace("?", ".")
+            + "$)"
             for x in excluded_methods
         ]
     )
     exclude = re.compile(exclude)
     methods = [x for x in methods if not exclude.match(x)]
 
-    assert set(methods).difference(set(tested_methods)) == set(), "Test doesn't cover:\n {}".format(
-        set(methods) - set(tested_methods)
-    )
+    assert (
+        set(methods).difference(set(tested_methods)) == set()
+    ), "Test doesn't cover:\n {}".format(set(methods) - set(tested_methods))

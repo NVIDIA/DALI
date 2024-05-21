@@ -41,7 +41,9 @@ class ExternalInputIterator(object):
         batch = []
         labels = []
         for _ in range(self.batch_size):
-            batch.append(np.array(np.random.rand(H, W, C) * 255, dtype=np.uint8))
+            batch.append(
+                np.array(np.random.rand(H, W, C) * 255, dtype=np.uint8)
+            )
             labels.append(np.array(np.random.rand(1) * 10, dtype=np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
@@ -71,7 +73,9 @@ class CustomPipeline(Pipeline):
 
 def load_empty_plugin():
     try:
-        plugin_manager.load_library(test_bin_dir + "/libdali_customdummyplugin.so")
+        plugin_manager.load_library(
+            test_bin_dir + "/libdali_customdummyplugin.so"
+        )
     except RuntimeError:
         # in conda "libdali_customdummyplugin" lands inside lib/ dir
         plugin_manager.load_library("libdali_customdummyplugin.so")

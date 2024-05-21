@@ -33,7 +33,9 @@ def get_pipeline(device, batch_size, tile, ratio, angle):
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device="cpu", output_type=types.RGB)
         decoded = decoded.gpu() if device == "gpu" else decoded
-        grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
+        grided = fn.grid_mask(
+            decoded, device=device, tile=tile, ratio=ratio, angle=angle
+        )
         pipe.set_outputs(grided, decoded)
     return pipe
 
@@ -47,7 +49,9 @@ def get_random_pipeline(device, batch_size):
         tile = fn.cast(fn.random.uniform(range=(50, 200)), dtype=types.INT32)
         ratio = fn.random.uniform(range=(0.3, 0.7))
         angle = fn.random.uniform(range=(-math.pi, math.pi))
-        grided = fn.grid_mask(decoded, device=device, tile=tile, ratio=ratio, angle=angle)
+        grided = fn.grid_mask(
+            decoded, device=device, tile=tile, ratio=ratio, angle=angle
+        )
         pipe.set_outputs(grided, decoded, tile, ratio, angle)
     return pipe
 
@@ -61,7 +65,9 @@ def get_mask(w, h, tile, ratio, angle, d):
     j = np.transpose(np.tile(np.arange(h), (w, 1)))
     x = i * ca - j * sa
     y = i * sa + j * ca
-    m = np.logical_or(((x + d) % tile > b + 2 * d), ((y + d) % tile > b + 2 * d))
+    m = np.logical_or(
+        ((x + d) % tile > b + 2 * d), ((y + d) % tile > b + 2 * d)
+    )
     return m
 
 

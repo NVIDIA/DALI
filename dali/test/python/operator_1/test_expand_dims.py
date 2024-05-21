@@ -25,7 +25,9 @@ def get_data(shapes):
 
 @pipeline_def
 def expand_dims_pipe(shapes, axes=None, new_axis_names=None, layout=None):
-    data = fn.external_source(lambda: get_data(shapes), layout=layout, batch=True, device="cpu")
+    data = fn.external_source(
+        lambda: get_data(shapes), layout=layout, batch=True, device="cpu"
+    )
     return fn.expand_dims(data, axes=axes, new_axis_names=new_axis_names)
 
 
@@ -86,7 +88,14 @@ def test_expand_dims():
         ([4, 3], "AB", "XYZ", [(10, 20, 30)], [(10, 20, 30, 1, 1)], "XYZBA"),
         ([0], "X", "", [()], [(1,)], "X"),
     ]
-    for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
+    for (
+        axes,
+        new_axis_names,
+        layout,
+        shapes,
+        expected_out_shapes,
+        expected_layout,
+    ) in args:
         yield (
             _testimpl_expand_dims,
             axes,

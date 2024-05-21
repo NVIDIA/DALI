@@ -15,4 +15,8 @@
 
 # Import the enums defined in the backend, so we can provide type hints just for them in a stub file
 # and reexport them in a proper module.
-from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInterpType  # noqa: F401
+from nvidia.dali.backend_impl.types import (  # noqa: F401
+    DALIDataType,
+    DALIImageType,
+    DALIInterpType,
+)

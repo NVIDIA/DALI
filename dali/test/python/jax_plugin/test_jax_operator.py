@@ -72,7 +72,9 @@ def test_identity(device, use_jit):
         batch = [np.array(s) for s in batch]
         assert len(batch) == batch_size, f"{len(batch)}!= {batch_size}"
         for j, sample in enumerate(batch):
-            np.testing.assert_array_equal(sample, np.array([j, i], dtype=np.int32))
+            np.testing.assert_array_equal(
+                sample, np.array([j, i], dtype=np.int32)
+            )
 
 
 @restrict_python_version(3, 9)
@@ -90,7 +92,12 @@ def test_conditionals(device):
     def plus_one(batch):
         return batch + 1
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
         idx = fn.external_source(
             lambda sample_info: np.array(
@@ -148,7 +155,12 @@ def test_pre_and_post_ops(device):
     h, w = 702, 502
     base_sample = np.arange(h * w * 3, dtype=np.uint8).reshape((h, w, 3))
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
         img = types.Constant(base_sample, device=device)
         img = fn.flip(img, horizontal=True)
@@ -180,7 +192,11 @@ def test_multi_input_output(device):
         flip_channels = flip_hor * flip_vert
         return (
             flip_channels,
-            image[:: (-1) ** flip_hor, :: (-1) ** flip_vert, :: (-1) ** flip_channels],
+            image[
+                :: (-1) ** flip_hor,
+                :: (-1) ** flip_vert,
+                :: (-1) ** flip_channels,
+            ],
         )
 
     @dax.fn.jax_function(num_outputs=2)
@@ -188,15 +204,26 @@ def test_multi_input_output(device):
     @jax.vmap
     def cond_flip(image, flip_vert, flip_hor):
         flip_channels = flip_hor * flip_vert
-        image = jax.lax.cond(flip_hor, lambda x: x[::-1, :, :], lambda x: x, image)
-        image = jax.lax.cond(flip_vert, lambda x: x[:, ::-1, :], lambda x: x, image)
-        image = jax.lax.cond(flip_channels, lambda x: x[:, :, ::-1], lambda x: x, image)
+        image = jax.lax.cond(
+            flip_hor, lambda x: x[::-1, :, :], lambda x: x, image
+        )
+        image = jax.lax.cond(
+            flip_vert, lambda x: x[:, ::-1, :], lambda x: x, image
+        )
+        image = jax.lax.cond(
+            flip_channels, lambda x: x[:, :, ::-1], lambda x: x, image
+        )
         return flip_channels, image
 
     h, w = 487, 499
     base_sample = np.arange(h * w * 3, dtype=np.float32).reshape((h, w, 3))
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
         img = types.Constant(base_sample, device=device)
         flip_vert = fn.random.coin_flip(seed=42)
@@ -216,7 +243,8 @@ def test_multi_input_output(device):
             batch = batch.as_cpu()
             jax_flip_channels = jax_flip_channels.as_cpu()
         jax_flip_channels, flip_vert, flip_hor, batch = tuple(
-            [np.array(s) for s in b] for b in (jax_flip_channels, flip_vert, flip_hor, batch)
+            [np.array(s) for s in b]
+            for b in (jax_flip_channels, flip_vert, flip_hor, batch)
         )
         for i, b in enumerate((jax_flip_channels, flip_vert, flip_hor, batch)):
             assert len(b) == batch_size, f"{i}, {len(b)}!= {batch_size}"
@@ -240,17 +268,30 @@ def test_multi_input_different_contiguity(device):
     @jax.jit
     @jax.vmap
     def flip_hor(image, should_flip):
-        return jax.lax.cond(should_flip, lambda x: x[:, ::-1, :], lambda x: x, image)
+        return jax.lax.cond(
+            should_flip, lambda x: x[:, ::-1, :], lambda x: x, image
+        )
 
     @pipeline_def(
-        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
     )
     def pipeline():
-        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
-        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
+        img, _ = fn.readers.file(
+            name="Reader", file_root=images_dir, random_shuffle=True, seed=42
+        )
+        img = fn.decoders.image(
+            img, device="cpu" if device == "cpu" else "mixed"
+        )
         img = fn.resize(img, size=(224, 224))
         sample_idx = fn.external_source(
-            lambda sample_info: np.array(sample_info.idx_in_batch, dtype=np.int32), batch=False
+            lambda sample_info: np.array(
+                sample_info.idx_in_batch, dtype=np.int32
+            ),
+            batch=False,
         )
         if sample_idx & 1 == 0:
             mod = sample_idx & 1
@@ -264,7 +305,9 @@ def test_multi_input_different_contiguity(device):
     p.build()
     for _ in range(num_iters):
         jax_flip, dali_flip, imgs = p.run()
-        check_batch(jax_flip, dali_flip, compare_layouts=True, max_allowed_error=0)
+        check_batch(
+            jax_flip, dali_flip, compare_layouts=True, max_allowed_error=0
+        )
         for jax_sample, source_sample in zip(jax_flip, imgs):
             jax_sample_source_info = jax_sample.source_info()
             dali_sample_source_info = source_sample.source_info()
@@ -289,7 +332,12 @@ def test_preserve(device, preserve, no_in_out):
 
     counter = 0
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        enable_conditionals=True,
+    )
     def pipeline():
 
         def incr(img):
@@ -302,7 +350,9 @@ def test_preserve(device, preserve, no_in_out):
             counter += 1
 
         img = types.Constant(np.full((3, 3), 1), device=device)
-        _ = dax.fn.jax_function(incr_no_in_out if no_in_out else incr, preserve=preserve)(img)
+        _ = dax.fn.jax_function(
+            incr_no_in_out if no_in_out else incr, preserve=preserve
+        )(img)
         return img
 
     p = pipeline()
@@ -331,11 +381,19 @@ def test_explicit_output_layouts(device):
         return image, image.reshape((1, h, w, c))
 
     @pipeline_def(
-        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
     )
     def pipeline():
-        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
-        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
+        img, _ = fn.readers.file(
+            name="Reader", file_root=images_dir, random_shuffle=True, seed=42
+        )
+        img = fn.decoders.image(
+            img, device="cpu" if device == "cpu" else "mixed"
+        )
         img = fn.resize(img, size=(224, 224))
         return tuple(reshape(img))
 
@@ -353,15 +411,27 @@ def test_explicit_output_layouts(device):
 @params("cpu", "gpu")
 def test_non_uniform_shape(device):
 
-    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=11,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
+    )
     def pipeline():
-        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
-        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
+        img, _ = fn.readers.file(
+            name="Reader", file_root=images_dir, random_shuffle=True, seed=42
+        )
+        img = fn.decoders.image(
+            img, device="cpu" if device == "cpu" else "mixed"
+        )
         return dax.fn.jax_function(lambda x: x)(img)
 
     p = pipeline()
     p.build()
-    with assert_raises(RuntimeError, glob="*batch of samples with different shapes*"):
+    with assert_raises(
+        RuntimeError, glob="*batch of samples with different shapes*"
+    ):
         p.run()
 
 
@@ -375,12 +445,24 @@ def test_wrong_device_output(device):
     def flip(image):
         return image[::-1, ::-1, :]
 
-    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=11,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
+    )
     def pipeline():
-        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
-        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
+        img, _ = fn.readers.file(
+            name="Reader", file_root=images_dir, random_shuffle=True, seed=42
+        )
+        img = fn.decoders.image(
+            img, device="cpu" if device == "cpu" else "mixed"
+        )
         img = fn.resize(img, size=(224, 224))
-        return dax.fn.jax_function(jax.jit(flip, backend=other_device), device=device)(img)
+        return dax.fn.jax_function(
+            jax.jit(flip, backend=other_device), device=device
+        )(img)
 
     p = pipeline()
     p.build()
@@ -400,16 +482,27 @@ def test_wrong_output_num():
     def cb(image):
         return image, image
 
-    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=11,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
+    )
     def pipeline():
-        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img, _ = fn.readers.file(
+            name="Reader", file_root=images_dir, random_shuffle=True, seed=42
+        )
         img = fn.decoders.image(img, device="mixed")
         img = fn.resize(img, size=(224, 224))
         return cb(img)
 
     p = pipeline()
     p.build()
-    with assert_raises(RuntimeError, glob="*(a tuple of) `num_outputs=1` outputs, but returned 2*"):
+    with assert_raises(
+        RuntimeError,
+        glob="*(a tuple of) `num_outputs=1` outputs, but returned 2*",
+    ):
         p.run()
 
 
@@ -421,9 +514,17 @@ def test_wrong_num_samples():
     def cat(images):
         return images[0]
 
-    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=11,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
+    )
     def pipeline():
-        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img, _ = fn.readers.file(
+            name="Reader", file_root=images_dir, random_shuffle=True, seed=42
+        )
         img = fn.decoders.image(img, device="mixed")
         img = fn.resize(img, size=(224, 224))
         return cat(img)
@@ -431,7 +532,8 @@ def test_wrong_num_samples():
     p = pipeline()
     p.build()
     with assert_raises(
-        RuntimeError, glob="*current batch size of 11, but the output at index 0 * 224 x 224 x 3*"
+        RuntimeError,
+        glob="*current batch size of 11, but the output at index 0 * 224 x 224 x 3*",
     ):
         p.run()
 
@@ -447,10 +549,16 @@ def test_multi_input_source_info(device):
     @jax.jit
     @jax.vmap
     def mixup(image0, image1):
-        return jax.numpy.array(0.5 * image0 + 0.5 * image1, dtype=jax.numpy.uint8)
+        return jax.numpy.array(
+            0.5 * image0 + 0.5 * image1, dtype=jax.numpy.uint8
+        )
 
     @pipeline_def(
-        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
     )
     def pipeline():
         img0, _ = fn.readers.file(
@@ -459,8 +567,12 @@ def test_multi_input_source_info(device):
         img1, _ = fn.readers.file(
             name="Reader1", file_root=images_dir, random_shuffle=True, seed=43
         )
-        img0 = fn.decoders.image(img0, device="cpu" if device == "cpu" else "mixed")
-        img1 = fn.decoders.image(img1, device="cpu" if device == "cpu" else "mixed")
+        img0 = fn.decoders.image(
+            img0, device="cpu" if device == "cpu" else "mixed"
+        )
+        img1 = fn.decoders.image(
+            img1, device="cpu" if device == "cpu" else "mixed"
+        )
         img0 = fn.resize(img0, size=(224, 224))
         img1 = fn.resize(img1, size=(224, 224))
         mixed_up = fn.cast_like(0.5 * img0 + 0.5 * img1, img0)
@@ -471,15 +583,21 @@ def test_multi_input_source_info(device):
     for _ in range(num_iters):
         jax_mixed, dali_mixed, base_0, base_1 = p.run()
 
-        check_batch(jax_mixed, dali_mixed, compare_layouts=True, max_allowed_error=1)
+        check_batch(
+            jax_mixed, dali_mixed, compare_layouts=True, max_allowed_error=1
+        )
         assert (
             len(jax_mixed) == len(base_0) == len(base_1) == batch_size
         ), f"{len(jax_mixed)} != {len(base_0)} != {len(base_1)}!= {batch_size}"
-        for jax_sample, base_0_sample, base_1_sample in zip(jax_mixed, base_0, base_1):
+        for jax_sample, base_0_sample, base_1_sample in zip(
+            jax_mixed, base_0, base_1
+        ):
             jax_sample_source_info = jax_sample.source_info()
             base_0_source_info = base_0_sample.source_info()
             base_1_source_info = base_1_sample.source_info()
-            expected_source_info = ";".join((base_0_source_info, base_1_source_info))
+            expected_source_info = ";".join(
+                (base_0_source_info, base_1_source_info)
+            )
             assert (
                 jax_sample_source_info == expected_source_info
             ), f"`{jax_sample_source_info}`!= `{expected_source_info}`"

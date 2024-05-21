@@ -46,7 +46,9 @@ class Problem:
     @staticmethod
     def parse(message):
         change_pattern = r"\((?P<word>[^)]+)\)->\((?P<fix>[^)]*)\)"
-        loc_pattern = r'"(?P<file>.+)":(?P<offset>\d+):(?P<line>\d+):(?P<col>\d+)'
+        loc_pattern = (
+            r'"(?P<file>.+)":(?P<offset>\d+):(?P<line>\d+):(?P<col>\d+)'
+        )
         pattern = rf"{change_pattern}\s+in {loc_pattern}\s+-- (?P<ctx>.*)"
         m = re.match(pattern, message)
         assert m, f"Unable to parse problem info: {message}"

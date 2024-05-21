@@ -105,7 +105,9 @@ def move_to(tensor, device):
 def check_single_input(op, device, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
+        data = fn.external_source(
+            source=RandomBatch(), layout=test_data_layout, batch=True
+        )
         return op(move_to(data, device), device=device, **kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
@@ -115,7 +117,9 @@ def check_single_sequence_input(op, device, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(
-            source=RandomBatch(data_shape=test_sequence_shape), layout="FHWC", batch=True
+            source=RandomBatch(data_shape=test_sequence_shape),
+            layout="FHWC",
+            batch=True,
         )
         return op(move_to(data, device), device=device, **kwargs)
 
@@ -126,7 +130,9 @@ def check_single_signal_input(op, device, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(
-            source=RandomBatch(data_shape=[30, 40], dtype=np.float32), layout="ft", batch=True
+            source=RandomBatch(data_shape=[30, 40], dtype=np.float32),
+            layout="ft",
+            batch=True,
         )
         return op(move_to(data, device), device=device, **kwargs)
 
@@ -147,7 +153,9 @@ def check_single_1d_input(op, device, **kwargs):
 def check_single_encoded_jpeg_input(op, device, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        img = os.path.join(get_dali_extra_path(), "db/single/jpeg/100/swan-3584559_640.jpg")
+        img = os.path.join(
+            get_dali_extra_path(), "db/single/jpeg/100/swan-3584559_640.jpg"
+        )
         jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
         return op(move_to(jpegs, device), device=device, **kwargs)
 
@@ -157,7 +165,9 @@ def check_single_encoded_jpeg_input(op, device, **kwargs):
 def check_single_encoded_audio_input(op, device, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        wav = os.path.join(get_dali_extra_path(), "db/audio/wav/237-134500-0000.wav")
+        wav = os.path.join(
+            get_dali_extra_path(), "db/audio/wav/237-134500-0000.wav"
+        )
         audio, _ = fn.readers.file(files=[wav], pad_last_batch=True)
         return op(move_to(audio, device), device=device, **kwargs)
 
@@ -209,7 +219,9 @@ def test_resize_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("experimental.tensor_resize")
 def test_tensor_resize_stateless(device):
-    check_single_input(fn.experimental.tensor_resize, device, axes=[0, 1], sizes=[40, 40])
+    check_single_input(
+        fn.experimental.tensor_resize, device, axes=[0, 1], sizes=[40, 40]
+    )
 
 
 @params("cpu", "gpu")
@@ -227,13 +239,17 @@ def test_crop_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("crop_mirror_normalize")
 def test_crop_mirror_normalize_stateless(device):
-    check_single_input(fn.crop_mirror_normalize, device, crop=(20, 20), mirror=True)
+    check_single_input(
+        fn.crop_mirror_normalize, device, crop=(20, 20), mirror=True
+    )
 
 
 @params("cpu", "gpu")
 @stateless_signed_off("warp_affine")
 def test_warp_affine_stateless(device):
-    check_single_input(fn.warp_affine, device, matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
+    check_single_input(
+        fn.warp_affine, device, matrix=(0.1, 0.9, 10, 0.8, -0.2, -20)
+    )
 
 
 @params("cpu", "gpu")
@@ -276,7 +292,9 @@ def test_saturation_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("brightness_contrast", "brightness", "contrast")
 def test_brightness_contrast_stateless(device):
-    check_single_input(fn.brightness_contrast, device, brightness=0.7, contrast=1.7)
+    check_single_input(
+        fn.brightness_contrast, device, brightness=0.7, contrast=1.7
+    )
 
 
 @params("cpu", "gpu")
@@ -318,13 +336,17 @@ def test_reductions_rms_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("reductions.std_dev")
 def test_reductions_std_dev_stateless(device):
-    check_single_input(lambda x, **kwargs: fn.reductions.std_dev(x, 0.0, **kwargs), device)
+    check_single_input(
+        lambda x, **kwargs: fn.reductions.std_dev(x, 0.0, **kwargs), device
+    )
 
 
 @params("cpu", "gpu")
 @stateless_signed_off("reductions.variance")
 def test_reductions_variance_stateless(device):
-    check_single_input(lambda x, **kwargs: fn.reductions.variance(x, 5.0, **kwargs), device)
+    check_single_input(
+        lambda x, **kwargs: fn.reductions.variance(x, 5.0, **kwargs), device
+    )
 
 
 @params("cpu", "gpu")
@@ -354,7 +376,9 @@ def test_transforms_scale_stateless():
 
 
 @stateless_signed_off(
-    "transforms.translation", "hidden.transform_translation", "transform_translation"
+    "transforms.translation",
+    "hidden.transform_translation",
+    "transform_translation",
 )
 def test_transforms_translation_stateless():
     check_no_input(fn.transforms.translation, "cpu", offset=(4, 3))
@@ -422,7 +446,9 @@ def test_reshape_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("lookup_table")
 def test_lookup_table_stateless(device):
-    check_single_input(fn.lookup_table, device, keys=[0], values=[1], default_value=123)
+    check_single_input(
+        fn.lookup_table, device, keys=[0], values=[1], default_value=123
+    )
 
 
 @params("cpu", "gpu")
@@ -464,7 +490,9 @@ def test_sphere_stateless(device):
 @stateless_signed_off("experimental.filter")
 def test_filter_stateless(device):
     check_single_input(
-        lambda x, **kwargs: fn.experimental.filter(x, np.full((3, 3), 1 / 9), **kwargs),
+        lambda x, **kwargs: fn.experimental.filter(
+            x, np.full((3, 3), 1 / 9), **kwargs
+        ),
         device,
     )
 
@@ -477,7 +505,9 @@ def test_remap_stateless():
 
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        data = fn.external_source(source=RandomBatch((100, 128, 3)), layout="HWC")
+        data = fn.external_source(
+            source=RandomBatch((100, 128, 3)), layout="HWC"
+        )
         data = data.gpu()
         map_x = types.Constant(np_map_x).gpu()
         map_y = types.Constant(np_map_y).gpu()
@@ -490,7 +520,9 @@ def test_remap_stateless():
 def test_debayer_stateless():
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
+        data = fn.external_source(
+            source=RandomBatch((40, 40)), layout="HW", batch=True
+        )
         return fn.experimental.debayer(data.gpu(), blue_position=[0, 0])
 
     check_is_pipeline_stateless(pipeline_factory)
@@ -516,13 +548,17 @@ def test_color_space_conversion_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("resize_crop_mirror", "fast_resize_crop_mirror")
 def test_resize_crop_mirror_stateless(device):
-    check_single_input(fn.resize_crop_mirror, device, size=(35, 55), crop=(20, 20), mirror=True)
+    check_single_input(
+        fn.resize_crop_mirror, device, size=(35, 55), crop=(20, 20), mirror=True
+    )
 
 
 @params("cpu", "gpu")
 @stateless_signed_off("slice")
 def test_slice_stateless(device):
-    check_single_input(fn.slice, device, rel_start=(0.25, 0.25), rel_end=(0.75, 0.75))
+    check_single_input(
+        fn.slice, device, rel_start=(0.25, 0.25), rel_end=(0.75, 0.75)
+    )
 
 
 @params("cpu", "gpu")
@@ -553,7 +589,10 @@ def test_jpeg_compression_distortion_stateless(device):
 @stateless_signed_off("multi_paste")
 def test_multi_paste_stateless(device):
     check_single_input(
-        fn.multi_paste, device, in_ids=list(range(batch_size)), output_size=[100, 100]
+        fn.multi_paste,
+        device,
+        in_ids=list(range(batch_size)),
+        output_size=[100, 100],
     )
 
 
@@ -627,7 +666,9 @@ def test_mfcc_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("nonsilent_region")
 def test_nonsilent_region_stateless(device):
-    check_single_1d_input(lambda *args, **kwargs: fn.nonsilent_region(*args, **kwargs)[0], device)
+    check_single_1d_input(
+        lambda *args, **kwargs: fn.nonsilent_region(*args, **kwargs)[0], device
+    )
 
 
 @params("cpu", "gpu")
@@ -691,7 +732,9 @@ def test_expand_dims(device):
 def test_squeeze(device):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        data = fn.external_source(source=RandomBatch((40, 1, 50, 1)), layout="DHWC")
+        data = fn.external_source(
+            source=RandomBatch((40, 1, 50, 1)), layout="DHWC"
+        )
         data = move_to(data, device)
         return fn.squeeze(data, axis_names="HC")
 
@@ -725,13 +768,17 @@ def test_select_masks_stateless():
 @stateless_signed_off("box_encoder")
 def test_box_encoder_stateless(device):
     n = 10
-    boxes = np.asarray([[float(i), float(i), float(i + 1), float(i + 1)] for i in range(n)])
+    boxes = np.asarray(
+        [[float(i), float(i), float(i + 1), float(i + 1)] for i in range(n)]
+    )
     labels = np.asarray(list(range(n)))
     anchors = [float(i) for i in range(4)]
 
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        return tuple(fn.box_encoder(boxes, labels, anchors=anchors, device=device))
+        return tuple(
+            fn.box_encoder(boxes, labels, anchors=anchors, device=device)
+        )
 
     check_is_pipeline_stateless(pipeline_factory)
 
@@ -765,7 +812,9 @@ def test_numba_function_stateless():
     def double_sample(out_sample, in_sample):
         out_sample[:] = 2 * in_sample[:]
 
-    @pipeline_def(batch_size=2, device_id=0, num_threads=4, enable_checkpointing=True)
+    @pipeline_def(
+        batch_size=2, device_id=0, num_threads=4, enable_checkpointing=True
+    )
     def numba_pipe():
         forty_two = fn.external_source(
             source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False
@@ -842,19 +891,25 @@ def test_experimental_image_decoder_stateless(device):
 @params("cpu", "mixed")
 @stateless_signed_off("decoders.image_crop", "image_decoder_crop")
 def test_image_decoder_crop_stateless(device):
-    check_single_encoded_jpeg_input(fn.decoders.image_crop, device, crop=(20, 50))
+    check_single_encoded_jpeg_input(
+        fn.decoders.image_crop, device, crop=(20, 50)
+    )
 
 
 @params("cpu", "mixed")
 @stateless_signed_off("experimental.decoders.image_crop")
 def test_experimental_image_decoder_crop_stateless(device):
-    check_single_encoded_jpeg_input(fn.experimental.decoders.image_crop, device, crop=(20, 50))
+    check_single_encoded_jpeg_input(
+        fn.experimental.decoders.image_crop, device, crop=(20, 50)
+    )
 
 
 @params("cpu", "mixed")
 @stateless_signed_off("decoders.image_slice", "image_decoder_slice")
 def test_image_decoder_slice_stateless(device):
-    check_single_encoded_jpeg_input(fn.decoders.image_slice, device, start=(5, 5), end=(45, 45))
+    check_single_encoded_jpeg_input(
+        fn.decoders.image_slice, device, start=(5, 5), end=(45, 45)
+    )
 
 
 @params("cpu", "mixed")
@@ -882,7 +937,9 @@ def test_cast_like_stateless(device):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         return fn.cast_like(
-            np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32), device=device
+            np.array([1, 2, 3], dtype=np.int32),
+            np.array([1.0], dtype=np.float32),
+            device=device,
         )
 
     check_is_pipeline_stateless(pipeline_factory)
@@ -946,9 +1003,15 @@ def test_logic_ops(device):
         data = fn.external_source(source=RandomBatch(), layout="HWC")
         if device == "gpu":
             data = data.gpu()
-        condition_1 = fn.external_source(source=RandomBatch(data_shape=())) < 125
-        condition_2 = fn.external_source(source=RandomBatch(data_shape=())) >= 125
-        condition_3 = fn.external_source(source=RandomBatch(data_shape=())) <= 100
+        condition_1 = (
+            fn.external_source(source=RandomBatch(data_shape=())) < 125
+        )
+        condition_2 = (
+            fn.external_source(source=RandomBatch(data_shape=())) >= 125
+        )
+        condition_3 = (
+            fn.external_source(source=RandomBatch(data_shape=())) <= 100
+        )
         if condition_1 and not condition_2 or not condition_3:
             return data
         else:

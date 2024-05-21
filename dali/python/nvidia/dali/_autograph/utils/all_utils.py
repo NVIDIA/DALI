@@ -19,7 +19,9 @@ export and it's management is not important if we import the autograph as intern
 import inspect
 
 
-def _remove_undocumented(module_name, allowed_exception_list=None, doc_string_modules=None):
+def _remove_undocumented(
+    module_name, allowed_exception_list=None, doc_string_modules=None
+):
     pass
 
 
@@ -33,7 +35,11 @@ def export_symbol(*args, **kwargs):
 
 
 def make_decorator(
-    target, decorator_func, decorator_name=None, decorator_doc="", decorator_argspec=None
+    target,
+    decorator_func,
+    decorator_name=None,
+    decorator_doc="",
+    decorator_argspec=None,
 ):
     """Make a decorator from a wrapper and a target.
 

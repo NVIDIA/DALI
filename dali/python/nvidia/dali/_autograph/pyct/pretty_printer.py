@@ -69,7 +69,10 @@ class PrettyPrinter(gast.NodeVisitor):
             cont = "()"
 
         if name:
-            self._print("%s%s=%s%s" % (self._indent(), self._field(name), self._type(node), cont))
+            self._print(
+                "%s%s=%s%s"
+                % (self._indent(), self._field(name), self._type(node), cont)
+            )
         else:
             self._print("%s%s%s" % (self._indent(), self._type(node), cont))
 
@@ -78,7 +81,9 @@ class PrettyPrinter(gast.NodeVisitor):
             if self.noanno and f.startswith("__"):
                 continue
             if not hasattr(node, f):
-                self._print("%s%s" % (self._indent(), self._warning("%s=<unset>" % f)))
+                self._print(
+                    "%s%s" % (self._indent(), self._warning("%s=<unset>" % f))
+                )
                 continue
             v = getattr(node, f)
             if isinstance(v, list):
@@ -110,11 +115,19 @@ class PrettyPrinter(gast.NodeVisitor):
             elif isinstance(v, gast.AST):
                 self.generic_visit(v, f)
             elif isinstance(v, six.binary_type):
-                self._print("%s%s=%s" % (self._indent(), self._field(f), self._value('b"%s"' % v)))
+                self._print(
+                    "%s%s=%s"
+                    % (self._indent(), self._field(f), self._value('b"%s"' % v))
+                )
             elif isinstance(v, six.text_type):
-                self._print("%s%s=%s" % (self._indent(), self._field(f), self._value('u"%s"' % v)))
+                self._print(
+                    "%s%s=%s"
+                    % (self._indent(), self._field(f), self._value('u"%s"' % v))
+                )
             else:
-                self._print("%s%s=%s" % (self._indent(), self._field(f), self._value(v)))
+                self._print(
+                    "%s%s=%s" % (self._indent(), self._field(f), self._value(v))
+                )
         self.indent_lvl -= 1
 
 

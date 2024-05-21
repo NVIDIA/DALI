@@ -91,7 +91,9 @@ def training_test(args):
         if args.distributed and not args.distributed_initialized:
             args.gpu = args.local_rank
             torch.cuda.set_device(args.gpu)
-            torch.distributed.init_process_group(backend="nccl", init_method="env://")
+            torch.distributed.init_process_group(
+                backend="nccl", init_method="env://"
+            )
             args.world_size = torch.distributed.get_world_size()
             args.distributed_initialized = True
 
@@ -107,7 +109,9 @@ def training_test(args):
 
         samples_no = pipe.epoch_size("Reader")
         if args.benchmark_iters is None:
-            expected_iters = samples_no // args.batch_size + (samples_no % args.batch_size != 0)
+            expected_iters = samples_no // args.batch_size + (
+                samples_no % args.batch_size != 0
+            )
         else:
             expected_iters = args.benchmark_iters
 
@@ -169,7 +173,9 @@ def training_test(args):
                                 expected_iters,
                                 data_time.avg,
                                 data_time.max_val,
-                                args.batch_size * args.world_size / data_time.avg,
+                                args.batch_size
+                                * args.world_size
+                                / data_time.avg,
                                 reduced_loss.item(),
                                 losses.avg,
                             )

@@ -35,7 +35,9 @@ class MockConvertedCall(object):
 class CallTreesTest(converter_testing.TestCase):
     def _transform_with_mock(self, f):
         mock = MockConvertedCall()
-        tr = self.transform(f, (functions, call_trees), ag_overrides={"converted_call": mock})
+        tr = self.transform(
+            f, (functions, call_trees), ag_overrides={"converted_call": mock}
+        )
         return tr, mock
 
     def test_function_no_args(self):
@@ -128,7 +130,9 @@ class CallTreesTest(converter_testing.TestCase):
 
         tr, mock = self._transform_with_mock(f)
 
-        self.assertEqual(tr(lambda *args, **kwargs: 7, 1, *[2, 3], **{"b": 4, "c": 5}), 12)
+        self.assertEqual(
+            tr(lambda *args, **kwargs: 7, 1, *[2, 3], **{"b": 4, "c": 5}), 12
+        )
         self.assertListEqual(mock.calls, [((1, 2, 3), {"b": 4, "c": 5})])
 
     def test_function_with_starargs_only(self):
@@ -173,8 +177,12 @@ class CallTreesTest(converter_testing.TestCase):
 
         tr, mock = self._transform_with_mock(f)
 
-        self.assertEqual(tr(lambda *args, **kwargs: 7, 1, 2, 3, {"d": 4}, {"e": 5}), 12)
-        self.assertListEqual(mock.calls, [((1,), {"b": 2, "c": 3, "d": 4, "e": 5})])
+        self.assertEqual(
+            tr(lambda *args, **kwargs: 7, 1, 2, 3, {"d": 4}, {"e": 5}), 12
+        )
+        self.assertListEqual(
+            mock.calls, [((1,), {"b": 2, "c": 3, "d": 4, "e": 5})]
+        )
 
     def test_function_with_call_in_lambda_argument(self):
         def h(l, a):

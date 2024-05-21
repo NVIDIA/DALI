@@ -37,9 +37,13 @@ def test_unified_arg_placement():
         matrix = matrices.at(i)
         assert offset.shape == (3,)
         for j in range(3):
-            assert offset[j] >= 1 and offset[j] < 2  # check that it's not all zeros or sth
+            assert (
+                offset[j] >= 1 and offset[j] < 2
+            )  # check that it's not all zeros or sth
         T = offset[:, np.newaxis]  # convert to a columnn
-        assert np.array_equal(matrix, np.concatenate([np.identity(3), T], axis=1))
+        assert np.array_equal(
+            matrix, np.concatenate([np.identity(3), T], axis=1)
+        )
 
 
 def test_compose():
@@ -47,7 +51,12 @@ def test_compose():
     pipe = Pipeline(batch_size, 1, None)
 
     u = ops.random.Uniform()(range=(1, 2), shape=3)
-    c1 = ops.Compose([ops.transforms.Translation(offset=u), ops.transforms.Scale(scale=[1, 1, -1])])
+    c1 = ops.Compose(
+        [
+            ops.transforms.Translation(offset=u),
+            ops.transforms.Scale(scale=[1, 1, -1]),
+        ]
+    )
     c2 = ops.Compose([c1, ops.transforms.Rotation(angle=90, axis=[0, 0, 1])])
     pipe.set_outputs(c2(fn.transforms.scale(scale=[2, 2, 2])), u)
     pipe.build()
@@ -58,12 +67,16 @@ def test_compose():
         matrix = matrices.at(i)
         assert offset.shape == (3,)
         for j in range(3):
-            assert offset[j] >= 1 and offset[j] < 2  # check that it's not all zeros or sth
+            assert (
+                offset[j] >= 1 and offset[j] < 2
+            )  # check that it's not all zeros or sth
         mtx = np.float32([[0, -1, 0], [1, 0, 0], [0, 0, -1]])
         T = offset[:, np.newaxis]  # convert to a columnn
         T = np.dot(mtx, T)
         mtx *= 2
-        assert np.allclose(matrix, np.concatenate([mtx, T], axis=1), rtol=1e-5, atol=1e-6)
+        assert np.allclose(
+            matrix, np.concatenate([mtx, T], axis=1), rtol=1e-5, atol=1e-6
+        )
 
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
@@ -75,9 +88,13 @@ def test_compose_change_device():
     pipe = Pipeline(batch_size, 1, 0)
 
     size = fn.random.uniform(shape=2, range=(300, 500))
-    c = ops.Compose([ops.decoders.Image(device="cpu"), ops.Resize(size=size, device="gpu")])
+    c = ops.Compose(
+        [ops.decoders.Image(device="cpu"), ops.Resize(size=size, device="gpu")]
+    )
     files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
-    pipe.set_outputs(c(files), fn.resize(fn.decoders.image(files).gpu(), size=size))
+    pipe.set_outputs(
+        c(files), fn.resize(fn.decoders.image(files).gpu(), size=size)
+    )
 
     pipe.build()
     out = pipe.run()

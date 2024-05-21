@@ -62,13 +62,17 @@ class Analyzer(cfg.GraphVisitor):
                 live_out |= self.in_[n]
             live_in = gen | (live_out - kill)
 
-            reaching_functions = anno.getanno(node.ast_node, anno.Static.DEFINED_FNS_IN)
+            reaching_functions = anno.getanno(
+                node.ast_node, anno.Static.DEFINED_FNS_IN
+            )
             for fn_ast_node in reaching_functions:
                 if isinstance(fn_ast_node, gast.Lambda):
                     # Exception: lambda functions are assumed to be used only in the
                     # place where they are defined, and not later.
                     continue
-                fn_scope = anno.getanno(fn_ast_node, annos.NodeAnno.ARGS_AND_BODY_SCOPE)
+                fn_scope = anno.getanno(
+                    fn_ast_node, annos.NodeAnno.ARGS_AND_BODY_SCOPE
+                )
                 # Any closure of a reaching function definition is conservatively
                 # considered live.
                 live_in |= fn_scope.read - fn_scope.bound
@@ -122,7 +126,9 @@ class TreeAnnotator(transformer.Base):
         ):
             cfg_node = self.current_analyzer.graph.index[node]
             anno.setanno(
-                node, anno.Static.LIVE_VARS_IN, frozenset(self.current_analyzer.in_[cfg_node])
+                node,
+                anno.Static.LIVE_VARS_IN,
+                frozenset(self.current_analyzer.in_[cfg_node]),
             )
         return node
 
@@ -156,9 +162,10 @@ class TreeAnnotator(transformer.Base):
             cfg_node = self.current_analyzer.graph.index[entry_node]
             stmt_live_in = frozenset(self.current_analyzer.in_[cfg_node])
         else:
-            assert anno.hasanno(
-                entry_node, anno.Static.LIVE_VARS_IN
-            ), "If not matching a CFG node, must be a block statement:" " {}".format(entry_node)
+            assert anno.hasanno(entry_node, anno.Static.LIVE_VARS_IN), (
+                "If not matching a CFG node, must be a block statement:"
+                " {}".format(entry_node)
+            )
             stmt_live_in = anno.getanno(entry_node, anno.Static.LIVE_VARS_IN)
         anno.setanno(node, anno.Static.LIVE_VARS_IN, stmt_live_in)
         return node
@@ -196,7 +203,9 @@ class TreeAnnotator(transformer.Base):
         node = self.generic_visit(node)
         cfg_node = self.current_analyzer.graph.index[node]
         anno.setanno(
-            node, anno.Static.LIVE_VARS_OUT, frozenset(self.current_analyzer.out[cfg_node])
+            node,
+            anno.Static.LIVE_VARS_OUT,
+            frozenset(self.current_analyzer.out[cfg_node]),
         )
         return node
 

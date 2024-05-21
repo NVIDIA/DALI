@@ -33,7 +33,15 @@ import mxnet as mx  # noqa: E402
 import numpy as np  # noqa: E402
 
 
-def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, suffix=""):
+def Conv(
+    data,
+    num_filter,
+    kernel=(1, 1),
+    stride=(1, 1),
+    pad=(0, 0),
+    name=None,
+    suffix="",
+):
     conv = mx.sym.Convolution(
         data=data,
         num_filter=num_filter,
@@ -43,8 +51,12 @@ def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, 
         no_bias=True,
         name="%s%s_conv2d" % (name, suffix),
     )
-    bn = mx.sym.BatchNorm(data=conv, name="%s%s_batchnorm" % (name, suffix), fix_gamma=True)
-    act = mx.sym.Activation(data=bn, act_type="relu", name="%s%s_relu" % (name, suffix))
+    bn = mx.sym.BatchNorm(
+        data=conv, name="%s%s_batchnorm" % (name, suffix), fix_gamma=True
+    )
+    act = mx.sym.Activation(
+        data=bn, act_type="relu", name="%s%s_relu" % (name, suffix)
+    )
 
     return act
 
@@ -55,7 +67,11 @@ def Inception_stem(data, name=None):
     c = Conv(c, 64, kernel=(3, 3), pad=(1, 1), name="%s_conv3_3*3" % name)
 
     p1 = mx.sym.Pooling(
-        c, kernel=(3, 3), stride=(2, 2), pool_type="max", name="%s_maxpool_1" % name
+        c,
+        kernel=(3, 3),
+        stride=(2, 2),
+        pool_type="max",
+        name="%s_maxpool_1" % name,
     )
     c2 = Conv(c, 96, kernel=(3, 3), stride=(2, 2), name="%s_conv4_3*3" % name)
     concat = mx.sym.Concat(*[p1, c2], name="%s_concat_1" % name)
@@ -70,9 +86,15 @@ def Inception_stem(data, name=None):
 
     concat = mx.sym.Concat(*[c1, c2], name="%s_concat_2" % name)
 
-    c1 = Conv(concat, 192, kernel=(3, 3), stride=(2, 2), name="%s_conv11_3*3" % name)
+    c1 = Conv(
+        concat, 192, kernel=(3, 3), stride=(2, 2), name="%s_conv11_3*3" % name
+    )
     p1 = mx.sym.Pooling(
-        concat, kernel=(3, 3), stride=(2, 2), pool_type="max", name="%s_maxpool_2" % name
+        concat,
+        kernel=(3, 3),
+        stride=(2, 2),
+        pool_type="max",
+        name="%s_maxpool_2" % name,
     )
 
     concat = mx.sym.Concat(*[c1, p1], name="%s_concat_3" % name)
@@ -82,7 +104,11 @@ def Inception_stem(data, name=None):
 
 def InceptionA(input, name=None):
     p1 = mx.sym.Pooling(
-        input, kernel=(3, 3), pad=(1, 1), pool_type="avg", name="%s_avgpool_1" % name
+        input,
+        kernel=(3, 3),
+        pad=(1, 1),
+        pool_type="avg",
+        name="%s_avgpool_1" % name,
     )
     c1 = Conv(p1, 96, kernel=(1, 1), pad=(0, 0), name="%s_conv1_1*1" % name)
 
@@ -102,14 +128,27 @@ def InceptionA(input, name=None):
 
 def ReductionA(input, name=None):
     p1 = mx.sym.Pooling(
-        input, kernel=(3, 3), stride=(2, 2), pool_type="max", name="%s_maxpool_1" % name
+        input,
+        kernel=(3, 3),
+        stride=(2, 2),
+        pool_type="max",
+        name="%s_maxpool_1" % name,
     )
 
-    c2 = Conv(input, 384, kernel=(3, 3), stride=(2, 2), name="%s_conv1_3*3" % name)
+    c2 = Conv(
+        input, 384, kernel=(3, 3), stride=(2, 2), name="%s_conv1_3*3" % name
+    )
 
     c3 = Conv(input, 192, kernel=(1, 1), pad=(0, 0), name="%s_conv2_1*1" % name)
     c3 = Conv(c3, 224, kernel=(3, 3), pad=(1, 1), name="%s_conv3_3*3" % name)
-    c3 = Conv(c3, 256, kernel=(3, 3), stride=(2, 2), pad=(0, 0), name="%s_conv4_3*3" % name)
+    c3 = Conv(
+        c3,
+        256,
+        kernel=(3, 3),
+        stride=(2, 2),
+        pad=(0, 0),
+        name="%s_conv4_3*3" % name,
+    )
 
     concat = mx.sym.Concat(*[p1, c2, c3], name="%s_concat_1" % name)
 
@@ -118,7 +157,11 @@ def ReductionA(input, name=None):
 
 def InceptionB(input, name=None):
     p1 = mx.sym.Pooling(
-        input, kernel=(3, 3), pad=(1, 1), pool_type="avg", name="%s_avgpool_1" % name
+        input,
+        kernel=(3, 3),
+        pad=(1, 1),
+        pool_type="avg",
+        name="%s_avgpool_1" % name,
     )
     c1 = Conv(p1, 128, kernel=(1, 1), pad=(0, 0), name="%s_conv1_1*1" % name)
 
@@ -142,7 +185,11 @@ def InceptionB(input, name=None):
 
 def ReductionB(input, name=None):
     p1 = mx.sym.Pooling(
-        input, kernel=(3, 3), stride=(2, 2), pool_type="max", name="%s_maxpool_1" % name
+        input,
+        kernel=(3, 3),
+        stride=(2, 2),
+        pool_type="max",
+        name="%s_maxpool_1" % name,
     )
 
     c2 = Conv(input, 192, kernel=(1, 1), pad=(0, 0), name="%s_conv1_1*1" % name)
@@ -160,7 +207,11 @@ def ReductionB(input, name=None):
 
 def InceptionC(input, name=None):
     p1 = mx.sym.Pooling(
-        input, kernel=(3, 3), pad=(1, 1), pool_type="avg", name="%s_avgpool_1" % name
+        input,
+        kernel=(3, 3),
+        pad=(1, 1),
+        pool_type="avg",
+        name="%s_avgpool_1" % name,
     )
     c1 = Conv(p1, 256, kernel=(1, 1), pad=(0, 0), name="%s_conv1_1*1" % name)
 
@@ -176,7 +227,9 @@ def InceptionC(input, name=None):
     c4_1 = Conv(c4, 256, kernel=(3, 1), pad=(1, 0), name="%s_conv9_1*3" % name)
     c4_2 = Conv(c4, 256, kernel=(1, 3), pad=(0, 1), name="%s_conv10_3*1" % name)
 
-    concat = mx.sym.Concat(*[c1, c2, c3_1, c3_2, c4_1, c4_2], name="%s_concat" % name)
+    concat = mx.sym.Concat(
+        *[c1, c2, c3_1, c3_2, c4_1, c4_2], name="%s_concat" % name
+    )
 
     return concat
 
@@ -226,7 +279,9 @@ def get_symbol(num_classes=1000, dtype="float32", **kwargs):
         x = InceptionC(x, name="in%dC" % (i + 1))
 
     # Average Pooling
-    x = mx.sym.Pooling(x, kernel=(8, 8), pad=(1, 1), pool_type="avg", name="global_avgpool")
+    x = mx.sym.Pooling(
+        x, kernel=(8, 8), pad=(1, 1), pool_type="avg", name="global_avgpool"
+    )
 
     # Dropout
     x = mx.sym.Dropout(x, p=0.2)

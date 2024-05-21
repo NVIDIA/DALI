@@ -27,5 +27,9 @@ class IfExpTest(unittest.TestCase):
     def test_python(self):
         self.assertEqual(_basic_expr(True), 1)
         self.assertEqual(_basic_expr(False), 2)
-        self.assertEqual(conditional_expressions.if_exp(True, lambda: 1, lambda: 2, ""), 1)
-        self.assertEqual(conditional_expressions.if_exp(False, lambda: 1, lambda: 2, ""), 2)
+        self.assertEqual(
+            conditional_expressions.if_exp(True, lambda: 1, lambda: 2, ""), 1
+        )
+        self.assertEqual(
+            conditional_expressions.if_exp(False, lambda: 1, lambda: 2, ""), 2
+        )

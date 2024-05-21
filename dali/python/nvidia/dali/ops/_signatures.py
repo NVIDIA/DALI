@@ -122,7 +122,9 @@ def _get_positional_input_param(schema, idx, annotation):
     """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
-    annotation = annotation if idx < schema.MinNumInput() else Optional[annotation]
+    annotation = (
+        annotation if idx < schema.MinNumInput() else Optional[annotation]
+    )
     return Parameter(
         _names._get_input_name(schema, idx),
         kind=Parameter.POSITIONAL_ONLY,
@@ -180,7 +182,11 @@ def _get_annotation_return_mis(schema):
         # We can return single or multiple outputs in regular case (same as primary overload),
         # a list of single outputs or a list of multiple outputs for MIS or None.
         return_annotation = Union[
-            _DataNode, Sequence[_DataNode], List[_DataNode], List[Sequence[_DataNode]], None
+            _DataNode,
+            Sequence[_DataNode],
+            List[_DataNode],
+            List[Sequence[_DataNode]],
+            None,
         ]
     else:
         # Call it with a dummy spec, as we don't have Output function
@@ -196,11 +202,15 @@ def _get_annotation_return_mis(schema):
             # as DALI operators return a list
             # Also, we don't advertise the actual List type, hence the Sequence, but we say
             # that the outermost return type of MIS is a List.
-            return_annotation = Union[Sequence[_DataNode], List[Sequence[_DataNode]]]
+            return_annotation = Union[
+                Sequence[_DataNode], List[Sequence[_DataNode]]
+            ]
     return return_annotation
 
 
-def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_input_regular):
+def _get_positional_input_params(
+    schema, input_annotation_gen=_get_annotation_input_regular
+):
     """Get the list of positional only inputs to the operator.
 
     Parameters
@@ -214,19 +224,25 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
     if schema.HasInputDox():
         for i in range(schema.MaxNumInput()):
             param_list.append(
-                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+                _get_positional_input_param(
+                    schema, i, annotation=input_annotation_gen(schema)
+                )
             )
     else:
         # List all mandatory inputs
         for i in range(schema.MinNumInput()):
             param_list.append(
-                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+                _get_positional_input_param(
+                    schema, i, annotation=input_annotation_gen(schema)
+                )
             )
         # If they fit below limit, list all inputs (with optional ones)
         if schema.MaxNumInput() < _MAX_INPUT_SPELLED_OUT:
             for i in range(schema.MinNumInput(), schema.MaxNumInput()):
                 param_list.append(
-                    _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+                    _get_positional_input_param(
+                        schema, i, annotation=input_annotation_gen(schema)
+                    )
                 )
         # List the rest of optional inputs in general fashion
         elif schema.MaxNumInput() > schema.MinNumInput():
@@ -283,7 +299,12 @@ def _get_keyword_params(schema, all_args_optional=False):
                 default = None
 
         param_list.append(
-            Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default, annotation=annotation)
+            Parameter(
+                name=arg,
+                kind=Parameter.KEYWORD_ONLY,
+                default=default,
+                annotation=annotation,
+            )
         )
 
     # We omit the **kwargs, as we already specified all possible parameters:
@@ -300,10 +321,18 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
     return [
         # TODO(klecki): The default for `device` is dependant on the input placement (and API).
         Parameter(
-            name="device", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]
+            name="device",
+            kind=Parameter.KEYWORD_ONLY,
+            default=None,
+            annotation=Optional[str],
         ),
         # The name is truly optional
-        Parameter(name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]),
+        Parameter(
+            name="name",
+            kind=Parameter.KEYWORD_ONLY,
+            default=None,
+            annotation=Optional[str],
+        ),
     ]
 
 
@@ -347,19 +376,30 @@ def _call_signature(
 
     if include_inputs:
         param_list.extend(
-            _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen)
+            _get_positional_input_params(
+                schema, input_annotation_gen=input_annotation_gen
+            )
         )
 
     if include_kwargs:
-        param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
-        param_list.extend(_get_implicit_keyword_params(schema, all_args_optional=all_args_optional))
+        param_list.extend(
+            _get_keyword_params(schema, all_args_optional=all_args_optional)
+        )
+        param_list.extend(
+            _get_implicit_keyword_params(
+                schema, all_args_optional=all_args_optional
+            )
+        )
 
     if data_node_return:
         return_annotation = return_annotation_gen(schema)
     else:
         return_annotation = None
     if filter_annotations:
-        param_list = [Parameter(name=p.name, kind=p.kind, default=p.default) for p in param_list]
+        param_list = [
+            Parameter(name=p.name, kind=p.kind, default=p.default)
+            for p in param_list
+        ]
         return_annotation = Signature.empty
     return Signature(param_list, return_annotation=return_annotation)
 
@@ -425,9 +465,13 @@ def _gen_fn_signature(schema, schema_name, fn_name):
     If there are no inputs, we have only one signature.
     """
     if schema.MaxNumInput() == 0:
-        return inspect_repr_fixups(_gen_fn_signature_no_input(schema, schema_name, fn_name))
+        return inspect_repr_fixups(
+            _gen_fn_signature_no_input(schema, schema_name, fn_name)
+        )
     else:
-        return inspect_repr_fixups(_gen_fn_signature_with_inputs(schema, schema_name, fn_name))
+        return inspect_repr_fixups(
+            _gen_fn_signature_with_inputs(schema, schema_name, fn_name)
+        )
 
 
 def _gen_ops_call_signature_no_input(schema, schema_name):
@@ -537,7 +581,9 @@ def _build_module_tree():
             continue
         if schema.IsDocHidden() or schema.IsInternal():
             continue
-        dotted_name, module_nesting, op_name = _names._process_op_name(schema_name)
+        dotted_name, module_nesting, op_name = _names._process_op_name(
+            schema_name
+        )
         if dotted_name not in processed:
             module_nesting.insert(0, "")  # add the top-level module
             curr_dict = module_tree
@@ -590,7 +636,9 @@ def _group_signatures(api: str):
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
 
-        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+        _, module_nesting, op_name = _names._process_op_name(
+            schema_name, api=api
+        )
         op = _get_op(api_module, module_nesting + [op_name])
 
         if schema is None:
@@ -627,7 +675,12 @@ class StubFileManager:
         """
         module_path = Path("/".join(module_nesting))
         if module_path not in self._module_to_file:
-            file_path = self._nvidia_dali_path / self._api / module_path / "__init__.pyi"
+            file_path = (
+                self._nvidia_dali_path
+                / self._api
+                / module_path
+                / "__init__.pyi"
+            )
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             open(file_path, "w").close()  # clear the file
             f = open(file_path, "a")
@@ -640,7 +693,9 @@ class StubFileManager:
                 submodules_dict = submodules_dict[submodule]
             direct_submodules = submodules_dict.keys()
             for direct_submodule in direct_submodules:
-                f.write(f"from . import {direct_submodule} as {direct_submodule}\n")
+                f.write(
+                    f"from . import {direct_submodule} as {direct_submodule}\n"
+                )
 
             f.write("\n\n")
         return self._module_to_file[module_path]
@@ -666,11 +721,16 @@ def gen_all_signatures(nvidia_dali_path, api):
         sig_groups = _group_signatures(api)
 
         # Python-only and the manually defined ones are reexported from their respective modules
-        for schema_name, op in sig_groups["python_only"] + sig_groups["python_wrapper"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+        for schema_name, op in (
+            sig_groups["python_only"] + sig_groups["python_wrapper"]
+        ):
+            _, module_nesting, op_name = _names._process_op_name(
+                schema_name, api=api
+            )
 
             stub_manager.get(module_nesting).write(
-                f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
+                f"\n\nfrom {op._impl_module} import"
+                f" ({op.__name__} as {op.__name__})\n\n"
             )
 
         # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
@@ -678,7 +738,9 @@ def gen_all_signatures(nvidia_dali_path, api):
 
         # Runtime generated classes use fully specified stubs.
         for schema_name, op in sig_groups["generated"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            _, module_nesting, op_name = _names._process_op_name(
+                schema_name, api=api
+            )
             schema = _b.TryGetSchema(schema_name)
 
             if api == "fn":

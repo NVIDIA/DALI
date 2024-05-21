@@ -92,7 +92,9 @@ class _StackEntry:
         elif self.branch == _Branch.FalseBranch:
             return self.produced_false
         else:
-            return self.produced_special | self.produced_true | self.produced_false
+            return (
+                self.produced_special | self.produced_true | self.produced_false
+            )
 
     @produced.setter
     def produced(self, value):
@@ -282,7 +284,9 @@ class _ConditionStack:
 
             # Record the result of splitting the `data_node` that we are trying to look up
             # (short-cut for consecutive lookups)
-            current_entry.add_split(data_node, produced_data_node, true_node, false_node)
+            current_entry.add_split(
+                data_node, produced_data_node, true_node, false_node
+            )
             if current_entry.branch == _Branch.TrueBranch:
                 produced_data_node = true_node
             else:
@@ -315,7 +319,12 @@ class _ConditionStack:
         """
         if not self._is_registration_allowed:
             return
-        logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"))
+        logging.log(
+            8,
+            (
+                f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"
+            ),
+        )
         scope = self._stack[0] if global_scope else self.top()
         _map_structure(lambda node: scope.add_produced(node), data_nodes)
 
@@ -452,13 +461,17 @@ def register_data_nodes(data_node, inputs=[], args={}):
     """
 
     any_positional_input = any(isinstance(input, _DataNode) for input in inputs)
-    any_arg_input = any(isinstance(arg, _DataNode) for arg_name, arg in args.items())
+    any_arg_input = any(
+        isinstance(arg, _DataNode) for arg_name, arg in args.items()
+    )
     any_input = any_positional_input or any_arg_input
     # TODO(klecki): In theory we have two approaches for inputless operators. Here we insert their
     # outputs to top level and let the automatic splitting handle the situation. Otherwise we could
     # pass the scope information and batch_size within that scope to all operators that are invoked
     # within that scope.
-    this_condition_stack().register_data_nodes(data_node, global_scope=not any_input)
+    this_condition_stack().register_data_nodes(
+        data_node, global_scope=not any_input
+    )
 
 
 def inject_implicit_scope_argument(schema, kwargs):
@@ -481,7 +494,9 @@ def apply_conditional_split(input):
     return this_condition_stack().preprocess_input(input)
 
 
-def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=True):
+def apply_conditional_split_to_branch_outputs(
+    branch_outputs, promote_constants=True
+):
     """Apply splitting to the branch outputs. This may be necessary for DataNodes that are
     branch outputs but were not touched in that branch (for example that branch is no-op).
 
@@ -552,7 +567,9 @@ class DaliOperatorOverload(_autograph.OperatorBase):
     def detect_overload_if_stmt(self, cond):
         return isinstance(cond, _DataNode)
 
-    def if_stmt(self, cond, body, orelse, get_state, set_state, symbol_names, nouts):
+    def if_stmt(
+        self, cond, body, orelse, get_state, set_state, symbol_names, nouts
+    ):
         # Initial checkpoint before if
         init_state = get_state()
         with _cond_manager(cond) as split_predicate:
@@ -566,7 +583,9 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 
                 _verify_branch_outputs(body_state, symbol_names, "if")
                 body_outputs = body_state[:nouts]
-                body_outputs = apply_conditional_split_to_branch_outputs(body_outputs)
+                body_outputs = apply_conditional_split_to_branch_outputs(
+                    body_outputs
+                )
 
             # Do the same for else block.
             set_state(init_state)
@@ -577,7 +596,9 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 
                 _verify_branch_outputs(orelse_state, symbol_names, "else")
                 orelse_outputs = orelse_state[:nouts]
-                orelse_outputs = apply_conditional_split_to_branch_outputs(orelse_outputs)
+                orelse_outputs = apply_conditional_split_to_branch_outputs(
+                    orelse_outputs
+                )
 
             # Build the state that is the combination of both branches. Only the actual outputs
             # should be affected by the if/else blocks, the rest can be reused from-before split.
@@ -598,7 +619,9 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 )
 
                 try:
-                    tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+                    tree.assert_same_structure(
+                        body_outputs, orelse_outputs, check_types=True
+                    )
                 except ValueError as e:
                     # Suppress the original exception, add DALI explanation at the beginning,
                     # raise the full error message.
@@ -620,7 +643,9 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                         new_body_val, new_orelse_val, predicate=split_predicate
                     )
 
-                output_values = _map_structure(merge_branches, body_outputs, orelse_outputs)
+                output_values = _map_structure(
+                    merge_branches, body_outputs, orelse_outputs
+                )
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.

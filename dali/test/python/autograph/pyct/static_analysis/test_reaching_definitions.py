@@ -46,7 +46,9 @@ class ReachingDefinitionsAnalyzerTestBase(unittest.TestCase):
         ctx = transformer.Context(entity_info, namer, None)
         node = activity.resolve(node, ctx)
         graphs = cfg.build(node)
-        node = reaching_definitions.resolve(node, ctx, graphs, reaching_definitions.Definition)
+        node = reaching_definitions.resolve(
+            node, ctx, graphs, reaching_definitions.Definition
+        )
         return node
 
     def assertHasDefs(self, node, num):
@@ -155,7 +157,9 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
         self.assertHasDefinedIn(fn_body[1], ("a", "b"))
         self.assertHasDefinedIn(fn_body[1].body[0], ("a", "b"))
         # Note: `TestException` and `e` are not tracked.
-        self.assertHasDefinedIn(fn_body[1].body[0].handlers[0].body[0], ("a", "b"))
+        self.assertHasDefinedIn(
+            fn_body[1].body[0].handlers[0].body[0], ("a", "b")
+        )
 
     def test_while(self):
         def test_fn(a):

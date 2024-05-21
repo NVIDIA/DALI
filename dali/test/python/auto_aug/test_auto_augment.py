@@ -90,22 +90,45 @@ run_aug_no_translation_cases = itertools.product(
 
 
 @params(
-    *tuple(enumerate(itertools.chain(run_aug_shape_supporting_cases, run_aug_no_translation_cases)))
+    *tuple(
+        enumerate(
+            itertools.chain(
+                run_aug_shape_supporting_cases, run_aug_no_translation_cases
+            )
+        )
+    )
 )
 def test_run_auto_aug(i, args):
-    policy_name, dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    (
+        policy_name,
+        dev,
+        uniformly_resized,
+        use_shape,
+        fill_value,
+        specify_translation_bounds,
+    ) = args
     batch_sizes = [1, 8, 7, 64, 13, 41]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
     @pipeline_def(
-        enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0, seed=43
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=43,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
+        image = fn.decoders.image(
+            encoded_image, device="cpu" if dev == "cpu" else "mixed"
+        )
         if uniformly_resized:
             image = fn.resize(image, size=(244, 244))
-        extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}
+        extra = (
+            {}
+            if not use_shape
+            else {"shape": fn.peek_image_shape(encoded_image)}
+        )
         if fill_value is not None:
             extra["fill_value"] = fill_value
         if specify_translation_bounds:
@@ -180,7 +203,11 @@ class VideoTest(unittest.TestCase):
         assert device in ("gpu", "cpu")
 
         @pipeline_def(
-            batch_size=batch_size, device_id=0, num_threads=4, seed=205, enable_conditionals=True
+            batch_size=batch_size,
+            device_id=0,
+            num_threads=4,
+            seed=205,
+            enable_conditionals=True,
         )
         def pipeline():
             rng = random.Random(42 + i)
@@ -254,14 +281,22 @@ def test_sub_policy(randomly_negate, dev, batch_size):
         [(first, 1, 8), (first, 1, 4), (second, 1, 7), (second, 1, 6)],
     ]
 
-    policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
+    policy = Policy(
+        "MyPolicy",
+        num_magnitude_bins=num_magnitude_bins,
+        sub_policies=sub_policies,
+    )
     p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
     p.build()
 
-    sub_policy_outputs = collect_sub_policy_outputs(sub_policies, num_magnitude_bins)
+    sub_policy_outputs = collect_sub_policy_outputs(
+        sub_policies, num_magnitude_bins
+    )
     # magnitudes are chosen so that the magnitude of the first op in
     # each sub-policy identifies the sub-policy
-    assert len({out[0][1] for out in sub_policy_outputs}) == len(sub_policy_outputs)
+    assert len({out[0][1] for out in sub_policy_outputs}) == len(
+        sub_policy_outputs
+    )
     output_cases = {out[0][1]: np.array(out) for out in sub_policy_outputs}
 
     sub_policy_negation_cases = []
@@ -282,7 +317,9 @@ def test_sub_policy(randomly_negate, dev, batch_size):
         output = [np.array(sample) for sample in output]
         for sample in output:
             test_sample = sample if not randomly_negate else np.abs(sample)
-            np.testing.assert_equal(np.abs(test_sample), output_cases[test_sample[0][1]])
+            np.testing.assert_equal(
+                np.abs(test_sample), output_cases[test_sample[0][1]]
+            )
             for op_mag in sample:
                 if op_mag[1] < 0:
                     # the `second` and `third` augmentation are marked as randomly_negated
@@ -292,14 +329,18 @@ def test_sub_policy(randomly_negate, dev, batch_size):
             # of magnitude signs
             negation_cases = {
                 out[0][1]: {case: 0 for case in cases}
-                for out, cases in zip(sub_policy_outputs, sub_policy_negation_cases)
+                for out, cases in zip(
+                    sub_policy_outputs, sub_policy_negation_cases
+                )
             }
             for sample in output:
                 mag_signs = tuple(op_mag[1] < 0 for op_mag in sample)
                 negation_cases[np.abs(sample[0][1])][mag_signs] += 1
             counts, expected_counts = [], []
             for sub_policy_cases in negation_cases.values():
-                expected = batch_size / (len(sub_policies) * len(sub_policy_cases))
+                expected = batch_size / (
+                    len(sub_policies) * len(sub_policy_cases)
+                )
                 for count in sub_policy_cases.values():
                     counts.append(count)
                     expected_counts.append(expected)
@@ -371,8 +412,14 @@ def test_op_skipping(dev):
 
     # sub_policy_cases = [[] for _ in range(len(sub_policies))]
     expected_counts = {tuple(): 0.0}
-    for (left_aug, left_p, left_mag), (right_aug, right_p, right_mag) in sub_policies:
-        expected_counts[tuple()] += (1.0 - left_p) * (1 - right_p) / len(sub_policies)
+    for (left_aug, left_p, left_mag), (
+        right_aug,
+        right_p,
+        right_mag,
+    ) in sub_policies:
+        expected_counts[tuple()] += (
+            (1.0 - left_p) * (1 - right_p) / len(sub_policies)
+        )
         only_left_p = left_p * (1 - right_p) / len(sub_policies)
         only_right_p = (1 - left_p) * right_p / len(sub_policies)
         for aug, mag, prob in [
@@ -384,19 +431,32 @@ def test_op_skipping(dev):
             else:
                 expected_counts[(mag,)] = prob / 2
                 expected_counts[(-mag,)] = prob / 2
-        sign_cases = [(-1, 1) if aug.randomly_negate else (1,) for aug in (left_aug, right_aug)]
+        sign_cases = [
+            (-1, 1) if aug.randomly_negate else (1,)
+            for aug in (left_aug, right_aug)
+        ]
         sign_cases = list(itertools.product(*sign_cases))
         prob = left_p * right_p / len(sub_policies)
         for left_sign, right_sign in sign_cases:
             mags = (left_sign * left_mag, right_sign * right_mag)
             expected_counts[mags] = prob / len(sign_cases)
-    expected_counts = {mag: prob * batch_size for mag, prob in expected_counts.items() if prob > 0}
-    assert all(num_elements >= 5 for num_elements in expected_counts.values()), (
+    expected_counts = {
+        mag: prob * batch_size
+        for mag, prob in expected_counts.items()
+        if prob > 0
+    }
+    assert all(
+        num_elements >= 5 for num_elements in expected_counts.values()
+    ), (
         f"The batch size is too small (i.e. some output cases are expected less "
         f"than five times in the output): {expected_counts}"
     )
 
-    policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
+    policy = Policy(
+        "MyPolicy",
+        num_magnitude_bins=num_magnitude_bins,
+        sub_policies=sub_policies,
+    )
     p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
     p.build()
 
@@ -448,50 +508,83 @@ def test_policy_presentation():
         [(another, 0.2, None), (one, 0.5, 2)],
         [(another, 0.7, None)],
     ]
-    policy = Policy(name="DummyPolicy", num_magnitude_bins=11, sub_policies=sub_policies)
+    policy = Policy(
+        name="DummyPolicy", num_magnitude_bins=11, sub_policies=sub_policies
+    )
     assert policy.sub_policies[0][0][0] is policy.sub_policies[1][1][0]
     assert policy.sub_policies[0][1][0] is policy.sub_policies[1][0][0]
     assert policy.sub_policies[0][1][0] is policy.sub_policies[2][0][0]
     assert len(sub_policies) == len(policy.sub_policies)
     for sub_pol, pol_sub_pol in zip(sub_policies, policy.sub_policies):
         assert len(sub_pol) == len(pol_sub_pol)
-        for (aug, p, mag), (pol_aug, pol_p, pol_mag) in zip(sub_pol, pol_sub_pol):
-            assert p == pol_p, f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
-            assert mag == pol_mag, f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
+        for (aug, p, mag), (pol_aug, pol_p, pol_mag) in zip(
+            sub_pol, pol_sub_pol
+        ):
+            assert (
+                p == pol_p
+            ), f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
+            assert (
+                mag == pol_mag
+            ), f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
 
     @augmentation
     def yet_another_aug(data, _):
         return data
 
     sub_policies = [
-        [(yet_another_aug, 0.5, None), (one.augmentation(mag_range=(0, i)), 0.24, i)]
+        [
+            (yet_another_aug, 0.5, None),
+            (one.augmentation(mag_range=(0, i)), 0.24, i),
+        ]
         for i in range(1, 107)
     ]
-    bigger_policy = Policy(name="BiggerPolicy", num_magnitude_bins=200, sub_policies=sub_policies)
+    bigger_policy = Policy(
+        name="BiggerPolicy", num_magnitude_bins=200, sub_policies=sub_policies
+    )
     for i, (first, second) in enumerate(bigger_policy.sub_policies):
         assert first[0].name == "000__yet_another_aug", f"{second[0].name}"
-        assert second[0].name == f"{(i + 1):03}__clashing_name", f"{second[0].name}"
+        assert (
+            second[0].name == f"{(i + 1):03}__clashing_name"
+        ), f"{second[0].name}"
 
 
 def test_unused_arg_fail():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=5,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+    )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
         image_net_policy = auto_augment.get_image_net_policy()
-        return auto_augment.apply_auto_augment(image_net_policy, image, misspelled_kwarg=100)
+        return auto_augment.apply_auto_augment(
+            image_net_policy, image, misspelled_kwarg=100
+        )
 
-    msg = "The kwarg `misspelled_kwarg` is not used by any of the augmentations."
+    msg = (
+        "The kwarg `misspelled_kwarg` is not used by any of the augmentations."
+    )
     with assert_raises(Exception, glob=msg):
         pipeline()
 
 
 def test_empty_policy_fail():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=5,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+    )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
-        return auto_augment.apply_auto_augment(Policy("ShouldFail", 9, []), image)
+        return auto_augment.apply_auto_augment(
+            Policy("ShouldFail", 9, []), image
+        )
 
     msg = (
         "Cannot run empty policy. Got Policy(name='ShouldFail', num_magnitude_bins=9, "
@@ -502,7 +595,13 @@ def test_empty_policy_fail():
 
 
 def test_missing_shape_fail():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=5,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+    )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -540,7 +639,12 @@ def test_sub_policy_coalescing_matrix_correctness():
             "MyCustomPolicy",
             14,
             [
-                [(third, 0.5, 1), (second, 1.0, 2), (first, 0.2, 3), (second, 0.25, 4)],
+                [
+                    (third, 0.5, 1),
+                    (second, 1.0, 2),
+                    (first, 0.2, 3),
+                    (second, 0.25, 4),
+                ],
                 [(first, 0.6, 5)],
                 [(second, 0.1, 6), (third, 0.7, 7)],
                 [
@@ -563,10 +667,16 @@ def test_sub_policy_coalescing_matrix_correctness():
     ]
     for policy_getter in predefined_policies:
         policy = policy_getter()
-        matrix, augments = auto_augment._sub_policy_to_augmentation_matrix_map(policy)
-        max_sub_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
+        matrix, augments = auto_augment._sub_policy_to_augmentation_matrix_map(
+            policy
+        )
+        max_sub_policy_len = max(
+            len(sub_policy) for sub_policy in policy.sub_policies
+        )
         expected_shape = (len(policy.sub_policies), max_sub_policy_len)
-        assert matrix.shape == expected_shape, f"{matrix.shape} {expected_shape} {policy}"
+        assert (
+            matrix.shape == expected_shape
+        ), f"{matrix.shape} {expected_shape} {policy}"
         for i, sub_policy in enumerate(policy.sub_policies):
             for stage_idx in range(max_sub_policy_len):
                 mat_aug = augments[stage_idx][matrix[i, stage_idx]]
@@ -576,37 +686,49 @@ def test_sub_policy_coalescing_matrix_correctness():
                         mat_aug is sub_pol_aug
                     ), f"{i} {stage_idx} {mat_aug} {sub_pol_aug} {policy}"
                 else:
-                    assert mat_aug is a.identity, f"{i} {stage_idx} {mat_aug} {policy}"
+                    assert (
+                        mat_aug is a.identity
+                    ), f"{i} {stage_idx} {mat_aug} {policy}"
 
 
 def test_wrong_sub_policy_format_fail():
     with assert_raises(
-        Exception, glob="The `num_magnitude_bins` must be a positive integer, got 0"
+        Exception,
+        glob="The `num_magnitude_bins` must be a positive integer, got 0",
     ):
         Policy("ShouldFail", 0.25, a.rotate)
 
     with assert_raises(
-        Exception, glob="The `sub_policies` must be a list or tuple of sub policies"
+        Exception,
+        glob="The `sub_policies` must be a list or tuple of sub policies",
     ):
         Policy("ShouldFail", 9, a.rotate)
 
-    with assert_raises(Exception, glob="Each sub policy must be a list or tuple"):
+    with assert_raises(
+        Exception, glob="Each sub policy must be a list or tuple"
+    ):
         Policy("ShouldFail", 9, [a.rotate])
 
     with assert_raises(
-        Exception, glob="as a triple: (augmentation, probability, magnitude). Got Augmentation"
+        Exception,
+        glob="as a triple: (augmentation, probability, magnitude). Got Augmentation",
     ):
         Policy("ShouldFail", 9, [(a.rotate, a.shear_x)])
 
-    with assert_raises(Exception, glob="must be an instance of Augmentation. Got `0.5`"):
+    with assert_raises(
+        Exception, glob="must be an instance of Augmentation. Got `0.5`"
+    ):
         Policy("ShouldFail", 9, [[(0.5, a.rotate, 3)]])
 
     with assert_raises(
-        Exception, glob="Probability * must be a number from `[[]0, 1[]]` range. Got `2`"
+        Exception,
+        glob="Probability * must be a number from `[[]0, 1[]]` range. Got `2`",
     ):
         Policy("ShouldFail", 9, [[(a.rotate, 2, 2)]])
 
-    with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got `-1`"):
+    with assert_raises(
+        Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got `-1`"
+    ):
         Policy("ShouldFail", 9, [[(a.rotate, 1, -1)]])
 
     @augmentation(mag_range=(0, 250))

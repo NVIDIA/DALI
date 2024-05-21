@@ -43,7 +43,9 @@ def test_keras_wrong_placement_gpu():
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset("gpu", 0)
 
-        model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+        model.fit(
+            train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS
+        )
 
 
 @with_setup(skip_for_incompatible_tf)
@@ -53,7 +55,9 @@ def test_keras_wrong_placement_cpu():
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset("cpu", 0)
 
-        model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+        model.fit(
+            train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS
+        )
 
 
 @with_setup(skip_for_incompatible_tf)
@@ -69,9 +73,13 @@ def test_keras_multi_gpu_mirrored_strategy():
 
     train_dataset = mnist.get_dataset_multi_gpu(strategy)
 
-    model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+    model.fit(
+        train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS
+    )
 
-    assert model.evaluate(train_dataset, steps=mnist.ITERATIONS)[1] > mnist.TARGET
+    assert (
+        model.evaluate(train_dataset, steps=mnist.ITERATIONS)[1] > mnist.TARGET
+    )
 
 
 @with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)

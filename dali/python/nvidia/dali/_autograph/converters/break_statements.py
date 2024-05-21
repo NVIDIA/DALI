@@ -80,7 +80,9 @@ class BreakTransformer(converter.Base):
           body
         orelse
       """
-            node = templates.replace(template, test=node.test, body=node.body, orelse=node.orelse)
+            node = templates.replace(
+                template, test=node.test, body=node.body, orelse=node.orelse
+            )
 
             new_while_node = node[0]
             anno.copyanno(original_node, new_while_node, anno.Basic.DIRECTIVES)
@@ -98,7 +100,11 @@ class BreakTransformer(converter.Base):
       orelse
     """
         node = templates.replace(
-            template, var_name=break_var, test=node.test, body=node.body, orelse=guarded_orelse
+            template,
+            var_name=break_var,
+            test=node.test,
+            body=node.body,
+            orelse=guarded_orelse,
         )
 
         new_while_node = node[1]
@@ -124,11 +130,17 @@ class BreakTransformer(converter.Base):
         orelse
       """
             node = templates.replace(
-                template, iter_=node.iter, target=node.target, body=node.body, orelse=node.orelse
+                template,
+                iter_=node.iter,
+                target=node.target,
+                body=node.body,
+                orelse=node.orelse,
             )
 
             new_for_node = node[0]
-            anno.copyanno(original_node, new_for_node, anno.Basic.EXTRA_LOOP_TEST)
+            anno.copyanno(
+                original_node, new_for_node, anno.Basic.EXTRA_LOOP_TEST
+            )
             anno.copyanno(original_node, new_for_node, anno.Basic.DIRECTIVES)
 
             return node
@@ -136,7 +148,9 @@ class BreakTransformer(converter.Base):
         # Python's else clause only triggers if the loop exited cleanly (e.g.
         # break did not trigger).
         guarded_orelse = self._guard_if_present(node.orelse, break_var)
-        extra_test = templates.replace_as_expression("not var_name", var_name=break_var)
+        extra_test = templates.replace_as_expression(
+            "not var_name", var_name=break_var
+        )
 
         # The extra test is hidden in the AST, which will confuse the static
         # analysis. To mitigate that, we insert a no-op statement that ensures

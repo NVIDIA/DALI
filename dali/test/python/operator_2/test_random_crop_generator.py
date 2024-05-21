@@ -33,7 +33,9 @@ def test_random_crop_generator():
         shapes = fn.peek_image_shape(encoded)
         images_crop1 = fn.decoders.image_random_crop(encoded, seed=seed)
         crop_anchor, crop_shape = fn.random_crop_generator(shapes, seed=seed)
-        images_crop2 = fn.slice(images, start=crop_anchor, shape=crop_shape, axes=[0, 1])
+        images_crop2 = fn.slice(
+            images, start=crop_anchor, shape=crop_shape, axes=[0, 1]
+        )
         return images_crop1, images_crop2
 
     p = pipe()
@@ -56,8 +58,12 @@ def test_random_crop_generator_subcrop():
         # First: generate subrandom crop and crop only once
         shapes = fn.peek_image_shape(encoded)
 
-        crop_anchor0_A, crop_shape0_A = fn.random_crop_generator(shapes, seed=seed0)
-        rel_crop_anchor1_A, crop_shape1_A = fn.random_crop_generator(crop_shape0_A, seed=seed1)
+        crop_anchor0_A, crop_shape0_A = fn.random_crop_generator(
+            shapes, seed=seed0
+        )
+        rel_crop_anchor1_A, crop_shape1_A = fn.random_crop_generator(
+            crop_shape0_A, seed=seed1
+        )
         crop_anchor1_A = crop_anchor0_A + rel_crop_anchor1_A
         images_crop1_A = fn.decoders.image_slice(
             encoded, start=crop_anchor1_A, shape=crop_shape1_A, axes=[0, 1]
@@ -69,7 +75,10 @@ def test_random_crop_generator_subcrop():
             fn.shapes(images_crop0_B), seed=seed1
         )
         images_crop1_B = fn.slice(
-            images_crop0_B, start=crop_anchor1_B, shape=crop_shape1_B, axes=[0, 1]
+            images_crop0_B,
+            start=crop_anchor1_B,
+            shape=crop_shape1_B,
+            axes=[0, 1],
         )
 
         return images_crop1_A, images_crop1_B

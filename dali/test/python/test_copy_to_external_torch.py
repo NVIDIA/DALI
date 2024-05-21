@@ -27,7 +27,9 @@ batch_size = 2
 @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
 def _test_pipe():
     def get_tensor(si):
-        return np.arange(si.idx_in_epoch, si.idx_in_epoch + shape[0], dtype=np.int32)
+        return np.arange(
+            si.idx_in_epoch, si.idx_in_epoch + shape[0], dtype=np.int32
+        )
 
     inp = fn.external_source(get_tensor, batch=False)
     return inp.gpu()
@@ -104,7 +106,10 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
     def ref_tensor(batch_size, sample_shape, start_value):
         volume = np.prod(sample_shape)
         sample0 = torch.arange(
-            start_value, start_value + volume, dtype=torch.int32, device="cuda:0"
+            start_value,
+            start_value + volume,
+            dtype=torch.int32,
+            device="cuda:0",
         ).reshape(shape)
         return torch.stack([sample0 + i for i in range(batch_size)])
 
@@ -115,7 +120,9 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
     stream = torch.cuda.Stream(device=0)
     with torch.cuda.stream(stream):
         # allocate an empty tensor into which the pipeline output will be copied
-        arr = torch.empty([batch_size] + shape, dtype=torch.int32, device="cuda:0")
+        arr = torch.empty(
+            [batch_size] + shape, dtype=torch.int32, device="cuda:0"
+        )
         # create a reference tensor...
         ref = ref_tensor(batch_size, shape, 0)
         # ...and tensors which will be used to hog the GPU

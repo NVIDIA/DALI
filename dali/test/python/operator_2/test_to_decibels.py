@@ -33,12 +33,17 @@ class ToDecibelsPipeline(Pipeline):
         num_threads=1,
         device_id=0,
     ):
-        super(ToDecibelsPipeline, self).__init__(batch_size, num_threads, device_id)
+        super(ToDecibelsPipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.dB = ops.ToDecibels(
-            device=self.device, multiplier=multiplier, reference=reference, cutoff_db=cutoff_db
+            device=self.device,
+            multiplier=multiplier,
+            reference=reference,
+            cutoff_db=cutoff_db,
         )
 
     def define_graph(self):
@@ -74,7 +79,12 @@ class ToDecibelsPythonPipeline(Pipeline):
         func=to_db_func,
     ):
         super(ToDecibelsPythonPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            seed=12345,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.device = "cpu"
         self.iterator = iterator
@@ -142,7 +152,13 @@ def test_operator_to_decibels_vs_python():
 
 class NaturalLogarithmPipeline(Pipeline):
     def __init__(
-        self, device, iterator, batch_size, num_threads=1, exec_async=True, exec_pipelined=True
+        self,
+        device,
+        iterator,
+        batch_size,
+        num_threads=1,
+        exec_async=True,
+        exec_pipelined=True,
     ):
         super(NaturalLogarithmPipeline, self).__init__(
             batch_size,
@@ -175,7 +191,9 @@ class NaturalLogarithmPipeline(Pipeline):
 class NLDaliPipeline(NaturalLogarithmPipeline):
     def __init__(self, device, iterator, batch_size, reference=1.0):
         super().__init__(device, iterator, batch_size)
-        self.log = ops.ToDecibels(device=device, multiplier=np.log(10), reference=reference)
+        self.log = ops.ToDecibels(
+            device=device, multiplier=np.log(10), reference=reference
+        )
 
 
 def log_tensor(tensor):
@@ -184,7 +202,9 @@ def log_tensor(tensor):
 
 class NLPythonPipeline(NaturalLogarithmPipeline):
     def __init__(self, iterator, batch_size):
-        super().__init__("cpu", iterator, batch_size, exec_async=False, exec_pipelined=False)
+        super().__init__(
+            "cpu", iterator, batch_size, exec_async=False, exec_pipelined=False
+        )
         function = partial(log_tensor)
         self.log = ops.PythonFunction(function=function)
 

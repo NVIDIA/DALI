@@ -26,7 +26,9 @@ class _CompoundOp:
             else:
                 self._ops.append(op)
 
-    def __call__(self, *inputs: _DataNode, **kwargs) -> Union[Sequence[_DataNode], _DataNode, None]:
+    def __call__(
+        self, *inputs: _DataNode, **kwargs
+    ) -> Union[Sequence[_DataNode], _DataNode, None]:
         inputs = list(inputs)
         for op in self._ops:
             for i in range(len(inputs)):
@@ -46,7 +48,9 @@ class _CompoundOp:
         return inputs[0] if len(inputs) == 1 else inputs
 
 
-def Compose(op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]]) -> _CompoundOp:
+def Compose(
+    op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]]
+) -> _CompoundOp:
     """Returns a meta-operator that chains the operations in op_list.
 
     The return value is a callable object which, when called, performs::

@@ -45,7 +45,9 @@ class AstUtilTest(unittest.TestCase):
         node = parser.parse("a + b")
         node = qual_names.resolve(node)
 
-        node = ast_util.rename_symbols(node, {qual_names.QN("a"): qual_names.QN("renamed_a")})
+        node = ast_util.rename_symbols(
+            node, {qual_names.QN("a"): qual_names.QN("renamed_a")}
+        )
         source = parser.unparse(node, include_encoding_marker=False)
         expected_node_src = "renamed_a + b"
 
@@ -68,7 +70,9 @@ class AstUtilTest(unittest.TestCase):
         node = parser.parse("nonlocal a, b, c")
         node = qual_names.resolve(node)
 
-        node = ast_util.rename_symbols(node, {qual_names.from_str("b"): qual_names.QN("renamed_b")})
+        node = ast_util.rename_symbols(
+            node, {qual_names.from_str("b"): qual_names.QN("renamed_b")}
+        )
 
         source = parser.unparse(node, include_encoding_marker=False)
         self.assertEqual(source.strip(), "nonlocal a, renamed_b, c")
@@ -77,7 +81,9 @@ class AstUtilTest(unittest.TestCase):
         node = parser.parse("global a, b, c")
         node = qual_names.resolve(node)
 
-        node = ast_util.rename_symbols(node, {qual_names.from_str("b"): qual_names.QN("renamed_b")})
+        node = ast_util.rename_symbols(
+            node, {qual_names.from_str("b"): qual_names.QN("renamed_b")}
+        )
 
         source = parser.unparse(node, include_encoding_marker=False)
         self.assertEqual(source.strip(), "global a, renamed_b, c")
@@ -88,13 +94,17 @@ class AstUtilTest(unittest.TestCase):
         anno.setanno(node, "foo", "bar")
         orig_anno = anno.getanno(node, "foo")
 
-        node = ast_util.rename_symbols(node, {qual_names.QN("a"): qual_names.QN("b")})
+        node = ast_util.rename_symbols(
+            node, {qual_names.QN("a"): qual_names.QN("b")}
+        )
 
         self.assertIs(anno.getanno(node, "foo"), orig_anno)
 
     def test_rename_symbols_function(self):
         node = parser.parse("def f():\n  pass")
-        node = ast_util.rename_symbols(node, {qual_names.QN("f"): qual_names.QN("f1")})
+        node = ast_util.rename_symbols(
+            node, {qual_names.QN("f"): qual_names.QN("f1")}
+        )
 
         source = parser.unparse(node, include_encoding_marker=False)
         self.assertEqual(source.strip(), "def f1():\n    pass")
@@ -156,11 +166,19 @@ class AstUtilTest(unittest.TestCase):
         self.assertNoMatch("foo - bar", "foo + _")
 
     def test_matches_function_args(self):
-        self.assertMatch("super(Foo, self).__init__(arg1, arg2)", "super(_).__init__(_)")
+        self.assertMatch(
+            "super(Foo, self).__init__(arg1, arg2)", "super(_).__init__(_)"
+        )
         self.assertMatch("super().__init__()", "super(_).__init__(_)")
-        self.assertNoMatch("super(Foo, self).bar(arg1, arg2)", "super(_).__init__(_)")
-        self.assertMatch("super(Foo, self).__init__()", "super(Foo, _).__init__(_)")
-        self.assertNoMatch("super(Foo, self).__init__()", "super(Bar, _).__init__(_)")
+        self.assertNoMatch(
+            "super(Foo, self).bar(arg1, arg2)", "super(_).__init__(_)"
+        )
+        self.assertMatch(
+            "super(Foo, self).__init__()", "super(Foo, _).__init__(_)"
+        )
+        self.assertNoMatch(
+            "super(Foo, self).__init__()", "super(Bar, _).__init__(_)"
+        )
 
     def _mock_apply_fn(self, target, source):
         target = parser.unparse(target, include_encoding_marker=False)
@@ -169,7 +187,9 @@ class AstUtilTest(unittest.TestCase):
 
     def test_apply_to_single_assignments_dynamic_unpack(self):
         node = parser.parse("a, b, c = d")
-        ast_util.apply_to_single_assignments(node.targets, node.value, self._mock_apply_fn)
+        ast_util.apply_to_single_assignments(
+            node.targets, node.value, self._mock_apply_fn
+        )
         self.assertDictEqual(
             self._invocation_counts,
             {
@@ -181,7 +201,9 @@ class AstUtilTest(unittest.TestCase):
 
     def test_apply_to_single_assignments_static_unpack(self):
         node = parser.parse("a, b, c = d, e, f")
-        ast_util.apply_to_single_assignments(node.targets, node.value, self._mock_apply_fn)
+        ast_util.apply_to_single_assignments(
+            node.targets, node.value, self._mock_apply_fn
+        )
         self.assertDictEqual(
             self._invocation_counts,
             {
@@ -249,5 +271,8 @@ class AstUtilTest(unittest.TestCase):
         for node in matching_nodes:
             self.assertIsInstance(node, gast.Lambda)
             self.assertIn(
-                parser.unparse(node.body, include_encoding_marker=False).strip(), expected_bodies
+                parser.unparse(
+                    node.body, include_encoding_marker=False
+                ).strip(),
+                expected_bodies,
             )

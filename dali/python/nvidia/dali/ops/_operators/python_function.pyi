@@ -32,7 +32,9 @@ class PythonFunction:
     def __init__(
         self,
         /,
-        function: Optional[Callable[..., Union[Any, Tuple[Any, ...], None]]] = None,
+        function: Optional[
+            Callable[..., Union[Any, Tuple[Any, ...], None]]
+        ] = None,
         num_outputs: int = 1,
         device: str = "cpu",
         batch_processing: bool = False,
@@ -72,7 +74,9 @@ class DLTensorPythonFunction:
     def __init__(
         self,
         /,
-        function: Optional[Callable[..., Union[Any, Tuple[Any, ...], None]]] = None,
+        function: Optional[
+            Callable[..., Union[Any, Tuple[Any, ...], None]]
+        ] = None,
         num_outputs: int = 1,
         device: str = "cpu",
         batch_processing: bool = True,

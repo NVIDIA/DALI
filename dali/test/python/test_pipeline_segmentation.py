@@ -26,9 +26,20 @@ test_data_root = get_dali_extra_path()
 
 
 def check_bbox_random_crop_adjust_polygons(
-    file_root, annotations_file, batch_size=3, num_iters=4, num_threads=4, device_id=0, seed=1234
+    file_root,
+    annotations_file,
+    batch_size=3,
+    num_iters=4,
+    num_threads=4,
+    device_id=0,
+    seed=1234,
 ):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=seed)
+    pipe = Pipeline(
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=device_id,
+        seed=seed,
+    )
     with pipe:
         # Read data from COCO
         # ratio=True means both bboxes and masks coordinates will be
@@ -44,14 +55,16 @@ def check_bbox_random_crop_adjust_polygons(
         )
 
         # Generate a random crop. out_bboxes are adjusted to the crop window
-        slice_anchor, slice_shape, out_bboxes, labels, bbox_indices = fn.random_bbox_crop(
-            in_bboxes,
-            labels,
-            aspect_ratio=[0.5, 2.0],
-            thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
-            scaling=[0.3, 1.0],
-            bbox_layout="xyXY",
-            output_bbox_indices=True,
+        slice_anchor, slice_shape, out_bboxes, labels, bbox_indices = (
+            fn.random_bbox_crop(
+                in_bboxes,
+                labels,
+                aspect_ratio=[0.5, 2.0],
+                thresholds=[0, 0.1, 0.3, 0.5, 0.7, 0.9],
+                scaling=[0.3, 1.0],
+                bbox_layout="xyXY",
+                output_bbox_indices=True,
+            )
         )
         # Crop the image
         _ = fn.decoders.image_slice(
@@ -63,7 +76,9 @@ def check_bbox_random_crop_adjust_polygons(
         )
 
         # Adjust masks coordinates to the coordinate space of the cropped image
-        MT = fn.transforms.crop(from_start=slice_anchor, from_end=(slice_anchor + slice_shape))
+        MT = fn.transforms.crop(
+            from_start=slice_anchor, from_end=(slice_anchor + slice_shape)
+        )
         out_vertices = fn.coord_transform(sel_vertices, MT=MT)
 
         # Converting to absolute coordinates (demo purposes)
@@ -76,7 +91,9 @@ def check_bbox_random_crop_adjust_polygons(
         bbox_y = fn.slice(in_bboxes, 1, 1, axes=[1])
         bbox_X = fn.slice(in_bboxes, 2, 1, axes=[1])
         bbox_Y = fn.slice(in_bboxes, 3, 1, axes=[1])
-        in_bboxes_abs = fn.cat(bbox_x * w, bbox_y * h, bbox_X * w, bbox_Y * h, axis=1)
+        in_bboxes_abs = fn.cat(
+            bbox_x * w, bbox_y * h, bbox_X * w, bbox_Y * h, axis=1
+        )
 
         # Transform to convert relative coordinates to absolute
         scale_rel_to_abs = fn.transforms.scale(scale=fn.cat(w, h))
@@ -89,14 +106,18 @@ def check_bbox_random_crop_adjust_polygons(
         bbox2_y = fn.slice(out_bboxes, 1, 1, axes=[1])
         bbox2_X = fn.slice(out_bboxes, 2, 1, axes=[1])
         bbox2_Y = fn.slice(out_bboxes, 3, 1, axes=[1])
-        out_bboxes_abs = fn.cat(bbox2_x * w, bbox2_y * h, bbox2_X * w, bbox2_Y * h, axis=1)
+        out_bboxes_abs = fn.cat(
+            bbox2_x * w, bbox2_y * h, bbox2_X * w, bbox2_Y * h, axis=1
+        )
 
         # Output vertices (absolute coordinates)
         out_vertices_abs = fn.coord_transform(out_vertices, MT=scale_rel_to_abs)
 
         # Clamped coordinates
         out_vertices_clamped = math.clamp(out_vertices, 0.0, 1.0)
-        out_vertices_clamped_abs = fn.coord_transform(out_vertices_clamped, MT=scale_rel_to_abs)
+        out_vertices_clamped_abs = fn.coord_transform(
+            out_vertices_clamped, MT=scale_rel_to_abs
+        )
 
     pipe.set_outputs(
         in_vertices,
@@ -153,7 +174,9 @@ def check_bbox_random_crop_adjust_polygons(
                 in_ver_end_idx = in_polygons[k][2]
                 pol_nver = in_ver_end_idx - in_ver_start_idx
                 if mask_id in bbox_indices:
-                    expected_polygons_list.append([mask_id, ver_count, ver_count + pol_nver])
+                    expected_polygons_list.append(
+                        [mask_id, ver_count, ver_count + pol_nver]
+                    )
                     for j in range(in_ver_start_idx, in_ver_end_idx):
                         expected_vertices_list.append(in_vertices[j])
                     ver_count = ver_count + pol_nver
@@ -169,48 +192,82 @@ def check_bbox_random_crop_adjust_polygons(
             crop_x, crop_y = slice_anchor
             crop_w, crop_h = slice_shape
             for v in range(expected_out_vertices.shape[0]):
-                expected_out_vertices[v, 0] = (expected_out_vertices[v, 0] - crop_x) / crop_w
-                expected_out_vertices[v, 1] = (expected_out_vertices[v, 1] - crop_y) / crop_h
-            np.testing.assert_allclose(expected_out_vertices, out_vertices, rtol=1e-4)
+                expected_out_vertices[v, 0] = (
+                    expected_out_vertices[v, 0] - crop_x
+                ) / crop_w
+                expected_out_vertices[v, 1] = (
+                    expected_out_vertices[v, 1] - crop_y
+                ) / crop_h
+            np.testing.assert_allclose(
+                expected_out_vertices, out_vertices, rtol=1e-4
+            )
 
             # Checking the conversion to absolute coordinates
             h, w, _ = image_shape
             wh = np.array([w, h])
             whwh = np.array([w, h, w, h])
             expected_out_vertices_abs = expected_out_vertices * wh
-            np.testing.assert_allclose(expected_out_vertices_abs, out_vertices_abs, rtol=1e-4)
+            np.testing.assert_allclose(
+                expected_out_vertices_abs, out_vertices_abs, rtol=1e-4
+            )
 
             # Checking clamping of the relative coordinates
-            expected_out_vertices_clamped = np.clip(expected_out_vertices, a_min=0.0, a_max=1.0)
+            expected_out_vertices_clamped = np.clip(
+                expected_out_vertices, a_min=0.0, a_max=1.0
+            )
             np.testing.assert_allclose(
                 expected_out_vertices_clamped, out_vertices_clamped, rtol=1e-4
             )
 
             # Checking clamping of the absolute coordinates
-            expected_out_vertices_clamped_abs = np.clip(expected_out_vertices_abs, 0, wh)
+            expected_out_vertices_clamped_abs = np.clip(
+                expected_out_vertices_abs, 0, wh
+            )
             np.testing.assert_allclose(
-                expected_out_vertices_clamped_abs, out_vertices_clamped_abs, rtol=1e-4
+                expected_out_vertices_clamped_abs,
+                out_vertices_clamped_abs,
+                rtol=1e-4,
             )
 
             # Checking scaling of the bounding boxes
             expected_in_bboxes_abs = in_bboxes * whwh
-            np.testing.assert_allclose(expected_in_bboxes_abs, in_bboxes_abs, rtol=1e-4)
+            np.testing.assert_allclose(
+                expected_in_bboxes_abs, in_bboxes_abs, rtol=1e-4
+            )
 
             # Check box selection and mapping to the cropping window
             expected_out_bboxes = np.copy(in_bboxes[bbox_indices, :])
             for k in range(expected_out_bboxes.shape[0]):
-                expected_out_bboxes[k, 0] = (expected_out_bboxes[k, 0] - crop_x) / crop_w
-                expected_out_bboxes[k, 1] = (expected_out_bboxes[k, 1] - crop_y) / crop_h
-                expected_out_bboxes[k, 2] = (expected_out_bboxes[k, 2] - crop_x) / crop_w
-                expected_out_bboxes[k, 3] = (expected_out_bboxes[k, 3] - crop_y) / crop_h
-            expected_out_bboxes = np.clip(expected_out_bboxes, a_min=0.0, a_max=1.0)
-            np.testing.assert_allclose(expected_out_bboxes, out_bboxes, rtol=1e-4)
+                expected_out_bboxes[k, 0] = (
+                    expected_out_bboxes[k, 0] - crop_x
+                ) / crop_w
+                expected_out_bboxes[k, 1] = (
+                    expected_out_bboxes[k, 1] - crop_y
+                ) / crop_h
+                expected_out_bboxes[k, 2] = (
+                    expected_out_bboxes[k, 2] - crop_x
+                ) / crop_w
+                expected_out_bboxes[k, 3] = (
+                    expected_out_bboxes[k, 3] - crop_y
+                ) / crop_h
+            expected_out_bboxes = np.clip(
+                expected_out_bboxes, a_min=0.0, a_max=1.0
+            )
+            np.testing.assert_allclose(
+                expected_out_bboxes, out_bboxes, rtol=1e-4
+            )
 
             expected_out_bboxes_abs = expected_out_bboxes * whwh
-            np.testing.assert_allclose(expected_out_bboxes_abs, out_bboxes_abs, rtol=1e-4)
+            np.testing.assert_allclose(
+                expected_out_bboxes_abs, out_bboxes_abs, rtol=1e-4
+            )
 
 
 def test_bbox_random_crop_adjust_polygons():
     file_root = os.path.join(test_data_root, "db", "coco", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco", "instances.json")
-    check_bbox_random_crop_adjust_polygons(file_root, train_annotations, batch_size=3, num_iters=4)
+    train_annotations = os.path.join(
+        test_data_root, "db", "coco", "instances.json"
+    )
+    check_bbox_random_crop_adjust_polygons(
+        file_root, train_annotations, batch_size=3, num_iters=4
+    )

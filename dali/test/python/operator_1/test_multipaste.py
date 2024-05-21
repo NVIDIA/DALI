@@ -46,7 +46,10 @@ np_type_map = {
 
 def intersects(anchors1, shapes1, anchors2, shapes2):
     for i in range(len(anchors1)):
-        if anchors1[i] + shapes1[i] <= anchors2[i] or anchors2[i] + shapes2[i] <= anchors1[i]:
+        if (
+            anchors1[i] + shapes1[i] <= anchors2[i]
+            or anchors2[i] + shapes2[i] <= anchors1[i]
+        ):
             return False
     return True
 
@@ -69,16 +72,24 @@ def prepare_cuts(
     assert out_of_bounds_count == 0 or not no_intersections
 
     in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
-    in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
-    shapes_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
-    out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
+    in_anchors_l = [
+        np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)
+    ]
+    shapes_l = [
+        np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)
+    ]
+    out_anchors_l = [
+        np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)
+    ]
     assert len(input_size) == len(output_size)
     dim = len(input_size)
     for i in range(batch_size):
         for j in range(iters):
             while True:
                 in_idx = np.int32(np.random.randint(batch_size))
-                out_idx = np.int32(i if even_paste_count else np.random.randint(batch_size))
+                out_idx = np.int32(
+                    i if even_paste_count else np.random.randint(batch_size)
+                )
                 shape = (
                     [
                         np.int32(
@@ -98,14 +109,23 @@ def prepare_cuts(
                     in_anchor = [0] * dim
                 elif in_anchor_range is not None:
                     in_anchor = [
-                        np.int32(np.random.randint(in_anchor_range[0][i], in_anchor_range[1][i]))
+                        np.int32(
+                            np.random.randint(
+                                in_anchor_range[0][i], in_anchor_range[1][i]
+                            )
+                        )
                         for i in range(dim)
                     ]
                     if full_input:
-                        shape = [np.int32(input_size[i] - in_anchor[i]) for i in range(dim)]
+                        shape = [
+                            np.int32(input_size[i] - in_anchor[i])
+                            for i in range(dim)
+                        ]
                 else:
                     in_anchor = [
-                        np.int32(np.random.randint(input_size[i] - shape[i] + 1))
+                        np.int32(
+                            np.random.randint(input_size[i] - shape[i] + 1)
+                        )
                         for i in range(dim)
                     ]
 
@@ -113,12 +133,18 @@ def prepare_cuts(
                     out_anchor = [0] * dim
                 elif out_anchor_range is not None:
                     out_anchor = [
-                        np.int32(np.random.randint(out_anchor_range[0][i], out_anchor_range[1][i]))
+                        np.int32(
+                            np.random.randint(
+                                out_anchor_range[0][i], out_anchor_range[1][i]
+                            )
+                        )
                         for i in range(dim)
                     ]
                 else:
                     out_anchor = [
-                        np.int32(np.random.randint(output_size[i] - shape[i] + 1))
+                        np.int32(
+                            np.random.randint(output_size[i] - shape[i] + 1)
+                        )
                         for i in range(dim)
                     ]
 
@@ -126,7 +152,10 @@ def prepare_cuts(
                     is_ok = True
                     for k in range(len(in_idx_l[out_idx])):
                         if intersects(
-                            out_anchors_l[out_idx][k], shapes_l[out_idx][k], out_anchor, shape
+                            out_anchors_l[out_idx][k],
+                            shapes_l[out_idx][k],
+                            out_anchor,
+                            shape,
                         ):
                             is_ok = False
                             break
@@ -142,9 +171,13 @@ def prepare_cuts(
                 )
 
             in_idx_l[out_idx] = np.append(in_idx_l[out_idx], [in_idx], axis=0)
-            in_anchors_l[out_idx] = np.append(in_anchors_l[out_idx], [in_anchor], axis=0)
+            in_anchors_l[out_idx] = np.append(
+                in_anchors_l[out_idx], [in_anchor], axis=0
+            )
             shapes_l[out_idx] = np.append(shapes_l[out_idx], [shape], axis=0)
-            out_anchors_l[out_idx] = np.append(out_anchors_l[out_idx], [out_anchor], axis=0)
+            out_anchors_l[out_idx] = np.append(
+                out_anchors_l[out_idx], [out_anchor], axis=0
+            )
     for i in range(out_of_bounds_count):
         clip_out_idx = np.random.randint(batch_size)
         while len(in_idx_l[clip_out_idx]) == 0:
@@ -155,7 +188,9 @@ def prepare_cuts(
         change_dim_idx = np.random.randint(dim)
         if below_zero:
             anchors = in_anchors_l if change_in else out_anchors_l
-            anchors[clip_out_idx][clip_in_idx][change_dim_idx] = np.int32(np.random.randint(-5, 0))
+            anchors[clip_out_idx][clip_in_idx][change_dim_idx] = np.int32(
+                np.random.randint(-5, 0)
+            )
         else:
             anchors = in_anchors_l if change_in else out_anchors_l
             size = input_size if change_in else output_size
@@ -190,12 +225,17 @@ def get_pipeline(
     use_out_anchors_rel=False,
 ):
     pipe = Pipeline(
-        batch_size=batch_size, num_threads=4, device_id=0, seed=np.random.randint(12345)
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=np.random.randint(12345),
     )
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device="cpu", output_type=types.RGB)
-        resized_cpu = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
+        resized_cpu = fn.resize(
+            decoded, resize_x=in_size[1], resize_y=in_size[0]
+        )
         resized = resized_cpu.gpu() if use_gpu else resized_cpu
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
             k,
@@ -230,9 +270,13 @@ def get_pipeline(
                 return cb
 
             paste_count = len(in_idx_l[0])
-            perms = [[sample[i] for sample in in_idx_l] for i in range(paste_count)]
+            perms = [
+                [sample[i] for sample in in_idx_l] for i in range(paste_count)
+            ]
             perms = [fn.external_source(source(perm)) for perm in perms]
-            args = tuple(fn.permute_batch(resized, indices=perm) for perm in perms)
+            args = tuple(
+                fn.permute_batch(resized, indices=perm) for perm in perms
+            )
 
         if not full_input:
             if not use_shapes_rel:
@@ -258,7 +302,13 @@ def get_pipeline(
 
 
 def verify_out_of_bounds(
-    batch_size, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size
+    batch_size,
+    in_idx_l,
+    in_anchors_l,
+    shapes_l,
+    out_anchors_l,
+    in_size,
+    out_size,
 ):
     for i in range(batch_size):
         for j, idx in enumerate(in_idx_l[i]):
@@ -275,10 +325,20 @@ def verify_out_of_bounds(
 
 
 def manual_verify(
-    batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, out_size_l, dtype
+    batch_size,
+    inp,
+    output,
+    in_idx_l,
+    in_anchors_l,
+    shapes_l,
+    out_anchors_l,
+    out_size_l,
+    dtype,
 ):
     for i in range(batch_size):
-        ref_source_info = ";".join([inp[idx].source_info() for idx in in_idx_l[i]])
+        ref_source_info = ";".join(
+            [inp[idx].source_info() for idx in in_idx_l[i]]
+        )
         assert (
             output[i].source_info() == ref_source_info
         ), f"{output[i].source_info()} == {ref_source_info}"
@@ -291,9 +351,9 @@ def manual_verify(
             roi_end = roi_start + shapes_l[i][j]
             out_start = out_anchors_l[i][j]
             out_end = out_start + shapes_l[i][j]
-            ref[out_start[0] : out_end[0], out_start[1] : out_end[1]] = inp.at(idx)[
-                roi_start[0] : roi_end[0], roi_start[1] : roi_end[1]
-            ]
+            ref[out_start[0] : out_end[0], out_start[1] : out_end[1]] = inp.at(
+                idx
+            )[roi_start[0] : roi_end[0], roi_start[1] : roi_end[1]]
         ref = ref.astype(np_type_map[dtype])
         if DEBUG_LVL > 0 and not np.array_equal(out, ref):
             print(f"Error on image {i}")
@@ -365,7 +425,13 @@ def check_operator_multipaste(
         if SHOW_IMAGES:
             show_images(bs, r)
         assert not verify_out_of_bounds(
-            bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size
+            bs,
+            in_idx_l,
+            in_anchors_l,
+            shapes_l,
+            out_anchors_l,
+            in_size,
+            out_size,
         )
         manual_verify(
             bs,
@@ -385,7 +451,13 @@ def check_operator_multipaste(
             use_rel and "values must be floats in [0, 1] range," in str(e)
         ):
             assert verify_out_of_bounds(
-                bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size
+                bs,
+                in_idx_l,
+                in_anchors_l,
+                shapes_l,
+                out_anchors_l,
+                in_size,
+                out_size,
             )
         else:
             assert False
@@ -705,8 +777,12 @@ def test_operator_multipaste():
         yield (check_operator_multipaste, *t, "gpu", *use_rel)
 
 
-@cartesian_params(("cpu", "gpu"), (True, False), (True, False), (None, (501, 501)))
-def test_input_shape_inference(device, use_uniform_shape, use_in_idx, output_size):
+@cartesian_params(
+    ("cpu", "gpu"), (True, False), (True, False), (None, (501, 501))
+)
+def test_input_shape_inference(
+    device, use_uniform_shape, use_in_idx, output_size
+):
 
     def get_image(sample_info):
         if use_uniform_shape or sample_info.idx_in_batch % 2 == 0:
@@ -717,7 +793,9 @@ def test_input_shape_inference(device, use_uniform_shape, use_in_idx, output_siz
 
     def get_indices(sample_info):
         idx_in_batch = sample_info.idx_in_batch
-        return np.array([idx_in_batch // 2, idx_in_batch // 2 + 1], dtype=np.int32)
+        return np.array(
+            [idx_in_batch // 2, idx_in_batch // 2 + 1], dtype=np.int32
+        )
 
     batch_size = 8
 
@@ -753,7 +831,9 @@ def test_input_shape_inference(device, use_uniform_shape, use_in_idx, output_siz
         (out,) = p.run()
         assert len(out) == batch_size
         for sample in out:
-            assert tuple(sample.shape()) == expected_size, f"{sample.shape()} vs {expected_size}"
+            assert (
+                tuple(sample.shape()) == expected_size
+            ), f"{sample.shape()} vs {expected_size}"
 
 
 @params((-1, 8, "cpu"), (-1, 8, "gpu"), (1, 1, "cpu"), (9, 8, "gpu"))
@@ -766,7 +846,9 @@ def test_out_of_bounds_idx(out_of_bound_idx, batch_size, device):
 
     def get_indices(sample_info):
         idx_in_batch = sample_info.idx_in_batch
-        indices = np.array([idx_in_batch // 2, idx_in_batch // 2 + 1], dtype=np.int32)
+        indices = np.array(
+            [idx_in_batch // 2, idx_in_batch // 2 + 1], dtype=np.int32
+        )
         if idx_in_batch == bogus_idx:
             indices[rng.choice([0, 1])] = out_of_bound_idx
         return indices
@@ -794,16 +876,22 @@ def test_conflicting_channels(device, use_positional):
     batch_size = 16
 
     def shift_by_one(sample_info):
-        return np.array((sample_info.idx_in_batch + 1) % batch_size, dtype=np.int32)
+        return np.array(
+            (sample_info.idx_in_batch + 1) % batch_size, dtype=np.int32
+        )
 
     def get_image(sample_info):
         idx_in_batch = sample_info.idx_in_batch
         num_channels = (idx_in_batch % 4) + 1
-        return np.full((101, 101, num_channels), sample_info.idx_in_batch, dtype=np.uint8)
+        return np.full(
+            (101, 101, num_channels), sample_info.idx_in_batch, dtype=np.uint8
+        )
 
     def get_indices(sample_info):
         idx_in_batch = sample_info.idx_in_batch
-        indices = np.array([idx_in_batch // 4 + i for i in range(4)], dtype=np.int32)
+        indices = np.array(
+            [idx_in_batch // 4 + i for i in range(4)], dtype=np.int32
+        )
         return indices
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
@@ -877,7 +965,10 @@ def test_var_channels(device, use_positional):
         # group every consecutive num_regions samples
         group_idx = idx // num_regions
         offset = idx % num_regions
-        in_ids = [(offset + i) % num_regions + group_idx * num_regions for i in range(num_regions)]
+        in_ids = [
+            (offset + i) % num_regions + group_idx * num_regions
+            for i in range(num_regions)
+        ]
         return np.array(in_ids, dtype=np.int32)
 
     def num_channels_cb(sample_info):
@@ -894,7 +985,11 @@ def test_var_channels(device, use_positional):
         return np.array(shapes[group_idx], dtype=np.int32)
 
     @pipeline_def(
-        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+        batch_size=batch_size,
+        device_id=0,
+        num_threads=4,
+        seed=42,
+        enable_conditionals=True,
     )
     def pipeline():
         in_out_size = fn.external_source(out_size_cb, batch=False)
@@ -904,8 +999,12 @@ def test_var_channels(device, use_positional):
             dtype=types.DALIDataType.UINT8,
         )
         encoded, _ = fn.readers.file(file_root=img_dir)
-        image_base = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
-        image_base = fn.resize(image_base, size=fn.cast(in_out_size, dtype=types.FLOAT))
+        image_base = fn.decoders.image(
+            encoded, device="cpu", output_type=types.RGB
+        )
+        image_base = fn.resize(
+            image_base, size=fn.cast(in_out_size, dtype=types.FLOAT)
+        )
         num_channels = fn.external_source(num_channels_cb, batch=False)
         if num_channels > 3:
             image_base = fn.cat(image_base, alpha, axis=-1)
@@ -917,7 +1016,10 @@ def test_var_channels(device, use_positional):
             args = (image,)
         else:
             kwargs = {}
-            args = tuple(fn.permute_batch(image, indices=in_ids[i]) for i in range(num_regions))
+            args = tuple(
+                fn.permute_batch(image, indices=in_ids[i])
+                for i in range(num_regions)
+            )
         output = fn.multi_paste(
             *args,
             **kwargs,
@@ -939,7 +1041,8 @@ def test_var_channels(device, use_positional):
         anchors_abs = [anchors] * batch_size
         assert len(anchors_abs) == len(out_sizes)
         anchors_abs = [
-            np.int32(np.floor(anchor * size)) for anchor, size in zip(anchors_abs, out_sizes)
+            np.int32(np.floor(anchor * size))
+            for anchor, size in zip(anchors_abs, out_sizes)
         ]
         region_shapes_abs = [shapes] * batch_size
         assert len(region_shapes_abs) == len(out_sizes)

@@ -49,16 +49,26 @@ def get_module_path(module_name):
 
 
 def get_tf_compiler_version():
-    tensorflow_libs = find("libtensorflow_framework*so*", get_module_path("tensorflow"))
+    tensorflow_libs = find(
+        "libtensorflow_framework*so*", get_module_path("tensorflow")
+    )
     if not tensorflow_libs:
-        tensorflow_libs = find("libtensorflow_framework*so*", get_module_path("tensorflow_core"))
+        tensorflow_libs = find(
+            "libtensorflow_framework*so*", get_module_path("tensorflow_core")
+        )
         if not tensorflow_libs:
             return ""
     lib = tensorflow_libs[0]
     cmd = ["strings", "-a", lib]
-    process_strings = subprocess.Popen(cmd, stdout=subprocess.PIPE)  # nosec B603
+    process_strings = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE
+    )  # nosec B603
     cmd = ["grep", "GCC: ("]
-    s = str(subprocess.check_output(cmd, stdin=process_strings.stdout, shell=False))  # nosec B603
+    s = str(
+        subprocess.check_output(
+            cmd, stdin=process_strings.stdout, shell=False
+        )  # nosec B603
+    )
     process_strings.stdout.close()
     lines = s.split("\\n")
     ret_ver = ""
@@ -103,14 +113,18 @@ def get_cpp_compiler():
 
 def get_cpp_compiler_version():
     cmd = [get_cpp_compiler(), "--version"]
-    process_compiler = subprocess.Popen(cmd, stdout=subprocess.PIPE)  # nosec B603
+    process_compiler = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE
+    )  # nosec B603
     cmd = ["head", "-1"]
     process_head = subprocess.Popen(
         cmd, stdin=process_compiler.stdout, stdout=subprocess.PIPE  # nosec B603
     )
     cmd = ["grep", "[c|g]++ "]
     s = str(
-        subprocess.check_output(cmd, stdin=process_head.stdout, shell=False).strip()  # nosec B603
+        subprocess.check_output(
+            cmd, stdin=process_head.stdout, shell=False
+        ).strip()  # nosec B603
     )
     process_compiler.stdout.close()
     process_head.stdout.close()
@@ -123,7 +137,9 @@ def get_cpp_compiler_version():
 
 def which(program):
     try:
-        return subprocess.check_output(["which", program]).strip()  # nosec B603, B607
+        return subprocess.check_output(
+            ["which", program]
+        ).strip()  # nosec B603, B607
     except subprocess.CalledProcessError:
         return None
 
@@ -156,7 +172,9 @@ def get_tf_build_flags():
                     "-D_GLIBCXX_USE_CXX11_ABI=0",
                 ]
             )
-            tf_lflags = " ".join(["-L" + tensorflow_path, "-ltensorflow_framework"])
+            tf_lflags = " ".join(
+                ["-L" + tensorflow_path, "-ltensorflow_framework"]
+            )
 
     if tf_cflags == "" and tf_lflags == "":
         raise ImportError(
@@ -204,7 +222,9 @@ def get_cuda_build_flags():
 
 
 def find_available_prebuilt_tf(requested_version, available_libs):
-    req_ver_first, req_ver_second = [int(v) for v in requested_version.split(".", 2)]
+    req_ver_first, req_ver_second = [
+        int(v) for v in requested_version.split(".", 2)
+    ]
     selected_ver = None
     for file in available_libs:
         re_match = re.search(r".*(\d+)_(\d+).*", file)
@@ -216,4 +236,8 @@ def find_available_prebuilt_tf(requested_version, available_libs):
                 selected_ver is None or selected_ver < (ver_first, ver_second)
             ):
                 selected_ver = (ver_first, ver_second)
-    return ".".join([str(v) for v in selected_ver]) if selected_ver is not None else None
+    return (
+        ".".join([str(v) for v in selected_ver])
+        if selected_ver is not None
+        else None
+    )

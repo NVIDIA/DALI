@@ -100,7 +100,9 @@ class InfiniteSampleIterator:
 
 
 @pipeline_def
-def one_input_pipeline(def_for_dataset, device, source, external_source_device, no_copy, batch):
+def one_input_pipeline(
+    def_for_dataset, device, source, external_source_device, no_copy, batch
+):
     """Pipeline accepting single input via external source
 
     Parameters
@@ -126,11 +128,17 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device, 
             # Special value used in tests, reroute it to the default
             batch = None
         input = fn.external_source(
-            name="input_placeholder", no_copy=no_copy, device=external_source_device, batch=batch
+            name="input_placeholder",
+            no_copy=no_copy,
+            device=external_source_device,
+            batch=batch,
         )
     else:
         input = fn.external_source(
-            name="actual_input", source=source, batch=False, device=external_source_device
+            name="actual_input",
+            source=source,
+            batch=False,
+            device=external_source_device,
         )
     input = input if device == "cpu" else input.gpu()
     processed = fn.cast(input + 10, dtype=dali.types.INT32)
@@ -139,23 +147,31 @@ def one_input_pipeline(def_for_dataset, device, source, external_source_device, 
 
 
 # Test that uses Tensor and Repeat (infinite) datasets as inputs to DALI pipeline
-def external_source_converter_with_fixed_value(shape, dtype, tensor, batch="dataset"):
+def external_source_converter_with_fixed_value(
+    shape, dtype, tensor, batch="dataset"
+):
     def to_dataset(pipeline_desc, device_str):
         dataset_pipeline, shapes, dtypes = pipeline_desc
 
         with tf.device("/cpu:0"):
             input_dataset = tf.data.Dataset.from_tensors(tensor).repeat()
             if batch is None or batch is True:
-                input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
+                input_dataset = input_dataset.batch(
+                    dataset_pipeline.max_batch_size
+                )
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
-                input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device("/gpu:0"))
+                input_dataset = input_dataset.apply(
+                    tf.data.experimental.copy_to_device("/gpu:0")
+                )
 
         if batch == "dataset":
             input_datasets = {"input_placeholder": input_dataset}
         else:
             input_datasets = {
-                "input_placeholder": dali_tf.experimental.Input(input_dataset, batch=batch)
+                "input_placeholder": dali_tf.experimental.Input(
+                    input_dataset, batch=batch
+                )
             }
 
         with tf.device(device_str):
@@ -194,19 +210,28 @@ def external_source_converter_with_callback(
             out_shape = tuple(None for _ in shape)
             tf_type = tf.dtypes.as_dtype(dtype)
             input_dataset = tf.data.Dataset.from_generator(
-                input_iterator, output_types=tf_type, output_shapes=out_shape, args=_args
+                input_iterator,
+                output_types=tf_type,
+                output_shapes=out_shape,
+                args=_args,
             )
             if batch is None or batch is True:
-                input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
+                input_dataset = input_dataset.batch(
+                    dataset_pipeline.max_batch_size
+                )
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
-                input_dataset = input_dataset.apply(tf.data.experimental.copy_to_device("/gpu:0"))
+                input_dataset = input_dataset.apply(
+                    tf.data.experimental.copy_to_device("/gpu:0")
+                )
 
         if batch == "dataset":
             input_datasets = {"input_placeholder": input_dataset}
         else:
             input_datasets = {
-                "input_placeholder": dali_tf.experimental.Input(input_dataset, batch=batch)
+                "input_placeholder": dali_tf.experimental.Input(
+                    input_dataset, batch=batch
+                )
             }
 
         with tf.device(device_str):
@@ -226,7 +251,12 @@ def external_source_converter_with_callback(
 
 @nottest
 def external_source_tester(
-    shape, dtype, source=None, external_source_device="cpu", no_copy=None, batch=False
+    shape,
+    dtype,
+    source=None,
+    external_source_device="cpu",
+    no_copy=None,
+    batch=False,
 ):
     def get_external_source_pipeline_getter(
         batch_size,
@@ -251,7 +281,11 @@ def external_source_tester(
 
         batch_shape = (batch_size,) + tuple(None for _ in shape)
 
-        return pipe, (batch_shape, batch_shape), (tf.dtypes.as_dtype(dtype), tf.int32)
+        return (
+            pipe,
+            (batch_shape, batch_shape),
+            (tf.dtypes.as_dtype(dtype), tf.int32),
+        )
 
     return get_external_source_pipeline_getter
 
@@ -303,10 +337,15 @@ def external_source_converter_multiple(start_values, input_names, batches):
                 tf_type = tf.dtypes.as_dtype(value.dtype)
                 shape = value.shape
                 input_dataset = tf.data.Dataset.from_generator(
-                    InfiniteSampleIterator, output_types=tf_type, output_shapes=shape, args=(value,)
+                    InfiniteSampleIterator,
+                    output_types=tf_type,
+                    output_shapes=shape,
+                    args=(value,),
                 )
                 if batch is None or batch is True:
-                    input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
+                    input_dataset = input_dataset.batch(
+                        dataset_pipeline.max_batch_size
+                    )
                 # If we place DALIDataset on GPU we need the remote call + manual data transfer
                 if "gpu" in device_str:
                     input_dataset = input_dataset.apply(
@@ -315,7 +354,9 @@ def external_source_converter_multiple(start_values, input_names, batches):
                 if batch == "dataset":
                     input_datasets[name] = input_dataset
                 else:
-                    input_datasets[name] = dali_tf.experimental.Input(input_dataset, batch=batch)
+                    input_datasets[name] = dali_tf.experimental.Input(
+                        input_dataset, batch=batch
+                    )
 
         with tf.device(device_str):
             dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
@@ -343,13 +384,19 @@ def external_source_tester_multiple(start_values, input_names, batches):
         num_shards=1,
         def_for_dataset=False,
     ):
-        sources = [InfiniteSampleIterator(start_value) for start_value in start_values]
+        sources = [
+            InfiniteSampleIterator(start_value) for start_value in start_values
+        ]
         output_shapes = [
-            ((batch_size,) + tuple(None for _ in start_value.shape)) for start_value in start_values
+            ((batch_size,) + tuple(None for _ in start_value.shape))
+            for start_value in start_values
         ]
         output_shapes = tuple(output_shapes + output_shapes)
         output_dtypes = tuple(
-            [tf.dtypes.as_dtype(start_value.dtype) for start_value in start_values]
+            [
+                tf.dtypes.as_dtype(start_value.dtype)
+                for start_value in start_values
+            ]
             + [tf.int32] * len(start_values)
         )
 

@@ -36,7 +36,9 @@ class Structure:
     @classmethod
     def setup_struct(cls):
         if "_struct_desc" not in cls.__dict__:
-            cls._struct_desc = "@" + "".join(field_type for _, field_type in cls._fields)
+            cls._struct_desc = "@" + "".join(
+                field_type for _, field_type in cls._fields
+            )
             cls._struct = struct.Struct(cls._struct_desc)
 
     def __getstate__(self):
@@ -51,7 +53,9 @@ class Structure:
             setattr(self, field_name, value)
 
     def get_values(self):
-        return tuple(getattr(self, field_name) for field_name, _ in self._fields)
+        return tuple(
+            getattr(self, field_name) for field_name, _ in self._fields
+        )
 
     def pack_into(self, buf, offset):
         try:

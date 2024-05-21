@@ -26,7 +26,8 @@ images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
 def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
     encoded, _ = fn.readers.file(file_root=images_dir)
     in_data = fn.cast(
-        fn.decoders.image(encoded, device="cpu", output_type=types.RGB), dtype=types.FLOAT
+        fn.decoders.image(encoded, device="cpu", output_type=types.RGB),
+        dtype=types.FLOAT,
     )
     if device == "gpu":
         in_data = in_data.gpu()
@@ -36,8 +37,12 @@ def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
         mean_arg = fn.random.uniform(range=(-50.0, 50.0))
         stddev_arg = fn.random.uniform(range=(1.0, 10.0))
     seed = 12345
-    out_data1 = fn.noise.gaussian(in_data, mean=mean_arg, stddev=stddev_arg, seed=seed)
-    out_data2 = in_data + fn.random.normal(in_data, mean=mean_arg, stddev=stddev_arg, seed=seed)
+    out_data1 = fn.noise.gaussian(
+        in_data, mean=mean_arg, stddev=stddev_arg, seed=seed
+    )
+    out_data2 = in_data + fn.random.normal(
+        in_data, mean=mean_arg, stddev=stddev_arg, seed=seed
+    )
     return out_data1, out_data2
 
 
@@ -63,7 +68,10 @@ def test_operator_noise_gaussian_vs_add_normal_dist():
     niter = 3
     for device in ("cpu", "gpu"):
         for batch_size in (1, 3):
-            for mean, stddev, variable_dist_params in [(10.0, 57.0, False), (0.0, 0.0, True)]:
+            for mean, stddev, variable_dist_params in [
+                (10.0, 57.0, False),
+                (0.0, 0.0, True),
+            ]:
                 yield (
                     _testimpl_operator_noise_gaussian_vs_add_normal_dist,
                     device,

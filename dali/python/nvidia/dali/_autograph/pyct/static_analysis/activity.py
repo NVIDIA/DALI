@@ -249,7 +249,8 @@ class ActivityAnalyzer(transformer.Base):
             innermost = context.stack[-1].node
             parent = context.stack[-2].node
             return isinstance(parent, gast.ClassDef) and (
-                isinstance(innermost, gast.FunctionDef) and innermost.name == "__init__"
+                isinstance(innermost, gast.FunctionDef)
+                and innermost.name == "__init__"
             )
         return False
 
@@ -311,7 +312,9 @@ class ActivityAnalyzer(transformer.Base):
             self.scope.deleted.add(qn)
 
         else:
-            raise ValueError('Unknown context {} for node "{}".'.format(type(node.ctx), qn))
+            raise ValueError(
+                'Unknown context {} for node "{}".'.format(type(node.ctx), qn)
+            )
 
     def _enter_scope(self, isolated, f_name=None):
         self.scope = Scope(self.scope, isolated=isolated, function_name=f_name)
@@ -482,7 +485,9 @@ class ActivityAnalyzer(transformer.Base):
             self.scope.merge_from(after_child)
         return parent
 
-    def _process_comprehension(self, node, is_list_comp=False, is_dict_comp=False):
+    def _process_comprehension(
+        self, node, is_list_comp=False, is_dict_comp=False
+    ):
         with self.state[_Comprehension] as comprehension_:
             comprehension_.is_list_comp = is_list_comp
             # Note: it's important to visit the generators first to properly account
@@ -651,7 +656,11 @@ class ActivityAnalyzer(transformer.Base):
         anno.setanno(node, NodeAnno.COND_SCOPE, node_scope)
 
         node = self._process_parallel_blocks(
-            node, ((node.body, NodeAnno.BODY_SCOPE), (node.orelse, NodeAnno.ORELSE_SCOPE))
+            node,
+            (
+                (node.body, NodeAnno.BODY_SCOPE),
+                (node.orelse, NodeAnno.ORELSE_SCOPE),
+            ),
         )
         return node
 
@@ -664,11 +673,17 @@ class ActivityAnalyzer(transformer.Base):
         self._enter_scope(False)
         self.visit(node.target)
         if anno.hasanno(node, anno.Basic.EXTRA_LOOP_TEST):
-            self._process_statement(anno.getanno(node, anno.Basic.EXTRA_LOOP_TEST))
+            self._process_statement(
+                anno.getanno(node, anno.Basic.EXTRA_LOOP_TEST)
+            )
         self._exit_and_record_scope(node, tag=NodeAnno.ITERATE_SCOPE)
 
         node = self._process_parallel_blocks(
-            node, ((node.body, NodeAnno.BODY_SCOPE), (node.orelse, NodeAnno.ORELSE_SCOPE))
+            node,
+            (
+                (node.body, NodeAnno.BODY_SCOPE),
+                (node.orelse, NodeAnno.ORELSE_SCOPE),
+            ),
         )
         return node
 
@@ -679,7 +694,11 @@ class ActivityAnalyzer(transformer.Base):
         anno.setanno(node, NodeAnno.COND_SCOPE, node_scope)
 
         node = self._process_parallel_blocks(
-            node, ((node.body, NodeAnno.BODY_SCOPE), (node.orelse, NodeAnno.ORELSE_SCOPE))
+            node,
+            (
+                (node.body, NodeAnno.BODY_SCOPE),
+                (node.orelse, NodeAnno.ORELSE_SCOPE),
+            ),
         )
         return node
 
@@ -688,7 +707,9 @@ class ActivityAnalyzer(transformer.Base):
         # try/except oddity: as expected, it leaks any names you defined inside the
         # except block, but not the name of the exception variable.
         if node.name is not None:
-            self.scope.isolated_names.add(anno.getanno(node.name, anno.Basic.QN))
+            self.scope.isolated_names.add(
+                anno.getanno(node.name, anno.Basic.QN)
+            )
         node = self.generic_visit(node)
         self._exit_scope()
         return node

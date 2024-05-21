@@ -76,7 +76,9 @@ def load_frames(sample_info=types.SampleInfo(0, 0, 0, 0), hint_grid=None):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     if sample_info.idx_in_epoch % 2:
         img = cv2.resize(
-            img, dsize=(img.shape[0] // 2, img.shape[1] // 2), interpolation=cv2.INTER_AREA
+            img,
+            dsize=(img.shape[0] // 2, img.shape[1] // 2),
+            interpolation=cv2.INTER_AREA,
         )
 
     xy, ofs = get_mapping(img.shape[:2])
@@ -111,7 +113,9 @@ def of_pipeline(output_grid=1, hint_grid=1, use_temporal_hints=False):
         )
     else:
         seq = fn.external_source(
-            lambda info: load_frames(info, hint_grid), layout="FHWC", batch=False
+            lambda info: load_frames(info, hint_grid),
+            layout="FHWC",
+            batch=False,
         )
         of = fn.optical_flow(
             seq.gpu(),
@@ -256,14 +260,22 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
     if get_arch() < 8:
         if output_grid != 4:
             assert_raises(
-                RuntimeError, pipe.run, glob="grid size: * is not supported, supported are:"
+                RuntimeError,
+                pipe.run,
+                glob="grid size: * is not supported, supported are:",
             )
-            raise SkipTest("Skipped as grid size is not supported for this arch")
+            raise SkipTest(
+                "Skipped as grid size is not supported for this arch"
+            )
         elif hint_grid not in [4, 8, None]:
             assert_raises(
-                RuntimeError, pipe.run, glob="hint grid size: * is not supported, supported are:"
+                RuntimeError,
+                pipe.run,
+                glob="hint grid size: * is not supported, supported are:",
             )
-            raise SkipTest("Skipped as hint grid size is not supported for this arch")
+            raise SkipTest(
+                "Skipped as hint grid size is not supported for this arch"
+            )
 
     for _ in range(2):
         out = pipe.run()
@@ -272,19 +284,27 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
             out_field = out[1].as_cpu().at(i)[0]
             _, ref_field = get_mapping(seq.shape[1:3])
             dsize = (out_field.shape[1], out_field.shape[0])
-            ref_field = cv2.resize(ref_field, dsize=dsize, interpolation=cv2.INTER_AREA)
+            ref_field = cv2.resize(
+                ref_field, dsize=dsize, interpolation=cv2.INTER_AREA
+            )
             if interactive:
                 cv2.imshow("out", flow_to_color(out_field, None, True))
                 cv2.imshow("ref", flow_to_color(ref_field, None, True))
                 print(np.max(out_field))
                 print(np.max(ref_field))
-                cv2.imshow("dif", flow_to_color(ref_field - out_field, None, True))
+                cv2.imshow(
+                    "dif", flow_to_color(ref_field - out_field, None, True)
+                )
                 cv2.waitKey(0)
             err = np.linalg.norm(ref_field - out_field, ord=2, axis=2)
             assert np.mean(err) < 1  # average error of less than one pixel
             assert np.max(err) < 100  # no point more than 100px off
-            assert np.sum(err > 1) / np.prod(err.shape) < 0.1  # 90% are within 1px
-            assert np.sum(err > 2) / np.prod(err.shape) < 0.05  # 95% are within 2px
+            assert (
+                np.sum(err > 1) / np.prod(err.shape) < 0.1
+            )  # 90% are within 1px
+            assert (
+                np.sum(err > 2) / np.prod(err.shape) < 0.05
+            )  # 95% are within 2px
 
 
 def test_optflow():

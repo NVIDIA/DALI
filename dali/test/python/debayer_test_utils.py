@@ -25,7 +25,12 @@ class BayerPattern:
     RGGB = 3
 
 
-bayer_patterns = [BayerPattern.BGGR, BayerPattern.GBRG, BayerPattern.GRBG, BayerPattern.RGGB]
+bayer_patterns = [
+    BayerPattern.BGGR,
+    BayerPattern.GBRG,
+    BayerPattern.GRBG,
+    BayerPattern.RGGB,
+]
 
 
 def blue_position(pattern):
@@ -84,10 +89,16 @@ def rgb2bayer_seq(seq, patterns):
     assert c == 3
     h = h // 2 * 2
     w = w // 2 * 2
-    bayer_masks = {pattern: rgb_bayer_masks((h, w), pattern) for pattern in bayer_patterns}
+    bayer_masks = {
+        pattern: rgb_bayer_masks((h, w), pattern) for pattern in bayer_patterns
+    }
     seq_masks = [bayer_masks[pattern] for pattern in patterns]
     reds, greens, blues = [np.stack(channel) for channel in zip(*seq_masks)]
-    return seq[:, :h, :w, 0] * reds + seq[:, :h, :w, 1] * greens + seq[:, :h, :w, 2] * blues
+    return (
+        seq[:, :h, :w, 0] * reds
+        + seq[:, :h, :w, 1] * greens
+        + seq[:, :h, :w, 2] * blues
+    )
 
 
 def conv2d_border101(img, filt):
@@ -100,8 +111,12 @@ def conv2d_border101(img, filt):
 def conv2d_border101_seq(seq, filt):
     r, s = filt.shape
     assert r % 2 == 1 and s % 2 == 1
-    padded = np.pad(seq, ((0, 0), (r // 2, r // 2), (s // 2, s // 2)), "reflect")
-    debayered_frames = [convolve2d(frame, filt, mode="valid") for frame in padded]
+    padded = np.pad(
+        seq, ((0, 0), (r // 2, r // 2), (s // 2, s // 2)), "reflect"
+    )
+    debayered_frames = [
+        convolve2d(frame, filt, mode="valid") for frame in padded
+    ]
     return np.stack(debayered_frames)
 
 
@@ -156,11 +171,19 @@ def debayer_bilinear_npp_masks(img, masks):
         diff_y = np.abs(color_signal - y_avg)
         return diff_x < diff_y, diff_x > diff_y
 
-    pick_x_red_based, pick_y_red_based = green_with_chroma_correlation(red_signal)
-    pick_x_blue_based, pick_y_blue_based = green_with_chroma_correlation(blue_signal)
+    pick_x_red_based, pick_y_red_based = green_with_chroma_correlation(
+        red_signal
+    )
+    pick_x_blue_based, pick_y_blue_based = green_with_chroma_correlation(
+        blue_signal
+    )
     pick_x = pick_x_red_based + pick_x_blue_based
     pick_y = pick_y_red_based + pick_y_blue_based
-    green = pick_x * green_x + pick_y * green_y + (1 - pick_x - pick_y) * green_bilinear
+    green = (
+        pick_x * green_x
+        + pick_y * green_y
+        + (1 - pick_x - pick_y) * green_bilinear
+    )
     return np.stack([red, green, blue], axis=ndim).astype(in_dtype)
 
 
@@ -173,7 +196,9 @@ def debayer_bilinear_npp_pattern(img, pattern):
 def debayer_bilinear_npp_pattern_seq(seq, patterns):
     f, h, w = seq.shape
     assert f == len(patterns)
-    bayer_masks = {pattern: rgb_bayer_masks((h, w), pattern) for pattern in bayer_patterns}
+    bayer_masks = {
+        pattern: rgb_bayer_masks((h, w), pattern) for pattern in bayer_patterns
+    }
     seq_masks = [bayer_masks[pattern] for pattern in patterns]
     reds, greens, blues = [np.stack(channel) for channel in zip(*seq_masks)]
     return debayer_bilinear_npp_masks(seq, (reds, greens, blues))

@@ -57,7 +57,9 @@ def _py_lazy_or(cond, b):
 
 def eq(a, b):
     """Functional form of "equal"."""
-    if hooks._DISPATCH.detect_overload_equal(a) or hooks._DISPATCH.detect_overload_equal(b):
+    if hooks._DISPATCH.detect_overload_equal(
+        a
+    ) or hooks._DISPATCH.detect_overload_equal(b):
         return hooks._DISPATCH.equal(a, b)
     return _py_equal(a, b)
 

@@ -65,7 +65,9 @@ class DirectivesTest(converter_testing.TestCase):
             directives.set_loop_options()
             pass
 
-        with self.assertRaisesRegex(ValueError, "must be used inside a statement"):
+        with self.assertRaisesRegex(
+            ValueError, "must be used inside a statement"
+        ):
             self.transform(f, directives_converter, include_ast=True)
 
     def test_loop_target_not_first(self):

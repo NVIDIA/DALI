@@ -19,7 +19,11 @@ from nvidia.dali import internal as _internal
 from nvidia.dali.external_source import external_source
 from nvidia.dali._utils import dali_trace as _dali_trace
 
-_special_case_mapping = {"b_box": "bbox", "mx_net": "mxnet", "tf_record": "tfrecord"}
+_special_case_mapping = {
+    "b_box": "bbox",
+    "mx_net": "mxnet",
+    "tf_record": "tfrecord",
+}
 
 
 def _handle_special_case(s):
@@ -71,7 +75,9 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
 
         default_dev = nvidia.dali.ops._choose_device(inputs)
         if default_dev == "gpu" and init_args.get("device") == "cpu":
-            raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+            raise ValueError(
+                "An operator with device='cpu' cannot accept GPU inputs."
+            )
 
         if "device" not in init_args:
             init_args["device"] = default_dev
@@ -92,10 +98,15 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
 
         current_pipeline = _PipelineDebug.current()
         if getattr(current_pipeline, "_debug_on", False):
-            return current_pipeline._wrap_op_call(op_class, wrapper_name, *inputs, **kwargs)
+            return current_pipeline._wrap_op_call(
+                op_class, wrapper_name, *inputs, **kwargs
+            )
         else:
             if _dali_trace.is_tracing_enabled():
-                kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
+                kwargs = {
+                    **kwargs,
+                    "_definition_frame_end": _dali_trace.get_stack_depth() - 1,
+                }
             return op_wrapper(*inputs, **kwargs)
 
     from nvidia.dali.ops import _signatures
@@ -107,7 +118,10 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     schema = _b.TryGetSchema(op_class.schema_name)
     if schema is not None:
         fn_wrapper.__signature__ = _signatures._call_signature(
-            schema, include_inputs=True, include_kwargs=True, filter_annotations=True
+            schema,
+            include_inputs=True,
+            include_kwargs=True,
+            filter_annotations=True,
         )
     fn_wrapper._schema_name = op_class.schema_name
     fn_wrapper._generated = getattr(op_class, "_generated", False)
@@ -132,7 +146,12 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
 
     # Add operator to eager API.
     eager_utils._wrap_eager_op(
-        op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden
+        op_class,
+        submodule,
+        parent_module,
+        wrapper_name,
+        wrapper_doc,
+        make_hidden,
     )
 
     if parent_module is None:
@@ -147,7 +166,9 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     if not hasattr(module, wrapper_name):
         wrap_func = _wrap_op_fn(op_class, wrapper_name, wrapper_doc)
         setattr(module, wrapper_name, wrap_func)
-        _internal._adjust_operator_module(wrap_func, fn_module, submodule, impl_module_override)
+        _internal._adjust_operator_module(
+            wrap_func, fn_module, submodule, impl_module_override
+        )
         if make_hidden:
             parent_module = _internal.get_submodule(fn_module, submodule[:-1])
             setattr(parent_module, wrapper_name, wrap_func)

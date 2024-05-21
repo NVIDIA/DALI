@@ -23,18 +23,43 @@ import os
 from nvidia.dali.auto_aug import auto_augment
 
 parser = argparse.ArgumentParser(description="DALI HW decoder benchmark")
-parser.add_argument("-b", dest="batch_size", help="batch size", default=1, type=int)
-parser.add_argument("-m", dest="minibatch_size", help="minibatch size", default=32, type=int)
-parser.add_argument("-d", dest="device_id", help="device id", default=0, type=int)
 parser.add_argument(
-    "-n", dest="gpu_num", help="Number of GPUs used starting from device_id", default=1, type=int
+    "-b", dest="batch_size", help="batch size", default=1, type=int
 )
 parser.add_argument(
-    "-g", dest="device", choices=["gpu", "cpu"], help="device to use", default="gpu", type=str
+    "-m", dest="minibatch_size", help="minibatch size", default=32, type=int
 )
-parser.add_argument("-w", dest="warmup_iterations", help="warmup iterations", default=0, type=int)
-parser.add_argument("-t", dest="total_images", help="total images", default=100, type=int)
-parser.add_argument("-j", dest="num_threads", help="num_threads", default=1, type=int)
+parser.add_argument(
+    "-d", dest="device_id", help="device id", default=0, type=int
+)
+parser.add_argument(
+    "-n",
+    dest="gpu_num",
+    help="Number of GPUs used starting from device_id",
+    default=1,
+    type=int,
+)
+parser.add_argument(
+    "-g",
+    dest="device",
+    choices=["gpu", "cpu"],
+    help="device to use",
+    default="gpu",
+    type=str,
+)
+parser.add_argument(
+    "-w",
+    dest="warmup_iterations",
+    help="warmup iterations",
+    default=0,
+    type=int,
+)
+parser.add_argument(
+    "-t", dest="total_images", help="total images", default=100, type=int
+)
+parser.add_argument(
+    "-j", dest="num_threads", help="num_threads", default=1, type=int
+)
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument("-i", dest="images_dir", help="images dir")
 input_files_arg.add_argument(
@@ -68,7 +93,10 @@ needs_feed_input = args.pipeline == "efficientnet_inference"
 
 
 @pipeline_def(
-    batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
+    batch_size=args.batch_size,
+    num_threads=args.num_threads,
+    device_id=args.device_id,
+    seed=0,
 )
 def DecoderPipeline():
     device = "mixed" if args.device == "gpu" else "cpu"
@@ -85,7 +113,10 @@ def DecoderPipeline():
 
 
 @pipeline_def(
-    batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
+    batch_size=args.batch_size,
+    num_threads=args.num_threads,
+    device_id=args.device_id,
+    seed=0,
 )
 def RN50Pipeline(minibatch_size):
     device = "mixed" if args.device == "gpu" else "cpu"
@@ -98,7 +129,9 @@ def RN50Pipeline(minibatch_size):
         preallocate_width_hint=args.width_hint,
         preallocate_height_hint=args.height_hint,
     )
-    images = fn.resize(images, resize_x=224, resize_y=224, minibatch_size=minibatch_size)
+    images = fn.resize(
+        images, resize_x=224, resize_y=224, minibatch_size=minibatch_size
+    )
     layout = types.NCHW
     out_type = types.FLOAT16
     coin_flip = fn.random.coin_flip(probability=0.5)
@@ -167,9 +200,15 @@ def create_input_tensor(batch_size, file_list):
     arrays = list(map(lambda x: np.fromfile(x, dtype=np.uint8), file_list))
 
     # Pad the encoded images
-    lengths = list(map(lambda x, ar=arrays: ar[x].shape[0], [x for x in range(len(arrays))]))
+    lengths = list(
+        map(
+            lambda x, ar=arrays: ar[x].shape[0], [x for x in range(len(arrays))]
+        )
+    )
     max_len = max(lengths)
-    arrays = list(map(lambda ar, ml=max_len: np.pad(ar, (0, ml - ar.shape[0])), arrays))
+    arrays = list(
+        map(lambda ar, ml=max_len: np.pad(ar, (0, ml - ar.shape[0])), arrays)
+    )
 
     for arr in arrays:
         assert arr.shape == arrays[0].shape, "Arrays must have the same shape"
@@ -181,10 +220,17 @@ def non_image_preprocessing(raw_text):
 
 
 @pipeline_def(
-    batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
+    batch_size=args.batch_size,
+    num_threads=args.num_threads,
+    device_id=args.device_id,
+    seed=0,
 )
-def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000):
-    files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)]
+def vit_pipeline(
+    is_training=False, image_shape=(384, 384, 3), num_classes=1000
+):
+    files_paths = [
+        os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)
+    ]
 
     img, clss = fn.readers.webdataset(
         paths=files_paths,
@@ -199,7 +245,9 @@ def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000)
     )
 
     use_gpu = args.device == "gpu"
-    labels = fn.python_function(clss, function=non_image_preprocessing, num_outputs=1)
+    labels = fn.python_function(
+        clss, function=non_image_preprocessing, num_outputs=1
+    )
     if use_gpu:
         labels = labels.gpu()
     labels = fn.one_hot(labels, num_classes=num_classes)
@@ -224,7 +272,11 @@ def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000)
         saturation = fn.random.uniform(range=[0.6, 1.4])
         hue = fn.random.uniform(range=[0.9, 1.1])
         img = fn.color_twist(
-            img, brightness=brightness, contrast=contrast, hue=hue, saturation=saturation
+            img,
+            brightness=brightness,
+            contrast=contrast,
+            hue=hue,
+            saturation=saturation,
         )
 
         # auto-augment
@@ -238,7 +290,9 @@ def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000)
     mean = np.asarray([0.485, 0.456, 0.406])[None, None, :]
     std = np.asarray([0.229, 0.224, 0.225])[None, None, :]
     scale = 1 / 255.0
-    img = fn.normalize(img, mean=mean / scale, stddev=std, scale=scale, dtype=types.FLOAT)
+    img = fn.normalize(
+        img, mean=mean / scale, stddev=std, scale=scale, dtype=types.FLOAT
+    )
 
     return img, labels
 
@@ -249,10 +303,16 @@ if args.pipeline == "decoder":
         pipes.append(DecoderPipeline(device_id=i + args.device_id))
 elif args.pipeline == "rn50":
     for i in range(args.gpu_num):
-        pipes.append(RN50Pipeline(device_id=i + args.device_id, minibatch_size=args.minibatch_size))
+        pipes.append(
+            RN50Pipeline(
+                device_id=i + args.device_id, minibatch_size=args.minibatch_size
+            )
+        )
 elif args.pipeline == "efficientnet_inference":
     for i in range(args.gpu_num):
-        pipes.append(EfficientnetInferencePipeline(device_id=i + args.device_id))
+        pipes.append(
+            EfficientnetInferencePipeline(device_id=i + args.device_id)
+        )
 elif args.pipeline == "vit":
     for i in range(args.gpu_num):
         pipes.append(vit_pipeline(device_id=i + args.device_id))
@@ -261,7 +321,11 @@ else:
 for p in pipes:
     p.build()
 
-input_tensor = create_input_tensor(args.batch_size, args.image_list) if needs_feed_input else None
+input_tensor = (
+    create_input_tensor(args.batch_size, args.image_list)
+    if needs_feed_input
+    else None
+)
 
 for iteration in range(args.warmup_iterations):
     for p in pipes:

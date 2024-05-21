@@ -16,7 +16,12 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import fn, pipeline_def
 import math
-from test_utils import compare_pipelines, as_array, RandomDataIterator, RandomlyShapedDataIterator
+from test_utils import (
+    compare_pipelines,
+    as_array,
+    RandomDataIterator,
+    RandomlyShapedDataIterator,
+)
 import itertools
 from nose2.tools import params
 import numpy as np
@@ -39,7 +44,9 @@ class TransposePipeline(Pipeline):
         transpose_layout=False,
         out_layout_arg=None,
     ):
-        super(TransposePipeline, self).__init__(batch_size, num_threads, device_id)
+        super(TransposePipeline, self).__init__(
+            batch_size, num_threads, device_id
+        )
         self.device = device
         self.layout = layout
         self.iterator = iterator
@@ -53,7 +60,9 @@ class TransposePipeline(Pipeline):
             )
         else:
             self.transpose = ops.Transpose(
-                device=self.device, perm=permutation, transpose_layout=transpose_layout
+                device=self.device,
+                perm=permutation,
+                transpose_layout=transpose_layout,
             )
 
     def define_graph(self):
@@ -68,9 +77,15 @@ class TransposePipeline(Pipeline):
 
 
 class PythonOpPipeline(Pipeline):
-    def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
+    def __init__(
+        self, function, batch_size, layout, iterator, num_threads=1, device_id=0
+    ):
         super(PythonOpPipeline, self).__init__(
-            batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False
+            batch_size,
+            num_threads,
+            device_id,
+            exec_async=False,
+            exec_pipelined=False,
         )
         self.layout = layout
         self.iterator = iterator
@@ -87,15 +102,28 @@ class PythonOpPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation):
+def check_transpose_vs_numpy(
+    device, batch_size, dim, total_volume, permutation
+):
     max_shape = [int(math.pow(total_volume / batch_size, 1 / dim))] * dim
-    print("Testing", device, "backend with batch of", batch_size, "max size", max_shape)
+    print(
+        "Testing",
+        device,
+        "backend with batch of",
+        batch_size,
+        "max size",
+        max_shape,
+    )
     print("permutation ", permutation)
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     eii2 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     compare_pipelines(
-        TransposePipeline(device, batch_size, "", iter(eii1), permutation=permutation),
-        PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)),
+        TransposePipeline(
+            device, batch_size, "", iter(eii1), permutation=permutation
+        ),
+        PythonOpPipeline(
+            lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)
+        ),
         batch_size=batch_size,
         N_iterations=3,
     )
@@ -114,7 +142,13 @@ def test_transpose_vs_numpy():
 
 
 def check_transpose_layout(
-    device, batch_size, shape, in_layout, permutation, transpose_layout, out_layout_arg
+    device,
+    batch_size,
+    shape,
+    in_layout,
+    permutation,
+    transpose_layout,
+    out_layout_arg,
 ):
     eii = RandomDataIterator(batch_size, shape=shape)
     pipe = TransposePipeline(
@@ -145,7 +179,12 @@ def test_transpose_layout():
     for device in {"cpu", "gpu"}:
         for batch_size in (1, 3):
             for shape in [(600, 400, 3), (600, 400, 1)]:
-                for permutation, in_layout, transpose_layout, out_layout_arg in [
+                for (
+                    permutation,
+                    in_layout,
+                    transpose_layout,
+                    out_layout_arg,
+                ) in [
                     ((2, 0, 1), "HWC", True, None),
                     ((2, 0, 1), "HWC", True, "CHW"),
                     ((2, 0, 1), "HWC", False, "CHW"),
@@ -165,7 +204,11 @@ def test_transpose_layout():
                     )
 
 
-@params(*itertools.product(("cpu", "gpu"), ((10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3))))
+@params(
+    *itertools.product(
+        ("cpu", "gpu"), ((10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3))
+    )
+)
 def test_transpose_default(device, shape):
     @pipeline_def(batch_size=1, num_threads=3, device_id=0)
     def pipe():

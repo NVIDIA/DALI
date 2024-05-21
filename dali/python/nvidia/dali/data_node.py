@@ -34,7 +34,9 @@ def _arithm_op(*args, **kwargs):
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
-    return nvidia.dali.ops._arithm_op(*args, **kwargs, definition_frame_end=definition_frame_end)
+    return nvidia.dali.ops._arithm_op(
+        *args, **kwargs, definition_frame_end=definition_frame_end
+    )
 
 
 class _NewAxis:
@@ -85,8 +87,12 @@ class DataNode(object):
 
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
-            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNode(self_split.name, "gpu", self_split.source)
+            [self_split], _ = _conditionals.apply_conditional_split_to_args(
+                [self], {}
+            )
+            transferred_node = DataNode(
+                self_split.name, "gpu", self_split.source
+            )
             _conditionals.register_data_nodes(transferred_node, [self])
             return transferred_node
         return DataNode(self.name, "gpu", self.source)
@@ -199,7 +205,9 @@ class DataNode(object):
                     new_axis_names.append(idx.name)
                 return True
             if idx is Ellipsis:
-                raise NotImplementedError("Ellipsis in indexing is not implemented")
+                raise NotImplementedError(
+                    "Ellipsis in indexing is not implemented"
+                )
             if isinstance(idx, (float, str)):
                 raise TypeError("Invalid type for an index: ", type)
             idxs.append((idx, None, None, None))
@@ -214,7 +222,9 @@ class DataNode(object):
 
         if len(new_axis_names) != 0:
             if len(new_axis_names) != len(new_axes):
-                raise ValueError("New axis name must be specified for all axes or none.")
+                raise ValueError(
+                    "New axis name must be specified for all axes or none."
+                )
             new_axis_names = "".join(new_axis_names)
         else:
             new_axis_names = None
@@ -241,14 +251,20 @@ class DataNode(object):
             if len(new_axes) > 0 and isinstance(val[-1], _NewAxis):
                 sliced = self  # no check needed, ExpandDims will do the trick
             else:
-                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
+                sliced = nvidia.dali.fn.subscript_dim_check(
+                    self, num_subscripts=len(idxs)
+                )
         else:
-            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
+            sliced = nvidia.dali.fn.tensor_subscript(
+                self, **slice_args, num_subscripts=len(idxs)
+            )
 
         if len(new_axes) == 0:
             return sliced
         else:
-            return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
+            return nvidia.dali.fn.expand_dims(
+                sliced, axes=new_axes, new_axis_names=new_axis_names
+            )
 
 
 not_iterable(DataNode)
