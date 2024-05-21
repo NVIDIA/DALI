@@ -65,7 +65,6 @@ __global__ static void yuv_to_rgb_kernel(
             RGB({x + j, y + i, 2}) = rgb_val.z;
         }
     }
-
 }
 
 }  // namespace dali
