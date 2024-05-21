@@ -8,7 +8,7 @@ FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen zip \
+RUN yum install -y wget doxygen graphviz gettext xz openssl autogen zip \
                    devtoolset-10-libasan-devel devtoolset-10-liblsan-devel \
                    devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel \
                    perl perl-IPC-Cmd
@@ -25,9 +25,19 @@ RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
     ./cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh --prefix=/usr/local --skip-license && \
     rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
 
+# We need newer NASM than manylinux2014 offers
+RUN cd /tmp && \
+    curl -O -L https://www.nasm.us/pub/nasm/releasebuilds/2.15.05/nasm-2.15.05.tar.bz2  && \
+    tar xjvf nasm-2.15.05.tar.bz2 && \
+    cd nasm-2.15.05 && \
+    ./autogen.sh && \
+    ./configure && \
+    make && \
+    make install
+
 # Clang, build it before deps as deps changes more frequently
 RUN CLANG_VERSION=15.0.2                                                                           && \
-    cd tmp                                                                                         && \
+    cd /tmp                                                                                         && \
     wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
     tar -xf llvmorg-*.tar.gz                                                                       && \
     rm -rf llvmorg-*.tar.gz                                                                        && \

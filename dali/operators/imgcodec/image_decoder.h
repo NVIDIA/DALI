@@ -121,25 +121,14 @@ inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream
 }
 
 inline void get_nvimgcodec_version(int* major, int *minor, int* patch) {
-  static std::once_flag version_check_done;
-  static int s_major = -1, s_minor = -1, s_patch = -1;
-  auto version_check_f = [&] {
-    nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
-                                      sizeof(nvimgcodecProperties_t), 0};
-    if (NVIMGCODEC_STATUS_SUCCESS != nvimgcodecGetProperties(&properties))
-      return;
-    int version = static_cast<int>(properties.version);
-    s_major = NVIMGCODEC_MAJOR_FROM_SEMVER(version);
-    s_minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
-    s_patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
-  };
-  std::call_once(version_check_done, version_check_f);
-  if (s_major == -1 || s_minor == -1 || s_patch == -1)
-    throw std::runtime_error("Failed to check nvImageCodec version");
-  *major = s_major;
-  *minor = s_minor;
-  *patch = s_patch;
-  return;
+  nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
+                                    sizeof(nvimgcodecProperties_t), 0};
+  if (NVIMGCODEC_STATUS_SUCCESS != nvimgcodecGetProperties(&properties))
+    throw std::runtime_error("Failed to check the version of nvimgcodec.");
+  int version = static_cast<int>(properties.version);
+  *major = NVIMGCODEC_MAJOR_FROM_SEMVER(version);
+  *minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
+  *patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
 }
 
 template <typename Backend>
@@ -455,6 +444,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     GetDecoderSpecificArgument<uint64_t>(spec, "hybrid_huffman_threshold");
     GetDecoderSpecificArgument<int>(spec, "device_memory_padding");
     GetDecoderSpecificArgument<int>(spec, "host_memory_padding");
+    GetDecoderSpecificArgument<int>(spec, "device_memory_padding_jpeg2k");
+    GetDecoderSpecificArgument<int>(spec, "host_memory_padding_jpeg2k");
     GetDecoderSpecificArgument<float>(spec, "hw_decoder_load");
     GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
     GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
@@ -572,24 +563,17 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   /**
-   * @brief Checks that nvImageCodec version is at least a given version
-   */
-  bool version_at_least(int req_major, int req_minor, int req_patch) {
-    int major = -1, minor = -1, patch = -1;
-    get_nvimgcodec_version(&major, &minor, &patch);
-    return MAKE_SEMANTIC_VERSION(major, minor, patch) >=
-           MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
-  }
-
-  /**
    * @brief nvImageCodec up to 0.2 doesn't synchronize with the user stream before decoding.
    * Because of that, we need to host synchronize before passing the async allocated buffer
    * to the decoding function
    */
   bool need_host_sync_alloc() {
-    int major, minor, patch;
-    get_nvimgcodec_version(&major, &minor, &patch);
-    return !version_at_least(0, 3, 0);
+    static bool need_sync = [] {
+      int major, minor, patch;
+      get_nvimgcodec_version(&major, &minor, &patch);
+      return major == 0 && minor <= 2;
+    }();
+    return need_sync;
   }
 
   template <typename OutBackend>
@@ -602,7 +586,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.req_img_type = format_;
     auto info = st.parsed_sample.dali_img_info;
     int64_t &nchannels = st.out_shape[2];
-    auto decode_shape = st.out_shape;
 
     // Decode to format
     st.image_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
@@ -614,17 +597,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
       st.orig_img_type = DALI_GRAY;
       nchannels = 1;
     } else {
-      // TIFF decoder has some issues with decoding RGB outputs on 1-channel inputs on nvImageCodec
-      // 0.2.0 In that case, decode directly to grayscale and convert later
-      if (!version_at_least(0, 3, 0) &&
-          st.parsed_sample.nvimgcodec_img_info.sample_format == NVIMGCODEC_SAMPLEFORMAT_P_Y) {
-        st.image_info.sample_format = NVIMGCODEC_SAMPLEFORMAT_P_Y;
-        st.orig_img_type = DALI_GRAY;
-        decode_shape[2] = 1;
-      } else {
-        st.image_info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_RGB;
-        st.orig_img_type = DALI_RGB;
-      }
+      st.image_info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_RGB;
+      st.orig_img_type = DALI_RGB;
       nchannels = 3;
     }
 
@@ -657,7 +631,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE :
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST;
     int64_t image_buffer_size =
-        volume(decode_shape) * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
+        volume(st.out_shape) * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
     st.image_info.buffer_size = image_buffer_size;
 
     st.decode_out_cpu = {};
@@ -668,11 +642,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
         st.device_buf = mm::alloc_raw_async_unique<uint8_t, mm::memory_kind::device>(
             image_buffer_size, st.image_info.cuda_stream, st.image_info.cuda_stream);
         st.image_info.buffer = st.device_buf.get();
-        st.decode_out_gpu = {st.image_info.buffer, decode_shape, st.parsed_sample.orig_dtype};
+        st.decode_out_gpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       } else {
         st.host_buf = mm::alloc_raw_unique<uint8_t, mm::memory_kind::host>(image_buffer_size);
         st.image_info.buffer = st.host_buf.get();
-        st.decode_out_cpu = {st.image_info.buffer, decode_shape, st.parsed_sample.orig_dtype};
+        st.decode_out_cpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       }
     } else {
       st.image_info.buffer = static_cast<uint8_t *>(out.raw_mutable_data());
@@ -680,11 +654,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.num_planes = 1;
     st.image_info.plane_info[0].row_stride =
-        decode_shape[1] * decode_shape[2] *
-        TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
-    st.image_info.plane_info[0].height = decode_shape[0];
-    st.image_info.plane_info[0].width = decode_shape[1];
-    st.image_info.plane_info[0].num_channels = decode_shape[2];
+        st.out_shape[1] * nchannels * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
+    st.image_info.plane_info[0].height = st.out_shape[0];
+    st.image_info.plane_info[0].width = st.out_shape[1];
+    st.image_info.plane_info[0].num_channels = nchannels;
     st.image = NvImageCodecImage::Create(instance_, &st.image_info);
   }
 

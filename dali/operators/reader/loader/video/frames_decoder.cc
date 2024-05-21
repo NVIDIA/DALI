@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <memory>
 #include <iomanip>
 #include "dali/core/error_handling.h"
+#include "dali/core/util.h"
 
 
 namespace dali {
@@ -333,13 +334,26 @@ void FramesDecoder::CountFrames(AvState *av_state) {
   }
 }
 
-bool FramesDecoder::IsFormatSeekable() {
-  if (
-    av_state_->ctx_->iformat->read_seek == nullptr &&
-    av_state_->ctx_->iformat->read_seek2 == nullptr) {
-    return false;
-  }
+IMPL_HAS_MEMBER(read_seek);
+IMPL_HAS_MEMBER(read_seek2);
 
+template <typename FormatDesc>
+bool IsFormatSeekableHelper(FormatDesc *iformat) {
+  if constexpr (has_member_read_seek_v<FormatDesc>) {
+    static_assert(has_member_read_seek2_v<FormatDesc>);
+    if (iformat->read_seek == nullptr &&
+        iformat->read_seek2 == nullptr)
+      return false;
+  } else {
+    if (iformat->flags & (AVFMT_NOBINSEARCH | AVFMT_NOGENSEARCH))
+      return false;
+  }
+  return true;
+}
+
+bool FramesDecoder::IsFormatSeekable() {
+  if (!IsFormatSeekableHelper(av_state_->ctx_->iformat))
+    return false;
   return av_state_->ctx_->pb->read_seek != nullptr;
 }
 

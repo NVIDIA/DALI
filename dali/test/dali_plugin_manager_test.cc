@@ -79,6 +79,8 @@ TEST(DummyTest, TestPluginGPU) {
 TEST(DummyTest, LoadDirectory) {
   GTEST_FLAG_SET(death_test_style, "threadsafe");
   ::dali::PluginManager::LoadDirectory(dali::test::CurrentExecutableDir());
+  // in conda we place plugins into main lib director, not app specific
+  ::dali::PluginManager::LoadDirectory(dali::test::DefaultGlobalLibPath());
   // This is crucial so that each test case has a chance to load the plugin (new process).
   EXPECT_EXIT(TestPlugin("cpu"), testing::ExitedWithCode(0), "");
 }

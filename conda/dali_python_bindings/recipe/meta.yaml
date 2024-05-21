@@ -64,7 +64,7 @@ requirements:
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - pkg-config
-    - cmake >=3.12.4
+    - cmake >=3.18
     - make
     - patchelf
     - python-clang
@@ -72,17 +72,17 @@ requirements:
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
-    - black =24.2.0
-    - black-jupyter =24.2.0
+    - black =24.4.2
+    - black-jupyter =24.4.2
     - bandit
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
   host:
     - dali-opencv
     - dali-ffmpeg
-    - libprotobuf-static >=3.6.1
+    - libprotobuf-static >=3.26.1
     - python
     - future
-    - protobuf >=3.6.1
+    - protobuf >=3.26.1
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8

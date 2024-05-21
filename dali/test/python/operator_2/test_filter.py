@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ def images_pipeline(dev, shapes, border, in_dtype, mode):
     images, _ = fn.readers.file(
         name="Reader", file_root=images_dir, prefetch_queue_depth=2, random_shuffle=True, seed=42
     )
-    images = fn.decoders.image(
+    images = fn.experimental.decoders.image(
         images, device="cpu", output_type=types.RGB, dtype=np_type_to_dali(in_dtype)
     )
     if dev == "gpu":

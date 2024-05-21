@@ -30,10 +30,12 @@ test_body() {
     "dali_test.bin" \
     "dali_operator_test.bin"
   do
-    # DecodeJPEGHost doesn't work well for Conda as OpenCV there uses libjpeg that returns a bit different
     # results that libturbo-jpeg DALI uses, also OpenCV conflicts with FFMpeg >= 4.2 which is reguired
     # to handle PackedBFrames
-    "$BINNAME" --gtest_filter="*:-*Vp9*"
+    # use `which` to invoke test binary with full path so
+    # https://google.github.io/googletest/advanced.html#death-test-styles which runs tests in
+    # a separate process don't use PATH to discover the file location and fails
+    $(which $BINNAME) --gtest_filter="*:-*Vp9*"
   done
 }
 
