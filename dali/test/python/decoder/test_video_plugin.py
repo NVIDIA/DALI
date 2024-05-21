@@ -16,44 +16,91 @@
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
-import cv2
 
+import cv2
 import numpy as np
 
 import nvidia.dali.fn.plugin.video as video
 
-
-from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
-
-data_path = get_dali_extra_path() + "/db/video/cfr/test_2.mp4"
+from test_utils import get_dali_extra_path
 
 
-def test_vfr_mp4_decoding():
-    
-    @pipeline_def(device_id=0, num_threads=4, batch_size=1)
-    def video_decoder_pipeline():
-        data = fn.external_source(source=lambda: [np.fromfile(data_path, np.uint8),], dtype=types.UINT8)
-        return video.decoder(data, device="mixed")
-    
-    pipeline = video_decoder_pipeline()
+@pipeline_def(device_id=0, num_threads=4, batch_size=1)
+def video_decoder_pipeline(data_path):
+    data = fn.external_source(
+        source=lambda: [
+            np.fromfile(data_path, np.uint8),
+        ],
+        dtype=types.UINT8,
+    )
+    return video.decoder(data, device="mixed", end_frame=50)
+
+
+def run_video_decoding_test(test_file_path, frame_list_file_path, frames_directory_path):
+    pipeline = video_decoder_pipeline(test_file_path)
     pipeline.build()
-    
+
     (output,) = pipeline.run()
     frames = output.as_cpu().as_array()
-    print(len(frames[0]), "frames")
-    
-    # Read frame file names from the text file
-    with open(f"{get_dali_extra_path()}/db/video/cfr/frames_2/frames_list.txt") as f:
+
+    with open(frame_list_file_path) as f:
         frame_list = f.read().splitlines()
-    
+
     for i, frame in enumerate(frames[0]):
-        ground_truth = cv2.imread(f"{get_dali_extra_path()}/db/video/cfr/frames_2/{frame_list[i]}", cv2.IMREAD_COLOR)
+        # Check if the frame is equal to the ground truth frame.
+        # Due to differences in how the decoding is implemented in
+        # different video codecs, we can't guarantee that the frames
+        # will be exactly the same. Main purpose of this test is to
+        # check if the decoding is working and we hit the correct frames.
+        ground_truth = cv2.imread(f"{frames_directory_path}/{frame_list[i]}")
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        if not np.average(frame - ground_truth) < 10:
-            print(f"Frame {i} is not equal")
-            cv2.imwrite(f"{get_dali_extra_path()}/db/video/cfr/frames_2/gt_{frame_list[i]}", ground_truth)
-            cv2.imwrite(f"{get_dali_extra_path()}/db/video/cfr/frames_2/error_{frame_list[i]}", frame)
-            assert False
-        
-    
-    
+        if not np.average(frame - ground_truth) < 15:
+            assert False, f"Frame {i} is not equal"
+
+
+def test_cfr_h264_mp4_decoding():
+    run_video_decoding_test(
+        get_dali_extra_path() + "/db/video/cfr/test_1.mp4",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1",
+    )
+
+
+def test_cfr_h264_raw_decoding():
+    run_video_decoding_test(
+        get_dali_extra_path() + "/db/video/cfr/test_1.h264",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1",
+    )
+
+
+def test_cfr_h265_mp4_decoding():
+    run_video_decoding_test(
+        get_dali_extra_path() + "/db/video/cfr/test_1_hevc.mp4",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1",
+    )
+
+
+def test_cfr_h265_raw_decoding():
+    run_video_decoding_test(
+        get_dali_extra_path() + "/db/video/cfr/test_1.h265",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
+        f"{get_dali_extra_path()}/db/video/cfr/frames_1",
+    )
+
+
+def test_vfr_h264_mp4_decoding():
+    run_video_decoding_test(
+        get_dali_extra_path() + "/db/video/vfr/test_1.mp4",
+        f"{get_dali_extra_path()}/db/video/vfr/frames_1/frames_list.txt",
+        f"{get_dali_extra_path()}/db/video/vfr/frames_1",
+    )
+
+
+def test_vfr_hevc_mp4_decoding():
+    run_video_decoding_test(
+        get_dali_extra_path() + "/db/video/vfr/test_1_hevc.mp4",
+        f"{get_dali_extra_path()}/db/video/vfr/frames_1_hevc/frames_list.txt",
+        f"{get_dali_extra_path()}/db/video/vfr/frames_1_hevc",
+    )

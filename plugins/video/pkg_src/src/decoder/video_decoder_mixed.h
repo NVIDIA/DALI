@@ -29,7 +29,13 @@ class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
  public:
   explicit VideoDecoderMixed(const dali::OpSpec &spec)
     : Operator<dali::MixedBackend>(spec)
-    , device_id_(spec.GetArgument<int>("device_id")) {}
+    , device_id_(spec.GetArgument<int>("device_id")) {
+      if (spec.HasArgument("end_frame")) {
+        end_frame_ = spec.GetArgument<int>("end_frame");
+      } else {
+        DALI_FAIL("Not passing `end_frame` argument is not yet implemented.");
+      }
+    }
 
   bool CanInferOutputs() const override {
     return true;
@@ -55,6 +61,7 @@ class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
 
  private:
   int device_id_;
+  int end_frame_ = -1;
 
   struct SampleCtx {
     std::unique_ptr<FFmpegDemuxer::DataProvider> data_provider_;
