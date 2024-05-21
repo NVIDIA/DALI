@@ -255,9 +255,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
       pinned_alloc_.pinned_malloc = static_dali_pinned_malloc;
       pinned_alloc_.pinned_free = static_dali_pinned_free;
       pinned_alloc_.pinned_ctx = mm::GetDefaultResource<mm::memory_kind::pinned>();
-      pinned_alloc_.pinned_mem_padding = decoder_params_.count("pinned_memory_padding") == 0 ?
+      pinned_alloc_.pinned_mem_padding = decoder_params_.count("host_memory_padding") == 0 ?
                                              0 :
-                                             spec.GetArgument<int64_t>("pinned_memory_padding");
+                                             spec.GetArgument<int64_t>("host_memory_padding");
       pinned_alloc_ptr = &pinned_alloc_;
     }
 
