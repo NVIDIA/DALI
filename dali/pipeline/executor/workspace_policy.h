@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/executor/op_graph_storage.h"
 #include "dali/pipeline/executor/queue_metadata.h"
+#include "dali/pipeline/executor/op_graph_verifier.h"
 #include "dali/pipeline/graph/op_graph.h"
-#include "dali/pipeline/graph/op_graph_storage.h"
-#include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 

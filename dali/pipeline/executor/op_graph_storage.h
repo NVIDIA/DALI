@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_GRAPH_OP_GRAPH_STORAGE_H_
-#define DALI_PIPELINE_GRAPH_OP_GRAPH_STORAGE_H_
+#ifndef DALI_PIPELINE_EXECUTOR_OP_GRAPH_STORAGE_H_
+#define DALI_PIPELINE_EXECUTOR_OP_GRAPH_STORAGE_H_
 
 #include <vector>
 
@@ -36,4 +36,4 @@ DLL_PUBLIC MixedOpEventMap CreateEventsForMixedOps(EventPool& event_pool, const 
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_GRAPH_OP_GRAPH_STORAGE_H_
+#endif  // DALI_PIPELINE_EXECUTOR_OP_GRAPH_STORAGE_H_
