@@ -1,0 +1,77 @@
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import sys
+import os
+
+import skbuild
+from packaging.version import Version
+
+if __name__ == "__main__":
+    if sys.argv[1] != 'sdist':
+        from pkg_resources import require
+        try:
+            os.environ['DALI_PRELOAD_PLUGINS'] = ""  # no need to load plugins
+            import nvidia.dali as dali
+        except:
+            installation_url = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
+            print(f"Error: NVIDIA DALI is not available. Please install it and try again: {installation_url}")
+            sys.exit(1)
+
+        if (Version(dali.__version__) < Version('@DALI_VERSION@')):
+            print(f"Error: At least NVIDIA DALI version @DALI_VERSION@ is required. Found version {dali.__version__}.")
+            sys.exit(1)
+
+        # For released packages, those dependencies should be pulled automatically at installation (via pyproject.toml)
+        # However, for dev builds, we might want to build with --no-build-isolation so that we used the installed
+        # version of DALI instead of a dependency from pip. For no-build-isolation, we expect the used to have
+        # those installed.
+        requirements = [
+            "setuptools>=42",
+            "scikit-build",
+            "cmake>=3.21",
+            "ninja"
+        ]
+        for req in requirements:
+            require(req)
+
+        os.environ["DALI_COMPILE_FLAGS"] = " ".join(dali.sysconfig.get_compile_flags())
+        os.environ["DALI_LIB_DIR"] = dali.sysconfig.get_lib_dir()
+        print("DALI include dir:", os.environ["DALI_COMPILE_FLAGS"])
+        print("DALI lib dir:", os.environ["DALI_LIB_DIR"])
+
+        os.environ["PYTHON_EXECUTABLE"] = sys.executable
+
+    skbuild.setup(
+        name="nvidia-dali-@DALI_PLUGIN_NAME@@DALI_FLAVOR_MINUS@",
+        description="@DALI_PLUGIN_DESCRIPTION@. For NVIDIA DALI, @DALI_FLAVOR@. Git SHA: @GIT_SHA@",
+        url='https://github.com/NVIDIA/DALI',
+        version='@DALI_VERSION@',
+        author='NVIDIA Corporation',
+        license='Apache License 2.0',
+        license_files = ('LICENSE', 'COPYRIGHT', 'Acknowledgements.txt'),
+        python_requires='>=3.8, <3.13',
+        classifiers=[
+            'Programming Language :: Python :: 3.8',
+            'Programming Language :: Python :: 3.9',
+            'Programming Language :: Python :: 3.10',
+            'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: 3.12',
+            ],
+        include_package_data=True,
+        extras_require={},
+        packages=["nvidia/dali/plugin/@DALI_PLUGIN_NAME@"],
+        package_dir={"": "src"},
+        cmake_install_dir="src",
+    )

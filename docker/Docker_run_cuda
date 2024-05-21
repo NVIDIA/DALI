@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
         python3-distutils \
         python$PYVER \
-        python$PYVER-dev && \
-    rm -rf /var/lib/apt/lists/*
+        python$PYVER-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONIOENCODING utf-8
 ENV LC_ALL C.UTF-8
@@ -34,7 +34,7 @@ RUN PYTHON_VER=$(python -c "import sys;print(f'{sys.version_info[0]}{sys.version
     rm get-pip.py
 
 COPY --from=builder /wheelhouse/nvidia_dali_* /opt/dali/
-COPY --from=builder /wheelhouse/nvidia-dali-tf-plugin-*.tar.gz /opt/dali/
+COPY --from=builder /wheelhouse/nvidia-dali-*.tar.gz /opt/dali/
 
-RUN pip install /opt/dali/*.whl
-RUN pip show tensorflow-gpu && pip install /opt/dali/*.tar.gz || true
+RUN pip install /opt/dali/nvidia_dali_*.whl
+RUN pip show tensorflow-gpu && pip install /opt/dali/nvidia-dali-tf-plugin-*.tar.gz || true

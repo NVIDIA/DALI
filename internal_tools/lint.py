@@ -149,6 +149,11 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
         ["*.cc", "*.h", "*.cu", "*.cuh"] if file_list is None else file_list,
         negative_filters,
     )
+    sdist_plugin_files = gather_files(
+        os.path.join(dali_root_dir, "plugins"),
+        ["*.cc", "*.h", "*.cu", "*.cuh"] if file_list is None else file_list,
+        negative_filters,
+    )
 
     cc_code = lint(
         dali_root_dir=dali_root_dir, file_list=cc_files, process_includes=False, n_subproc=n_subproc
@@ -164,7 +169,14 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
         n_subproc=n_subproc,
     )
 
-    if cc_code != 0 or inc_code != 0 or tf_plugin_code != 0:
+    sdist_plugin_code = lint(
+        dali_root_dir=dali_root_dir,
+        file_list=sdist_plugin_files,
+        process_includes=False,
+        n_subproc=n_subproc,
+    )
+
+    if cc_code != 0 or inc_code != 0 or tf_plugin_code != 0 or sdist_plugin_code != 0:
         sys.exit(1)
     sys.exit(0)
 
