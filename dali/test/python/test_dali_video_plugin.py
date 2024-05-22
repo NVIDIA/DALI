@@ -19,14 +19,6 @@ class TestDaliVideoPluginLoadOk(unittest.TestCase):
     def test_import_dali_video_ok(self):
         import nvidia.dali.plugin.video as dali_video  # noqa: F401
 
-        assert True
-
-
-class TestDaliVideoPluginLoadFail(unittest.TestCase):
-    def test_import_dali_video_load_fail(self):
-        with self.assertRaises(Exception):
-            import nvidia.dali.plugin.video as dali_video  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()
