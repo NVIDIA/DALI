@@ -27,7 +27,7 @@ test_body() {
     # Check that the plugin can be loaded
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk
 
-    ${python_new_invoke_test} decoder/ test_video_plugin
+    ${python_new_invoke_test} -s . test_dali_video_plugin_decoder
 }
 
 pushd ../..
