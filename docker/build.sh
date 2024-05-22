@@ -40,7 +40,7 @@ shift $((OPTIND - 1))
 export ARCH=${ARCH:-x86_64}
 export PYVER=${PYVER:-3.8}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-12.4}
+export CUDA_VERSION=${CUDA_VERSION:-12.5}
 export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
