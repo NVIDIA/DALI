@@ -29,7 +29,7 @@ from nvidia.dali.external_source import _prep_data_for_feed_input
 # Stateful operators - rely on the internal state (return different outputs across iterations).
 _stateful_operators = {
     "decoders__ImageRandomCrop",
-    "experimental__decoders__ImageRandomCrop",
+    "legacy__decoders__ImageRandomCrop",
     "noise__Gaussian",
     "noise__SaltAndPepper",
     "noise__Shot",
