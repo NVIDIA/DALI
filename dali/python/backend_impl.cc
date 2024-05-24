@@ -1662,11 +1662,13 @@ PYBIND11_MODULE(backend_impl, m) {
 
   m.def("LoadLibrary", &PluginManager::LoadLibrary,
     py::arg("lib_path"),
-    py::arg("global_symbols") = false);
+    py::arg("global_symbols") = false,
+    py::arg("allow_fail") = false);
 
   m.def("LoadDirectory", &PluginManager::LoadDirectory,
     py::arg("dir_path"),
-    py::arg("global_symbols") = false);
+    py::arg("global_symbols") = false,
+    py::arg("allow_fail") = false);
 
   m.def("LoadDefaultPlugins", &PluginManager::LoadDefaultPlugins);
 
