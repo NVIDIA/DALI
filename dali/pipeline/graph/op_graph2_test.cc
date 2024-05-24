@@ -56,6 +56,8 @@ TEST(NewOpGraphBuilderTest, AddSingleOp) {
   b.Add("op1", spec);
   b.AddOutput("o0_gpu");
   b.AddOutput("o1_cpu");
+  b.AddOutput("o0_gpu");
+  b.AddOutput("o1_cpu");
   OpGraph g = std::move(b).GetGraph();
   auto *op1 = g.GetOp("op1");
   ASSERT_NE(op1, nullptr);
@@ -97,35 +99,54 @@ TEST(NewOpGraphBuilderTest, AddSingleOp) {
 
 
 TEST(NewOpGraphBuilderTest, AddMultipleOps) {
-  OpSpec spec("dummy");
-  spec.AddInput("i0",  "cpu");
-  spec.AddInput("i1",  "gpu");
-  spec.AddOutput("o0", "gpu");
-  spec.AddOutput("o1", "cpu");
+  /*
+  Graph topology
+
+  i0   i1
+   \  /   \
+    op1    \
+   /   \    |
+  m0    m1  |
+   \   /    |
+    \ /     |
+     /     /
+    / \   /
+   (   ) /
+    op2
+   /   \
+  o0    o1
+
+  */
+
+  OpSpec spec1("dummy");
+  spec1.AddInput("i0",  "cpu");
+  spec1.AddInput("i1",  "gpu");
+  spec1.AddOutput("m0", "gpu");
+  spec1.AddOutput("m1", "cpu");
+
+  OpSpec spec2("dummy");
+  spec2.AddInput("m1",  "cpu");
+  spec2.AddInput("m0",  "gpu");
+  spec2.AddInput("i1",  "gpu");
+  spec2.AddOutput("o0", "gpu");
+  spec2.AddOutput("o1", "cpu");
+
 
   OpGraph::Builder b;
-  b.Add("op1", spec);
-  b.Add("op2", spec);
+  b.Add("op1", spec1);
+  b.Add("op2", spec2);
+  b.AddOutput("o0_gpu");
+  b.AddOutput("o1_cpu");
   OpGraph g = std::move(b).GetGraph();
   auto *op1 = g.GetOp("op1");
+  auto *op2 = g.GetOp("op2");
   ASSERT_NE(op1, nullptr);
   EXPECT_EQ(op1->instance_name, "op1");
   EXPECT_EQ(op1->spec.SchemaName(), "dummy");
 
-
-  DataNode *o0 = g.GetData("o0_gpu");
-  ASSERT_NE(o0, nullptr);
-  EXPECT_EQ(o0->device, StorageDevice::GPU);
-  EXPECT_EQ(o0->producer.op, op1);
-  EXPECT_EQ(o0->producer.idx, 0);
-  EXPECT_EQ(o0->consumers.size(), 0_uz);
-
-  DataNode *o1 = g.GetData("o1_cpu");
-  ASSERT_NE(o1, nullptr);
-  EXPECT_EQ(o1->device, StorageDevice::CPU);
-  EXPECT_EQ(o1->producer.op, op1);
-  EXPECT_EQ(o1->producer.idx, 1);
-  EXPECT_EQ(o1->consumers.size(), 0_uz);
+  ASSERT_NE(op2, nullptr);
+  EXPECT_EQ(op2->instance_name, "op2");
+  EXPECT_EQ(op2->spec.SchemaName(), "dummy");
 
 
   DataNode *i0 = g.GetData("i0_cpu");
@@ -140,9 +161,43 @@ TEST(NewOpGraphBuilderTest, AddMultipleOps) {
   ASSERT_NE(i1, nullptr);
   EXPECT_EQ(i1->device, StorageDevice::GPU);
   EXPECT_EQ(i1->producer.op, nullptr);
-  ASSERT_EQ(i1->consumers.size(), 1_uz);
+  ASSERT_EQ(i1->consumers.size(), 2_uz);
   EXPECT_EQ(i1->consumers[0].op, op1);
   EXPECT_EQ(i1->consumers[0].idx, 1);
+  EXPECT_EQ(i1->consumers[1].op, op2);
+  EXPECT_EQ(i1->consumers[1].idx, 2);
+
+  DataNode *m0 = g.GetData("m0_gpu");
+  ASSERT_NE(m0, nullptr);
+  EXPECT_EQ(m0->device, StorageDevice::GPU);
+  EXPECT_EQ(m0->producer.op, op1);
+  EXPECT_EQ(m0->producer.idx, 0);
+  ASSERT_EQ(m0->consumers.size(), 1_uz);
+  EXPECT_EQ(m0->consumers[0].op, op2);
+  EXPECT_EQ(m0->consumers[0].idx, 1);
+
+  DataNode *m1 = g.GetData("m1_cpu");
+  ASSERT_NE(m1, nullptr);
+  EXPECT_EQ(m1->device, StorageDevice::CPU);
+  EXPECT_EQ(m1->producer.op, op1);
+  EXPECT_EQ(m1->producer.idx, 1);
+  ASSERT_EQ(m1->consumers.size(), 1_uz);
+  EXPECT_EQ(m1->consumers[0].op, op2);
+  EXPECT_EQ(m1->consumers[0].idx, 0);
+
+  DataNode *o0 = g.GetData("o0_gpu");
+  ASSERT_NE(o0, nullptr);
+  EXPECT_EQ(o0->device, StorageDevice::GPU);
+  EXPECT_EQ(o0->producer.op, op2);
+  EXPECT_EQ(o0->producer.idx, 0);
+  EXPECT_EQ(o0->consumers.size(), 0_uz);
+
+  DataNode *o1 = g.GetData("o1_cpu");
+  ASSERT_NE(o1, nullptr);
+  EXPECT_EQ(o1->device, StorageDevice::CPU);
+  EXPECT_EQ(o1->producer.op, op2);
+  EXPECT_EQ(o1->producer.idx, 1);
+  EXPECT_EQ(o1->consumers.size(), 0_uz);
 }
 
 

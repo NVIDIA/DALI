@@ -66,13 +66,17 @@ StorageDevice ParseStorageDevice(const std::string &io_device) {
 
 }  // namespace
 
+//////////////////////////////////////////////////////////////////////////////
+// OpGraph
+
 OpNode &OpGraph::AddOp(std::string instance_name, OpSpec spec) {
   OpNodeList tmp;
   auto &op_node = tmp.emplace_back(std::move(instance_name), std::move(spec));
-  if (!name2op_.emplace(op_node.instance_name, tmp.begin()).second) {
+  if (!name2op_.emplace(op_node.instance_name, &op_node).second) {
     throw std::invalid_argument(
         make_string("Duplicate operator instance name: \"", op_node.instance_name, "\""));
   }
+  op_node.iter = tmp.begin();
   op_nodes_.splice(op_nodes_.end(), tmp);
   return op_node;
 }
@@ -80,10 +84,11 @@ OpNode &OpGraph::AddOp(std::string instance_name, OpSpec spec) {
 DataNode &OpGraph::AddData(std::string name, StorageDevice device) {
   DataNodeList tmp;
   auto &data_node = tmp.emplace_back(std::move(name), device);
-  if (!name2data_.emplace(data_node.name, tmp.begin()).second) {
+  if (!name2data_.emplace(data_node.name, &data_node).second) {
     throw std::invalid_argument(
         make_string("Duplicate data node name: \"", data_node.name, "\""));
   }
+  data_node.iter = tmp.begin();
   data_nodes_.splice(data_nodes_.end(), tmp);
   return data_node;
 }
@@ -109,7 +114,7 @@ bool OpGraph::EraseOp(std::string_view name) {
     data->producer = {};
   }
 
-  op_nodes_.erase(it->second);
+  op_nodes_.erase(it->second->iter);
   name2op_.erase(it);
   return true;
 }
@@ -119,18 +124,69 @@ bool OpGraph::EraseData(std::string_view name) {
   auto it = name2data_.find(name);
   if (it == name2data_.end())
     return false;
-  data_nodes_.erase(it->second);
+
+  auto &node = *it->second;
+  if (node.producer.op) {
+    assert(node.producer.op->outputs.size() >= static_cast<size_t>(node.producer.idx));
+    assert(node.producer.op->outputs[node.producer.idx] == &node);
+    node.producer.op->outputs[node.producer.idx] = nullptr;
+  }
+
+  for (auto &edge : node.consumers) {
+    if (edge.op == nullptr)
+      continue;
+    assert(edge.op->inputs.size() >= static_cast<size_t>(edge.idx));
+    assert(edge.op->inputs[edge.idx] == &node);
+    edge.op->inputs[edge.idx] = nullptr;
+  }
+
+  data_nodes_.erase(it->second->iter);
   name2data_.erase(it);
   return true;
 }
 
-void OpGraph::Builder::MarkAsOutput(std::string_view name) {
+int OpGraph::AddOutput(std::string_view name) {
   auto it = name2data_.find(name);
   if (it == name2data_.end())
     throw std::invalid_argument(make_string(
       "The name \"", name, "\" is not a name of a known DataNode."));
-  outputs_.push_back(it);
+  it->second->pipeline_output = true;
+  outputs_.push_back(it->second->name);
+  return outputs_.size();
 }
+
+namespace {
+
+  template <typename Node>
+  bool Visit(Node &n) {
+    if (n.visited)
+      return false;
+    n.visited = true;
+    return true;
+  }
+
+  template <typename NodeList>
+  void ClearVisitMarkers(NodeList &nodes) {
+    for (auto &node : nodes)
+      node.visited = false;
+  }
+};
+
+void OpGraph::SortAndPrune() {
+  ClearVisitMarkers(op_nodes_);
+  ClearVisitMarkers(data_nodes_);
+
+  std::vector<OpNode *> sorted_ops;
+  std::vector<DataNode *> sorted_data;
+  sorted_ops.reserve(op_nodes_.size());
+  sorted_data.reserve(op_nodes_.size());
+
+  //auto traverse = [&](OpNode &node
+
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// OpGraph::Builder
 
 void OpGraph::Builder::AddOutput(std::string name) {
   output_names_.push_back(std::move(name));
@@ -146,7 +202,7 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
     auto it = graph_.name2data_.find(name);
     DataNode *node;
     if (it != graph_.name2data_.end()) {
-      node = &*it->second;
+      node = it->second;
     } else {
       auto dev = ParseStorageDevice(spec.InputDevice(i));
       node = &graph_.AddData(name, dev);
@@ -175,7 +231,7 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
 
 void OpGraph::Builder::Build() {
   if (built_)
-    return true;
+    return;
   for (auto &out : output_names_)
     graph_.AddOutput(out);
   built_ = true;

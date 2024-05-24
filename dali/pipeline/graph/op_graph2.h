@@ -28,9 +28,21 @@
 namespace dali {
 namespace graph {
 
+class OpGraph;
+
+struct OpNode;
 struct DataNode;
 
+using OpNodeList = std::list<OpNode>;
+using DataNodeList = std::list<DataNode>;
+
 struct OpNode {
+ private:
+  /** The iterator that points to this object in the enclosing list. */
+  OpNodeList::iterator iter{};
+ public:
+  friend class OpGraph;
+
   OpNode(std::string instance_name, OpSpec spec)
   : instance_name(std::move(instance_name)), spec(std::move(spec)) {}
 
@@ -64,6 +76,12 @@ struct DataEdge {
 };
 
 struct DataNode {
+ private:
+  /** The iterator that points to this object in the enclosing list. */
+  DataNodeList::iterator iter{};
+ public:
+  friend class OpGraph;
+
   DataNode(std::string name, StorageDevice device) : name(std::move(name)), device(device) {}
 
   /** A visit marker for various graph processing algorithms */
@@ -98,9 +116,6 @@ class DLL_PUBLIC OpGraph {
   class DLL_PUBLIC Builder;
   friend class Builder;
 
-  using OpNodeList = std::list<OpNode>;
-  using DataNodeList = std::list<DataNode>;
-
   const OpNodeList &OpNodes() const {
     return op_nodes_;
   }
@@ -117,6 +132,11 @@ class DLL_PUBLIC OpGraph {
       return nullptr;
   }
 
+  /** Returns a DataNode with a matching name or nullptr.
+   *
+   * @param data_node_name
+   * @return DataNode*
+   */
   DataNode *GetData(std::string_view data_node_name) {
     auto it = name2data_.find(data_node_name);
     if (it != name2data_.end())
@@ -125,30 +145,43 @@ class DLL_PUBLIC OpGraph {
       return nullptr;
   }
 
-  void Prune();
-
-  void Sort();
+  /** Sorts the graph topologically and removes entries that do not contribute to essential nodes.
+   *
+   */
+  void SortAndPrune();
 
   OpNode &AddOp(std::string instance_name, OpSpec spec);
 
   DataNode &AddData(std::string name, StorageDevice device);
 
+  /** Erases an operator node.
+   *
+   * Removes the operator node map entry and the corresponding list entry.
+   * Consumer/producer pointers in referring data nodes are removed or cleared. */
   bool EraseOp(std::string_view name);
 
+  /** Erases a data node.
+   *
+   * Removes the data node map entry and the corresponding list entry.
+   * Corresponding entries in producer and consumers are replaced with null pointers. */
   bool EraseData(std::string_view name);
 
-  void MarkAsOutput(std::string_view name);
+  /** Adds a pipeline output. */
+  int AddOutput(std::string_view name);
+
+  span<const std::string_view> Outputs() const {
+    return make_cspan(outputs_);
+  }
 
  private:
-  bool has_active_builder_ = false;
   OpNodeList op_nodes_;
   DataNodeList data_nodes_;
   // The maps are keyed with `string_view` to avoid creation of temporary strings for lookup.
   // The string_view must refer to a live string, which, in this case the name of the node,
   // stored in the list.
-  std::unordered_map<std::string_view, OpNodeList::iterator> name2op_;
-  std::unordered_map<std::string_view, DataNodeList::iterator> name2data_;
-  std::vector<DataNodeList::iterator> outputs_;
+  std::unordered_map<std::string_view, OpNode *> name2op_;
+  std::unordered_map<std::string_view, DataNode *> name2data_;
+  std::vector<std::string_view> outputs_;
 };
 
 class DLL_PUBLIC OpGraph::Builder {
