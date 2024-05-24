@@ -77,8 +77,11 @@ A fill value is provided for all the channels. The coordinates can be transforme
 multiplying by the input shape.
 What gives::
 
-    output[y, x, c] = 100             if 0.15 * 300 <= x < (0.3 + 0.15) * 300 and 0.15 * 300 <= y < (0.3 + 0.15) * 300
-    output[y, x, c] = input[y, x, c]  otherwise
+    if (0.15 * 300 <= x < (0.3 + 0.15) * 300 and
+        0.15 * 300 <= y < (0.3 + 0.15) * 300():
+      output[y, x, c] = 100
+    else:
+      output[y, x, c] = input[y, x, c]
 
 **Example 4:**
 ``anchor`` = (0.15, 0.15), ``shape`` = (20, 30), ``normalized_anchor`` = True, ``normalized_shape`` = False
@@ -90,8 +93,11 @@ coordinates. Since no axis_names is provided, the anchor and shape must contain 
 except "C" (channels).
 What gives::
 
-    output[y, x, c] = 0               if 0.15 * 300 <= x < (0.15 * 300) + 20 and (0.15 * 300) <= y < (0.15 * 300) + 30
-    output[y, x, c] = input[y, x, c]  otherwise
+    if (0.15 * 300 <= x < (0.15 * 300) + 20 and
+       (0.15 * 300) <= y < (0.15 * 300) + 30):
+      output[y, x, c] = 0
+    else:
+      output[y, x, c] = input[y, x, c]
 )code")
   .NumInput(1)
   .NumOutput(1)

@@ -79,7 +79,8 @@ DALI_SCHEMA(BrightnessContrast)
 
 The brightness and contrast are adjusted based on the following formula::
 
-  out = brightness_shift * output_range + brightness * (contrast_center + contrast * (in - contrast_center))
+  out = brightness_shift * output_range +
+        brightness * (contrast_center + contrast * (in - contrast_center))
 
 Where the output_range is 1 for float outputs or the maximum positive value for integral types.
 

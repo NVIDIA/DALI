@@ -60,21 +60,25 @@ will be partial and the last sequence in this batch will be determined using
     -------------------------------------------------------------------
 
 
-    User decided that there shall be 5 frames per sequence and the last_sequence_policy='partial':
+    User decided that there shall be 5 frames per sequence and
+    the last_sequence_policy='partial':
     -------------------------------------------------------------------
     [   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][]
     -------------------------------------------------------------------
-                      Since there are not enough frames, the last sequence comprises 2 frames.
+    Since there are not enough frames, the last sequence comprises 2 frames.
 
 
-    The Pipeline has max_batch_size=3, therefore the operator will return 5 batches of sequences.
-    First 4 batches comprise 3 sequences and the last batch is partial and comprises 2 sequences.
+    The Pipeline has max_batch_size=3, therefore the operator will return
+    5 batches of sequences.
+    First 4 batches comprise 3 sequences and the last batch is partial and
+    comprises 2 sequences.
     ---------------   ---------------   ---------------   ---------------   -------
     [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][]
     ---------------   ---------------   ---------------   ---------------   -------
 
 
-    With the last_sequence_policy='pad', the last sequence of the last batch will be padded with 0:
+    With the last_sequence_policy='pad', the last sequence of the last batch
+    will be padded with 0:
     ---------------   ---------------   ---------------   ---------------   -------000
     [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ]
     ---------------   ---------------   ---------------   ---------------   -------000

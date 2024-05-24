@@ -41,7 +41,8 @@ images and annotation JSON files.
 
 This readers produces the following outputs::
 
-    images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)), (image_ids)
+    images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)),
+    (image_ids)
 
 * **images**
   Each sample contains image data with layout ``HWC`` (height, width, channels).
