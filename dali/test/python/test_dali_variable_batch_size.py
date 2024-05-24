@@ -1746,6 +1746,7 @@ excluded_methods = [
     "experimental.readers.video",  # readers do not support variable batch size yet
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.readers.fits",  # readers do not support variable batch size yet
+    "plugin.video.decoder",  # plugin not yet tested
 ]
 
 
