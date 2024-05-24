@@ -115,7 +115,8 @@ TEST(NewOpGraphBuilderTest, AddMultipleOps) {
     op2
    /   \
   o0    o1
-
+  |     |
+  v     v (pipeline outputs)
   */
 
   OpSpec spec1("dummy");
@@ -200,6 +201,66 @@ TEST(NewOpGraphBuilderTest, AddMultipleOps) {
   EXPECT_EQ(o1->consumers.size(), 0_uz);
 }
 
+
+TEST(NewOpGraphBuilderTest, SortAndPrune) {
+  /*
+  Graph topology
+
+  i0   i1
+   \  /   \
+    op1    \
+   /   \    |
+  m0    m1  |
+   \   / \  |
+    \ /   \ |
+     /     /
+    / \   / \
+   (   ) /   \
+    op2      op3
+   /   \      |
+  o0    o1    o2
+  |     |     |
+  |     |     x (unused)
+  |     |
+  v     v (pipeline outputs)
+  */
+
+  OpSpec spec1("dummy");
+  spec1.AddInput("i0",  "cpu");
+  spec1.AddInput("i1",  "gpu");
+  spec1.AddOutput("m0", "gpu");
+  spec1.AddOutput("m1", "cpu");
+
+  OpSpec spec2("dummy");
+  spec2.AddInput("m1",  "cpu");
+  spec2.AddInput("m0",  "gpu");
+  spec2.AddInput("i1",  "gpu");
+  spec2.AddOutput("o0", "gpu");
+  spec2.AddOutput("o1", "cpu");
+
+  OpSpec spec3("dummy");
+  spec2.AddInput("m1",  "cpu");
+  spec2.AddInput("i1",  "gpu");
+  spec2.AddOutput("o2", "gpu");
+
+  OpGraph::Builder b;
+  b.Add("op2", spec2);
+  b.Add("op3", spec3);
+  b.Add("op1", spec1);
+  b.AddOutput("o0_gpu");
+  b.AddOutput("o1_cpu");
+  OpGraph g = std::move(b).GetGraph();
+
+  auto &nodes = g.OpNodes();
+  ASSERT_EQ(nodes.size(), 3_uz) << "The nodes were nod added properly - abandoning test";
+  g.SortAndPrune();
+  EXPECT_EQ(nodes.size(), 2_uz);
+  ASSERT_GE(nodes.size(), 2_uz) << "Graph overpruned.";
+  auto it = g.OpNodes().begin();
+  EXPECT_EQ(it->instance_name, "op1");
+  ++it;
+  EXPECT_EQ(it->instance_name, "op2");
+}
 
 }  // namespace test
 }  // namespace graph

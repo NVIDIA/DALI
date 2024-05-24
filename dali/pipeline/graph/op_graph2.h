@@ -37,17 +37,16 @@ using OpNodeList = std::list<OpNode>;
 using DataNodeList = std::list<DataNode>;
 
 struct OpNode {
- private:
   /** The iterator that points to this object in the enclosing list. */
   OpNodeList::iterator iter{};
- public:
-  friend class OpGraph;
 
   OpNode(std::string instance_name, OpSpec spec)
   : instance_name(std::move(instance_name)), spec(std::move(spec)) {}
 
   /** A visit marker for various graph processing algorithms */
   mutable bool visited = false;
+  /** A visit marker for cycle detection */
+  mutable bool visit_pending = false;
 
   /** A unique name of an operator
    *
@@ -76,16 +75,15 @@ struct DataEdge {
 };
 
 struct DataNode {
- private:
   /** The iterator that points to this object in the enclosing list. */
   DataNodeList::iterator iter{};
- public:
-  friend class OpGraph;
 
   DataNode(std::string name, StorageDevice device) : name(std::move(name)), device(device) {}
 
   /** A visit marker for various graph processing algorithms */
   mutable bool visited = false;
+  /** A visit marker for cycle detection */
+  mutable bool visit_pending = false;
 
   /** The name of the data node - typically operator name, output index and device
    *
@@ -147,6 +145,9 @@ class DLL_PUBLIC OpGraph {
 
   /** Sorts the graph topologically and removes entries that do not contribute to essential nodes.
    *
+   * After this function succeeds, the graph is topologically sorted from input to output.
+   * The graph is also pruned, keeping only the nodes that contribute to the outputs or one
+   * of the operators with `keep` flag set.
    */
   void SortAndPrune();
 
@@ -166,7 +167,12 @@ class DLL_PUBLIC OpGraph {
    * Corresponding entries in producer and consumers are replaced with null pointers. */
   bool EraseData(std::string_view name);
 
-  /** Adds a pipeline output. */
+  /** Adds a pipeline output.
+   *
+   * @param name  The name of the data node to be bound to a new output.
+   * @throws std::invalid_argument if the name does not correspond to a known DataNode.
+   * @return The index of the newly added output.
+   */
   int AddOutput(std::string_view name);
 
   span<const std::string_view> Outputs() const {

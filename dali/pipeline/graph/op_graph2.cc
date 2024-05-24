@@ -152,37 +152,110 @@ int OpGraph::AddOutput(std::string_view name) {
       "The name \"", name, "\" is not a name of a known DataNode."));
   it->second->pipeline_output = true;
   outputs_.push_back(it->second->name);
-  return outputs_.size();
+  return outputs_.size() - 1;
 }
 
 namespace {
 
-  template <typename Node>
-  bool Visit(Node &n) {
-    if (n.visited)
-      return false;
-    n.visited = true;
-    return true;
+/** Implements topological sorting via depth-first search */
+class TopologicalSortHelper {
+ public:
+  TopologicalSortHelper(OpNodeList &op, DataNodeList &data) : op_nodes_(op), data_nodes_(data) {
+    sorted_ops_.reserve(op_nodes_.size());
+    sorted_data_.reserve(data_nodes_.size());
   }
 
+  void Run() {
+    ClearVisitMarkers(op_nodes_);
+    ClearVisitMarkers(data_nodes_);
+
+    // First, go over the outputs
+    for (auto &data : data_nodes_) {
+      if (data.pipeline_output)
+        Traverse(&data);
+    }
+
+    // Then add operators marked as "keep".
+    for (auto &op : op_nodes_) {
+      if (op.keep)
+        Traverse(&op);
+    }
+
+    OpNodeList out_ops;
+    for (auto *op : sorted_ops_)
+      out_ops.splice(out_ops.end(), op_nodes_, op->iter);
+
+    DataNodeList out_data;
+    for (auto *data : sorted_data_)
+      out_data.splice(out_data.end(), data_nodes_, data->iter);
+
+    op_nodes_.swap(out_ops);
+    data_nodes_.swap(out_data);
+  }
+
+ private:
+  OpNodeList &op_nodes_;
+  DataNodeList &data_nodes_;
+
+  std::vector<OpNode *> sorted_ops_;
+  std::vector<DataNode *> sorted_data_;
+
+  template <typename Node>
+  struct Visit {
+    explicit Visit(Node *n) {
+      if (n->visit_pending)
+        throw std::logic_error("Cycle detected.");
+      n->visit_pending = true;
+      new_visit = !n->visited;
+      n->visited = true;
+    }
+    ~Visit() {
+      n->visit_pending = false;
+    }
+
+    explicit operator bool() const {
+      return new_visit;
+    }
+
+   private:
+    Node *n;
+    bool new_visit;
+  };
+
   template <typename NodeList>
-  void ClearVisitMarkers(NodeList &nodes) {
+  static void ClearVisitMarkers(NodeList &nodes) {
     for (auto &node : nodes)
       node.visited = false;
   }
+
+
+  void Traverse(OpNode *op) {
+    Visit visit(op);
+    if (!visit)
+      return;
+    for (auto *inp : op->inputs) {
+      Traverse(inp);
+    }
+    sorted_ops_.push_back(op);
+    for (auto *out : op->outputs)
+      if (Visit(out))
+        sorted_data_.push_back(out);
+  }
+
+  void Traverse(DataNode *data) {
+    if (!Visit(data))
+      return;
+    if (data->producer.op)
+      Traverse(data->producer.op);
+    sorted_data_.push_back(data);
+  }
 };
 
+}  // namespace
+
 void OpGraph::SortAndPrune() {
-  ClearVisitMarkers(op_nodes_);
-  ClearVisitMarkers(data_nodes_);
-
-  std::vector<OpNode *> sorted_ops;
-  std::vector<DataNode *> sorted_data;
-  sorted_ops.reserve(op_nodes_.size());
-  sorted_data.reserve(op_nodes_.size());
-
-  //auto traverse = [&](OpNode &node
-
+  TopologicalSortHelper sort(op_nodes_, data_nodes_);
+  sort.Run();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -226,7 +299,6 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
       node.producer = { &op_node, o };
     }
   }
-
 }
 
 void OpGraph::Builder::Build() {
