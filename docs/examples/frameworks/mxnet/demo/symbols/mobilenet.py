@@ -36,7 +36,14 @@ alpha_values = [0.25, 0.50, 0.75, 1.0]
 
 
 def Conv(
-    data, num_filter=1, kernel=(1, 1), stride=(1, 1), pad=(0, 0), num_group=1, name="", suffix=""
+    data,
+    num_filter=1,
+    kernel=(1, 1),
+    stride=(1, 1),
+    pad=(0, 0),
+    num_group=1,
+    name="",
+    suffix="",
 ):
     conv = mx.sym.Convolution(
         data=data,
@@ -48,8 +55,12 @@ def Conv(
         no_bias=True,
         name="%s%s_conv2d" % (name, suffix),
     )
-    bn = mx.sym.BatchNorm(data=conv, name="%s%s_batchnorm" % (name, suffix), fix_gamma=True)
-    act = mx.sym.Activation(data=bn, act_type="relu", name="%s%s_relu" % (name, suffix))
+    bn = mx.sym.BatchNorm(
+        data=conv, name="%s%s_batchnorm" % (name, suffix), fix_gamma=True
+    )
+    act = mx.sym.Activation(
+        data=bn, act_type="relu", name="%s%s_relu" % (name, suffix)
+    )
     return act
 
 
@@ -77,16 +88,21 @@ def Conv_DPW(data, depth=1, stride=(1, 1), name="", idx=0, suffix=""):
 
 
 def get_symbol_compact(num_classes, alpha=1, resolution=224, **kwargs):
-    assert alpha in alpha_values, "Invalid alpha={0}, must be one of {1}".format(
-        alpha, alpha_values
-    )
+    assert (
+        alpha in alpha_values
+    ), "Invalid alpha={0}, must be one of {1}".format(alpha, alpha_values)
     assert resolution % 32 == 0, "resolution must be multiple of 32"
 
     base = int(32 * alpha)
 
     data = mx.symbol.Variable(name="data")  # 224
     conv_1 = Conv(
-        data, num_filter=base, kernel=(3, 3), pad=(1, 1), stride=(2, 2), name="conv_1"
+        data,
+        num_filter=base,
+        kernel=(3, 3),
+        pad=(1, 1),
+        stride=(2, 2),
+        name="conv_1",
     )  # 32*alpha, 224/112
 
     conv_2_dw = Conv(
@@ -99,10 +115,17 @@ def get_symbol_compact(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_2_dw",
     )  # 112/112
     conv_2 = Conv(
-        conv_2_dw, num_filter=base * 2, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_2"
+        conv_2_dw,
+        num_filter=base * 2,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_2",
     )  # 32*alpha, 112/112
 
-    conv_3_dpw = Conv_DPW(conv_2, depth=base * 2, stride=(2, 2), idx=3)  # 64*alpha, 112/56 => 56/56
+    conv_3_dpw = Conv_DPW(
+        conv_2, depth=base * 2, stride=(2, 2), idx=3
+    )  # 64*alpha, 112/56 => 56/56
     conv_4_dpw = Conv_DPW(
         conv_3_dpw, depth=base * 4, stride=(1, 1), idx=4
     )  # 128*alpha, 56/56 =>56/56
@@ -118,7 +141,9 @@ def get_symbol_compact(num_classes, alpha=1, resolution=224, **kwargs):
     conv_dpw = conv_7_dpw
 
     for idx in range(8, 13):
-        conv_dpw = Conv_DPW(conv_dpw, depth=base * 16, stride=(1, 1), idx=idx)  # 512*alpha, 14/14
+        conv_dpw = Conv_DPW(
+            conv_dpw, depth=base * 16, stride=(1, 1), idx=idx
+        )  # 512*alpha, 14/14
 
     conv_12_dpw = conv_dpw
     conv_13_dpw = Conv_DPW(
@@ -137,15 +162,17 @@ def get_symbol_compact(num_classes, alpha=1, resolution=224, **kwargs):
         name="global_pool",
     )
     flatten = mx.sym.Flatten(data=pool, name="flatten")
-    fc = mx.symbol.FullyConnected(data=flatten, num_hidden=num_classes, name="fc")
+    fc = mx.symbol.FullyConnected(
+        data=flatten, num_hidden=num_classes, name="fc"
+    )
     softmax = mx.symbol.SoftmaxOutput(data=fc, name="softmax")
     return softmax
 
 
 def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
-    assert alpha in alpha_values, "Invalid alpha=[{0}], must be one of [{1}]".format(
-        alpha, alpha_values
-    )
+    assert (
+        alpha in alpha_values
+    ), "Invalid alpha=[{0}], must be one of [{1}]".format(alpha, alpha_values)
     assert resolution % 32 == 0, "resolution must be multpile of 32"
 
     base = int(32 * alpha)
@@ -153,7 +180,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
     data = mx.symbol.Variable(name="data")  # 224
     depth = base  # 32*alpha
     conv_1 = Conv(
-        data, num_filter=depth, kernel=(3, 3), pad=(1, 1), stride=(2, 2), name="conv_1"
+        data,
+        num_filter=depth,
+        kernel=(3, 3),
+        pad=(1, 1),
+        stride=(2, 2),
+        name="conv_1",
     )  # 224/112
 
     depth = base  # 32*alpha
@@ -167,7 +199,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_2_dw",
     )  # 112/112
     conv_2 = Conv(
-        conv_2_dw, num_filter=depth * 2, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_2"
+        conv_2_dw,
+        num_filter=depth * 2,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_2",
     )  # 112/112
 
     depth = base * 2  # 64*alpha
@@ -181,7 +218,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_3_dw",
     )  # 112/56
     conv_3 = Conv(
-        conv_3_dw, num_filter=depth * 2, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_3"
+        conv_3_dw,
+        num_filter=depth * 2,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_3",
     )  # 56/56
 
     depth = base * 4  # 128*alpha
@@ -195,7 +237,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_4_dw",
     )  # 56/56
     conv_4 = Conv(
-        conv_4_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_4"
+        conv_4_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_4",
     )  # 56/56
 
     depth = base * 4  # 128*alpha
@@ -209,7 +256,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_5_dw",
     )  # 56/28
     conv_5 = Conv(
-        conv_5_dw, num_filter=depth * 2, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_5"
+        conv_5_dw,
+        num_filter=depth * 2,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_5",
     )  # 28/28
 
     depth = base * 8  # 256*alpha
@@ -223,7 +275,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_6_dw",
     )  # 28/28
     conv_6 = Conv(
-        conv_6_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_6"
+        conv_6_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_6",
     )  # 28/28
 
     depth = base * 8  # 256*alpha
@@ -237,7 +294,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_7_dw",
     )  # 28/14
     conv_7 = Conv(
-        conv_7_dw, num_filter=depth * 2, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_7"
+        conv_7_dw,
+        num_filter=depth * 2,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_7",
     )  # 14/14
 
     depth = base * 16  # 512*alpha
@@ -251,7 +313,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_8_dw",
     )  # 14/14
     conv_8 = Conv(
-        conv_8_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_8"
+        conv_8_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_8",
     )  # 14/14
     conv_9_dw = Conv(
         conv_8,
@@ -263,7 +330,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_9_dw",
     )  # 14/14
     conv_9 = Conv(
-        conv_9_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_9"
+        conv_9_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_9",
     )  # 14/14
     conv_10_dw = Conv(
         conv_9,
@@ -275,7 +347,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_10_dw",
     )  # 14/14
     conv_10 = Conv(
-        conv_10_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_10"
+        conv_10_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_10",
     )  # 14/14
     conv_11_dw = Conv(
         conv_10,
@@ -287,7 +364,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_11_dw",
     )  # 14/14
     conv_11 = Conv(
-        conv_11_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_11"
+        conv_11_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_11",
     )  # 14/14
     conv_12_dw = Conv(
         conv_11,
@@ -299,7 +381,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_12_dw",
     )  # 14/14
     conv_12 = Conv(
-        conv_12_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_12"
+        conv_12_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_12",
     )  # 14/14
 
     depth = base * 16  # 512*alpha
@@ -313,7 +400,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_13_dw",
     )  # 14/7
     conv_13 = Conv(
-        conv_13_dw, num_filter=depth * 2, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_13"
+        conv_13_dw,
+        num_filter=depth * 2,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_13",
     )  # 7/7
 
     depth = base * 32  # 1024*alpha
@@ -327,7 +419,12 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="conv_14_dw",
     )  # 7/7
     conv_14 = Conv(
-        conv_14_dw, num_filter=depth, kernel=(1, 1), pad=(0, 0), stride=(1, 1), name="conv_14"
+        conv_14_dw,
+        num_filter=depth,
+        kernel=(1, 1),
+        pad=(0, 0),
+        stride=(1, 1),
+        name="conv_14",
     )  # 7/7
 
     pool_size = int(resolution / 32)
@@ -339,6 +436,8 @@ def get_symbol(num_classes, alpha=1, resolution=224, **kwargs):
         name="global_pool",
     )
     flatten = mx.sym.Flatten(data=pool, name="flatten")
-    fc = mx.symbol.FullyConnected(data=flatten, num_hidden=num_classes, name="fc")
+    fc = mx.symbol.FullyConnected(
+        data=flatten, num_hidden=num_classes, name="fc"
+    )
     softmax = mx.symbol.SoftmaxOutput(data=fc, name="softmax")
     return softmax

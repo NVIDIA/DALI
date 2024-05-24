@@ -47,7 +47,9 @@ git_sha = os.getenv("GIT_SHA")
 if not git_sha:
     try:
         git_sha = (
-            subprocess.check_output(["git", "log", "--pretty=format:'%h'", "-n1"])
+            subprocess.check_output(
+                ["git", "log", "--pretty=format:'%h'", "-n1"]
+            )
             .decode("ascii")
             .replace("'", "")
             .strip()
@@ -81,7 +83,9 @@ with mock(["torch", "numba"]):
     import autodoc_submodules
 
     autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
-    autodoc_submodules.fn_autodoc(generated_path / "fn_autodoc", generated_path, references)
+    autodoc_submodules.fn_autodoc(
+        generated_path / "fn_autodoc", generated_path, references
+    )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
@@ -94,7 +98,9 @@ if "dev" in version_long:
     release_opt = option_off
     main_opt = option_on
     option_nr = 1
-    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    html_baseurl = (
+        "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    )
 else:
     release_opt = option_on
     main_opt = option_off
@@ -355,7 +361,9 @@ for i, d in enumerate(json_data):
     if i == 2:
         # as we just generate the switcher.json for the next release the one before is
         # not in the archive yet skip checking it
-        print(f"skip checking not archived release location for the switcher: {d['url']}")
+        print(
+            f"skip checking not archived release location for the switcher: {d['url']}"
+        )
         continue
     h = httplib2.Http()
     resp = h.request(d["url"] + "index.html", "HEAD")
@@ -369,11 +377,23 @@ with open(switcher_path, "w") as f:
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.
 favicon_rel_path = "nvidia.ico"
-subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
+subprocess.call(
+    [
+        "wget",
+        "-O",
+        favicon_rel_path,
+        "https://docs.nvidia.com/images/nvidia.ico",
+    ]
+)
 html_favicon = favicon_rel_path
 
 subprocess.call(
-    ["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png"]
+    [
+        "wget",
+        "-O",
+        "dali.png",
+        "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png",
+    ]
 )
 
 # Custom sidebar templates, must be a dictionary that maps document names
@@ -414,7 +434,13 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (main_doc, "NVIDIADALI.tex", "NVIDIA DALI Documentation", "NVIDIA Corporation", "manual"),
+    (
+        main_doc,
+        "NVIDIADALI.tex",
+        "NVIDIA DALI Documentation",
+        "NVIDIA Corporation",
+        "manual",
+    ),
 ]
 
 
@@ -454,7 +480,12 @@ extlinks = {
     ),
 }
 
-_dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
+_dali_enums = [
+    "DALIDataType",
+    "DALIIterpType",
+    "DALIImageType",
+    "PipelineAPIType",
+]
 
 count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
 
@@ -485,7 +516,11 @@ class EnumDocumenter(ClassDocumenter):
         # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value`
         # member returned by get_object_members().
         # Here we are filtering the list, to keep only enum members
-        filtered = [member for member in members if member[0] in self.object.__members__.keys()]
+        filtered = [
+            member
+            for member in members
+            if member[0] in self.object.__members__.keys()
+        ]
 
         filtered = super().filter_members(filtered, want_all)
 
@@ -533,7 +568,10 @@ def setup(app):
     app.add_js_file("redirect.js")
     # Register a sphinx.ext.autodoc.between listener to ignore everything
     # between lines that contain the word <SPHINX_IGNORE>
-    app.connect("autodoc-process-docstring", between("^.*<SPHINX_IGNORE>.*$", exclude=True))
+    app.connect(
+        "autodoc-process-docstring",
+        between("^.*<SPHINX_IGNORE>.*$", exclude=True),
+    )
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
     return app

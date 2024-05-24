@@ -39,13 +39,17 @@ doc(
         doc_entry(
             "gpu_python_operator.ipynb",
             [
-                op_reference("fn.python_function", "Processing GPU Data with Python Operators"),
+                op_reference(
+                    "fn.python_function",
+                    "Processing GPU Data with Python Operators",
+                ),
                 op_reference(
                     "plugin.pytorch.fn.torch_python_function",
                     "Processing GPU Data with Python Operators",
                 ),
                 op_reference(
-                    "fn.dl_tensor_python_function", "Processing GPU Data with Python Operators"
+                    "fn.dl_tensor_python_function",
+                    "Processing GPU Data with Python Operators",
                 ),
             ],
         ),

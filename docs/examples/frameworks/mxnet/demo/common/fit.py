@@ -45,8 +45,15 @@ def _get_lr_scheduler(args, kv):
     if lr != args.lr:
         logging.info("Adjust learning rate to %e for epoch %d", lr, begin_epoch)
 
-    steps = [epoch_size * (x - begin_epoch) for x in step_epochs if x - begin_epoch > 0]
-    return (lr, mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=args.lr_factor))
+    steps = [
+        epoch_size * (x - begin_epoch)
+        for x in step_epochs
+        if x - begin_epoch > 0
+    ]
+    return (
+        lr,
+        mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=args.lr_factor),
+    )
 
 
 def _load_model(args, rank=0):
@@ -56,7 +63,9 @@ def _load_model(args, rank=0):
     model_prefix = args.model_prefix
     if rank > 0 and os.path.exists("%s-%d-symbol.json" % (model_prefix, rank)):
         model_prefix += "-%d" % (rank)
-    sym, arg_params, aux_params = mx.model.load_checkpoint(model_prefix, args.load_epoch)
+    sym, arg_params, aux_params = mx.model.load_checkpoint(
+        model_prefix, args.load_epoch
+    )
     logging.info("Loaded model %s_%04d.params", model_prefix, args.load_epoch)
     return (sym, arg_params, aux_params)
 
@@ -86,22 +95,53 @@ def add_fit_args(parser):
                              required by some networks such as resnet",
     )
     train.add_argument(
-        "--gpus", type=str, help="list of gpus to run, e.g. 0 or 0,2,5. empty means using cpu"
+        "--gpus",
+        type=str,
+        help="list of gpus to run, e.g. 0 or 0,2,5. empty means using cpu",
     )
-    train.add_argument("--kv-store", type=str, default="device", help="key-value store type")
-    train.add_argument("--num-epochs", type=int, default=100, help="max num of epochs")
-    train.add_argument("--lr", type=float, default=0.1, help="initial learning rate")
     train.add_argument(
-        "--lr-factor", type=float, default=0.1, help="the ratio to reduce lr on each step"
+        "--kv-store", type=str, default="device", help="key-value store type"
     )
-    train.add_argument("--lr-step-epochs", type=str, help="the epochs to reduce the lr, e.g. 30,60")
-    train.add_argument("--initializer", type=str, default="default", help="the initializer type")
-    train.add_argument("--optimizer", type=str, default="sgd", help="the optimizer type")
-    train.add_argument("--mom", type=float, default=0.9, help="momentum for sgd")
-    train.add_argument("--wd", type=float, default=0.0001, help="weight decay for sgd")
-    train.add_argument("--batch-size", type=int, default=128, help="the batch size")
     train.add_argument(
-        "--disp-batches", type=int, default=20, help="show progress for every n batches"
+        "--num-epochs", type=int, default=100, help="max num of epochs"
+    )
+    train.add_argument(
+        "--lr", type=float, default=0.1, help="initial learning rate"
+    )
+    train.add_argument(
+        "--lr-factor",
+        type=float,
+        default=0.1,
+        help="the ratio to reduce lr on each step",
+    )
+    train.add_argument(
+        "--lr-step-epochs",
+        type=str,
+        help="the epochs to reduce the lr, e.g. 30,60",
+    )
+    train.add_argument(
+        "--initializer",
+        type=str,
+        default="default",
+        help="the initializer type",
+    )
+    train.add_argument(
+        "--optimizer", type=str, default="sgd", help="the optimizer type"
+    )
+    train.add_argument(
+        "--mom", type=float, default=0.9, help="momentum for sgd"
+    )
+    train.add_argument(
+        "--wd", type=float, default=0.0001, help="weight decay for sgd"
+    )
+    train.add_argument(
+        "--batch-size", type=int, default=128, help="the batch size"
+    )
+    train.add_argument(
+        "--disp-batches",
+        type=int,
+        default=20,
+        help="show progress for every n batches",
     )
     train.add_argument("--model-prefix", type=str, help="model prefix")
     parser.add_argument(
@@ -112,10 +152,15 @@ def add_fit_args(parser):
         help="log network parameters every N iters if larger than 0",
     )
     train.add_argument(
-        "--load-epoch", type=int, help="load the model on an epoch using the model-load-prefix"
+        "--load-epoch",
+        type=int,
+        help="load the model on an epoch using the model-load-prefix",
     )
     train.add_argument(
-        "--top-k", type=int, default=0, help="report the top-k accuracy. 0 means no report."
+        "--top-k",
+        type=int,
+        default=0,
+        help="report the top-k accuracy. 0 means no report.",
     )
     train.add_argument(
         "--loss",
@@ -127,9 +172,17 @@ def add_fit_args(parser):
         ),
     )
     train.add_argument(
-        "--test-io", type=int, default=0, help="1 means test reading speed without training"
+        "--test-io",
+        type=int,
+        default=0,
+        help="1 means test reading speed without training",
     )
-    train.add_argument("--dtype", type=str, default="float32", help="precision: float32 or float16")
+    train.add_argument(
+        "--dtype",
+        type=str,
+        default="float32",
+        help="precision: float32 or float16",
+    )
     train.add_argument(
         "--gc-type",
         type=str,
@@ -138,11 +191,17 @@ def add_fit_args(parser):
                              takes `2bit` or `none` for now",
     )
     train.add_argument(
-        "--gc-threshold", type=float, default=0.5, help="threshold for 2bit gradient compression"
+        "--gc-threshold",
+        type=float,
+        default=0.5,
+        help="threshold for 2bit gradient compression",
     )
     # additional parameters for large batch sgd
     train.add_argument(
-        "--macrobatch-size", type=int, default=0, help="distributed effective batch size"
+        "--macrobatch-size",
+        type=int,
+        default=0,
+        help="distributed effective batch size",
     )
     train.add_argument(
         "--warmup-epochs",
@@ -169,7 +228,9 @@ def fit(args, network, data_loader, **kwargs):
     # kvstore
     kv = mx.kvstore.create(args.kv_store)
     if args.gc_type != "none":
-        kv.set_gradient_compression({"type": args.gc_type, "threshold": args.gc_threshold})
+        kv.set_gradient_compression(
+            {"type": args.gc_type, "threshold": args.gc_threshold}
+        )
 
     # logging
     head = "%(asctime)-15s Node[" + str(kv.rank) + "] %(message)s"
@@ -236,7 +297,9 @@ def fit(args, network, data_loader, **kwargs):
     if args.optimizer in has_momentum:
         optimizer_params["momentum"] = args.mom
 
-    monitor = mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
+    monitor = (
+        mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
+    )
 
     # A limited number of optimizers have a warmup period
     has_warmup = {"lbsgd", "lbnag"}
@@ -252,9 +315,13 @@ def fit(args, network, data_loader, **kwargs):
         if macrobatch_size < args.batch_size * nworkers:
             macrobatch_size = args.batch_size * nworkers
         # batch_scale = round(float(macrobatch_size) / args.batch_size / nworkers +0.4999)
-        batch_scale = math.ceil(float(macrobatch_size) / args.batch_size / nworkers)
+        batch_scale = math.ceil(
+            float(macrobatch_size) / args.batch_size / nworkers
+        )
         optimizer_params["updates_per_epoch"] = epoch_size
-        optimizer_params["begin_epoch"] = args.load_epoch if args.load_epoch else 0
+        optimizer_params["begin_epoch"] = (
+            args.load_epoch if args.load_epoch else 0
+        )
         optimizer_params["batch_scale"] = batch_scale
         optimizer_params["warmup_strategy"] = args.warmup_strategy
         optimizer_params["warmup_epochs"] = args.warmup_epochs
@@ -268,7 +335,9 @@ def fit(args, network, data_loader, **kwargs):
         elif "vgg" in args.network:
             initializer = mx.init.Xavier()
         else:
-            initializer = mx.init.Xavier(rnd_type="gaussian", factor_type="in", magnitude=2)
+            initializer = mx.init.Xavier(
+                rnd_type="gaussian", factor_type="in", magnitude=2
+            )
     # initializer   = mx.init.Xavier(factor_type="in", magnitude=2.34),
     elif args.initializer == "xavier":
         initializer = mx.init.Xavier()
@@ -288,7 +357,9 @@ def fit(args, network, data_loader, **kwargs):
     # evaluation metrices
     eval_metrics = ["accuracy"]
     if args.top_k > 0:
-        eval_metrics.append(mx.metric.create("top_k_accuracy", top_k=args.top_k))
+        eval_metrics.append(
+            mx.metric.create("top_k_accuracy", top_k=args.top_k)
+        )
 
     supported_loss = ["ce", "nll_loss"]
     if len(args.loss) > 0:
@@ -301,16 +372,21 @@ def fit(args, network, data_loader, **kwargs):
                     loss_type = "nll_loss"
                 if loss_type not in supported_loss:
                     logging.warning(
-                        loss_type + " is not an valid loss type, only cross-entropy or "
+                        loss_type
+                        + " is not an valid loss type, only cross-entropy or "
                         "negative likelihood loss is supported!"
                     )
                 else:
                     eval_metrics.append(mx.metric.create(loss_type))
         else:
-            logging.warning("The output is not softmax_output, loss argument will be skipped!")
+            logging.warning(
+                "The output is not softmax_output, loss argument will be skipped!"
+            )
 
     # callbacks that run after each batch
-    batch_end_callbacks = [mx.callback.Speedometer(args.batch_size, args.disp_batches)]
+    batch_end_callbacks = [
+        mx.callback.Speedometer(args.batch_size, args.disp_batches)
+    ]
     if "batch_end_callback" in kwargs:
         cbs = kwargs["batch_end_callback"]
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]

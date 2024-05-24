@@ -35,7 +35,8 @@ The startup script is :fileref:`docs/examples/use_cases/paddle/resnet50/train.py
 .. code-block:: bash
 
    # For single GPU training with AMP
-  FLAGS_apply_pass_to_program=1 python -m paddle.distributed.launch --gpus=0 train.py \
+  FLAGS_apply_pass_to_program=1 python -m paddle.distributed.launch \
+    --gpus=0 train.py \
     --epochs 90 \
     --amp \
     --scale-loss 128.0 \
@@ -43,7 +44,8 @@ The startup script is :fileref:`docs/examples/use_cases/paddle/resnet50/train.py
     --data-layout NHWC
 
   # For 8 GPUs training with AMP
-  FLAGS_apply_pass_to_program=1 python -m paddle.distributed.launch --gpus=0,1,2,3,4,5,6,7 train.py \
+  FLAGS_apply_pass_to_program=1 python -m paddle.distributed.launch \
+    --gpus=0,1,2,3,4,5,6,7 train.py \
     --epochs 90 \
     --amp \
     --scale-loss 128.0 \
