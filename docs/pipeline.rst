@@ -50,6 +50,13 @@ The resulting graph is:
 
 .. _processing_graph_structure:
 
+.. important::
+    The pipeline definition function is excuted only once, when the pipeline is built,
+    and typically returns a ``dali.DataNode`` object or a tuple of thereof.
+    For convenience, it's possible to return other types, such as NumPy arrays, but those
+    are treated as constants and evaluated only once.
+
+
 Processing Graph Structure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
