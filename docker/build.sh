@@ -5,7 +5,7 @@ a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
 PYVER=[default 3.8, required only by Run image]
-CUDA_VERSION=[default 12.4, accepts also 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1, 12.2, 12.3 and 12.4]
+CUDA_VERSION=[default 12.5, accepts also 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1, 12.2, 12.3, 12.4 and 12.5]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
@@ -40,16 +40,17 @@ shift $((OPTIND - 1))
 export ARCH=${ARCH:-x86_64}
 export PYVER=${PYVER:-3.8}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-12.4}
+export CUDA_VERSION=${CUDA_VERSION:-12.5}
 export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
   if [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && \
      [ $CUDA_VER != "114" ] && [ $CUDA_VER != "115" ] && [ $CUDA_VER != "116" ] && [ $CUDA_VER != "117" ] && [ $CUDA_VER != "118" ] && \
-     [ $CUDA_VER != "120" ] && [ $CUDA_VER != "121" ] && [ $CUDA_VER != "122" ] && [ $CUDA_VER != "123" ] && [ $CUDA_VER != "124" ]
+     [ $CUDA_VER != "120" ] && [ $CUDA_VER != "121" ] && [ $CUDA_VER != "122" ] && [ $CUDA_VER != "123" ] && [ $CUDA_VER != "124" ] && \
+     [ $CUDA_VER != "125" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1, 12.2, 12.3 and 12.4 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1, 12.2, 12.3, 12.4 and 12.5 are supported"
       exit 1
   fi
 else
