@@ -5,6 +5,9 @@ min_perf=4000
 
 NUM_GPUS=`nvidia-smi -L | wc -l`
 
+# Disable memory padding to avoid OOM errors
+sed -i -e "s/'--dali-nvjpeg-memory-padding', int, 16/'--dali-nvjpeg-memory-padding', int, 0/g" /opt/mxnet/python/mxnet/io/dali_utils.py
+
 python /opt/mxnet/example/image-classification/train_imagenet_runner \
        --data-root=/data/imagenet/train-val-recordio-passthrough/ -b 408 \
        -n $NUM_GPUS -e 5 --seed 42 --dali-threads 8 2>&1 | tee dali.log
