@@ -93,13 +93,7 @@ DataNode &OpGraph::AddData(std::string name, StorageDevice device) {
   return data_node;
 }
 
-
-bool OpGraph::EraseOp(std::string_view name) {
-  auto it = name2op_.find(name);
-  if (it == name2op_.end())
-    return false;
-  auto &op = *it->second;
-
+void OpGraph::RemoveDataNodeReferences(OpNode &op) {
   for (auto *data : op.inputs) {
     auto it = std::remove_if(data->consumers.begin(), data->consumers.end(), [&](DataEdge e) {
       return e.op == &op;
@@ -113,6 +107,16 @@ bool OpGraph::EraseOp(std::string_view name) {
     assert(data->producer.op == &op);
     data->producer = {};
   }
+}
+
+
+bool OpGraph::EraseOp(std::string_view name) {
+  auto it = name2op_.find(name);
+  if (it == name2op_.end())
+    return false;
+  auto &op = *it->second;
+
+  RemoveDataNodeReferences(op);
 
   op_nodes_.erase(it->second->iter);
   name2op_.erase(it);
@@ -155,71 +159,82 @@ int OpGraph::AddOutput(std::string_view name) {
   return outputs_.size() - 1;
 }
 
-namespace {
-
 /** Implements topological sorting via depth-first search */
-class TopologicalSortHelper {
+class OpGraph::SortHelper {
  public:
-  TopologicalSortHelper(OpNodeList &op, DataNodeList &data) : op_nodes_(op), data_nodes_(data) {
-    sorted_ops_.reserve(op_nodes_.size());
-    sorted_data_.reserve(data_nodes_.size());
+  explicit SortHelper(OpGraph &graph) : graph_(graph) {
+    sorted_ops_.reserve(graph_.op_nodes_.size());
+    sorted_data_.reserve(graph_.data_nodes_.size());
   }
 
   void Run() {
-    ClearVisitMarkers(op_nodes_);
-    ClearVisitMarkers(data_nodes_);
+    ClearVisitMarkers(graph_.op_nodes_);
+    ClearVisitMarkers(graph_.data_nodes_);
 
     // First, go over the outputs
-    for (auto &data : data_nodes_) {
+    for (auto &data : graph_.data_nodes_) {
       if (data.pipeline_output)
         Traverse(&data);
     }
 
     // Then add operators marked as "keep".
-    for (auto &op : op_nodes_) {
+    for (auto &op : graph_.op_nodes_) {
       if (op.keep)
         Traverse(&op);
     }
 
     OpNodeList out_ops;
     for (auto *op : sorted_ops_)
-      out_ops.splice(out_ops.end(), op_nodes_, op->iter);
+      out_ops.splice(out_ops.end(), graph_.op_nodes_, op->iter);
 
     DataNodeList out_data;
     for (auto *data : sorted_data_)
-      out_data.splice(out_data.end(), data_nodes_, data->iter);
+      out_data.splice(out_data.end(), graph_.data_nodes_, data->iter);
 
-    op_nodes_.swap(out_ops);
-    data_nodes_.swap(out_data);
+    graph_.op_nodes_.swap(out_ops);
+    graph_.data_nodes_.swap(out_data);
+
+    // Now out_ops and out_data are the ops and data, respectively, that got removed.
+    // We should remove them from the name2xx maps and remove corresponding consumer links.
+    // NOTE: no producer of otherwise valid node should be removed, so we only need to adjust
+    // consumers.
+
+    for (auto &pruned_op : out_ops) {
+      graph_.RemoveDataNodeReferences(pruned_op);
+      graph_.name2op_.erase(pruned_op.instance_name);
+    }
+    for (auto &pruned_data : out_data) {
+      graph_.name2data_.erase(pruned_data.name);
+    }
   }
 
  private:
-  OpNodeList &op_nodes_;
-  DataNodeList &data_nodes_;
+  OpGraph &graph_;
 
   std::vector<OpNode *> sorted_ops_;
   std::vector<DataNode *> sorted_data_;
 
   template <typename Node>
-  struct Visit {
-    explicit Visit(Node *n) {
-      if (n->visit_pending)
+  class Visit {
+   public:
+    explicit Visit(Node *n) : node_(n) {
+      if (node_->visit_pending)
         throw std::logic_error("Cycle detected.");
-      n->visit_pending = true;
-      new_visit = !n->visited;
-      n->visited = true;
+      node_->visit_pending = true;
+      new_visit_ = !n->visited;
+      node_->visited = true;
     }
     ~Visit() {
-      n->visit_pending = false;
+      node_->visit_pending = false;
     }
 
     explicit operator bool() const {
-      return new_visit;
+      return new_visit_;
     }
 
    private:
-    Node *n;
-    bool new_visit;
+    Node *node_;
+    bool new_visit_;
   };
 
   template <typename NodeList>
@@ -251,10 +266,8 @@ class TopologicalSortHelper {
   }
 };
 
-}  // namespace
-
 void OpGraph::SortAndPrune() {
-  TopologicalSortHelper sort(op_nodes_, data_nodes_);
+  SortHelper sort(*this);
   sort.Run();
 }
 
@@ -281,23 +294,27 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
       node = &graph_.AddData(name, dev);
     }
     node->consumers.push_back({ &op_node, i });
+    op_node.inputs.push_back(node);
   }
 
   for (int o = 0; o < spec.NumOutput(); o++) {
     std::string name = spec.Output(o);
     auto it = graph_.name2data_.find(name);
+    DataNode *node;
     if (it != graph_.name2data_.end()) {
-      if (it->second->producer.op != nullptr) {
+      node = it->second;
+      if (node->producer.op != nullptr) {
         throw std::invalid_argument(make_string(
           "The data node \"", name, "\" has more than one producer:"
-          "\n 1: ", it->second->producer.op->instance_name, ", output ", it->second->producer.idx,
+          "\n 1: ", node->producer.op->instance_name, ", output ", node->producer.idx,
           "\n 2: ", instance_name, ", output ", o));
       }
     } else {
       auto dev = ParseStorageDevice(spec.OutputDevice(o));
-      auto &node = graph_.AddData(std::move(name), dev);
-      node.producer = { &op_node, o };
+      node = &graph_.AddData(std::move(name), dev);
     }
+    node->producer = { &op_node, o };
+    op_node.outputs.push_back(node);
   }
 }
 

@@ -180,6 +180,8 @@ class DLL_PUBLIC OpGraph {
   }
 
  private:
+    void RemoveDataNodeReferences(OpNode &op);
+
   OpNodeList op_nodes_;
   DataNodeList data_nodes_;
   // The maps are keyed with `string_view` to avoid creation of temporary strings for lookup.
@@ -188,6 +190,9 @@ class DLL_PUBLIC OpGraph {
   std::unordered_map<std::string_view, OpNode *> name2op_;
   std::unordered_map<std::string_view, DataNode *> name2data_;
   std::vector<std::string_view> outputs_;
+
+  class SortHelper;
+  friend class SortHelper;
 };
 
 class DLL_PUBLIC OpGraph::Builder {
