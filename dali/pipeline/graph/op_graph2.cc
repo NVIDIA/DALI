@@ -23,29 +23,6 @@ namespace graph {
 
 namespace {
 
-// TODO(klecki): Graph creation is not a place to check OpSpec?
-void CheckOpConstraints(const OpSpec &spec) {
-  const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
-
-  const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
-
-  DALI_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
-               make_string("Operator `", GetOpDisplayName(spec, true),
-                           "` does not support in-place execution."));
-  DALI_ENFORCE(
-      spec.NumRegularInput() <= schema.MaxNumInput(),
-      make_string("Operator `", GetOpDisplayName(spec, true), "` supports a maximum of ",
-                  schema.MaxNumInput(), " inputs, but was passed ", spec.NumRegularInput(), "."));
-  DALI_ENFORCE(
-      spec.NumRegularInput() >= schema.MinNumInput(),
-      make_string("Operator `", GetOpDisplayName(spec, true), "` supports a minimum of ",
-                  schema.MinNumInput(), " inputs, but was passed ", spec.NumRegularInput(), "."));
-  DALI_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
-               make_string("Operator `", GetOpDisplayName(spec, true), "` supports ",
-                           schema.CalculateOutputs(spec) + additional_outputs,
-                           " outputs, but was passed ", spec.NumOutput(), "."));
-}
-
 OpType ParseOpType(const std::string &device) {
   if (device == "gpu") {
     return OpType::GPU;

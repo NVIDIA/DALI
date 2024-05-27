@@ -50,7 +50,7 @@ bool AllOutputsGPU(const OpSpec &spec) {
   return true;
 }
 
-// TODO(michalz): Remove this part, op_graph.cc is doing it
+// TODO(michalz): Remove this part to pipeline.cc.
 void CheckOpConstraints(const OpSpec &spec) {
   const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
 
