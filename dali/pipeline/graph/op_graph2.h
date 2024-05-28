@@ -53,7 +53,7 @@ struct OpNode {
    * The string is `const` because it's view is used as a key.
    */
   const std::string instance_name;
-  /** The specification of an operato */
+  /** The specification of an operator */
   OpSpec spec;
   /** The "device" - cpu, gpu or mixed */
   OpType op_type;
