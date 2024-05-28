@@ -158,13 +158,15 @@ class DLL_PUBLIC OpGraph {
   /** Erases an operator node.
    *
    * Removes the operator node map entry and the corresponding list entry.
-   * Consumer/producer pointers in referring data nodes are removed or cleared. */
+   * Consumer/producer pointers in referring data nodes are removed or cleared.
+   */
   bool EraseOp(std::string_view name);
 
   /** Erases a data node.
    *
    * Removes the data node map entry and the corresponding list entry.
-   * Corresponding entries in producer and consumers are replaced with null pointers. */
+   * Corresponding entries in producer and consumers are replaced with null pointers.
+   */
   bool EraseData(std::string_view name);
 
   /** Adds a pipeline output.
@@ -185,8 +187,9 @@ class DLL_PUBLIC OpGraph {
   OpNodeList op_nodes_;
   DataNodeList data_nodes_;
   // The maps are keyed with `string_view` to avoid creation of temporary strings for lookup.
-  // The string_view must refer to a live string, which, in this case the name of the node,
-  // stored in the list.
+  // The string_view must refer to a live string, which, in this case, is the name of the node,
+  // stored in the list. std::list never invalidates pointers and the name is const, which
+  // guarantees that the view will always remain correct.
   std::unordered_map<std::string_view, OpNode *> name2op_;
   std::unordered_map<std::string_view, DataNode *> name2data_;
   std::vector<std::string_view> outputs_;
