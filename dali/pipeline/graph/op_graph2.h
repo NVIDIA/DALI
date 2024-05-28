@@ -43,9 +43,9 @@ struct OpNode {
   OpNode(std::string instance_name, OpSpec spec)
   : instance_name(std::move(instance_name)), spec(std::move(spec)) {}
 
-  /** A visit marker for various graph processing algorithms */
+  /** A visit marker for various graph processing algorithms. */
   mutable bool visited = false;
-  /** A visit marker for cycle detection */
+  /** A visit marker for cycle detection. */
   mutable bool visit_pending = false;
 
   /** A unique name of an operator
@@ -53,17 +53,17 @@ struct OpNode {
    * The string is `const` because it's view is used as a key.
    */
   const std::string instance_name;
-  /** The specification of an operator */
+  /** The specification of an operator. */
   OpSpec spec;
-  /** The "device" - cpu, gpu or mixed */
+  /** The "device" - cpu, gpu or mixed. */
   OpType op_type;
 
-  /** This node must not be pruned */
+  /** This node must not be pruned. */
   bool keep = false;
 
-  /** This list contains both positional and argument inputs */
+  /** This list contains both positional and argument inputs. */
   SmallVector<DataNode *, 8> inputs;
-  /** This list contains the outputs of the operator (including unused ones) */
+  /** This list contains the outputs of the operator (including unused ones). */
   SmallVector<DataNode *, 8> outputs;
 };
 
@@ -80,20 +80,20 @@ struct DataNode {
 
   DataNode(std::string name, StorageDevice device) : name(std::move(name)), device(device) {}
 
-  /** A visit marker for various graph processing algorithms */
+  /** A visit marker for various graph processing algorithms. */
   mutable bool visited = false;
-  /** A visit marker for cycle detection */
+  /** A visit marker for cycle detection. */
   mutable bool visit_pending = false;
 
-  /** The name of the data node - typically operator name, output index and device
+  /** The name of the data node - typically operator name, output index and device.
    *
    * The string is `const` because it's view is used as a key.
    */
   const std::string name;
-  /** The storage device - CPU or GPU */
+  /** The storage device - CPU or GPU. */
   StorageDevice device;
 
-  /** The unique source of the data node*/
+  /** The unique source of the data node. */
   DataEdge producer;
   /** Consumers of the data node */
   SmallVector<DataEdge, 4> consumers;
