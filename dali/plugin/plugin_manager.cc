@@ -1,4 +1,4 @@
-// Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/plugin/plugin_manager.h"
 #include <dlfcn.h>
 #include <filesystem>
+#include <iostream>
 #include <utility>
 #include "dali/core/error_handling.h"
 
@@ -22,13 +23,21 @@ namespace fs = std::filesystem;
 
 namespace dali {
 
-void PluginManager::LoadLibrary(const std::string& lib_path, bool global_symbols) {
+void PluginManager::LoadLibrary(const std::string& lib_path, bool global_symbols, bool allow_fail) {
   // dlopen is thread safe
   int flags = global_symbols ? RTLD_GLOBAL : RTLD_LOCAL;
   flags |= RTLD_LAZY;
   LOG_LINE << "Loading " << lib_path << "\n";
   auto handle = dlopen(lib_path.c_str(), flags);
-  DALI_ENFORCE(handle != nullptr, "Failed to load library: " + std::string(dlerror()));
+  if (handle == nullptr) {
+    std::string err_msg =
+        std::string("Failed to load library ") + lib_path + ": " + std::string(dlerror());
+    if (allow_fail) {
+      std::cerr << err_msg << "\n";
+    } else {
+      DALI_FAIL(err_msg);
+    }
+  }
 }
 
 inline const std::string& DefaultPluginPath() {
@@ -49,7 +58,8 @@ inline const std::string& DefaultPluginPath() {
   return path;
 }
 
-inline void PluginManager::LoadDirectory(const std::string& path, bool global_symbols) {
+inline void PluginManager::LoadDirectory(const std::string& path, bool global_symbols,
+                                         bool allow_fail) {
   std::vector<std::string> plugin_paths;
   if (!fs::is_directory(path)) {
     LOG_LINE << path << " is not a directory. Nothing to load\n";
@@ -61,7 +71,7 @@ inline void PluginManager::LoadDirectory(const std::string& path, bool global_sy
         fpath.path().extension() == ".so") {
       // filename starts with libdali_ and ends with .so
       auto p = fpath.path().string();
-      PluginManager::LoadLibrary(std::move(p), global_symbols);
+      PluginManager::LoadLibrary(std::move(p), global_symbols, allow_fail);
     }
   }
 }
@@ -77,9 +87,9 @@ inline void PreloadPluginList(const std::string& dali_preload_plugins) {
       dali_preload_plugins.substr(previous, index - previous) :
       dali_preload_plugins.substr(previous);
     if (fs::is_directory(plugin_path)) {
-      PluginManager::LoadDirectory(plugin_path);
+      PluginManager::LoadDirectory(plugin_path, false, true);
     } else {
-      PluginManager::LoadLibrary(plugin_path);
+      PluginManager::LoadLibrary(plugin_path, false, true);
     }
     previous = index + 1;
   } while (index != std::string::npos);
@@ -92,7 +102,7 @@ void PluginManager::LoadDefaultPlugins() {
     if (dali_preload_plugins)
       preload_plugins_str = dali_preload_plugins;
     if (preload_plugins_str == "default") {
-      PluginManager::LoadDirectory(DefaultPluginPath());
+      PluginManager::LoadDirectory(DefaultPluginPath(), false, true);
     } else {
       PreloadPluginList(preload_plugins_str);
     }

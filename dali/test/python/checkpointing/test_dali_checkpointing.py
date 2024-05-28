@@ -1192,6 +1192,7 @@ unsupported_readers = [
 unsupported_ops = [
     "experimental.decoders.video",
     "experimental.inputs.video",
+    "plugin.video.decoder",
 ]
 
 

@@ -89,6 +89,7 @@ endif()
 list(APPEND CMAKE_BUILD_RPATH "$ORIGIN")          # current directory
 list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN")        # current directory
 list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/../..")  # DALI dir is ../../ from plugin/${PLUGIN_NAME}
+list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/deps/ffmpeg/lib/${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
 if (BUILD_FFMPEG)
   message(STATUS "Building from ${FFMPEG_SOURCE_URL}")
