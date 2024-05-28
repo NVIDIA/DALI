@@ -42,6 +42,21 @@ The function should not modify input tensors.
 
 .. warning::
   This operator is not compatible with TensorFlow integration.
+
+.. warning::
+    The ``function``, when :ref:`conditional mode <conditional_execution>` is enabled,
+    must not be transformed by the AutoGraph. There are two conditions to prevent that:
+
+        1. The ``function`` must be defined at a global scope
+           (i.e. outside of ``pipeline_def`` scope).
+
+        2. If the ``function`` is created within pipeline definition,
+           the factory function must be decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
+           recursively converted when the pipeline definition is traced.
+
+    More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
+    documentation.
 )code")
         .NumInput(0, 256)
         .AllowSequences()
