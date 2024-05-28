@@ -7,9 +7,10 @@ NUM_GPUS=`nvidia-smi -L | wc -l`
 
 # Disable memory padding to avoid OOM errors
 sed -i -e "s/'--dali-nvjpeg-memory-padding', int, 16/'--dali-nvjpeg-memory-padding', int, 0/g" /opt/mxnet/python/mxnet/io/dali_utils.py
-# Make sure that nvImageCodec loads before MXNet to avoid getting libjpeg version mismatch
-sed -i -e "s/import nvidia.dali.fn as fn/import nvidia.dali.fn as fn\nfrom nvidia import nvimgcodec/g" /opt/mxnet/python/mxnet/io/dali_utils.py
 
+# TODO(janton): Remove the LD_PRELOAD with next nvImageCodec release
+# Make sure that nvImageCodec's jpeg symbol load before MXNet to avoid getting libjpeg version mismatch
+LD_PRELOAD=$(ls /usr/local/lib/python3.10/dist-packages/nvidia/nvimgcodec/extensions/libjpeg_turbo_ext.so*) \
 python /opt/mxnet/example/image-classification/train_imagenet_runner \
        --data-root=/data/imagenet/train-val-recordio-passthrough/ -b 144 \
        -n $NUM_GPUS --seed 42 2>&1 | tee dali.log
