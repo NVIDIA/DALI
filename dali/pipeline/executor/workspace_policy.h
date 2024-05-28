@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -266,61 +266,6 @@ Workspace CreateWorkspace(
 //   template <OpType op_type>
 //   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node);
 // };
-
-/**
- * @brief Just In Time Workspace Policy
- *
- * When requested, returns a copy of a new workspaces, filling it on the fly with
- * existing inputs, outputs, streams and events.
- *
- * Intended to be used with SeparateQueuePolicy
- */
-template <typename QueuePolicy>
-struct JIT_WS_Policy {
-  template <OpType op_type>
-  using ws_t = Workspace;
-
-  void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
-                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-                                ThreadPool *thread_pool, cudaStream_t mixed_op_stream,
-                                cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
-                                const QueueSizes &idxs) {
-    device_id_ = device_id;
-    tensor_to_store_queue_ = tensor_to_store_queue;
-    thread_pool_ = thread_pool;
-    mixed_op_stream_ = mixed_op_stream;
-    gpu_op_stream_ = gpu_op_stream;
-    mixed_op_events_ = mixed_op_events;
-    queue_sizes_ = idxs;
-  }
-
-  template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
-    return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx), device_id_,
-                                    tensor_to_store_queue_, thread_pool_, mixed_op_stream_,
-                                    gpu_op_stream_, mixed_op_events_, idxs);
-  }
-
-  template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
-    DALI_ENFORCE(node.op_type == op_type,
-                 "Wrong variant of method selected. OpType does not match.");
-    return CreateWorkspace<op_type>(graph, node, device_id_, tensor_to_store_queue_, thread_pool_,
-                                    mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
-  }
-
- private:
-  // TODO(klecki): should consider if storing copy of backing storage is good idea
-  int device_id_;
-  std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
-  ThreadPool *thread_pool_;
-  cudaStream_t mixed_op_stream_, gpu_op_stream_;
-  MixedOpEventMap mixed_op_events_;
-  QueueSizes queue_sizes_;
-
-  static_assert(std::is_same<QueuePolicy, SeparateQueuePolicy>::value,
-                "Incompatible QueuePolicy used with this WorkspacePolicy");
-};
 
 inline int SequentialIndex(QueueIdxs idxs, StageQueues depth, OpType last_stage) {
   constexpr static OpType order[] = {OpType::CPU, OpType::MIXED, OpType::GPU};
