@@ -28,7 +28,7 @@ Prerequisites
   | `Git LFS <https://git-lfs.com/>`_                                     | Follow installation manual appropriate for your operating system.                      |
   |                                                                       |                                                                                        |
   |                                                                       | Note: If Git LFS was installed after cloning the DALI repository, please update        |
-  |                                                                       | submodules to ensure that the binary blobs were downloaded.                               |
+  |                                                                       | submodules to ensure that the binary blobs were downloaded.                            |
   +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
   
 Building Python Wheel
