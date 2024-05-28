@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,11 +35,7 @@ def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_
         decoder_device = "cpu"
         resize_device = "cpu"
 
-    # This padding sets the size of the internal nvJPEG buffers to be able to handle all images
-    # from full-sized ImageNet without additional reallocations
     images = fn.decoders.image_random_crop(jpegs, device=decoder_device, output_type=types.RGB,
-                                           device_memory_padding=211025920,
-                                           host_memory_padding=140544512,
                                            random_aspect_ratio=[0.75, 4.0 / 3.0],
                                            random_area=[0.08, 1.0])
 
