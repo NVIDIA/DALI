@@ -182,7 +182,7 @@ class DLL_PUBLIC OpGraph {
   }
 
  private:
-    void RemoveDataNodeReferences(OpNode &op);
+  void RemoveDataNodeReferences(OpNode &op);
 
   OpNodeList op_nodes_;
   DataNodeList data_nodes_;
