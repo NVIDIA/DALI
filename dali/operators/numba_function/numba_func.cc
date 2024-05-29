@@ -56,7 +56,7 @@ If no setup function provided, the output shape and data type will be the same a
            (i.e. outside of ``pipeline_def`` scope).
 
         2. If the ``run_fn`` and ``setup_fn`` are defined within the pipeline definition
-           function, the function must be decorated with
+           function, the factory function must be decorated with
            :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise they will be
            recursively converted when the pipeline definition is processed.
 
