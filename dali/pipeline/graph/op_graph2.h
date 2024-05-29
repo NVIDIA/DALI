@@ -36,9 +36,15 @@ struct DataNode;
 using OpNodeList = std::list<OpNode>;
 using DataNodeList = std::list<DataNode>;
 
+class OpGraph;
+
 struct OpNode {
+ private:
   /** The iterator that points to this object in the enclosing list. */
   OpNodeList::iterator iter{};
+
+ public:
+  friend class OpGraph;
 
   OpNode(std::string instance_name, OpSpec spec)
   : instance_name(std::move(instance_name)), spec(std::move(spec)) {}
@@ -75,8 +81,12 @@ struct DataEdge {
 };
 
 struct DataNode {
+ private:
   /** The iterator that points to this object in the enclosing list. */
   DataNodeList::iterator iter{};
+
+ public:
+  friend class OpGraph;
 
   DataNode(std::string name, StorageDevice device) : name(std::move(name)), device(device) {}
 
