@@ -50,15 +50,15 @@ If no setup function provided, the output shape and data type will be the same a
 
 .. warning::
     The ``run_fn`` and ``setup_fn``, when :ref:`conditional mode <conditional_execution>` is enabled,
-    must not be transformed by the AutoGraph. There are two conditions to prevent that:
+    mmust not be transformed by AutoGraph. There are two ways to prevent that:
 
-        1. The ``run_fn`` and ``setup_fn`` must be defined at a global scope
+        1. Define ``run_fn`` and ``setup_fn`` at a global scope
            (i.e. outside of ``pipeline_def`` scope).
 
-        2. If the ``run_fn`` and ``setup_fn`` is created within pipeline definition,
-           the factory function must be decorated with
-           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
-           recursively converted when the pipeline definition is traced.
+        2. If the ``run_fn`` and ``setup_fn`` are defined within the pipeline definition
+           function, the function must be decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise they will be
+           recursively converted when the pipeline definition is processed.
 
     More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
     documentation.
