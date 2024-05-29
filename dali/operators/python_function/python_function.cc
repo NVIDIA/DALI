@@ -45,15 +45,15 @@ The function should not modify input tensors.
 
 .. warning::
     The ``function``, when :ref:`conditional mode <conditional_execution>` is enabled,
-    must not be transformed by the AutoGraph. There are two conditions to prevent that:
+    must not be transformed by AutoGraph. There are two ways to prevent that:
 
-        1. The ``function`` must be defined at a global scope
+        1. Define ``function`` at a global scope
            (i.e. outside of ``pipeline_def`` scope).
 
-        2. If the ``function`` is created within pipeline definition,
-           the factory function must be decorated with
+        2. If the ``function`` is defined within the pipeline definition function,
+           the function must be decorated with
            :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
-           recursively converted when the pipeline definition is traced.
+           recursively converted when the pipeline definition is processed.
 
     More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
     documentation.

@@ -50,7 +50,7 @@ If no setup function provided, the output shape and data type will be the same a
 
 .. warning::
     The ``run_fn`` and ``setup_fn``, when :ref:`conditional mode <conditional_execution>` is enabled,
-    mmust not be transformed by AutoGraph. There are two ways to prevent that:
+    must not be transformed by AutoGraph. There are two ways to prevent that:
 
         1. Define ``run_fn`` and ``setup_fn`` at a global scope
            (i.e. outside of ``pipeline_def`` scope).
