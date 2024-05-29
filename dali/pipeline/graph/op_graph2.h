@@ -64,13 +64,13 @@ struct OpNode {
   /** This list contains both positional and argument inputs. */
   SmallVector<DataNode *, 8> inputs;
   /** This list contains the outputs of the operator (including unused ones). */
-  SmallVector<DataNode *, 8> outputs;
+  SmallVector<DataNode *, 4> outputs;
 };
 
 struct DataEdge {
-  /** The relevant operator (produced or consumer), depending on context. */
+  /** The relevant operator (producer or consumer), depending on context. */
   OpNode *op = nullptr;
-  /** The index of the producer's output or consumer's input, dependin on context. */
+  /** The index of the producer's output or consumer's input, depending on context. */
   int idx = 0;
 };
 
