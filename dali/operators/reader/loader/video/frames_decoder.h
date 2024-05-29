@@ -117,7 +117,7 @@ class DLL_PUBLIC FramesDecoder {
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
   FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true,
-                bool init_codecs = true, int num_frames = -1);
+                bool init_codecs = true, int num_frames = -1, const std::string &source_info = {});
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.

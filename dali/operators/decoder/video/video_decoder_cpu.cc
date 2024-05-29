@@ -24,14 +24,20 @@ bool VideoDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   frames_decoders_.resize(batch_size);
   auto &thread_pool = ws.GetThreadPool();
   for (int i = 0; i < batch_size; ++i) {
-    auto sample = input[i];
-    auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-    size_t size = sample.shape().num_elements();
-    thread_pool.AddWork([this, i, data, size](int tid) {
-      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, false);
+    thread_pool.AddWork([this, i, &input](int tid) {
+      auto sample = input[i];
+      auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
+      size_t size = sample.shape().num_elements();
+      auto source_info = input.GetMeta(i).GetSourceInfo();
+      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, false, true, -1,
+                                                            source_info);
     });
   }
   thread_pool.RunAll();
+  for (auto &dec : frames_decoders_) {
+    DALI_ENFORCE(dec->IsValid(), make_string("Failed to create video decoder for \"",
+                                 dec->Filename(), "\""));
+  }
   output_desc.resize(1);
   output_desc[0].shape = ReadOutputShape();
   output_desc[0].type = DALI_UINT8;
