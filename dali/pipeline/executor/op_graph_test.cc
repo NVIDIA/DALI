@@ -708,8 +708,7 @@ TEST_F(OpGraphTest, Lowering) {
   b.Add("Copy0", spec1);  // tensor node 1
   b.AddOutput("copy_1_data_cpu");
 
-  auto def = std::move(b).GetGraph();
-  def.SortAndPrune();
+  auto def = std::move(b).GetGraph(true);
   OpGraph lowered;
   lowered.Lower(def);
 
