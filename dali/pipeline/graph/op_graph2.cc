@@ -160,6 +160,18 @@ class OpGraph::SortHelper {
         Traverse(&op);
     }
 
+    if (!prune) {
+      // Not pruning? Add remaning operators and data nodes.
+      // They will appear after all relevant nodes.
+      for (auto &op : graph_.op_nodes_) {
+        Traverse(&op);
+      }
+
+      for (auto &data : graph_.data_nodes_) {
+        Traverse(&data);
+      }
+    }
+
     OpNodeList out_ops;
     for (auto *op : sorted_ops_)
       out_ops.splice(out_ops.end(), graph_.op_nodes_, op->iter);
@@ -176,17 +188,12 @@ class OpGraph::SortHelper {
     // NOTE: no producer of otherwise valid node should be removed, so we only need to adjust
     // consumers.
 
-    if (prune) {
-      for (auto &pruned_op : out_ops) {
-        graph_.RemoveDataNodeReferences(pruned_op);
-        graph_.name2op_.erase(pruned_op.instance_name);
-      }
-      for (auto &pruned_data : out_data) {
-        graph_.name2data_.erase(pruned_data.name);
-      }
-    } else {
-      graph_.op_nodes_.splice(graph_.op_nodes_.end(), out_ops);
-      graph_.data_nodes_.splice(graph_.data_nodes_.end(), out_data);
+    for (auto &pruned_op : out_ops) {
+      graph_.RemoveDataNodeReferences(pruned_op);
+      graph_.name2op_.erase(pruned_op.instance_name);
+    }
+    for (auto &pruned_data : out_data) {
+      graph_.name2data_.erase(pruned_data.name);
     }
   }
 
