@@ -159,8 +159,18 @@ class DLL_PUBLIC OpGraph {
    */
   void Sort(bool prune);
 
+  /** Adds an operator node.
+   *
+   * This function doesn't create any DataNodes or validate anything. Use `OpGraph::Buidler`
+   * to construct the graph from `OpSpecs`.
+   */
   OpNode &AddOp(std::string instance_name, OpSpec spec);
 
+  /** Adds a DataNode with given name and storage device.
+   *
+   * @name The full name of the data node. The storage device is not added to the name - it must
+   *       be already there if desired.
+   */
   DataNode &AddData(std::string name, StorageDevice device);
 
   /** Erases an operator node.
