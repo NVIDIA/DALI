@@ -112,8 +112,6 @@ struct DataNode {
   bool pipeline_output = false;
 };
 
-class OpGraphBuilder;
-
 /** A graph defining a pipeline.
  *
  * This graph represents the operators and connections between them.
@@ -156,10 +154,10 @@ class DLL_PUBLIC OpGraph {
   /** Sorts the graph topologically and removes entries that do not contribute to essential nodes.
    *
    * After this function succeeds, the graph is topologically sorted from input to output.
-   * The graph is also pruned, keeping only the nodes that contribute to the outputs or one
+   * The graph can be also pruned, keeping only the nodes that contribute to the outputs or one
    * of the operators with `keep` flag set.
    */
-  void SortAndPrune();
+  void Sort(bool prune);
 
   OpNode &AddOp(std::string instance_name, OpSpec spec);
 
@@ -208,8 +206,49 @@ class DLL_PUBLIC OpGraph {
   friend class SortHelper;
 };
 
+/** A helper for visiting DAG nodes - it features previous visit detection and cycle detection. */
+template <typename Node>
+class Visit {
+ public:
+  explicit Visit(Node *n) : node_(n) {
+    if (node_->visit_pending)
+      throw std::logic_error("Cycle detected.");
+    node_->visit_pending = true;
+    new_visit_ = !n->visited;
+    node_->visited = true;
+  }
+  ~Visit() {
+    node_->visit_pending = false;
+  }
+
+  explicit operator bool() const {
+    return new_visit_;
+  }
+
+ private:
+  Node *node_;
+  bool new_visit_;
+};
+
+/** Clears visit markers.
+ *
+ * Sets the `visited` field to `false`.
+ * Typically used at the beginning of a graph-processing algorithm.
+ */
+template <typename NodeList>
+static void ClearVisitMarkers(NodeList &nodes) {
+  for (auto &node : nodes)
+    node.visited = false;
+}
+
+/** A single-use class for constructing graphs. */
 class DLL_PUBLIC OpGraph::Builder {
  public:
+  /** Constructs an OpNode and all relevant DataNodes based on the operator's specification.
+   *
+   * This function creates an OpNode and goes over all inputs and outputs in the OpSpec,
+   * updating or creating the relevant DataNodes.
+   */
   void Add(std::string instance_name, OpSpec spec);
 
   /** Marks a data node with the given name as a pipeline output.
@@ -218,10 +257,12 @@ class DLL_PUBLIC OpGraph::Builder {
    */
   void AddOutput(std::string output_name);
 
-  void Build();
-  OpGraph GetGraph() &&;
+  void Build(bool prune);
+  /**  Removes the newly created graph from the builder. */
+  OpGraph GetGraph(bool prune = false) &&;
  private:
   bool built_ = false;
+  bool pruned_ = false;
   std::vector<std::string> output_names_;
   OpGraph graph_;
 };

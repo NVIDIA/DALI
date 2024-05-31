@@ -274,8 +274,8 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
   OpGraph g = std::move(b).GetGraph();
 
   auto &nodes = g.OpNodes();
-  ASSERT_EQ(nodes.size(), 3_uz) << "The nodes were nod added properly - abandoning test";
-  g.SortAndPrune();
+  ASSERT_EQ(nodes.size(), 3_uz) << "The nodes were not added properly - abandoning test";
+  g.Sort(true);
   EXPECT_EQ(nodes.size(), 2_uz);
   ASSERT_GE(nodes.size(), 2_uz) << "Graph overpruned.";
   auto it = g.OpNodes().begin();
