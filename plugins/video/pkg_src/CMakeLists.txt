@@ -75,17 +75,17 @@ if(NOT $ENV{LD_PRELOAD} STREQUAL "")
 else()
     set(NEW_LD_PRELOAD "${cuda_LIBRARY}")
 endif()
-string(REPLACE " " ":" NEW_LD_PRELOAD "${NEW_LD_PRELOAD}")
 
 # Generates .pyi stubs
 # Note: Needs to preload libcuda.so stub so that the shared-object library can be loaded
 add_custom_target(dali_${PLUGIN_NAME}_generate_stubs ALL
-  DEPENDS dali_${PLUGIN_NAME}
-  BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/fn/plugin/video/
-  COMMAND LD_PRELOAD=${NEW_LD_PRELOAD} ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/generate_plugin_stubs.py
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${PROJECT_BINARY_DIR}/libdali_${PLUGIN_NAME}.so
-      )
+DEPENDS dali_${PLUGIN_NAME}
+BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/fn/plugin/video/
+COMMAND /bin/bash -c
+    "LD_PRELOAD=\"${NEW_LD_PRELOAD}\" \
+    ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/generate_plugin_stubs.py \
+    ${CMAKE_CURRENT_BINARY_DIR} ${PROJECT_BINARY_DIR}/libdali_${PLUGIN_NAME}.so"
+)
 
 install(TARGETS dali_${PLUGIN_NAME}
     RUNTIME DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}
