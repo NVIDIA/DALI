@@ -206,9 +206,9 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
-                             bool init_codecs, int num_frames, const std::string &source_info)
+                             bool init_codecs, int num_frames, const std::string source_info)
   : av_state_(std::make_unique<AvState>()),
-    filename_(source_info.size() ? std::optional<const std::string>(source_info) : std::nullopt),
+    filename_(source_info),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   DALI_ENFORCE(init_codecs || !build_index,
                "FramesDecoder doesn't support index without CPU codecs");
@@ -502,7 +502,7 @@ void FramesDecoder::Reset() {
     make_string(
       "Could not seek to the first frame of video \"",
       Filename(),
-      "\", due to",
+      "\", due to ",
       detail::av_error_string(ret)));
   if (av_state_->codec_) {
     avcodec_flush_buffers(av_state_->codec_ctx_);
