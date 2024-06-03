@@ -44,16 +44,14 @@ The function should not modify input tensors.
   This operator is not compatible with TensorFlow integration.
 
 .. warning::
-    The ``function``, when :ref:`conditional mode <conditional_execution>` is enabled,
-    must not be transformed by AutoGraph. There are two ways to prevent that:
+    When the pipeline has conditional execution enabled, additional steps must be taken to
+    prevent the ``function`` from being rewritten by AutoGraph.
+    There are two ways to achieve this:
 
-        1. Define ``function`` at a global scope
-           (i.e. outside of ``pipeline_def`` scope).
+        1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).
 
-        2. If the ``function`` is defined within the pipeline definition function,
-           the factory function must be decorated with
-           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
-           recursively converted when the pipeline definition is processed.
+        2. If function is a result of another "factory" function, then the factory function
+           must have :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>` attribute.
 
     More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
     documentation.
