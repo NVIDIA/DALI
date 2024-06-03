@@ -14,7 +14,7 @@
 
 #include <vector>
 
-#include "dali/pipeline/graph/op_graph_storage.h"
+#include "dali/pipeline/executor/op_graph_storage.h"
 
 namespace dali {
 

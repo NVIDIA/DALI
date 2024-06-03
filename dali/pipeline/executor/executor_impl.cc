@@ -24,7 +24,7 @@
 #include "dali/pipeline/executor/executor_impl.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
-#include "dali/pipeline/graph/op_graph_storage.h"
+#include "dali/pipeline/executor/op_graph_storage.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/workspace/workspace.h"

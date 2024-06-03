@@ -17,7 +17,7 @@
 #include <string>
 
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/name_utils.h"
@@ -50,7 +50,7 @@ bool AllOutputsGPU(const OpSpec &spec) {
   return true;
 }
 
-// TODO(klecki): Graph creation is not a place to check OpSpec?
+// TODO(michalz): Remove this part to pipeline.cc.
 void CheckOpConstraints(const OpSpec &spec) {
   const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
 

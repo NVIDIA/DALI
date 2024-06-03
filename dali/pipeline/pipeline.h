@@ -34,7 +34,8 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
-#include "dali/pipeline/graph/op_graph.h"
+// TODO(michalz): Use OpGraph2
+#include "dali/pipeline/executor/lowered_graph.h"
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
