@@ -73,7 +73,9 @@ if (NOT BUILD_FFMPEG)
         PATHS ${pynvvideocodec_SOURCE_DIR}/external/ffmpeg
         NO_DEFAULT_PATH)
       if (${FFMPEG_DIR} STREQUAL "FFMPEG_DIR-NOTFOUND")
-        message(FATAL_ERROR "Could not find ffmpeg libs in pynvvideocodec.")
+        message(FATAL_ERROR
+          "Could not find FFmpeg libs in pynvvideocodec. "
+          "Please install FFmpeg or set the environment variable BUILD_FFMPEG to \"ON\" to build it from source")
       endif()
       set(BUNDLE_FFMPEG_LIBS ON)
       set(FFMPEG_LIBRARY_DIR ${FFMPEG_DIR}/lib)
