@@ -141,8 +141,6 @@ class DLL_PUBLIC OpGraph {
 
   DLL_PUBLIC inline ~OpGraph() = default;
 
-  void Lower(const graph::OpGraph &definition);
-
   /**
    * @brief Adds an op with the input specification to the graph.
    */
