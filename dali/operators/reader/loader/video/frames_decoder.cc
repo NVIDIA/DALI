@@ -206,7 +206,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
-                             bool init_codecs, int num_frames, const std::string source_info)
+                             bool init_codecs, int num_frames, std::string_view source_info)
   : av_state_(std::make_unique<AvState>()),
     filename_(source_info),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
