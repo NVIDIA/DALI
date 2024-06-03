@@ -117,7 +117,7 @@ class DLL_PUBLIC FramesDecoder {
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
   FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true,
-                bool init_codecs = true, int num_frames = -1);
+                bool init_codecs = true, int num_frames = -1, std::string_view source_info = {});
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -199,7 +199,7 @@ class DLL_PUBLIC FramesDecoder {
   virtual ~FramesDecoder() = default;
 
   std::string Filename() {
-    return filename_.has_value() ? filename_.value() : "memory file";
+    return filename_.size() ? filename_ : "memory file";
   }
 
   bool IsValid() {
@@ -278,7 +278,7 @@ class DLL_PUBLIC FramesDecoder {
   // False when the file doesn't have any correct content or doesn't have valid video stream
   bool is_valid_ = false;
 
-  std::optional<const std::string> filename_ = {};
+  const std::string filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
 
   std::optional<int> num_frames_ = {};

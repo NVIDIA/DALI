@@ -147,7 +147,7 @@ bool FramesDecoder::FindVideoStream(bool init_codecs) {
     }
 
     if (i >= av_state_->ctx_->nb_streams) {
-      DALI_WARN(make_string("Could not find a valid video stream in a file ", Filename()));
+      DALI_WARN(make_string("Could not find a valid video stream in a file \"", Filename(), "\""));
       return false;
     }
   } else {
@@ -156,7 +156,7 @@ bool FramesDecoder::FindVideoStream(bool init_codecs) {
 
     LOG_LINE << "Best stream " << av_state_->stream_id_ << std::endl;
     if (av_state_->stream_id_ < 0) {
-      DALI_WARN(make_string("Could not find a valid video stream in a file ", Filename()));
+      DALI_WARN(make_string("Could not find a valid video stream in a file \"", Filename(), "\""));
       return false;
     }
 
@@ -164,7 +164,7 @@ bool FramesDecoder::FindVideoStream(bool init_codecs) {
   }
   if (Height() == 0 || Width() == 0) {
     if (avformat_find_stream_info(av_state_->ctx_, nullptr) < 0) {
-      DALI_WARN(make_string("Could not find stream information in ", Filename()));
+      DALI_WARN(make_string("Could not find stream information in \"", Filename(), "\""));
       return false;
     }
     if (Height() == 0 || Width() == 0) {
@@ -185,7 +185,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
   int ret = avformat_open_input(&av_state_->ctx_, Filename().c_str(), nullptr, nullptr);
   if (ret != 0) {
-    DALI_WARN(make_string("Failed to open video file ", Filename(), "due to ",
+    DALI_WARN(make_string("Failed to open video file \"", Filename(), "\" due to ",
                           detail::av_error_string(ret)));
     return;
   }
@@ -206,8 +206,9 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
-                             bool init_codecs, int num_frames)
+                             bool init_codecs, int num_frames, std::string_view source_info)
   : av_state_(std::make_unique<AvState>()),
+    filename_(source_info),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   DALI_ENFORCE(init_codecs || !build_index,
                "FramesDecoder doesn't support index without CPU codecs");
@@ -235,7 +236,7 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
 
   int ret = avformat_open_input(&av_state_->ctx_, "", nullptr, nullptr);
   if (ret != 0) {
-    DALI_WARN(make_string("Failed to open video file ", Filename(), "due to ",
+    DALI_WARN(make_string("Failed to open video file \"", Filename(), "\", due to ",
                           detail::av_error_string(ret)));
     return;
   }
@@ -244,8 +245,8 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
     return;
   }
   if (!CheckCodecSupport()) {
-    DALI_WARN(make_string("Unsupported video codec: ", CodecName(),
-                          ". Supported codecs: h264, HEVC."));
+    DALI_WARN(make_string("Unsupported video codec: \"", CodecName(),
+                          "\". Supported codecs: h264, HEVC."));
     return;
   }
   InitAvState(init_codecs || build_index);
@@ -286,9 +287,9 @@ void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_
     DALI_ENFORCE(
       ret == 0,
       make_string(
-        "Failed to open video file ",
+        "Failed to open video file \"",
         Filename(),
-        "due to ",
+        "\", due to ",
         detail::av_error_string(ret)));
     av_state->stream_id_ = av_find_best_stream(
       av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -499,9 +500,9 @@ void FramesDecoder::Reset() {
   DALI_ENFORCE(
     ret >= 0,
     make_string(
-      "Could not seek to the first frame of video ",
+      "Could not seek to the first frame of video \"",
       Filename(),
-      "due to",
+      "\", due to ",
       detail::av_error_string(ret)));
   if (av_state_->codec_) {
     avcodec_flush_buffers(av_state_->codec_ctx_);
@@ -538,9 +539,9 @@ void FramesDecoder::SeekFrame(int frame_id) {
       frame_id,
       "with keyframe",
       keyframe_id,
-      "in video ",
+      "in video \"",
       Filename(),
-      "due to ",
+      "\" due to ",
       detail::av_error_string(ret)));
 
   avcodec_flush_buffers(av_state_->codec_ctx_);
