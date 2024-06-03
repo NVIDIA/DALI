@@ -571,8 +571,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     }
   }
 
-  graph_.InstantiateOperators();
-
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
 
@@ -789,16 +787,14 @@ string Pipeline::SerializeToProtobuf() const {
   return output;
 }
 
-OpNode * Pipeline::GetOperatorNode(const std::string& name) {
+OpNode *Pipeline::GetOperatorNode(std::string_view name) {
   return &(graph_.Node(name));
 }
 
-const OpNode *Pipeline::GetInputOperatorNode(const std::string& name) {
-  for (auto &[op_name, node] : input_operators_) {
-    if (op_name == name) {
-      return node;
-    }
-  }
+const OpNode *Pipeline::GetInputOperatorNode(std::string_view name) {
+  auto it = input_operators_.find(name);
+  if (it != input_operators_.end())
+    return it->second;
   DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
 }
 
@@ -814,23 +810,19 @@ std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
   return ret;
 }
 
-ReaderMeta Pipeline::GetReaderMeta(const std::string &name) {
-  ReaderMeta meta;
-  for (Index i = 0; i < graph_.NumOp(); ++i) {
-    const OpNode &current = graph_.Node(i);
-    if (current.instance_name == name) {
-      meta = current.op->GetReaderMeta();
-      break;
-    }
+ReaderMeta Pipeline::GetReaderMeta(std::string_view name) {
+  ReaderMeta meta{};
+  if (auto *op = executor_->GetOperator(name)) {
+    meta = op->GetReaderMeta();
   }
   return meta;
 }
 
-int Pipeline::InputFeedCount(const std::string &name) {
+int Pipeline::InputFeedCount(std::string_view name) {
   return executor_->InputFeedCount(name);
 }
 
-const TensorLayout &Pipeline::GetInputLayout(const std::string &name) {
+const TensorLayout &Pipeline::GetInputLayout(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputLayout()\".");
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {
@@ -853,7 +845,7 @@ const TensorLayout &Pipeline::GetInputLayout(const std::string &name) {
 }
 
 
-int Pipeline::GetInputNdim(const std::string &name) {
+int Pipeline::GetInputNdim(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputNdim()\".");
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {
@@ -876,7 +868,7 @@ int Pipeline::GetInputNdim(const std::string &name) {
 }
 
 
-DALIDataType Pipeline::GetInputDtype(const std::string &name) {
+DALIDataType Pipeline::GetInputDtype(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputDtype()\".");
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {

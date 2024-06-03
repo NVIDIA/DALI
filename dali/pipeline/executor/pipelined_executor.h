@@ -50,8 +50,6 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
 
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
 
-  DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
-
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutorImpl);
 
  protected:
@@ -82,12 +80,6 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
    */
   size_t CalcIterationDataSize() const override;
 };
-
-template <typename WorkspacePolicy, typename QueuePolicy>
-void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph,
-                                                                vector<string> output_names) {
-  Executor<WorkspacePolicy, QueuePolicy>::Build(graph, output_names);
-}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
@@ -123,7 +115,7 @@ class DLL_PUBLIC SeparatedPipelinedExecutor
   using ImplBase = PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
   using ImplBase::ImplBase;
  public:
-  int InputFeedCount(const std::string &name) override;
+  int InputFeedCount(std::string_view name) override;
 };
 
 }  // namespace dali

@@ -720,7 +720,6 @@ TEST_F(OpGraphTest, Lowering) {
   handmade.AddOp(spec4, "Copy1");
 
   CheckEqual(lowered, handmade);
-
 }
 
 

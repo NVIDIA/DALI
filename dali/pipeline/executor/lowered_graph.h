@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
 #define DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
 
+#include <functional>
 #include <map>
 #include <unordered_set>
 #include <utility>
@@ -199,7 +200,7 @@ class DLL_PUBLIC OpGraph {
    * index as argument so should not be used in performance
    * critical section of the code.
    */
-  DLL_PUBLIC OpNode& Node(const std::string& name);
+  DLL_PUBLIC OpNode& Node(std::string_view name);
 
   /**
    * @brief Returns the graph node with the given index in the graph.
@@ -478,8 +479,9 @@ class DLL_PUBLIC OpGraph {
    */
   void RemoveOpNode(OpNodeId id);
 
-  std::map<std::string, TensorNodeId> tensor_name_to_id_;
+  std::map<std::string, TensorNodeId, std::less<>> tensor_name_to_id_;
   mutable std::map<TensorNodeId, bool> has_consumers_in_other_stage_;
+  std::map<std::string, OpNodeId, std::less<>> op_name_to_id_;
 
   bool pass_through_computed_ = false;
 };

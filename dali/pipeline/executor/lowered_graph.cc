@@ -116,6 +116,7 @@ OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string i
   auto new_partition_id = NumOp(op_type);
   node.partition_index = new_partition_id;
   op_partitions_[static_cast<int>(op_type)].push_back(node.id);
+  op_name_to_id_[instance_name] = node.id;
   return node;
 }
 
@@ -284,6 +285,9 @@ void OpGraph::RemoveTensorNode(TensorNodeId id) {
 void OpGraph::SwapOpNodes(OpNodeId left_id, OpNodeId right_id) {
   auto &left = op_nodes_[left_id];
   auto &right = op_nodes_[right_id];
+
+  op_name_to_id_[left.instance_name] = right_id;
+  op_name_to_id_[right.instance_name] = left_id;
   // Swap all references in tensor edges
   // Produced tensors (children)
   {
@@ -366,6 +370,7 @@ void OpGraph::RemoveOpNode(OpNodeId id) {
     Node(parent_id).children.erase(op_nodes_.back().id);
   }
   // assume that we removed one element
+  op_name_to_id_.erase(target_op.instance_name);
   op_nodes_.pop_back();
 }
 
@@ -449,13 +454,19 @@ std::vector<std::vector<TensorNodeId>> OpGraph::PartitionTensorByOpType() const 
 }
 
 // TODO(klecki): get rid of string indexing
-OpNode& OpGraph::Node(const std::string& name) {
+OpNode& OpGraph::Node(std::string_view name) {
+  auto it = op_name_to_id_.find(name);
+  if (it != op_name_to_id_.end()) {
+    OpNodeId id = it->second;
+    assert(id >= 0 && id < OpNodeId(op_nodes_.size()));
+    return op_nodes_[id];
+  }
   for (auto &node : op_nodes_) {
     if (node.instance_name == name) {
       return node;
     }
   }
-  DALI_FAIL("Operator node with name " + name + " not found.");
+  DALI_FAIL(make_string("Operator node with name ", name, " not found."));
 }
 
 namespace {
