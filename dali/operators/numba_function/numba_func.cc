@@ -56,7 +56,8 @@ If no setup function provided, the output shape and data type will be the same a
         1. Define the functions at global scope (i.e. outside of ``pipeline_def`` scope).
 
         2. If functions are a result of another "factory" function, then the factory function
-           must have :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>` attribute.
+           must be defined outside pipeline definition function and decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
 
     More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
     documentation.

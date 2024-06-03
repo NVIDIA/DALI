@@ -51,7 +51,8 @@ The function should not modify input tensors.
         1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).
 
         2. If function is a result of another "factory" function, then the factory function
-           must have :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>` attribute.
+           must be defined outside pipeline definition function and decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
 
     More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
     documentation.
