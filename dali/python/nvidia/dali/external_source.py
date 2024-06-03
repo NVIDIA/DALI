@@ -316,283 +316,289 @@ class ExternalSource:
         which is more performant."""
 
     _args_doc = """
-Args
-----
+    Args
+    ----
+
+    `source` : callable or iterable
+        The source of the data.
+
+        The source is polled for data (via a call ``source()`` or ``next(source)``)
+        when the pipeline needs input for the next iteration. Depending on the value of
+        ``num_outputs``, the source can supply one or more data items. The data item can be
+        a whole batch (default) or a single batch entry (when ``batch==False``). If ``num_outputs``
+        is not set, the ``source`` is expected to return one item (a batch or a sample).
+        If this value is specified (even if its value is 1), the data is expected to a be tuple,
+        or list, where each element corresponds to respective return value of the external_source.
 
-`source` : callable or iterable
-    The source of the data.
+        The data samples must be in one of the compatible array types:
 
-    The source is polled for data (via a call ``source()`` or ``next(source)``)
-    when the pipeline needs input for the next iteration. Depending on the value of ``num_outputs``,
-    the source can supply one or more data items. The data item can be a whole batch (default) or
-    a single batch entry (when ``batch==False``). If ``num_outputs`` is not set, the ``source``
-    is expected to return one item (a batch or a sample). If this value is specified (even if its
-    value is 1), the data is expected to a be tuple, or list, where each element corresponds to
-    respective return value of the external_source.
+            * NumPy ndarray (CPU)
+            * MXNet ndarray (CPU)
+            * PyTorch tensor (CPU or GPU)
+            * CuPy array (GPU)
+            * objects implementing ``__cuda_array_interface__``
+            * DALI `Tensor` object
 
-    The data samples must be in one of the compatible array types:
+        Batch sources must produce entire batches of data. This can be achieved either
+        by adding a new outermost dimension to an array or by returning a list of arrays
+        (in which case they can be of different size, but must have the same rank and
+        element type). A batch source can also produce a DALI `TensorList` object,
+        which can be an output of another DALI pipeline.
 
-        * NumPy ndarray (CPU)
-        * MXNet ndarray (CPU)
-        * PyTorch tensor (CPU or GPU)
-        * CuPy array (GPU)
-        * objects implementing ``__cuda_array_interface__``
-        * DALI `Tensor` object
+        A per-batch source may accept one positional argument. If it does, it is the index
+        of current iteration within epoch and consecutive calls will be ``source(0)``,
+        ``source(1)``, and so on. If `batch_info` is set to True, instance of
+        :class:`nvidia.dali.types.BatchInfo` will be passed to the source,
+        instead of a plain index.
 
-    Batch sources must produce entire batches of data. This can be achieved either by adding a new
-    outermost dimension to an array or by returning a list of arrays (in which case they can be of
-    different size, but must have the same rank and element type). A batch source can also
-    produce a DALI `TensorList` object, which can be an output of another DALI pipeline.
+        A per-sample source may accept one positional argument of type
+        :class:`nvidia.dali.types.SampleInfo`, which contains index of the sample
+        in current epoch and in the batch, as well as current iteration number.
 
-    A per-batch source may accept one positional argument. If it does, it is the index of current
-    iteration within epoch and consecutive calls will be ``source(0)``, ``source(1)``, and so on.
-    If `batch_info` is set to True, instance of :class:`nvidia.dali.types.BatchInfo` will be
-    passed to the source, instead of a plain index.
+        If the source is a generator function, the function is invoked and treated as an iterable.
+        However, unlike a generator, the function can be used with ``cycle``. In this case,
+        the function will be called again when the generator reaches the end of iteration.
 
-    A per-sample source may accept one positional argument of type
-    :class:`nvidia.dali.types.SampleInfo`, which contains index of the sample in current epoch and
-    in the batch, as well as current iteration number.
+        For GPU inputs, it is a user's responsibility to modify the provided GPU memory content
+        only in the provided stream. DALI schedules a copy on this stream, and all work is properly
+        queued. If no stream is provided, DALI will use a default, with a best-effort approach at
+        correctness. See the ``cuda_stream`` argument documentation for more information.
 
-    If the source is a generator function, the function is invoked and treated as an iterable.
-    However, unlike a generator, the function can be used with ``cycle``. In this case, the function
-    will be called again when the generator reaches the end of iteration.
+        .. note::
+            After restoring from checkpoint, queries to sources that are single-argument callables
+            (accepting :class:`nvidia.dali.types.SampleInfo`, :class:`nvidia.dali.types.BatchInfo`
+            or batch index) will be resumed from the epoch and iteration saved in the checkpoint.
 
-    For GPU inputs, it is a user's responsibility to modify the provided GPU memory content
-    only in the provided stream. DALI schedules a copy on this stream, and all work is properly
-    queued. If no stream is provided, DALI will use a default, with a best-effort approach at
-    correctness. See the ``cuda_stream`` argument documentation for more information.
+    `num_outputs` : int, optional
+        If specified, denotes the number of TensorLists that are produced by the source function.
 
-    .. note::
-        After restoring from checkpoint, queries to sources that are single-argument callables
-        (accepting :class:`nvidia.dali.types.SampleInfo`, :class:`nvidia.dali.types.BatchInfo`
-        or batch index) will be resumed from the epoch and iteration saved in the checkpoint.
+        If set, the operator returns a list of ``DataNode`` objects, otherwise a single ``DataNode``
+        object is returned.
 
-`num_outputs` : int, optional
-    If specified, denotes the number of TensorLists that are produced by the source function.
+    Keyword Args
+    ------------
 
-    If set, the operator returns a list of ``DataNode`` objects, otherwise a single ``DataNode``
-    object is returned.
+    `cycle`: string or bool, optional
+        Specifies if and how to cycle through the source.
+        It can be one of the following values:
 
-Keyword Args
-------------
+            * ``"no"``, ``False`` or ``None`` - don't cycle; ``StopIteration`` is raised when
+            end of data is reached; this is the default behavior
+            * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
+            * ``"raise"`` - when the end of data is reached, ``StopIteration`` is raised, but
+            the iteration is restarted on subsequent call.
 
-`cycle`: string or bool, optional
-    Specifies if and how to cycle through the source.
-    It can be one of the following values:
+        This flag requires that the ``source`` is a collection, for example, an iterable
+        object where ``iter(source)`` returns a fresh iterator on each call, or
+        a generator function. In the latter case, the generator function is called
+        again when more data than was yielded by the function is requested.
 
-        * ``"no"``, ``False`` or ``None`` - don't cycle; ``StopIteration`` is raised when
-          end of data is reached; this is the default behavior
-        * ``"quiet"`` or ``True`` - the data is repeated indefinitely,
-        * ``"raise"`` - when the end of data is reached, ``StopIteration`` is raised, but
-          the iteration is restarted on subsequent call.
+        Specifying ``"raise"`` can be used with DALI iterators to create a notion of epoch.
 
-    This flag requires that the ``source`` is a collection, for example, an iterable object where
-    ``iter(source)`` returns a fresh iterator on each call, or a generator function.
-    In the latter case, the generator function is called again when more data than was
-    yielded by the function is requested.
+    `name` : str, optional
+        The name of the data node.
 
-    Specifying ``"raise"`` can be used with DALI iterators to create a notion of epoch.
+        Used when feeding the data with a call to  ``feed_input`` and can be omitted if
+        the data is provided by ``source``.
 
-`name` : str, optional
-    The name of the data node.
+    `layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
+        If provided, sets the layout of the data.
 
-    Used when feeding the data with a call to  ``feed_input`` and can be omitted if
-    the data is provided by ``source``.
+        When ``num_outputs > 1``, the layout can be a list that contains a distinct layout
+        for each output. If the list has fewer than ``num_outputs`` elements, only
+        the first outputs have the layout set, the rest of the outputs don't have a layout set.
 
-`layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
-    If provided, sets the layout of the data.
+    `dtype` : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
+        Input data type.
 
-    When ``num_outputs > 1``, the layout can be a list that contains a distinct layout for each
-    output. If the list has fewer than ``num_outputs`` elements, only the first
-    outputs have the layout set, the rest of the outputs don't have a layout set.
+        When ``num_outputs > 1``, the ``dtype`` can be a list that contains a distinct
+        value for each output.
 
-`dtype` : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
-    Input data type.
+        The operator will validate that the fetched data is of the provided type.
+        If the argument is omitted or :const:`DALIDataType.NO_TYPE` is passed,
+        the operator will infer the type from the provided data.
 
-    When ``num_outputs > 1``, the ``dtype`` can be a list that contains a distinct value for each
-    output.
+        This argument will be required starting from DALI 2.0.
 
-    The operator will validate that the fetched data is of the provided type.
-    If the argument is omitted or :const:`DALIDataType.NO_TYPE` is passed, the operator will infer
-    the type from the provided data.
+    `ndim` : int or list/tuple thereof, optional
+        Number of dimensions in the input data.
 
-    This argument will be required starting from DALI 2.0.
+        When ``num_outputs > 1``, the ``ndim`` can be a list that contains a distinct value for each
+        output.
 
-`ndim` : int or list/tuple thereof, optional
-    Number of dimensions in the input data.
+        The dimensionality of the data provided to the operator will be verified against this value.
+        Number of dimensions can be also inferred from the ``layout`` argument if provided.
 
-    When ``num_outputs > 1``, the ``ndim`` can be a list that contains a distinct value for each
-    output.
+        If the ``layout`` argument is provided, the ``ndim`` must match
+        the number of dimensions in the layout.
 
-    The dimensionality of the data provided to the operator will be verified against this value.
-    Number of dimensions can be also inferred from the ``layout`` argument if provided.
+        Specifying the input dimensionality will be required starting from DALI 2.0
 
-    If the ``layout`` argument is provided, the ``ndim`` must match
-    the number of dimensions in the layout.
+    `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
+        such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
+        The CUDA stream is used to copy data to the GPU or from a GPU source.
 
-    Specifying the input dimensionality will be required starting from DALI 2.0
+        If this parameter is not set, a best-effort will be taken to maintain correctness. That is,
+        if the data is provided as a tensor/array from a recognized library such as CuPy or PyTorch,
+        the library's current stream is used. Although this approach works in typical scenarios,
+        with advanced use cases, and code that uses unsupported libraries, you might need to
+        explicitly supply the stream handle.
 
-`cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
-    such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
-    The CUDA stream is used to copy data to the GPU or from a GPU source.
+        This argument has two special values:
 
-    If this parameter is not set, a best-effort will be taken to maintain correctness. That is,
-    if the data is provided as a tensor/array from a recognized library such as CuPy or PyTorch,
-    the library's current stream is used. Although this approach works in typical scenarios,
-    with advanced use cases, and code that uses unsupported libraries, you might need to
-    explicitly supply the stream handle.
+        * 0 - Use the default CUDA stream
+        * 1 - Use DALI's internal stream
 
-    This argument has two special values:
+        If internal stream is used, the call to ``feed_input`` will block until the copy to internal
+        buffer is complete, since there's no way to synchronize with this stream to prevent
+        overwriting the array with new data in another stream.
 
-      * 0 - Use the default CUDA stream
-      * 1 - Use DALI's internal stream
+    `use_copy_kernel` : bool, optional
+        If set to True, DALI will use a CUDA kernel to feed the data
+        instead of cudaMemcpyAsync (default).
 
-    If internal stream is used, the call to ``feed_input`` will block until the copy to internal
-    buffer is complete, since there's no way to synchronize with this stream to prevent
-    overwriting the array with new data in another stream.
+        .. note::
+            This is applicable only when copying data to and from GPU memory.
 
-`use_copy_kernel` : bool, optional
-    If set to True, DALI will use a CUDA kernel to feed the data
-    instead of cudaMemcpyAsync (default).
+    `no_copy` : bool, optional
+        Determines whether DALI should copy the buffer when feed_input is called.
 
-    .. note::
-        This is applicable only when copying data to and from GPU memory.
+        If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
+        It is the user responsibility to keep the buffer alive and unmodified until it is
+        consumed by the pipeline.
 
-`no_copy` : bool, optional
-    Determines whether DALI should copy the buffer when feed_input is called.
+        The buffer can be modified or freed again after the output of the relevant iterations
+        has been consumed. Effectively, it happens after Pipeline's ``prefetch_queue_depth`` or
+        ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
+        the ``feed_input`` call.
 
-    If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
-    It is the user responsibility to keep the buffer alive and unmodified until it is
-    consumed by the pipeline.
+        The memory location must match the specified ``device`` parameter of the operator.
+        For the CPU, the provided memory can be one contiguous buffer or a list of
+        contiguous Tensors. For the GPU, to avoid extra copy, the provided buffer must
+        be contiguous. If you provide a list of separate Tensors, there will be an additional
+        copy made internally, consuming both memory and bandwidth.
 
-    The buffer can be modified or freed again after the output of the relevant iterations
-    has been consumed. Effectively, it happens after Pipeline's ``prefetch_queue_depth`` or
-    ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
-    the ``feed_input`` call.
+        Automatically set to ``True`` when ``parallel=True``
 
-    The memory location must match the specified ``device`` parameter of the operator.
-    For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
-    For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
-    of separate Tensors, there will be an additional copy made internally, consuming both memory
-    and bandwidth.
+    `batch` : bool, optional
+        If set to True or None, the ``source`` is expected to produce an entire batch at once.
+        If set to False, the ``source`` is called per-sample.
 
-    Automatically set to ``True`` when ``parallel=True``
+        Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
+
+    `batch_info` : bool, optional, default = False
+        Controls if a callable ``source`` that accepts an argument and returns batches
+        should receive class:`~nvidia.dali.types.BatchInfo` instance or just an
+        integer representing the iteration number.
+        If set to False (the default), only the integer is passed. If ``source`` is not callable,
+        does not accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
-`batch` : bool, optional
-    If set to True or None, the ``source`` is expected to produce an entire batch at once.
-    If set to False, the ``source`` is called per-sample.
-
-    Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
-
-`batch_info` : bool, optional, default = False
-    Controls if a callable ``source`` that accepts an argument and returns batches should receive
-    :class:`~nvidia.dali.types.BatchInfo` instance or just an
-    integer representing the iteration number.
-    If set to False (the default), only the integer is passed. If ``source`` is not callable,
-    does not accept arguments or ``batch`` is set to False, setting this flag has no effect.
-
-`parallel` : bool, optional, default = False
-    If set to True, the corresponding pipeline will start a pool of Python workers to run the
-    callback in parallel. You can specify the number of workers by passing ``py_num_workers``
-    into pipeline's constructor.
-
-    When ``parallel`` is set to True, samples returned by ``source`` must be
-    NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
-
-    |
-    Acceptable sources depend on the value specified for ``batch`` parameter.
-
-    If ``batch`` is set to ``False``, the ``source`` must be:
-
-      * a callable (a function or an object with ``__call__`` method) that accepts
-        exactly one argument (:class:`~nvidia.dali.types.SampleInfo` instance
-        that represents the index of the requested sample).
-
-    If ``batch`` is set to ``True``, the ``source`` can be either:
-
-      * a callable that accepts exactly one argument (either :class:`~nvidia.dali.types.BatchInfo`
-        instance or an integer - see ``batch_info`` for details)
-      * an iterable,
-      * a generator function.
-
-    |
-    .. warning::
-        Irrespective of ``batch`` value, callables should be stateless - they should produce
-        requested sample or batch solely based on the
-        :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
-        instance or index in batch, so that they can be run in parallel in a number of workers.
-
-        The ``source`` callback must raise a ``StopIteration`` when the end of the data is reached.
-        Note, that due to prefetching, the callback may be invoked with a few iterations past
-        the end of dataset - make sure it consistently raises a ``StopIteration`` in that case.
-
-    |
-    .. warning::
-        When the pipeline has conditional execution enabled, additional steps must be taken to
-        prevent the ``source`` from being rewritten by AutoGraph.
-        There are two ways to achieve this:
-
-            1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).
-
-            2. If function is a result of another "factory" function, then the factory function
-               must be defined outside pipeline definition function and decorated with
-               :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
-
-        More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
-        documentation.
-
-    |
-    .. note::
-        Callable ``source`` can be run in parallel by multiple workers.
-        For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
-        it is possible to parallelize computation within the batch.
-
-        When ``batch=True``, callables performance might especially benefit from increasing
-        ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
-
-    |
-    .. note::
-        Iterator or generator function will be assigned to a single worker that will
-        iterate over them. The main advantage is execution in parallel to the main
-        Python process, but due to their state it is not possible to calculate more
-        than one batch at a time.
-
-`repeat_last` : bool, optional, default = False
-    .. note::
-        This is an advanced setting that is usable mainly with Triton Inference Server
-        with decoupled models.
-
-    Normally, ``external_source`` consumes its input data and expects new ones to be fed in the
-    upcoming iteration. Setting ``repeat_last=True`` changes this behavior so that
-    ``external_source`` will detect that no new data was fed between the previous pipeline run and
-    the current one and will self-refeed with the most recent data.
-
-    Setting ``repeat_last`` to `True` only makes sense in "push" mode, i.e. when the data is
-    actively provided by the user via a call to ``feed_input``. Enabling this option is incompatible
-    with specifying the ``source``, which makes the ``external_source`` operate in "pull" mode.
-
-`prefetch_queue_depth` : int, optional, default = 1
-    When run in ``parallel=True`` mode, specifies the number of batches to be computed in
-    advance and stored in the internal buffer, otherwise parameter is ignored.
-
-`bytes_per_sample_hint`: int, optional, default = None
-    If specified in ``parallel=True`` mode, the value serves as a hint when
-    calculating initial capacity of shared memory slots used by the worker processes to pass
-    parallel external source outputs to the pipeline. The argument is ignored in non-parallel mode.
-
-    Setting a value large enough to accommodate the incoming data can prevent DALI from
-    reallocation of shared memory during the pipeline's run. Furthermore, providing the
-    hint manually can prevent DALI from overestimating the necessary shared memory capacity.
-
-    The value must be a positive integer.
-    Please note that the samples in shared memory are accompanied by some internal meta-data,
-    thus, the actual demand for the shared memory is slightly higher than just the size
-    of binary data produced by the external source. The actual meta-data size depends on
-    the number of factors and, for example, may change between Python or DALI
-    releases without notice.
-
-    Please refer to pipeline's ``external_source_shm_statistics`` for inspecting how much
-    shared memory is allocated for data produced by the pipeline's parallel external sources.
+    `parallel` : bool, optional, default = False
+        If set to True, the corresponding pipeline will start a pool of Python workers to run the
+        callback in parallel. You can specify the number of workers by passing ``py_num_workers``
+        into pipeline's constructor.
+
+        When ``parallel`` is set to True, samples returned by ``source`` must be
+        NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
+
+        |
+        Acceptable sources depend on the value specified for ``batch`` parameter.
+
+        If ``batch`` is set to ``False``, the ``source`` must be:
+
+        * a callable (a function or an object with ``__call__`` method) that accepts
+            exactly one argument (:class:`~nvidia.dali.types.SampleInfo` instance
+            that represents the index of the requested sample).
+
+        If ``batch`` is set to ``True``, the ``source`` can be either:
+
+        * a callable that accepts exactly one argument (either :class:`~nvidia.dali.types.BatchInfo`
+            instance or an integer - see ``batch_info`` for details)
+        * an iterable,
+        * a generator function.
+
+        |
+        .. warning::
+            Irrespective of ``batch`` value, callables should be stateless - they should produce
+            requested sample or batch solely based on the
+            :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
+            instance or index in batch, so that they can be run in parallel in a number of workers.
+
+            The ``source`` callback must raise a ``StopIteration`` when the end of
+            the data is reached. Note, that due to prefetching, the callback may be
+            invoked with a few iterations past the end of dataset - make sure it
+            consistently raises a ``StopIteration`` in that case.
+
+        |
+        .. warning::
+            When the pipeline has conditional execution enabled, additional steps must
+            be taken to prevent the ``source`` from being rewritten by AutoGraph.
+            There are two ways to achieve this:
+
+                1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).
+
+                2. If function is a result of another "factory" function, then the factory
+                function must be defined outside pipeline definition function and
+                decorated with
+                :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+
+            More details can be found in
+            :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>` documentation.
+
+        |
+        .. note::
+            Callable ``source`` can be run in parallel by multiple workers.
+            For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
+            it is possible to parallelize computation within the batch.
+
+            When ``batch=True``, callables performance might especially benefit from increasing
+            ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
+
+        |
+        .. note::
+            Iterator or generator function will be assigned to a single worker that will
+            iterate over them. The main advantage is execution in parallel to the main
+            Python process, but due to their state it is not possible to calculate more
+            than one batch at a time.
+
+    `repeat_last` : bool, optional, default = False
+        .. note::
+            This is an advanced setting that is usable mainly with Triton Inference Server
+            with decoupled models.
+
+        Normally, ``external_source`` consumes its input data and expects new ones to be fed in
+        the upcoming iteration. Setting ``repeat_last=True`` changes this behavior so that
+        ``external_source`` will detect that no new data was fed between the previous pipeline
+        run and the current one and will self-refeed with the most recent data.
+
+        Setting ``repeat_last`` to `True` only makes sense in "push" mode, i.e. when the data is
+        actively provided by the user via a call to ``feed_input``. Enabling this option
+        is incompatible with specifying the ``source``, which makes the ``external_source``
+        operate in "pull" mode.
+
+    `prefetch_queue_depth` : int, optional, default = 1
+        When run in ``parallel=True`` mode, specifies the number of batches to be computed in
+        advance and stored in the internal buffer, otherwise parameter is ignored.
+
+    `bytes_per_sample_hint`: int, optional, default = None
+        If specified in ``parallel=True`` mode, the value serves as a hint when
+        calculating initial capacity of shared memory slots used by the worker
+        processes to pass parallel external source outputs to the pipeline. The argument
+        is ignored in non-parallel mode.
+
+        Setting a value large enough to accommodate the incoming data can prevent DALI from
+        reallocation of shared memory during the pipeline's run. Furthermore, providing the
+        hint manually can prevent DALI from overestimating the necessary shared memory capacity.
+
+        The value must be a positive integer.
+        Please note that the samples in shared memory are accompanied by some internal meta-data,
+        thus, the actual demand for the shared memory is slightly higher than just the size
+        of binary data produced by the external source. The actual meta-data size depends on
+        the number of factors and, for example, may change between Python or DALI
+        releases without notice.
+
+        Please refer to pipeline's ``external_source_shm_statistics`` for inspecting how much
+        shared memory is allocated for data produced by the pipeline's parallel external sources.
 """
 
     def __init__(
