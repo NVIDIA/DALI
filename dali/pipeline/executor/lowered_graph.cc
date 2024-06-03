@@ -93,6 +93,19 @@ StorageDevice ParseStorageDevice(const std::string &io_device) {
 
 }  // namespace
 
+void OpGraph::Lower(const graph::OpGraph &definition) {
+  if (!op_nodes_.empty() || !tensor_nodes_.empty())
+    throw std::logic_error("The target graph must be empty");
+  for (auto &node : definition.OpNodes()) {
+    auto &lowered_op = AddOp(node.spec, node.instance_name);
+    lowered_op.definition = &node;
+  }
+  for (auto &t : tensor_nodes_) {
+    t.definition = definition.GetData(t.name);
+  }
+}
+
+
 OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string instance_name) {
   op_nodes_.emplace_back();
   auto &node = op_nodes_.back();
