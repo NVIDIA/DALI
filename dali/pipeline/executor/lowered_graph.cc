@@ -103,7 +103,7 @@ OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string i
   auto new_partition_id = NumOp(op_type);
   node.partition_index = new_partition_id;
   op_partitions_[static_cast<int>(op_type)].push_back(node.id);
-  op_name_to_id_[instance_name] = node.id;
+  op_name_to_id_[node.instance_name] = node.id;
   return node;
 }
 
@@ -440,8 +440,8 @@ std::vector<std::vector<TensorNodeId>> OpGraph::PartitionTensorByOpType() const 
   return out;
 }
 
-std::optional<OpNodeId> OpGraph::NodeId(std::string_view name) {
-  auto it = op_name_to_id_.find(name);
+std::optional<OpNodeId> OpGraph::NodeId(std::string_view instance_name) {
+  auto it = op_name_to_id_.find(instance_name);
   if (it != op_name_to_id_.end()) {
     OpNodeId id = it->second;
     assert(id >= 0 && id < OpNodeId(op_nodes_.size()));
@@ -450,8 +450,8 @@ std::optional<OpNodeId> OpGraph::NodeId(std::string_view name) {
   return std::nullopt;
 }
 
-OpNode *OpGraph::NodePtr(std::string_view name) {
-  if (auto id = NodeId(name))
+OpNode *OpGraph::NodePtr(std::string_view instance_name) {
+  if (auto id = NodeId(instance_name))
     return &op_nodes_[*id];
   return nullptr;
 }

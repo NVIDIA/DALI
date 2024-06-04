@@ -187,12 +187,12 @@ class DLL_PUBLIC OpGraph {
   /**
    * @brief Returns the graph node with the given name or nullptr, if not found.
    */
-  DLL_PUBLIC OpNode *NodePtr(std::string_view name);
+  DLL_PUBLIC OpNode *NodePtr(std::string_view instance_name);
 
-  DLL_PUBLIC OpNode &Node(std::string_view name) {
-    OpNode *node = NodePtr(name);
+  DLL_PUBLIC OpNode &Node(std::string_view instance_name) {
+    OpNode *node = NodePtr(instance_name);
     if (!node)
-      DALI_FAIL(make_string("Operator node with name \"", name, "\" not found."));
+      DALI_FAIL(make_string("Operator node with name \"", instance_name, "\" not found."));
     return *node;
   }
 
