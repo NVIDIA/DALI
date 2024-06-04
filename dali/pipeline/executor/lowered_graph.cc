@@ -356,7 +356,7 @@ void OpGraph::RemoveOpNode(OpNodeId id) {
   for (auto parent_id : op_nodes_.back().parents) {
     Node(parent_id).children.erase(op_nodes_.back().id);
   }
-  op_name_to_id_.erase(target_op.instance_name);
+  op_name_to_id_.erase(op_nodes_.back().instance_name);
   op_nodes_.pop_back();
 }
 
