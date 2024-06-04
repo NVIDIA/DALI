@@ -185,12 +185,21 @@ class DLL_PUBLIC OpGraph {
   }
 
   /**
-   * @brief Returns the graph node with the given name.
-   * This function is much slower than the version taking
-   * index as argument so should not be used in performance
-   * critical section of the code.
+   * @brief Returns the graph node with the given name or nullptr, if not found.
    */
-  DLL_PUBLIC OpNode& Node(std::string_view name);
+  DLL_PUBLIC OpNode *NodePtr(std::string_view name);
+
+  DLL_PUBLIC OpNode &Node(std::string_view name) {
+    OpNode *node = NodePtr(name);
+    if (!node)
+      DALI_FAIL(make_string("Operator node with name \"", name, "\" not found."));
+    return *node;
+  }
+
+  /**
+   * @brief Returns the id of the data node with given name or nullopt, if not found.
+   */
+  DLL_PUBLIC std::optional<OpNodeId> NodeId(std::string_view instance_name);
 
   /**
    * @brief Returns the graph node with the given index in the graph.
@@ -218,19 +227,30 @@ class DLL_PUBLIC OpGraph {
     return tensor_nodes_[id];
   }
 
-  DLL_PUBLIC TensorNodeId TensorId(const std::string& name) const {
+  DLL_PUBLIC std::optional<TensorNodeId> TensorId(std::string_view name) const {
     auto it = tensor_name_to_id_.find(name);
-    DALI_ENFORCE(it != tensor_name_to_id_.end(),
-                 "Tensor with name " + name + " does not exist in graph.");
+    if (it == tensor_name_to_id_.end())
+      return std::nullopt;
     return it->second;
   }
 
   /**
-   * @brief Returns the Tensor node with the given name.
+   * @brief Returns the Tensor node with the given name or nullptr, if not found.
    */
-  DLL_PUBLIC const TensorNode& Tensor(const std::string& name) const {
-    return tensor_nodes_[TensorId(name)];
+  DLL_PUBLIC const TensorNode *TensorPtr(std::string_view name) const {
+    auto id = TensorId(name);
+    if (!id)
+      return nullptr;
+    return &Tensor(*id);
   }
+
+  DLL_PUBLIC const TensorNode &Tensor(std::string_view name) const {
+    auto *t = TensorPtr(name);
+    if (!t)
+      DALI_FAIL(make_string("Tensor with name \"", name, "\" not found"));
+    return *t;
+  }
+
 
   DLL_PUBLIC std::vector<std::vector<TensorNodeId>> PartitionTensorByOpType() const;
 

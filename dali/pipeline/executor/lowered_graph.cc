@@ -440,20 +440,20 @@ std::vector<std::vector<TensorNodeId>> OpGraph::PartitionTensorByOpType() const 
   return out;
 }
 
-// TODO(klecki): get rid of string indexing
-OpNode& OpGraph::Node(std::string_view name) {
+std::optional<OpNodeId> OpGraph::NodeId(std::string_view name) {
   auto it = op_name_to_id_.find(name);
   if (it != op_name_to_id_.end()) {
     OpNodeId id = it->second;
     assert(id >= 0 && id < OpNodeId(op_nodes_.size()));
-    return op_nodes_[id];
+    return id;
   }
-  for (auto &node : op_nodes_) {
-    if (node.instance_name == name) {
-      return node;
-    }
-  }
-  DALI_FAIL(make_string("Operator node with name ", name, " not found."));
+  return std::nullopt;
+}
+
+OpNode *OpGraph::NodePtr(std::string_view name) {
+  if (auto id = NodeId(name))
+    return &op_nodes_[*id];
+  return nullptr;
 }
 
 namespace {
@@ -590,7 +590,10 @@ std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_
                                               bool follow_pass_through) const {
   std::vector<TensorNodeId> output_ids;
   for (const auto& out : output_names) {
-    output_ids.push_back(TensorId(out));
+    auto id = TensorId(out);
+    if (!id)
+      DALI_FAIL("Tensor with name \"", out, "\" not found.");
+    output_ids.push_back(*id);
   }
   if (!follow_pass_through) {
     return output_ids;

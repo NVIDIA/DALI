@@ -359,7 +359,10 @@ int Executor<WorkspacePolicy, QueuePolicy>::InputFeedCount(std::string_view op_n
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 OperatorBase *Executor<WorkspacePolicy, QueuePolicy>::GetOperator(std::string_view op_name) {
-  return graph_->Node(op_name).op.get();
+  if (auto *node = graph_->NodePtr(op_name))
+    return node->op.get();
+  else
+    return nullptr;
 }
 
 
