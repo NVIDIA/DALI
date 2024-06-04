@@ -16,9 +16,11 @@
 #define DALI_OPERATORS_READER_FILE_READER_OP_H_
 
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "dali/core/small_vector.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/operators/reader/reader_op.h"
 
@@ -61,31 +63,52 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
   }
 
   void RunImpl(Workspace &ws) override {
-    auto &image_output = ws.Output<CPUBackend>(0);
+    auto &file_output = ws.Output<CPUBackend>(0);
     auto &label_output = ws.Output<CPUBackend>(1);
     auto samples = GetCurrBatch();
     int batch_size = samples.size();
 
     auto &thread_pool = ws.GetThreadPool();
+    std::unordered_map<void *, SmallVector<int, 4>> unique_samples;
     for (int sample_idx = 0; sample_idx < batch_size; ++sample_idx) {
-      thread_pool.AddWork([&, sample_idx](int tid) {
+      auto sample_ptr = samples[sample_idx].get();
+      unique_samples[sample_ptr].push_back(sample_idx);
+    }
+    for (auto &sample : unique_samples) {
+      auto &sample_idxs = sample.second;
+      assert(!sample_idxs.empty());
+      thread_pool.AddWork([&, sample_idxs = std::move(sample_idxs)](int tid) {
+        int sample_idx = sample_idxs[0];
+        // Read the first sample (the next are repeated)
         auto &sample = *samples[sample_idx];
         if (sample.file_stream != nullptr) {
           sample.file_stream->SeekRead(0, SEEK_SET);
-          int64_t sz = sample.file_stream->Size();
+          int64_t sample_sz = sample.file_stream->Size();
           int64_t read_nbytes =
-              sample.file_stream->Read(image_output.raw_mutable_tensor(sample_idx), sz);
+              sample.file_stream->Read(file_output.raw_mutable_tensor(sample_idx), sample_sz);
           sample.file_stream->Close();
-          DALI_ENFORCE(read_nbytes == sz,
+          DALI_ENFORCE(read_nbytes == sample_sz,
                        make_string("Failed to read file: ", sample.file_stream->path()));
           sample.file_stream.reset();
         } else {
-          std::memcpy(image_output.raw_mutable_tensor(sample_idx), sample.image.raw_data(),
+          std::memcpy(file_output.raw_mutable_tensor(sample_idx), sample.image.raw_data(),
                       sample.image.size());
         }
-        image_output.SetSourceInfo(sample_idx, sample.image.GetSourceInfo());
+        file_output.SetSourceInfo(sample_idx, sample.image.GetSourceInfo());
         label_output.mutable_tensor<int>(sample_idx)[0] = sample.label;
-      }, image_output.shape().tensor_size(sample_idx));
+
+        // Now copy the sample we read to any repeated samples
+        for (size_t i = 1; i < sample_idxs.size(); i++) {
+          int repeated_sample_idx = sample_idxs[i];
+          std::memcpy(file_output.raw_mutable_tensor(repeated_sample_idx),
+                      file_output.raw_mutable_tensor(sample_idx),
+                      file_output.shape().tensor_size(sample_idx));
+          file_output.SetSourceInfo(repeated_sample_idx,
+                                    file_output.GetMeta(sample_idx).GetSourceInfo());
+          label_output.mutable_tensor<int>(repeated_sample_idx)[0] =
+              label_output.mutable_tensor<int>(sample_idx)[0];
+        }
+      }, file_output.shape().tensor_size(sample_idxs[0]));
     }
     thread_pool.RunAll();
   }
