@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
 #define DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
 
+#include <functional>
 #include <map>
 #include <unordered_set>
 #include <utility>
@@ -27,6 +28,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/graph/op_graph2.h"
 
 namespace dali {
 
@@ -96,7 +98,7 @@ using consumer_edge_t = TensorMeta;
 // Second type of graph nodes.
 struct TensorNode {
   TensorNodeId id;
-  std::string name;  // TODO(klecki): not happy about all the strings
+  std::string name;
   producer_edge_t producer;
   // order of consumers is arbitrary
   std::vector<consumer_edge_t> consumers;
@@ -134,7 +136,7 @@ class DLL_PUBLIC OpGraph {
   /**
    * @brief Adds an op with the input specification to the graph.
    */
-  DLL_PUBLIC void AddOp(const OpSpec &spec, const std::string& name);
+  DLL_PUBLIC OpNode &AddOp(const OpSpec &spec, const std::string& name);
 
   /**
    * @brief Removes the node with the specified OpNodeId from
@@ -183,12 +185,21 @@ class DLL_PUBLIC OpGraph {
   }
 
   /**
-   * @brief Returns the graph node with the given name.
-   * This function is much slower than the version taking
-   * index as argument so should not be used in performance
-   * critical section of the code.
+   * @brief Returns the graph node with the given name or nullptr, if not found.
    */
-  DLL_PUBLIC OpNode& Node(const std::string& name);
+  DLL_PUBLIC OpNode *NodePtr(std::string_view instance_name);
+
+  DLL_PUBLIC OpNode &Node(std::string_view instance_name) {
+    OpNode *node = NodePtr(instance_name);
+    if (!node)
+      DALI_FAIL(make_string("Operator node with name \"", instance_name, "\" not found."));
+    return *node;
+  }
+
+  /**
+   * @brief Returns the id of the data node with given name or nullopt, if not found.
+   */
+  DLL_PUBLIC std::optional<OpNodeId> NodeId(std::string_view instance_name);
 
   /**
    * @brief Returns the graph node with the given index in the graph.
@@ -216,19 +227,30 @@ class DLL_PUBLIC OpGraph {
     return tensor_nodes_[id];
   }
 
-  DLL_PUBLIC TensorNodeId TensorId(const std::string& name) const {
+  DLL_PUBLIC std::optional<TensorNodeId> TensorId(std::string_view name) const {
     auto it = tensor_name_to_id_.find(name);
-    DALI_ENFORCE(it != tensor_name_to_id_.end(),
-                 "Tensor with name " + name + " does not exist in graph.");
+    if (it == tensor_name_to_id_.end())
+      return std::nullopt;
     return it->second;
   }
 
   /**
-   * @brief Returns the Tensor node with the given name.
+   * @brief Returns the Tensor node with the given name or nullptr, if not found.
    */
-  DLL_PUBLIC const TensorNode& Tensor(const std::string& name) const {
-    return tensor_nodes_[TensorId(name)];
+  DLL_PUBLIC const TensorNode *TensorPtr(std::string_view name) const {
+    auto id = TensorId(name);
+    if (!id)
+      return nullptr;
+    return &Tensor(*id);
   }
+
+  DLL_PUBLIC const TensorNode &Tensor(std::string_view name) const {
+    auto *t = TensorPtr(name);
+    if (!t)
+      DALI_FAIL(make_string("Tensor with name \"", name, "\" not found"));
+    return *t;
+  }
+
 
   DLL_PUBLIC std::vector<std::vector<TensorNodeId>> PartitionTensorByOpType() const;
 
@@ -467,8 +489,9 @@ class DLL_PUBLIC OpGraph {
    */
   void RemoveOpNode(OpNodeId id);
 
-  std::map<std::string, TensorNodeId> tensor_name_to_id_;
+  std::map<std::string, TensorNodeId, std::less<>> tensor_name_to_id_;
   mutable std::map<TensorNodeId, bool> has_consumers_in_other_stage_;
+  std::map<std::string, OpNodeId, std::less<>> op_name_to_id_;
 
   bool pass_through_computed_ = false;
 };

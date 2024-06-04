@@ -17,6 +17,7 @@
 
 #include <chrono>
 #include <exception>
+#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
@@ -246,12 +247,12 @@ class DLL_PUBLIC Pipeline {
    * @brief Returns the graph node with Operator
    * with a given name
    */
-  DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
+  DLL_PUBLIC OpNode *GetOperatorNode(std::string_view name);
 
   /**
    * @brief Rreturns an input graph node with a given name
    */
-  DLL_PUBLIC const OpNode *GetInputOperatorNode(const std::string &name);
+  DLL_PUBLIC const OpNode *GetInputOperatorNode(std::string_view name);
 
   /** @{ */
   /**
@@ -428,7 +429,7 @@ class DLL_PUBLIC Pipeline {
    * @param input_name The name of the input, as specified in the input operator.
    * @return The number of times that feed_input needs to be called.
    */
-  DLL_PUBLIC int InputFeedCount(const std::string &input_name);
+  DLL_PUBLIC int InputFeedCount(std::string_view input_name);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
@@ -482,22 +483,22 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the reader meta for a node with given name
    */
-  DLL_PUBLIC ReaderMeta GetReaderMeta(const std::string &name);
+  DLL_PUBLIC ReaderMeta GetReaderMeta(std::string_view name);
 
   /**
    * @brief Get the data layout required by the external input with a given name.
    */
-  DLL_PUBLIC const TensorLayout &GetInputLayout(const std::string &name);
+  DLL_PUBLIC const TensorLayout &GetInputLayout(std::string_view name);
 
   /**
    * @brief Get the required number of dimensions for the external input with a given name.
    */
-  DLL_PUBLIC int GetInputNdim(const std::string &name);
+  DLL_PUBLIC int GetInputNdim(std::string_view name);
 
   /**
    * @brief Get the data type required by the external input with a given name.
    */
-  DLL_PUBLIC DALIDataType GetInputDtype(const std::string &name);
+  DLL_PUBLIC DALIDataType GetInputDtype(std::string_view name);
 
   /**
    * @brief Returns the number of threads used by the pipeline.
@@ -738,7 +739,7 @@ class DLL_PUBLIC Pipeline {
   std::map<int, int64_t> logical_id_to_seed_;
 
   // input operators are sorted by names
-  std::map<std::string, const OpNode*> input_operators_;
+  std::map<std::string, const OpNode*, std::less<>> input_operators_;
 
   /**
    * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on
