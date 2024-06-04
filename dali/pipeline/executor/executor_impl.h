@@ -135,8 +135,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC OperatorBase *GetOperator(std::string_view instance_name) override;
 
  protected:
-  OpGraph lowered_graph_;
-
   DLL_PUBLIC virtual void RunCPU();
   DLL_PUBLIC virtual void RunMixed();
   DLL_PUBLIC virtual void RunGPU();
