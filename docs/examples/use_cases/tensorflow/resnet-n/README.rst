@@ -101,9 +101,12 @@ OpenMPI
 
 ::
 
-   wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz | tar -xz
+   wget -q -O - \
+     https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz \
+     | tar -xz
    cd openmpi-3.0.0
-   ./configure --enable-orterun-prefix-by-default --with-cuda --prefix=/usr/local/mpi --disable-getpwuid
+   ./configure --enable-orterun-prefix-by-default --with-cuda \
+               --prefix=/usr/local/mpi --disable-getpwuid
    make -j"$(nproc)" install
    cd .. && rm -rf openmpi-3.0.0
    echo "/usr/local/mpi/lib" >> /etc/ld.so.conf.d/openmpi.conf && ldconfig
@@ -123,7 +126,8 @@ single node without ssh being installed.
    '\nEOF'\
    '\nexit 1' >> /usr/local/mpi/bin/rsh_warn.sh && \
        chmod +x /usr/local/mpi/bin/rsh_warn.sh && \
-       echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
+       echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" \
+       >> /usr/local/mpi/etc/openmpi-mca-params.conf
 
 Horovod
 ^^^^^^^

@@ -52,7 +52,8 @@ access an element at a random position within a tensor::
     # calculate a random index from 0 to file_length-1
     random_01 = fn.random.uniform(range=(0, 1))  # random numbers in range [0..1)
     index = fn.floor(random_01 * length)  # calculate indices from [0..length)
-    index = fn.cast(index, dtype=dali.types.INT64)  # cast the index to integer - required for indexing
+    # cast the index to integer - required for indexing
+    index = fn.cast(index, dtype=dali.types.INT64)
 
     # extract a random byte
     random_byte = raw_files[index]

@@ -13,7 +13,8 @@ To run use the following commands
 
    ln -s /path/to/train/jpeg/ train
    ln -s /path/to/validation/jpeg/ val
-   torchrun --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./
+   torchrun --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 \
+            --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./
 
 Requirements
 ------------
@@ -55,9 +56,13 @@ Usage
    positional arguments:
    DIR                         path(s) to dataset (if one path is provided, it is assumed to have subdirectories named "train" and "val"; alternatively, train and val paths can be specified directly by providing both paths as arguments)
 
-   optional arguments (for the full list please check `Apex ImageNet example <https://github.com/NVIDIA/apex/tree/master/examples/imagenet>`_)
+   optional arguments (for the full list please check `Apex ImageNet example
+            <https://github.com/NVIDIA/apex/tree/master/examples/imagenet>`_)
    -h, --help                  show this help message and exit
-   --arch ARCH, -a ARCH        model architecture: alexnet | resnet | resnet101 | resnet152 | resnet18 | resnet34 | resnet50 | vgg | vgg11 | vgg11_bn | vgg13 | vgg13_bn | vgg16 | vgg16_bn | vgg19 | vgg19_bn (default: resnet18)
+   --arch ARCH, -a ARCH        model architecture: alexnet | resnet | resnet101
+                               | resnet152 | resnet18 | resnet34 | resnet50 | vgg
+                               | vgg11 | vgg11_bn | vgg13 | vgg13_bn | vgg16
+                               | vgg16_bn | vgg19 | vgg19_bn (default: resnet18)
    -j N, --workers N           number of data loading workers (default: 4)
    --epochs N                  number of total epochs to run
    --start-epoch N             manual epoch number (useful on restarts)
@@ -69,6 +74,9 @@ Usage
    --resume PATH               path to latest checkpoint (default: none)
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
-   --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
-   --disable_dali              turns off DALI and switches to the native PyTorch data processing
+   --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU
+                               networks it may work better, for IO bottlenecked
+                               one like RN18 GPU default should be faster
+   --disable_dali              turns off DALI and switches to the native PyTorch
+                               data processing
    --fp16-mode                 enables mixed precision mode

@@ -55,7 +55,9 @@ class CNN(base_layer.BaseLayer):
     width: int = 28
     num_classes: int = 10
     kernel_size: int = 3
-    activation_tpl: pax_fiddle.Config[activations.BaseActivation] = template_field(activations.ReLU)
+    activation_tpl: pax_fiddle.Config[activations.BaseActivation] = (
+        template_field(activations.ReLU)
+    )
 
     def setup(self) -> None:
         super().setup()
@@ -104,7 +106,9 @@ class CNN(base_layer.BaseLayer):
             input_dims=256,
             output_dims=self.num_classes,
         )
-        bias_p = pax_fiddle.Config(linears.Bias, name="bias", dims=self.num_classes)
+        bias_p = pax_fiddle.Config(
+            linears.Bias, name="bias", dims=self.num_classes
+        )
         self.create_children("dense", [dense_p, linear_p, bias_p])
 
     def __call__(self, inputs: JTensor) -> JTensor:
@@ -216,7 +220,9 @@ class MnistExperiment(base_experiment.BaseExperiment):
 
     def datasets(self) -> list[pax_fiddle.Config[base_input.BaseInput]]:
         return [
-            pax_fiddle.Config(MnistDaliInput, batch_size=self.BATCH_SIZE, is_training=True),
+            pax_fiddle.Config(
+                MnistDaliInput, batch_size=self.BATCH_SIZE, is_training=True
+            ),
             # Eval dataset is not infinite.
             pax_fiddle.Config(
                 MnistDaliInput,

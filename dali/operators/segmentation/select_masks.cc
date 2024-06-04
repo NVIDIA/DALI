@@ -40,7 +40,8 @@ masks are present.
 Let us assume the following input mask, where symbolic coordinates are used for a clearer example::
 
     polygons = [[0, 0, 3], [1, 3, 7], [2, 7, 10]]
-    vertices = [[x0, y0], [x1, y1], [x2, y2], [x3, y3], [x4, y4], [x5, y5], [x6, y6], [x7, y7], [x8, y8], [x9, y9]]
+    vertices = [[x0, y0], [x1, y1], [x2, y2], [x3, y3], [x4, y4], [x5, y5],
+                [x6, y6], [x7, y7], [x8, y8], [x9, y9]]
 
 Example 1: Selecting a single mask with id ``1``, maintaining the original id::
 
