@@ -48,6 +48,20 @@ If no setup function provided, the output shape and data type will be the same a
 .. note::
     This operator is experimental and its API might change without notice.
 
+.. warning::
+    When the pipeline has conditional execution enabled, additional steps must be taken to
+    prevent the ``run_fn`` and ``setup_fn`` functions from being rewritten by AutoGraph.
+    There are two ways to achieve this:
+
+        1. Define the functions at global scope (i.e. outside of ``pipeline_def`` scope).
+
+        2. If functions are a result of another "factory" function, then the factory function
+           must be defined outside pipeline definition function and decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+
+    More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
+    documentation.
+
 **Example 1:**
 
 The following example shows a simple setup function which permutes the order of dimensions in the shape.
