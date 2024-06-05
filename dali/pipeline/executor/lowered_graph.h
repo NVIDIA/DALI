@@ -23,6 +23,7 @@
 #include <string>
 #include <memory>
 #include <fstream>
+#include <optional>
 #include <set>
 
 #include "dali/core/common.h"

@@ -28,6 +28,7 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
 
