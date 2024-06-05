@@ -319,7 +319,7 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC string SerializedCheckpoint(const ExternalContextCheckpoint &external_ctx_cpt) const {
     auto cpt = GetCheckpoint();
     cpt.external_ctx_cpt_ = external_ctx_cpt;
-    return cpt.SerializeToProtobuf(graph_);
+    return cpt.SerializeToProtobuf(*executor_);
   }
 
   /**
@@ -349,7 +349,7 @@ class DLL_PUBLIC Pipeline {
                  "Cannot restore checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");
     Checkpoint cpt;
-    cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
+    cpt.DeserializeFromProtobuf(*executor_, serialized_checkpoint);
     RestoreFromCheckpoint(cpt);
     return cpt.external_ctx_cpt_;
   }

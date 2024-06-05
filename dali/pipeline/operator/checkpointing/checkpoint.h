@@ -22,7 +22,7 @@
 
 namespace dali {
 
-class OpGraph;
+class ExecutorBase;
 
 /**
  * @brief Pipeline-wide state, passed from python side
@@ -39,16 +39,13 @@ class DLL_PUBLIC Checkpoint {
  public:
   DLL_PUBLIC Checkpoint() {}
 
-  /**
-   * @brief Builds a checkpoint that can be used to store state of operators in a given graph.
-  */
-  DLL_PUBLIC void Build(const OpGraph &graph);
+  DLL_PUBLIC void Clear();
 
-  using OpNodeId = int64_t;
+  DLL_PUBLIC int AddOperator(std::string instance_name);
 
-  DLL_PUBLIC OpCheckpoint &GetOpCheckpoint(OpNodeId id);
+  DLL_PUBLIC OpCheckpoint &GetOpCheckpoint(int index);
 
-  DLL_PUBLIC const OpCheckpoint &GetOpCheckpoint(OpNodeId id) const;
+  DLL_PUBLIC const OpCheckpoint &GetOpCheckpoint(int index) const;
 
   DLL_PUBLIC void SetIterationId(size_t iteration_id);
 
@@ -71,12 +68,13 @@ class DLL_PUBLIC Checkpoint {
   /**
    * @brief Serializes this entire object into a serialized protobuf message.
   */
-  DLL_PUBLIC std::string SerializeToProtobuf(const OpGraph &graph) const;
+  DLL_PUBLIC std::string SerializeToProtobuf(ExecutorBase &exec) const;
 
   /**
    * @brief Deserializes a protobuf message and builds this object.
   */
-  DLL_PUBLIC void DeserializeFromProtobuf(const OpGraph &graph, const std::string &serialized_data);
+  DLL_PUBLIC void DeserializeFromProtobuf(ExecutorBase &exec,
+                                          const std::string &serialized_data);
 
   ExternalContextCheckpoint external_ctx_cpt_{};
 

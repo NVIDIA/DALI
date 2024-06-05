@@ -21,10 +21,25 @@
 #include "dali/test/dali_test.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/operator/operator.h"
-// TODO(michalz): Use OpGraph2
+#include "dali/pipeline/executor/executor_factory.h"
+// TODO(michalz): Use new graph, when ready
 #include "dali/pipeline/executor/lowered_graph.h"
 
 namespace dali {
+
+namespace {
+
+void BuildFromLegacyGraph(Checkpoint &checkpoint, const OpGraph &graph) {
+  checkpoint.Clear();
+  for (const auto &node : graph.GetOpNodes())
+    checkpoint.AddOperator(node.instance_name);
+}
+
+auto GetSimpleExecutor() {
+  return GetExecutor(false, false, false, 1, 1, CPU_ONLY_DEVICE_ID, 0);
+}
+
+}  // namespace
 
 template <typename Backend>
 class DummyOperatorWithState : public Operator<Backend> {};
@@ -176,14 +191,14 @@ class CheckpointTest : public DALITest {
     Checkpoint checkpoint;
 
     OpGraph original_graph = make_graph_instance(UNIQUE_STATES);
-    checkpoint.Build(original_graph);
+    BuildFromLegacyGraph(checkpoint, original_graph);
 
     int nodes_cnt = original_graph.NumOp();
 
     OpGraph new_graph = make_graph_instance(ZERO_STATE);
 
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      ASSERT_EQ(original_graph.Node(i).spec.SchemaName(),
+      ASSERT_EQ(original_graph.Node(i).instance_name,
                 checkpoint.GetOpCheckpoint(i).OperatorName());
       original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i),
                                            AccessOrder(this->stream_.get()));
@@ -191,7 +206,7 @@ class CheckpointTest : public DALITest {
 
     ASSERT_EQ(new_graph.NumOp(), nodes_cnt);
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      ASSERT_EQ(new_graph.Node(i).spec.SchemaName(),
+      ASSERT_EQ(new_graph.Node(i).instance_name,
                 checkpoint.GetOpCheckpoint(i).OperatorName());
       checkpoint.GetOpCheckpoint(i).SetOrder(AccessOrder::host());
       new_graph.Node(i).op->RestoreState(checkpoint.GetOpCheckpoint(i));
@@ -309,21 +324,21 @@ TEST_F(CheckpointTest, Mixed) {
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddOutput("data_node_1", "cpu")
-            .AddOutput("data_node_2", "cpu")), "");
+            .AddOutput("data_node_2", "cpu")), "stateful_source");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "mixed")
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_1", "cpu")
-            .AddOutput("data_node_3", "gpu")), "");
+            .AddOutput("data_node_3", "gpu")), "stateful_op_1");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "mixed")
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_2", "cpu")
-            .AddOutput("data_node_4", "gpu")), "");
+            .AddOutput("data_node_4", "gpu")), "stateful_op_2");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyOutput")
@@ -331,7 +346,7 @@ TEST_F(CheckpointTest, Mixed) {
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_3", "gpu")
             .AddInput("data_node_4", "gpu")
-            .AddOutput("data_output", "gpu")), "");
+            .AddOutput("data_output", "gpu")), "dummy_output");
 
     graph.InstantiateOperators();
     return graph;
@@ -341,42 +356,43 @@ TEST_F(CheckpointTest, Mixed) {
 TEST_F(CheckpointTest, Serialize) {
   Checkpoint checkpoint;
   OpGraph graph;
+  auto exec = GetSimpleExecutor();
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulSource")
     .AddArg("device", "cpu")
     .AddArg("epoch_size", 1)
-    .AddOutput("data_1", "cpu")), "");
+    .AddOutput("data_1", "cpu")), "stateful_source");
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulOp")
     .AddArg("device", "cpu")
     .AddInput("data_1", "cpu")
-    .AddOutput("data_2", "cpu")), "");
+    .AddOutput("data_2", "cpu")), "stateful_op_1");
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulOp")
     .AddArg("device", "mixed")
     .AddInput("data_2", "cpu")
-    .AddOutput("data_3", "gpu")), "");
+    .AddOutput("data_3", "gpu")), "stateful_op_2");
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulOp")
     .AddArg("device", "gpu")
     .AddInput("data_3", "gpu")
-    .AddOutput("data_4", "gpu")), "");
+    .AddOutput("data_4", "gpu")), "stateful_op_3");
 
-  graph.InstantiateOperators();
-  checkpoint.Build(graph);
+  exec->Build(&graph, {"data_4_gpu"});
+  BuildFromLegacyGraph(checkpoint, graph);
 
   size_t nodes = static_cast<size_t>(graph.NumOp());
   for (uint8_t i = 0; i < nodes; i++)
     checkpoint.GetOpCheckpoint(i).MutableCheckpointState() = i;
 
-  auto serialized = checkpoint.SerializeToProtobuf(graph);
+  auto serialized = checkpoint.SerializeToProtobuf(*exec);
 
   Checkpoint deserialized;
-  deserialized.DeserializeFromProtobuf(graph, serialized);
+  deserialized.DeserializeFromProtobuf(*exec, serialized);
 
   ASSERT_EQ(deserialized.NumOp(), nodes);
   for (uint8_t i = 0; i < nodes; i++)

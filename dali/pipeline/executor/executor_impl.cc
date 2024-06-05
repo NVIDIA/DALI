@@ -665,8 +665,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
     id.iter_data = std::make_shared<IterationData>();
-    if (checkpointing_)
-      id.checkpoint.Build(*graph_);
+    if (checkpointing_) {
+      for (auto &node : graph_->GetOpNodes())
+        id.checkpoint.AddOperator(node.instance_name);
+    }
   }
 }
 
