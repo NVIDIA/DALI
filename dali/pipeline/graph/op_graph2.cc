@@ -266,7 +266,7 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
         throw std::invalid_argument(make_string(
           "The data node \"", name, "\" has more than one producer:"
           "\n 1: ", node->producer.op->instance_name, ", output ", node->producer.idx,
-          "\n 2: ", instance_name, ", output ", o));
+          "\n 2: ", op_node.instance_name, ", output ", o));
       }
     } else {
       auto dev = ParseStorageDevice(spec.OutputDevice(o));
