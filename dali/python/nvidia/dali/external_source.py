@@ -461,7 +461,7 @@ class ExternalSource:
             This is applicable only when copying data to and from GPU memory.
 
     `blocking`: bool, optional
-        If True, this operator will block until the data is available
+        **Advanced** If True, this operator will block until the data is available
         (e.g. by calling ``feed_input``).  If False, the operator will raise an error,
         if the data is not available.
 

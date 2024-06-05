@@ -23,7 +23,8 @@ A base for any operator that forwards in-memory data to DALI pipeline.)doc")
                 .NumInput(0)
                 .NumOutput(0)
                 .AddOptionalArg("blocking", R"code(
-If ``True``, this operator will block until the data is available (e.g. by calling ``feed_input``).
+**Advanced** If ``True``, this operator will block until the data is available
+(e.g. by calling ``feed_input``).
 If ``False``, the operator will raise an error, if the data is not available.
 )code", false)
                 .AddOptionalArg("no_copy", R"code(
