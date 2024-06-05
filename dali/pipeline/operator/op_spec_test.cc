@@ -468,7 +468,8 @@ TEST(TestOpSpec, Lookup) {
 }
 
 TEST(TestOpSpec, EmptySchema) {
-  OpSpec spec("dummy");
+  OpSpec spec("nonexistent_schema");
+  EXPECT_THROW(spec.GetSchema(), std::runtime_error);
   EXPECT_EQ(spec.GetArgument<std::string>("device"), "cpu");
   EXPECT_EQ(spec.GetArgument<std::string>("_module"), "nvidia.dali.ops");
 }
