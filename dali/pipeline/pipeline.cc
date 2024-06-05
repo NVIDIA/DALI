@@ -35,7 +35,6 @@ namespace dali {
 
 namespace {
 
-
 bool DeserializePipeline(const std::string &serialized_pipeline,
                          dali_proto::PipelineDef &deserialized_pipeline) {
   //  Reading Protobuf file has a limitation of 64 MB
@@ -442,40 +441,39 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);
 }
 
-inline int GetMemoryHint(OpSpec &spec, int index) {
+inline int GetMemoryHint(const OpSpec &spec, int output_index) {
   if (!spec.HasArgument("bytes_per_sample_hint"))
     return 0;
   std::vector<int> hints;
   GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
 
-  DALI_ENFORCE(index < static_cast<int>(hints.size()),
-               "Output index out of range: " + std::to_string(index));
-  return hints[index];
+  DALI_ENFORCE(output_index < static_cast<int>(hints.size()),
+               "Output index out of range: " + std::to_string(output_index));
+  return hints[output_index];
 }
 
-inline void SetMemoryHint(OpSpec &spec, int index, int value) {
+inline void SetMemoryHint(OpSpec &spec, int output_index, int value) {
   std::vector<int> hints;
   int no = spec.NumOutput();
 
-  DALI_ENFORCE(index < no, "Output index out of range: " +
-    std::to_string(index) + " >= " + std::to_string(no));
+  DALI_ENFORCE(output_index < no, "Output index out of range: " +
+    std::to_string(output_index) + " >= " + std::to_string(no));
 
   GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", no);
-  hints[index] = value;
+  hints[output_index] = value;
   spec.SetArg("bytes_per_sample_hint", hints);
 }
 
-void Pipeline::PropagateMemoryHint(OpNode &node) {
-  assert(node.parents.size() == 1);
+void Pipeline::PropagateMemoryHint(graph::OpNode &node) {
   for (int inp_idx = 0; inp_idx < node.spec.NumRegularInput(); inp_idx++) {
-    auto input_name = node.spec.Input(inp_idx);
-    OpNodeId parent_node_id = graph_.TensorSourceID(input_name);
-    int idx = graph_.TensorIdxInSource(input_name);
-    auto &src = graph_.Node(parent_node_id);
-    int hint = GetMemoryHint(src.spec, idx);
-    if (hint) {
-      // inp_idx == out_idx for MakeContiguous
-      SetMemoryHint(node.spec, inp_idx, hint);
+    const auto &input_name = node.spec.Input(inp_idx);
+    const auto &data_node = graph_.GetData(input_name);
+    if (auto *src = data_node->producer.op) {
+      int hint = GetMemoryHint(src->spec, data_node->producer.idx);
+      if (hint) {
+        // inp_idx == out_idx for MakeContiguous
+        SetMemoryHint(node.spec, inp_idx, hint);
+      }
     }
   }
 }
@@ -787,24 +785,27 @@ string Pipeline::SerializeToProtobuf() const {
   return output;
 }
 
-OpNode *Pipeline::GetOperatorNode(std::string_view name) {
+grah::OpNode *Pipeline::GetOperatorNode(std::string_view name) {
   return &(graph_.Node(name));
 }
 
-const OpNode *Pipeline::GetInputOperatorNode(std::string_view name) {
+const graph::OpNode *Pipeline::GetInputOperatorNode(std::string_view name) {
   auto it = input_operators_.find(name);
   if (it != input_operators_.end())
     return it->second;
-  DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
+  else
+    return nullptr;
 }
 
-std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
-  std::map<std::string, ReaderMeta> ret;
-  for (Index i = 0; i < graph_.NumOp(); ++i) {
-    const OpNode &current = graph_.Node(i);
-    ReaderMeta meta = current.op->GetReaderMeta();
+std::map<std::string_view, ReaderMeta, std::less<>> Pipeline::GetReaderMeta() {
+  std::map<std::string_view, ReaderMeta, std::less<>> ret;
+  for (auto &op_node : graph_.OpNodes()) {
+    auto *op = GetOperator(op_node.instance_name);
+    if (!op)  // optimized-out or not yet instantiated
+      continue;
+    ReaderMeta meta = op->GetReaderMeta();
     if (meta) {
-      ret.insert(make_pair(current.instance_name, meta));
+      ret.insert(make_pair(op_node.instance_name, meta));
     }
   }
   return ret;
@@ -1113,7 +1114,7 @@ template <typename Backend>
 void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
   auto &nodes = GetNodes<Backend>();
   for (auto &[name, node] : nodes) {
-    int count = fill_queue ? owner.InputFeedCount(name.c_str()) : 1;
+    int count = fill_queue ? owner.InputFeedCount(name) : 1;
     for (int i = 0; i < count; i++)
       owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
         InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
