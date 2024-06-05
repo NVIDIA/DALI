@@ -467,5 +467,10 @@ TEST(TestOpSpec, Lookup) {
   EXPECT_EQ(spec.ArgumentInputName(2), "zero");
 }
 
+TEST(TestOpSpec, EmptySchema) {
+  OpSpec spec("dummy");
+  EXPECT_EQ(spec.GetArgument<std::string>("device"), "cpu");
+  EXPECT_EQ(spec.GetArgument<std::string>("_module"), "nvidia.dali.ops");
+}
 
 }  // namespace dali
