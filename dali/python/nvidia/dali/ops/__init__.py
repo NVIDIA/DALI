@@ -57,7 +57,8 @@ from nvidia.dali.ops._operator_utils import (
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
     _lock = threading.Lock()
-    _op_count = count(0)
+    # start from something large to avoid confusion with (more common) per-pipeline numbering
+    _op_count = count(100000)
 
     def __init__(self):
         with self._lock:
@@ -369,11 +370,16 @@ class _OperatorInstance(object):
         op : Operator class.
             Operator class containing the schema, and spec filled with `processed_arguments`.
         """
-        self._counter = _OpCounter()
+
+        if _Pipeline.current():
+            self._pipeline = _Pipeline.current()
+        else:
+            self._pipeline = None
+        self._id = None
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
-        self._relation_id = self._counter.id
+        self._relation_id = None
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
@@ -412,8 +418,10 @@ class _OperatorInstance(object):
         name = arguments.pop("name", None)
         if name is not None:
             self._name = name
+            self._autoname = False
         else:
-            self._name = "__" + type(self._op).__name__ + "_" + str(self._counter.id)
+            self._name = "__" + type(self._op).__name__ + "_" + str(self.id)
+            self._autoname = True
 
     def _process_trace(self, arguments):
         from nvidia.dali._debug_mode import _PipelineDebug
@@ -465,7 +473,15 @@ class _OperatorInstance(object):
 
     @property
     def id(self):
-        return self._counter.id
+        if self._id is None:
+            if self._pipeline is None and _Pipeline.current():
+                self._pipeline = _Pipeline.current()
+            if self._pipeline:
+                self._id = self._pipeline._next_op_id()
+            else:
+                self._id = _OpCounter().id
+
+        return self._id
 
     @property
     def inputs(self):
@@ -492,6 +508,8 @@ class _OperatorInstance(object):
 
     @property
     def relation_id(self):
+        if self._relation_id is None:
+            self._relation_id = self.id
         return self._relation_id
 
     @relation_id.setter

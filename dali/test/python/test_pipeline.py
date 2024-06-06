@@ -2155,3 +2155,20 @@ def test_double_output_dtype_ndim():
         create_test_package(output_dtype=int)
     with assert_raises(ValueError, glob="*types.NO_TYPE*"):
         create_test_package(output_dtype=types.NO_TYPE)
+
+
+def test_dangling_subgraph():
+    op1 = fn.external_source(source=[np.int32([1,2,3]), np.int32([4,5,6])], cycle=True, batch=False)
+    op2 = fn.external_source(source=[np.int32([6,5,4]), np.int32([3,2,1])], cycle=True, batch=False)
+    with Pipeline(batch_size=1, device_id=None, num_threads=1) as p1:
+        ret1 = op1 + op2
+        p1.set_outputs(ret1)
+    op3 = fn.external_source(source=[np.int32([1,2,3]), np.int32([4,5,6])], cycle=True, batch=False)
+    op4 = fn.external_source(source=[np.int32([6,5,4]), np.int32([3,2,1])], cycle=True, batch=False)
+    with Pipeline(batch_size=1, device_id=None, num_threads=1) as p2:
+        ret2 = op3 + op4
+        p2.set_outputs(ret2)
+
+    p1.build()
+    p2.build()
+    assert(op1.name == op3.name)

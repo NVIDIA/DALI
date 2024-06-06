@@ -236,6 +236,7 @@ class Pipeline(object):
         self._device_id = device_id
         self._seed = seed
         self._exec_pipelined = exec_pipelined
+        self._next_op_id_counter = 0
         # When initializing DALI, we do the following in order:
         # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
         # * Start the Python workers pool (_start_py_workers())
@@ -352,6 +353,11 @@ class Pipeline(object):
 
     def __del__(self):
         self._shutdown()
+
+    def _next_op_id(self):
+        i = self._next_op_id_counter
+        self._next_op_id_counter += 1
+        return i
 
     def _shutdown(self):
         if self._pipe:
@@ -777,9 +783,51 @@ class Pipeline(object):
 
         self._ops = _collect_ops(list(outputs) + self._sinks)
         self._graph_outputs = outputs
+        self._rename_foreign_ops()
         self._setup_input_callbacks()
         self._disable_pruned_external_source_instances()
         self._py_graph_built = True
+
+    def _rename_foreign_ops(self):
+        name_map = {}
+        id_map = {}
+        to_rename = set()
+        for op in self._ops:
+            if op._pipeline is not self:
+                old_name = op._name
+                old_id = op._id
+                new_id = self._next_op_id()
+                if new_id == old_id:
+                    continue  # we were lucky
+                id_map[old_id] = new_id
+                if op._autoname:
+                    new_name = old_name[: old_name.rfind("_") + 1] + str(new_id)
+                    name_map[old_name] = new_name
+                to_rename.add(op)
+        renamed_data_nodes = set()
+        for op in to_rename:
+            op.relation_id = id_map[op.relation_id]
+            op._id = id_map[op.id]
+            old_name = op._name
+            new_name = name_map[old_name]
+            op._name = new_name
+            for o, output in enumerate(op.outputs):
+                if len(op.outputs) > 1:
+                    expected_name = f"{old_name}[{o}]"
+                    assert output.name == expected_name
+                    output.name = f"{new_name}[{o}]"
+                else:
+                    expected_name = f"{old_name}"
+                    assert output.name == expected_name
+                    output.name = f"{new_name}"
+                op.spec.RenameOutput(o, output.name)
+                renamed_data_nodes.add(id(output))
+
+        for op in self._ops:
+            for i, input in enumerate(op.inputs):
+                if input.source in to_rename:
+                    assert id(input) in renamed_data_nodes
+                    op.spec.RenameInput(i, input.name)
 
     def _setup_pipe_pool_dependency(self):
         if self._py_pool_started:
@@ -2101,37 +2149,25 @@ def _collect_ops(output_nodes):
             else:
                 yield inp
 
-    def get_op_outputs_num():
-        # BSF traverse the graph first to learn, for each reachable operator in the graph,
-        # how many data-nodes/edges the operator contributes to
-        # (i.e. the number of outputs of the operator instance)
-        op_outputs_num = {}
-        edges = deque(output_nodes)
-        while edges:
-            current_edge = edges.popleft()
-            source_op = get_source_op(current_edge)
-            if source_op.id in op_outputs_num:
-                op_outputs_num[source_op.id] += 1
-            else:
-                op_outputs_num[source_op.id] = 1
-                source_op.check_args()
-                edges.extend(get_op_input_edges(source_op))
-        return op_outputs_num
-
+    visited = set()
     ops = []
-    edges = deque(output_nodes)
-    op_total_outputs_num = get_op_outputs_num()
-    op_visited_outputs_num = {op_id: 0 for op_id in op_total_outputs_num}
-    while edges:
-        current_edge = edges.popleft()
-        source_op = get_source_op(current_edge)
-        op_visited_outputs_num[source_op.id] += 1
-        # Actually visit the operator only when all the nodes it contributes to
-        # were already processed
-        if op_visited_outputs_num[source_op.id] == op_total_outputs_num[source_op.id]:
-            ops.append(source_op)
-            edges.extend(get_op_input_edges(source_op))
-    ops.reverse()
+
+    # Depth-first search returns the graph topologically sorted.
+    # We go over each operator's inputs before adding it to the list.
+
+    def visit_op(op):
+        if id(op) in visited:
+            return
+        visited.add(id(op))
+        # visit conttributing inputs
+        for edge in get_op_input_edges(op):
+            visit_op(get_source_op(edge))
+        # add the operator to the list of contributing ops
+        ops.append(op)
+
+    for edge in output_nodes:
+        visit_op(get_source_op(edge))
+
     return ops
 
 

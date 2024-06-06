@@ -2152,6 +2152,8 @@ PYBIND11_MODULE(backend_impl, m) {
         py::return_value_policy::reference_internal)
     .def("AddOutput", &OpSpec::AddOutput,
         py::return_value_policy::reference_internal)
+    .def("RenameInput", &OpSpec::RenameInput, "idx"_a, "name"_a)
+    .def("RenameOutput", &OpSpec::RenameOutput, "idx"_a, "name"_a)
     DALI_OPSPEC_ADDARG(std::string)
     DALI_OPSPEC_ADDARG(bool)
     DALI_OPSPEC_ADDARG(int64)

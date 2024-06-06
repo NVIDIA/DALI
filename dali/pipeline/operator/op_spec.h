@@ -264,6 +264,16 @@ class DLL_PUBLIC OpSpec {
     return outputs_[idx].device;
   }
 
+  DLL_PUBLIC inline void RenameInput(int idx, std::string name) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    inputs_[idx].name = std::move(name);
+  }
+
+  DLL_PUBLIC inline void RenameOutput(int idx, std::string name) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    outputs_[idx].name = std::move(name);
+  }
+
   DLL_PUBLIC inline auto &ArgumentInputs() const {
     return argument_inputs_;
   }
