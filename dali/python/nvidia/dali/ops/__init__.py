@@ -17,6 +17,7 @@ import sys
 import threading
 import tree
 import warnings
+import weakref
 from itertools import count
 
 import nvidia.dali.python_function_plugin
@@ -372,9 +373,9 @@ class _OperatorInstance(object):
         """
 
         if _Pipeline.current():
-            self._pipeline = _Pipeline.current()
+            self.pipeline = weakref.ref(_Pipeline.current())
         else:
-            self._pipeline = None
+            self.pipeline = None
         self._id = None
         self._outputs = []
         self._op = op
@@ -472,12 +473,20 @@ class _OperatorInstance(object):
             self.append_output(t)
 
     @property
+    def pipeline(self):
+        return None if self._pipeline is None else self._pipeline()
+
+    @pipeline.setter
+    def pipeline(self, value):
+        self._pipeline = value
+
+    @property
     def id(self):
         if self._id is None:
-            if self._pipeline is None and _Pipeline.current():
-                self._pipeline = _Pipeline.current()
-            if self._pipeline:
-                self._id = self._pipeline._next_op_id()
+            if self.pipeline is None and _Pipeline.current():
+                self.pipeline = _Pipeline.current()
+            if self.pipeline:
+                self._id = self.pipeline._next_op_id()
             else:
                 self._id = _OpCounter().id
 

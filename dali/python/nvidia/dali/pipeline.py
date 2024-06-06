@@ -14,7 +14,6 @@
 
 # pylint: disable=no-member
 from typing import Any, List, Tuple, Callable, Optional, Union, TypeVar, overload
-from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
@@ -793,7 +792,7 @@ class Pipeline(object):
         id_map = {}
         to_rename = set()
         for op in self._ops:
-            if op._pipeline is not self:
+            if op.pipeline is not self:
                 old_name = op._name
                 old_id = op._id
                 new_id = self._next_op_id()
@@ -806,6 +805,7 @@ class Pipeline(object):
                 to_rename.add(op)
         renamed_data_nodes = set()
         for op in to_rename:
+            op.pipeline = self
             op.relation_id = id_map[op.relation_id]
             op._id = id_map[op.id]
             old_name = op._name
