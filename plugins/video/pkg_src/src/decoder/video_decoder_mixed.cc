@@ -71,8 +71,6 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
   auto &output = ws.Output<dali::GPUBackend>(0);
   const auto &input = ws.Input<dali::CPUBackend>(0);
   int batch_size = input.num_samples();
-  int s = 0;
-
 
   CUcontext cuContext = nullptr;
   CUstream cuStream = ws.stream();
@@ -82,11 +80,10 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
     throw std::runtime_error("Failed to create a cuda context");
   }
 
-  auto output_sample = output[s];
-
-  uint8_t *output_data = output_sample.template mutable_data<uint8_t>();
-
   for (int i = 0; i < batch_size; i++) {
+    auto output_sample = output[i];
+    uint8_t *output_data = output_sample.template mutable_data<uint8_t>();
+
     auto &sample = samples_[i];
     sample.decoder_ = std::make_unique<NvDecoder>(
         cuStream, cuContext, true, FFmpeg2NvCodecId(sample.demuxer_->GetVideoCodec()), false,
@@ -118,7 +115,7 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
         yuv_to_rgb(pFrame, nPitch, reinterpret_cast<uint8_t *>(dpFrame),
                    sample.decoder_->GetWidth() * 3, sample.decoder_->GetWidth(),
                    sample.decoder_->GetHeight(), full_range, cuStream);
-        CUDA_CALL(cudaStreamSynchronize(cuStream));
+        // CUDA_CALL(cudaStreamSynchronize(cuStream));
 
         ++num_frames;
         if (end_frame_ > 0 && num_frames >= end_frame_) {

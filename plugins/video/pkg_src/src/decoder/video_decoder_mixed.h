@@ -33,7 +33,7 @@ class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
       if (spec.HasArgument("end_frame")) {
         end_frame_ = spec.GetArgument<int>("end_frame");
       } else {
-        DALI_FAIL("Not passing `end_frame` argument is not yet implemented.");
+        DALI_FAIL("Currently, `end_frame` argument is required.");
       }
     }
 
