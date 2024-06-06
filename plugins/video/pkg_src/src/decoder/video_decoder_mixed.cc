@@ -115,7 +115,6 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
         yuv_to_rgb(pFrame, nPitch, reinterpret_cast<uint8_t *>(dpFrame),
                    sample.decoder_->GetWidth() * 3, sample.decoder_->GetWidth(),
                    sample.decoder_->GetHeight(), full_range, cuStream);
-        // CUDA_CALL(cudaStreamSynchronize(cuStream));
 
         ++num_frames;
         if (end_frame_ > 0 && num_frames >= end_frame_) {
