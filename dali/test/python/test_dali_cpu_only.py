@@ -1399,7 +1399,7 @@ def test_full():
 def test_full_like():
     @pipeline_def(batch_size=3, num_threads=1, device_id=None)
     def full_like_pipe():
-        return fn.full_like(np.zeros((20, 30)), np.array([1, 2, 3]))
+        return fn.full_like(np.zeros((2, 3)), np.array([1, 2, 3]))
 
     p = full_like_pipe()
     p.build()
