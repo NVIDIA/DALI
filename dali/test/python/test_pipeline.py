@@ -2193,3 +2193,22 @@ def test_dangling_subgraph():
     (o2,) = p2.run()
     assert np.array_equal(o1[0], np.int32([7, 7, 7]))
     assert np.array_equal(o2[0], np.int32([7, 7, 7]))
+
+
+def test_without_current_pipeline1():
+    def get_pipe(device):
+        pipe = Pipeline(batch_size=1, num_threads=1, device_id=0)
+        data = fn.external_source(source=[1, 2, 3], batch=False, cycle=True, device=device)
+        dist = data + fn.random.normal()
+        pipe.set_outputs(dist)
+        return pipe
+
+    p = get_pipe("gpu")
+    p.build()
+
+
+def test_without_current_pipeline2():
+    pipe = Pipeline(batch_size=4, num_threads=3, device_id=0)
+    data = fn.external_source(source=[1, 2, 3], batch=False, cycle=True)
+    pipe.set_outputs(data.gpu())
+    pipe.build()

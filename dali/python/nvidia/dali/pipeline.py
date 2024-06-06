@@ -805,10 +805,13 @@ class Pipeline(object):
 
         name_map = {}
         id_map = {}
-        to_rename = set()
+        foreign = {}
+        renamed = {}
+        old_names = {}
         for op in self._ops:
             if op.pipeline is not self:
                 old_name = op._name
+                old_names[op] = old_name
                 old_id = op._id
                 new_id = self._next_op_id()
                 if new_id == old_id:
@@ -817,32 +820,50 @@ class Pipeline(object):
                 if op._autoname:
                     new_name = old_name[: old_name.rfind("_") + 1] + str(new_id)
                     name_map[old_name] = new_name
-                to_rename.add(op)
+                foreign[id(op)] = op
         renamed_data_nodes = set()
-        for op in to_rename:
+
+        def rename_data_node(node: DataNode, out_idx=None):
+            if id(node) in renamed_data_nodes:
+                return
+            op = node.source
+            old_name = old_names[op]
+            new_name = name_map[old_name]
+            if len(op.outputs) > 1:
+                if out_idx is None:
+                    out_idx = int(node.name[node.name.find("[") + 1 : node.name.find("]")])
+                expected_name = f"{old_name}[{out_idx}]"
+                assert node.name == expected_name
+                full_new_name = f"{new_name}[{out_idx}]"
+                node.name = full_new_name
+            else:
+                expected_name = f"{old_name}"
+                assert node.name == expected_name
+                node.name = f"{new_name}"
+            renamed_data_nodes.add(id(node))
+
+        for op in foreign.values():
             op.pipeline = self
             op.relation_id = id_map[op.relation_id]
             op._id = id_map[op.id]
             old_name = op._name
-            new_name = name_map[old_name]
-            op._name = new_name
-            for o, output in enumerate(op.outputs):
-                if len(op.outputs) > 1:
-                    expected_name = f"{old_name}[{o}]"
-                    assert output.name == expected_name
-                    output.name = f"{new_name}[{o}]"
-                else:
-                    expected_name = f"{old_name}"
-                    assert output.name == expected_name
-                    output.name = f"{new_name}"
-                op.spec.RenameOutput(o, output.name)
-                renamed_data_nodes.add(id(output))
+            if old_name in name_map:
+                new_name = name_map[old_name]
+                renamed[id(op)] = op
+                op._name = new_name
+                for o, output in enumerate(op.outputs):
+                    rename_data_node(output, o)
+                    op.spec.RenameOutput(o, output.name)
 
         for op in self._ops:
             for i, input in enumerate(op.inputs):
-                if input.source in to_rename:
-                    assert id(input) in renamed_data_nodes
+                if id(input.source) in renamed:
+                    rename_data_node(input)
                     op.spec.RenameInput(i, input.name)
+
+        for pipe_out in self._graph_outputs:
+            if id(pipe_out.source) in renamed:
+                rename_data_node(pipe_out)
 
     def _setup_pipe_pool_dependency(self):
         if self._py_pool_started:
