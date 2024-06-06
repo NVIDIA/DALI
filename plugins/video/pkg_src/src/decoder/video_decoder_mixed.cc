@@ -118,7 +118,7 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
 
         ++num_frames;
         if (end_frame_ > 0 && num_frames >= end_frame_) {
-          break;
+          return;
         }
       }
     } while (nVideoBytes);
