@@ -2158,17 +2158,30 @@ def test_double_output_dtype_ndim():
 
 
 def test_dangling_subgraph():
-    op1 = fn.external_source(source=[np.int32([1,2,3]), np.int32([4,5,6])], cycle=True, batch=False)
-    op2 = fn.external_source(source=[np.int32([6,5,4]), np.int32([3,2,1])], cycle=True, batch=False)
+    """This test ensures that operators defined outside of the pipeline are assigned
+    same ids when the pipeline is built."""
+
+    op1 = fn.external_source(
+        source=[np.int32([1, 2, 3]), np.int32([4, 5, 6])], cycle=True, batch=False
+    )
+    op2 = fn.external_source(
+        source=[np.int32([6, 5, 4]), np.int32([3, 2, 1])], cycle=True, batch=False
+    )
     with Pipeline(batch_size=1, device_id=None, num_threads=1) as p1:
         ret1 = op1 + op2
         p1.set_outputs(ret1)
-    op3 = fn.external_source(source=[np.int32([1,2,3]), np.int32([4,5,6])], cycle=True, batch=False)
-    op4 = fn.external_source(source=[np.int32([6,5,4]), np.int32([3,2,1])], cycle=True, batch=False)
+    op3 = fn.external_source(
+        source=[np.int32([1, 2, 3]), np.int32([4, 5, 6])], cycle=True, batch=False
+    )
+    op4 = fn.external_source(
+        source=[np.int32([6, 5, 4]), np.int32([3, 2, 1])], cycle=True, batch=False
+    )
     with Pipeline(batch_size=1, device_id=None, num_threads=1) as p2:
         ret2 = op3 + op4
         p2.set_outputs(ret2)
 
-    p1.build()
-    p2.build()
-    assert(op1.name == op3.name)
+    p1.build()  # names and ids of op1 and op2 are adjusted here
+    p2.build()  # names and ids of op3 and op4 are adjusted here
+
+    # these operators are in the same place in the graph, so they have equal ids
+    assert op1.name == op3.name
