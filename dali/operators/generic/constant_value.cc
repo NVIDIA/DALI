@@ -13,8 +13,9 @@
 // limitations under the License.
 
 #include "dali/operators/generic/constant_value.h"
-#include "dali/pipeline/operator/op_schema.h"
+#include <vector>
 #include "dali/core/convert.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
@@ -43,12 +44,14 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
         }
         tp.RunAll();
       ), (  // NOLINT
-        DALI_FAIL(make_string("Data type ", dtype, " is currently not supported. "
-                              "Supported types are : ", ListTypeNames<DALI_CONSTANT_VALUE_TYPES>()));
+        DALI_FAIL(
+          make_string("Data type ", dtype, " is currently not supported. "
+                      "Supported types are : ", ListTypeNames<DALI_CONSTANT_VALUE_TYPES>()));
       ));  // NOLINT
     ), (  // NOLINT
-      DALI_FAIL(make_string("Data type ", fill_value.type(), " is currently not supported. "
-                            "Supported types are : ", ListTypeNames<DALI_CONSTANT_VALUE_TYPES>()));
+      DALI_FAIL(
+        make_string("Data type ", fill_value.type(), " is currently not supported. "
+                    "Supported types are : ", ListTypeNames<DALI_CONSTANT_VALUE_TYPES>()));
     ));  // NOLINT
   } else {
     TYPE_SWITCH(dtype, type2id, T, (DALI_CONSTANT_VALUE_TYPES), (
@@ -69,16 +72,19 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
 }
 
 DALI_SCHEMA(Full)
-    .DocStr(R"code(Returns new data of given shape and type, filled with a `fill_value`.)code")
+    .DocStr(R"code(Returns new data of given shape and type, filled with a fill value.)code")
     .NumInput(1)
+    .InputDox(0, "fill_value", "TensorList", R"code(The fill value.)code")
     .NumOutput(1)
     .AddOptionalArg<std::vector<int>>("shape", R"code(Shape of the output data.)code", nullptr,
                                       true);
 DALI_REGISTER_OPERATOR(Full, Full<CPUBackend>, CPU);
 
 DALI_SCHEMA(FullLike)
-    .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with a `fill_value`.)code")
+    .DocStr(R"code(Returns new data with the same shape and type as the input data, filled with a `fill_value`.)code")
     .NumInput(2)
+    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDox(1, "fill_value", "TensorList", R"code(The fill value.)code")
     .NumOutput(1);
 DALI_REGISTER_OPERATOR(FullLike, FullLike<CPUBackend>, CPU);
 
@@ -94,6 +100,7 @@ DALI_REGISTER_OPERATOR(Zeros, Zeros<CPUBackend>, CPU);
 DALI_SCHEMA(ZerosLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with zeros.)code")
     .NumInput(1)
+    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(ZerosLike, ZerosLike<CPUBackend>, CPU);
@@ -110,6 +117,7 @@ DALI_REGISTER_OPERATOR(Ones, Ones<CPUBackend>, CPU);
 DALI_SCHEMA(OnesLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with ones.)code")
     .NumInput(1)
+    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(OnesLike, OnesLike<CPUBackend>, CPU);

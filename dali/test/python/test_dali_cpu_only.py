@@ -1379,22 +1379,28 @@ def test_random_crop_generator_cpu():
 def test_zeros():
     check_no_input(fn.zeros)
 
+
 def test_zeros_like():
     check_single_input(fn.zeros_like, get_data=lambda: np.zeros((2, 3)), input_layout=None)
+
 
 def test_ones():
     check_no_input(fn.ones)
 
+
 def test_ones_like():
     check_single_input(fn.ones_like, get_data=lambda: np.zeros((2, 3)), input_layout=None)
+
 
 def test_full():
     check_single_input(fn.full, get_data=lambda: np.zeros((2, 3)), input_layout=None)
 
+
 def test_full_like():
     @pipeline_def(batch_size=3, num_threads=1, device_id=None)
     def full_like_pipe():
-        return fn.full_like(np.zeros((20,30)), np.array([1, 2, 3]))
+        return fn.full_like(np.zeros((20, 30)), np.array([1, 2, 3]))
+
     p = full_like_pipe()
     p.build()
     for _ in range(3):

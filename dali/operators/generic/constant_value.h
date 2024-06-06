@@ -15,9 +15,10 @@
 #ifndef DALI_OPERATORS_GENERIC_CONSTANT_VALUE_H_
 #define DALI_OPERATORS_GENERIC_CONSTANT_VALUE_H_
 
-#include "dali/pipeline/operator/operator.h"
+#include <vector>
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/pipeline/operator/operator.h"
 
 #define DALI_CONSTANT_VALUE_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
@@ -27,7 +28,8 @@ namespace dali {
 template <typename Backend>
 class ConstantValue : public Operator<Backend> {
  public:
-  explicit ConstantValue(const OpSpec &spec, bool has_fill_value = false, bool is_shape_like = false)
+  explicit ConstantValue(const OpSpec &spec, bool has_fill_value = false,
+                         bool is_shape_like = false)
       : Operator<Backend>(spec),
         has_fill_value_(has_fill_value),
         is_shape_like_(is_shape_like),
@@ -119,21 +121,21 @@ class ConstantValue : public Operator<Backend> {
 };
 
 template <typename Backend>
-class Full : public ConstantValue<Backend> { 
+class Full : public ConstantValue<Backend> {
  public:
   explicit Full(const OpSpec &spec): ConstantValue<Backend>(spec, true, false) {
   }
 };
 
 template <typename Backend>
-class FullLike : public ConstantValue<Backend> { 
+class FullLike : public ConstantValue<Backend> {
  public:
   explicit FullLike(const OpSpec &spec): ConstantValue<Backend>(spec, true, true) {
   }
 };
 
 template <typename Backend>
-class Zeros : public ConstantValue<Backend> { 
+class Zeros : public ConstantValue<Backend> {
  public:
   explicit Zeros(const OpSpec &spec): ConstantValue<Backend>(spec, false, false) {
     ConstantValue<Backend>::SetConstValue(0);
@@ -141,7 +143,7 @@ class Zeros : public ConstantValue<Backend> {
 };
 
 template <typename Backend>
-class ZerosLike : public ConstantValue<Backend> { 
+class ZerosLike : public ConstantValue<Backend> {
  public:
   explicit ZerosLike(const OpSpec &spec): ConstantValue<Backend>(spec, false, true) {
     ConstantValue<Backend>::SetConstValue(0);
@@ -149,7 +151,7 @@ class ZerosLike : public ConstantValue<Backend> {
 };
 
 template <typename Backend>
-class Ones : public ConstantValue<Backend> { 
+class Ones : public ConstantValue<Backend> {
  public:
   explicit Ones(const OpSpec &spec): ConstantValue<Backend>(spec, false, false) {
     ConstantValue<Backend>::SetConstValue(1);
@@ -157,7 +159,7 @@ class Ones : public ConstantValue<Backend> {
 };
 
 template <typename Backend>
-class OnesLike : public ConstantValue<Backend> { 
+class OnesLike : public ConstantValue<Backend> {
  public:
   explicit OnesLike(const OpSpec &spec): ConstantValue<Backend>(spec, false, true) {
     ConstantValue<Backend>::SetConstValue(1);
