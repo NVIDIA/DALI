@@ -460,6 +460,11 @@ class ExternalSource:
         .. note::
             This is applicable only when copying data to and from GPU memory.
 
+    `blocking`: bool, optional
+        **Advanced** If True, this operator will block until the data is available
+        (e.g. by calling ``feed_input``).  If False, the operator will raise an error,
+        if the data is not available.
+
     `no_copy` : bool, optional
         Determines whether DALI should copy the buffer when feed_input is called.
 
@@ -997,6 +1002,7 @@ def external_source(
     ndim=None,
     cuda_stream=None,
     use_copy_kernel=None,
+    blocking=None,
     batch=True,
     repeat_last=False,
     **kwargs,
@@ -1068,6 +1074,7 @@ def external_source(
         )
         return op(name=name)
 
+    kwargs["blocking"] = blocking
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, "_debug_on", False):
