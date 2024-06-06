@@ -1,4 +1,4 @@
-// Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,9 +29,11 @@ class DLL_PUBLIC PluginManager {
    * @param [in] lib_path path to the plugin library, e.g. "/usr/lib/libcustomplugin.so"
    * @param [in] global_symbols if true, the library is loaded with RTLD_GLOBAL flag or equivalent
    *                            otherwise, RTLD_LOCAL is used
+   * @param [in] allow_fail if true, not being able to load a library won't result in a hard error
    * @throws std::runtime_error if the library could not be loaded
    */
-  static DLL_PUBLIC void LoadLibrary(const std::string& lib_path, bool global_symbols = false);
+  static DLL_PUBLIC void LoadLibrary(const std::string& lib_path, bool global_symbols = false,
+                                     bool allow_fail = false);
 
   /**
    * @brief Load plugin directory. The plugin paths will have the following pattern:
@@ -39,9 +41,11 @@ class DLL_PUBLIC PluginManager {
    * @param [in] lib_path path to the root directory where the plugins are located
    * @param [in] global_symbols if true, the library is loaded with RTLD_GLOBAL flag or equivalent
    *                            otherwise, RTLD_LOCAL is used
+   * @param [in] allow_fail if true, not being able to load a library won't result in a hard error
    * @throws std::runtime_error if the library could not be loaded
    */
-  static DLL_PUBLIC void LoadDirectory(const std::string& lib_path, bool global_symbols = false);
+  static DLL_PUBLIC void LoadDirectory(const std::string& lib_path, bool global_symbols = false,
+                                       bool allow_fail = false);
 
   /**
    * @brief Load default plugin library

@@ -18,8 +18,8 @@
 #include <vector>
 
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/graph/op_graph.h"
-#include "dali/pipeline/graph/op_graph_verifier.h"
+#include "dali/pipeline/executor/op_graph_verifier.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 
 namespace dali {
 

@@ -24,7 +24,7 @@
 #include "dali/pipeline/executor/executor_impl.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
-#include "dali/pipeline/graph/op_graph_storage.h"
+#include "dali/pipeline/executor/op_graph_storage.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -352,10 +352,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::Run() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-int Executor<WorkspacePolicy, QueuePolicy>::InputFeedCount(const std::string &op_name) {
+int Executor<WorkspacePolicy, QueuePolicy>::InputFeedCount(std::string_view op_name) {
   (void)graph_->Node(op_name);
   return queue_sizes_.cpu_size;
 }
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+OperatorBase *Executor<WorkspacePolicy, QueuePolicy>::GetOperator(std::string_view op_name) {
+  if (auto *node = graph_->NodePtr(op_name))
+    return node->op.get();
+  else
+    return nullptr;
+}
+
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::Prefetch() {

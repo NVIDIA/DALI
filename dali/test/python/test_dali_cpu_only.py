@@ -330,24 +330,24 @@ def test_image_decoder_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image)
 
 
-def test_experimental_image_decoder_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image)
+def test_legacy_image_decoder_cpu():
+    _test_image_decoder_args_cpu(fn.legacy.decoders.image)
 
 
 def test_image_decoder_crop_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image_crop, crop=(10, 10))
 
 
-def test_experimental_image_decoder_crop_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image_crop, crop=(10, 10))
+def test_legacy_image_decoder_crop_cpu():
+    _test_image_decoder_args_cpu(fn.legacy.decoders.image_crop, crop=(10, 10))
 
 
 def test_image_decoder_random_crop_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image_random_crop)
 
 
-def test_experimental_image_decoder_random_crop_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image_random_crop)
+def test_legacy_image_decoder_random_crop_cpu():
+    _test_image_decoder_args_cpu(fn.legacy.decoders.image_random_crop)
 
 
 def test_coin_flip_cpu():
@@ -733,8 +733,8 @@ def test_image_decoder_slice_cpu():
     _test_image_decoder_slice_cpu(fn.decoders.image_slice)
 
 
-def test_experimental_image_decoder_slice_cpu():
-    _test_image_decoder_slice_cpu(fn.experimental.decoders.image_slice)
+def test_legacy_image_decoder_slice_cpu():
+    _test_image_decoder_slice_cpu(fn.legacy.decoders.image_slice)
 
 
 def test_pad_cpu():
@@ -1243,8 +1243,8 @@ def test_peek_image_shape_cpu():
     _test_peek_image_shape_cpu(fn.peek_image_shape)
 
 
-def test_experimental_peek_image_shape_cpu():
-    _test_peek_image_shape_cpu(fn.experimental.peek_image_shape)
+def test_legacy_peek_image_shape_cpu():
+    _test_peek_image_shape_cpu(fn.legacy.peek_image_shape)
 
 
 def test_separated_exec_setup():
@@ -1394,6 +1394,10 @@ tested_methods = [
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
+    "legacy.decoders.image",
+    "legacy.decoders.image_crop",
+    "legacy.decoders.image_slice",
+    "legacy.decoders.image_random_crop",
     "experimental.inputs.video",
     "decoders.audio",
     "external_source",
@@ -1510,6 +1514,7 @@ tested_methods = [
     "squeeze",
     "peek_image_shape",
     "experimental.peek_image_shape",
+    "legacy.peek_image_shape",
     "expand_dims",
     "coord_transform",
     "grid_mask",
@@ -1573,6 +1578,7 @@ excluded_methods = [
     "experimental.median_blur",  # not supported for CPU
     "experimental.dilate",  # not supported for CPU
     "experimental.erode",  # not supported for CPU
+    "plugin.video.decoder",  # not supported for CPU
 ]
 
 

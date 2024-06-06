@@ -21,7 +21,8 @@
 #include "dali/test/dali_test.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/graph/op_graph.h"
+// TODO(michalz): Use OpGraph2
+#include "dali/pipeline/executor/lowered_graph.h"
 
 namespace dali {
 

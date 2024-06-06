@@ -40,7 +40,9 @@ def get_feature(internel_layer, layers, filters, batch_norm=False, **kwargs):
                     data=internel_layer, name="bn%s_%s" % (i + 1, j + 1)
                 )
             internel_layer = mx.sym.Activation(
-                data=internel_layer, act_type="relu", name="relu%s_%s" % (i + 1, j + 1)
+                data=internel_layer,
+                act_type="relu",
+                name="relu%s_%s" % (i + 1, j + 1),
             )
         internel_layer = mx.sym.Pooling(
             data=internel_layer,
@@ -64,7 +66,9 @@ def get_classifier(input_data, num_classes, **kwargs):
     return fc8
 
 
-def get_symbol(num_classes, num_layers=11, batch_norm=False, dtype="float32", **kwargs):
+def get_symbol(
+    num_classes, num_layers=11, batch_norm=False, dtype="float32", **kwargs
+):
     """
     Parameters
     ----------
@@ -85,7 +89,9 @@ def get_symbol(num_classes, num_layers=11, batch_norm=False, dtype="float32", **
     }
     if not vgg_spec.has_key(num_layers):
         raise ValueError(
-            "Invalide num_layers {}. Possible choices are 11,13,16,19.".format(num_layers)
+            "Invalide num_layers {}. Possible choices are 11,13,16,19.".format(
+                num_layers
+            )
         )
     layers, filters = vgg_spec[num_layers]
     data = mx.sym.Variable(name="data")

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ TEST_F(ImageRandomCropCheckpointingTest_CPU, Simple) {
       .AddArg("files", std::vector{filepath}));
 
   pipe.AddOperator(
-    OpSpec("decoders__ImageRandomCrop")
+    OpSpec("legacy__decoders__ImageRandomCrop")
       .AddInput("file", "cpu")
       .AddOutput("decoded", "cpu"));
 

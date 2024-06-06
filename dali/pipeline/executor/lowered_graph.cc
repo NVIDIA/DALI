@@ -17,7 +17,7 @@
 #include <string>
 
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/name_utils.h"
@@ -50,7 +50,7 @@ bool AllOutputsGPU(const OpSpec &spec) {
   return true;
 }
 
-// TODO(klecki): Graph creation is not a place to check OpSpec?
+// TODO(michalz): Remove this part to pipeline.cc.
 void CheckOpConstraints(const OpSpec &spec) {
   const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
 
@@ -103,6 +103,7 @@ OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string i
   auto new_partition_id = NumOp(op_type);
   node.partition_index = new_partition_id;
   op_partitions_[static_cast<int>(op_type)].push_back(node.id);
+  op_name_to_id_[node.instance_name] = node.id;
   return node;
 }
 
@@ -113,7 +114,7 @@ TensorNode& OpGraph::PlaceNewTensor() {
 }
 
 
-void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
+OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
   // Validate the op specification
   CheckOpConstraints(spec);
 
@@ -202,6 +203,8 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
                              ", but output with this name already exists as output of op '",
                              this->Node(TensorSourceID(name)).instance_name, "'"));
   }
+
+  return new_node;
 }
 
 void OpGraph::InstantiateOperators() {
@@ -269,6 +272,9 @@ void OpGraph::RemoveTensorNode(TensorNodeId id) {
 void OpGraph::SwapOpNodes(OpNodeId left_id, OpNodeId right_id) {
   auto &left = op_nodes_[left_id];
   auto &right = op_nodes_[right_id];
+
+  op_name_to_id_[left.instance_name] = right_id;
+  op_name_to_id_[right.instance_name] = left_id;
   // Swap all references in tensor edges
   // Produced tensors (children)
   {
@@ -350,7 +356,7 @@ void OpGraph::RemoveOpNode(OpNodeId id) {
   for (auto parent_id : op_nodes_.back().parents) {
     Node(parent_id).children.erase(op_nodes_.back().id);
   }
-  // assume that we removed one element
+  op_name_to_id_.erase(op_nodes_.back().instance_name);
   op_nodes_.pop_back();
 }
 
@@ -433,14 +439,20 @@ std::vector<std::vector<TensorNodeId>> OpGraph::PartitionTensorByOpType() const 
   return out;
 }
 
-// TODO(klecki): get rid of string indexing
-OpNode& OpGraph::Node(const std::string& name) {
-  for (auto &node : op_nodes_) {
-    if (node.instance_name == name) {
-      return node;
-    }
+std::optional<OpNodeId> OpGraph::NodeId(std::string_view instance_name) {
+  auto it = op_name_to_id_.find(instance_name);
+  if (it != op_name_to_id_.end()) {
+    OpNodeId id = it->second;
+    assert(id >= 0 && id < OpNodeId(op_nodes_.size()));
+    return id;
   }
-  DALI_FAIL("Operator node with name " + name + " not found.");
+  return std::nullopt;
+}
+
+OpNode *OpGraph::NodePtr(std::string_view instance_name) {
+  if (auto id = NodeId(instance_name))
+    return &op_nodes_[*id];
+  return nullptr;
 }
 
 namespace {
@@ -577,7 +589,10 @@ std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_
                                               bool follow_pass_through) const {
   std::vector<TensorNodeId> output_ids;
   for (const auto& out : output_names) {
-    output_ids.push_back(TensorId(out));
+    auto id = TensorId(out);
+    if (!id)
+      DALI_FAIL("Tensor with name \"", out, "\" not found.");
+    output_ids.push_back(*id);
   }
   if (!follow_pass_through) {
     return output_ids;

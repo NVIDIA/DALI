@@ -31,7 +31,7 @@ size_t PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::CalcIterationDataSiz
          this->queue_sizes_.gpu_size /* mixed_queue_size */ + 1;
 }
 
-int SeparatedPipelinedExecutor::InputFeedCount(const std::string &op_name) {
+int SeparatedPipelinedExecutor::InputFeedCount(std::string_view op_name) {
   (void)graph_->Node(op_name);
   return queue_sizes_.cpu_size + queue_sizes_.gpu_size;
 }

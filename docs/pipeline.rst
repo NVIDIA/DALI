@@ -33,7 +33,8 @@ Example::
 
     @pipeline_def  # create a pipeline with processing graph defined by the function below
     def my_pipeline():
-        """ Create a pipeline which reads images and masks, decodes the images and returns them. """
+        """ Create a pipeline which reads images and masks, decodes the images and
+            returns them. """
         img_files, labels = fn.readers.file(file_root="image_dir", seed=1)
         mask_files, _ = fn.readers.file(file_root="mask_dir", seed=1)
         images = fn.decoders.image(img_files, device="mixed")
@@ -49,6 +50,13 @@ The resulting graph is:
 .. image:: images/two_readers.svg
 
 .. _processing_graph_structure:
+
+.. important::
+    The pipeline definition function is excuted only once, when the pipeline is built,
+    and typically returns a ``dali.DataNode`` object or a tuple of thereof.
+    For convenience, it's possible to return other types, such as NumPy arrays, but those
+    are treated as constants and evaluated only once.
+
 
 Processing Graph Structure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

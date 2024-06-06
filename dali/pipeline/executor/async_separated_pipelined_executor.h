@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
     }
   }
 
-  DLL_PUBLIC int InputFeedCount(const std::string &op_name) override;
+  DLL_PUBLIC int InputFeedCount(std::string_view op_name) override;
 
  protected:
   DLL_PUBLIC void Prefetch() override;

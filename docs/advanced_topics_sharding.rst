@@ -62,12 +62,14 @@ Shard calculation
 
 Here is the formula to calculate the shard size for a shard ID::
 
-    floor((id + 1) * dataset_size / num_shards) - floor(id * dataset_size / num_shards)
+    floor((id + 1) * dataset_size / num_shards) -
+        floor(id * dataset_size / num_shards)
 
 When the pipeline advances through the epochs and the reader moves to the next shard, the formula
 needs to be extended to reflect this change::
 
-  floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) - floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)
+  floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) -
+      floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)
 
 When the second formula is used, providing a size value once at the beginning of the training works
 only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards.

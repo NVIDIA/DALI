@@ -118,17 +118,12 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                                      name="Reader")
     dali_device = 'cpu' if dali_cpu else 'gpu'
     decoder_device = 'cpu' if dali_cpu else 'mixed'
-    # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and GPU to avoid reallocations in runtime
-    device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
-    host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
     # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
     preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
     preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
     if is_training:
         images = fn.decoders.image_random_crop(images,
                                                device=decoder_device, output_type=types.RGB,
-                                               device_memory_padding=device_memory_padding,
-                                               host_memory_padding=host_memory_padding,
                                                preallocate_width_hint=preallocate_width_hint,
                                                preallocate_height_hint=preallocate_height_hint,
                                                random_aspect_ratio=[0.8, 1.25],

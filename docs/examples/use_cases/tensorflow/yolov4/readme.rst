@@ -123,7 +123,8 @@ Inference
 
 .. code-block:: bash
 
-  usage: main.py infer [-h] image [--weights WEIGHTS] [--classes CLASSES] [--output OUTPUT]
+  usage: main.py infer [-h] image [--weights WEIGHTS] [--classes CLASSES]
+                       [--output OUTPUT]
 
 +-------------------------------------------------+-----------------------------------------------------+
 |                    Argument                     |                    Description                      |
@@ -145,7 +146,8 @@ Evaluation
 
 .. code-block:: bash
 
-  usage: main.py eval [-h] file_root annotations [--weights WEIGHTS] [--batch_size BATCH_SIZE] [--steps STEPS]
+  usage: main.py eval [-h] file_root annotations [--weights WEIGHTS]
+                      [--batch_size BATCH_SIZE] [--steps STEPS]
 
 +-------------------------------------------------+-----------------------------------------------------+
 |                    Argument                     |                    Description                      |

@@ -15,7 +15,6 @@
 # sys.path.insert(0, os.path.abspath('..'))
 import os
 import sys
-import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
 from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
 from builtins import str
@@ -24,6 +23,9 @@ import re
 import subprocess
 from pathlib import Path
 from datetime import date
+import json
+from packaging.version import Version
+import httplib2
 
 # -- Project information -----------------------------------------------------
 
@@ -36,6 +38,7 @@ author = "NVIDIA Corporation"
 version_long = "0.0.0"
 with open("../VERSION") as f:
     version_long = f.readline()
+    version_long = version_long.strip()
 
 version_short = re.match(r"^[\d]+\.[\d]+", version_long).group(0)
 
@@ -44,7 +47,9 @@ git_sha = os.getenv("GIT_SHA")
 if not git_sha:
     try:
         git_sha = (
-            subprocess.check_output(["git", "log", "--pretty=format:'%h'", "-n1"])
+            subprocess.check_output(
+                ["git", "log", "--pretty=format:'%h'", "-n1"]
+            )
             .decode("ascii")
             .replace("'", "")
             .strip()
@@ -78,7 +83,9 @@ with mock(["torch", "numba"]):
     import autodoc_submodules
 
     autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
-    autodoc_submodules.fn_autodoc(generated_path / "fn_autodoc", generated_path, references)
+    autodoc_submodules.fn_autodoc(
+        generated_path / "fn_autodoc", generated_path, references
+    )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
@@ -91,21 +98,14 @@ if "dev" in version_long:
     release_opt = option_off
     main_opt = option_on
     option_nr = 1
-    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    html_baseurl = (
+        "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    )
 else:
     release_opt = option_on
     main_opt = option_off
     option_nr = 0
     html_baseurl = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
-version = (
-    version
-    + f"""<br/>
-Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {option_nr}">
-    <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{release_opt}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{main_opt}>main (unstable)</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
-</select>"""  # noqa: E501
-)
 
 # -- General configuration ---------------------------------------------------
 
@@ -132,9 +132,6 @@ extensions = [
 autodoc_typehints_format = "short"
 python_use_unqualified_type_names = True
 autodoc_typehints = "none"
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -195,33 +192,208 @@ napoleon_custom_sections = ["Supported backends"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+try:
+    import nvidia_sphinx_theme  # noqa: F401
+
+    html_theme = "nvidia_sphinx_theme"
+except ImportError:
+    import sphinx_rtd_theme
+
+    html_theme = "sphinx_rtd_theme"
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
+
+html_theme_options = {
+    "switcher": {
+        # use for local testing
+        # "json_url": "http://localhost:8888/_static/switcher.json",
+        "json_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/"
+        "docs/_static/switcher.json",
+        "version_match": "main" if "dev" in version_long else version_short,
+    },
+    "navbar_start": ["navbar-logo", "version-switcher"],
+    "primary_sidebar_end": [],
+}
+
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "canonical_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html",
-    "collapse_navigation": False,
-    "display_version": True,
-    "logo_only": False,
-}
+html_theme_options.update(
+    {
+        "collapse_navigation": False,
+    }
+)
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
+switcher_path = os.path.join(html_static_path[0], "switcher.json")
+versions = []
+# the latest is in the archive
+for i in range(10, int(version_short.split(".")[1]) - 1):
+    if i >= 34:
+        versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
+    else:
+        versions.append((f"1.{i}", f"dali_1_{i}_0"))
+# add extra patch version
+versions.append(("1.37.1", "dali_1_37_1", "short_user"))
+versions.append(("1.11.1", "dali_1_11_1"))
+# paths are different for 1.0-1.10
+for i in range(0, 10):
+    versions.append((f"1.{i}", f"dali_1{i}0"))
+# again different convention between 0.10 and 0.31
+for i in range(10, 30):
+    if i < 24:
+        if i <= 21:
+            versions.append((f"0.{i}", f"dali_0{i}0_beta", "devel"))
+        else:
+            versions.append((f"0.{i}", f"dali_0{i}0_beta"))
+    else:
+        versions.append((f"0.{i}", f"dali_0{i}0"))
+# add extra path version
+versions.append(("0.25.1", "dali_0251"))
+versions.append(("0.30", "dali_030"))
+versions.append(("0.31", "dali_031"))
+# and again different convention between 0.1 and 0.9
+versions.append(("0.9.1", "dali_091_beta", "devel"))
+versions.append(("0.8.1", "dali_081_beta", "devel"))
+versions.append(("0.8", "dali_08_beta", "devel"))
+versions.append(("0.7", "dali_07_beta", "devel"))
+versions.append(("0.6.1", "dali_061_beta", "devel"))
+versions.append(("0.6", "dali_06_beta", "devel"))
+versions.append(("0.5", "dali_05_beta", "devel"))
+versions.append(("0.4.1", "dali_041_beta", "devel"))
+versions.append(("0.4", "dali_04_beta", "devel"))
+versions.append(("0.3", "dali_03_beta", "devel"))
+versions.append(("0.2", "dali_02_beta", "devel"))
+versions.append(("0.1.2", "dali_012_beta", "short_devel"))
+versions.append(("0.1.1", "dali_011_beta", "short_devel"))
+versions.append(("0.1", "dali_01_beta", "devel"))
+
+versions = sorted(versions, key=lambda v: Version(v[0]), reverse=True)
+
+json_data = []
+for v in versions:
+    if len(v) > 2 and v[2] == "devel":
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/dali-developer-guide/docs/",
+            }
+        )
+    elif len(v) > 2 and v[2] == "short_devel":
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/dali-developer-guide/",
+            }
+        )
+    elif len(v) > 2 and v[2] == "short_user":
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/",
+            }
+        )
+    else:
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/user-guide/docs/",
+            }
+        )
+
+if "dev" in version_long:
+    version_short_split = version_short.split(".")
+    one_before = f"{version_short_split[0]}.{int(version_short_split[1]) - 1}"
+    json_data.insert(
+        0,
+        {
+            "name": f"{one_before} (current release)",
+            "version": f"{one_before} (current release)",
+            "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/",
+        },
+    )
+else:
+    json_data.insert(
+        0,
+        {
+            "name": f"{version_short} (current release)",
+            "version": version_short,
+            "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/",
+        },
+    )
+
+json_data.insert(
+    1,
+    {
+        "name": "main (unstable)",
+        "version": "main",
+        "url": "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/",
+    },
+)
+
+# trim to N last releases and add the archive
+json_data = json_data[0:10]
+
+json_data.append(
+    {
+        "name": "older releases",
+        "version": "archives",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/",
+    }
+)
+
+# validate links
+
+for i, d in enumerate(json_data):
+    if i == 2:
+        # as we just generate the switcher.json for the next release the one before is
+        # not in the archive yet skip checking it
+        print(
+            f"skip checking not archived release location for the switcher: {d['url']}"
+        )
+        continue
+    h = httplib2.Http()
+    resp = h.request(d["url"] + "index.html", "HEAD")
+    if int(resp[0]["status"]) >= 400:
+        print(d["url"], "NOK", resp[0]["status"])
+        exit(1)
+
+with open(switcher_path, "w") as f:
+    json.dump(json_data, f, ensure_ascii=False, indent=4)
+
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.
 favicon_rel_path = "nvidia.ico"
-subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
+subprocess.call(
+    [
+        "wget",
+        "-O",
+        favicon_rel_path,
+        "https://docs.nvidia.com/images/nvidia.ico",
+    ]
+)
 html_favicon = favicon_rel_path
 
 subprocess.call(
-    ["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png"]
+    [
+        "wget",
+        "-O",
+        "dali.png",
+        "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png",
+    ]
 )
 
 # Custom sidebar templates, must be a dictionary that maps document names
@@ -262,7 +434,13 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (main_doc, "NVIDIADALI.tex", "NVIDIA DALI Documentation", "NVIDIA Corporation", "manual"),
+    (
+        main_doc,
+        "NVIDIADALI.tex",
+        "NVIDIA DALI Documentation",
+        "NVIDIA Corporation",
+        "manual",
+    ),
 ]
 
 
@@ -302,7 +480,12 @@ extlinks = {
     ),
 }
 
-_dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
+_dali_enums = [
+    "DALIDataType",
+    "DALIIterpType",
+    "DALIImageType",
+    "PipelineAPIType",
+]
 
 count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
 
@@ -333,7 +516,11 @@ class EnumDocumenter(ClassDocumenter):
         # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value`
         # member returned by get_object_members().
         # Here we are filtering the list, to keep only enum members
-        filtered = [member for member in members if member[0] in self.object.__members__.keys()]
+        filtered = [
+            member
+            for member in members
+            if member[0] in self.object.__members__.keys()
+        ]
 
         filtered = super().filter_members(filtered, want_all)
 
@@ -381,7 +568,10 @@ def setup(app):
     app.add_js_file("redirect.js")
     # Register a sphinx.ext.autodoc.between listener to ignore everything
     # between lines that contain the word <SPHINX_IGNORE>
-    app.connect("autodoc-process-docstring", between("^.*<SPHINX_IGNORE>.*$", exclude=True))
+    app.connect(
+        "autodoc-process-docstring",
+        between("^.*<SPHINX_IGNORE>.*$", exclude=True),
+    )
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
     return app

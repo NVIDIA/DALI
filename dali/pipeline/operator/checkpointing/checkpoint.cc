@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
-#include "dali/pipeline/graph/op_graph.h"
+// TODO(michalz): Use OpGraph2
+#include "dali/pipeline/executor/lowered_graph.h"
 
 #include "dali/pipeline/dali.pb.h"
 

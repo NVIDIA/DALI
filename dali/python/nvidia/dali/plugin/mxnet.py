@@ -481,7 +481,8 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     .. code-block:: python
 
-       DALIClassificationIterator(pipelines, reader_name, data_name, label_name, data_layout)
+       DALIClassificationIterator(pipelines, reader_name, data_name, label_name,
+                                  data_layout)
 
     is equivalent to calling
 

@@ -18,12 +18,14 @@ import numpy as np
 import cv2
 import nvidia.dali.types as types
 import glob
+import os
 from itertools import cycle
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
 from nose import SkipTest
 from nose.plugins.attrib import attr
+from nose_utils import assert_raises
 
 
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
@@ -232,3 +234,20 @@ def test_source_info(device):
         for idx, t in enumerate(o[0]):
             assert t.source_info() == files[(samples_read + idx) % len(files)]
         samples_read += batch_size
+
+
+@params("cpu", "mixed")
+def test_error_source_info(device):
+    error_file = "README.txt"
+    filenames = os.path.join(get_dali_extra_path(), "db/video/cfr/", error_file)
+
+    @pipeline_def
+    def test_pipeline():
+        data, _ = fn.readers.file(files=filenames)
+        return fn.experimental.decoders.video(data, device=device)
+
+    batch_size = 4
+    p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    p.build()
+
+    assert_raises(RuntimeError, p.run)

@@ -69,7 +69,12 @@ def video_pipe(file_root):
 
 
 if __name__ == "__main__":
-    pipe = video_pipe(batch_size=BATCH_SIZE, num_threads=2, device_id=0, file_root=VIDEO_FILE_ROOT)
+    pipe = video_pipe(
+        batch_size=BATCH_SIZE,
+        num_threads=2,
+        device_id=0,
+        file_root=VIDEO_FILE_ROOT,
+    )
     pipe.build()
     for i in range(ITER):
         print("Iteration " + str(i))
@@ -91,7 +96,11 @@ if __name__ == "__main__":
                 sample_frame = batch_sequences[c]
                 if has_PIL:
                     im = Image.fromarray(YUV2RGB(sample_frame).astype("uint8"))
-                    im.save(save_dir + str(i * BATCH_SIZE * COUNT + b * COUNT + c) + ".png")
+                    im.save(
+                        save_dir
+                        + str(i * BATCH_SIZE * COUNT + b * COUNT + c)
+                        + ".png"
+                    )
 
     frame_to_show = sequences_out[0][0]
     frame_to_show = YUV2RGB(frame_to_show)

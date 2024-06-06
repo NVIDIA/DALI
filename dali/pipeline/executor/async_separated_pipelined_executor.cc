@@ -44,7 +44,7 @@ void AsyncSeparatedPipelinedExecutor::Prefetch() {
   }
 }
 
-int AsyncSeparatedPipelinedExecutor::InputFeedCount(const std::string &op_name) {
+int AsyncSeparatedPipelinedExecutor::InputFeedCount(std::string_view op_name) {
   (void)graph_->Node(op_name);
   return queue_sizes_.cpu_size + queue_sizes_.gpu_size;
 }

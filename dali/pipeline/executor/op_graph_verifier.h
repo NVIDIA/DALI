@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_GRAPH_OP_GRAPH_VERIFIER_H_
-#define DALI_PIPELINE_GRAPH_OP_GRAPH_VERIFIER_H_
+#ifndef DALI_PIPELINE_EXECUTOR_OP_GRAPH_VERIFIER_H_
+#define DALI_PIPELINE_EXECUTOR_OP_GRAPH_VERIFIER_H_
 
 #include <set>
 #include <vector>
 
-#include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 
 namespace dali {
 
@@ -85,4 +85,4 @@ DLL_PUBLIC void CheckGraphConstraints(const OpGraph &op_graph);
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_GRAPH_OP_GRAPH_VERIFIER_H_
+#endif  // DALI_PIPELINE_EXECUTOR_OP_GRAPH_VERIFIER_H_

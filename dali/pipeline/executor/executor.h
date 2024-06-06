@@ -22,8 +22,11 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/pipeline/graph/op_graph2.h"
 
 namespace dali {
+
+class OperatorBase;
 
 struct DLL_PUBLIC ExecutorMeta {
   size_t real_size;
@@ -50,7 +53,8 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void Shutdown() = 0;
   DLL_PUBLIC virtual Checkpoint& GetCurrentCheckpoint() = 0;
   DLL_PUBLIC virtual void RestoreStateFromCheckpoint(const Checkpoint &cpt) = 0;
-  DLL_PUBLIC virtual int InputFeedCount(const std::string &input_name) = 0;
+  DLL_PUBLIC virtual int InputFeedCount(std::string_view input_name) = 0;
+  DLL_PUBLIC virtual OperatorBase *GetOperator(std::string_view name) = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc

@@ -20,4 +20,5 @@ void Dummy<::dali::GPUBackend>::RunImpl(::dali::Workspace &ws) {
 
 }  // namespace other_ns
 
-DALI_REGISTER_OPERATOR(CustomDummy, ::other_ns::Dummy<::dali::GPUBackend>, ::dali::GPU);
+DALI_REGISTER_OPERATOR(CustomDummy, ::other_ns::Dummy<::dali::GPUBackend>,
+                       ::dali::GPU);
