@@ -788,6 +788,21 @@ class Pipeline(object):
         self._py_graph_built = True
 
     def _rename_foreign_ops(self):
+        # Operators defined without current pipeline set or ones set in the context of a different
+        # pipeline will have unpredictable ids/names. This is a problem, because we want a pipeline
+        # with the same structure to have predictable operator and node identifiers.
+        #
+        # for i in range(10)
+        #     op1 = fn.external_source(...)
+        #     # op1.name is something like "__ExternalSource_100000" for the 1st iteration
+        #     # and "__ExternalSource_100001" for the 2nd one, and so on
+        #     with Pipeline(...) as pipe:
+        #           op2 = fn.external_source(...)
+        #           # op2 has a fixed id "__ExternalSource_0"
+        #           pipe.set_outputs(op1, op2)
+        #     pipe.build()  # this will rename op1 to __ExternalSource_1
+        #     # each `pipe` has exactly the same structure and operator names at this point.
+
         name_map = {}
         id_map = {}
         to_rename = set()

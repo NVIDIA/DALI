@@ -2158,8 +2158,8 @@ def test_double_output_dtype_ndim():
 
 
 def test_dangling_subgraph():
-    """This test ensures that operators defined outside of the pipeline are assigned
-    same ids when the pipeline is built."""
+    # This test ensures that operators defined outside of the pipeline are assigned
+    # same ids when the pipeline is built.
 
     op1 = fn.external_source(
         source=[np.int32([1, 2, 3]), np.int32([4, 5, 6])], cycle=True, batch=False
@@ -2180,8 +2180,16 @@ def test_dangling_subgraph():
         ret2 = op3 + op4
         p2.set_outputs(ret2)
 
+    # these operators were defined without an active pipeline, so they have some global ids
+    assert op1.name != op3.name
+
     p1.build()  # names and ids of op1 and op2 are adjusted here
     p2.build()  # names and ids of op3 and op4 are adjusted here
 
-    # these operators are in the same place in the graph, so they have equal ids
+    # these operators are in the same place in the graph now, so they have equal ids
     assert op1.name == op3.name
+
+    (o1,) = p1.run()
+    (o2,) = p2.run()
+    assert np.array_equal(o1[0], np.int32([7, 7, 7]))
+    assert np.array_equal(o2[0], np.int32([7, 7, 7]))

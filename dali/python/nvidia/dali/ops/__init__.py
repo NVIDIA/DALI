@@ -58,7 +58,9 @@ from nvidia.dali.ops._operator_utils import (
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
     _lock = threading.Lock()
-    # start from something large to avoid confusion with (more common) per-pipeline numbering
+    # Start from something large to avoid confusion (while debugging) with per-pipeline numbering.
+    # NOTE: The renaming system in Pipeline can handle duplicate identifiers and would _not_
+    #       get confused.
     _op_count = count(100000)
 
     def __init__(self):
