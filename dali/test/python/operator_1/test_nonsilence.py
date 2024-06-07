@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,21 @@ import test_utils
 import os
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
+from distutils.version import LooseVersion
 
 audio_files = test_utils.get_files(os.path.join("db", "audio", "wav"), "wav")
 
 
+# See https://github.com/librosa/librosa/issues/1445#issuecomment-1033783731
+def adjust_ref_arg(ref):
+    if LooseVersion(librosa.__version__) >= LooseVersion("0.9") and isinstance(ref, float):
+        return np.sqrt(ref)
+    else:
+        return ref
+
+
 def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
+    ref = adjust_ref_arg(ref)
     yt, index = librosa.effects.trim(
         y=input_data, top_db=-cutoff_db, ref=ref, frame_length=frame_length, hop_length=hop_length
     )
