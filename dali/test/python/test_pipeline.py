@@ -2174,7 +2174,6 @@ def test_dangling_subgraph():
             p.set_outputs(ret1)
         pipes.append(p)
 
-
     pipes[0].build()  # names and ids of op1 and op2 are adjusted here
     pipes[1].build()  # names and ids of op3 and op4 are adjusted here
 

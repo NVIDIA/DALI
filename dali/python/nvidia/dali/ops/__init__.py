@@ -380,7 +380,6 @@ class _OperatorInstance(object):
         self._op = op
         self._spec = op.spec.copy()
         self._relation_id = None
-        print("_pipeline is ", self._pipeline, "while constructing", self._op._operator_name())
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
@@ -517,11 +516,7 @@ class _OperatorInstance(object):
     @property
     def relation_id(self):
         if self._relation_id is None:
-            self._relation_id = self.id
-            print("Generating relation_id")
-            if self._pipeline is not None:
-                print("...using pipeline id")
-                self._relation_id += 100000 * id(self._pipeline())
+            self._relation_id = id(self)
         return self._relation_id
 
     @relation_id.setter
@@ -659,7 +654,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
                 )
 
             # Tie the instances together
-            relation_id = op_instances[0].id
+            relation_id = op_instances[0].relation_id
             for op in op_instances:
                 op.relation_id = relation_id
 

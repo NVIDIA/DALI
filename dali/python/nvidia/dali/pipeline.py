@@ -720,7 +720,6 @@ class Pipeline(object):
 
         return api_checker(self)
 
-
     def _require_unique_names(self):
         ops_by_name = {}
         for op in self._ops:
@@ -748,8 +747,6 @@ class Pipeline(object):
                 )
             raise RuntimeError(message)
 
-
-
     def _require_no_foreign_ops(self, message):
         foreign = []
         for op in self._ops:
@@ -762,7 +759,8 @@ class Pipeline(object):
                 f"{[o.name for o in foreign]}\n"
                 f"All operators should be defined while the pipeline is set as the current "
                 f"pipeline. This happens automatically when defining the pipeline in a "
-                f"function decorated with `@pipeline_def`.")
+                f"function decorated with `@pipeline_def`."
+            )
 
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
     def _build_graph(self, define_graph=None):
@@ -882,13 +880,9 @@ class Pipeline(object):
 
         for op in self._ops:
             if op.relation_id not in related_logical_id:
-                print("Adding ", op.name, op.id, op.relation_id)
                 related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
-                print("related logical id is", related_logical_id[op.relation_id])
             else:
-                print("Adding ", op.name, op.id, op.relation_id)
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
-                print("related logical id is", related_logical_id[op.relation_id])
         self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
 
@@ -2177,8 +2171,6 @@ def _collect_ops(output_nodes):
 
     for edge in output_nodes:
         visit_op(get_source_op(edge))
-
-    print([o.name for o in ops])
 
     return ops
 
