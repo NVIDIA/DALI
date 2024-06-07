@@ -18,19 +18,21 @@
 #include <vector>
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape_print.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
+#include "dali/core/float16.h"
 
-#define DALI_CONSTANT_VALUE_TYPES \
-  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
+#define DALI_CONSTANT_VALUE_TYPES                                                           \
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, float16, \
+      double, bool
 
 namespace dali {
 
 template <typename Backend>
-class ConstantValue : public Operator<Backend> {
+class ConstantValue : public StatelessOperator<Backend> {
  public:
   explicit ConstantValue(const OpSpec &spec, bool has_fill_value = false,
                          bool is_shape_like = false)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         has_fill_value_(has_fill_value),
         is_shape_like_(is_shape_like),
         has_shape_(spec.ArgumentDefined("shape")),
