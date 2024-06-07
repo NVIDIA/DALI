@@ -14,7 +14,6 @@
 
 # pylint: disable=no-member
 from typing import Any, List, Tuple, Callable, Optional, Union, TypeVar, overload
-from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
