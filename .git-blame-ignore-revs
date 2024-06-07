@@ -11,3 +11,5 @@ e719fabb8b2c0aabad4d8c7dffab6cc412a7ac30
 953d588ab009ed3ab5fc8efd19f83897e6be6fef
 # Format DALI with black
 7e71c25746346d1e9d081a6bd4713fce516a68fe
+# Limit the documentation line lengths to 80 chars
+ea2eff0627a85a0274575c7d761b940fd9b45d3c
