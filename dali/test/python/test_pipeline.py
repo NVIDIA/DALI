@@ -2161,41 +2161,33 @@ def test_dangling_subgraph():
     # This test ensures that operators defined outside of the pipeline are assigned
     # same ids when the pipeline is built.
 
-    op1 = fn.external_source(
-        source=[np.int32([1, 2, 3]), np.int32([4, 5, 6])], cycle=True, batch=False
-    )
-    op2 = fn.external_source(
-        source=[np.int32([6, 5, 4]), np.int32([3, 2, 1])], cycle=True, batch=False
-    )
-    with Pipeline(batch_size=1, device_id=None, num_threads=1) as p1:
-        ret1 = op1 + op2
-        p1.set_outputs(ret1)
-    op3 = fn.external_source(
-        source=[np.int32([1, 2, 3]), np.int32([4, 5, 6])], cycle=True, batch=False
-    )
-    op4 = fn.external_source(
-        source=[np.int32([6, 5, 4]), np.int32([3, 2, 1])], cycle=True, batch=False
-    )
-    with Pipeline(batch_size=1, device_id=None, num_threads=1) as p2:
-        ret2 = op3 + op4
-        p2.set_outputs(ret2)
+    pipes = []
+    for i in range(2):
+        op1 = fn.external_source(
+            source=[np.int32([1, 2, 3]), np.int32([4, 5, 6])], cycle=True, batch=False
+        )
+        op2 = fn.external_source(
+            source=[np.int32([6, 5, 4]), np.int32([3, 2, 1])], cycle=True, batch=False
+        )
+        with Pipeline(batch_size=1, device_id=None, num_threads=1, seed=123) as p:
+            ret1 = op1 + op2
+            p.set_outputs(ret1)
+        pipes.append(p)
 
-    # these operators were defined without an active pipeline, so they have some global ids
-    assert op1.name != op3.name
 
-    p1.build()  # names and ids of op1 and op2 are adjusted here
-    p2.build()  # names and ids of op3 and op4 are adjusted here
+    pipes[0].build()  # names and ids of op1 and op2 are adjusted here
+    pipes[1].build()  # names and ids of op3 and op4 are adjusted here
 
-    # these operators are in the same place in the graph now, so they have equal ids
-    assert op1.name == op3.name
+    ser1 = pipes[0].serialize(None, "p1.pb")
+    ser2 = pipes[1].serialize(None, "p2.pb")
 
-    (o1,) = p1.run()
-    (o2,) = p2.run()
+    (o1,) = pipes[0].run()
+    (o2,) = pipes[1].run()
     assert np.array_equal(o1[0], np.int32([7, 7, 7]))
     assert np.array_equal(o2[0], np.int32([7, 7, 7]))
 
 
-def test_without_current_pipeline1():
+def test_regression_without_current_pipeline1():
     def get_pipe(device):
         pipe = Pipeline(batch_size=1, num_threads=1, device_id=0)
         data = fn.external_source(source=[1, 2, 3], batch=False, cycle=True, device=device)
@@ -2207,7 +2199,7 @@ def test_without_current_pipeline1():
     p.build()
 
 
-def test_without_current_pipeline2():
+def test_regression_without_current_pipeline2():
     pipe = Pipeline(batch_size=4, num_threads=3, device_id=0)
     data = fn.external_source(source=[1, 2, 3], batch=False, cycle=True)
     pipe.set_outputs(data.gpu())

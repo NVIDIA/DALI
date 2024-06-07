@@ -58,10 +58,7 @@ from nvidia.dali.ops._operator_utils import (
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
     _lock = threading.Lock()
-    # Start from something large to avoid confusion (while debugging) with per-pipeline numbering.
-    # NOTE: The renaming system in Pipeline can handle duplicate identifiers and would _not_
-    #       get confused.
-    _op_count = count(100000)
+    _op_count = count(0)
 
     def __init__(self):
         with self._lock:
@@ -375,14 +372,15 @@ class _OperatorInstance(object):
         """
 
         if _Pipeline.current():
-            self.pipeline = weakref.ref(_Pipeline.current())
+            self._pipeline = weakref.ref(_Pipeline.current())
         else:
-            self.pipeline = None
+            self._pipeline = None
         self._id = None
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
         self._relation_id = None
+        print("_pipeline is ", self._pipeline, "while constructing", self._op._operator_name())
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
@@ -423,7 +421,10 @@ class _OperatorInstance(object):
             self._name = name
             self._autoname = False
         else:
-            self._name = "__" + type(self._op).__name__ + "_" + str(self.id)
+            has_pipeline = self.pipeline is not None
+            # to avoid mixing up global and per-pipeline ids
+            infix = "_" if has_pipeline else "_detached_"
+            self._name = "__" + type(self._op).__name__ + infix + str(self.id)
             self._autoname = True
 
     def _process_trace(self, arguments):
@@ -478,15 +479,11 @@ class _OperatorInstance(object):
     def pipeline(self):
         return None if self._pipeline is None else self._pipeline()
 
-    @pipeline.setter
-    def pipeline(self, value):
-        self._pipeline = value
-
     @property
     def id(self):
         if self._id is None:
             if self.pipeline is None and _Pipeline.current():
-                self.pipeline = _Pipeline.current()
+                self._pipeline = weakref.ref(_Pipeline.current())
             if self.pipeline:
                 self._id = self.pipeline._next_op_id()
             else:
@@ -521,6 +518,10 @@ class _OperatorInstance(object):
     def relation_id(self):
         if self._relation_id is None:
             self._relation_id = self.id
+            print("Generating relation_id")
+            if self._pipeline is not None:
+                print("...using pipeline id")
+                self._relation_id += 100000 * id(self._pipeline())
         return self._relation_id
 
     @relation_id.setter

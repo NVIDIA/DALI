@@ -14,6 +14,7 @@
 
 # pylint: disable=no-member
 from typing import Any, List, Tuple, Callable, Optional, Union, TypeVar, overload
+from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
@@ -234,8 +235,8 @@ class Pipeline(object):
         self._num_threads = num_threads
         self._device_id = device_id
         self._seed = seed
-        self._exec_pipelined = exec_pipelined
         self._next_op_id_counter = 0
+        self._exec_pipelined = exec_pipelined
         # When initializing DALI, we do the following in order:
         # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
         # * Start the Python workers pool (_start_py_workers())
@@ -352,11 +353,6 @@ class Pipeline(object):
 
     def __del__(self):
         self._shutdown()
-
-    def _next_op_id(self):
-        i = self._next_op_id_counter
-        self._next_op_id_counter += 1
-        return i
 
     def _shutdown(self):
         if self._pipe:
@@ -724,6 +720,50 @@ class Pipeline(object):
 
         return api_checker(self)
 
+
+    def _require_unique_names(self):
+        ops_by_name = {}
+        for op in self._ops:
+            ops = ops_by_name.get(op.name, [])
+            ops.append(op)
+        duplicate = {}
+        foreign = False
+        for name, ops in ops_by_name.items():
+            if len(ops) > 1:
+                duplicate[name] = ops
+                for op in ops:
+                    if op.pipeline is not self:
+                        foreign = True
+
+        if duplicate:
+            message = (
+                f"The pipeline is invalid because it contains operators with non-unique names:\n"
+                f"{duplicate}"
+            )
+            if foreign:
+                message += (
+                    "\nThe likely cause is that the pipeline contains a subgraph "
+                    "instantiated while a different pipeline was set as the current "
+                    "pipeline (e.g. inside another pipeline's graph definition function).\n"
+                )
+            raise RuntimeError(message)
+
+
+
+    def _require_no_foreign_ops(self, message):
+        foreign = []
+        for op in self._ops:
+            if op.pipeline is not self:
+                foreign.append(op)
+        if foreign:
+            raise RuntimeError(
+                f"{message} because it contains operator(s) "
+                f"that were defined outside the pipeline scope:\n"
+                f"{[o.name for o in foreign]}\n"
+                f"All operators should be defined while the pipeline is set as the current "
+                f"pipeline. This happens automatically when defining the pipeline in a "
+                f"function decorated with `@pipeline_def`.")
+
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
     def _build_graph(self, define_graph=None):
         if define_graph is not None:
@@ -781,89 +821,14 @@ class Pipeline(object):
             _data_node._check(outputs[i])
 
         self._ops = _collect_ops(list(outputs) + self._sinks)
+        self._require_unique_names()
+        if self._enable_checkpointing:
+            self._require_no_foreign_ops("The pipeline does not support checkpointing")
+
         self._graph_outputs = outputs
-        self._rename_foreign_ops()
         self._setup_input_callbacks()
         self._disable_pruned_external_source_instances()
         self._py_graph_built = True
-
-    def _rename_foreign_ops(self):
-        # Operators defined without current pipeline set or ones set in the context of a different
-        # pipeline will have unpredictable ids/names. This is a problem, because we want a pipeline
-        # with the same structure to have predictable operator and node identifiers.
-        #
-        # for i in range(10)
-        #     op1 = fn.external_source(...)
-        #     # op1.name is something like "__ExternalSource_100000" for the 1st iteration
-        #     # and "__ExternalSource_100001" for the 2nd one, and so on
-        #     with Pipeline(...) as pipe:
-        #           op2 = fn.external_source(...)
-        #           # op2 has a fixed id "__ExternalSource_0"
-        #           pipe.set_outputs(op1, op2)
-        #     pipe.build()  # this will rename op1 to __ExternalSource_1
-        #     # each `pipe` has exactly the same structure and operator names at this point.
-
-        name_map = {}
-        id_map = {}
-        foreign = {}
-        renamed = {}
-        old_names = {}
-        for op in self._ops:
-            if op.pipeline is not self:
-                old_name = op._name
-                old_names[op] = old_name
-                old_id = op._id
-                new_id = self._next_op_id()
-                if new_id == old_id:
-                    continue  # we were lucky
-                id_map[old_id] = new_id
-                if op._autoname:
-                    new_name = old_name[: old_name.rfind("_") + 1] + str(new_id)
-                    name_map[old_name] = new_name
-                foreign[id(op)] = op
-        renamed_data_nodes = set()
-
-        def rename_data_node(node: DataNode, out_idx=None):
-            if id(node) in renamed_data_nodes:
-                return
-            op = node.source
-            old_name = old_names[op]
-            new_name = name_map[old_name]
-            if len(op.outputs) > 1:
-                if out_idx is None:
-                    out_idx = int(node.name[node.name.find("[") + 1 : node.name.find("]")])
-                expected_name = f"{old_name}[{out_idx}]"
-                assert node.name == expected_name
-                full_new_name = f"{new_name}[{out_idx}]"
-                node.name = full_new_name
-            else:
-                expected_name = f"{old_name}"
-                assert node.name == expected_name
-                node.name = f"{new_name}"
-            renamed_data_nodes.add(id(node))
-
-        for op in foreign.values():
-            op.pipeline = self
-            op.relation_id = id_map[op.relation_id]
-            op._id = id_map[op.id]
-            old_name = op._name
-            if old_name in name_map:
-                new_name = name_map[old_name]
-                renamed[id(op)] = op
-                op._name = new_name
-                for o, output in enumerate(op.outputs):
-                    rename_data_node(output, o)
-                    op.spec.RenameOutput(o, output.name)
-
-        for op in self._ops:
-            for i, input in enumerate(op.inputs):
-                if id(input.source) in renamed:
-                    rename_data_node(input)
-                    op.spec.RenameInput(i, input.name)
-
-        for pipe_out in self._graph_outputs:
-            if id(pipe_out.source) in renamed:
-                rename_data_node(pipe_out)
 
     def _setup_pipe_pool_dependency(self):
         if self._py_pool_started:
@@ -917,9 +882,13 @@ class Pipeline(object):
 
         for op in self._ops:
             if op.relation_id not in related_logical_id:
+                print("Adding ", op.name, op.id, op.relation_id)
                 related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
+                print("related logical id is", related_logical_id[op.relation_id])
             else:
+                print("Adding ", op.name, op.id, op.relation_id)
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
+                print("related logical id is", related_logical_id[op.relation_id])
         self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
 
@@ -1043,6 +1012,11 @@ class Pipeline(object):
                     group.current_sample = pipeline_data["iter"] * self._max_batch_size
             self._iterator_data = external_ctx_cpt.iterator_data
             self._is_restored_from_checkpoint = True
+
+    def _next_op_id(self):
+        i = self._next_op_id_counter
+        self._next_op_id_counter += 1
+        return i
 
     def build(self):
         """Build the pipeline.
@@ -2203,6 +2177,8 @@ def _collect_ops(output_nodes):
 
     for edge in output_nodes:
         visit_op(get_source_op(edge))
+
+    print([o.name for o in ops])
 
     return ops
 
