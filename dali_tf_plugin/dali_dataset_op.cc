@@ -420,7 +420,12 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     TF_DALI_CALL(daliFree(cpt));
     TF_RETURN_IF_ERROR(writer->WriteTensor(prefix(), "checkpoint", cpt_tensor));
 
+
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 10)
     return OkStatus();
+#else
+    return Status::OK();
+#endif
   }
 
   Status RestoreInternal(IteratorContext *ctx,
@@ -442,7 +447,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     TF_DALI_CALL(daliPrefetchUniform(&pipeline_handle_,
                                      dataset()->pipeline_def_.prefetch_queue_depth));
 
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 10)
     return OkStatus();
+#else
+    return Status::OK();
+#endif
   }
 #endif
 
