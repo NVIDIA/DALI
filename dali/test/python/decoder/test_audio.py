@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import scipy.io.wavfile
+import librosa
+import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import scipy.io.wavfile
-import numpy as np
 import os
-from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_audio_decoder_utils import generate_waveforms
 from test_utils import compare_pipelines, get_files
 
 names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
@@ -95,6 +96,21 @@ class DecoderPipeline(Pipeline):
             with open(names[idx], mode="rb") as f:
                 list.append(np.array(bytearray(f.read()), np.uint8))
         self.feed_input(self.raw_file, list)
+
+
+def rosa_resample(input, in_rate, out_rate):
+    if input.shape[1] == 1:
+        return librosa.resample(input[:, 0], orig_sr=in_rate, target_sr=out_rate)[:, np.newaxis]
+
+    channels = [
+        librosa.resample(np.array(input[:, c]), orig_sr=in_rate, target_sr=out_rate)
+        for c in range(input.shape[1])
+    ]
+    ret = np.zeros(shape=[channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
+    for c, a in enumerate(channels):
+        ret[:, c] = a
+
+    return ret
 
 
 def test_decoded_vs_generated():
