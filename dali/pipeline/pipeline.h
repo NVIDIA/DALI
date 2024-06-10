@@ -729,6 +729,7 @@ class DLL_PUBLIC Pipeline {
 
   std::unique_ptr<ExecutorBase> executor_;
   graph::OpGraph graph_;
+  graph::OpGraph::Builder graph_builder_;
   std::map<string, EdgeMeta> edge_names_;
 
   struct OpDefinition {
@@ -760,7 +761,7 @@ class DLL_PUBLIC Pipeline {
    */
   class RepeatLastInputs {
    public:
-    void FindNodes(const OpGraph &graph);
+    void FindNodes(const graph::OpGraph &graph, ExecutorBase &exec);
 
     template <typename OperatorBackend, typename DataBackend>
     bool SetLast(const std::string &name, const TensorList<DataBackend> &data,
@@ -773,7 +774,7 @@ class DLL_PUBLIC Pipeline {
         return false;
 
       auto &node = it->second;
-      auto &inp = dynamic_cast<InputOperator<OperatorBackend>&>(*node.op_node->op);
+      auto &inp = dynamic_cast<InputOperator<OperatorBackend>&>(*node.op);
 
       auto do_copy = [&]() {
         node.last_input.Reset();
@@ -813,6 +814,8 @@ class DLL_PUBLIC Pipeline {
     template <typename Backend>
     struct RepeatLastInput {
       const graph::OpNode *op_node = nullptr;
+      Operator<Backend> *op = nullptr;
+
       using InputBackend = std::conditional_t<std::is_same_v<Backend, MixedBackend>,
                                              CPUBackend, Backend>;
       TensorList<InputBackend> last_input;

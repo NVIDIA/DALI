@@ -130,6 +130,14 @@ class DLL_PUBLIC OpGraph {
     return data_nodes_;
   }
 
+  OpNodeList &OpNodes() {
+    return op_nodes_;
+  }
+
+  DataNodeList &DataNodes() {
+    return data_nodes_;
+  }
+
   /** Returns an OpNode with a matching instance name or nullptr. */
   OpNode *GetOp(std::string_view instance_name) {
     return GetOpImpl(instance_name);

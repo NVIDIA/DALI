@@ -510,7 +510,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     OpSpec op_spec = name_op_spec.spec;
     PrepareOpSpec(&op_spec, name_op_spec.logical_id);
     try {
-      graph_.AddOp(op_spec, inst_name);
+      graph_.AddOp(inst_name, op_spec);
     } catch (...) {
       PropagateError({std::current_exception(),
                       "Critical error when building pipeline:\n" + GetErrorContextMessage(op_spec),
@@ -562,18 +562,22 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     }
   }
 
-  for (int i = 0; i < graph_.NumOp(OpType::MIXED); i++) {
-    OpNode &node = graph_.Node(OpType::MIXED, i);
+  for (auto &out : outputs)
+    graph_builder_.AddOutput(out);
+
+  graph_ = std::move(graph_builder_).GetGraph(true);
+
+  for (auto &node : graph_.OpNodes()) {
     if (node.spec.SchemaName() == "MakeContiguous") {
       PropagateMemoryHint(node);
     }
   }
 
   // Load the final graph into the executor
-  executor_->Build(&graph_, outputs);
+  executor_->Build(graph_);
 
   DiscoverInputOperators();
-  repeat_last_.FindNodes(graph_);
+  repeat_last_.FindNodes(graph_, *executor_);
 
   built_ = true;
 }
@@ -785,8 +789,8 @@ string Pipeline::SerializeToProtobuf() const {
   return output;
 }
 
-grah::OpNode *Pipeline::GetOperatorNode(std::string_view name) {
-  return &(graph_.Node(name));
+graph::OpNode *Pipeline::GetOperatorNode(std::string_view name) {
+  return graph_.GetOp(name);
 }
 
 const graph::OpNode *Pipeline::GetInputOperatorNode(std::string_view name) {
@@ -826,18 +830,19 @@ int Pipeline::InputFeedCount(std::string_view name) {
 const TensorLayout &Pipeline::GetInputLayout(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputLayout()\".");
   const auto *node = GetOperatorNode(name);
+  auto *op = executor_->GetOperator(name);
   if (node->op_type == OpType::CPU) {
-    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(op);
     if (in_op) {
       return in_op->in_layout();
     }
   } else if (node->op_type == OpType::MIXED) {
-    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(op);
     if (in_op) {
       return in_op->in_layout();
     }
   } else if (node->op_type == OpType::GPU) {
-    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(op);
     if (in_op) {
       return in_op->in_layout();
     }
@@ -849,18 +854,19 @@ const TensorLayout &Pipeline::GetInputLayout(std::string_view name) {
 int Pipeline::GetInputNdim(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputNdim()\".");
   const auto *node = GetOperatorNode(name);
+  auto *op = executor_->GetOperator(name);
   if (node->op_type == OpType::CPU) {
-    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(op);
     if (in_op) {
       return in_op->in_ndim();
     }
   } else if (node->op_type == OpType::MIXED) {
-    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(op);
     if (in_op) {
       return in_op->in_ndim();
     }
   } else if (node->op_type == OpType::GPU) {
-    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(op);
     if (in_op) {
       return in_op->in_ndim();
     }
@@ -872,18 +878,19 @@ int Pipeline::GetInputNdim(std::string_view name) {
 DALIDataType Pipeline::GetInputDtype(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputDtype()\".");
   const auto *node = GetOperatorNode(name);
+  auto *op = executor_->GetOperator(name);
   if (node->op_type == OpType::CPU) {
-    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(op);
     if (in_op) {
       return in_op->in_dtype();
     }
   } else if (node->op_type == OpType::MIXED) {
-    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(op);
     if (in_op) {
       return in_op->in_dtype();
     }
   } else if (node->op_type == OpType::GPU) {
-    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
+    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(op);
     if (in_op) {
       return in_op->in_dtype();
     }
@@ -928,13 +935,10 @@ int Pipeline::output_ndim(int id) const {
 }
 
 
-static bool is_input_operator(const OpNode &op_node) {
-  return (op_node.op_type == OpType::CPU &&
-          dynamic_cast<InputOperator<CPUBackend> *>(op_node.op.get())) ||
-         (op_node.op_type == OpType::MIXED &&
-          dynamic_cast<InputOperator<MixedBackend> *>(op_node.op.get())) ||
-         (op_node.op_type == OpType::GPU &&
-          dynamic_cast<InputOperator<GPUBackend> *>(op_node.op.get()));
+static bool is_input_operator(OperatorBase *op) {
+  return dynamic_cast<InputOperator<CPUBackend> *>(op) ||
+         dynamic_cast<InputOperator<MixedBackend> *>(op) ||
+         dynamic_cast<InputOperator<GPUBackend> *>(op);
 }
 
 
@@ -955,7 +959,7 @@ std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,
                                   bool use_colors) {
-  graph_.SaveToDotFile(filename, show_tensors, show_ids, use_colors);
+  //graph_.SaveToDotFile(filename, show_tensors, show_ids, use_colors);
 }
 
 int Pipeline::GetNextLogicalId() {
@@ -978,28 +982,20 @@ bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
 
 void Pipeline::Shutdown() {
   DeviceGuard dg(device_id_);
-  auto& op_nodes = graph_.GetOpNodes();
-  for (auto & node : op_nodes) {
-    if (!is_input_operator(node)) continue;
-    OperatorBase *op_ptr = &(const_cast<dali::OpNode*>(&node)->InstantiateOperator());
-    switch (node.op_type) {
-      case OpType::CPU: {
-        auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr);
-        assert(cpu_op_ptr);
+  for (auto &[name, node] : input_operators_) {
+    OperatorBase *op_ptr = executor_->GetOperator(name);
+    if (!op_ptr)
+      continue;
+    if (auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr)) {
         cpu_op_ptr->BreakWaiting();
-      } break;
-      case OpType::MIXED: {
-        auto *mixed_op_ptr = dynamic_cast<InputOperator<MixedBackend> *>(op_ptr);
-        assert(mixed_op_ptr);
-        mixed_op_ptr->BreakWaiting();
-      } break;
-      case OpType::GPU: {
-        auto *gpu_op_ptr = dynamic_cast<InputOperator<GPUBackend> *>(op_ptr);
-        assert(gpu_op_ptr);
-        gpu_op_ptr->BreakWaiting();
-      } break;
-      default:
-        assert(false);  // This shouldn't happen.
+    } else if (auto *mixed_op_ptr = dynamic_cast<InputOperator<MixedBackend> *>(op_ptr)) {
+      assert(mixed_op_ptr);
+      mixed_op_ptr->BreakWaiting();
+    } else if (auto *gpu_op_ptr = dynamic_cast<InputOperator<GPUBackend> *>(op_ptr)) {
+      assert(gpu_op_ptr);
+      gpu_op_ptr->BreakWaiting();
+    } else {
+      assert(false);  // This shouldn't happen.
     }
   }
 
@@ -1064,7 +1060,7 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
 
   // Add a make contiguous op to produce this output
   PrepareOpSpec(&spec, GetNextInternalLogicalId());
-  graph_.AddOp(spec, op_name);
+  graph_builder_.Add(op_name, std::move(spec));
 
   if (output_dev == "cpu") {
     meta.has_make_contiguous_cpu = true;
@@ -1077,9 +1073,10 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
 
 
 void Pipeline::DiscoverInputOperators() {
-  auto& op_nodes = graph_.GetOpNodes();
-  for (const auto & node : op_nodes) {
-    if (is_input_operator(node)) {
+  auto& op_nodes = graph_.OpNodes();
+  for (const auto &node : op_nodes) {
+    auto *op = executor_->GetOperator(node.instance_name);
+    if (is_input_operator(op)) {
       input_operators_.insert(std::make_pair(node.instance_name, &node));
     }
   }
@@ -1090,8 +1087,8 @@ void Pipeline::ProcessException(std::exception_ptr eptr) {
       {eptr, "Critical error in pipeline:\n", "\nCurrent pipeline object is no longer valid."});
 }
 
-void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
-  for (const auto &node : graph.GetOpNodes()) {
+void Pipeline::RepeatLastInputs::FindNodes(const graph::OpGraph &graph, ExecutorBase &exec) {
+  for (const auto &node : graph.OpNodes()) {
     if (node.spec.SchemaName() != "ExternalSource")
       continue;
 
@@ -1099,12 +1096,14 @@ void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
     if (!node.spec.TryGetArgument(repeat_last, "repeat_last") || !repeat_last)
       continue;
 
+    auto op = exec.GetOperator(node.instance_name);
+
     if (node.op_type == OpType::GPU)
-      gpu_nodes_[node.instance_name] = { &node };
+      gpu_nodes_[node.instance_name] = { &node, dynamic_cast<Operator<GPUBackend>*>(op) };
     else if (node.op_type == OpType::CPU)
-      cpu_nodes_[node.instance_name] = { &node };
+      cpu_nodes_[node.instance_name] = { &node, dynamic_cast<Operator<CPUBackend>*>(op) };
     else if (node.op_type == OpType::MIXED)
-      mixed_nodes_[node.instance_name] = { &node };
+      mixed_nodes_[node.instance_name] = { &node, dynamic_cast<Operator<MixedBackend>*>(op) };
     else
       assert(!"Unexpected backend for an ExternalSource node.");
   }
@@ -1116,9 +1115,13 @@ void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
   for (auto &[name, node] : nodes) {
     int count = fill_queue ? owner.InputFeedCount(name) : 1;
     for (int i = 0; i < count; i++)
-      owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
-        InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
-        true);
+      owner.SetExternalInputHelper(
+          node.op_node->instance_name,
+          node.last_input,
+          node.data_id,
+          node.last_input.order(),
+          InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+          true);
   }
 }
 
