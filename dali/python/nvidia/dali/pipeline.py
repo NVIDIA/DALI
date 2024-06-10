@@ -2162,6 +2162,7 @@ def _collect_ops(output_nodes):
         if id(op) in visited:
             return
         visited.add(id(op))
+        op.check_args()
         # visit conttributing inputs
         for edge in get_op_input_edges(op):
             visit_op(get_source_op(edge))

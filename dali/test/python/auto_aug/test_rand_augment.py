@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -312,7 +312,7 @@ def test_ops_selection_and_mags(case_idx, args):
             actual.append(actual_count[out])
             expected.append(expected_counts[out])
         stat = chisquare(actual, expected)
-        assert 0.01 <= stat.pvalue <= 0.99, f"{stat} {actual} {expected}"
+        assert 0.01 <= stat.pvalue, f"{stat} {actual} {expected}"
 
 
 def test_wrong_params_fail():

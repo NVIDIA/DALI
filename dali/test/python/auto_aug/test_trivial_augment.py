@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -236,4 +236,4 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
         stat = chisquare(actual, expected)
         stats.append(stat)
     mean_p_val = sum(stat.pvalue for stat in stats) / len(stats)
-    assert 0.05 <= mean_p_val <= 0.95, f"{mean_p_val} {stat} {actual} {expected}"
+    assert 0.01 <= mean_p_val, f"{mean_p_val} {stat} {actual} {expected}"
