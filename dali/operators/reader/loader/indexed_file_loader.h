@@ -30,6 +30,7 @@
 #include "dali/util/uri.h"
 #include "dali/util/file.h"
 #include "dali/util/odirect_file.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 
@@ -192,13 +193,27 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     DALI_ENFORCE(index_uris.size() == paths_.size(),
         "Number of index files needs to match the number of data files");
     for (size_t i = 0; i < index_uris.size(); ++i) {
-      std::ifstream fin(index_uris[i]);
-      DALI_ENFORCE(fin.good(), "Failed to open file " + index_uris[i]);
+      const auto& path = index_uris[i];
+      auto uri = URI::Parse(path);
+      bool local_file = !uri.valid() || uri.scheme() == "file";
+      FileStream::Options opts;
+      opts.read_ahead = read_ahead_;
+      opts.use_mmap = local_file && !copy_read_data_;
+      opts.use_odirect = local_file && use_o_direct_;
+
+      auto index_file = FileStream::Open(path, opts);
+      auto index_file_cleanup = AtScopeExit([&index_file] {
+        if (index_file)
+          index_file->Close();
+      });
+
+      FileStreamBuf<> stream_buf(index_file.get());
+      std::istream fin(&stream_buf);
+      DALI_ENFORCE(fin.good(), "Failed to open file " + path);
       int64 pos, size;
       while (fin >> pos >> size) {
         indices_.emplace_back(pos, size, i);
       }
-      fin.close();
     }
   }
 
