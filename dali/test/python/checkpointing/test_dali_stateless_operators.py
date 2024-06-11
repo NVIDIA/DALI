@@ -995,3 +995,21 @@ def test_dilate_stateless(device):
 @stateless_signed_off("experimental.erode")
 def test_erode_stateless(device):
     check_single_input(fn.experimental.erode, device)
+
+
+@params("cpu")
+@stateless_signed_off("zeros", "ones", "full", "zeros_like", "ones_like", "full_like")
+def test_full_operator_family(device):
+    @pipeline_def(enable_checkpointing=True)
+    def pipeline_factory():
+        sh = np.array([2, 3], dtype=np.int32)
+        fill_value = np.array([1.0, 0.4, 3.0], dtype=np.float32)
+        zeros = fn.zeros(shape=sh)
+        ones = fn.ones(shape=sh)
+        full = fn.full(fill_value, shape=sh)
+        zeros_like = fn.zeros_like(zeros)
+        ones_like = fn.ones_like(zeros)
+        full_like = fn.full_like(zeros, fill_value)
+        return zeros, ones, full, zeros_like, ones_like, full_like
+
+    check_is_pipeline_stateless(pipeline_factory)

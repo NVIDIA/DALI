@@ -1489,6 +1489,42 @@ def test_video_decoder():
     )
 
 
+def test_zeros():
+    check_no_input("zeros", shape=(2, 3))
+
+
+def test_zeros_like():
+    check_single_input("zeros_like", layout=None)
+
+
+def test_ones():
+    check_no_input("ones", shape=(2, 3))
+
+
+def test_ones_like():
+    check_single_input("ones_like", layout=None)
+
+
+def test_full():
+    check_single_input("full", shape=(1,))
+
+
+def test_full_like():
+    fill_value = np.array([1, 2, 3], dtype=np.int32)
+    array_like = np.zeros((2, 3))
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+    def full_like_pipe():
+        return fn.full_like(array_like, fill_value)
+
+    compare_eager_with_pipeline(
+        full_like_pipe(),
+        lambda x: eager.full_like(x, get_tl([fill_value] * batch_size, None)),
+        eager_source=lambda _i, _layout: get_tl([array_like] * batch_size, None),
+        layout=None,
+    )
+
+
 tested_methods = [
     "decoders.image",
     "decoders.image_crop",
@@ -1609,6 +1645,12 @@ tested_methods = [
     "batch_permutation",
     "random_crop_generator",
     "experimental.decoders.video",
+    "zeros",
+    "zeros_like",
+    "ones",
+    "ones_like",
+    "full",
+    "full_like",
 ]
 
 excluded_methods = [
