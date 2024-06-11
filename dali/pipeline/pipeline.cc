@@ -1112,7 +1112,7 @@ void Pipeline::RepeatLastInputs::FindNodes(const graph::OpGraph &graph, Executor
 template <typename Backend>
 void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
   auto &nodes = GetNodes<Backend>();
-  for (auto &[name, node] : nodes) {
+  for (auto &[name, node] : nodes) {;
     int count = fill_queue ? owner.InputFeedCount(name) : 1;
     for (int i = 0; i < count; i++)
       owner.SetExternalInputHelper(

@@ -30,6 +30,15 @@
 
 namespace dali {
 
+namespace {
+
+template <typename Pred>
+int CountNodes(const graph::OpGraph &graph, Pred &&pred) {
+
+}
+
+}  // namespace
+
 template <typename ThreadCount>
 class PipelineTest : public DALITest {
  public:
@@ -140,12 +149,12 @@ class PipelineTest : public DALITest {
     vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
     pipe.Build(outputs);
 
-    OpGraph &graph = this->GetGraph(&pipe);
+    auto &graph = this->GetGraph(&pipe);
 
       // Validate the graph
-    ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
-    ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
-    ASSERT_EQ(graph.NumOp(OpType::GPU), 2);
+    ASSERT_EQ(CountNodes(graph, OpType::CPU), 1);
+    ASSERT_EQ(CountNodes(graph, OpType::MIXED), 1);
+    ASSERT_EQ(CountNodes(graph, OpType::GPU), 2);
 
     ASSERT_EQ(graph.Node(OpType::MIXED, 0).op->GetSpec().GetSchema().name(), "MakeContiguous");
 
@@ -179,7 +188,7 @@ class PipelineTest : public DALITest {
     ASSERT_EQ(node4.parents.count(2), 1);
   }
 
-  inline OpGraph& GetGraph(Pipeline *pipe) {
+  inline auto &GetGraph(Pipeline *pipe) {
     return pipe->graph_;
   }
 };
