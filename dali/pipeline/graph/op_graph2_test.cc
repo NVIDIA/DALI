@@ -282,7 +282,7 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
   b.Add("op4", spec4);
   b.AddOutput("o0_gpu");
   b.AddOutput("o1_cpu");
-  OpGraph g = std::move(b).GetGraph();
+  OpGraph g = std::move(b).GetGraph(false);  // don't prune now
 
   auto &nodes = g.OpNodes();
   ASSERT_EQ(nodes.size(), 4_uz) << "The nodes were not added properly - abandoning test";
