@@ -2103,10 +2103,10 @@ PYBIND11_MODULE(backend_impl, m) {
         "show_ids"_a = false,
         "use_colors"_a = false)
     .def("reader_meta", [](Pipeline* p) {
-          std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
           py::dict d;
-          for (auto const& value : meta_map) {
-            d[value.first.c_str()] = ReaderMetaToDict(value.second);
+          for (auto const&[name, meta] : p->GetReaderMeta()) {
+            std::string name_str(name);  // pybind11 doesn't have operator[](string_view)
+            d[name_str.c_str()] = ReaderMetaToDict(meta);
           }
           return d;
         })

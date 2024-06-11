@@ -386,7 +386,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     // Validate output data conforms to graph constraints
     // Note: DALI CPU -> GPU flow is enforced, when the operators are added via the Python layer
     // in `generate_outputs` - the output_device is calculated and assigned to DataNode.
-    // TODO(klecki): Are there any GPU ops that actually return CPU outputs?
+    // TODO(michalz): Remove this constraint! Insert GPU->CPU copy instead.
     bool mark_explicitly_contiguous = false;
     if (device == "cpu") {
       DALI_ENFORCE(output_device == "cpu",
@@ -510,7 +510,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     OpSpec op_spec = name_op_spec.spec;
     PrepareOpSpec(&op_spec, name_op_spec.logical_id);
     try {
-      graph_.AddOp(inst_name, op_spec);
+      graph_builder_.Add(inst_name, op_spec);
     } catch (...) {
       PropagateError({std::current_exception(),
                       "Critical error when building pipeline:\n" + GetErrorContextMessage(op_spec),
@@ -793,6 +793,11 @@ graph::OpNode *Pipeline::GetOperatorNode(std::string_view name) {
   return graph_.GetOp(name);
 }
 
+OperatorBase *Pipeline::GetOperator(std::string_view name) {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetOperator()\".");
+  return executor_->GetOperator(name);
+}
+
 const graph::OpNode *Pipeline::GetInputOperatorNode(std::string_view name) {
   auto it = input_operators_.find(name);
   if (it != input_operators_.end())
@@ -809,7 +814,7 @@ std::map<std::string_view, ReaderMeta, std::less<>> Pipeline::GetReaderMeta() {
       continue;
     ReaderMeta meta = op->GetReaderMeta();
     if (meta) {
-      ret.insert(make_pair(op_node.instance_name, meta));
+      ret.emplace(op_node.instance_name, meta);
     }
   }
   return ret;
@@ -829,24 +834,13 @@ int Pipeline::InputFeedCount(std::string_view name) {
 
 const TensorLayout &Pipeline::GetInputLayout(std::string_view name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputLayout()\".");
-  const auto *node = GetOperatorNode(name);
   auto *op = executor_->GetOperator(name);
-  if (node->op_type == OpType::CPU) {
-    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(op);
-    if (in_op) {
-      return in_op->in_layout();
-    }
-  } else if (node->op_type == OpType::MIXED) {
-    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(op);
-    if (in_op) {
-      return in_op->in_layout();
-    }
-  } else if (node->op_type == OpType::GPU) {
-    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(op);
-    if (in_op) {
-      return in_op->in_layout();
-    }
-  }
+  if (const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(op))
+    return in_op->in_layout();
+  if (const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(op))
+    return in_op->in_layout();
+  if (const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(op))
+    return in_op->in_layout();
   DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
 }
 
