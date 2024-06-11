@@ -312,7 +312,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
 
     DALI_ENFORCE(it != edge_names_.end(),
                  make_string("Data node \"", input_name, "\" requested as ", FormatInput(spec, i),
-                             " to the operator is not known to the pipeline."));
+                             " to operator \"", inst_name, "\" is not known to the pipeline."));
 
     // Table of possible scenarios:
     // Op location / requested input type / data location
@@ -360,7 +360,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     DALI_ENFORCE(
         it != edge_names_.end(),
         make_string("Data node \"", input_name, "\" requested as ", FormatArgument(spec, arg_name),
-                    " to operator is not known to the pipeline."));
+                    " to operator \"", inst_name, "\" is not known to the pipeline."));
 
     if (!it->second.has_cpu) {
       assert(it->second.has_gpu);

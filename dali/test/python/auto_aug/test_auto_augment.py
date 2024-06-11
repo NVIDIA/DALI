@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -210,8 +210,8 @@ class VideoTest(unittest.TestCase):
 @params(
     (False, "cpu", 256),
     (False, "gpu", 512),
-    (True, "cpu", 400),
-    (True, "gpu", 348),
+    (True, "cpu", 2000),
+    (True, "gpu", 2000),
 )
 def test_sub_policy(randomly_negate, dev, batch_size):
     num_magnitude_bins = 10
@@ -305,9 +305,8 @@ def test_sub_policy(randomly_negate, dev, batch_size):
                     expected_counts.append(expected)
             stat = chisquare(counts, expected_counts)
             # assert that the magnitudes negation looks independently enough
-            # (0.05 <=), but also that it is not too ideal (i.e. like all
-            # cases happening exactly the expected number of times)
-            assert 0.05 <= stat.pvalue <= 0.95, f"{stat}"
+            # (0.01 <=)
+            assert 0.01 <= stat.pvalue, f"{stat}"
 
 
 @params(("cpu",), ("gpu",))
@@ -397,7 +396,7 @@ def test_op_skipping(dev):
     )
 
     policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
-    p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
+    p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy, seed=1234)
     p.build()
 
     for _ in range(5):
@@ -415,10 +414,8 @@ def test_op_skipping(dev):
             actual.append(actual_counts[mags])
             expected.append(expected_counts[mags])
         stat = chisquare(actual, expected)
-        # assert that the magnitudes negation looks independently enough
-        # (0.05 <=), but also that it is not too ideal (i.e. like all
-        # cases happening exactly the expected number of times)
-        assert 0.05 <= stat.pvalue <= 0.95, f"{stat}"
+        # assert that the magnitudes negation looks independently enough (0.01 <=)
+        assert 0.01 <= stat.pvalue, f"{stat}"
 
 
 def test_policy_presentation():

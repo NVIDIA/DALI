@@ -14,7 +14,6 @@
 
 # pylint: disable=no-member
 from typing import Any, List, Tuple, Callable, Optional, Union, TypeVar, overload
-from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
@@ -235,6 +234,7 @@ class Pipeline(object):
         self._num_threads = num_threads
         self._device_id = device_id
         self._seed = seed
+        self._next_op_id_counter = 0
         self._exec_pipelined = exec_pipelined
         # When initializing DALI, we do the following in order:
         # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
@@ -719,6 +719,48 @@ class Pipeline(object):
 
         return api_checker(self)
 
+    def _require_unique_names(self):
+        ops_by_name = {}
+        for op in self._ops:
+            ops = ops_by_name.get(op.name, [])
+            ops.append(op)
+        duplicate = {}
+        foreign = False
+        for name, ops in ops_by_name.items():
+            if len(ops) > 1:
+                duplicate[name] = ops
+                for op in ops:
+                    if op.pipeline is not self:
+                        foreign = True
+
+        if duplicate:
+            message = (
+                f"The pipeline is invalid because it contains operators with non-unique names:\n"
+                f"{duplicate}"
+            )
+            if foreign:
+                message += (
+                    "\nThe likely cause is that the pipeline contains a subgraph "
+                    "instantiated while a different pipeline was set as the current "
+                    "pipeline (e.g. inside another pipeline's graph definition function).\n"
+                )
+            raise RuntimeError(message)
+
+    def _require_no_foreign_ops(self, message):
+        foreign = []
+        for op in self._ops:
+            if op.pipeline is not self:
+                foreign.append(op)
+        if foreign:
+            raise RuntimeError(
+                f"{message} because it contains operator(s) "
+                f"that were defined outside the pipeline scope:\n"
+                f"{[o.name for o in foreign]}\n"
+                f"All operators should be defined while the pipeline is set as the current "
+                f"pipeline. This happens automatically when defining the pipeline in a "
+                f"function decorated with `@pipeline_def`."
+            )
+
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
     def _build_graph(self, define_graph=None):
         if define_graph is not None:
@@ -776,6 +818,10 @@ class Pipeline(object):
             _data_node._check(outputs[i])
 
         self._ops = _collect_ops(list(outputs) + self._sinks)
+        self._require_unique_names()
+        if self._enable_checkpointing:
+            self._require_no_foreign_ops("The pipeline does not support checkpointing")
+
         self._graph_outputs = outputs
         self._setup_input_callbacks()
         self._disable_pruned_external_source_instances()
@@ -959,6 +1005,11 @@ class Pipeline(object):
                     group.current_sample = pipeline_data["iter"] * self._max_batch_size
             self._iterator_data = external_ctx_cpt.iterator_data
             self._is_restored_from_checkpoint = True
+
+    def _next_op_id(self):
+        i = self._next_op_id_counter
+        self._next_op_id_counter += 1
+        return i
 
     def build(self):
         """Build the pipeline.
@@ -2101,37 +2152,26 @@ def _collect_ops(output_nodes):
             else:
                 yield inp
 
-    def get_op_outputs_num():
-        # BSF traverse the graph first to learn, for each reachable operator in the graph,
-        # how many data-nodes/edges the operator contributes to
-        # (i.e. the number of outputs of the operator instance)
-        op_outputs_num = {}
-        edges = deque(output_nodes)
-        while edges:
-            current_edge = edges.popleft()
-            source_op = get_source_op(current_edge)
-            if source_op.id in op_outputs_num:
-                op_outputs_num[source_op.id] += 1
-            else:
-                op_outputs_num[source_op.id] = 1
-                source_op.check_args()
-                edges.extend(get_op_input_edges(source_op))
-        return op_outputs_num
-
+    visited = set()
     ops = []
-    edges = deque(output_nodes)
-    op_total_outputs_num = get_op_outputs_num()
-    op_visited_outputs_num = {op_id: 0 for op_id in op_total_outputs_num}
-    while edges:
-        current_edge = edges.popleft()
-        source_op = get_source_op(current_edge)
-        op_visited_outputs_num[source_op.id] += 1
-        # Actually visit the operator only when all the nodes it contributes to
-        # were already processed
-        if op_visited_outputs_num[source_op.id] == op_total_outputs_num[source_op.id]:
-            ops.append(source_op)
-            edges.extend(get_op_input_edges(source_op))
-    ops.reverse()
+
+    # Depth-first search returns the graph topologically sorted.
+    # We go over each operator's inputs before adding it to the list.
+
+    def visit_op(op):
+        if id(op) in visited:
+            return
+        visited.add(id(op))
+        op.check_args()
+        # visit conttributing inputs
+        for edge in get_op_input_edges(op):
+            visit_op(get_source_op(edge))
+        # add the operator to the list of contributing ops
+        ops.append(op)
+
+    for edge in output_nodes:
+        visit_op(get_source_op(edge))
+
     return ops
 
 

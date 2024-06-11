@@ -17,6 +17,7 @@ import sys
 import threading
 import tree
 import warnings
+import weakref
 from itertools import count
 
 import nvidia.dali.python_function_plugin
@@ -369,11 +370,16 @@ class _OperatorInstance(object):
         op : Operator class.
             Operator class containing the schema, and spec filled with `processed_arguments`.
         """
-        self._counter = _OpCounter()
+
+        if _Pipeline.current():
+            self._pipeline = weakref.ref(_Pipeline.current())
+        else:
+            self._pipeline = None
+        self._id = None
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
-        self._relation_id = self._counter.id
+        self._relation_id = None
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
@@ -412,8 +418,13 @@ class _OperatorInstance(object):
         name = arguments.pop("name", None)
         if name is not None:
             self._name = name
+            self._autoname = False
         else:
-            self._name = "__" + type(self._op).__name__ + "_" + str(self._counter.id)
+            has_pipeline = self.pipeline is not None
+            # to avoid mixing up global and per-pipeline ids
+            infix = "_" if has_pipeline else "_detached_"
+            self._name = "__" + type(self._op).__name__ + infix + str(self.id)
+            self._autoname = True
 
     def _process_trace(self, arguments):
         from nvidia.dali._debug_mode import _PipelineDebug
@@ -464,8 +475,20 @@ class _OperatorInstance(object):
             self.append_output(t)
 
     @property
+    def pipeline(self):
+        return None if self._pipeline is None else self._pipeline()
+
+    @property
     def id(self):
-        return self._counter.id
+        if self._id is None:
+            if self.pipeline is None and _Pipeline.current():
+                self._pipeline = weakref.ref(_Pipeline.current())
+            if self.pipeline:
+                self._id = self.pipeline._next_op_id()
+            else:
+                self._id = _OpCounter().id
+
+        return self._id
 
     @property
     def inputs(self):
@@ -492,6 +515,8 @@ class _OperatorInstance(object):
 
     @property
     def relation_id(self):
+        if self._relation_id is None:
+            self._relation_id = id(self)
         return self._relation_id
 
     @relation_id.setter
@@ -629,7 +654,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
                 )
 
             # Tie the instances together
-            relation_id = op_instances[0].id
+            relation_id = op_instances[0].relation_id
             for op in op_instances:
                 op.relation_id = relation_id
 
