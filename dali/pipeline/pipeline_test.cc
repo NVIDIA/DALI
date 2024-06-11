@@ -38,7 +38,7 @@ auto CountNodes(const graph::OpGraph &graph, Pred &&pred) {
 }
 
 auto CountNodes(const graph::OpGraph &graph, OpType type) {
-  return CountNodes(graph, [](auto &node) { return node.op_type == type; });
+  return CountNodes(graph, [type](auto &node) { return node.op_type == type; });
 }
 
 }  // namespace
