@@ -36,6 +36,8 @@ from nvidia.dali.auto_aug import rand_augment as ra
 from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
 from nose.plugins.attrib import attr
+from nose_utils import assert_raises
+
 
 reader_signed_off = create_sign_off_decorator()
 random_signed_off = create_sign_off_decorator()
@@ -1183,6 +1185,23 @@ def test_multiple_restores(warmup_epochs, warmup_iters, run_epochs, run_iters):
     pipe3.build()
 
     compare_pipelines(pipe2, pipe3, batch_size, 5)
+
+
+def test_unsupported_dangling_subgraph():
+    es = fn.external_source("asdf")
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None, enable_checkpointing=True)
+    def pipe(arg):
+        return arg + 0
+
+    p = pipe(es)
+
+    with assert_raises(
+        RuntimeError,
+        glob="The pipeline does not support checkpointing*"
+        "because it contains operator*outside the pipeline*",
+    ):
+        p.build()
 
 
 unsupported_readers = [

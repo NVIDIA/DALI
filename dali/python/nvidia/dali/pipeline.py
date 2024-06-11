@@ -722,7 +722,9 @@ class Pipeline(object):
     def _require_unique_names(self):
         ops_by_name = {}
         for op in self._ops:
-            ops = ops_by_name.get(op.name, [])
+            ops = ops_by_name.get(op.name, None)
+            if ops is None:
+                ops = ops_by_name[op.name] = []
             ops.append(op)
         duplicate = {}
         foreign = False
