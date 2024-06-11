@@ -85,7 +85,8 @@ void Checkpoint::DeserializeFromProtobuf(ExecutorBase &exec, const std::string &
     DALI_ENFORCE(op, make_string(
                  "The executor doesn't recognize \"", name, "\" as a name of an operator.\n"
                  "The checkpoint might come from another pipeline."));
-    auto &op_cpt = cpts_[AddOperator(name)];
+    auto idx = AddOperator(name);  // this extends the `cpts_` vector
+    auto &op_cpt = cpts_[idx];
     op->DeserializeCheckpoint(op_cpt, data);
   }
   external_ctx_cpt_.pipeline_data = checkpoint.external_ctx_cpt().pipeline_data();
