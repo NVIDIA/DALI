@@ -36,7 +36,7 @@ class OpCheckpoint {
   DLL_PUBLIC explicit OpCheckpoint(std::string instance_name);
 
   /**
-   * @brief Returns name of the corresponding operator. Can be used for validation.
+   * @brief Returns the unique name of the corresponding operator.
    */
   DLL_PUBLIC const std::string &OperatorName() const;
 
