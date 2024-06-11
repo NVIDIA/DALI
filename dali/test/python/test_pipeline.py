@@ -2204,3 +2204,21 @@ def test_regression_without_current_pipeline2():
     data = fn.external_source(source=[1, 2, 3], batch=False, cycle=True)
     pipe.set_outputs(data.gpu())
     pipe.build()
+
+
+def test_subgraph_stealing():
+    p1 = Pipeline(batch_size=1, device_id=None, num_threads=1)
+    p2 = Pipeline(batch_size=1, device_id=None, num_threads=1)
+    with p1:
+        es1 = fn.external_source(source=[1, 2, 3], batch=False)
+        x = es1 + 1
+        p1.set_outputs(x)
+    with p2:
+        es2 = fn.external_source(source=[1, 2, 3], batch=False)
+        p2.set_outputs(x + es2)
+    p1.build()
+    with assert_raises(
+        RuntimeError,
+        glob="The pipeline is invalid because it contains operators with non-unique names",
+    ):
+        p2.build()
