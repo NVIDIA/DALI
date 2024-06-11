@@ -11,7 +11,7 @@ FROM ${FROM_IMAGE_NAME}
 RUN yum install -y wget doxygen graphviz gettext xz openssl autogen zip \
                    devtoolset-10-libasan-devel devtoolset-10-liblsan-devel \
                    devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel \
-                   perl perl-IPC-Cmd
+                   perl perl-IPC-Cmd asciidoc xmlto
 
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
@@ -28,12 +28,15 @@ RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
 # We need newer NASM than manylinux2014 offers
 RUN cd /tmp && \
     curl -O -L https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-2.15.05.tar.gz && \
-    tar xzvf nasm-2.15.05.tar.gz && \
-    cd nasm-nasm-2.15.05 && \
+    tar xvf nasm-2.15.05.tar.gz && \
+    pushd nasm-nasm-2.15.05 && \
     ./autogen.sh && \
     ./configure && \
+    make manpages && \
     make && \
-    make install
+    make install && \
+    popd && \
+    rm -rf nasm-nasm-2.15.05/ nasm-2.15.05.tar.gz
 
 # Clang, build it before deps as deps changes more frequently
 RUN CLANG_VERSION=15.0.2                                                                           && \
