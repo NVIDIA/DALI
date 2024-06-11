@@ -43,6 +43,23 @@ export LD_LIBRARY_PATH="/usr/local/cuda-12.0/compat:$LD_LIBRARY_PATH"
 
 echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
 
+# Solve the issue: ImportError:
+# /usr/local/lib/python3.9/dist-packages/sklearn/utils/../../scikit_learn.libs/libgomp-d22c30c5.so.1.0.0: cannot allocate memory in static TLS block
+preload_libgomp() {
+    if [ "$(uname -m)" = "aarch64" ]; then
+        export NEW_LD_PRELOAD=`find $(python -c "import site; print(site.getsitepackages()[0] + \"/scikit_learn.libs/\")") -name *libgomp-*.so.*`
+        if [ -n "$NEW_LD_PRELOAD" ]; then
+            if [ -z "$LD_PRELOAD" ]; then
+                export LD_PRELOAD=$NEW_LD_PRELOAD
+            else
+                export LD_PRELOAD=$LD_PRELOAD:$NEW_LD_PRELOAD
+            fi
+        fi
+    fi
+}
+
+preload_libgomp
+
 enable_conda() {
     echo "Activate conda"
     # functions are not exported by default to be made available in subshells
