@@ -27,9 +27,9 @@ RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
 
 # We need newer NASM than manylinux2014 offers
 RUN cd /tmp && \
-    curl -O -L https://www.nasm.us/pub/nasm/releasebuilds/2.15.05/nasm-2.15.05.tar.bz2  && \
-    tar xjvf nasm-2.15.05.tar.bz2 && \
-    cd nasm-2.15.05 && \
+    curl -O -L https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-2.15.05.tar.gz && \
+    tar xzvf nasm-2.15.05.tar.gz && \
+    cd nasm-nasm-2.15.05 && \
     ./autogen.sh && \
     ./configure && \
     make && \
