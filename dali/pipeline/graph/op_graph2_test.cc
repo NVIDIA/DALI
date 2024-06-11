@@ -243,7 +243,7 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
      /     /
     / \   / \
    (   ) /   \
-    op2      op3
+    op2      op3      op4 (preserved)
    /   \      |
   o0    o1    o2
   |     |     |
@@ -272,10 +272,14 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
   spec3.AddInput("i1",  "gpu");
   spec3.AddOutput("o2", "gpu");
 
+  OpSpec spec4("dummy");
+  spec4.AddArg("preserve", true);
+
   OpGraph::Builder b;
   b.Add("op2", spec2);
   b.Add("op3", spec3);
   b.Add("op1", spec1);
+  b.Add("op4", spec4);
   b.AddOutput("o0_gpu");
   b.AddOutput("o1_cpu");
   OpGraph g = std::move(b).GetGraph();
@@ -294,7 +298,9 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
   auto *op1 = g.GetOp("op1");
   auto *op2 = g.GetOp("op2");
   auto *op3 = g.GetOp("op3");
+  auto *op4 = g.GetOp("op4");
   EXPECT_EQ(op3, nullptr) << "The operator op3 should have been pruned";
+  EXPECT_NE(op4, nullptr) << "The operator op4 should NOT have been pruned";
 
   ASSERT_NE(op1, nullptr) << "Operator op1 not found in the pruned graph";
   EXPECT_EQ(op1->op_type, OpType::CPU);
