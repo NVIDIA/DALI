@@ -48,12 +48,19 @@ StorageDevice ParseStorageDevice(const std::string &io_device) {
 
 OpNode &OpGraph::AddOp(std::string instance_name, OpSpec spec) {
   OpNodeList tmp;
-  auto &op_node = tmp.emplace_back(std::move(instance_name), std::move(spec));
+  OpType type = OpType::CPU;
+  std::string device;
+  if (spec.TryGetArgument(device, "device"))
+    type = ParseOpType(device);
+  bool preserve = spec.GetArgument<bool>("preserve");
+  auto &op_node = tmp.emplace_back(std::move(instance_name), type, std::move(spec));
   if (!name2op_.emplace(op_node.instance_name, &op_node).second) {
     throw std::invalid_argument(
         make_string("Duplicate operator instance name: \"", op_node.instance_name, "\""));
   }
   op_node.iter = tmp.begin();
+
+  op_node.keep = preserve;
   op_nodes_.splice(op_nodes_.end(), tmp);
   return op_node;
 }

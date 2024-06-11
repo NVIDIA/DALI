@@ -46,8 +46,8 @@ struct OpNode {
  public:
   friend class OpGraph;
 
-  OpNode(std::string instance_name, OpSpec spec)
-  : instance_name(std::move(instance_name)), spec(std::move(spec)) {}
+  OpNode(std::string instance_name, OpType type, OpSpec spec)
+  : instance_name(std::move(instance_name)), spec(std::move(spec)), op_type(type) {}
 
   /** A visit marker for various graph processing algorithms. */
   mutable bool visited = false;
