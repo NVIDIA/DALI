@@ -657,14 +657,14 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
 void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::string &dev) {
   // Check if the external source is the only operator deserialized
   auto *op = pipe.GetOperatorNode(name);
-  ASSERT_EQ(op->parents.size(), 0);
-  ASSERT_EQ(op->id, 0);
+  ASSERT_TRUE(op->inputs.empty());
   ASSERT_EQ(op->spec.SchemaName(), "ExternalSource");
   ASSERT_EQ(pipe.num_outputs(), 1);
   ASSERT_EQ(pipe.output_device(0), dev);
   ASSERT_EQ(pipe.output_name(0), name);
   // Make Contiguous is always added at the end
-  ASSERT_EQ(op->children.size(), 1);
+  ASSERT_EQ(op->outputs.size(), 1);
+  ASSERT_EQ(op->outputs[0]->consumers.size());
 }
 
 

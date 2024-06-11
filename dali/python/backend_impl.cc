@@ -1843,17 +1843,6 @@ PYBIND11_MODULE(backend_impl, m) {
            "Resampling with a Gaussian window.")
     .export_values();
 
-  // Operator node
-  py::class_<OpNode>(m, "OpNode")
-    .def("instance_name",
-        [](OpNode* node) {
-          return node->instance_name;
-        })
-    .def("name",
-        [](OpNode* node) {
-          return node->spec.SchemaName();
-        });
-
   py::class_<ExternalContextCheckpoint>(m, "ExternalContextCheckpoint")
     .def(py::init<>())
     .def_property("pipeline_data",

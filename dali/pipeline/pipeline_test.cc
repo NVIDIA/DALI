@@ -33,8 +33,12 @@ namespace dali {
 namespace {
 
 template <typename Pred>
-int CountNodes(const graph::OpGraph &graph, Pred &&pred) {
+auto CountNodes(const graph::OpGraph &graph, Pred &&pred) {
+  return std::count_if(graph.OpNodes().begin(), graph.OpNodes().end(), std::forward<Pred>(pred));
+}
 
+auto CountNodes(const graph::OpGraph &graph, OpType type) {
+  return CountNodes(graph, [](auto &node) { return node.op_type == type; });
 }
 
 }  // namespace
@@ -247,9 +251,9 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   OpGraph &graph = this->GetGraph(&pipe);
 
   // Validate the graph
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
-  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
+  ASSERT_EQ(CountNodes(graph, OpType::CPU), 1);
+  ASSERT_EQ(CountNodes(graph, OpType::MIXED), 1);
+  ASSERT_EQ(CountNodes(graph, OpType::GPU), 0);
 
   // Validate the gpu source op
   auto& node_external_source = graph.Node(0);
@@ -515,14 +519,14 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
       .AddArg("device", "cpu")
       .AddArg("seed", seed_set)
       .AddInput("data", "cpu")
-      .AddOutput("copied0", "cpu"));
+      .AddOutput("copied0", "cpu"), "copy1");
 
   pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddArg("seed", seed_set)
       .AddInput("copied0", "gpu")
-      .AddOutput("copied", "gpu"));
+      .AddOutput("copied", "gpu"), "copy2");
 
   vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
 
@@ -530,11 +534,12 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
   pipe.SetExternalInput("data", batch);
 
-  OpGraph &original_graph = this->GetGraph(&pipe);
+  auto &original_graph = this->GetGraph(&pipe);
 
-  // Check if seed can be manually set to the reader
-  ASSERT_EQ(original_graph.Node(3).spec.GetArgument<int64_t>("seed"), seed_set);
-  ASSERT_NE(original_graph.Node(0).spec.GetArgument<int64_t>("seed"), seed_set);
+  // Check if seed can be manually set
+  EXPECT_EQ(original_graph.GetOp(copy1).spec.GetArgument<int64_t>("seed"), seed_set);
+  EXPECT_EQ(original_graph.GetOp(copy2).spec.GetArgument<int64_t>("seed"), seed_set);
+  EXPECT_NE(original_graph.GetOp(data).spec.GetArgument<int64_t>("seed"), seed_set);
 }
 
 
