@@ -40,7 +40,9 @@ using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta
 class DLL_PUBLIC ExecutorBase {
  public:
   DLL_PUBLIC virtual ~ExecutorBase() {}
-  DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
+  DLL_PUBLIC virtual void Build(const graph::OpGraph &graph) = 0;
+  // TODO(michalz): Remove
+  DLL_PUBLIC virtual void Build(OpGraph *graph, std::vector<std::string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
   DLL_PUBLIC virtual void Run() = 0;
   DLL_PUBLIC virtual void Prefetch() = 0;

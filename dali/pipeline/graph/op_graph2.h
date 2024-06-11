@@ -130,25 +130,24 @@ class DLL_PUBLIC OpGraph {
     return data_nodes_;
   }
 
+  /** Returns an OpNode with a matching instance name or nullptr. */
   OpNode *GetOp(std::string_view instance_name) {
-    auto it = name2op_.find(instance_name);
-    if (it != name2op_.end())
-      return &*it->second;
-    else
-      return nullptr;
+    return GetOpImpl(instance_name);
   }
 
-  /** Returns a DataNode with a matching name or nullptr.
-   *
-   * @param data_node_name
-   * @return DataNode*
-   */
+  /** Returns an OpNode with a matching instance name or nullptr. */
+  const OpNode *GetOp(std::string_view instance_name) const {
+    return GetOpImpl(instance_name);
+  }
+
+  /** Returns a DataNode with a matching name or nullptr. */
   DataNode *GetData(std::string_view data_node_name) {
-    auto it = name2data_.find(data_node_name);
-    if (it != name2data_.end())
-      return &*it->second;
-    else
-      return nullptr;
+    return GetDataImpl(data_node_name);
+  }
+
+  /** Returns a DataNode with a matching name or nullptr. */
+  const DataNode *GetData(std::string_view data_node_name) const {
+    return GetDataImpl(data_node_name);
   }
 
   /** Sorts the graph topologically and removes entries that do not contribute to essential nodes.
@@ -200,6 +199,22 @@ class DLL_PUBLIC OpGraph {
   }
 
  private:
+  OpNode *GetOpImpl(std::string_view instance_name) const {
+    auto it = name2op_.find(instance_name);
+    if (it != name2op_.end())
+      return &*it->second;
+    else
+      return nullptr;
+  }
+
+  DataNode *GetDataImpl(std::string_view data_node_name) const {
+    auto it = name2data_.find(data_node_name);
+    if (it != name2data_.end())
+      return &*it->second;
+    else
+      return nullptr;
+  }
+
   void RemoveDataNodeReferences(OpNode &op);
 
   OpNodeList op_nodes_;

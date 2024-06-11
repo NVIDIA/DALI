@@ -61,6 +61,8 @@ struct OpNode {
   virtual ~OpNode() = default;
   OpNode& operator=(const OpNode&) = delete;
 
+  const graph::OpNode *definition = nullptr;
+
   OpNode(OpNode &&) = default;
   OpNode& operator=(OpNode &&) = default;
 
@@ -71,6 +73,7 @@ struct OpNode {
 
   std::unique_ptr<OperatorBase> op;
   OpNodeId id = -1;
+  // TODO(michalz): Consider removing the (now) redundant fields and use the definition
   OpSpec spec;
   std::set<OpNodeId> parents, children;
 
@@ -79,6 +82,7 @@ struct OpNode {
   // To reduce number of allocation of shapes in Setup
   std::vector<OutputDesc> output_desc;
 
+  // TODO(michalz): Consider removing the (now) redundant fields and use the definition
   std::string instance_name;
   OpType op_type = OpType::COUNT;
   OpPartitionId partition_index = -1;
@@ -97,6 +101,10 @@ using consumer_edge_t = TensorMeta;
 
 // Second type of graph nodes.
 struct TensorNode {
+  // NOTE: TensorNode doesn't define the storage device, but TensorNode is taken from OpSpec
+  //       where it's unambiguously associated with a storage device.
+  const graph::DataNode *definition = nullptr;
+
   TensorNodeId id;
   std::string name;
   producer_edge_t producer;
@@ -132,6 +140,8 @@ class DLL_PUBLIC OpGraph {
   DLL_PUBLIC OpGraph &operator=(OpGraph &&) = default;
 
   DLL_PUBLIC inline ~OpGraph() = default;
+
+  void Lower(const graph::OpGraph &definition);
 
   /**
    * @brief Adds an op with the input specification to the graph.

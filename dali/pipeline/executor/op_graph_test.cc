@@ -643,5 +643,84 @@ TEST_F(OpGraphTest, TestGetTensorOrigin) {
   EXPECT_EQ(graph.GetTensorOrigin(4), origin_4);
 }
 
+inline bool operator==(const dali::TensorMeta &a, const dali::TensorMeta &b) {
+  return a.index == b.index && a.node == b.node && a.storage_device == b.storage_device;
+}
+
+void CheckEqual(const OpGraph &g1, const OpGraph &g2) {
+  EXPECT_EQ(g1.NumOp(), g2.NumOp()) << "The number of operator nodes differs.";
+  EXPECT_EQ(g1.NumTensor(), g2.NumTensor()) << "The number of tensor nodes differs.";
+  EXPECT_EQ(g1.NumOp(OpType::CPU), g2.NumOp(OpType::CPU)) << "The numberof CPU nodes differs.";
+  EXPECT_EQ(g1.NumOp(OpType::GPU), g2.NumOp(OpType::GPU)) << "The numberof GPU nodes differs.";
+  EXPECT_EQ(g1.NumOp(OpType::MIXED), g2.NumOp(OpType::MIXED))
+        << "The numberof mixed nodes differs.";
+
+  if (::testing::Test::HasFailure())
+    return;
+
+  for (int i = 0; i < g1.NumOp(); i++) {
+    auto &n1 = g1.Node(i);
+    auto &n2 = g2.Node(i);
+    EXPECT_EQ(n1.id, n2.id) << " @ node " << i;
+    EXPECT_EQ(n1.instance_name, n2.instance_name) << " @ node " << i;
+    EXPECT_EQ(n1.spec.SchemaName(), n2.spec.SchemaName())<< " @ node " << i;
+    EXPECT_EQ(n1.children, n2.children) << " @ node " << i;
+    EXPECT_EQ(n1.parents, n2.parents) << " @ node " << i;
+  }
+  for (int i = 0; i < g1.NumTensor(); i++) {
+    auto &t1 = g1.Tensor(i);
+    auto &t2 = g2.Tensor(i);
+    EXPECT_EQ(t1.id, t2.id) << " @ node " << i;
+    EXPECT_EQ(t1.name, t2.name) << " @ node " << i;
+    EXPECT_EQ(t1.consumers, t2.consumers) << " @ node " << i;
+    EXPECT_EQ(t1.producer, t2.producer) << " @ node " << i;
+  }
+}
+
+TEST_F(OpGraphTest, Lowering) {
+  OpSpec spec0 = this->PrepareSpec(OpSpec("ExternalSource")
+    .AddArg("device", "cpu")
+    .AddArg("device_id", 0)
+    .AddOutput("data", "cpu"));
+
+  OpSpec spec1 = this->PrepareSpec(OpSpec("Copy")
+    .AddInput("data", "cpu")
+    .AddOutput("copy_0_data", "cpu"));
+
+  OpSpec spec2 = this->PrepareSpec(OpSpec("MakeContiguous")
+    .AddInput("copy_0_data", "cpu")
+    .AddOutput("contiguous_data", "cpu"));
+
+  OpSpec spec3 = this->PrepareSpec(OpSpec("PassthroughOp")
+    .AddInput("contiguous_data", "cpu")
+    .AddOutput("passthrough_data", "cpu"));
+
+  OpSpec spec4 = this->PrepareSpec(OpSpec("Copy")
+    .AddInput("passthrough_data", "cpu")
+    .AddOutput("copy_1_data", "cpu"));
+
+  graph::OpGraph::Builder b;
+  // This is the same graph as in TestGetTensorOrigin, but the topological order is not maintained.
+  b.Add("Copy1", spec4);  // tensor node 4
+  b.Add("ExternalSource", spec0);  // tensor node 0
+  b.Add("MakeContiguous", spec2);  // tensor node 2
+  b.Add("Passthrough", spec3);  // tensor node 3
+  b.Add("Copy0", spec1);  // tensor node 1
+  b.AddOutput("copy_1_data_cpu");
+
+  auto def = std::move(b).GetGraph(true);
+  OpGraph lowered;
+  lowered.Lower(def);
+
+  OpGraph handmade;
+  handmade.AddOp(spec0, "ExternalSource");  // tensor node 0
+  handmade.AddOp(spec1, "Copy0");  // tensor node 1
+  handmade.AddOp(spec2, "MakeContiguous");  // tensor node 2
+  handmade.AddOp(spec3, "Passthrough");  // tensor node 3
+  handmade.AddOp(spec4, "Copy1");
+
+  CheckEqual(lowered, handmade);
+}
+
 
 }  // namespace dali
