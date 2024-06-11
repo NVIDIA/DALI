@@ -195,13 +195,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     for (size_t i = 0; i < index_uris.size(); ++i) {
       const auto& path = index_uris[i];
       auto uri = URI::Parse(path);
-      bool local_file = !uri.valid() || uri.scheme() == "file";
-      FileStream::Options opts;
-      opts.read_ahead = read_ahead_;
-      opts.use_mmap = local_file && !copy_read_data_;
-      opts.use_odirect = local_file && use_o_direct_;
-
-      auto index_file = FileStream::Open(path, opts);
+      auto index_file = FileStream::Open(path);
       auto index_file_cleanup = AtScopeExit([&index_file] {
         if (index_file)
           index_file->Close();
