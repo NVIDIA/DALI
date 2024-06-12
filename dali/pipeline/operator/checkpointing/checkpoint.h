@@ -86,8 +86,7 @@ class DLL_PUBLIC Checkpoint {
   /**
    * @brief Deserializes a protobuf message and builds this object.
   */
-  void DeserializeFromProtobuf(ExecutorBase &exec,
-                                          const std::string &serialized_data);
+  void DeserializeFromProtobuf(ExecutorBase &exec, const std::string &serialized_data);
 
   ExternalContextCheckpoint external_ctx_cpt_{};
 
