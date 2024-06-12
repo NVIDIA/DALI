@@ -156,40 +156,54 @@ class PipelineTest : public DALITest {
     auto &graph = this->GetGraph(&pipe);
 
       // Validate the graph
-    ASSERT_EQ(CountNodes(graph, OpType::CPU), 1);
-    ASSERT_EQ(CountNodes(graph, OpType::MIXED), 1);
-    ASSERT_EQ(CountNodes(graph, OpType::GPU), 2);
+    EXPECT_EQ(CountNodes(graph, OpType::CPU), 1);
+    EXPECT_EQ(CountNodes(graph, OpType::MIXED), 1);
+    EXPECT_EQ(CountNodes(graph, OpType::GPU), 2);
 
-    ASSERT_EQ(graph.Node(OpType::MIXED, 0).op->GetSpec().GetSchema().name(), "MakeContiguous");
+    ASSERT_EQ(graph.OpNodes().size(), 4);
+    auto it = graph.OpNodes().begin();
+    graph::OpNode &node1 = *it++;
+    graph::OpNode &node2 = *it++;
+    graph::OpNode &node3 = *it++;
+    graph::OpNode &node4 = *it++;
 
-    // Validate the source op
-    auto &node = graph.Node(0);
-    ASSERT_EQ(node.id, 0);
-    ASSERT_EQ(node.children.size(), 1);
-    ASSERT_EQ(node.parents.size(), 0);
-    ASSERT_EQ(node.children.count(1), 1);
+    // The graph is linear, so topological sort is unambiguous
+    EXPECT_EQ(node1.instance_name, "data");
+    EXPECT_EQ(node1.spec.SchemaName(), "ExternalSource");
+    EXPECT_EQ(node1.op_type, OpType::CPU);
 
-    // Validate the MakeContiguous op
-    auto &node2 = graph.Node(1);
-    ASSERT_EQ(node2.id, 1);
-    ASSERT_EQ(node2.children.size(), 1);
-    ASSERT_EQ(node2.parents.size(), 1);
-    ASSERT_EQ(node2.parents.count(0), 1);
-    ASSERT_EQ(node2.children.count(2), 1);
+    EXPECT_EQ(node2.spec.SchemaName(), "MakeContiguous");
+    EXPECT_EQ(node2.op_type, dev == "cpu" ? OpType::CPU : OpType::MIXED);
 
-    // Validate the copy op
-    auto &node3 = graph.Node(2);
-    ASSERT_EQ(node3.id, 2);
-    ASSERT_EQ(node3.children.size(), 1);
-    ASSERT_EQ(node3.parents.size(), 1);
-    ASSERT_EQ(node3.parents.count(1), 1);
+    EXPECT_EQ(node3.spec.SchemaName(), "Copy");
+    EXPECT_EQ(node3.op_type, OpType::GPU);
 
-    // Validate the Make Contiguous output
-    auto &node4 = graph.Node(3);
-    ASSERT_EQ(node4.id, 3);
-    ASSERT_EQ(node4.children.size(), 0);
-    ASSERT_EQ(node4.parents.size(), 1);
-    ASSERT_EQ(node4.parents.count(2), 1);
+    EXPECT_EQ(node4.spec.SchemaName(), "MakeContiguous");
+    EXPECT_EQ(node4.op_type, OpType::GPU);
+
+    EXPECT_EQ(node1.inputs.size(), 0);
+    ASSERT_EQ(node1.outputs.size(), 1_uz);
+    ASSERT_EQ(node1.outputs[0]->consumers.size(), 1_uz);
+    EXPECT_EQ(node1.outputs[0]->consumers[0].op, &node2);
+
+    ASSERT_EQ(node2.inputs.size(), 1);
+    EXPECT_EQ(node2.inputs[0]->producer.op, &node1);
+    ASSERT_EQ(node2.outputs.size(), 1);
+    ASSERT_EQ(node2.outputs[0]->consumers.size(), 1);
+    EXPECT_EQ(node2.outputs[0]->consumers[0].op, &node3);
+
+    ASSERT_EQ(node3.inputs.size(), 1);
+    EXPECT_EQ(node3.inputs[0]->producer.op, &node2);
+    ASSERT_EQ(node3.outputs.size(), 1);
+    ASSERT_EQ(node3.outputs[0]->consumers.size(), 1);
+    EXPECT_EQ(node3.outputs[0]->consumers[0].op, &node4);
+
+    ASSERT_EQ(node4.inputs.size(), 1);
+    EXPECT_EQ(node4.inputs[0]->producer.op, &node3);
+    ASSERT_EQ(node4.outputs.size(), 1);
+    ASSERT_EQ(node4.outputs[0]->consumers.size(), 1);
+    EXPECT_TRUE(node4.outputs[0]->pipeline_output);
+    EXPECT_EQ(node4.outputs[0]->consumers[0].op, nullptr);
   }
 
   inline auto &GetGraph(Pipeline *pipe) {
@@ -248,7 +262,7 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   pipe.AddExternalInput("data");
   pipe.Build({{"data", "cpu"}});
 
-  OpGraph &graph = this->GetGraph(&pipe);
+  auto &graph = this->GetGraph(&pipe);
 
   // Validate the graph
   ASSERT_EQ(CountNodes(graph, OpType::CPU), 1);
@@ -256,17 +270,17 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   ASSERT_EQ(CountNodes(graph, OpType::GPU), 0);
 
   // Validate the gpu source op
-  auto& node_external_source = graph.Node(0);
-  ASSERT_EQ(node_external_source.id, 0);
-  ASSERT_EQ(node_external_source.children.size(), 1);
-  ASSERT_EQ(node_external_source.parents.size(), 0);
+  auto it = graph.OpNodes().begin();
+  graph::OpNode &node_external_source = *it++;
+  ASSERT_EQ(node_external_source.inputs.size(), 0);
+  ASSERT_EQ(node_external_source.outputs.size(), 1);
   ASSERT_EQ(node_external_source.instance_name, "data");
 
 
-  auto& node_make_contiguous = graph.Node(1);
-  ASSERT_EQ(node_make_contiguous.id, 1);
-  ASSERT_EQ(node_make_contiguous.children.size(), 0);
-  ASSERT_EQ(node_make_contiguous.parents.size(), 1);
+  graph::OpNode &node_make_contiguous = *it++;
+  ASSERT_EQ(node_external_source.inputs.size(), 1);
+  ASSERT_EQ(node_external_source.outputs.size(), 1);
+  ASSERT_EQ(node_external_source.outputs[0]->consumers.size(), 0);
   ASSERT_NE(node_make_contiguous.instance_name.find("MakeContiguous"), std::string::npos);
 }
 
@@ -293,16 +307,13 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   pipe.Build(outputs);
   loaded_pipe.Build(outputs);
 
-  OpGraph &original_graph = this->GetGraph(&pipe);
-  OpGraph &loaded_graph = this->GetGraph(&loaded_pipe);
+  auto &original_graph = this->GetGraph(&pipe);
+  auto &loaded_graph = this->GetGraph(&loaded_pipe);
 
   // Validate the graph contains the same ops
-  ASSERT_EQ(loaded_graph.NumOp(OpType::CPU),
-            original_graph.NumOp(OpType::CPU));
-  ASSERT_EQ(loaded_graph.NumOp(OpType::MIXED),
-            original_graph.NumOp(OpType::MIXED));
-  ASSERT_EQ(loaded_graph.NumOp(OpType::GPU),
-            original_graph.NumOp(OpType::GPU));
+  EXPECT_EQ(CountNodes(loaded_graph, OpType::CPU), CountNodes(original_graph, OpType::CPU));
+  EXPECT_EQ(CountNodes(loaded_graph, OpType::MIXED), CountNodes(original_graph, OpType::MIXED));
+  EXPECT_EQ(CountNodes(loaded_graph, OpType::GPU), CountNodes(original_graph, OpType::GPU));
 }
 
 class DummyPresizeOpCPU : public Operator<CPUBackend> {
@@ -534,12 +545,12 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
   pipe.SetExternalInput("data", batch);
 
-  auto &original_graph = this->GetGraph(&pipe);
+  graph::OpGraph &original_graph = this->GetGraph(&pipe);
 
   // Check if seed can be manually set
-  EXPECT_EQ(original_graph.GetOp(copy1).spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_EQ(original_graph.GetOp(copy2).spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_NE(original_graph.GetOp(data).spec.GetArgument<int64_t>("seed"), seed_set);
+  EXPECT_EQ(original_graph.GetOp("copy1")->spec.GetArgument<int64_t>("seed"), seed_set);
+  EXPECT_EQ(original_graph.GetOp("copy2")->spec.GetArgument<int64_t>("seed"), seed_set);
+  EXPECT_NE(original_graph.GetOp("data")->spec.GetArgument<int64_t>("seed"), seed_set);
 }
 
 

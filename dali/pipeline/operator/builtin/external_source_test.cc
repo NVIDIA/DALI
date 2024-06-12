@@ -663,8 +663,8 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   ASSERT_EQ(pipe.output_device(0), dev);
   ASSERT_EQ(pipe.output_name(0), name);
   // Make Contiguous is always added at the end
-  ASSERT_EQ(op->outputs.size(), 1);
-  ASSERT_EQ(op->outputs[0]->consumers.size());
+  ASSERT_EQ(op->outputs.size(), 1_uz);
+  ASSERT_EQ(op->outputs[0]->consumers.size(), 1_uz);
 }
 
 

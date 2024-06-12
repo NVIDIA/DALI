@@ -100,8 +100,8 @@ class PipelineWrapper {
   }
 
  protected:
-  OperatorBase *GetOperator(const std::string &name) {
-    return pipe_->GetOperatorNode(name)->op.get();
+  OperatorBase *GetOperator(std::string_view name) {
+    return pipe_->GetOperator(name);
   }
 
   const int batch_size_;
