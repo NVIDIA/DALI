@@ -15,8 +15,12 @@
 #ifndef DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
 #define DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
 
-#include <vector>
+#include <functional>
+#include <map>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
@@ -37,49 +41,59 @@ struct ExternalContextCheckpoint {
  */
 class DLL_PUBLIC Checkpoint {
  public:
-  DLL_PUBLIC Checkpoint() {}
+  Checkpoint() {}
 
-  DLL_PUBLIC void Clear();
+  void Clear();
 
-  DLL_PUBLIC int AddOperator(std::string instance_name);
+  int AddOperator(std::string instance_name);
 
-  DLL_PUBLIC OpCheckpoint &GetOpCheckpoint(int index);
+  std::optional<int> OperatorIdx(std::string_view instance_name) const;
 
-  DLL_PUBLIC const OpCheckpoint &GetOpCheckpoint(int index) const;
+  OpCheckpoint &GetOpCheckpoint(int index);
 
-  DLL_PUBLIC void SetIterationId(size_t iteration_id);
+  const OpCheckpoint &GetOpCheckpoint(int index) const;
 
-  DLL_PUBLIC size_t GetIterationId() const;
+  inline OpCheckpoint &GetOpCheckpoint(std::string_view instance_name) {
+    const Checkpoint *cthis = this;
+    return const_cast<OpCheckpoint &>(cthis->GetOpCheckpoint(instance_name));
+  }
+
+  const OpCheckpoint &GetOpCheckpoint(std::string_view instance_name) const;
+
+  void SetIterationId(size_t iteration_id);
+
+  size_t GetIterationId() const;
 
   /**
    * @brief Sets the given order on all the OpCheckpoints.
    *
    * Can be used to synchronize the checkpoints.
   */
-  DLL_PUBLIC void SetOrder(AccessOrder order);
+  void SetOrder(AccessOrder order);
 
   /**
    * @brief Returns the number of OpCheckpoints kept.
    *
    * It's equivalent to the number of operators in the related pipeline.
   */
-  DLL_PUBLIC Index NumOp() const;
+  Index NumOp() const;
 
   /**
    * @brief Serializes this entire object into a serialized protobuf message.
   */
-  DLL_PUBLIC std::string SerializeToProtobuf(ExecutorBase &exec) const;
+  std::string SerializeToProtobuf(ExecutorBase &exec) const;
 
   /**
    * @brief Deserializes a protobuf message and builds this object.
   */
-  DLL_PUBLIC void DeserializeFromProtobuf(ExecutorBase &exec,
+  void DeserializeFromProtobuf(ExecutorBase &exec,
                                           const std::string &serialized_data);
 
   ExternalContextCheckpoint external_ctx_cpt_{};
 
  private:
   std::vector<OpCheckpoint> cpts_;
+  std::map<std::string, int, std::less<>> name2id_;
   size_t iteration_id_ = 0;
 };
 

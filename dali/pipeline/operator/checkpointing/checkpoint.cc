@@ -23,12 +23,29 @@ namespace dali {
 
 void Checkpoint::Clear() {
   cpts_.clear();
+  name2id_.clear();
   iteration_id_ = 0;
 }
 
 int Checkpoint::AddOperator(std::string instance_name) {
+  if (!name2id_.emplace(instance_name, cpts_.size()).second)
+    DALI_FAIL("The checkpoint already contains an operator with name \"", instance_name, "\".");
   cpts_.emplace_back(std::move(instance_name));
   return cpts_.size() - 1;
+}
+
+std::optional<int> Checkpoint::OperatorIdx(std::string_view instance_name) const {
+  auto it = name2id_.find(instance_name);
+  if (it == name2id_.end())
+    return std::nullopt;
+  return it->second;
+}
+
+const OpCheckpoint &Checkpoint::GetOpCheckpoint(std::string_view instance_name) const {
+  auto idx = OperatorIdx(instance_name);
+  if (!idx)
+    DALI_FAIL("There's no checkpoint for operator \"", instance_name, "\".");
+  return GetOpCheckpoint(*idx);
 }
 
 OpCheckpoint &Checkpoint::GetOpCheckpoint(int idx) {

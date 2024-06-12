@@ -198,8 +198,10 @@ class CheckpointTest : public DALITest {
     OpGraph new_graph = make_graph_instance(ZERO_STATE);
 
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      ASSERT_EQ(original_graph.Node(i).instance_name,
+      const auto &name = original_graph.Node(i).instance_name;
+      ASSERT_EQ(name,
                 checkpoint.GetOpCheckpoint(i).OperatorName());
+      EXPECT_EQ(&checkpoint.GetOpCheckpoint(i), &checkpoint.GetOpCheckpoint(name));
       original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i),
                                            AccessOrder(this->stream_.get()));
     }
@@ -248,21 +250,21 @@ TEST_F(CheckpointTest, CPUOnly) {
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddOutput("data_node_1", "cpu")
-            .AddOutput("data_node_2", "cpu")), "");
+            .AddOutput("data_node_2", "cpu")), "source");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_1", "cpu")
-            .AddOutput("data_node_3", "cpu")), "");
+            .AddOutput("data_node_3", "cpu")), "inner1");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_2", "cpu")
-            .AddOutput("data_node_4", "cpu")), "");
+            .AddOutput("data_node_4", "cpu")), "inner2");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyOutput")
@@ -270,7 +272,7 @@ TEST_F(CheckpointTest, CPUOnly) {
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_3", "cpu")
             .AddInput("data_node_4", "cpu")
-            .AddOutput("data_output", "cpu")), "");
+            .AddOutput("data_output", "cpu")), "output");
 
     graph.InstantiateOperators();
     return graph;
@@ -286,21 +288,21 @@ TEST_F(CheckpointTest, GPUOnly) {
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddOutput("data_node_1", "gpu")
-            .AddOutput("data_node_2", "gpu")), "");
+            .AddOutput("data_node_2", "gpu")), "source");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_1", "gpu")
-            .AddOutput("data_node_3", "gpu")), "");
+            .AddOutput("data_node_3", "gpu")), "inner1");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_2", "gpu")
-            .AddOutput("data_node_4", "gpu")), "");
+            .AddOutput("data_node_4", "gpu")), "inner2");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyOutput")
@@ -308,7 +310,7 @@ TEST_F(CheckpointTest, GPUOnly) {
             .AddArg("dummy_state", this->NextState(policy))
             .AddInput("data_node_3", "gpu")
             .AddInput("data_node_4", "gpu")
-            .AddOutput("data_output", "gpu")), "");
+            .AddOutput("data_output", "gpu")), "output");
 
     graph.InstantiateOperators();
     return graph;
