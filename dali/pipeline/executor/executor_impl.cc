@@ -751,7 +751,8 @@ Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
 template<typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
   DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
-
+  DALI_ENFORCE(graph_->NumOp() == cpt.NumOp(),
+               "The number of operators in the checkpoint doesn't match the graph structure.");
   for (int i = 0, n = cpt.NumOp(); i < n; i++) {
     const auto &op_cpt = cpt.GetOpCheckpoint(i);
     auto *op = GetOperator(op_cpt.OperatorName());
