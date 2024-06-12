@@ -48,7 +48,7 @@ echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
 # /usr/local/lib/python3.9/dist-packages/sklearn/utils/../../scikit_learn.libs/libgomp-d22c30c5.so.1.0.0: cannot allocate memory in static TLS block
 preload_libgomp() {
     if [ "$(uname -m)" = "aarch64" ]; then
-        export NEW_LD_PRELOAD=`find $(python -c "import site; print(site.getsitepackages()[0] + \"/scikit_learn.libs/\")") -name *libgomp-*.so.*`
+        export NEW_LD_PRELOAD=`find $(python -c "import sklearn; import os; print(os.path.dirname(sklearn.__file__))")/../scikit_learn.libs/ -name *libgomp-*.so.*`
         if [ -n "$NEW_LD_PRELOAD" ]; then
             if [ -z "$LD_PRELOAD" ]; then
                 export LD_PRELOAD=$NEW_LD_PRELOAD
