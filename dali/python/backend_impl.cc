@@ -2100,7 +2100,6 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SaveGraphToDotFile", &Pipeline::SaveGraphToDotFile,
         "path"_a,
         "show_tensors"_a = false,
-        "show_ids"_a = false,
         "use_colors"_a = false)
     .def("reader_meta", [](Pipeline* p) {
           py::dict d;

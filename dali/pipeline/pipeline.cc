@@ -30,6 +30,7 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/name_utils.h"
+#include "dali/pipeline/graph/graph2dot.h"
 
 namespace dali {
 
@@ -951,9 +952,10 @@ std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
   return output_descs_;
 }
 
-void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,
+void Pipeline::SaveGraphToDotFile(const std::string &filename,
+                                  bool show_tensors,
                                   bool use_colors) {
-  // graph_.SaveToDotFile(filename, show_tensors, show_ids, use_colors);
+  SaveToDotFile(filename, graph_, show_tensors, use_colors);
 }
 
 int Pipeline::GetNextLogicalId() {

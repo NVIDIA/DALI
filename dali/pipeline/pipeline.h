@@ -473,7 +473,7 @@ class DLL_PUBLIC Pipeline {
    * in filename.
    */
   DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename, bool show_tensors = false,
-                                     bool show_ids = false, bool use_colors = false);
+                                     bool use_colors = false);
 
   /** @{ */
   /**
