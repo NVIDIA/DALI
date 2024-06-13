@@ -33,7 +33,7 @@ namespace s3_filesystem {
 static const char kAllocationTag[] = "s3_filesystem";
 
 S3ObjectLocation parse_uri(const std::string& uri) {
-  auto parsed_uri = URI::Parse(uri);
+  auto parsed_uri = URI::Parse(uri, URI::ParseOpts::AllowNonEscaped);
   if (parsed_uri.scheme() != "s3")
     throw std::runtime_error("Not an S3 URI: " + uri);
   S3ObjectLocation object_location;

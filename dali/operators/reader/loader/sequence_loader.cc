@@ -138,11 +138,9 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     return;
   }
 
-  auto uri = URI::Parse(frame_filename);
-  bool local_file = !uri.valid() || uri.scheme() == "file";
   FileStream::Options opts;
   opts.read_ahead = read_ahead_;
-  opts.use_mmap = local_file && !copy_read_data_;
+  opts.use_mmap = !copy_read_data_;
   opts.use_odirect = false;
   auto frame = FileStream::Open(frame_filename, opts);
   Index frame_size = frame->Size();
