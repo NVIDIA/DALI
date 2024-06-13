@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,10 +33,10 @@ class OpSpec;
  */
 class OpCheckpoint {
  public:
-  DLL_PUBLIC explicit OpCheckpoint(const OpSpec &spec);
+  DLL_PUBLIC explicit OpCheckpoint(std::string instance_name);
 
   /**
-   * @brief Returns name of the corresponding operator. Can be used for validation.
+   * @brief Returns the unique name of the corresponding operator.
    */
   DLL_PUBLIC const std::string &OperatorName() const;
 

@@ -21,6 +21,7 @@
 #include "dali/operators/decoder/host/fused/host_decoder_random_crop.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
 

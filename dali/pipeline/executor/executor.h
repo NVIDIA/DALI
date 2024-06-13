@@ -37,6 +37,8 @@ struct DLL_PUBLIC ExecutorMeta {
 
 using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
 
+class OpGraph;
+
 class DLL_PUBLIC ExecutorBase {
  public:
   DLL_PUBLIC virtual ~ExecutorBase() {}

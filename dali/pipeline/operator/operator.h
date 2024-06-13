@@ -34,13 +34,14 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
-#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
+
+class OpCheckpoint;
 
 struct DLL_PUBLIC ReaderMeta {
   Index epoch_size = -1;          // raw epoch size

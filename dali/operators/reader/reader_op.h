@@ -29,6 +29,7 @@
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/parser/parser.h"
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/operator.h"
 

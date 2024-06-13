@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ class RNGCheckpointingTest : public ::testing::Test {
 
     // save and restore the pipeline
     auto node = original_pipe.GetOperatorNode("rng_op");
-    OpCheckpoint cpt(node->spec);
+    OpCheckpoint cpt("rng_op");
     node->op->SaveState(cpt, {});
     restored_pipe.GetOperatorNode("rng_op")->op->RestoreState(cpt);
 
