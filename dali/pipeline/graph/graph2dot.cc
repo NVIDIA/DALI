@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/graph/op_graph2.h"
+#include <iostream>
 #include <string>
+#include <unordered_set>
+#include <vector>
+#include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/graph/graph2dot.h"
 
 namespace dali {
 namespace graph {
@@ -30,33 +34,18 @@ std::string remove_brackets(std::string input) {
 
 /**
   * @brief Prints instance_name of OpNode to stream
-  *
-  * @param ofs
-  * @param node
-  * @param show_ids Whether to print name concatenated with `_id`.
-  * @return std::ofstream&
   */
-std::ofstream& PrintTo(std::ofstream &ofs, const OpNode &node, std::optional<int> id){
-  ofs << remove_brackets(node.instance_name);
-  if (id) {
-    ofsd << "_" << *id;
-  }
-  return ofs;
+std::ostream& PrintTo(std::ostream &os, const OpNode &node) {
+  os << remove_brackets(node.instance_name);
+  return os;
 }
 /**
   * @brief Prints TensorNode's name to stream
-  *
-  * @param ofs
-  * @param node
-  * @param show_ids Whether to print name concatenated with `_id`.
-  * @return std::ofstream&
+  * @return std::ostream&
   */
-std::ofstream&  PrintTo(std::ofstream &ofs, const DataNode &node, bool show_ids) {
-  ofs << remove_brackets(node.name);
-  if (id) {
-    ofs << "_" << *id;
-  }
-  return ofs;
+std::ostream&  PrintTo(std::ostream &os, const DataNode &node) {
+  os << remove_brackets(node.name);
+  return os;
 }
 std::string GetOpColor(OpType op_type) {
   switch (op_type) {
@@ -71,38 +60,48 @@ std::string GetOpColor(OpType op_type) {
   }
 }
 
+std::vector<OpNode *> ChildNodes(const OpNode &op) {
+  std::unordered_set<OpNode *> seen;
+  std::vector<OpNode *> children;
+  for (auto *out : op.outputs) {
+    for (auto edge : out->consumers)
+      if (edge.op)
+        if (seen.insert(edge.op).second)
+          children.push_back(edge.op);
+  }
+  return children;
+}
+
 }  // namespace
 
-void GenerateDOTFromGraph(std::ofstream &ofs, const OpGraph &graph,
-                          bool show_data_nodes, bool show_ids, bool use_colors) {
-
-
+void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
+                          bool show_data_nodes, bool use_colors) {
   // Just output all the edges
-  for (auto *op : graph.OpNodes()) {
+  for (auto &op : graph.OpNodes()) {
     if (use_colors) {
-      PrintTo(ofs, *op, show_ids) << "[color=\"" << GetOpColor(op.op_type) << "\"];\n";
+      PrintTo(os, op) << "[color=\"" << GetOpColor(op.op_type) << "\"];\n";
     }
     for (auto *child : ChildNodes(op)) {
-      PrintTo(ofs, *op, show_ids) << " -> ";
-      PrintTo(ofs, *child, show_ids);
+      PrintTo(os, op) << " -> ";
+      PrintTo(os, *child);
       if (show_data_nodes) {
-        ofs << "[style=dotted]";
+        os << "[style=dotted]";
       }
-      ofs << ";\n";
+      os << ";\n";
     }
     if (show_data_nodes) {
       int i = 0;
       for (auto *data : op.outputs) {
-        PrintTo(ofs, data->op, show_ids) << "[shape=box];\n";
-        PrintTo(ofs, op, show_ids) << " -> ";
-        PrintTo(ofs, data->op, show_ids) << "[label=" << data->idx <<"];\n";
+        PrintTo(os, *data) << "[shape=box];\n";
+        PrintTo(os, op) << " -> ";
+        PrintTo(os, *data) << "[label=" << i++ <<"];\n";
         for (auto &consumer : data->consumers) {
-          PrintTo(ofs, op, show_ids) << " -> ";
-          PrintTo(ofs, *consumer.op, show_ids) << "[label=" << consumer.idx;
+          PrintTo(os, op) << " -> ";
+          PrintTo(os, *consumer.op) << "[label=" << consumer.idx;
         }
       }
     }
-    ofs << "\n";
+    os << "\n";
   }
 }
 

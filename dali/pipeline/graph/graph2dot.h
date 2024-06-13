@@ -15,5 +15,17 @@
 #ifndef DALI_PIPELINE_GRAPH_GRAPH2DOT_H_
 #define DALI_PIPELINE_GRAPH_GRAPH2DOT_H_
 
+#include <iosfwd>
+
+namespace dali {
+namespace graph {
+
+class OpGraph;
+
+void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
+                          bool show_data_nodes, bool show_ids, bool use_colors);
+
+}  // namespace graph
+}  // namespace dali
 
 #endif  // DALI_PIPELINE_GRAPH_GRAPH2DOT_H_

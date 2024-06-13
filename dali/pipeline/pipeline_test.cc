@@ -173,7 +173,7 @@ class PipelineTest : public DALITest {
     EXPECT_EQ(node1.op_type, OpType::CPU);
 
     EXPECT_EQ(node2.spec.SchemaName(), "MakeContiguous");
-    EXPECT_EQ(node2.op_type, dev == "cpu" ? OpType::CPU : OpType::MIXED);
+    EXPECT_EQ(node2.op_type, OpType::MIXED);
 
     EXPECT_EQ(node3.spec.SchemaName(), "Copy");
     EXPECT_EQ(node3.op_type, OpType::GPU);
@@ -201,9 +201,8 @@ class PipelineTest : public DALITest {
     ASSERT_EQ(node4.inputs.size(), 1);
     EXPECT_EQ(node4.inputs[0]->producer.op, &node3);
     ASSERT_EQ(node4.outputs.size(), 1);
-    ASSERT_EQ(node4.outputs[0]->consumers.size(), 1);
     EXPECT_TRUE(node4.outputs[0]->pipeline_output);
-    EXPECT_EQ(node4.outputs[0]->consumers[0].op, nullptr);
+    EXPECT_TRUE(node4.outputs[0]->consumers.empty());
   }
 
   inline auto &GetGraph(Pipeline *pipe) {
@@ -278,10 +277,10 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
 
 
   graph::OpNode &node_make_contiguous = *it++;
-  ASSERT_EQ(node_external_source.inputs.size(), 1);
-  ASSERT_EQ(node_external_source.outputs.size(), 1);
-  ASSERT_EQ(node_external_source.outputs[0]->consumers.size(), 0);
-  ASSERT_NE(node_make_contiguous.instance_name.find("MakeContiguous"), std::string::npos);
+  ASSERT_EQ(node_make_contiguous.inputs.size(), 1);
+  ASSERT_EQ(node_make_contiguous.outputs.size(), 1);
+  EXPECT_TRUE(node_make_contiguous.outputs[0]->consumers.empty());
+  EXPECT_NE(node_make_contiguous.instance_name.find("MakeContiguous"), std::string::npos);
 }
 
 TYPED_TEST(PipelineTest, TestSerialization) {

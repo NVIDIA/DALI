@@ -955,7 +955,7 @@ std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
 void Pipeline::SaveGraphToDotFile(const std::string &filename,
                                   bool show_tensors,
                                   bool use_colors) {
-  SaveToDotFile(filename, graph_, show_tensors, use_colors);
+  // SaveToDotFile(filename, graph_, show_tensors, use_colors);
 }
 
 int Pipeline::GetNextLogicalId() {

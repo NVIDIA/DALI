@@ -1600,7 +1600,15 @@ class Pipeline(object):
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        if show_ids i not None
+        if show_ids is not None:
+            with warnings.catch_warnings():
+                warnings.simplefilter("default")
+                msg = (
+                    'The argument "show_ids" is deprecated because it no longer has any effect.\n'
+                    "It will be removed from future releases."
+                )
+                warnings.warn(msg, DeprecationWarning, stacklevel=2)
+
         self._pipe.SaveGraphToDotFile(filename, show_tensors, use_colors)
 
     def _get_checkpoint(self, iterator_data=""):
