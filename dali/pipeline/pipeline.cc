@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <fstream>
 #include <functional>
 #include <memory>
 
@@ -955,7 +956,10 @@ std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
 void Pipeline::SaveGraphToDotFile(const std::string &filename,
                                   bool show_tensors,
                                   bool use_colors) {
-  // SaveToDotFile(filename, graph_, show_tensors, use_colors);
+  std::ofstream ofs(filename, std::ios::out);
+  if (!ofs)
+    DALI_FAIL("Cannot open \"", filename, "\" for writing.");
+  GenerateDOTFromGraph(ofs, graph_, show_tensors, use_colors);
 }
 
 int Pipeline::GetNextLogicalId() {

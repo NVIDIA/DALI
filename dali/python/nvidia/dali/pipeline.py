@@ -819,7 +819,7 @@ class Pipeline(object):
 
             _data_node._check(outputs[i])
 
-        self._ops = _collect_ops(list(outputs) + self._sinks)
+        self._ops = _collect_ops(list(outputs), list(self._sinks))
         self._require_unique_names()
         if self._enable_checkpointing:
             self._require_no_foreign_ops("The pipeline does not support checkpointing")
@@ -2143,7 +2143,7 @@ def do_not_convert(func: _F = None) -> _F:
     return _conditionals._autograph.autograph_artifact(func)
 
 
-def _collect_ops(output_nodes):
+def _collect_ops(outputs, sinks):
     """
     Traverses the pipeline graph starting from the outputs to collect all reachable operators.
     Returns the list of operators topologically sorted, so that operators that contribute
@@ -2180,7 +2180,15 @@ def _collect_ops(output_nodes):
         # add the operator to the list of contributing ops
         ops.append(op)
 
-    for edge in output_nodes:
+    for edge in outputs:
+        visit_op(get_source_op(edge))
+
+    for edge in sinks:
+        spec = get_source_op(edge).spec
+        try:
+            spec.AddArg("preserve", True)
+        except:
+            pass
         visit_op(get_source_op(edge))
 
     return ops

@@ -22,8 +22,8 @@ namespace graph {
 
 class OpGraph;
 
-void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
-                          bool show_data_nodes, bool show_ids, bool use_colors);
+DLL_PUBLIC void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
+                                     bool show_data_nodes, bool use_colors);
 
 }  // namespace graph
 }  // namespace dali
