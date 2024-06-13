@@ -20,7 +20,7 @@
 
   source:
     git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: 3.0.2
+    git_rev: 3.0.3
 
   build:
     number: 0
