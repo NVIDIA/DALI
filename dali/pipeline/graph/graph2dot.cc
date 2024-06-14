@@ -76,7 +76,8 @@ std::vector<OpNode *> ChildNodes(const OpNode &op) {
 
 void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
                           bool show_data_nodes, bool use_colors) {
-  // Just output all the edges
+  os << "digraph graphname {\n";
+
   for (auto &op : graph.OpNodes()) {
     if (use_colors) {
       PrintTo(os, op) << "[color=\"" << GetOpColor(op.op_type) << "\"];\n";
@@ -94,15 +95,17 @@ void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
       for (auto *data : op.outputs) {
         PrintTo(os, *data) << "[shape=box];\n";
         PrintTo(os, op) << " -> ";
-        PrintTo(os, *data) << "[label=" << i++ <<"];\n";
+        PrintTo(os, *data) << "[label=" << i++ << "];\n";
         for (auto &consumer : data->consumers) {
-          PrintTo(os, op) << " -> ";
-          PrintTo(os, *consumer.op) << "[label=" << consumer.idx;
+          PrintTo(os, *data) << " -> ";
+          PrintTo(os, *consumer.op) << "[label=" << consumer.idx << "];\n";
         }
       }
     }
     os << "\n";
   }
+
+  os << "}\n";
 }
 
 }  // namespace graph
