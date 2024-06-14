@@ -282,10 +282,13 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
   // we modify spec so copy it
   OpSpec spec = const_spec;
   auto operator_name = GetOpDisplayName(spec, true);
-  // Take a copy of the passed OpSpec for serialization purposes before any modification
-  this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
   auto device = const_spec.GetArgument<std::string>("device");
+  if (spec.GetSchema().IsNoPrune())
+    spec.SetArg("preserve", true);
+
+  // Take a copy of the passed OpSpec for serialization purposes before any modification
+  this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
   DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
                "Cannot add a GPU operator. Pipeline 'device_id' should not be equal to "
