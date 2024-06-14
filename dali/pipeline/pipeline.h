@@ -612,7 +612,7 @@ class DLL_PUBLIC Pipeline {
    * Does the internal processing allowing the errors to be processed once.
    * Assumes that Build() has not been called.
    */
-  DLL_PUBLIC int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
+  int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
   void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec);
 
@@ -740,6 +740,7 @@ class DLL_PUBLIC Pipeline {
 
   std::vector<OpDefinition> op_specs_;
   std::vector<OpDefinition> op_specs_for_serialization_;
+  std::set<std::string> instance_names_;
 
   std::vector<PipelineOutputDesc> output_descs_;
 

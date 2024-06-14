@@ -238,13 +238,15 @@ int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
 }
 
 int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
-  return AddOperator(spec, make_string("__", spec.SchemaName(), "_", logical_id), logical_id);
+  std::string name = make_string("__", spec.SchemaName(), "_", logical_id);
+  for (int aux_id = 0; instance_names_.count(name) > 0; aux_id++)
+    name = make_string("__", spec.SchemaName(), "_", logical_id, "_", aux_id);
+  return AddOperator(spec, name, logical_id);
 }
 
 int Pipeline::AddOperator(const OpSpec &spec) {
   return AddOperator(spec, GetNextLogicalId());
 }
-
 
 int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name, int logical_id) {
   DALI_ENFORCE(!built_,
@@ -274,6 +276,9 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
 
   DALI_ENFORCE(0 <= logical_id,
                "Logical id of the node must be positive, got " + std::to_string(logical_id) + ".");
+
+  DALI_ENFORCE(instance_names_.count(inst_name) == 0,
+               make_string("Duplicate operator instance name: \"", inst_name, "\"."));
 
   if (logical_id > next_logical_id_) {
     next_logical_id_ = logical_id + 1;
