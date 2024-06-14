@@ -23,7 +23,7 @@ are handled transparently for the user.
 In addition, the deep learning frameworks have multiple data pre-processing implementations,
 resulting in challenges such as portability of training and inference workflows, and code
 maintainability. Data processing pipelines implemented using DALI are portable because they
-can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
+can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
 
 .. image:: /dali.png
     :width: 800
@@ -95,7 +95,7 @@ Highlights
 ----------
 - Easy-to-use functional style Python API.
 - Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264, VP9 and HEVC.
-- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle, JAX.
+- Portable across popular deep learning frameworks: TensorFlow, PyTorch, PaddlePaddle, JAX.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
 - Flexible graphs let developers create custom pipelines.
@@ -147,7 +147,6 @@ to be installed.
 
 DALI comes preinstalled in the `TensorFlow <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tensorflow>`__,
 `PyTorch <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch>`__,
-`NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`__,
 and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlepaddle>`__
 containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`__.
 

@@ -10,7 +10,7 @@ Prerequisites
 ^^^^^^^^^^^^^
 
 .. table::
- 
+
   +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
   | Linux x64                                                             |                                                                                        |
   +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
@@ -30,7 +30,7 @@ Prerequisites
   |                                                                       | Note: If Git LFS was installed after cloning the DALI repository, please update        |
   |                                                                       | submodules to ensure that the binary blobs were downloaded.                            |
   +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-  
+
 Building Python Wheel
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -148,7 +148,6 @@ have an *unofficial* option to disable them.
   |                                                                                   | toolkit.                                                                                                        |
   +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
   | One or more of the following Deep Learning frameworks:                                                                                                                                              |
-  |     * `MXNet <http://mxnet.incubator.apache.org>`_                                                                                                                                                  |
   |     * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`_                                                                                                                                          |
   |     * `PyTorch <https://pytorch.org>`_                                                                                                                                                              |
   |     * `TensorFlow <https://www.tensorflow.org>`_                                                                                                                                                    |
