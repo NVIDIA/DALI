@@ -178,6 +178,7 @@ def test_multi_gpu_video(device):
         filenames.append(f"{get_dali_extra_path()}/db/video/cfr_test.mp4")
         filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
         filenames = filter(lambda filename: "hevc" not in filename, filenames)
+        filenames = filter(lambda filename: "av1" not in filename, filenames)
         filenames = cycle(filenames)
         while True:
             batch = []
@@ -211,6 +212,7 @@ def test_source_info(device):
     filenames = filter(lambda filename: "hevc" not in filename, filenames)
     # mpeg4 is not yet supported in the CPU operator itself
     filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
+    filenames = filter(lambda filename: "av1" not in filename, filenames)
 
     files = list(filenames)
 
