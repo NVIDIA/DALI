@@ -9,6 +9,5 @@ This directory contains examples of DALI usage.
 
 Examples specific to frameworks integration:
 
-- [MXNet](frameworks/mxnet)
 - [TensorFlow](frameworks/tensorflow)
 - [PyTorch](frameworks/pytorch)

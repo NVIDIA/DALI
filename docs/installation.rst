@@ -11,7 +11,6 @@ Prerequisites
    dynamically and it is required to be installed. For CUDA 11 builds it is optional.
 4. [Optional] One or more of the following deep learning frameworks:
 
-   * `MXNet <http://mxnet.incubator.apache.org>`__
    * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`__
    * `PyTorch <https://pytorch.org>`__
    * `TensorFlow <https://www.tensorflow.org>`__
@@ -23,7 +22,6 @@ DALI in NGC Containers
 
 DALI is preinstalled in the `TensorFlow <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tensorflow>`_,
 `PyTorch <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch>`_,
-`NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`_,
 and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlepaddle>`_
 containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
