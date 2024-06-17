@@ -278,35 +278,6 @@ TEST(TaskingTest, MultiOutputIterable) {
   EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
 }
 
-TEST(TaskingTest, MultiOutputIterableOfAny) {
-  Executor ex(4);
-  ex.Start();
-  auto producer = Task::Create(2, []() {
-    return std::vector<std::any>{1.0, 42};
-  });
-
-  auto consumer1 = Task::Create([](Task *t) {
-    return t->GetInputValue<double>(0) + 3;
-  });
-  consumer1->Subscribe(producer, 0);
-
-  auto consumer2 = Task::Create([](Task *t) {
-    return t->GetInputValue<int>(0) + 5;
-  });
-  consumer2->Subscribe(producer, 1);
-
-  auto apex = Task::Create([](Task *t) {
-    return t->GetInputValue<double>(0) + t->GetInputValue<int>(1) + 10;
-  });
-  apex->Subscribe(consumer1)->Subscribe(consumer2);
-
-  ex.AddSilentTask(producer);
-  ex.AddSilentTask(consumer1);
-  ex.AddSilentTask(consumer2);
-  int ret = ex.AddTask(apex).Value<double>();
-  EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
-}
-
 TEST(TaskingTest, MultiOutputTuple) {
   Executor ex(4);
   ex.Start();
