@@ -73,7 +73,7 @@ class DataNode(object):
         self.source = source
 
     def __str__(self):
-        return f'DataNode(name="{self.name}", device="{self.device}")'
+        return f'DataNode(name="{self.name}", device="{self.device}, source="{self.source}")'
 
     __repr__ = __str__
 

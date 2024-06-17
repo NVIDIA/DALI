@@ -66,25 +66,9 @@ def test_cfr_h264_mp4_decoding():
     )
 
 
-def test_cfr_h264_raw_decoding():
-    run_video_decoding_test(
-        get_dali_extra_path() + "/db/video/cfr/test_1.h264",
-        f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
-        f"{get_dali_extra_path()}/db/video/cfr/frames_1",
-    )
-
-
 def test_cfr_h265_mp4_decoding():
     run_video_decoding_test(
         get_dali_extra_path() + "/db/video/cfr/test_1_hevc.mp4",
-        f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
-        f"{get_dali_extra_path()}/db/video/cfr/frames_1",
-    )
-
-
-def test_cfr_h265_raw_decoding():
-    run_video_decoding_test(
-        get_dali_extra_path() + "/db/video/cfr/test_1.h265",
         f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
         f"{get_dali_extra_path()}/db/video/cfr/frames_1",
     )

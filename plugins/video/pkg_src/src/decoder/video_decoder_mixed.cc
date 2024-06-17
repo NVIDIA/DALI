@@ -101,6 +101,7 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
 
       for (int i = 0; i < nFrameReturned; i++) {
         pFrame = sample.decoder_->GetFrame();
+        CUDA_CALL(cudaStreamSynchronize(cuStream));
 
         uint8_t *dpFrame = output_data + num_frames * sample.demuxer_->GetHeight() *
                                              sample.demuxer_->GetWidth() * 3;

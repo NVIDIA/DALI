@@ -42,6 +42,13 @@ applies the :ref:`AutoAugment` policy tuned for ImageNet::
     To see a full example of using automatic augmentations for training, see the
     :ref:`EfficientNet for PyTorch with DALI and AutoAugment <efficientnet_autoaugment>` example.
 
+.. note::
+    You can also read more about Automatic Augmentation in the blogpost:
+    `Why Automatic Augmentation Matters <https://developer.nvidia.com/blog/why-automatic-augmentation-matters/>`_.
+
+    It covers the importance of Automatic Augmentations, explains the usage and possible customization,
+    and shows how DALI can improve performance as compared to other implementations.
+
 .. currentmodule:: nvidia.dali.auto_aug
 
 .. toctree::

@@ -23,6 +23,7 @@
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/operators/util/randomizer.cuh"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
 namespace rng {

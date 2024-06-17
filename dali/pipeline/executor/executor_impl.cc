@@ -665,8 +665,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
     id.iter_data = std::make_shared<IterationData>();
-    if (checkpointing_)
-      id.checkpoint.Build(*graph_);
+    if (checkpointing_) {
+      for (auto &node : graph_->GetOpNodes())
+        id.checkpoint.AddOperator(node.instance_name);
+    }
   }
 }
 
@@ -707,6 +709,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::CreateCheckpoint(const OpNode &op_n
                                                               AccessOrder order) {
   auto &cpt = GetCurrentIterationData(iteration_id).checkpoint;
   auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
+  assert(op_cpt.OperatorName() == op_node.instance_name);
   cpt.SetIterationId(iteration_id);
   op_node.op->SaveState(op_cpt, order);
 }
@@ -748,8 +751,16 @@ Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
 template<typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
   DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
-  for (int i = 0; i < graph_->NumOp(); ++i)
-    graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
+  DALI_ENFORCE(graph_->NumOp() == cpt.NumOp(),
+               "The number of operators in the checkpoint doesn't match the graph structure.");
+  for (int i = 0, n = cpt.NumOp(); i < n; i++) {
+    const auto &op_cpt = cpt.GetOpCheckpoint(i);
+    auto *op = GetOperator(op_cpt.OperatorName());
+    DALI_ENFORCE(op != nullptr, make_string(
+        "Operator with name \"", op_cpt.OperatorName(), "\" "
+        "from the checkpoint not found in the graph."));
+    op->RestoreState(op_cpt);
+  }
 
   // Overwrite the initial checkpoints after the state was restored.
   CreateInitialCheckpoints();

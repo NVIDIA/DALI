@@ -82,6 +82,11 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline ~OpSchema() = default;
 
   /**
+   * @brief Returns an empty schema, with only internal arguments
+   */
+  DLL_PUBLIC static const OpSchema &Default();
+
+  /**
    * @brief Returns the schema name of this operator.
    */
   DLL_PUBLIC const std::string &name() const;

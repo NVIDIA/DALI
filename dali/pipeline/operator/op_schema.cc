@@ -54,6 +54,10 @@ const OpSchema *SchemaRegistry::TryGetSchema(const std::string &name) {
   return it != schema_map.end() ? &it->second : nullptr;
 }
 
+const OpSchema &OpSchema::Default() {
+  static OpSchema default_schema("");
+  return default_schema;
+}
 
 OpSchema::OpSchema(const std::string &name) : name_(name) {
   // Process the module path and operator name

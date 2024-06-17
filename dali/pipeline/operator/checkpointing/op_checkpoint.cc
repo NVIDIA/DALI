@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <utility>
+
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 
-OpCheckpoint::OpCheckpoint(const OpSpec &spec)
-  : operator_name_(spec.SchemaName())
+OpCheckpoint::OpCheckpoint(std::string instance_name)
+  : operator_name_(std::move(instance_name))
   , order_(AccessOrder::host()) {}
 
 const std::string &OpCheckpoint::OperatorName() const {

@@ -51,7 +51,7 @@ OpSpec& OpSpec::AddOutput(const string &name, const string &device) {
 OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name) {
   DALI_ENFORCE(!this->HasArgument(arg_name), make_string(
       "Argument '", arg_name, "' is already specified."));
-  const OpSchema& schema = GetSchema();
+  const OpSchema& schema = GetSchemaOrDefault();
   DALI_ENFORCE(schema.HasArgument(arg_name),
                make_string("Argument '", arg_name, "' is not supported by operator `",
                            GetOpDisplayName(*this, true), "`."));

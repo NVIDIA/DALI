@@ -23,10 +23,12 @@ namespace test {
 TEST(NewOpGraphTest, AddEraseOp) {
   OpGraph g;
   OpSpec spec("dummy");
+  spec.AddArg("device", "gpu");
   OpSpec otherspec("asdf");
   OpNode &op_node = g.AddOp("instance1", spec);
   EXPECT_THROW(g.AddOp("instance1", otherspec), std::invalid_argument);
   EXPECT_EQ(op_node.instance_name, "instance1");
+  EXPECT_EQ(op_node.op_type, OpType::GPU) << "The spec's device not parsed properly.";
   EXPECT_EQ(op_node.spec.SchemaName(), "dummy");
   EXPECT_EQ(g.GetOp("instance1"), &op_node);
   EXPECT_TRUE(g.EraseOp("instance1"));
@@ -133,6 +135,7 @@ TEST(NewOpGraphBuilderTest, AddMultipleOps) {
   spec1.AddOutput("m1", "cpu");
 
   OpSpec spec2("dummy");
+  spec2.AddArg("device", "mixed");
   spec2.AddInput("m1",  "cpu");
   spec2.AddInput("m0",  "gpu");
   spec2.AddInput("i1",  "gpu");
@@ -149,10 +152,12 @@ TEST(NewOpGraphBuilderTest, AddMultipleOps) {
   auto *op1 = g.GetOp("op1");
   auto *op2 = g.GetOp("op2");
   ASSERT_NE(op1, nullptr);
+  EXPECT_EQ(op1->op_type, OpType::CPU);
   EXPECT_EQ(op1->instance_name, "op1");
   EXPECT_EQ(op1->spec.SchemaName(), "dummy");
 
   ASSERT_NE(op2, nullptr);
+  EXPECT_EQ(op2->op_type, OpType::MIXED);
   EXPECT_EQ(op2->instance_name, "op2");
   EXPECT_EQ(op2->spec.SchemaName(), "dummy");
 
@@ -238,7 +243,7 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
      /     /
     / \   / \
    (   ) /   \
-    op2      op3
+    op2      op3      op4 (preserved)
    /   \      |
   o0    o1    o2
   |     |     |
@@ -248,12 +253,14 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
   */
 
   OpSpec spec1("dummy");
+  spec1.AddArg("device", "cpu");
   spec1.AddInput("i0",  "cpu");
   spec1.AddInput("i1",  "gpu");
   spec1.AddOutput("m0", "gpu");
   spec1.AddOutput("m1", "cpu");
 
   OpSpec spec2("dummy");
+  spec2.AddArg("device", "gpu");
   spec2.AddInput("m1",  "cpu");
   spec2.AddInput("m0",  "gpu");
   spec2.AddInput("i1",  "gpu");
@@ -265,35 +272,37 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
   spec3.AddInput("i1",  "gpu");
   spec3.AddOutput("o2", "gpu");
 
+  OpSpec spec4("dummy");
+  spec4.AddArg("preserve", true);
+
   OpGraph::Builder b;
   b.Add("op2", spec2);
   b.Add("op3", spec3);
   b.Add("op1", spec1);
+  b.Add("op4", spec4);
   b.AddOutput("o0_gpu");
   b.AddOutput("o1_cpu");
-  OpGraph g = std::move(b).GetGraph();
+  OpGraph g = std::move(b).GetGraph(false);  // don't prune now
 
   auto &nodes = g.OpNodes();
-  ASSERT_EQ(nodes.size(), 3_uz) << "The nodes were not added properly - abandoning test";
+  ASSERT_EQ(nodes.size(), 4_uz) << "The nodes were not added properly - abandoning test";
   g.Sort(true);
-  EXPECT_EQ(nodes.size(), 2_uz);
-  ASSERT_GE(nodes.size(), 2_uz) << "Graph overpruned.";
-  auto it = g.OpNodes().begin();
-  EXPECT_EQ(it->instance_name, "op1");
-  ++it;
-  EXPECT_EQ(it->instance_name, "op2");
-
+  EXPECT_EQ(nodes.size(), 3_uz);
 
   auto *op1 = g.GetOp("op1");
   auto *op2 = g.GetOp("op2");
   auto *op3 = g.GetOp("op3");
+  auto *op4 = g.GetOp("op4");
   EXPECT_EQ(op3, nullptr) << "The operator op3 should have been pruned";
+  EXPECT_NE(op4, nullptr) << "The operator op4 should NOT have been pruned";
 
   ASSERT_NE(op1, nullptr) << "Operator op1 not found in the pruned graph";
+  EXPECT_EQ(op1->op_type, OpType::CPU);
   EXPECT_EQ(op1->instance_name, "op1");
   EXPECT_EQ(op1->spec.SchemaName(), "dummy");
 
   ASSERT_NE(op2, nullptr) << "Operator op2 not found in the pruned graph";
+  EXPECT_EQ(op2->op_type, OpType::GPU);
   EXPECT_EQ(op2->instance_name, "op2");
   EXPECT_EQ(op2->spec.SchemaName(), "dummy");
 

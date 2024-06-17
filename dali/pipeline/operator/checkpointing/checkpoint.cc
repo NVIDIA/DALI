@@ -12,28 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operator/checkpointing/checkpoint.h"
-// TODO(michalz): Use OpGraph2
-#include "dali/pipeline/executor/lowered_graph.h"
+#include <utility>
 
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/dali.pb.h"
 
 namespace dali {
 
-void Checkpoint::Build(const OpGraph &graph) {
-  cpts_.reserve(graph.GetOpNodes().size());
-  for (const auto &node : graph.GetOpNodes())
-    cpts_.emplace_back(node.spec);
+void Checkpoint::Clear() {
+  cpts_.clear();
+  name2id_.clear();
+  iteration_id_ = 0;
 }
 
-OpCheckpoint &Checkpoint::GetOpCheckpoint(OpNodeId id) {
-  DALI_ENFORCE_VALID_INDEX(id, cpts_.size());
-  return cpts_[id];
+int Checkpoint::AddOperator(std::string instance_name) {
+  if (!name2id_.emplace(instance_name, cpts_.size()).second)
+    DALI_FAIL("The checkpoint already contains an operator with name \"", instance_name, "\".");
+  cpts_.emplace_back(std::move(instance_name));
+  return cpts_.size() - 1;
 }
 
-const OpCheckpoint &Checkpoint::GetOpCheckpoint(OpNodeId id) const {
-  DALI_ENFORCE_VALID_INDEX(id, cpts_.size());
-  return cpts_[id];
+std::optional<int> Checkpoint::OperatorIdx(std::string_view instance_name) const {
+  auto it = name2id_.find(instance_name);
+  if (it == name2id_.end())
+    return std::nullopt;
+  return it->second;
+}
+
+const OpCheckpoint &Checkpoint::GetOpCheckpoint(std::string_view instance_name) const {
+  auto idx = OperatorIdx(instance_name);
+  if (!idx)
+    DALI_FAIL("There's no checkpoint for operator \"", instance_name, "\".");
+  return GetOpCheckpoint(*idx);
+}
+
+OpCheckpoint &Checkpoint::GetOpCheckpoint(int idx) {
+  DALI_ENFORCE_VALID_INDEX(idx, cpts_.size());
+  return cpts_[idx];
+}
+
+const OpCheckpoint &Checkpoint::GetOpCheckpoint(int idx) const {
+  DALI_ENFORCE_VALID_INDEX(idx, cpts_.size());
+  return cpts_[idx];
 }
 
 void Checkpoint::SetIterationId(size_t iteration_id) {
@@ -53,37 +75,36 @@ Index Checkpoint::NumOp() const {
   return cpts_.size();
 }
 
-std::string Checkpoint::SerializeToProtobuf(const OpGraph &graph) const {
+std::string Checkpoint::SerializeToProtobuf(ExecutorBase &exec) const {
   dali_proto::Checkpoint checkpoint;
-  const auto &nodes = graph.GetOpNodes();
-  for (size_t i = 0; i < nodes.size(); i++) {
+  for (const OpCheckpoint &cpt : cpts_) {
     auto op_cpt = checkpoint.add_cpts();
-    op_cpt->set_operator_name(cpts_[i].OperatorName());
-    op_cpt->set_operator_state(nodes[i].op->SerializeCheckpoint(cpts_[i]));
+    const auto &name = cpt.OperatorName();
+    op_cpt->set_operator_name(name);
+    auto *op = exec.GetOperator(name);
+    assert(op);
+    op_cpt->set_operator_state(op->SerializeCheckpoint(cpt));
   }
   checkpoint.mutable_external_ctx_cpt()->set_pipeline_data(external_ctx_cpt_.pipeline_data);
   checkpoint.mutable_external_ctx_cpt()->set_iterator_data(external_ctx_cpt_.iterator_data);
   return checkpoint.SerializeAsString();
 }
 
-void Checkpoint::DeserializeFromProtobuf(const OpGraph &graph,
-                                         const std::string &serialized_data) {
-  Build(graph);
+void Checkpoint::DeserializeFromProtobuf(ExecutorBase &exec, const std::string &serialized_data) {
+  Clear();
   dali_proto::Checkpoint checkpoint;
   checkpoint.ParseFromString(serialized_data);
-  DALI_ENFORCE(checkpoint.cpts_size() == static_cast<int>(cpts_.size()),
-               "The number of operators in the checkpoint differs from the number "
-               "of operators in the pipeline. ");
 
-  const auto &nodes = graph.GetOpNodes();
   for (int i = 0; i < checkpoint.cpts_size(); i++) {
-    auto &op_cpt = cpts_[i];
     const auto &name = checkpoint.cpts(i).operator_name();
     const auto &data = checkpoint.cpts(i).operator_state();
-    DALI_ENFORCE(name == op_cpt.OperatorName(),
-                 "Attempted to restore state from checkpoint of another operator. "
-                 "The checkpoint might come from another pipeline. ");
-    nodes[i].op->DeserializeCheckpoint(op_cpt, data);
+    auto *op = exec.GetOperator(name);
+    DALI_ENFORCE(op, make_string(
+                 "The executor doesn't recognize \"", name, "\" as a name of an operator.\n"
+                 "The checkpoint might come from another pipeline."));
+    auto idx = AddOperator(name);  // this extends the `cpts_` vector
+    auto &op_cpt = cpts_[idx];
+    op->DeserializeCheckpoint(op_cpt, data);
   }
   external_ctx_cpt_.pipeline_data = checkpoint.external_ctx_cpt().pipeline_data();
   external_ctx_cpt_.iterator_data = checkpoint.external_ctx_cpt().iterator_data();

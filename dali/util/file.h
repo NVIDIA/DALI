@@ -16,6 +16,7 @@
 #define DALI_UTIL_FILE_H_
 
 #include <cstdio>
+#include <streambuf>
 #include <memory>
 #include <string>
 #include <optional>
@@ -105,6 +106,33 @@ class DLL_PUBLIC FileStream : public InputStream {
   explicit FileStream(const std::string &path) : path_(path) {}
 
   std::string path_;
+};
+
+/**
+ * @brief Custom streambuf implementation that reads from FileStream.
+ * @remarks It is useful to be used together with std::istream
+ */
+template <size_t BufferSize = (1 << 10)>
+class FileStreamBuf : public std::streambuf {
+ public:
+  explicit FileStreamBuf(FileStream *reader) : reader_(reader) {
+    setg(buffer_, buffer_, buffer_);  // Initialize get area pointers
+  }
+
+ protected:
+  int_type underflow() override {
+    if (gptr() == egptr()) {  // get area is exhausted
+      size_t nbytes = reader_->Read(buffer_, BufferSize);
+      if (nbytes == 0)
+        return traits_type::eof();
+      setg(buffer_, buffer_, buffer_ + nbytes);
+    }
+    return traits_type::to_int_type(*gptr());
+  }
+
+ private:
+  FileStream *reader_;
+  char buffer_[BufferSize];
 };
 
 }  // namespace dali
