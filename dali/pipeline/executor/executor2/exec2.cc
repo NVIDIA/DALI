@@ -12,28 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
-#define DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
-
-#include <memory>
-#include "graph.h"
+#include "dali/pipeline/executor/executor2/exec2.h"
 
 namespace dali {
 namespace exec2 {
 
-class Executor {
- public:
-  virtual ~Executor() = default;
-
-  virtual void Initialize(std::shared_ptr<Graph> graph) = 0;
-  virtual void Run() = 0;
-  virtual void GetOutputs(Workspace &ws) = 0;
- private:
-
-};
-
 }  // namespace exec2
 }  // namespace dali
-
-#endif  // DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
-

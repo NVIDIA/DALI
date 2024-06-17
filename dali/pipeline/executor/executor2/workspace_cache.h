@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
-#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_WORKSPACE_CACHE_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_WORKSPACE_CACHE_H_
 
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <utility>
+#include <vector>
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -79,10 +81,9 @@ class WorkspaceCache {
  private:
   std::mutex mtx_;
   std::queue<CachedWorkspace> workspaces_;
-
 };
 
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_WORKSPACE_CACHE_H_

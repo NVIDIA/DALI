@@ -13,9 +13,10 @@
 // limitations under the License.
 
 #include <cassert>
+#include <utility>
 #include "dali/core/cuda_event_pool.h"
-#include "exec_graph.h"
-#include "op_task.h"
+#include "dali/pipeline/executor/executor2/exec_graph.h"
+#include "dali/pipeline/executor/executor2/op_task.h"
 
 namespace dali {
 namespace exec2 {
@@ -35,7 +36,7 @@ void ClearWorkspacePayload(Workspace &ws) {
   for (int i = 0; i < ws.NumArgumentInput(); i++)
     ws.SetArgumentInput(i, nullptr);
 
-  for (int o = 0; o < ws.NumOutput(); o++){
+  for (int o = 0; o < ws.NumOutput(); o++) {
     if (ws.OutputIsType<CPUBackend>(o))
       ws.SetOutput<CPUBackend>(o, nullptr);
     else if (ws.OutputIsType<GPUBackend>(o))
