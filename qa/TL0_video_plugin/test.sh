@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} scikit-build ninja cmake'
+pip_packages='${python_test_runner_package} scikit-build ninja cmake opencv-python'
 target_dir=./dali/test/python
 
 # reduce the lenght of the sanitizers tests as much as possible
@@ -26,6 +26,8 @@ test_body() {
 
     # Check that the plugin can be loaded
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk
+
+    ${python_new_invoke_test} -s . test_dali_video_plugin_decoder
 }
 
 pushd ../..

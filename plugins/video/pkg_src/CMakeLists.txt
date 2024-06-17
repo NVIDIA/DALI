@@ -55,6 +55,7 @@ add_subdirectory("${pynvvideocodec_SOURCE_DIR}/src/VideoCodecSDKUtils/")
 
 set(VIDEO_PLUGIN_SOURCES
     src/decoder/video_decoder_mixed.cc
+    src/decoder/color_space.cu
 )
 
 add_library(dali_${PLUGIN_NAME} SHARED ${VIDEO_PLUGIN_SOURCES})
