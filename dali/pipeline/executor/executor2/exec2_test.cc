@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/pipeline/operator/arg_helper.h"
-#include "exec_graph.h"
+#include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/test/timing.h"
 
 namespace dali {
@@ -30,7 +30,7 @@ inline OpSchema &CreateTestSchema(const std::string &name) {
 
 class DummyOp : public Operator<CPUBackend> {
  public:
-  DummyOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+  explicit DummyOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
     instance_name_ = spec_.GetArgument<string>("instance_name");
   }
 
@@ -67,7 +67,6 @@ class DummyOp : public Operator<CPUBackend> {
 };
 
 TEST(Exec2Test, SimpleGraph) {
-  auto start = dali::test::perf_timer::now();
   int batch_size = 32;
   DummyOp::CreateSchema();
   OpSpec spec0("DummyOp");

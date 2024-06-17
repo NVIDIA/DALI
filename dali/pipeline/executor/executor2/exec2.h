@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "graph.h"
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_H_
+
+#include <memory>
+#include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/executor/executor2/exec_graph.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 namespace exec2 {
 
-class GraphBuilder::GraphBuilderImpl {
+class Executor2 {
+ public:
+  void Initialize(std::shared_ptr<graph::OpGraph> graph) {
+    graph_ = graph;
+  }
+
+  void Run() {
+  }
+
+  void GetOutputs(Workspace &ws) {
+  }
+
+  ExecGraph exec_graph_;
+  std::shared_ptr<graph::OpGraph> graph_;
 };
-
-GraphBuilder::GraphBuilder() : impl(std::make_unique<GraphBuilderImpl>()) {}
-
-GraphBuilder::~GraphBuilder() = default;
-
 
 }  // namespace exec2
 }  // namespace dali
 
+
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_H_

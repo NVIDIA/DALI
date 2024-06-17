@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_DYNAMIC_EXEC_GRAPH_H_
-#define DALI_PIPELINE_EXECUTOR2_DYNAMIC_EXEC_GRAPH_H_
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC_GRAPH_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC_GRAPH_H_
 
 #include <cassert>
 #include <functional>
 #include <list>
 #include <memory>
-#include <variant>
+#include <utility>
+#include <vector>
 
-#include "../graph.h"
-#include "workspace_cache.h"
+#include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/executor/executor2/workspace_cache.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -93,7 +94,7 @@ class DLL_PUBLIC ExecNode {
     return ws;
   }
 
-private:
+ private:
   CachedWorkspace CreateOutputWorkspace();
   CachedWorkspace CreateOpWorkspace();
 
@@ -157,4 +158,5 @@ class Iteration {
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR2_DYNAMIC_EXEC_GRAPH_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC_GRAPH_H_
+

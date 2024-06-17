@@ -16,8 +16,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "op_task.h"
-#include "exec_graph.h"
+#include "dali/pipeline/executor/executor2/op_task.h"
+#include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
 
@@ -29,8 +29,9 @@ tasking::SharedTask OpTaskFunc::CreateTask(ExecNode *node, CachedWorkspace ws) {
     return tasking::Task::Create(
       OpTaskFunc(node, std::move(ws)).GetOutputTaskRunnable());
   } else {
+    int nout = ws->NumOutput();
     return tasking::Task::Create(
-      ws->NumOutput(),
+      nout,
       OpTaskFunc(node, std::move(ws)).GetOpTaskRunnable());
   }
 }

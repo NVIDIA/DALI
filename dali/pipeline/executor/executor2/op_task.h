@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_DYNAMIC_OP_TASK_H_
-#define DALI_PIPELINE_EXECUTOR2_DYNAMIC_OP_TASK_H_
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_OP_TASK_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_OP_TASK_H_
 
 #include <memory>
-#include "workspace_cache.h"
+#include <utility>
 #include "dali/core/exec/tasking.h"
-#include "exec_graph.h"
+#include "dali/pipeline/executor/executor2/workspace_cache.h"
+#include "dali/pipeline/executor/executor2/exec_graph.h"
 
 namespace dali {
 namespace exec2 {
@@ -88,4 +89,4 @@ class OpTaskFunc {
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR2_DYNAMIC_OP_TASK_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_OP_TASK_H_
