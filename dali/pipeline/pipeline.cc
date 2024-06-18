@@ -277,7 +277,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
   DALI_ENFORCE(0 <= logical_id,
                "Logical id of the node must be positive, got " + std::to_string(logical_id) + ".");
 
-  DALI_ENFORCE(instance_names_.count(inst_name) == 0,
+  DALI_ENFORCE(instance_names_.insert(inst_name).second,
                make_string("Duplicate operator instance name: \"", inst_name, "\"."));
 
   if (logical_id > next_logical_id_) {

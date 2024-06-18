@@ -54,6 +54,8 @@ class PipelineTest : public DALITest {
   void RunTestEnforce(const string &dev1, const string &dev2) {
     Pipeline pipe(1, 1, 0);
 
+    // TODO(michalz): This is a totally artificial limitation. Remove the constraint and the tests.
+
     // Inputs must be know to the pipeline, i.e. ops
     // must be added in a topological ordering.
     ASSERT_THROW(
@@ -68,6 +70,9 @@ class PipelineTest : public DALITest {
       OpSpec("ExternalSource")
         .AddArg("device", "gpu")
         .AddOutput("data", "gpu"));
+
+    // TODO(michalz): Remove this constraint and the tests. This should be a build-time error,
+    //                with old executor, not a construction-time error.
 
     // For dev1 = "cpu": Inputs to CPU ops must be on CPU,
     //                   we do not auto-copy them from gpu to cpu.
@@ -861,4 +866,22 @@ TEST(PipelineTest, MultiOutputInputOp) {
   ASSERT_EQ(out1.type(), DALIDataType::DALI_INT32);
   ASSERT_EQ(out1.tensor<int>(0)[0], input);
 }
+
+TEST(PipelineTest, DuplicateInstanceName) {
+  Pipeline pipe(1, 1, 0);
+  pipe.AddExternalInput("data");
+
+  EXPECT_THROW(pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddInput("data", "gpu")
+      .AddOutput("copied", "gpu"), "data"), std::runtime_error);
+
+  EXPECT_NO_THROW(pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddInput("data", "gpu")
+      .AddOutput("copied", "gpu"), "data1"));
+}
+
 }  // namespace dali
