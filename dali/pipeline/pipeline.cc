@@ -591,8 +591,10 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
   // Load the final graph into the executor
   executor_->Build(graph_);
-
+  // CAUTION: Do not insert anything that can throw between `executor_->Build()` and
+  //          `DiscoverInputOperators`.
   DiscoverInputOperators();
+
   repeat_last_.FindNodes(graph_, *executor_);
 
   built_ = true;
@@ -1001,12 +1003,10 @@ void Pipeline::Shutdown() {
     if (!op_ptr)
       continue;
     if (auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr)) {
-        cpu_op_ptr->BreakWaiting();
+      cpu_op_ptr->BreakWaiting();
     } else if (auto *mixed_op_ptr = dynamic_cast<InputOperator<MixedBackend> *>(op_ptr)) {
-      assert(mixed_op_ptr);
       mixed_op_ptr->BreakWaiting();
     } else if (auto *gpu_op_ptr = dynamic_cast<InputOperator<GPUBackend> *>(op_ptr)) {
-      assert(gpu_op_ptr);
       gpu_op_ptr->BreakWaiting();
     } else {
       assert(false);  // This shouldn't happen.
@@ -1086,7 +1086,7 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
 }
 
 
-void Pipeline::DiscoverInputOperators() {
+void Pipeline::DiscoverInputOperators() noexcept {
   auto& op_nodes = graph_.OpNodes();
   for (const auto &node : op_nodes) {
     auto *op = executor_->GetOperator(node.instance_name);
@@ -1126,7 +1126,7 @@ void Pipeline::RepeatLastInputs::FindNodes(const graph::OpGraph &graph, Executor
 template <typename Backend>
 void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
   auto &nodes = GetNodes<Backend>();
-  for (auto &[name, node] : nodes) {;
+  for (auto &[name, node] : nodes) {
     int count = fill_queue ? owner.InputFeedCount(name) : 1;
     for (int i = 0; i < count; i++)
       owner.SetExternalInputHelper(

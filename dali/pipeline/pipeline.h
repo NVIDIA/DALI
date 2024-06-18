@@ -697,8 +697,11 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * Traverses the Operator graph and collects all operators that are Input Operators.
+   *
+   * NOTE: This function must not throw - if it does, the pipeline may be left in an
+   *       inconsistent state!
    */
-  void DiscoverInputOperators();
+  void DiscoverInputOperators() noexcept;
 
   /**
    * @brief Process exception that was thrown when executing DALI. Executor already provided context
