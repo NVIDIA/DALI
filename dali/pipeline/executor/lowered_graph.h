@@ -340,27 +340,9 @@ class DLL_PUBLIC OpGraph {
   }
 
   /**
-   * @brief Helper function for saving graph to DOT file
-   */
-  DLL_PUBLIC void GenerateDOTFromGraph(std::ofstream& ofs, bool show_tensors, bool show_ids,
-                                       bool use_colors);
-
-  /**
    * @brief Instantiates the operators based on OpSpecs in nodes
    */
   DLL_PUBLIC void InstantiateOperators();
-
-  /**
-   * @brief Save graph in DOT directed graph format
-   * in filename.
-   */
-  DLL_PUBLIC void SaveToDotFile(const string &filename, bool show_tensors = false,
-                                bool show_ids = false, bool use_colors = false) {
-    std::ofstream ofs(filename);
-    ofs << "digraph graphname {\n";
-    GenerateDOTFromGraph(ofs, show_tensors, show_ids, use_colors);
-    ofs << "}\n";
-  }
 
   /**
    * @brief Get the ids of the outputs, optionally include all the nodes that should be buffered
@@ -401,10 +383,6 @@ class DLL_PUBLIC OpGraph {
   }
 
  private:
-  // Should be called only once for each tensor
-  void GenerateDOTFromGraph(const TensorNode& current_node, std::ofstream& ofs, bool show_tensors,
-                            bool show_ids);
-
   bool HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const;
 
   /**
