@@ -912,9 +912,9 @@ TEST(PipelineTest, AutoName) {
 
   pipe.Build();
   EXPECT_NE(pipe.GetOperatorNode(name), nullptr);
-  EXPECT_NE(pipe.GetOperatorNode(name + "_0"), nullptr);
   EXPECT_NE(pipe.GetOperatorNode(name + "_1"), nullptr);
-  EXPECT_EQ(pipe.GetOperatorNode(name + "_2"), nullptr);
+  EXPECT_NE(pipe.GetOperatorNode(name + "_2"), nullptr);
+  EXPECT_EQ(pipe.GetOperatorNode(name + "_3"), nullptr);
 }
 
 

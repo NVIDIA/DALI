@@ -239,8 +239,14 @@ int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
 
 int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
   std::string name = make_string("__", spec.SchemaName(), "_", logical_id);
-  for (int aux_id = 0; instance_names_.count(name) > 0; aux_id++)
-    name = make_string("__", spec.SchemaName(), "_", logical_id, "_", aux_id);
+  if (instance_names_.count(name)) {
+    int group_size = 0;
+    auto it = logical_ids_.find(logical_id);
+    if (it != logical_ids_.end())
+      group_size = it->second.size();
+    for (int aux_id = group_size; instance_names_.count(name) > 0; aux_id++)
+      name = make_string("__", spec.SchemaName(), "_", logical_id, "_", aux_id);
+  }
   return AddOperator(spec, name, logical_id);
 }
 
