@@ -62,7 +62,7 @@ struct OpNode {
   /** The specification of an operator. */
   OpSpec spec;
   /** The "device" - cpu, gpu or mixed. */
-  OpType op_type = OpType::CPU;  // TODO(michalz): initialize it properly
+  OpType op_type = OpType::CPU;
 
   /** This node must not be pruned. */
   bool keep = false;
