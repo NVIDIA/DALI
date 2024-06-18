@@ -884,4 +884,38 @@ TEST(PipelineTest, DuplicateInstanceName) {
       .AddOutput("copied", "gpu"), "data1"));
 }
 
+TEST(PipelineTest, AutoName) {
+  Pipeline pipe(1, 1, 0);
+  pipe.AddExternalInput("data");
+
+  int id = pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddInput("data", "gpu")
+      .AddOutput("copied1", "gpu"), 1);
+
+  EXPECT_NO_THROW(pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddInput("data", "gpu")
+      .AddOutput("copied2", "gpu"), id));
+
+  EXPECT_NO_THROW(pipe.AddOperator(
+      OpSpec("Copy")
+      .AddArg("device", "gpu")
+      .AddInput("data", "gpu")
+      .AddOutput("copied3", "gpu"), id));
+
+  pipe.SetOutputDescs({{ "copied1", "gpu"}, {"copied2", "gpu"}, {"copied3", "gpu"}});
+
+  auto name = make_string("__Copy_", id);
+
+  pipe.Build();
+  EXPECT_NE(pipe.GetOperatorNode(name), nullptr);
+  EXPECT_NE(pipe.GetOperatorNode(name + "_0"), nullptr);
+  EXPECT_NE(pipe.GetOperatorNode(name + "_1"), nullptr);
+  EXPECT_EQ(pipe.GetOperatorNode(name + "_2"), nullptr);
+}
+
+
 }  // namespace dali
