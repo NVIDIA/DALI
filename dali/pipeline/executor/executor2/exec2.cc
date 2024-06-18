@@ -17,5 +17,50 @@
 namespace dali {
 namespace exec2 {
 
+void Executor2::Init() {
+}
+
+void Executor2::Run() {
+}
+
+void Executor2::Prefetch() {
+}
+
+
+void Executor2::Outputs(Workspace *ws) {
+}
+
+void Executor2::ShareOutputs(Workspace *ws) {
+}
+
+void Executor2::ReleaseOutputs() {
+}
+
+void Executor2::EnableMemoryStats(bool enable_memory_stats) {
+}
+
+void Executor2::EnableCheckpointing(bool checkpointing) {
+}
+
+ExecutorMetaMap Executor2::GetExecutorMeta() {
+    return {};
+}
+
+void Executor2::Shutdown() {
+}
+
+Checkpoint &Executor2::GetCurrentCheckpoint() {
+}
+
+void Executor2::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
+}
+
+int Executor2::InputFeedCount(std::string_view input_name) {
+}
+
+OperatorBase *Executor2::GetOperator(std::string_view name) {
+}
+
+
 }  // namespace exec2
 }  // namespace dali
