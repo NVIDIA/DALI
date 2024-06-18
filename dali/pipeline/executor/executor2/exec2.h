@@ -19,20 +19,41 @@
 #include "dali/pipeline/graph/op_graph2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/workspace/workspace.h"
+#include "dali/pipeline/executor/executor.h"
 
 namespace dali {
 namespace exec2 {
 
-class Executor2 {
+class DLL_PUBLIC Executor2 : public ExecutorBase {
  public:
+  explicit Executor2(int queue_depth);
+
+  void Build(const graph::OpGraph &graph) override {
+
+  }
+  // TODO(michalz): Remove
+  void Build(OpGraph *graph, std::vector<std::string> output_names) override {
+    throw std::logic_error("This function is maintained in the interface for legacy tests only.");
+  }
+
+  void Init() override;
+  void Run() override;
+  void Prefetch() override;
+
+  void Outputs(Workspace *ws) override;
+  void ShareOutputs(Workspace *ws) override;
+  void ReleaseOutputs() override;
+  void EnableMemoryStats(bool enable_memory_stats = false) override;
+  void EnableCheckpointing(bool checkpointing = false) override;
+  ExecutorMetaMap GetExecutorMeta() override;
+  void Shutdown() override;
+  Checkpoint& GetCurrentCheckpoint() override;
+  void RestoreStateFromCheckpoint(const Checkpoint &cpt) override;
+  int InputFeedCount(std::string_view input_name) override;
+  OperatorBase *GetOperator(std::string_view name) override;
+
   void Initialize(std::shared_ptr<graph::OpGraph> graph) {
     graph_ = graph;
-  }
-
-  void Run() {
-  }
-
-  void GetOutputs(Workspace &ws) {
   }
 
   ExecGraph exec_graph_;
