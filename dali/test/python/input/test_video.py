@@ -27,6 +27,7 @@ filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
 filenames = filter(lambda filename: "hevc" not in filename, filenames)
 # mpeg4 is not yet supported in the CPU operator
 filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
+filenames = filter(lambda filename: "av1" not in filename, filenames)
 files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
 
 batch_size_values = [1, 3, 100]

@@ -74,6 +74,19 @@ def test_cfr_h265_mp4_decoding():
     )
 
 
+def test_cfr_av1_mp4_decoding():
+    try:
+        run_video_decoding_test(
+            get_dali_extra_path() + "/db/video/cfr/test_1_av1.mp4",
+            f"{get_dali_extra_path()}/db/video/cfr/frames_1/frames_list.txt",
+            f"{get_dali_extra_path()}/db/video/cfr/frames_1",
+        )
+        return
+    except Exception as e:
+        assert "Codec not supported on this GPU" in str(e), "Unexpected error message: {}".format(e)
+        return
+
+
 def test_vfr_h264_mp4_decoding():
     run_video_decoding_test(
         get_dali_extra_path() + "/db/video/vfr/test_1.mp4",
@@ -88,3 +101,16 @@ def test_vfr_hevc_mp4_decoding():
         f"{get_dali_extra_path()}/db/video/vfr/frames_1_hevc/frames_list.txt",
         f"{get_dali_extra_path()}/db/video/vfr/frames_1_hevc",
     )
+
+
+def test_vfr_av1_mp4_decoding():
+    try:
+        run_video_decoding_test(
+            get_dali_extra_path() + "/db/video/vfr/test_1_av1.mp4",
+            f"{get_dali_extra_path()}/db/video/vfr/frames_1/frames_list.txt",
+            f"{get_dali_extra_path()}/db/video/vfr/frames_1",
+        )
+        return
+    except Exception as e:
+        assert "Codec not supported on this GPU" in str(e), "Unexpected error message: {}".format(e)
+        return
