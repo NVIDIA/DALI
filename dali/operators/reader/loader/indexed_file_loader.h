@@ -170,7 +170,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
         tensor.Resize({size}, DALI_UINT8);
 
         int64 n_read =
-            current_file_->Read(reinterpret_cast<uint8_t*>(tensor.raw_mutable_data()), size);
+            current_file_->Read(static_cast<uint8_t*>(tensor.raw_mutable_data()), size);
         DALI_ENFORCE(n_read == size, "Error reading from a file " + paths_[current_file_index_]);
       }
     }

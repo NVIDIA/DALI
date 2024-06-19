@@ -47,10 +47,7 @@ class URI {
   }
 
  public:
-  /**
-   * @brief Parse options
-   * 
-   */
+  /** Parse options */
   enum ParseOpts : uint32_t {
     Default = 0,
     AllowNonEscaped = 1 << 0,  // 0x0001 - Convenient when we want to check if a URI is valid before
@@ -59,7 +56,7 @@ class URI {
   };
 
   /**
-   * @brief
+   * @brief Parses a URI string
    *
    * @param uri URI to parse
    * @param opts option bitmask (see ParseOpts)
