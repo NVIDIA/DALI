@@ -13,16 +13,16 @@ cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 if [ ! -d "val" ]; then
-   ln -sf /data/imagenet/val-jpeg/ val
+   ln -sf /data_raid/imagenet/val-jpeg/ val
 fi
 if [ ! -d "train" ]; then
-   ln -sf /data/imagenet/train-jpeg/ train
+   ln -sf /data_raid/imagenet/train-jpeg/ train
 fi
 
 LOG=dali.log
 
 SECONDS=0
-torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 1 ./ 2>&1 | tee $LOG
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 5 ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
@@ -31,9 +31,9 @@ if [[ $RET -ne 0 ]]; then
     CLEAN_AND_EXIT 2
 fi
 
-MIN_TOP1=10.0
-MIN_TOP5=20.0
-MIN_PERF=50
+MIN_TOP1=20.0
+MIN_TOP5=40.0
+MIN_PERF=2900
 
 TOP1=$(grep "^##Top-1" $LOG | awk '{print $2}')
 TOP5=$(grep "^##Top-5" $LOG | awk '{print $2}')
