@@ -20,7 +20,7 @@ from nvutils import common
 from distutils.version import StrictVersion
 
 import tensorflow as tf
-import keras
+from tensorflow import keras
 import os
 import time
 import re
