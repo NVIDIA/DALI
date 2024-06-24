@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy opencv-python pillow nvidia-ml-py==11.450.51 torch numba'
+pip_packages='${python_test_runner_package} numpy<2 opencv-python pillow nvidia-ml-py==11.450.51 torch numba'
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable conda

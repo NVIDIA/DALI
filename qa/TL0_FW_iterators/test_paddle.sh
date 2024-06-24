@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy paddlepaddle-gpu'
+pip_packages='${python_test_runner_package} numpy<2 paddlepaddle-gpu'
 target_dir=./dali/test/python
 
 one_config_only=true

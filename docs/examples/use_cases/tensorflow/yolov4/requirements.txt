@@ -1,4 +1,5 @@
 Cython
+numpy<2
 matplotlib
 tensorflow-addons
 pycocotools

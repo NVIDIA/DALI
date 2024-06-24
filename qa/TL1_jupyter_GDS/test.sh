@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages='jupyter matplotlib<3.5.3 numpy nvidia-ml-py==11.450.51'
+pip_packages='jupyter matplotlib<3.5.3 numpy<2 nvidia-ml-py==11.450.51'
 target_dir=./docs/examples/
 
 test_body() {

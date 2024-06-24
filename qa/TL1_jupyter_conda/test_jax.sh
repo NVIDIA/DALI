@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy jax flax'
+pip_packages='jupyter numpy<2 jax flax'
 target_dir=./docs/examples
 
 # populate epilog and prolog with variants to enable/disable conda

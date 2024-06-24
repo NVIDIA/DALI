@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy matplotlib<3.5.3 cupy imageio'
+pip_packages='jupyter numpy<2 matplotlib<3.5.3 cupy imageio'
 target_dir=./docs/examples
 
 test_body() {

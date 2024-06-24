@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy jax'
+pip_packages='${python_test_runner_package} numpy<2 jax'
 
 target_dir=./dali/test/python
 

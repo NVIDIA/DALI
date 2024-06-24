@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='pillow ${python_test_runner_package} numpy torch torchvision'
+pip_packages='pillow ${python_test_runner_package} numpy<2 torch torchvision'
 target_dir=./dali/test/python
 
 one_config_only=true
