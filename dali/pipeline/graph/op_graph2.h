@@ -62,7 +62,7 @@ struct OpNode {
   /** The specification of an operator. */
   OpSpec spec;
   /** The "device" - cpu, gpu or mixed. */
-  OpType op_type = OpType::CPU;  // TODO(michalz): initialize it properly
+  OpType op_type = OpType::CPU;
 
   /** This node must not be pruned. */
   bool keep = false;
@@ -127,6 +127,14 @@ class DLL_PUBLIC OpGraph {
   }
 
   const DataNodeList &DataNodes() const {
+    return data_nodes_;
+  }
+
+  OpNodeList &OpNodes() {
+    return op_nodes_;
+  }
+
+  DataNodeList &DataNodes() {
     return data_nodes_;
   }
 

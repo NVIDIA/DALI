@@ -60,10 +60,10 @@ class RNGCheckpointingTest : public ::testing::Test {
       run_iteration(original_pipe);
 
     // save and restore the pipeline
-    auto node = original_pipe.GetOperatorNode("rng_op");
+    auto op = original_pipe.GetOperator("rng_op");
     OpCheckpoint cpt("rng_op");
-    node->op->SaveState(cpt, {});
-    restored_pipe.GetOperatorNode("rng_op")->op->RestoreState(cpt);
+    op->SaveState(cpt, {});
+    restored_pipe.GetOperator("rng_op")->RestoreState(cpt);
 
     // make sure the restored pipeline has the same internal state
     for (int i = 0; i < iterations; i++)

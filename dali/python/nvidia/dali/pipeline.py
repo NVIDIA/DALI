@@ -1583,7 +1583,7 @@ class Pipeline(object):
         self._deserialized = True
 
     def save_graph_to_dot_file(
-        self, filename, show_tensors=False, show_ids=False, use_colors=False
+        self, filename, *, show_tensors=False, show_ids=None, use_colors=False
     ):
         """Saves the pipeline graph to a file.
 
@@ -1593,14 +1593,23 @@ class Pipeline(object):
                    Name of the file to which the graph is written.
         show_tensors : bool
                    Show the Tensor nodes in the graph (by default only Operator nodes are shown)
-        show_ids : bool
-                   Add the node id to the graph representation
+        show_ids : bool, deprecated
+                   This flag is obsolete and has no effect
         use_colors : bool
                    Whether use color to distinguish stages
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
+        if show_ids is not None:
+            with warnings.catch_warnings():
+                warnings.simplefilter("default")
+                msg = (
+                    'The argument "show_ids" is deprecated because it no longer has any effect.\n'
+                    "It will be removed from future releases."
+                )
+                warnings.warn(msg, DeprecationWarning, stacklevel=2)
+
+        self._pipe.SaveGraphToDotFile(filename, show_tensors, use_colors)
 
     def _get_checkpoint(self, iterator_data=""):
         """

@@ -1843,17 +1843,6 @@ PYBIND11_MODULE(backend_impl, m) {
            "Resampling with a Gaussian window.")
     .export_values();
 
-  // Operator node
-  py::class_<OpNode>(m, "OpNode")
-    .def("instance_name",
-        [](OpNode* node) {
-          return node->instance_name;
-        })
-    .def("name",
-        [](OpNode* node) {
-          return node->spec.SchemaName();
-        });
-
   py::class_<ExternalContextCheckpoint>(m, "ExternalContextCheckpoint")
     .def(py::init<>())
     .def_property("pipeline_data",
@@ -2111,13 +2100,12 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SaveGraphToDotFile", &Pipeline::SaveGraphToDotFile,
         "path"_a,
         "show_tensors"_a = false,
-        "show_ids"_a = false,
         "use_colors"_a = false)
     .def("reader_meta", [](Pipeline* p) {
-          std::map<std::string, ReaderMeta> meta_map = p->GetReaderMeta();
           py::dict d;
-          for (auto const& value : meta_map) {
-            d[value.first.c_str()] = ReaderMetaToDict(value.second);
+          for (auto const&[name, meta] : p->GetReaderMeta()) {
+            std::string name_str(name);  // pybind11 doesn't have operator[](string_view)
+            d[name_str.c_str()] = ReaderMetaToDict(meta);
           }
           return d;
         })

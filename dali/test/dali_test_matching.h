@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
       OpSpec("ImageDecoder")
         .AddArg("output_type", this->ImageType())
         .AddInput("jpegs", "cpu")
-        .AddOutput("input", "cpu"), "ImageDecoder");
+        .AddOutput("input", "cpu"));
 
     // Launching the same transformation on CPU (outputIdx 0) and GPU (outputIdx 1)
     this->AddOperatorWithOutput(descr);

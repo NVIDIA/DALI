@@ -539,8 +539,7 @@ class FileReaderTest : public DALITest {
                                                            int epoch_nr, int num_shards = 1,
                                                            bool stick_to_shard = false) {
     auto cpt = pipe.GetCheckpoint();
-    auto node = pipe.GetOperatorNode("file_reader");
-    auto &op_cpt = cpt.GetOpCheckpoint(node->id);
+    auto &op_cpt = cpt.GetOpCheckpoint("file_reader");
     EXPECT_EQ(op_cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
     return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
   }

@@ -107,12 +107,12 @@ class SplitMergeTest : public ::testing::Test {
    */
   void ValidateSplitPinned(Pipeline &pipe, const std::string &node_name, bool in_pinned_expected,
                            bool out_0_pinned_expected, bool out_1_pinned_expected) {
-    auto node = pipe.GetOperatorNode(node_name);
-    auto in_pinned = node->op->GetDiagnostic<bool>("input_pinned");
+    auto op = pipe.GetOperator(node_name);
+    auto in_pinned = op->GetDiagnostic<bool>("input_pinned");
     EXPECT_EQ(in_pinned, in_pinned_expected) << "[Split]: " << node_name;
-    auto out_0_pinned = node->op->GetDiagnostic<bool>("output_0_pinned");
+    auto out_0_pinned = op->GetDiagnostic<bool>("output_0_pinned");
     EXPECT_EQ(out_0_pinned, out_0_pinned_expected) << "[Split]: " << node_name;
-    auto out_1_pinned = node->op->GetDiagnostic<bool>("output_1_pinned");
+    auto out_1_pinned = op->GetDiagnostic<bool>("output_1_pinned");
     EXPECT_EQ(out_1_pinned, out_1_pinned_expected) << "[Split]: " << node_name;
   }
 
@@ -123,12 +123,12 @@ class SplitMergeTest : public ::testing::Test {
    */
   void ValidateMergePinned(Pipeline &pipe, const std::string &node_name, bool in_0_pinned_expected,
                            bool in_1_pinned_expected, bool out_pinned_expected) {
-    auto node = pipe.GetOperatorNode(node_name);
-    auto in_0_pinned = node->op->GetDiagnostic<bool>("input_0_pinned");
+    auto op = pipe.GetOperator(node_name);
+    auto in_0_pinned = op->GetDiagnostic<bool>("input_0_pinned");
     EXPECT_EQ(in_0_pinned, in_0_pinned_expected) << "[Merge]: " << node_name;
-    auto in_1_pinned = node->op->GetDiagnostic<bool>("input_1_pinned");
+    auto in_1_pinned = op->GetDiagnostic<bool>("input_1_pinned");
     EXPECT_EQ(in_1_pinned, in_1_pinned_expected) << "[Merge]: " << node_name;
-    auto out_pinned = node->op->GetDiagnostic<bool>("output_pinned");
+    auto out_pinned = op->GetDiagnostic<bool>("output_pinned");
     EXPECT_EQ(out_pinned, out_pinned_expected) << "[Merge]: " << node_name;
   }
 

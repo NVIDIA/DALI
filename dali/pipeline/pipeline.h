@@ -35,8 +35,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
-// TODO(michalz): Use OpGraph2
-#include "dali/pipeline/executor/lowered_graph.h"
+#include "dali/pipeline/graph/op_graph2.h"
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
@@ -163,7 +162,10 @@ class DLL_PUBLIC Pipeline {
                               InputOperatorSettingMode ext_src_setting_mode = {},
                               bool is_refeeding = false) {
     auto *node = GetInputOperatorNode(name);
-    OperatorBase *op_ptr = node->op.get();
+    if (node == nullptr)
+      DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
+    OperatorBase *op_ptr = executor_->GetOperator(name);
+    assert(op_ptr != nullptr);
 
     switch (node->op_type) {
       case OpType::CPU:
@@ -244,15 +246,21 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC bool IsLogicalIdUsed(int logical_id) const;
 
   /**
-   * @brief Returns the graph node with Operator
-   * with a given name
+   * @brief Returns the graph node describing an operator with the given name.
    */
-  DLL_PUBLIC OpNode *GetOperatorNode(std::string_view name);
+  DLL_PUBLIC graph::OpNode *GetOperatorNode(std::string_view instance_name);
+
+  /**
+   * @brief Returns an operator instance with given name or nullptr, if not found.
+   *
+   * NOTE: Some operators may be dropped or replaced during graph pruning and optimization.
+   */
+  DLL_PUBLIC OperatorBase *GetOperator(std::string_view instance_name);
 
   /**
    * @brief Rreturns an input graph node with a given name
    */
-  DLL_PUBLIC const OpNode *GetInputOperatorNode(std::string_view name);
+  DLL_PUBLIC const graph::OpNode *GetInputOperatorNode(std::string_view name);
 
   /** @{ */
   /**
@@ -465,7 +473,7 @@ class DLL_PUBLIC Pipeline {
    * in filename.
    */
   DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename, bool show_tensors = false,
-                                     bool show_ids = false, bool use_colors = false);
+                                     bool use_colors = false);
 
   /** @{ */
   /**
@@ -478,7 +486,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the map of (node name, reader meta) for all nodes that return a valid meta
    */
-  DLL_PUBLIC std::map<std::string, ReaderMeta> GetReaderMeta();
+  DLL_PUBLIC std::map<std::string_view, ReaderMeta, std::less<>> GetReaderMeta();
 
   /**
    * @brief Returns the reader meta for a node with given name
@@ -604,7 +612,7 @@ class DLL_PUBLIC Pipeline {
    * Does the internal processing allowing the errors to be processed once.
    * Assumes that Build() has not been called.
    */
-  DLL_PUBLIC int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
+  int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
   void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec);
 
@@ -634,7 +642,7 @@ class DLL_PUBLIC Pipeline {
   // Helper to add pipeline meta-data
   void PrepareOpSpec(OpSpec *spec, int logical_id);
 
-  void PropagateMemoryHint(OpNode &node);
+  void PropagateMemoryHint(graph::OpNode &node);
 
   inline void AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id);
 
@@ -689,8 +697,11 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * Traverses the Operator graph and collects all operators that are Input Operators.
+   *
+   * NOTE: This function must not throw - if it does, the pipeline may be left in an
+   *       inconsistent state!
    */
-  void DiscoverInputOperators();
+  void DiscoverInputOperators() noexcept;
 
   /**
    * @brief Process exception that was thrown when executing DALI. Executor already provided context
@@ -720,7 +731,8 @@ class DLL_PUBLIC Pipeline {
   size_t current_seed_ = 0;
 
   std::unique_ptr<ExecutorBase> executor_;
-  OpGraph graph_;
+  graph::OpGraph graph_;
+  graph::OpGraph::Builder graph_builder_;
   std::map<string, EdgeMeta> edge_names_;
 
   struct OpDefinition {
@@ -731,6 +743,7 @@ class DLL_PUBLIC Pipeline {
 
   std::vector<OpDefinition> op_specs_;
   std::vector<OpDefinition> op_specs_for_serialization_;
+  std::set<std::string> instance_names_;
 
   std::vector<PipelineOutputDesc> output_descs_;
 
@@ -739,7 +752,7 @@ class DLL_PUBLIC Pipeline {
   std::map<int, int64_t> logical_id_to_seed_;
 
   // input operators are sorted by names
-  std::map<std::string, const OpNode*, std::less<>> input_operators_;
+  std::map<std::string, const graph::OpNode*, std::less<>> input_operators_;
 
   /**
    * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on
@@ -752,7 +765,7 @@ class DLL_PUBLIC Pipeline {
    */
   class RepeatLastInputs {
    public:
-    void FindNodes(const OpGraph &graph);
+    void FindNodes(const graph::OpGraph &graph, ExecutorBase &exec);
 
     template <typename OperatorBackend, typename DataBackend>
     bool SetLast(const std::string &name, const TensorList<DataBackend> &data,
@@ -765,7 +778,7 @@ class DLL_PUBLIC Pipeline {
         return false;
 
       auto &node = it->second;
-      auto &inp = dynamic_cast<InputOperator<OperatorBackend>&>(*node.op_node->op);
+      auto &inp = dynamic_cast<InputOperator<OperatorBackend>&>(*node.op);
 
       auto do_copy = [&]() {
         node.last_input.Reset();
@@ -804,7 +817,9 @@ class DLL_PUBLIC Pipeline {
 
     template <typename Backend>
     struct RepeatLastInput {
-      const OpNode *op_node = nullptr;
+      const graph::OpNode *op_node = nullptr;
+      Operator<Backend> *op = nullptr;
+
       using InputBackend = std::conditional_t<std::is_same_v<Backend, MixedBackend>,
                                              CPUBackend, Backend>;
       TensorList<InputBackend> last_input;
@@ -815,12 +830,12 @@ class DLL_PUBLIC Pipeline {
       return cpu_nodes_.empty() && gpu_nodes_.empty() && mixed_nodes_.empty();
     }
 
-    std::map<std::string, RepeatLastInput<CPUBackend>> cpu_nodes_;
-    std::map<std::string, RepeatLastInput<GPUBackend>> gpu_nodes_;
-    std::map<std::string, RepeatLastInput<MixedBackend>> mixed_nodes_;
+    std::map<std::string_view, RepeatLastInput<CPUBackend>, std::less<>> cpu_nodes_;
+    std::map<std::string_view, RepeatLastInput<GPUBackend>, std::less<>> gpu_nodes_;
+    std::map<std::string_view, RepeatLastInput<MixedBackend>, std::less<>> mixed_nodes_;
 
     template <typename Backend>
-    std::map<std::string, RepeatLastInput<Backend>> &GetNodes() {
+    std::map<std::string_view, RepeatLastInput<Backend>, std::less<>> &GetNodes() {
       if constexpr (std::is_same_v<Backend, CPUBackend>)
         return cpu_nodes_;
       else if constexpr (std::is_same_v<Backend, GPUBackend>)
