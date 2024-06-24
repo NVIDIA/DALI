@@ -17,7 +17,6 @@
 
 #include <memory>
 #include "dali/pipeline/graph/op_graph2.h"
-#include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/executor/executor.h"
 
@@ -27,10 +26,10 @@ namespace exec2 {
 class DLL_PUBLIC Executor2 : public ExecutorBase {
  public:
   explicit Executor2(int queue_depth);
+  ~Executor2() override;
 
-  void Build(const graph::OpGraph &graph) override {
+  void Build(const graph::OpGraph &graph) override;
 
-  }
   // TODO(michalz): Remove
   void Build(OpGraph *graph, std::vector<std::string> output_names) override {
     throw std::logic_error("This function is maintained in the interface for legacy tests only.");
@@ -52,12 +51,9 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
   int InputFeedCount(std::string_view input_name) override;
   OperatorBase *GetOperator(std::string_view name) override;
 
-  void Initialize(std::shared_ptr<graph::OpGraph> graph) {
-    graph_ = graph;
-  }
-
-  ExecGraph exec_graph_;
-  std::shared_ptr<graph::OpGraph> graph_;
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace exec2

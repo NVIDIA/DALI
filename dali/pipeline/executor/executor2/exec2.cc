@@ -13,14 +13,38 @@
 // limitations under the License.
 
 #include "dali/pipeline/executor/executor2/exec2.h"
+#include "dali/pipeline/executor/executor2/exec_graph.h"
 
 namespace dali {
 namespace exec2 {
+
+class Executor2::Impl {
+ public:
+  void Build(const OpGraph &graph) {
+
+  }
+
+ private:
+};
+
+
+///////////////////////////////
+// Executor2
+
+Executor2::Executor2(int queue_depth) {
+}
+
+Executor2::~Executor2() = default;
+
+void Executor2::Build(const graph::OpGraph &graph) {
+  impl_->Build(graph);
+}
 
 void Executor2::Init() {
 }
 
 void Executor2::Run() {
+
 }
 
 void Executor2::Prefetch() {

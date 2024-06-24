@@ -20,6 +20,7 @@
 #include <list>
 #include <memory>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include "dali/pipeline/graph/op_graph2.h"
@@ -64,16 +65,18 @@ struct PipelineOutputTag {};
 class DLL_PUBLIC ExecNode {
  public:
   ExecNode() = default;
-  explicit ExecNode(OperatorBase *op) : op(op) {}
+  explicit ExecNode(const graph::OpNode *def, std::unique_ptr<OperatorBase> op)
+  : def(def), op(std::move(op)) {}
   explicit ExecNode(PipelineOutputTag) : is_pipeline_output(true) {}
 
-  std::vector<const ExecEdge *> inputs, outputs;
+  std::vector<ExecEdge *> inputs, outputs;
 
   std::shared_ptr<tasking::Semaphore> concurrency;
   std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
-  OperatorBase *op = nullptr;
+  const graph::OpNode *def = nullptr;
   bool is_pipeline_output = false;
+  std::unique_ptr<OperatorBase> op;
 
   tasking::SharedTask prev, main_task, release_outputs;
 
@@ -119,6 +122,7 @@ class DLL_PUBLIC ExecGraph {
  public:
   std::list<ExecNode> nodes;
   std::list<ExecEdge> edges;
+  std::unordered_map<const graph::OpNode *, ExecNode *> def2exec;
 
   template <typename... Args>
   ExecNode *AddNode(Args &&...args) {
@@ -146,6 +150,8 @@ class DLL_PUBLIC ExecGraph {
                         const WorkspaceParams &params);
 
   tasking::TaskFuture Launch(tasking::Scheduler &sched);
+
+  void Lower(const graph::OpGraph &def);
 };
 
 class Iteration {
