@@ -60,7 +60,7 @@ std::string display_char(char c) {
   }
 }
 
-URI URI::Parse(std::string uri) {
+URI URI::Parse(std::string uri, URI::ParseOpts opts) {
   // See https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
   URI parsed;
   parsed.uri_ = std::move(uri);
@@ -118,10 +118,13 @@ URI URI::Parse(std::string uri) {
   if (*p == '\0')
     return parsed;
 
+  bool allow_non_escaped =
+      (opts & URI::ParseOpts::AllowNonEscaped) == URI::ParseOpts::AllowNonEscaped;
+
   // Path
   parsed.path_start_ = p - p_start;
   while (*p != '\0' && *p !=  '?') {
-    if (!allowed_char(*p)) {
+    if (!allowed_char(*p) && !allow_non_escaped) {
       parsed.valid_ = false;
       parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in path";
       return parsed;
@@ -136,7 +139,7 @@ URI URI::Parse(std::string uri) {
   p++;
   parsed.query_start_ = p - p_start;
   while (*p != '\0' && *p !=  '#') {
-    if (!allowed_char(*p)) {
+    if (!allowed_char(*p) && !allow_non_escaped) {
       parsed.valid_ = false;
       parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in query";
       return parsed;
@@ -151,7 +154,7 @@ URI URI::Parse(std::string uri) {
   p++;
   parsed.fragment_start_ = p - p_start;
   while (*p != '\0') {
-    if (!allowed_char(*p)) {
+    if (!allowed_char(*p) && !allow_non_escaped) {
       parsed.valid_ = false;
       parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in fragment";
       return parsed;

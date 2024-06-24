@@ -47,7 +47,22 @@ class URI {
   }
 
  public:
-  static DLL_PUBLIC URI Parse(std::string uri);
+  /** Parse options */
+  enum ParseOpts : uint32_t {
+    Default = 0,
+    AllowNonEscaped = 1 << 0,  // 0x0001 - Convenient when we want to check if a URI is valid before
+                               // escaping it (e.g. replacing spaces with %20).
+    // Add more options as needed
+  };
+
+  /**
+   * @brief Parses a URI string
+   *
+   * @param uri URI to parse
+   * @param opts option bitmask (see ParseOpts)
+   * @return DLL_PUBLIC
+   */
+  static DLL_PUBLIC URI Parse(std::string uri, ParseOpts opts = ParseOpts::Default);
 
   bool valid() const {
     return valid_;

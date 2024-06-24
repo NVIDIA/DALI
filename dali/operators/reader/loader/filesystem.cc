@@ -27,7 +27,7 @@ std::string join_path(const std::string &dir, const std::string &path) {
   if (path.empty())
     return dir;
 
-  auto uri = URI::Parse(dir);
+  auto uri = URI::Parse(dir, URI::ParseOpts::AllowNonEscaped);
   if (uri.valid()) {
     const char *separators = "/";
     // TODO(janton): In case we ever support Windows
