@@ -65,8 +65,8 @@ struct PipelineOutputTag {};
 class DLL_PUBLIC ExecNode {
  public:
   ExecNode() = default;
-  explicit ExecNode(const graph::OpNode *def, std::unique_ptr<OperatorBase> op)
-  : def(def), op(std::move(op)) {}
+  explicit ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def = nullptr)
+  : op(std::move(op)), def(def) {}
   explicit ExecNode(PipelineOutputTag) : is_pipeline_output(true) {}
 
   std::vector<ExecEdge *> inputs, outputs;
@@ -74,8 +74,6 @@ class DLL_PUBLIC ExecNode {
   std::shared_ptr<tasking::Semaphore> concurrency;
   std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
-  const graph::OpNode *def = nullptr;
-  bool is_pipeline_output = false;
   std::unique_ptr<OperatorBase> op;
 
   tasking::SharedTask prev, main_task, release_outputs;
@@ -97,6 +95,8 @@ class DLL_PUBLIC ExecNode {
     return ws;
   }
 
+  const graph::OpNode *def = nullptr;
+  bool is_pipeline_output = false;
  private:
   CachedWorkspace CreateOutputWorkspace();
   CachedWorkspace CreateOpWorkspace();

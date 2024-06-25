@@ -20,8 +20,8 @@ namespace dali {
 namespace exec2 {
 
 void ExecGraph::Lower(const graph::OpGraph &def) {
-  for (graph::OpNode &op_node : def.OpNodes()) {
-    ExecNode *exec_node = AddNode(&op_node, InstantiateOperator(op_node.spec));
+  for (const graph::OpNode &op_node : def.OpNodes()) {
+    ExecNode *exec_node = AddNode(InstantiateOperator(op_node.spec), &op_node);
     def2exec.emplace(&op_node, exec_node);
   }
   ExecNode *out_node = AddOutputNode();
@@ -48,6 +48,7 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
     for (int i = 0, ninp = op_node->inputs.size(); i < ninp; i++) {
       const auto &inp = op_node->inputs[i];
       auto *exec_prod = def2exec[inp->producer.op];
+      assert(exec_prod != nullptr);
       auto *edge = exec_prod->outputs.at(inp->producer.idx);
       edge->consumer = &exec_node;
       edge->consumer_input_idx = i;
@@ -56,6 +57,9 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
   }
 
   for (auto out : def.Outputs()) {
+    auto *edge = output_map[out];
+    assert(edge != nullptr);
+    out_node->outputs.push_back(edge);
   }
 }
 
