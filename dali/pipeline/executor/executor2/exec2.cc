@@ -20,7 +20,7 @@ namespace exec2 {
 
 class Executor2::Impl {
  public:
-  void Build(const OpGraph &graph) {
+  void Build(const graph::OpGraph &graph) {
 
   }
 

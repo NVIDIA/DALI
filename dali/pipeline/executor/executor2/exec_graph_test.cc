@@ -134,7 +134,7 @@ TEST(Exec2Test, SimpleGraphRepeat) {
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op0o0", "cpu")
        .AddArg("instance_name", "op0");
-  DummyOp op0(spec0);
+  auto op0 = std::make_unique<DummyOp>(spec0);
 
   OpSpec spec1("DummyOp");
   spec1.AddArg("addend", 100)
@@ -143,7 +143,7 @@ TEST(Exec2Test, SimpleGraphRepeat) {
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op1o0", "cpu")
        .AddArg("instance_name", "op1");
-  DummyOp op1(spec1);
+  auto op1 = std::make_unique<DummyOp>(spec1);
 
   OpSpec spec2("DummyOp");
   spec2.AddArg("addend", 1000)
@@ -154,7 +154,7 @@ TEST(Exec2Test, SimpleGraphRepeat) {
        .AddInput("op2o0", "cpu")
        .AddOutput("op2e0", "cpu")
        .AddArg("instance_name", "op2");
-  DummyOp op2(spec2);
+  auto op2 = std::make_unique<DummyOp>(spec2);
   ExecGraph def;
   ExecNode *n2 = def.AddNode(std::move(op2));
   ExecNode *n1 = def.AddNode(std::move(op1));
