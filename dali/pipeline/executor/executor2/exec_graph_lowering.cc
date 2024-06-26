@@ -24,42 +24,30 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
     ExecNode *exec_node = AddNode(InstantiateOperator(op_node.spec), &op_node);
     def2exec.emplace(&op_node, exec_node);
   }
-  ExecNode *out_node = AddOutputNode();
-
-  std::map<std::string_view, ExecEdge *, std::less<>> output_map;
 
   for (ExecNode &exec_node : nodes) {
     auto *op_node = exec_node.def;
     for (int o = 0, nout = op_node->outputs.size(); o < nout; o++) {
-      auto &edge = edges.emplace_back();
-      edge.producer = &exec_node;
-      edge.producer_output_idx = o;
       const auto &out = op_node->outputs[o];
-      if (out->pipeline_output) {
-        bool inserted = output_map.emplace(out->name, &edge).second;
-        (void)inserted;
-        assert(inserted);
+      for (auto &consumer : out->consumers) {
+        auto *exec_con = def2exec[consumer.op];
+        assert(exec_con != nullptr);
+        Link(&exec_node, o, exec_con, consumer.idx);
       }
     }
   }
 
-  for (ExecNode &exec_node : nodes) {
-    auto *op_node = exec_node.def;
-    for (int i = 0, ninp = op_node->inputs.size(); i < ninp; i++) {
-      const auto &inp = op_node->inputs[i];
-      auto *exec_prod = def2exec[inp->producer.op];
-      assert(exec_prod != nullptr);
-      auto *edge = exec_prod->outputs.at(inp->producer.idx);
-      edge->consumer = &exec_node;
-      edge->consumer_input_idx = i;
-      exec_node.inputs.push_back(edge);
-    }
-  }
+  ExecNode *out_node = AddOutputNode();
 
+  int pipe_outs = 0;
   for (auto out : def.Outputs()) {
-    auto *edge = output_map[out];
-    assert(edge != nullptr);
-    out_node->outputs.push_back(edge);
+    auto *data_node = def.GetData(out);
+    assert(data_node);
+    assert(data_node->pipeline_output);
+    assert(data_node->producer.op);
+    auto *exec_prod = def2exec[data_node->producer.op];
+    assert(exec_prod);
+    Link(exec_prod, data_node->producer.idx, out_node, pipe_outs++);
   }
 }
 

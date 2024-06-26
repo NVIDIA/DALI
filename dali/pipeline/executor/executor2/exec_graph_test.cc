@@ -21,17 +21,12 @@ namespace dali {
 namespace exec2 {
 namespace test {
 
-inline OpSchema &CreateTestSchema(const std::string &name) {
-  const OpSchema *psc = SchemaRegistry::TryGetSchema(name);
-  OpSchema &s = psc ? const_cast<OpSchema &>(*psc) : SchemaRegistry::RegisterSchema(name);
-  s = OpSchema(name);  // reset
-  return s;
-}
+constexpr char kTestOpName[] = "Exec2TestOp";
 
-class DummyOp : public Operator<CPUBackend> {
+class DummyOpCPU : public Operator<CPUBackend> {
  public:
-  explicit DummyOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
-    instance_name_ = spec_.GetArgument<string>("instance_name");
+  explicit DummyOpCPU(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+    instance_name_ = spec_.GetArgument<string>("name");
   }
 
   bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
@@ -56,38 +51,44 @@ class DummyOp : public Operator<CPUBackend> {
   bool CanInferOutputs() const override { return true; }
   ArgValue<int> addend_{"addend", spec_};
 
-  static OpSchema &CreateSchema() {
-    return CreateTestSchema("DummyOp")
-      .NumInput(0, 99)
-      .NumOutput(1)
-      .AddArg("addend", "a value added to the sum of inputs", DALI_INT32);
-  }
-
   std::string instance_name_;
 };
 
-TEST(Exec2Test, SimpleGraph) {
+}  // namespace test
+}  // namespace exec2
+
+DALI_SCHEMA(Exec2TestOp)  // DALI_SCHEMA can't take a macro :(
+  .NumInput(0, 99)
+  .NumOutput(1)
+  .AddArg("addend", "a value added to the sum of inputs", DALI_INT32, true);
+
+// DALI_REGISTER_OPERATOR can't take a macro for the name
+DALI_REGISTER_OPERATOR(Exec2TestOp, exec2::test::DummyOpCPU, CPU);
+
+namespace exec2 {
+namespace test {
+
+TEST(ExecGraphTest, SimpleGraph) {
   int batch_size = 32;
-  DummyOp::CreateSchema();
-  OpSpec spec0("DummyOp");
+  OpSpec spec0(kTestOpName);
   spec0.AddArg("addend", 10)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op0o0", "cpu")
-       .AddArg("instance_name", "op0");
-  auto op0 = std::make_unique<DummyOp>(spec0);
+       .AddArg("name", "op0");
+  auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
-  OpSpec spec1("DummyOp");
+  OpSpec spec1(kTestOpName);
   spec1.AddArg("addend", 100)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op1o0", "cpu")
-       .AddArg("instance_name", "op1");
-  auto op1 = std::make_unique<DummyOp>(spec1);
+       .AddArg("name", "op1");
+  auto op1 = std::make_unique<DummyOpCPU>(spec1);
 
-  OpSpec spec2("DummyOp");
+  OpSpec spec2(kTestOpName);
   spec2.AddArg("addend", 1000)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
@@ -95,8 +96,8 @@ TEST(Exec2Test, SimpleGraph) {
        .AddInput("op1o0", "cpu")
        .AddInput("op2o0", "cpu")
        .AddOutput("op2e0", "cpu")
-       .AddArg("instance_name", "op2");
-  auto op2 = std::make_unique<DummyOp>(spec2);
+       .AddArg("name", "op2");
+  auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
   ExecNode *n2 = g.AddNode(std::move(op2));
   ExecNode *n1 = g.AddNode(std::move(op1));
@@ -124,28 +125,27 @@ TEST(Exec2Test, SimpleGraph) {
     EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
 }
 
-TEST(Exec2Test, SimpleGraphRepeat) {
+TEST(ExecGraphTest, SimpleGraphRepeat) {
   int batch_size = 256;
-  DummyOp::CreateSchema();
-  OpSpec spec0("DummyOp");
+  OpSpec spec0(kTestOpName);
   spec0.AddArg("addend", 10)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op0o0", "cpu")
-       .AddArg("instance_name", "op0");
-  auto op0 = std::make_unique<DummyOp>(spec0);
+       .AddArg("name", "op0");
+  auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
-  OpSpec spec1("DummyOp");
+  OpSpec spec1(kTestOpName);
   spec1.AddArg("addend", 100)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op1o0", "cpu")
-       .AddArg("instance_name", "op1");
-  auto op1 = std::make_unique<DummyOp>(spec1);
+       .AddArg("name", "op1");
+  auto op1 = std::make_unique<DummyOpCPU>(spec1);
 
-  OpSpec spec2("DummyOp");
+  OpSpec spec2(kTestOpName);
   spec2.AddArg("addend", 1000)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
@@ -153,8 +153,8 @@ TEST(Exec2Test, SimpleGraphRepeat) {
        .AddInput("op1o0", "cpu")
        .AddInput("op2o0", "cpu")
        .AddOutput("op2e0", "cpu")
-       .AddArg("instance_name", "op2");
-  auto op2 = std::make_unique<DummyOp>(spec2);
+       .AddArg("name", "op2");
+  auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph def;
   ExecNode *n2 = def.AddNode(std::move(op2));
   ExecNode *n1 = def.AddNode(std::move(op1));
@@ -177,9 +177,9 @@ TEST(Exec2Test, SimpleGraphRepeat) {
       def.PrepareIteration(std::make_shared<IterationData>(), params);
       auto ws = def.Launch(ex).Value<Workspace>();
       auto &out = ws.Output<CPUBackend>(0);
-      /*ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
+      ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
       for (int i = 0; i < batch_size; i++)
-        EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);*/
+        EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
     }
     auto end = dali::test::perf_timer::now();
     print(std::cerr, "Average iteration time over ", N, " iterations is ",
@@ -188,27 +188,26 @@ TEST(Exec2Test, SimpleGraphRepeat) {
 }
 
 
-TEST(Exec2Test, Exception) {
-  DummyOp::CreateSchema();
-  OpSpec spec0("DummyOp");
+TEST(ExecGraphTest, Exception) {
+  OpSpec spec0(kTestOpName);
   spec0.AddArg("addend", 100)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
        .AddOutput("op0o0", "cpu")
-       .AddArg("instance_name", "op0");
-  auto op0 = std::make_unique<DummyOp>(spec0);
+       .AddArg("name", "op0");
+  auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
-  OpSpec spec1("DummyOp");
+  OpSpec spec1(kTestOpName);
   spec1.AddArg("addend", 200)
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
        .AddOutput("op1o0", "cpu")
-       .AddArg("instance_name", "op1");
-  auto op1 = std::make_unique<DummyOp>(spec1);
+       .AddArg("name", "op1");
+  auto op1 = std::make_unique<DummyOpCPU>(spec1);
 
-  OpSpec spec2("DummyOp");
+  OpSpec spec2(kTestOpName);
   spec2.AddArg("addend", 1000.0f)  // this will cause a type error at run-time
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
@@ -216,8 +215,8 @@ TEST(Exec2Test, Exception) {
        .AddInput("op1o0", "cpu")
        .AddInput("op2o0", "cpu")
        .AddOutput("op2e0", "cpu")
-       .AddArg("instance_name", "op2");
-  auto op2 = std::make_unique<DummyOp>(spec2);
+       .AddArg("name", "op2");
+  auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph def;
   ExecNode *n2 = def.AddNode(std::move(op2));
   ExecNode *n1 = def.AddNode(std::move(op1));
@@ -241,6 +240,143 @@ TEST(Exec2Test, Exception) {
   }
 }
 
+namespace {
+
+auto GetTestGraph1() {
+  auto spec0 = OpSpec(kTestOpName)
+    .AddArg("max_batch_size", 32)
+    .AddArg("device", "cpu")
+    .AddArg("num_threads", 1)
+    .AddArg("name", "op0")
+    .AddOutput("op0_0", "cpu")
+    .AddArg("addend", 10);
+  auto spec1 = OpSpec(kTestOpName)
+    .AddArg("max_batch_size", 32)
+    .AddArg("device", "cpu")
+    .AddArg("num_threads", 1)
+    .AddArg("name", "op1")
+    .AddArg("addend", 20)
+    .AddOutput("op1_0", "cpu");
+  auto spec2 = OpSpec(kTestOpName)
+    .AddArg("max_batch_size", 32)
+    .AddArg("device", "cpu")
+    .AddInput("op0_0", "cpu")
+    .AddArg("num_threads", 1)
+    .AddArg("name", "op2")
+    .AddArgumentInput("addend", "op1_0")
+    .AddOutput("op2_0", "cpu");
+  auto spec3 = OpSpec(kTestOpName)
+    .AddArg("max_batch_size", 32)
+    .AddArg("device", "cpu")
+    .AddArg("num_threads", 1)
+    .AddArg("name", "op3")
+    .AddInput("op0_0", "cpu")
+    .AddInput("op1_0", "cpu")
+    .AddArg("addend", 1)
+    .AddOutput("op3_0", "cpu");
+  graph::OpGraph::Builder b;
+  b.Add("op0", std::move(spec0));
+  b.Add("op1", std::move(spec1));
+  b.Add("op2", std::move(spec2));
+  b.Add("op3", std::move(spec3));
+  b.AddOutput("op2_0_cpu");
+  b.AddOutput("op3_0_cpu");
+  return std::move(b).GetGraph(true);
+}
+
+inline size_t CountOutgoingEdges(const graph::OpNode &op, bool include_outputs = true) {
+  size_t n = 0;
+  for (auto &out : op.outputs) {
+    n += out->consumers.size();
+    if (out->pipeline_output && include_outputs)
+      n++;
+  }
+  return n;
+}
+
+}  // namespace
+
+TEST(ExecGraphTest, LoweredStructureMatch) {
+  graph::OpGraph def = GetTestGraph1();
+  ExecGraph g;
+  g.Lower(def);
+  ASSERT_EQ(g.nodes.size(), def.OpNodes().size() + 1);
+  EXPECT_TRUE(g.nodes.back().is_pipeline_output);
+  EXPECT_EQ(g.nodes.back().inputs.size(), 2_uz);
+  auto def_it = def.OpNodes().begin();
+  auto ex_it = g.nodes.begin();
+  for (; def_it != def.OpNodes().end(); def_it++, ex_it++) {
+    EXPECT_EQ(ex_it->def, &*def_it);
+    EXPECT_EQ(ex_it->inputs.size(), def_it->inputs.size());
+    EXPECT_EQ(ex_it->outputs.size(), CountOutgoingEdges(*def_it));
+  }
+  if (HasFailure())
+    FAIL() << "Structure mismatch detected - test cannot proceed further.";
+  def_it = def.OpNodes().begin();
+  ex_it = g.nodes.begin();
+
+  auto &def0 = *def_it++;
+  auto &def1 = *def_it++;
+  auto &def2 = *def_it++;
+  auto &def3 = *def_it++;
+
+  auto &ex0 = *ex_it++;
+  auto &ex1 = *ex_it++;
+  auto &ex2 = *ex_it++;
+  auto &ex3 = *ex_it++;
+  auto &ex_out = g.nodes.back();
+
+  ASSERT_EQ(ex0.outputs.size(), 2_uz);
+  EXPECT_EQ(ex0.outputs[0]->consumer, &ex2);
+  EXPECT_EQ(ex0.outputs[1]->consumer, &ex3);
+
+  ASSERT_EQ(ex1.outputs.size(), 2_uz);
+  EXPECT_EQ(ex1.outputs[0]->consumer, &ex2);
+  EXPECT_EQ(ex1.outputs[1]->consumer, &ex3);
+
+  ASSERT_EQ(ex2.outputs.size(), 1_uz);
+  EXPECT_EQ(ex2.outputs[0]->consumer, &ex_out);
+  ASSERT_EQ(ex2.inputs.size(), 2_uz);
+  EXPECT_EQ(ex2.inputs[0]->producer, &ex0);
+  EXPECT_EQ(ex2.inputs[1]->producer, &ex1);
+
+  ASSERT_EQ(ex3.outputs.size(), 1_uz);
+  EXPECT_EQ(ex3.outputs[0]->consumer, &ex_out);
+  EXPECT_EQ(ex3.inputs[0]->producer, &ex0);
+  EXPECT_EQ(ex3.inputs[1]->producer, &ex1);
+}
+
+TEST(ExecGraphTest, LoweredExec) {
+  graph::OpGraph def = GetTestGraph1();
+  ExecGraph g;
+  g.Lower(def);
+
+  ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
+  WorkspaceParams params = {};
+  params.thread_pool = &tp;
+  params.batch_size = 32;
+  auto iter = std::make_shared<IterationData>();
+  {
+    tasking::Executor ex(4);
+    ex.Start();
+    g.PrepareIteration(iter, params);
+    auto fut = g.Launch(ex);
+    Workspace ws = fut.Value<Workspace>();
+    auto &o0 = ws.Output<CPUBackend>(0);
+    auto &o1 = ws.Output<CPUBackend>(1);
+    for (int i = 0; i < params. batch_size; i++) {
+      // The pipeline:
+      // op0 = DummyOp(addend=10)
+      // op1 = DummyOp(addend=20)
+      // return DummyOp(op0, addend=op1), DummyOp(op1, op2, addend=1)
+
+      // DummyOp adds its argumetns, the "addend" and the sample index - thus, we have
+      // tripled sample index + the sum of addends at output
+      EXPECT_EQ(*o0[i].data<int>(), 10 + 20 + 3 * i);
+      EXPECT_EQ(*o1[i].data<int>(), 10 + 20 + 3 * i + 1);
+    }
+  }
+}
 
 }  // namespace test
 }  // namespace exec2
