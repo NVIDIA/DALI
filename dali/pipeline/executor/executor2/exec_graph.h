@@ -142,8 +142,10 @@ class DLL_PUBLIC ExecGraph {
 
     if (producer)
       producer->outputs.push_back(&edge);
-    if (consumer)
-      consumer->inputs.push_back(&edge);
+    if (consumer) {
+      consumer->inputs.resize(std::max<size_t>(consumer->inputs.size(), in_idx + 1));
+      consumer->inputs[in_idx] = &edge;
+    }
   }
 
   void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,
