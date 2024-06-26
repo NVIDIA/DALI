@@ -23,7 +23,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "dali/pipeline/graph/op_graph2.h"
 #include "dali/pipeline/executor/executor2/workspace_cache.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/operator.h"
@@ -32,6 +31,10 @@
 #include "dali/core/exec/tasking.h"
 
 namespace dali {
+namespace graph {
+class OpGraph;
+struct OpNode;
+}  // namespace graph
 namespace exec2 {
 
 class ExecNode;

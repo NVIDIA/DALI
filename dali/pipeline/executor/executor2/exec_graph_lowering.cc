@@ -15,6 +15,7 @@
 #include <cassert>
 #include <utility>
 #include "dali/pipeline/executor/executor2/exec_graph.h"
+#include "dali/pipeline/graph/op_graph2.h"
 
 namespace dali {
 namespace exec2 {
