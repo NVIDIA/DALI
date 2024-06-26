@@ -279,8 +279,8 @@ auto GetTestGraph1() {
   b.Add("op1", std::move(spec1));
   b.Add("op2", std::move(spec2));
   b.Add("op3", std::move(spec3));
-  b.AddOutput("op2_0_cpu");
   b.AddOutput("op3_0_cpu");
+  b.AddOutput("op2_0_cpu");
   return std::move(b).GetGraph(true);
 }
 
@@ -344,6 +344,10 @@ TEST(ExecGraphTest, LoweredStructureMatch) {
   EXPECT_EQ(ex3.outputs[0]->consumer, &ex_out);
   EXPECT_EQ(ex3.inputs[0]->producer, &ex0);
   EXPECT_EQ(ex3.inputs[1]->producer, &ex1);
+
+  ASSERT_EQ(ex_out.inputs.size(), 2_uz);
+  EXPECT_EQ(ex_out.inputs[0]->producer, &ex3);
+  EXPECT_EQ(ex_out.inputs[1]->producer, &ex2);
 }
 
 TEST(ExecGraphTest, LoweredExec) {
@@ -368,12 +372,14 @@ TEST(ExecGraphTest, LoweredExec) {
       // The pipeline:
       // op0 = DummyOp(addend=10)
       // op1 = DummyOp(addend=20)
-      // return DummyOp(op0, addend=op1), DummyOp(op1, op2, addend=1)
+      // op2 = DummyOp(op0, addend=op1)
+      // op3 = DummyOp(op0, op1, addend=1)
+      // return op3, op2  # swapped!
 
       // DummyOp adds its argumetns, the "addend" and the sample index - thus, we have
       // tripled sample index + the sum of addends at output
-      EXPECT_EQ(*o0[i].data<int>(), 10 + 20 + 3 * i);
-      EXPECT_EQ(*o1[i].data<int>(), 10 + 20 + 3 * i + 1);
+      EXPECT_EQ(*o0[i].data<int>(), 10 + 20 + 3 * i + 1);
+      EXPECT_EQ(*o1[i].data<int>(), 10 + 20 + 3 * i);
     }
   }
 }
