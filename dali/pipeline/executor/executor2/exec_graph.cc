@@ -53,6 +53,8 @@ void ExecNode::PutWorkspace(CachedWorkspace ws) {
 
 void ExecNode::CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params) {
   main_task = OpTask::CreateTask(this, GetWorkspace(iter, params));
+  if (prev)
+    main_task->Succeed(prev);
 }
 
 void ExecNode::CreateAuxTasks() {
@@ -173,8 +175,10 @@ void assert_valid(ExecGraph &eg) {
 void ExecGraph::PrepareIteration(
     const std::shared_ptr<IterationData> &iter_data,
     const WorkspaceParams &params) {
-  for (auto &n : nodes)
+  for (auto &n : nodes) {
+    n.NextIter();
     n.CreateMainTask(iter_data, params);
+  }
   for (auto &n : nodes) {
     n.AddDataDeps();
     n.CreateAuxTasks();
