@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <string>
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"

@@ -17,6 +17,7 @@
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/op_task.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 namespace exec2 {

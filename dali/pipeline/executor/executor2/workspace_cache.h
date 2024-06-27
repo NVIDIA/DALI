@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 #include "dali/core/cuda_event_pool.h"
-#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {

@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "dali/pipeline/executor/executor2/workspace_cache.h"
-#include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -100,6 +99,7 @@ class DLL_PUBLIC ExecNode {
 
   const graph::OpNode *def = nullptr;
   bool is_pipeline_output = false;
+
  private:
   CachedWorkspace CreateOutputWorkspace();
   CachedWorkspace CreateOpWorkspace();

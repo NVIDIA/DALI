@@ -18,8 +18,9 @@
 #include <vector>
 #include "dali/pipeline/executor/executor2/op_task.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
-#include "dali/core/nvtx.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
+#include "dali/core/nvtx.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 namespace exec2 {

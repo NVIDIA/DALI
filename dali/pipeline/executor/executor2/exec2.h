@@ -16,6 +16,8 @@
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 #include "dali/pipeline/graph/op_graph2.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/executor/executor.h"
