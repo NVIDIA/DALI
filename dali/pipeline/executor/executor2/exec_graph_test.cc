@@ -111,7 +111,9 @@ TEST(ExecGraphTest, SimpleGraph) {
 
   WorkspaceParams params = {};
   auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, false, "test");
-  params.thread_pool = tp.get();
+  ExecEnv env;
+  env.thread_pool = tp.get();
+  params.env = &env;
   params.batch_size = batch_size;
 
   auto iter = std::make_shared<IterationData>();
@@ -167,7 +169,9 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
   def.Link(n2, 0, no, 0);
   ThreadPool tp(4, 0, false, "test");
   WorkspaceParams params = {};
-  params.thread_pool = &tp;
+  ExecEnv env;
+  env.thread_pool = &tp;
+  params.env = &env;
   params.batch_size = batch_size;
 
   {
@@ -229,7 +233,9 @@ TEST(ExecGraphTest, Exception) {
   def.Link(n2, 0, no, 0);
   ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};
-  params.thread_pool = &tp;
+  ExecEnv env;
+  env.thread_pool = &tp;
+  params.env = &env;
   params.batch_size = 32;
   {
     tasking::Executor ex(4);
@@ -359,7 +365,9 @@ TEST(ExecGraphTest, LoweredExec) {
 
   ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};
-  params.thread_pool = &tp;
+  ExecEnv env;
+  env.thread_pool = &tp;
+  params.env = &env;
   params.batch_size = 32;
   auto iter = std::make_shared<IterationData>();
   {

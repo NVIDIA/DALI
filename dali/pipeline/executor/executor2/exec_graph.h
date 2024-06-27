@@ -80,10 +80,12 @@ class DLL_PUBLIC ExecNode {
 
   tasking::SharedTask prev, main_task, release_outputs;
 
+  ExecEnv env = {};
+
   void PutWorkspace(CachedWorkspace ws);
 
   CachedWorkspace GetWorkspace(std::shared_ptr<IterationData> iter_data,
-                               const WorkspaceParams &params) {
+                               WorkspaceParams params) {
     auto ws = workspace_cache_.Get(params);
     if (!ws) {
       if (op) {
@@ -92,6 +94,8 @@ class DLL_PUBLIC ExecNode {
         ws = CreateOutputWorkspace();
       }
     }
+    if (!params.env)
+      params.env = &env;
     ApplyWorkspaceParams(*ws, params);
     ws->InjectIterationData(iter_data);
     return ws;
