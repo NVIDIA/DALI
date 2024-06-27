@@ -25,19 +25,19 @@
 namespace dali {
 namespace exec2 {
 
-tasking::SharedTask OpTaskFunc::CreateTask(ExecNode *node, CachedWorkspace ws) {
+tasking::SharedTask OpTask::CreateTask(ExecNode *node, CachedWorkspace ws) {
   if (node->is_pipeline_output) {
     return tasking::Task::Create(
-      OpTaskFunc(node, std::move(ws)).GetOutputTaskRunnable());
+      OpTask(node, std::move(ws)).GetOutputTaskRunnable());
   } else {
     int nout = ws->NumOutput();
     return tasking::Task::Create(
       nout,
-      OpTaskFunc(node, std::move(ws)).GetOpTaskRunnable());
+      OpTask(node, std::move(ws)).GetOpTaskRunnable());
   }
 }
 
-OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
+OpTask::OpTaskOutputs OpTask::Run() {
   SetWorkspaceInputs();
   SetupOp();
   RunOp();
@@ -47,7 +47,7 @@ OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
 }
 
 
-Workspace OpTaskFunc::GetOutput() {
+Workspace OpTask::GetOutput() {
   assert(ws_->NumInput() == 0);
   assert(ws_->NumArgumentInput() == 0);
   std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
@@ -78,7 +78,7 @@ Workspace OpTaskFunc::GetOutput() {
   return ret;
 }
 
-void OpTaskFunc::SetupOp() {
+void OpTask::SetupOp() {
   auto &ws = *ws_;
   int nout = node_->op->GetSpec().NumOutput();
   std::vector<OutputDesc> output_descs;
@@ -87,7 +87,7 @@ void OpTaskFunc::SetupOp() {
   // Run the operator setup
   bool should_resize;
   {
-    DomainTimeRange tr("[DALI][OpTaskFunc] Setup " + GetOpDisplayName(node_->op->GetSpec()));
+    DomainTimeRange tr("[DALI][OpTask] Setup " + GetOpDisplayName(node_->op->GetSpec()));
     should_resize = node_->op->Setup(output_descs, ws);
   }
   // If Setup returns true, we must resize the outputs;
@@ -113,7 +113,7 @@ void OpTaskFunc::SetupOp() {
   }
 }
 
-void OpTaskFunc::RunOp() {
+void OpTask::RunOp() {
   {
     DomainTimeRange tr("[DALI][Executor] Run");
     node_->op->Run(*ws_);
@@ -123,7 +123,7 @@ void OpTaskFunc::RunOp() {
     CUDA_CALL(cudaEventRecord(ws_->event(), ws_->stream()));
 }
 
-void OpTaskFunc::SetWorkspaceInputs() {
+void OpTask::SetWorkspaceInputs() {
   int ti = 0;
   std::unordered_set<cudaEvent_t> events(ws_->NumInput() + ws_->NumArgumentInput());
   for (int i = 0; i < ws_->NumInput(); i++, ti++) {
@@ -152,7 +152,7 @@ void OpTaskFunc::SetWorkspaceInputs() {
     ws_->output_order().wait(e);
 }
 
-OpTaskFunc::OpTaskOutputs OpTaskFunc::GetWorkspaceOutputs() {
+OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   OpTaskOutputs ret;
   int nout = ws_->NumOutput();
   ret.reserve(nout);

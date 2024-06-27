@@ -52,7 +52,7 @@ void ExecNode::PutWorkspace(CachedWorkspace ws) {
 }
 
 void ExecNode::CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params) {
-  main_task = OpTaskFunc::CreateTask(this, GetWorkspace(iter, params));
+  main_task = OpTask::CreateTask(this, GetWorkspace(iter, params));
 }
 
 void ExecNode::CreateAuxTasks() {

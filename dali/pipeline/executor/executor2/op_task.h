@@ -32,11 +32,17 @@ struct OperatorIO {
   cudaEvent_t event = nullptr;
 };
 
-class OpTaskFunc {
+/** A context for task functions.
+ *
+ * OpTask is a context that's passed (by move) to the runnable used in tasking::Task.
+ */
+class OpTask {
  private:
-  OpTaskFunc(ExecNode *node, CachedWorkspace ws)
+  OpTask(ExecNode *node, CachedWorkspace ws)
   : node_(node), ws_(std::move(ws)) {}
 
+  /** Gets a functor that returns an output Workspace compatible with DALI pipeline.
+   */
   auto GetOutputTaskRunnable() && {
     assert(node_->is_pipeline_output);
     return [self = std::move(*this)](tasking::Task *t) mutable {
@@ -45,6 +51,7 @@ class OpTaskFunc {
     };
   }
 
+  /** Gets a functor that runs the operator. */
   auto GetOpTaskRunnable() && {
     assert(!node_->is_pipeline_output);
     return [self = std::move(*this)](tasking::Task *t) mutable {
@@ -54,14 +61,20 @@ class OpTaskFunc {
   }
 
  public:
-  OpTaskFunc(OpTaskFunc &&) = default;
-  OpTaskFunc(const OpTaskFunc &) {
+  OpTask(OpTask &&) = default;
+  OpTask(const OpTask &) {
     std::cerr << "This constructor is here only because std::function requires "
                  "the functor to be copy-constructible. We never actually copy the target.\n"
                  "See C++23 std::move_only_function." << std::endl;
     std::abort();
   }
 
+  /** Creates a tasking::Task from an ExecNode and a Workspace.
+   *
+   * There are two possible tasks:
+   * - operator task
+   * - output task.
+   */
   static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws);
 
   using OpTaskOutputs = SmallVector<std::any, 8>;
@@ -82,6 +95,12 @@ class OpTaskFunc {
   void RunOp();
   void ResetWorkspaceInputs();
   OpTaskOutputs GetWorkspaceOutputs();
+
+  /** Returns a workspace in DALI pipeline compatible format.
+   *
+   * In case of operators, the inputs of the node become inputs of the workspace. In case of
+   * pipeline output, the inputs of the output node become the _outputs_ of the workspace.
+   */
   Workspace GetOutput();
 };
 
