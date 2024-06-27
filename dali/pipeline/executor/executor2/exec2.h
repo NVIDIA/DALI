@@ -40,7 +40,6 @@ enum class OperatorParallelism : int {
 
 class DLL_PUBLIC Executor2 : public ExecutorBase {
  public:
-
   struct Config {
     //! The number of pending results CPU operators produce
     int cpu_queue_depth = 2;

@@ -20,7 +20,7 @@ namespace exec2 {
 
 class Executor2::Impl {
  public:
-  Impl(const Config &config) : config_(config) {
+  explicit Impl(const Config &config) : config_(config) {
   }
 
   void Build(const graph::OpGraph &graph) {
