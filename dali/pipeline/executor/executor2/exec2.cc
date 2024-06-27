@@ -21,7 +21,6 @@ namespace exec2 {
 class Executor2::Impl {
  public:
   void Build(const graph::OpGraph &graph) {
-
   }
 
  private:
@@ -44,7 +43,6 @@ void Executor2::Init() {
 }
 
 void Executor2::Run() {
-
 }
 
 void Executor2::Prefetch() {
