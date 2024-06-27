@@ -51,6 +51,7 @@ Workspace OpTask::GetOutput() {
   assert(ws_->NumInput() == 0);
   assert(ws_->NumArgumentInput() == 0);
   std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
+  assert(ws_->NumOutput() == static_cast<int>(node_->inputs.size()));
 
   for (int o = 0; o < ws_->NumOutput(); o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
@@ -125,17 +126,19 @@ void OpTask::RunOp() {
 
 void OpTask::SetWorkspaceInputs() {
   int ti = 0;
+  assert(ws_->NumInput() + ws_->NumArgumentInput() == static_cast<int>(node_->inputs.size()));
+  auto order = ws_->output_order();
   std::unordered_set<cudaEvent_t> events(ws_->NumInput() + ws_->NumArgumentInput());
   for (int i = 0; i < ws_->NumInput(); i++, ti++) {
     if (ws_->InputIsType<CPUBackend>(i)) {
       auto inp = TaskInput<CPUBackend>(ti);
-      if (inp.event)
+      if (inp.event && inp.order != order)
         events.insert(inp.event);
       ws_->SetInput(i, inp.data);
     } else {
       assert(ws_->InputIsType<GPUBackend>(i));
       auto inp = TaskInput<CPUBackend>(ti);
-      if (inp.event)
+      if (inp.event && inp.order != order)
         events.insert(inp.event);
       ws_->SetInput(i, inp.data);
     }
@@ -157,12 +160,13 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   int nout = ws_->NumOutput();
   ret.reserve(nout);
   cudaEvent_t event = ws_->has_event() ? ws_->event() : nullptr;
+  auto order = ws_->output_order();
   for (int o = 0; o < nout; o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
-      ret.push_back(OperatorIO<CPUBackend>{ws_->OutputPtr<CPUBackend>(o), event});
+      ret.push_back(OperatorIO<CPUBackend>{ws_->OutputPtr<CPUBackend>(o), event, order});
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
-      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event});
+      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event, order});
     }
   }
 

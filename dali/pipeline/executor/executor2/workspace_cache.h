@@ -27,17 +27,22 @@
 namespace dali {
 namespace exec2 {
 
+struct ExecEnv {
+  ThreadPool *thread_pool = nullptr;
+  AccessOrder order = AccessOrder::host();
+};
 
 struct WorkspaceParams {
+  ExecEnv *env = nullptr;
   std::shared_ptr<IterationData> iter_data;
-  ThreadPool  *thread_pool = nullptr;
-  AccessOrder  order = AccessOrder::host();
   std::optional<int> batch_size = 0;  // TODO(michalz): add more batch size logic
 };
 
 inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
-  ws.SetThreadPool(params.thread_pool);
-  ws.set_output_order(params.order);
+  if (params.env) {
+    ws.SetThreadPool(params.env->thread_pool);
+    ws.set_output_order(params.env->order);
+  }
   ws.InjectIterationData(params.iter_data);
   if (params.batch_size.has_value())
     ws.SetBatchSizes(*params.batch_size);

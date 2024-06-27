@@ -30,6 +30,7 @@ template <typename Backend>
 struct OperatorIO {
   const std::shared_ptr<TensorList<Backend>> data;
   cudaEvent_t event = nullptr;
+  AccessOrder order = AccessOrder::host();
 };
 
 /** A context for task functions.
