@@ -20,17 +20,23 @@ namespace exec2 {
 
 class Executor2::Impl {
  public:
+  Impl(const Config &config) : config_(config) {
+  }
+
   void Build(const graph::OpGraph &graph) {
+    graph_.Lower(graph);
   }
 
  private:
+  ExecGraph graph_;
+  Config config_;
 };
 
 
 ///////////////////////////////
 // Executor2
 
-Executor2::Executor2(int queue_depth) {
+Executor2::Executor2(const Config &config) : impl_(std::make_unique<Impl>(config)) {
 }
 
 Executor2::~Executor2() = default;

@@ -25,14 +25,37 @@
 namespace dali {
 namespace exec2 {
 
+enum class QueueDepthPolicy : int {
+  Uniform,        //< All operators maintain a queue
+  BackendChange,  //< Only operators followed by one with a different backend have a queue
+  Legacy = BackendChange,
+  OutputOnly,     //< Only the pipeline output has multiple buffers
+};
+
+enum class OperatorParallelism : int {
+  None,      //< at no time can mutliple operators run
+  Backend,   //< operators from different backends can execute in parallel
+  Full,      //< independent operators can run in parallel
+};
+
 class DLL_PUBLIC Executor2 : public ExecutorBase {
  public:
-  explicit Executor2(int queue_depth);
+
+  struct Config {
+    //! The number of pending results CPU operators produce
+    int cpu_queue_depth = 2;
+    //! The number of pending results GPU (and mixed) operators produce
+    int gpu_queue_depth = 2;
+
+    QueueDepthPolicy queue_policy = QueueDepthPolicy::Legacy;
+    OperatorParallelism parallelism = OperatorParallelism::Backend;
+  };
+
+  explicit Executor2(const Config &config);
   ~Executor2() override;
 
   void Build(const graph::OpGraph &graph) override;
 
-  // TODO(michalz): Remove
   void Build(OpGraph *graph, std::vector<std::string> output_names) override {
     throw std::logic_error("This function is maintained in the interface for legacy tests only.");
   }
