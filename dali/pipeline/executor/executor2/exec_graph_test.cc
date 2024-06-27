@@ -56,6 +56,33 @@ class DummyOpCPU : public Operator<CPUBackend> {
   std::string instance_name_;
 };
 
+constexpr char kCounterOpName[] = "Exec2Counter";
+
+class CounterOp : public Operator<CPUBackend> {
+ public:
+  explicit CounterOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
+    int N = ws.GetRequestedBatchSize(0);
+    outs[0].shape = uniform_list_shape(N, TensorShape<>{});
+    outs[0].type = DALI_INT32;
+    return true;
+  }
+
+  void RunImpl(Workspace &ws) override {
+    int N = ws.GetRequestedBatchSize(0);
+    for (int s = 0; s < N; s++) {
+      *ws.Output<CPUBackend>(0)[s].mutable_data<int>() = counter++;
+    }
+  }
+
+  bool CanInferOutputs() const override { return true; }
+
+  int counter = 0;
+};
+
+
 }  // namespace test
 }  // namespace exec2
 
@@ -66,6 +93,12 @@ DALI_SCHEMA(Exec2TestOp)  // DALI_SCHEMA can't take a macro :(
 
 // DALI_REGISTER_OPERATOR can't take a macro for the name
 DALI_REGISTER_OPERATOR(Exec2TestOp, exec2::test::DummyOpCPU, CPU);
+
+DALI_SCHEMA(Exec2Counter)
+  .NumInput(0)
+  .NumOutput(1);
+
+DALI_REGISTER_OPERATOR(Exec2Counter, exec2::test::CounterOp, CPU);
 
 namespace exec2 {
 namespace test {
@@ -190,6 +223,70 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
     auto end = dali::test::perf_timer::now();
     print(std::cerr, "Average iteration time over ", N, " iterations is ",
           dali::test::format_time((end - start) / N), "\n");
+  }
+}
+
+TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
+  int batch_size = 1;
+  OpSpec spec0(kTestOpName);
+  spec0.AddArg("addend", 10)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", batch_size)
+       .AddOutput("op0o0", "cpu")
+       .AddArg("name", "op0");
+  auto op0 = std::make_unique<DummyOpCPU>(spec0);
+
+  OpSpec spec1(kCounterOpName);
+  spec1.AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", batch_size)
+       .AddOutput("op1o0", "cpu")
+       .AddArg("name", "op1");
+  auto op1 = std::make_unique<CounterOp>(spec1);
+
+  OpSpec spec2(kTestOpName);
+  spec2.AddArg("addend", 1000)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", batch_size)
+       .AddInput("op1o0", "cpu")
+       .AddInput("op2o0", "cpu")
+       .AddOutput("op2e0", "cpu")
+       .AddArg("name", "op2");
+  auto op2 = std::make_unique<DummyOpCPU>(spec2);
+  ExecGraph def;
+  ExecNode *n2 = def.AddNode(std::move(op2));
+  ExecNode *n1 = def.AddNode(std::move(op1));
+  ExecNode *n0 = def.AddNode(std::move(op0));
+  ExecNode *no = def.AddOutputNode();
+  def.Link(n0, 0, n2, 0);
+  def.Link(n1, 0, n2, 1);
+  def.Link(n2, 0, no, 0);
+  ThreadPool tp(4, 0, false, "test");
+  WorkspaceParams params = {};
+  ExecEnv env;
+  env.thread_pool = &tp;
+  params.env = &env;
+  params.batch_size = batch_size;
+
+  int N = 100;
+  tasking::Executor ex(4);
+  ex.Start();
+  std::vector<tasking::TaskFuture> fut;
+  fut.reserve(N);
+  for (int i = 0; i < N; i++) {
+    def.PrepareIteration(std::make_shared<IterationData>(), params);
+    fut.push_back(def.Launch(ex));
+  }
+
+  int ctr = 0;
+  for (int i = 0; i < N; i++) {
+    auto ws = fut[i].Value<Workspace>();
+    auto &out = ws.Output<CPUBackend>(0);
+    ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
+    for (int s = 0; s < batch_size; s++)
+      EXPECT_EQ(*out[s].data<int>(), 1010 + 2 * s + ctr++);
   }
 }
 
