@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
-
 #include "dali/operators/nvcvop/nvcvop.h"
+
+#include <string>
 
 namespace dali::nvcvop {
 
@@ -31,6 +31,18 @@ NVCVBorderType GetBorderMode(std::string_view border_mode) {
     return NVCV_BORDER_WRAP;
   } else {
     DALI_FAIL("Unknown border mode: " + std::string(border_mode));
+  }
+}
+
+NVCVInterpolationType GetInterpolationType(std::string_view interpolation_type) {
+  if (interpolation_type == "nearest") {
+    return NVCV_INTERP_NEAREST;
+  } else if (interpolation_type == "linear") {
+    return NVCV_INTERP_LINEAR;
+  } else if (interpolation_type == "cubic") {
+    return NVCV_INTERP_CUBIC;
+  } else {
+    DALI_FAIL("Unknown interpolation type: " + std::string(interpolation_type));
   }
 }
 
@@ -145,6 +157,22 @@ void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBack
     auto image = AsImage(t_list[s], format);
     batch.pushBack(image);
   }
+}
+
+nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "") {
+  auto shape = tensor.shape();
+  auto dtype = GetDataType(tensor.type(), 1);
+  nvcv::TensorDataStridedCuda::Buffer inBuf;
+  inBuf.basePtr = reinterpret_cast<NVCVByte*>(const_cast<void*>(tensor.raw_data()));
+  inBuf.strides[shape.size() - 1] = dtype.strideBytes();
+  for (int d = shape.size() - 2; d >= 0; --d) {
+    inBuf.strides[d] = shape[d + 1] * inBuf.strides[d + 1];
+  }
+  TensorLayout out_layout = layout.empty() ? tensor.GetLayout() : layout;
+  nvcv::TensorShape out_shape(shape.data(), shape.size(),
+                              nvcv::TensorLayout(out_layout.c_str()));
+  nvcv::TensorDataStridedCuda inData(out_shape, dtype, inBuf);
+  return nvcv::TensorWrapData(inData);
 }
 
 }  // namespace dali::nvcvop

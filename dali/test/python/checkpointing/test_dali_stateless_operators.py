@@ -997,6 +997,12 @@ def test_erode_stateless(device):
     check_single_input(fn.experimental.erode, device)
 
 
+@params("gpu")
+@stateless_signed_off("experimental.warp_perspective")
+def test_warp_perspective_stateless(device):
+    check_single_input(fn.experimental.warp_perspective, device)
+
+
 @params("cpu")
 @stateless_signed_off("zeros", "ones", "full", "zeros_like", "ones_like", "full_like")
 def test_full_operator_family(device):

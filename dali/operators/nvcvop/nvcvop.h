@@ -15,13 +15,14 @@
 #ifndef DALI_OPERATORS_NVCVOP_NVCVOP_H_
 #define DALI_OPERATORS_NVCVOP_NVCVOP_H_
 
-
+#include <cvcuda/Types.h>
 #include <nvcv/DataType.h>
 #include <nvcv/BorderType.h>
-#include <string>
-#include <vector>
 #include <nvcv/Tensor.hpp>
 #include <nvcv/ImageBatch.hpp>
+
+#include <string>
+#include <vector>
 
 #include "dali/core/call_at_exit.h"
 #include "dali/kernels/dynamic_scratchpad.h"
@@ -37,6 +38,13 @@ namespace dali::nvcvop {
  * @param border_mode border mode name
  */
 NVCVBorderType GetBorderMode(std::string_view border_mode);
+
+/**
+ * @brief Get the nvcv interpolation type from name
+ *
+ * @param interpolation_type interpolation type name
+ */
+NVCVInterpolationType GetInterpolationType(std::string_view interpolation_type);
 
 /**
  * @brief Get nvcv data kind of a given data type
@@ -65,6 +73,15 @@ nvcv::Image AsImage(SampleView<GPUBackend> sample, const nvcv::ImageFormat &form
  * @param format image format. It needs to match the shape and data type of the sample view
  */
 nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat &format);
+
+/**
+ * @brief Wrap a DALI tensor as an NVCV Tensor
+ *
+ * @param tensor DALI tensor
+ * @param layout layout of the resulting nvcv::Tensor.
+ * If not provided, layout of the DALI tensor is used.
+ */
+nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout);
 
 /**
  * @brief Allocates an image batch using a dynamic scratchpad.
@@ -120,9 +137,9 @@ class NVCVOperator: public BaseOp {
    * @tparam DTYPE expected nvcv Tensor data type
    * @param arg_shape shape of the DALI operator argument.
    */
-  template <typename T>
+  template <typename T, int ndim>
   nvcv::Tensor AcquireTensorArgument(Workspace &ws, kernels::Scratchpad &scratchpad,
-                                     ArgValue<T, 1> &arg, const TensorShape<> &arg_shape,
+                                     ArgValue<T, ndim> &arg, const TensorShape<> &arg_shape,
                                      nvcv::DataType dtype = GetDataType<T>(),
                                      TensorLayout layout = "") {
     int num_samples = ws.GetInputBatchSize(0);
