@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <unordered_map>
 #include "dali/pipeline/executor/executor2/exec2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
+#include "dali/pipeline/executor/executor2/stream_assignment.h"
+#include "dali/core/cuda_stream_pool.h"
+
 
 namespace dali {
 namespace exec2 {
@@ -24,12 +28,55 @@ class Executor2::Impl {
   }
 
   void Build(const graph::OpGraph &graph) {
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     graph_.Lower(graph);
+    SetupStreams();
+    //InitThreadPool();
+  }
+
+  void Run();
+
+  void Prefetch();
+
+  Workspace PopOutputs();
+
+  void SetupStreams() {
+    switch (config_.stream_policy) {
+    case StreamPolicy::Single:
+      SetupStreamsImpl<StreamPolicy::Single>();
+      break;
+    case StreamPolicy::PerBackend:
+      SetupStreamsImpl<StreamPolicy::PerBackend>();
+      break;
+    case StreamPolicy::PerOperator:
+      SetupStreamsImpl<StreamPolicy::PerOperator>();
+      break;
+    }
   }
 
  private:
+  template <StreamPolicy policy>
+  void SetupStreamsImpl() {
+    StreamAssignment<policy> assignment(graph_);
+    int num_streams = assignment.NumStreams();
+    if (num_streams == 0)
+      return;
+    for (int i = 0; i < num_streams; i++)
+      streams_.push_back(CUDAStreamPool::Get());
+    for (auto &node : graph_.nodes) {
+      auto stream_idx = assignment.GetStreamIdx(&node);
+
+      node.env.order = stream_idx.has_value()
+                     ? AccessOrder(streams[stream_idx])
+                     : AccessOrder::host();
+    }
+  }
+
+  std::unique_ptr<ThreadPool> tp_;
   ExecGraph graph_;
   Config config_;
+  std::queue<tasking::TaskFuture> pending_outputs_;
+  std::vector<CUDAStreamLease> streams_;
 };
 
 
@@ -37,6 +84,7 @@ class Executor2::Impl {
 // Executor2
 
 Executor2::Executor2(const Config &config) : impl_(std::make_unique<Impl>(config)) {
+
 }
 
 Executor2::~Executor2() = default;
@@ -49,19 +97,24 @@ void Executor2::Init() {
 }
 
 void Executor2::Run() {
+  impl_->Run();
 }
 
 void Executor2::Prefetch() {
+  impl_->Prefetch();
 }
 
 
 void Executor2::Outputs(Workspace *ws) {
+  *ws = impl_->PopOutputs();
 }
 
 void Executor2::ShareOutputs(Workspace *ws) {
+  Outputs(ws);
 }
 
 void Executor2::ReleaseOutputs() {
+  // no-op
 }
 
 void Executor2::EnableMemoryStats(bool enable_memory_stats) {
