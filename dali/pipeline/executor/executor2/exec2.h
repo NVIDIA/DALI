@@ -38,16 +38,30 @@ enum class OperatorParallelism : int {
   Full,      //< independent operators can run in parallel
 };
 
+enum class StreamPolicy : int {
+  Single,       //< There's just one stream that's used by all operators
+  PerBackend,   //< Operators are scheduled on a stream specific to their backend (mixed or GPU)
+  PerOperator   //< Independent operators are executed on separate streams.
+
+  // TODO(michalz): Check if this is legal with existing operator implementations - likely not
+  // PerIteration, //< Streams are cycled on a per-iteration basis
+};
+
 class DLL_PUBLIC Executor2 : public ExecutorBase {
  public:
   struct Config {
-    //! The number of pending results CPU operators produce
+    /** Device identifier */
+    std::optional<int> device;
+    /** The number of threads */
+    int num_threads = 0;
+    /** The number of pending results CPU operators produce */
     int cpu_queue_depth = 2;
-    //! The number of pending results GPU (and mixed) operators produce
+    /** The number of pending results GPU (and mixed) operators produce */
     int gpu_queue_depth = 2;
 
     QueueDepthPolicy queue_policy = QueueDepthPolicy::Legacy;
     OperatorParallelism parallelism = OperatorParallelism::Backend;
+    StreamPolicy stream_policy = StreamPolicy::PerBackend;
   };
 
   explicit Executor2(const Config &config);
