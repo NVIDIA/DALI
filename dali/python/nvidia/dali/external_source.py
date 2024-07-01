@@ -1005,6 +1005,11 @@ def external_source(
     blocking=None,
     batch=True,
     repeat_last=False,
+    parallel=None,
+    no_copy=None,
+    prefetch_queue_depth=None,
+    bytes_per_sample_hint=None,
+    batch_info=None,
     **kwargs,
 ):
     """
@@ -1045,6 +1050,11 @@ def external_source(
         use_copy_kernel=None,
         repeat_last=False,
         batch=True,
+        parallel=None,
+        no_copy=None,
+        prefetch_queue_depth=None,
+        bytes_per_sample_hint=None,
+        batch_info=None,
         **kwargs,
     ):
         if batch is None:
@@ -1070,6 +1080,11 @@ def external_source(
             use_copy_kernel=use_copy_kernel,
             batch=batch,
             repeat_last=repeat_last,
+            parallel=parallel,
+            no_copy=no_copy,
+            prefetch_queue_depth=prefetch_queue_depth,
+            bytes_per_sample_hint=bytes_per_sample_hint,
+            batch_info=batch_info,
             **kwargs,
         )
         return op(name=name)
@@ -1087,6 +1102,11 @@ def external_source(
             layout=layout,
             batch=batch,
             repeat_last=repeat_last,
+            parallel=parallel,
+            no_copy=no_copy,
+            prefetch_queue_depth=prefetch_queue_depth,
+            bytes_per_sample_hint=bytes_per_sample_hint,
+            batch_info=batch_info,
             **kwargs,
         )
     else:
@@ -1106,6 +1126,11 @@ def external_source(
             use_copy_kernel=use_copy_kernel,
             batch=batch,
             repeat_last=repeat_last,
+            parallel=parallel,
+            no_copy=no_copy,
+            prefetch_queue_depth=prefetch_queue_depth,
+            bytes_per_sample_hint=bytes_per_sample_hint,
+            batch_info=batch_info,
             **kwargs,
         )
     if _conditionals.conditionals_enabled():
