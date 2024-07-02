@@ -26,10 +26,10 @@ namespace dali {
 namespace exec2 {
 
 enum class QueueDepthPolicy : int {
-  Uniform,        //< All operators maintain a queue
+  FullyBuffered,  //< All operators maintain a queue
   BackendChange,  //< Only operators followed by one with a different backend have a queue
-  Legacy = BackendChange,
   OutputOnly,     //< Only the pipeline output has multiple buffers
+  Legacy = BackendChange,
 };
 
 enum class OperatorParallelism : int {
@@ -52,8 +52,15 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
   struct Config {
     /** Device identifier */
     std::optional<int> device;
-    /** The number of threads */
-    int num_threads = 0;
+    /** The number of threads used for running operators Run function
+     *
+     * TODO(michalz): Consider unification of the threading engines.
+     */
+    int operator_threads = 0;
+    /** The number of threads in the thread pool passed to the operators */
+    int thread_pool_threads = 0;
+    /** Whether the thread pool should set thread affinity with NVML */
+    bool set_affinity = false;
     /** The number of pending results CPU operators produce */
     int cpu_queue_depth = 2;
     /** The number of pending results GPU (and mixed) operators produce */

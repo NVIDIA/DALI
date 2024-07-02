@@ -30,15 +30,114 @@ class Executor2::Impl {
   void Build(const graph::OpGraph &graph) {
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     graph_.Lower(graph);
+    AnalyzeGraph();
+    CheckNodeTypes();
+    CalculatePrefetchDepth();
     SetupStreams();
-    //InitThreadPool();
+    InitThreadPool();
+    InitExecutor();
   }
 
-  void Run();
+  void Run() {
+    if (!exec_)
+      throw std::runtime_error("The executor is not initialized.");
+    InitIteration();
+    graph_.Launch(*exec_);
+  }
 
-  void Prefetch();
+  void Prefetch() {
+    if (!exec_)
+      throw std::runtime_error("The executor is not initialized.");
+    for (int i = 0; i < prefetch_depth_; i++) {
+      Run();
+    }
+  }
 
-  Workspace PopOutputs();
+  Workspace PopOutputs() {
+    if (pending_outputs_.empty())
+      throw std::out_of_range("All pending outputs were already popped.");
+    auto fut = std::move(pending_outputs_.front());
+    pending_outputs_.pop();
+    return fut.Value<Workspace>();
+  }
+
+  void InitIteration() {
+    WorkspaceParams params{};
+    params.batch_size = InferBatchSize();
+    graph_.PrepareIteration(InitIterationData(), params);
+  }
+
+ private:
+  auto InitIterationData() {
+    auto iter_data = std::make_shared<IterationData>();
+    iter_data->iteration_index = iter_index++;
+  }
+
+
+  int InferBatchSize() {
+
+  }
+
+  void AnalyzeGraph() {
+    for (auto &n : graph_.nodes) {
+      switch (NodeType(&n)) {
+      case OpType::CPU:
+        graph_info_.num_cpu++;
+        if (n.inputs.empty())
+          graph_info_.num_cpu_roots++;
+        break;
+      case OpType::GPU:
+        graph_info_.num_gpu++;
+        if (n.inputs.empty())
+          graph_info_.num_gpu_roots++;
+        break;
+      case OpType::MIXED:
+        graph_info_.num_mixed++;
+        if (n.inputs.empty())
+          graph_info_.num_mixed_roots++;
+        break;
+      }
+    }
+  }
+
+  void CheckNodeTypes() {
+    if (graph_info_.num_gpu + graph_info_.num_mixed > 0 && !config_.device.has_value())
+      throw std::invalid_argument("The graph contains nodes that require a GPU but the config "
+                                  "doesn't specify a device id.");
+  }
+
+  void CalculatePrefechDepth() {
+    int depth = 1;
+    if (graph_info_.num_cpu_roots > 0)
+      depth = std::max(depth, config_.cpu_queue_depth);
+    if (graph_info_.num_mixed_roots + graph_info_.num_gpu_roots > 0)
+      depth = std::max(depth, config_.gpu_queue_depth);
+    for (auto &node : graph_.nodes) {
+      if (node.inputs.empty() && node.def) {
+        int op_depth;
+        if (node.def->spec.TryGetArgument(depth, "queue_depth"))
+          depth = std::max(depth, op_depth);
+      }
+    }
+    prefetch_depth_ = depth;
+  }
+
+  void InitThreadPool() {
+    if (graph_info_.num_cpu > 0) {
+      tp_ = std::make_unique<ThreadPool>(
+        config_.thread_pool_threads,
+        config_.device.value_or(CPU_ONLY_DEVICE_ID),
+        config_.set_affinity,
+        "Executorv_v2");
+    } else {
+      tp_.reset();
+    }
+  }
+
+  void InitExecutor() {
+    exec_ = std::make_unique<tasking::Executor>(config_.operator_threads);
+    exec_->Start();
+  }
 
   void SetupStreams() {
     switch (config_.stream_policy) {
@@ -54,7 +153,6 @@ class Executor2::Impl {
     }
   }
 
- private:
   template <StreamPolicy policy>
   void SetupStreamsImpl() {
     StreamAssignment<policy> assignment(graph_);
@@ -62,21 +160,34 @@ class Executor2::Impl {
     if (num_streams == 0)
       return;
     for (int i = 0; i < num_streams; i++)
-      streams_.push_back(CUDAStreamPool::Get());
+      streams_.push_back(CUDAStreamPool::instance().Get());
     for (auto &node : graph_.nodes) {
       auto stream_idx = assignment.GetStreamIdx(&node);
 
       node.env.order = stream_idx.has_value()
-                     ? AccessOrder(streams[stream_idx])
+                     ? AccessOrder(streams_[*stream_idx])
                      : AccessOrder::host();
     }
   }
 
-  std::unique_ptr<ThreadPool> tp_;
-  ExecGraph graph_;
   Config config_;
+  int prefetch_depth_ = 1;
+
+  struct GraphInfo {
+    int num_cpu = 0;
+    int num_mixed = 0;
+    int num_gpu = 0;
+    int num_cpu_roots = 0;
+    int num_mixed_roots = 0;
+    int num_gpu_roots = 0;
+  } graph_info_;
+
+  std::unique_ptr<ThreadPool> tp_;
   std::queue<tasking::TaskFuture> pending_outputs_;
   std::vector<CUDAStreamLease> streams_;
+
+  ExecGraph graph_;
+  std::unique_ptr<tasking::Executor> exec_;
 };
 
 

@@ -41,6 +41,25 @@ inline bool NeedsStream(const ExecNode *node) {
   return false;
 }
 
+inline OpType NodeType(const ExecNode *node) {
+  if (node->is_pipeline_output) {
+    OpType type = OpType::CPU;
+    for (auto &pipe_out : node->inputs) {
+      if (pipe_out->device == StorageDevice::GPU) {
+        auto producer_type = pipe_out->producer->def->op_type;
+        if (producer_type == OpType::GPU) {
+          return OpType::GPU;
+        } else if (producer_type == OpType::MIXED) {
+          type = OpType::MIXED;
+        }
+      }
+    }
+    return type;
+  }
+  assert(node->def);
+  return node->def->op_type;
+}
+
 template <>
 class StreamAssignment<StreamPolicy::Single> {
  public:
@@ -73,31 +92,31 @@ class StreamAssignment<StreamPolicy::PerBackend> {
  public:
   StreamAssignment(ExecGraph &graph) {
     for (auto &node : graph.nodes) {
-      if (NeedsStream(&node)) {
-        needs_stream_ = true;
+      switch (NodeType(&node)) {
+      case OpType::GPU:
+        has_gpu_ = true;
+        if (has_mixed_)
+          return;  // we already have both, nothing more can happen
+        break;
+      case OpType::MIXED:
+        has_mixed_ = true;
+        if (has_gpu_)
+          return;  // we already have both, nothing more can happen
+        break;
+      default:
+        break;
       }
     }
   }
 
+  /** Returns a stream index for a non-CPU operator.
+   *
+   * If the node is a Mixed node, it gets stream index 0.
+   * If the node is a GPU node it gets stream index 1 if there are any mixed nodes, otherwise
+   * the only stream is the GPU stream and the returned index is 0.
+   */
   std::optional<int> GetStreamIdx(const ExecNode *node) {
-    OpType type = OpType::CPU;
-    if (node->is_pipeline_output) {
-      for (auto &pipe_out : node->inputs) {
-        if (pipe_out->device == StorageDevice::GPU) {
-          auto producer_type = pipe_out->producer->def->op_type;
-          if (producer_type == OpType::GPU) {
-            type = OpType::GPU;
-            break;
-          } else if (producer_type == OpType::MIXED) {
-            type = OpType::MIXED;
-          }
-        }
-      }
-    } else {
-      type = node->def->op_type;
-    }
-
-    switch (type) {
+    switch (NodeType(node)) {
     case OpType::CPU:
       return std::nullopt;
     case OpType::GPU:
