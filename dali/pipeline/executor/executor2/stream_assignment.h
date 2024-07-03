@@ -15,12 +15,12 @@
 #ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_STREAM_ASSIGNMENT_H_
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR2_STREAM_ASSIGNMENT_H_
 
+#include "dali/pipeline/graph/graph_util.h"
 #include <algorithm>
 #include <optional>
 #include <unordered_map>
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/exec2.h"
-
 
 namespace dali {
 namespace exec2 {
@@ -29,14 +29,13 @@ template <StreamPolicy policy>
 class StreamAssignment;
 
 inline bool NeedsStream(const ExecNode *node) {
-  if (node->def) {
-    if (node->def->op_type != OpType::CPU)
-      return true;
-  } else if (node->is_pipeline_output) {
+  if (node->is_pipeline_output) {
     for (auto &pipe_out : node->inputs) {
       if (pipe_out->device == StorageDevice::GPU)
         return true;
     }
+  } else {
+    return node->device != OpType::CPU;
   }
   return false;
 }
@@ -55,9 +54,9 @@ inline OpType NodeType(const ExecNode *node) {
       }
     }
     return type;
+  } else {
+    return node->device;
   }
-  assert(node->def);
-  return node->def->op_type;
 }
 
 template <>
@@ -71,7 +70,7 @@ class StreamAssignment<StreamPolicy::Single> {
     }
   }
 
-  std::optional<int> GetStreamIdx(const ExecNode *node) {
+  std::optional<int> operator[](const ExecNode *node) const {
     if (NeedsStream(node))
       return 0;
     else
@@ -115,7 +114,7 @@ class StreamAssignment<StreamPolicy::PerBackend> {
    * If the node is a GPU node it gets stream index 1 if there are any mixed nodes, otherwise
    * the only stream is the GPU stream and the returned index is 0.
    */
-  std::optional<int> GetStreamIdx(const ExecNode *node) {
+  std::optional<int> operator[](const ExecNode *node) const {
     switch (NodeType(node)) {
     case OpType::CPU:
       return std::nullopt;
@@ -162,10 +161,10 @@ class StreamAssignment<StreamPolicy::PerOperator> {
     Assign(graph);
   }
 
-  std::optional<int> GetStreamIdx(const ExecNode *node) const {
-    auto it = stream_assignment_.find(node);
-    assert(it != stream_assignment_.end());
-    return it->second;
+  std::optional<int> operator[](const ExecNode *node) const {
+    auto it = node_ids_.find(node);
+    assert(it != node_ids_.end());
+    return stream_assignment_[it->second];
   }
 
   /** Gets the total number of streams required to run independent operators on separate streams. */
@@ -175,112 +174,169 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
  private:
   void Assign(ExecGraph &graph) {
-    int next_stream_id;
+    // pre-fill the id pool with sequential numbers
+    for (int i = 0, n = graph.nodes.size(); i < n; i++) {
+      free_stream_ids_.insert(i);
+    }
+
+    // Sort the graph topologically with DFS
     for (auto &node : graph.nodes) {
-      next_stream_id += Assign(&node, next_stream_id);
+      Sort(&node);
     }
-    for (auto &kv : stream_assignment_)
-      if (kv.second == -1)
-        kv.second = std::nullopt;
 
-    total_streams_ = next_stream_id;
+    for (auto &node : graph.nodes) {
+      if (node.inputs.empty())
+        queue_.push({ node_ids_[&node], NextStreamId(&node).value_or(kInvalidStreamIdx) });
+    }
+
+    assert(graph.nodes.size() == sorted_nodes_.size());
+    stream_assignment_.resize(sorted_nodes_.size());
+
+    FindGPUContributors(graph);
+
+    graph::ClearVisitMarkers(graph.nodes);
+    Traverse();
+    ClearCPUStreams();
+    total_streams_ = CalcNumStreams();
   }
 
-  int Assign(ExecNode *node, int next_stream_id) {
-    /* The assignment algorithm.
+  void Traverse() {
+    while (!queue_.empty()) {
+      // PrintQueue(); /* uncomment for debugging */
+      auto [idx, stream_idx] = queue_.top();
+      std::optional<int> stream_id;
+      if (stream_idx != kInvalidStreamIdx)
+        stream_id = stream_idx;
 
-    The function assigns stream indices in a depth-first fashion. This allows for easy reuse
-    of a stream for direct successors (they're serialized anyway, so we can just use one
-    stream for them, skipping synchronization later).
-    The function returns the number of streams needed for parallel execution of independent
-    GPU/Mixed operators.
+      queue_.pop();
+      auto *node = sorted_nodes_[idx];
+      // This will be true for nodes which has no outputs or which doesn't contribute to any
+      // GPU nodes.
+      bool keep_stream_id = stream_id.has_value();
 
-    1. Assign the current stream id to the node, if it needs a stream.
-    2. Go over all outputs, depth first.
-       a. recursively call Assign on a child node
-          - if a child node already has assignment, it'll be skipped and return 0 streams needed.
-       b. if processing an output needs some streams, bump the stream index.
-       c. report the number of streams needed - if the node is a GPU/Mixed node, it'll need
-          at least 1 stream (see the final return statement).
+      graph::Visit v(node);
+      if (!v) {
+        assert(stream_assignment_[idx].value_or(kInvalidStreamIdx) <= stream_idx);
+        continue;  // we've been here already - skip
+      }
 
-    Example (C denotes a CPU node, G - a GPU node)
+      stream_assignment_[idx] = stream_id;
 
-    Graph:
-                 ----C
-                /
-    --- C ---- G ---- G --- G
-        \ \     \          /
-         \ \     ----- G -
-          \ \         /
-           \ ------ C ------ G --- G
-            \                 \
-              ----- G --- C    ---- G
+      if (stream_id.has_value())
+        free_stream_ids_.insert(*stream_id);
+      for (auto *out : node->outputs) {
+        auto out_stream_id = NextStreamId(out->consumer, stream_id);
+        if (out_stream_id.has_value())
+          keep_stream_id = false;
+        queue_.push({node_ids_[out->consumer], out_stream_id.value_or(kInvalidStreamIdx)});
+      }
+      if (keep_stream_id)
+        free_stream_ids_.erase(*stream_id);
+    }
+  }
 
-    --- G
+  void ClearCPUStreams() {
+    for (int i = 0, n = sorted_nodes_.size(); i < n; i++) {
+      if (!NeedsStream(sorted_nodes_[i]))
+        stream_assignment_[i] = std::nullopt;
+    }
+  }
 
-    Visiting order (excludes edges leading to nodes already visited)
-                 ----2
-                /
-    --- 0 ---- 1 ---- 3 --- 4
-        \ \     \
-         \ \     ----- 5
-          \ \
-           \ ------ 6 ------ 7 --- 8
-            \                 \
-              ---- 10 --- 11   ---- 9
+  int CalcNumStreams() {
+    int max = -1;
+    for (auto a : stream_assignment_) {
+      if (a.has_value())
+        max = std::max(max, *a);
+    }
+    return max + 1;
+  }
 
-    --- 12
+  void PrintQueue(std::ostream &os = std::cout) {
+    auto q2 = queue_;
+    while (!q2.empty()) {
+      auto [idx, stream_idx] = q2.top();
+      q2.pop();
+      auto *node = sorted_nodes_[idx];
+      if (node->def)
+        os << node->def->instance_name;
+      else if (node->is_pipeline_output)
+        os << "<output>";
+      else
+        os << "[" << idx << "]";
+      os << "(";
+      if (stream_idx != kInvalidStreamIdx)
+        os << stream_idx;
+      else
+        os << "none";
+      os << ") ";
+    }
+    os << "\n";
+  }
 
-    Return values marked on edges
+  void Sort(const ExecNode *node) {
+    assert(node);
+    graph::Visit visit(node);
+    if (!visit)
+      return;
+    int idx = sorted_nodes_.size();
+    node_ids_.emplace(node, idx);
+    for (auto *edge : node->inputs) {
+      assert(edge);
+      Sort(edge->producer);
+    }
+    sorted_nodes_.push_back(node);
+  }
 
-                 --0-C
-                /
-    -5- C --2- G --1- G -1- G
-        \ \     \
-         \ \     ---1- G
-          \ \
-           \ ----2- C ---2-- G -1- G
-            \                 \
-              ---1- G -0- C    --1- G
-
-    -1- G
-
-    next_stream_id (includes CPU operators)
-
-                 ---- 0
-                /
-    --- 0 ---- 0 ---- 0 --- 0
-        \ \     \
-         \ \     ----- 1
-          \ \
-           \ ------ 2 ------ 2 --- 2
-            \                 \
-              ----- 4 --- 4    ---- 3
-
-    --- 5
-
-    The final stream assignment is equal to next_stream_id shown above, but CPU operators get -1.
-    */
-    auto &assignment = stream_assignment_[node];
-    if (assignment.has_value())  // this doubles as a visit marker
-      return 0;
-    bool needs_stream = NeedsStream(node);
+  std::optional<int> NextStreamId(const ExecNode *node,
+                                  std::optional<int> prev_stream_id = std::nullopt) {
+    // If the preceding node had a stream, then we have to pass it on through CPU nodes
+    // if there are any GPU nodes down the graph.
+    // If the preciding node didn't have a stream, then we only need a stream if current
+    // node needs a stram.
+    bool needs_stream = prev_stream_id.has_value()
+                      ? gpu_contributors_.count(node) != 0
+                      : NeedsStream(node);
     if (needs_stream) {
-      assignment = next_stream_id;
+      assert(!free_stream_ids_.empty());
+      auto b = free_stream_ids_.begin();
+      int ret = *b;
+      free_stream_ids_.erase(b);
+      return ret;
     } else {
-      assignment = -1;
+      return std::nullopt;
     }
-
-    int subgraph_streams = 0;
-    for (auto *edge : node->outputs) {
-      subgraph_streams += Assign(edge->consumer, next_stream_id + subgraph_streams);
-    }
-
-    return std::max(subgraph_streams, needs_stream ? 1 : 0);
   }
 
-  std::unordered_map<const ExecNode *, std::optional<int>> stream_assignment_;
+  void FindGPUContributors(ExecGraph &graph) {
+    // Run DFS, output to input, and find nodes which contribute to any node that requires a stream
+    graph::ClearVisitMarkers(graph.nodes);
+    for (auto &node : graph.nodes) {
+      if (node.outputs.empty())
+        FindGPUContributors(&node, false);
+    }
+  }
+
+  void FindGPUContributors(const ExecNode *node, bool is_gpu_contributor) {
+    graph::Visit v(node);
+    if (!v)
+      return;
+    if (!is_gpu_contributor)
+      is_gpu_contributor = NeedsStream(node);
+    if (is_gpu_contributor)
+      gpu_contributors_.insert(node);
+    for (auto *inp : node->inputs)
+      FindGPUContributors(inp->producer, is_gpu_contributor);
+  }
+
+
+  static constexpr int kInvalidStreamIdx = 0x7fffffff;
+  std::vector<std::optional<int>> stream_assignment_;
   int total_streams_ = 0;
+  std::unordered_map<const ExecNode *, int> node_ids_;  // topologically sorted nodes
+  std::set<const ExecNode *> gpu_contributors_;
+  std::vector<const ExecNode *> sorted_nodes_;
+  std::set<int> free_stream_ids_;
+  std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, std::greater<>> queue_;
 };
 
 }  // namespace exec2

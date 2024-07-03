@@ -18,6 +18,7 @@
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/op_task.h"
 #include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/graph/op_graph2.h"
 
 namespace dali {
 namespace exec2 {
@@ -44,6 +45,12 @@ void ClearWorkspacePayload(Workspace &ws) {
       ws.SetOutput<GPUBackend>(o, nullptr);
   }
   ws.InjectIterationData(nullptr);
+}
+
+ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
+: op(std::move(op)), def(def) {
+  if (def)
+    device = def->op_type;
 }
 
 void ExecNode::PutWorkspace(CachedWorkspace ws) {

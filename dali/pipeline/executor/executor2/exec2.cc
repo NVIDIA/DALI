@@ -68,9 +68,10 @@ class Executor2::Impl {
   }
 
  private:
-  auto InitIterationData() {
+  std::shared_ptr<IterationData> InitIterationData() {
     auto iter_data = std::make_shared<IterationData>();
-    iter_data->iteration_index = iter_index++;
+    iter_data->iteration_index = iter_index_++;
+    return iter_data;
   }
 
 
@@ -79,6 +80,11 @@ class Executor2::Impl {
   }
 
   void AnalyzeGraph() {
+    CountNodes();
+    //FindInputNodes();
+  }
+
+  void CountNodes() {
     for (auto &n : graph_.nodes) {
       switch (NodeType(&n)) {
       case OpType::CPU:
@@ -96,6 +102,8 @@ class Executor2::Impl {
         if (n.inputs.empty())
           graph_info_.num_mixed_roots++;
         break;
+      default:
+        break;
       }
     }
   }
@@ -106,7 +114,7 @@ class Executor2::Impl {
                                   "doesn't specify a device id.");
   }
 
-  void CalculatePrefechDepth() {
+  void CalculatePrefetchDepth() {
     int depth = 1;
     if (graph_info_.num_cpu_roots > 0)
       depth = std::max(depth, config_.cpu_queue_depth);
@@ -162,7 +170,7 @@ class Executor2::Impl {
     for (int i = 0; i < num_streams; i++)
       streams_.push_back(CUDAStreamPool::instance().Get());
     for (auto &node : graph_.nodes) {
-      auto stream_idx = assignment.GetStreamIdx(&node);
+      auto stream_idx = assignment[&node];
 
       node.env.order = stream_idx.has_value()
                      ? AccessOrder(streams_[*stream_idx])
@@ -180,6 +188,8 @@ class Executor2::Impl {
     int num_cpu_roots = 0;
     int num_mixed_roots = 0;
     int num_gpu_roots = 0;
+
+    std::vector<ExecNode *> input_nodes;
   } graph_info_;
 
   std::unique_ptr<ThreadPool> tp_;
@@ -188,6 +198,8 @@ class Executor2::Impl {
 
   ExecGraph graph_;
   std::unique_ptr<tasking::Executor> exec_;
+
+  int iter_index_ = 0;
 };
 
 

@@ -67,8 +67,7 @@ struct PipelineOutputTag {};
 class DLL_PUBLIC ExecNode {
  public:
   ExecNode() = default;
-  explicit ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def = nullptr)
-  : op(std::move(op)), def(def) {}
+  ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def = nullptr);
   explicit ExecNode(PipelineOutputTag) : is_pipeline_output(true) {}
 
   std::vector<ExecEdge *> inputs, outputs;
@@ -102,7 +101,10 @@ class DLL_PUBLIC ExecNode {
   }
 
   const graph::OpNode *def = nullptr;
+  OpType device = OpType::CPU;
   bool is_pipeline_output = false;
+
+  mutable bool visited = false;
 
  private:
   CachedWorkspace CreateOutputWorkspace();
