@@ -13,6 +13,11 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <functional>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/operator_factory.h"
@@ -29,7 +34,6 @@ class StreamAssignmentDummyOp : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
-
 };
 
 DALI_SCHEMA(StreamAssignmentDummyOp)

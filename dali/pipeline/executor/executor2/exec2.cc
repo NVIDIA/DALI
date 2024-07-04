@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <queue>
 #include <unordered_map>
+#include <utility>
 #include "dali/pipeline/executor/executor2/exec2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
@@ -76,12 +78,12 @@ class Executor2::Impl {
 
 
   int InferBatchSize() {
-
+    assert(!"Not implemented!");
   }
 
   void AnalyzeGraph() {
     CountNodes();
-    //FindInputNodes();
+    // FindInputNodes();
   }
 
   void CountNodes() {
@@ -207,7 +209,6 @@ class Executor2::Impl {
 // Executor2
 
 Executor2::Executor2(const Config &config) : impl_(std::make_unique<Impl>(config)) {
-
 }
 
 Executor2::~Executor2() = default;

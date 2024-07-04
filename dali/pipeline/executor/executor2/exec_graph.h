@@ -67,7 +67,7 @@ struct PipelineOutputTag {};
 class DLL_PUBLIC ExecNode {
  public:
   ExecNode() = default;
-  ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def = nullptr);
+  explicit ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def = nullptr);
   explicit ExecNode(PipelineOutputTag) : is_pipeline_output(true) {}
 
   std::vector<ExecEdge *> inputs, outputs;

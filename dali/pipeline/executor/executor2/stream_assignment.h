@@ -15,10 +15,15 @@
 #ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_STREAM_ASSIGNMENT_H_
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR2_STREAM_ASSIGNMENT_H_
 
-#include "dali/pipeline/graph/graph_util.h"
 #include <algorithm>
+#include <functional>
 #include <optional>
+#include <queue>
 #include <unordered_map>
+#include <set>
+#include <utility>
+#include <vector>
+#include "dali/pipeline/graph/graph_util.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/exec2.h"
 
@@ -62,7 +67,7 @@ inline OpType NodeType(const ExecNode *node) {
 template <>
 class StreamAssignment<StreamPolicy::Single> {
  public:
-  StreamAssignment(ExecGraph &graph) {
+  explicit StreamAssignment(ExecGraph &graph) {
     for (auto &node : graph.nodes) {
       if (NeedsStream(&node)) {
         needs_stream_ = true;
@@ -89,7 +94,7 @@ class StreamAssignment<StreamPolicy::Single> {
 template <>
 class StreamAssignment<StreamPolicy::PerBackend> {
  public:
-  StreamAssignment(ExecGraph &graph) {
+  explicit StreamAssignment(ExecGraph &graph) {
     for (auto &node : graph.nodes) {
       switch (NodeType(&node)) {
       case OpType::GPU:
@@ -157,7 +162,7 @@ class StreamAssignment<StreamPolicy::PerBackend> {
 template <>
 class StreamAssignment<StreamPolicy::PerOperator> {
  public:
-  StreamAssignment(ExecGraph &graph) {
+  explicit StreamAssignment(ExecGraph &graph) {
     Assign(graph);
   }
 
