@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,8 +53,7 @@ class IdentityInput : public InputOperator<Backend> {
     return false;
   }
 
-
-  void Run(Workspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     DALI_ENFORCE(!cpu_input_ || ((cpu_input_) != (std::is_same_v<Backend, GPUBackend>)),
                  "Can't have CPU input in the GPU operator.");
     if (cpu_input_) {

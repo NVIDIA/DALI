@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -116,11 +116,6 @@ void Paste<GPUBackend>::RunHelper(Workspace &ws) {
       input_ptrs_gpu_.template data<const uint8*>(),
       output_ptrs_gpu_.template data<uint8*>(),
       in_out_dims_paste_yx_gpu_.template data<int>());
-}
-
-template<>
-void Paste<GPUBackend>::SetupSharedSampleParams(Workspace &ws) {
-  // No setup shared between input sets
 }
 
 template<>

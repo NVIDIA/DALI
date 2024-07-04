@@ -20,7 +20,6 @@
 
 namespace dali {
 
-template <typename Backend>
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
@@ -45,8 +44,6 @@ void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
   }
 }
 
-
-template <typename Backend>
 void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
@@ -61,36 +58,12 @@ void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
 #endif
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
-    auto output_batch_size = ws.Output<Backend>(i).shape().num_samples();
+    auto output_batch_size = ws.GetOutputBatchSize(i);
     DALI_ENFORCE(ref_batch_size == output_batch_size,
                  make_string("Batch size has to be uniform across one iteration. Expected: ",
                              ref_batch_size, "; Actual: ", output_batch_size));
   }
 }
-
-
-template <>
-void OperatorBase::EnforceUniformOutputBatchSize<MixedBackend>(
-    const Workspace &ws) const {
-  auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
-  for (int i = 0; i < ws.NumOutput(); i++) {
-    auto output_batch_size = const_cast<Workspace &>(ws)
-                                 .Output<GPUBackend>(i)
-                                 .shape()
-                                 .num_samples();
-    DALI_ENFORCE(ref_batch_size == output_batch_size,
-                 make_string("Batch size has to be uniform across one iteration. Expected: ",
-                             ref_batch_size, "; Actual: ", output_batch_size));
-  }
-}
-
-
-template void OperatorBase::EnforceUniformInputBatchSize<CPUBackend>(const Workspace &w) const;  // NOLINT
-template void OperatorBase::EnforceUniformInputBatchSize<GPUBackend>(const Workspace &w) const;  // NOLINT
-template void OperatorBase::EnforceUniformInputBatchSize<MixedBackend>(const Workspace &w) const;  // NOLINT
-template void OperatorBase::EnforceUniformOutputBatchSize<CPUBackend>(const Workspace &w) const;  // NOLINT
-template void OperatorBase::EnforceUniformOutputBatchSize<GPUBackend>(const Workspace &w) const;  // NOLINT
-
 
 DALI_DEFINE_OPTYPE_REGISTRY(CPUOperator, OperatorBase);
 DALI_DEFINE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);

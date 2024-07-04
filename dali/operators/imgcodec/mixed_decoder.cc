@@ -23,7 +23,9 @@ class MixedDecoder : public ImageDecoder<MixedBackend> {
   ~MixedDecoder() override = default;
   explicit MixedDecoder(const OpSpec &spec) : ImageDecoder<MixedBackend>(spec) {}
 
-  void Run(Workspace &ws) override {
+  virtual void SetupSharedSampleParams(Workspace &ws) {}
+
+  void RunImpl(Workspace &ws) override {
     SetupSharedSampleParams(ws);
     RunImplImpl(ws);
   }

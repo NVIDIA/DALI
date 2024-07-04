@@ -22,6 +22,7 @@
 namespace dali {
 
 void HostDecoder::RunImpl(SampleWorkspace &ws) {
+  SetupSharedSampleParams(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto file_name = input.GetSourceInfo();

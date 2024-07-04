@@ -116,7 +116,7 @@ class TestStatefulOpMixed : public Operator<MixedBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void Run(Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   uint8_t state_ = 0;

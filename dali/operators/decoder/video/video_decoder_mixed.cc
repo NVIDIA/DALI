@@ -44,7 +44,7 @@ bool VideoDecoderMixed::SetupImpl(
   return true;
 }
 
-void VideoDecoderMixed::Run(Workspace &ws) {
+void VideoDecoderMixed::RunImpl(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();

@@ -96,7 +96,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
     if (!IsExpanding()) {
       is_inferred = BaseOp<Backend>::Setup(output_desc, ws);
     } else {
-      BaseOp<Backend>::template EnforceUniformInputBatchSize<Backend>(ws);
+      BaseOp<Backend>::EnforceUniformInputBatchSize(ws);
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");

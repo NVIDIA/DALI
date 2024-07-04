@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ bool TestStatefulOpMixed::SetupImpl(std::vector<OutputDesc> &output_desc, const 
   return false;
 }
 
-void TestStatefulOpMixed::Run(Workspace &ws) {
+void TestStatefulOpMixed::RunImpl(Workspace &ws) {
   auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   int samples = input.num_samples();

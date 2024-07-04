@@ -358,13 +358,15 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
   }
 
   using dali::OperatorBase::Run;
-  void Run(Workspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     SetupSharedSampleParams(ws);
     ParseImagesInfo(ws);
     ProcessImages(ws);
   }
 
  protected:
+  virtual void SetupSharedSampleParams(Workspace &ws) {}
+
   virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
     return {};
   }
