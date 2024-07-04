@@ -67,7 +67,7 @@ bool VideoDecoderMixed::SetupImpl(std::vector<dali::OutputDesc> &output_desc,
   return true;
 }
 
-void VideoDecoderMixed::Run(dali::Workspace &ws) {
+void VideoDecoderMixed::RunImpl(dali::Workspace &ws) {
   auto &output = ws.Output<dali::GPUBackend>(0);
   const auto &input = ws.Input<dali::CPUBackend>(0);
   int batch_size = input.num_samples();
