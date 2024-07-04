@@ -32,10 +32,6 @@ class HostDecoderSlice : public HostDecoder {
  protected:
   inline void RunImpl(Workspace &ws) override {
     slice_attr_.ProcessArguments<CPUBackend>(spec_, ws);
-    Operator<CPUBackend>::RunImpl(ws);
-  }
-
-  inline void RunImpl(SampleWorkspace &ws) override {
     HostDecoder::RunImpl(ws);
   }
 

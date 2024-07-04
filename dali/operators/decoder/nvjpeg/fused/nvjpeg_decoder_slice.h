@@ -31,10 +31,9 @@ class nvJPEGDecoderSlice : public nvJPEGDecoder {
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderSlice);
 
  protected:
-  using OperatorBase::Run;
   void RunImpl(Workspace &ws) override {
     slice_attr_.ProcessArguments<MixedBackend>(spec_, ws);
-    nvJPEGDecoder::Run(ws);
+    nvJPEGDecoder::RunImpl(ws);
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {

@@ -291,7 +291,6 @@ class DLL_PUBLIC Operator<CPUBackend> : public OperatorBase {
       thread_pool.AddWork([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
         MakeSampleView(sample, ws, data_idx, tid);
-        this->SetupSharedSampleParams(sample);
         this->RunImpl(sample);
       }, -data_idx);  // -data_idx for FIFO order
     }
@@ -301,14 +300,6 @@ class DLL_PUBLIC Operator<CPUBackend> : public OperatorBase {
     // breaks metadata consistency - it sets it only to samples
     FixBatchPropertiesConsistency(ws, CanInferOutputs());
   }
-
-  /**
-   * @brief Shared param setup. Legacy implementation for per-sample approach
-   *
-   * Usage of this API is deprecated. For CPU Ops `void SetupImpl(Workspace &ws)`
-   * should be used instead.
-   */
-  virtual void SetupSharedSampleParams(SampleWorkspace &ws) {}
 };
 
 // Create registries for CPU & GPU Operators
