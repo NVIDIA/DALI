@@ -81,8 +81,7 @@ class DLL_PUBLIC OperatorBase {
     DALI_ENFORCE(max_batch_size_ > 0, "Invalid value for argument max_batch_size.");
   }
 
-  virtual inline ~OperatorBase() {}
-
+  virtual ~OperatorBase() = default;
 
   virtual bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
     EnforceUniformInputBatchSize(ws);
@@ -261,8 +260,6 @@ template <>
 class DLL_PUBLIC Operator<CPUBackend> : public OperatorBase {
  public:
   using OperatorBase::OperatorBase;
-
-  inline ~Operator() override {}
 
   /**
    * @brief Legacy implementation of CPU operator using per-sample approach
