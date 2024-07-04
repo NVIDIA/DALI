@@ -29,9 +29,10 @@ class HostDecoderCrop : public HostDecoder, protected CropAttr {
   inline ~HostDecoderCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderCrop);
 
- protected:
   void RunImpl(Workspace &ws) override;
+  using HostDecoder::RunImpl;
 
+ protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return CropAttr::GetCropWindowGenerator(data_idx);
   }
