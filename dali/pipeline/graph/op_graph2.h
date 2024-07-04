@@ -24,6 +24,7 @@
 #include <utility>
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/graph/graph_util.h"
 
 namespace dali {
 namespace graph {
@@ -238,41 +239,6 @@ class DLL_PUBLIC OpGraph {
   class SortHelper;
   friend class SortHelper;
 };
-
-/** A helper for visiting DAG nodes - it features previous visit detection and cycle detection. */
-template <typename Node>
-class Visit {
- public:
-  explicit Visit(Node *n) : node_(n) {
-    if (node_->visit_pending)
-      throw std::logic_error("Cycle detected.");
-    node_->visit_pending = true;
-    new_visit_ = !n->visited;
-    node_->visited = true;
-  }
-  ~Visit() {
-    node_->visit_pending = false;
-  }
-
-  explicit operator bool() const {
-    return new_visit_;
-  }
-
- private:
-  Node *node_;
-  bool new_visit_;
-};
-
-/** Clears visit markers.
- *
- * Sets the `visited` field to `false`.
- * Typically used at the beginning of a graph-processing algorithm.
- */
-template <typename NodeList>
-static void ClearVisitMarkers(NodeList &nodes) {
-  for (auto &node : nodes)
-    node.visited = false;
-}
 
 /** A single-use class for constructing graphs. */
 class DLL_PUBLIC OpGraph::Builder {
