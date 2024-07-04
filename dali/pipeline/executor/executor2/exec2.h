@@ -96,6 +96,15 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
   int InputFeedCount(std::string_view input_name) override;
   OperatorBase *GetOperator(std::string_view name) override;
 
+  void PruneUnusedGraphNodes() override {
+    assert(!"Remove this from the interface!");
+  }
+
+ protected:
+  bool HasConditionals() const override {
+    throw std::logic_error("This function is maintained in the interface for legacy tests only.");
+  }
+
  private:
   class Impl;
   std::unique_ptr<Impl> impl_;

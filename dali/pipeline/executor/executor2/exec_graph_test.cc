@@ -12,93 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
 #include <string>
+#include "dali/pipeline/executor/executor2/exec2_test.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"
 #include "dali/test/timing.h"
 
 namespace dali {
-namespace exec2 {
-namespace test {
-
-constexpr char kTestOpName[] = "Exec2TestOp";
-
-class DummyOpCPU : public Operator<CPUBackend> {
- public:
-  explicit DummyOpCPU(const OpSpec &spec) : Operator<CPUBackend>(spec) {
-    instance_name_ = spec_.GetArgument<string>("name");
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
-    int N = ws.GetRequestedBatchSize(0);
-    outs[0].shape = uniform_list_shape(N, TensorShape<>{});
-    outs[0].type = DALI_INT32;
-    return true;
-  }
-
-  void RunImpl(Workspace &ws) override {
-    int N = ws.GetRequestedBatchSize(0);
-    addend_.Acquire(spec_, ws, N);
-    for (int s = 0; s < N; s++) {
-      int sum = *addend_[s].data + s;
-      for (int i = 0; i < ws.NumInput(); i++) {
-        sum += *ws.Input<CPUBackend>(i)[s].data<int>();
-      }
-      *ws.Output<CPUBackend>(0)[s].mutable_data<int>() = sum;
-    }
-  }
-
-  bool CanInferOutputs() const override { return true; }
-  ArgValue<int> addend_{"addend", spec_};
-
-  std::string instance_name_;
-};
-
-constexpr char kCounterOpName[] = "Exec2Counter";
-
-class CounterOp : public Operator<CPUBackend> {
- public:
-  explicit CounterOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
-    int N = ws.GetRequestedBatchSize(0);
-    outs[0].shape = uniform_list_shape(N, TensorShape<>{});
-    outs[0].type = DALI_INT32;
-    return true;
-  }
-
-  void RunImpl(Workspace &ws) override {
-    int N = ws.GetRequestedBatchSize(0);
-    for (int s = 0; s < N; s++) {
-      *ws.Output<CPUBackend>(0)[s].mutable_data<int>() = counter++;
-    }
-  }
-
-  bool CanInferOutputs() const override { return true; }
-
-  int counter = 0;
-};
-
-
-}  // namespace test
-}  // namespace exec2
-
-DALI_SCHEMA(Exec2TestOp)  // DALI_SCHEMA can't take a macro :(
-  .NumInput(0, 99)
-  .NumOutput(1)
-  .AddArg("addend", "a value added to the sum of inputs", DALI_INT32, true);
-
-// DALI_REGISTER_OPERATOR can't take a macro for the name
-DALI_REGISTER_OPERATOR(Exec2TestOp, exec2::test::DummyOpCPU, CPU);
-
-DALI_SCHEMA(Exec2Counter)
-  .NumInput(0)
-  .NumOutput(1);
-
-DALI_REGISTER_OPERATOR(Exec2Counter, exec2::test::CounterOp, CPU);
 
 namespace exec2 {
 namespace test {
@@ -344,62 +265,6 @@ TEST(ExecGraphTest, Exception) {
     }
   }
 }
-
-namespace {
-
-auto GetTestGraph1() {
-  auto spec0 = OpSpec(kTestOpName)
-    .AddArg("max_batch_size", 32)
-    .AddArg("device", "cpu")
-    .AddArg("num_threads", 1)
-    .AddArg("name", "op0")
-    .AddOutput("op0_0", "cpu")
-    .AddArg("addend", 10);
-  auto spec1 = OpSpec(kTestOpName)
-    .AddArg("max_batch_size", 32)
-    .AddArg("device", "cpu")
-    .AddArg("num_threads", 1)
-    .AddArg("name", "op1")
-    .AddArg("addend", 20)
-    .AddOutput("op1_0", "cpu");
-  auto spec2 = OpSpec(kTestOpName)
-    .AddArg("max_batch_size", 32)
-    .AddArg("device", "cpu")
-    .AddInput("op0_0", "cpu")
-    .AddArg("num_threads", 1)
-    .AddArg("name", "op2")
-    .AddArgumentInput("addend", "op1_0")
-    .AddOutput("op2_0", "cpu");
-  auto spec3 = OpSpec(kTestOpName)
-    .AddArg("max_batch_size", 32)
-    .AddArg("device", "cpu")
-    .AddArg("num_threads", 1)
-    .AddArg("name", "op3")
-    .AddInput("op0_0", "cpu")
-    .AddInput("op1_0", "cpu")
-    .AddArg("addend", 1)
-    .AddOutput("op3_0", "cpu");
-  graph::OpGraph::Builder b;
-  b.Add("op0", std::move(spec0));
-  b.Add("op1", std::move(spec1));
-  b.Add("op2", std::move(spec2));
-  b.Add("op3", std::move(spec3));
-  b.AddOutput("op3_0_cpu");
-  b.AddOutput("op2_0_cpu");
-  return std::move(b).GetGraph(true);
-}
-
-inline size_t CountOutgoingEdges(const graph::OpNode &op, bool include_outputs = true) {
-  size_t n = 0;
-  for (auto &out : op.outputs) {
-    n += out->consumers.size();
-    if (out->pipeline_output && include_outputs)
-      n++;
-  }
-  return n;
-}
-
-}  // namespace
 
 TEST(ExecGraphTest, LoweredStructureMatch) {
   graph::OpGraph def = GetTestGraph1();

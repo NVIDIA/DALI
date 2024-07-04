@@ -77,7 +77,7 @@ auto MakeNodeMap(const ExecGraph &graph) {
 
 }  // namespace
 
-TEST(StreamAssignmentTest, PerOperator) {
+TEST(Exec2Test, StreamAssignment_PerOperator) {
   ExecGraph eg;
   /*
          --c--             g
