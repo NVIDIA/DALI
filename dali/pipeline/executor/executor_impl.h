@@ -568,7 +568,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
       if (!node.children.empty()) continue;
       // Do not prune the node if it has a preserve flag
       const auto &schema = node.spec.GetSchema();
-      if (node.spec.GetArgument<bool>("preserve") || !schema.IsNoPrune())
+      if (node.spec.GetArgument<bool>("preserve") || schema.IsNoPrune())
         continue;
 
 
