@@ -48,12 +48,20 @@ TEST_P(Exec2Test, SimpleGraph) {
   Executor2 exec(config_);
   graph::OpGraph graph = GetTestGraph1();
   exec.Build(graph);
+  exec.Run();
+  exec.Run();
+  Workspace ws;
+  exec.Outputs(&ws);
+  CheckTestGraph1Results(ws, config_.max_batch_size);
+  ws.Clear();
+  exec.Outputs(&ws);
+  CheckTestGraph1Results(ws, config_.max_batch_size);
 }
 
-Executor2::Config MakeCfg(QueueDepthPolicy q, OperatorParallelism p, StreamPolicy s) {
+Executor2::Config MakeCfg(QueueDepthPolicy q, OperatorConcurrency c, StreamPolicy s) {
   Executor2::Config cfg;
   cfg.queue_policy = q;
-  cfg.parallelism = p;
+  cfg.concurrency = c;
   cfg.stream_policy = s;
   cfg.thread_pool_threads = 4;
   cfg.operator_threads = 4;
@@ -61,9 +69,9 @@ Executor2::Config MakeCfg(QueueDepthPolicy q, OperatorParallelism p, StreamPolic
 }
 
 std::vector<Executor2::Config> configs = {
-  MakeCfg(QueueDepthPolicy::OutputOnly, OperatorParallelism::None, StreamPolicy::Single),
-  MakeCfg(QueueDepthPolicy::BackendChange, OperatorParallelism::Backend, StreamPolicy::PerBackend),
-  MakeCfg(QueueDepthPolicy::FullyBuffered, OperatorParallelism::Full, StreamPolicy::PerOperator),
+  MakeCfg(QueueDepthPolicy::OutputOnly, OperatorConcurrency::None, StreamPolicy::Single),
+  MakeCfg(QueueDepthPolicy::BackendChange, OperatorConcurrency::Backend, StreamPolicy::PerBackend),
+  MakeCfg(QueueDepthPolicy::FullyBuffered, OperatorConcurrency::Full, StreamPolicy::PerOperator),
 };
 
 INSTANTIATE_TEST_SUITE_P(Exec2Test, Exec2Test, testing::ValuesIn(configs));

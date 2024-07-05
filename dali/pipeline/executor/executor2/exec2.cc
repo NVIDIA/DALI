@@ -12,17 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <functional>
+#include <map>
 #include <queue>
 #include <unordered_map>
 #include <utility>
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/executor/executor2/exec2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
-#include "dali/core/cuda_stream_pool.h"
+#include "dali/pipeline/operator/batch_size_provider.h"
 
 
 namespace dali {
 namespace exec2 {
+
+namespace {
+
+inline std::string_view NodeName(const ExecNode &n) {
+  return n.def ? n.def->instance_name : n.op->GetSpec().SchemaName();
+}
+
+void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
+  auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
+  for (auto &n : graph.nodes) {
+    if (n.backend == backend)
+        n.concurrency = sem;
+  }
+}
+
+void ApplyConcurrencyLimit(ExecGraph &graph, const Executor2::Config &config) {
+  switch (config.concurrency) {
+    case OperatorConcurrency::Full:
+      // TODO(michalz): Fix ThreadPool.
+      LimitBackendConcurrency(graph, OpType::CPU);
+      break;  // other operators have no restrictions
+    case OperatorConcurrency::Backend:
+      LimitBackendConcurrency(graph, OpType::GPU);
+      LimitBackendConcurrency(graph, OpType::MIXED);
+      break;
+    case OperatorConcurrency::None:
+      {
+        auto sem = std::make_shared<tasking::Semaphore>(1);
+        for (auto &n : graph.nodes)
+            n.concurrency = sem;
+      }
+      break;
+    default:
+      assert(!"Unexpected concurrency policy value.");
+      break;
+  }
+}
+
+}  // namespace
 
 class Executor2::Impl {
  public:
@@ -32,11 +74,13 @@ class Executor2::Impl {
   void Build(const graph::OpGraph &graph) {
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     graph_.Lower(graph);
+    BuildNodeDict();
     AnalyzeGraph();
     CheckNodeTypes();
     CalculatePrefetchDepth();
+    ApplyConcurrencyLimit(graph_, config_);
     SetupStreams();
-    InitThreadPool();
+    SetupThreadPool();
     InitExecutor();
   }
 
@@ -44,7 +88,7 @@ class Executor2::Impl {
     if (!exec_)
       throw std::runtime_error("The executor is not initialized.");
     InitIteration();
-    graph_.Launch(*exec_);
+    pending_outputs_.push(graph_.Launch(*exec_));
   }
 
   void Prefetch() {
@@ -69,6 +113,21 @@ class Executor2::Impl {
     graph_.PrepareIteration(InitIterationData(), params);
   }
 
+  int InputFeedCount(std::string_view) {
+    return prefetch_depth_;
+  }
+
+  OperatorBase *GetOperator(std::string_view input_name) const {
+    auto it = node_map_.find(input_name);
+    if (it == node_map_.end())
+      return nullptr;
+    return it->second->op.get();
+  }
+
+  void Shutdown() {
+    exec_->Shutdown();
+  }
+
  private:
   std::shared_ptr<IterationData> InitIterationData() {
     auto iter_data = std::make_shared<IterationData>();
@@ -78,12 +137,41 @@ class Executor2::Impl {
 
 
   int InferBatchSize() {
-    assert(!"Not implemented!");
+    std::optional<int> bs;
+    for (auto *n : graph_info_.batch_size_providers) {
+      auto *bsp = dynamic_cast<BatchSizeProvider *>(n->op.get());
+      assert(bsp);
+      int op_bs = bsp->NextBatchSize();
+      if (op_bs > config_.max_batch_size)
+        throw std::runtime_error(make_string(
+          "Batch too big! The input operator \"",
+          NodeName(*n),
+          "\" returned a batch size ", op_bs,
+          " which is larger than 'max_batch_size' for the pipeline."));
+      if (bs && *bs != op_bs)
+        throw std::runtime_error(make_string(
+          "Batch size clash! The input operator \"",
+          n->def ? n->def->instance_name : n->op->GetSpec().SchemaName(),
+          "\" returned a batch size ", op_bs,
+          " which is different than ", *bs,
+          " retruned by \"", NodeName(*graph_info_.batch_size_providers.front()), "\"."));
+      bs = op_bs;
+    }
+    // Advance only after we've queried all of the operators to avoid inconsistent state
+    for (auto *n : graph_info_.batch_size_providers)
+      dynamic_cast<BatchSizeProvider *>(n->op.get())->Advance();
+    return bs.value_or(config_.max_batch_size);
+  }
+
+  void BuildNodeDict() {
+    for (auto &n : graph_.nodes)
+      if (n.def)
+        node_map_[n.def->instance_name] = &n;
   }
 
   void AnalyzeGraph() {
     CountNodes();
-    // FindInputNodes();
+    FindBatchSizeProviders();
   }
 
   void CountNodes() {
@@ -132,7 +220,14 @@ class Executor2::Impl {
     prefetch_depth_ = depth;
   }
 
-  void InitThreadPool() {
+  void FindBatchSizeProviders() {
+    graph_info_.batch_size_providers.clear();
+    for (auto &n : graph_.nodes)
+      if (auto *bsp = dynamic_cast<BatchSizeProvider *>(n.op.get()))
+        graph_info_.batch_size_providers.push_back(&n);
+  }
+
+  void SetupThreadPool() {
     if (graph_info_.num_cpu > 0) {
       tp_ = std::make_unique<ThreadPool>(
         config_.thread_pool_threads,
@@ -141,6 +236,10 @@ class Executor2::Impl {
         "Executorv_v2");
     } else {
       tp_.reset();
+    }
+    for (auto &n : graph_.nodes) {
+      if (n.backend == OpType::CPU)
+        n.env.thread_pool = tp_.get();
     }
   }
 
@@ -191,12 +290,13 @@ class Executor2::Impl {
     int num_mixed_roots = 0;
     int num_gpu_roots = 0;
 
-    std::vector<ExecNode *> input_nodes;
+    std::vector<ExecNode *> batch_size_providers;
   } graph_info_;
 
   std::unique_ptr<ThreadPool> tp_;
   std::queue<tasking::TaskFuture> pending_outputs_;
   std::vector<CUDAStreamLease> streams_;
+  std::map<std::string, ExecNode *, std::less<>> node_map_;
 
   ExecGraph graph_;
   std::unique_ptr<tasking::Executor> exec_;
@@ -252,18 +352,23 @@ ExecutorMetaMap Executor2::GetExecutorMeta() {
 }
 
 void Executor2::Shutdown() {
+  impl_->Shutdown();
 }
 
 Checkpoint &Executor2::GetCurrentCheckpoint() {
+  throw std::runtime_error("Not implemented");
 }
 
 void Executor2::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
+  throw std::runtime_error("Not implemented");
 }
 
 int Executor2::InputFeedCount(std::string_view input_name) {
+  return impl_->InputFeedCount(input_name);
 }
 
 OperatorBase *Executor2::GetOperator(std::string_view name) {
+  return impl_->GetOperator(name);
 }
 
 

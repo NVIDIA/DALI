@@ -338,21 +338,7 @@ TEST(ExecGraphTest, LoweredExec) {
     g.PrepareIteration(iter, params);
     auto fut = g.Launch(ex);
     Workspace ws = fut.Value<Workspace>();
-    auto &o0 = ws.Output<CPUBackend>(0);
-    auto &o1 = ws.Output<CPUBackend>(1);
-    for (int i = 0; i < params. batch_size; i++) {
-      // The pipeline:
-      // op0 = DummyOp(addend=10)
-      // op1 = DummyOp(addend=20)
-      // op2 = DummyOp(op0, addend=op1)
-      // op3 = DummyOp(op0, op1, addend=1)
-      // return op3, op2  # swapped!
-
-      // DummyOp adds its argumetns, the "addend" and the sample index - thus, we have
-      // tripled sample index + the sum of addends at output
-      EXPECT_EQ(*o0[i].data<int>(), 10 + 20 + 3 * i + 1);
-      EXPECT_EQ(*o1[i].data<int>(), 10 + 20 + 3 * i);
-    }
+    CheckTestGraph1Results(ws, *params.batch_size);
   }
 }
 

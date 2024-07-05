@@ -32,7 +32,7 @@ enum class QueueDepthPolicy : int {
   Legacy = BackendChange,
 };
 
-enum class OperatorParallelism : int {
+enum class OperatorConcurrency : int {
   None,      //< at no time can mutliple operators run
   Backend,   //< operators from different backends can execute in parallel
   Full,      //< independent operators can run in parallel
@@ -65,9 +65,11 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
     int cpu_queue_depth = 2;
     /** The number of pending results GPU (and mixed) operators produce */
     int gpu_queue_depth = 2;
+    /** Maximum batch size */
+    int max_batch_size = 1;
 
     QueueDepthPolicy queue_policy = QueueDepthPolicy::Legacy;
-    OperatorParallelism parallelism = OperatorParallelism::Backend;
+    OperatorConcurrency concurrency = OperatorConcurrency::Backend;
     StreamPolicy stream_policy = StreamPolicy::PerBackend;
   };
 

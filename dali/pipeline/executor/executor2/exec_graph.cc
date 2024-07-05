@@ -50,7 +50,7 @@ void ClearWorkspacePayload(Workspace &ws) {
 ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
 : op(std::move(op)), def(def) {
   if (def)
-    device = def->op_type;
+    backend = def->op_type;
 }
 
 void ExecNode::PutWorkspace(CachedWorkspace ws) {

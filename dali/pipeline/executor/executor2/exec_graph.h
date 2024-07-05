@@ -101,7 +101,7 @@ class DLL_PUBLIC ExecNode {
   }
 
   const graph::OpNode *def = nullptr;
-  OpType device = OpType::CPU;
+  OpType backend = OpType::CPU;
   bool is_pipeline_output = false;
 
   mutable bool visited = false;
