@@ -883,6 +883,12 @@ def test_random_normal(device, shape):
     check_no_input_operator(fn.random.normal, device, shape=shape)
 
 
+@cartesian_params(("cpu",), (None, 100, (10, 50)))
+@random_signed_off("random.beta")
+def test_random_beta(device, shape):
+    check_no_input_operator(fn.random.beta, device, shape=shape)
+
+
 @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
 @random_signed_off("random.uniform", "uniform")
 def test_random_uniform(device, shape):
