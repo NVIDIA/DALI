@@ -237,8 +237,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
    */
   void HandleError(const std::string& context = "", const std::string& additional_message = "");
 
-  void PruneUnusedGraphNodes() override;
-
   bool HasConditionals() const override;
 
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
@@ -475,10 +473,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 
   DeviceGuard g(device_id_);
 
-  // Remove any node from the graph whose output
-  // will not be used as an output or by another node
-  PruneUnusedGraphNodes();
-
   // Check if graph is ok for execution
   CheckGraphConstraints(*graph_);
   // Clear the old data
@@ -549,68 +543,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::Outputs(Workspace *ws) {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(Workspace *ws) {
   ShareOutputsImpl(ws, output_iteration_id_++);
-}
-
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
-  // We want to remove any nodes whose outputs are
-  // never used by another node or as an output
-  DALI_ENFORCE(output_names_.size() > 0,
-      "No outputs requested, nothing to execute.");
-
-  while (true) {
-    // We do not edit the graph while we are iterating
-    // as node ids will be updated when an op is removed
-    vector<OpNodeId> to_remove;
-    for (int i = 0; i < graph_->NumOp(); ++i) {
-      OpNode &node = graph_->Node(i);
-      // If this node has children, don't prune it
-      if (!node.children.empty()) continue;
-      // Do not prune the node if it has a preserve flag
-      const auto &schema = node.spec.GetSchema();
-      if (node.spec.GetArgument<bool>("preserve") || schema.IsNoPrune())
-        continue;
-
-
-      // Note: this is technically a very inefficient
-      // way to find the intersection of the node outputs
-      // and the outputs of the graph. The number of outputs
-      // is usually 1-2, so it shouldn't matter
-      bool found_match = false;
-      for (int j = 0; j < node.spec.NumOutput(); ++j) {
-        for (size_t k = 0; k < output_names_.size(); ++k) {
-          if (node.spec.Output(j) == output_names_[k]) {
-            found_match = true;
-            break;
-          }
-        }
-        if (found_match) break;
-      }
-
-      // If this node produces an output, don't prune it
-      if (found_match) continue;
-
-      // Mark the node for pruning
-      to_remove.push_back(node.id);
-    }
-
-    // No nodes were removed, pruning complete
-    if (to_remove.size() == 0) break;
-
-    for (size_t i = 0; i < to_remove.size(); ++i) {
-      // Note: After deleting a node, the graph updates
-      // all other nodes in the graph to keep the node
-      // ids consisten with the number of nodes in the
-      // graph. 'to_remove' will store the removal
-      // targets largest to smallest, so we just subtract
-      // the number of previously deleted nodes from
-      // the current node id.
-      graph_->RemoveOp(to_remove[i] - i);
-    }
-  }
-
-  // If we've pruned the entire graph, something has gone wrong
-  DALI_ENFORCE(graph_->NumOp() > 0, "No output names match data produced by the pipeline.");
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
