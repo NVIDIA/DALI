@@ -236,8 +236,8 @@ inline void CheckTestGraph2Results(const Workspace &ws, int batch_size) {
     // op0 = DummyOp(addend=10)
     // op1 = DummyOp(addend=20)
     // op2 = DummyOp(op0, addend=op1)
-    // op3 = DummyOp(op0, op1, addend=1)
-    // return op3, op2  # swapped!
+    // op3 = DummyOp(op0.gpu(), op1.gpu(), addend=1)
+    // return op3, op2.gpu()  # swapped!
 
     // DummyOp adds its argumetns, the "addend" and the sample index - thus, we have
     // tripled sample index + the sum of addends at output
