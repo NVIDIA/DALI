@@ -137,7 +137,7 @@ void OpTask::SetWorkspaceInputs() {
       ws_->SetInput(i, inp.data);
     } else {
       assert(ws_->InputIsType<GPUBackend>(i));
-      auto inp = TaskInput<CPUBackend>(ti);
+      auto inp = TaskInput<GPUBackend>(ti);
       if (inp.event && inp.order != order)
         events.insert(inp.event);
       ws_->SetInput(i, inp.data);

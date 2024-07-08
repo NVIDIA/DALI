@@ -142,7 +142,7 @@ class DLL_PUBLIC ExecGraph {
     return &nodes.emplace_back(PipelineOutputTag());
   }
 
-  void Link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
+  ExecEdge *Link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
     auto &edge = edges.emplace_back();
     edge.producer = producer;
     edge.producer_output_idx = out_idx;
@@ -155,6 +155,7 @@ class DLL_PUBLIC ExecGraph {
       consumer->inputs.resize(std::max<size_t>(consumer->inputs.size(), in_idx + 1));
       consumer->inputs[in_idx] = &edge;
     }
+    return &edge;
   }
 
   void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,

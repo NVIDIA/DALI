@@ -48,7 +48,8 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
     assert(data_node->producer.op);
     auto *exec_prod = def2exec[data_node->producer.op];
     assert(exec_prod);
-    Link(exec_prod, data_node->producer.idx, out_node, pipe_outs++);
+    auto *edge = Link(exec_prod, data_node->producer.idx, out_node, pipe_outs++);
+    edge->device = data_node->device;
   }
 }
 
