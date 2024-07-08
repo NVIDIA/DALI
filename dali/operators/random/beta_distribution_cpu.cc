@@ -18,25 +18,16 @@
 
 namespace dali {
 
-// The following LaTeX formulas are rendered as svg's
-// beta_dist_pdf.svg:
-// f(x) = \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} x^{\alpha-1} (1-x)^{\beta-1}
-// gamma_function.svg:
-// \Gamma(\alpha) = \int_0^\infty x^{\alpha-1} e^{-x} \, dx
-
 DALI_SCHEMA(random__Beta)
     .DocStr(R"code(Generates a random number from ``[0, 1]`` range following the beta distribution.
 
 The beta distribution has the following probabilty distribution function:
 
-.. image:: ../images/beta_dist_pdf.svg
-   :align: center
+.. math:: f(x) = \frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} x^{\alpha-1} (1-x)^{\beta-1}
 
 where ``Г`` is the gamma function defined as:
 
-.. image:: ../images/gamma_function.svg
-   :align: center
-
+.. math:: \Gamma(\alpha) = \int_0^\infty x^{\alpha-1} e^{-x} \, dx
 
 The operator supports ``float32`` and ``float64`` output types.
 
