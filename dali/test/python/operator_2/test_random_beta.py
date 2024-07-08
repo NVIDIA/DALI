@@ -66,7 +66,8 @@ def test_beta_distribution(case_idx, alpha, beta, dtype):
     batch_size = 4
     dali_dtype = types.DALIDataType.FLOAT if dtype == np.float32 else types.DALIDataType.FLOAT64
 
-    rng = np.random.default_rng(seed=seed)
+    rns = np.random.RandomState(seed=seed)
+    sp_beta_sampler = sp.stats.beta(alpha, beta).rvs
 
     @pipeline_def(
         batch_size=batch_size,
@@ -90,7 +91,13 @@ def test_beta_distribution(case_idx, alpha, beta, dtype):
     assert all(s.dtype == dtype for s in batch)
     assert all(s.shape == shape for s in batch)
     batch = [s.reshape(-1) for s in batch]
-    refs = [rng.beta(alpha, beta, size=(size,)).astype(dtype) for _ in range(batch_size)]
+    refs = [
+        sp_beta_sampler(
+            size=(size,),
+            random_state=rns,
+        ).astype(dtype)
+        for _ in range(batch_size)
+    ]
     assert len(batch) == len(refs)
     pvs = [
         sp.stats.kstest(sample, sample_ref, nan_policy="raise")[1]
