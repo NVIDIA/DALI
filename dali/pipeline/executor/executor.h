@@ -61,9 +61,6 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual OperatorBase *GetOperator(std::string_view name) = 0;
 
  protected:
-  // virtual to allow the TestPruneWholeGraph test in gcc
-  virtual void PruneUnusedGraphNodes() = 0;
-
   /**
    * @brief Returns true if conditionals are used in the executed graph, @see DetectConditionals().
    * Valid after Build().
