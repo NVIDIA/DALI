@@ -1453,6 +1453,10 @@ def test_random_uniform():
     check_no_input_stateful("random.uniform")
 
 
+def test_random_beta():
+    check_no_input_stateful("random.beta")
+
+
 def test_batch_permutation():
     check_no_input_stateful("batch_permutation")
 
@@ -1642,6 +1646,7 @@ tested_methods = [
     "random.coin_flip",
     "random.normal",
     "random.uniform",
+    "random.beta",
     "batch_permutation",
     "random_crop_generator",
     "experimental.decoders.video",
