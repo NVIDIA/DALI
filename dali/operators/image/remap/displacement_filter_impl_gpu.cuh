@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -253,6 +253,7 @@ class DisplacementFilter<GPUBackend, Displacement, per_channel_transform>
   }
 
   void RunImpl(Workspace &ws) override {
+    PrepareDisplacement(ws);
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
@@ -292,11 +293,6 @@ class DisplacementFilter<GPUBackend, Displacement, per_channel_transform>
   template <typename U = Displacement>
   std::enable_if_t<!HasParam<U>::value, const void *> GetDisplacementParams(int sample_idx) {
     return nullptr;
-  }
-
-
-  void SetupSharedSampleParams(Workspace &ws) override {
-    PrepareDisplacement(ws);
   }
 
   bool ShouldRunAligned(size_t sizeof_T, uint64_t maxPower2, int C) {

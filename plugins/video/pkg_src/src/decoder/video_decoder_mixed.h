@@ -54,7 +54,7 @@ class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
     }
   }
 
-  void Run(dali::Workspace &ws) override;
+  void RunImpl(dali::Workspace &ws) override;
 
   bool SetupImpl(std::vector<dali::OutputDesc> &output_desc,
                  const dali::Workspace &ws) override;

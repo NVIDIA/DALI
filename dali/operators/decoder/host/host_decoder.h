@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,13 +36,15 @@ class HostDecoder : public StatelessOperator<CPUBackend> {
   inline ~HostDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
- protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
   void RunImpl(SampleWorkspace &ws) override;
 
+  using StatelessOperator<CPUBackend>::RunImpl;
+
+ protected:
   virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
     return {};
   }

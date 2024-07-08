@@ -380,8 +380,7 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
     return false;
   }
 
-  using Operator<MixedBackend>::Run;
-  void Run(Workspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     auto &input = ws.Input<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<GPUBackend>(0);

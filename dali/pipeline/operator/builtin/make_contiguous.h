@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ class MakeContiguousMixed : public MakeContiguousBase<MixedBackend> {
       MakeContiguousBase<MixedBackend>(spec) {}
   using Operator<MixedBackend>::Run;
 
-  void Run(Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousMixed);
 };

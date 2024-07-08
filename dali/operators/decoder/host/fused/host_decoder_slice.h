@@ -29,16 +29,13 @@ class HostDecoderSlice : public HostDecoder {
   inline ~HostDecoderSlice() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderSlice);
 
- protected:
-  inline void RunImpl(Workspace &ws) override {
+  using HostDecoder::RunImpl;
+  void RunImpl(Workspace &ws) override {
     slice_attr_.ProcessArguments<CPUBackend>(spec_, ws);
-    Operator<CPUBackend>::RunImpl(ws);
-  }
-
-  inline void RunImpl(SampleWorkspace &ws) override {
     HostDecoder::RunImpl(ws);
   }
 
+ protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return slice_attr_.GetCropWindowGenerator(data_idx);
   }
