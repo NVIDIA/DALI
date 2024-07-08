@@ -594,6 +594,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
       to_remove.push_back(node.id);
     }
 
+    if (to_remove.size() > 0)
+      throw std::logic_error("We shouldn't need any pruning in the executor.");
+
     // No nodes were removed, pruning complete
     if (to_remove.size() == 0) break;
 
