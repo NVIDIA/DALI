@@ -553,8 +553,8 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /** Gets the shared data associated with the current iteration */
-  auto &GetIterationData() const {
-    return *iter_data_;
+  SharedIterData GetIterationData() const {
+    return iter_data_;
   }
 
   /**
