@@ -67,6 +67,8 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
     int gpu_queue_depth = 2;
     /** Maximum batch size */
     int max_batch_size = 1;
+    /** If true, checkpoints are generated */
+    bool checkpointing = false;
 
     QueueDepthPolicy queue_policy = QueueDepthPolicy::Legacy;
     OperatorConcurrency concurrency = OperatorConcurrency::Backend;

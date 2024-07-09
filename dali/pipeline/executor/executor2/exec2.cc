@@ -104,7 +104,9 @@ class Executor2::Impl {
       throw std::out_of_range("All pending outputs were already popped.");
     auto fut = std::move(pending_outputs_.front());
     pending_outputs_.pop();
-    return fut.Value<Workspace>();
+    auto ws = fut.Value<Workspace>();
+    last_iter_data_ = ws.GetIterationData();
+    return ws;
   }
 
   void InitIteration() {
@@ -124,8 +126,20 @@ class Executor2::Impl {
     return it->second->op.get();
   }
 
+  const SharedIterData &LastIterData() const {
+    return last_iter_data_;
+  }
+
   void Shutdown() {
     exec_->Shutdown();
+  }
+
+  void EnableCheckpointing(bool enabled) {
+    config_.checkpointing = enabled;
+  }
+
+  bool CheckpointingEnabled() const {
+    return config_.checkpointing;
   }
 
  private:
@@ -279,8 +293,12 @@ class Executor2::Impl {
     }
   }
 
+  // Configuration data
+
   Config config_;
   int prefetch_depth_ = 1;
+
+  // Graph analysis
 
   struct GraphInfo {
     int num_cpu = 0;
@@ -293,6 +311,8 @@ class Executor2::Impl {
     std::vector<ExecNode *> batch_size_providers;
   } graph_info_;
 
+  // Runtime environment
+
   std::unique_ptr<ThreadPool> tp_;
   std::queue<tasking::TaskFuture> pending_outputs_;
   std::vector<CUDAStreamLease> streams_;
@@ -301,7 +321,10 @@ class Executor2::Impl {
   ExecGraph graph_;
   std::unique_ptr<tasking::Executor> exec_;
 
+  // dynamic data
+
   int iter_index_ = 0;
+  SharedIterData last_iter_data_;
 };
 
 
@@ -345,6 +368,7 @@ void Executor2::EnableMemoryStats(bool enable_memory_stats) {
 }
 
 void Executor2::EnableCheckpointing(bool checkpointing) {
+  impl_->EnableCheckpointing(checkpointing);
 }
 
 ExecutorMetaMap Executor2::GetExecutorMeta() {
@@ -356,7 +380,14 @@ void Executor2::Shutdown() {
 }
 
 Checkpoint &Executor2::GetCurrentCheckpoint() {
-  throw std::runtime_error("Not implemented");
+  auto iter_data = impl_->LastIterData();
+  if (!iter_data) {
+    throw std::runtime_error("The pipeline has never been run yet.");
+  }
+  if (!iter_data->checkpoint) {
+    throw std::runtime_error("The recent iteration was run without checkpoiting enabled.");
+  }
+  return *iter_data->checkpoint;
 }
 
 void Executor2::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
