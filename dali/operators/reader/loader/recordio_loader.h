@@ -83,7 +83,7 @@ class RecordIOLoader : public IndexedFileLoader {
     index_file.close();
   }
 
-  void ReadSample(Tensor<CPUBackend>& tensor) override {
+  void ReadSample(IndexedFileLoaderSample& sample) override {
     // if we moved to next shard wrap up
     MoveToNextShard(current_index_);
 
@@ -102,9 +102,9 @@ class RecordIOLoader : public IndexedFileLoader {
     if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       should_seek_ = true;
-      tensor.Reset();
-      tensor.SetMeta(meta);
-      tensor.Resize({0}, DALI_UINT8);
+      sample.tensor.Reset();
+      sample.tensor.SetMeta(meta);
+      sample.tensor.Resize({0}, DALI_UINT8);
       return;
     }
 
@@ -117,27 +117,27 @@ class RecordIOLoader : public IndexedFileLoader {
     int64 n_read = 0;
     bool use_read = copy_read_data_ || !current_file_->CanMemoryMap();
     if (use_read) {
-      tensor.Resize({size});
+      sample.tensor.Resize({size});
     }
     while (p == nullptr && n_read < size) {
       if (!use_read) {
         p = current_file_->Get(size);
         // file is divided between two files, we need to fallback to read here
         if (p == nullptr) {
-          if (tensor.shares_data()) {
-            tensor.Reset();
+          if (sample.tensor.shares_data()) {
+            sample.tensor.Reset();
           }
-          tensor.Resize({size}, DALI_UINT8);
+          sample.tensor.Resize({size}, DALI_UINT8);
           use_read = true;
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
-          tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
+          sample.tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
           next_seek_pos_ = seek_pos + size;
         }
       }
       if (use_read) {
-        n_read += current_file_->Read(tensor.mutable_data<uint8_t>() + n_read,
+        n_read += current_file_->Read(sample.tensor.mutable_data<uint8_t>() + n_read,
                                       size - n_read);
         next_seek_pos_ = seek_pos + n_read;
       }
@@ -155,7 +155,7 @@ class RecordIOLoader : public IndexedFileLoader {
         continue;
       }
     }
-    tensor.SetMeta(meta);
+    sample.tensor.SetMeta(meta);
   }
 };
 

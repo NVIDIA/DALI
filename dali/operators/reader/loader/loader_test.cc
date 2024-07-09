@@ -96,7 +96,7 @@ TYPED_TEST(DataLoadStoreTest, RecordIOLoaderMmmap) {
 
     reader->PrepareMetadata();
     auto sample = reader->ReadOne(false, false);
-    EXPECT_EQ(sample->shares_data(), !dont_use_mmap);
+    EXPECT_EQ(sample->tensor.shares_data(), !dont_use_mmap);
   }
 }
 
@@ -115,7 +115,7 @@ TYPED_TEST(DataLoadStoreTest, TFRecordLoaderMmmap) {
 
     reader->PrepareMetadata();
     auto sample = reader->ReadOne(false, false);
-    EXPECT_EQ(sample->shares_data(), !dont_use_mmap);
+    EXPECT_EQ(sample->tensor.shares_data(), !dont_use_mmap);
   }
 }
 

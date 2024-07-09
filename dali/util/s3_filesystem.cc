@@ -74,9 +74,9 @@ size_t read_object_contents(Aws::S3::S3Client* s3_client, const S3ObjectLocation
   ss << "bytes=" << offset << "-" << offset + n - 1;
   std::string byte_range_str = ss.str();
 
-  DomainTimeRange tr(
-      make_string("read_object_contents @ ", object_location.object, " ", byte_range_str),
-      DomainTimeRange::kOrange);
+  DomainTimeRange tr(make_string("read_object_contents @ ", object_location.object, " ",
+                                 byte_range_str, " (", n, ")"),
+                     DomainTimeRange::kOrange);
 
   Aws::S3::Model::GetObjectRequest getObjectRequest;
   getObjectRequest.SetBucket(object_location.bucket.c_str());

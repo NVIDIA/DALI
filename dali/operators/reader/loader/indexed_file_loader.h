@@ -15,43 +15,56 @@
 #ifndef DALI_OPERATORS_READER_LOADER_INDEXED_FILE_LOADER_H_
 #define DALI_OPERATORS_READER_LOADER_INDEXED_FILE_LOADER_H_
 
-#include <vector>
-#include <string>
-#include <tuple>
 #include <fstream>
 #include <memory>
-#include <queue>
 #include <mutex>
+#include <queue>
+#include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
+#include "dali/core/call_at_exit.h"
 #include "dali/core/common.h"
 #include "dali/core/mm/memory.h"
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/util/uri.h"
+#include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/file.h"
 #include "dali/util/odirect_file.h"
-#include "dali/core/call_at_exit.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
-class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
+struct IndexedFileLoaderSample {
+  Tensor<CPUBackend> tensor;
+  std::function<void(void)> work;
+};
+
+class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, true> {
  public:
   explicit IndexedFileLoader(const OpSpec& spec)
-    : Loader(spec),
-      paths_(spec.GetRepeatedArgument<std::string>("path")),
-      index_paths_(spec.GetRepeatedArgument<std::string>("index_path")),
-      current_index_(0), current_file_index_(0), current_file_(nullptr),
-      use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")) {
-        DALI_ENFORCE(dont_use_mmap_  || !use_o_direct_, make_string("Cannot use use_o_direct with ",
-                     "``dont_use_mmap=False``."));
-      if (use_o_direct_) {
-        o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
-        o_direct_alignm_ = ODirectFileStream::GetAlignment();
-        o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
-      }
+      : Loader(spec),
+        paths_(spec.GetRepeatedArgument<std::string>("path")),
+        index_paths_(spec.GetRepeatedArgument<std::string>("index_path")),
+        current_index_(0),
+        current_file_index_(0),
+        current_file_(nullptr),
+        use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")) {
+    DALI_ENFORCE(dont_use_mmap_ || !use_o_direct_,
+                 make_string("Cannot use use_o_direct with ", "``dont_use_mmap=False``."));
+    if (use_o_direct_) {
+      o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
+      o_direct_alignm_ = ODirectFileStream::GetAlignment();
+      o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
     }
+  }
 
-  void ReadSample(Tensor<CPUBackend>& tensor) override {
+  void PrepareEmpty(IndexedFileLoaderSample &sample) override {
+    PrepareEmptyTensor(sample.tensor);
+    sample.work = {};
+  }
+
+  void ReadSample(IndexedFileLoaderSample& sample) override {
     MoveToNextShard(current_index_);
 
     int64 seek_pos, size;
@@ -70,21 +83,26 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     opts.use_mmap = !copy_read_data_;
     opts.use_odirect = use_o_direct_;
 
+    auto uri = URI::Parse(path, URI::ParseOpts::AllowNonEscaped);
+    bool local_file = !uri.valid() || uri.scheme() == "file";
+
     if (file_index != current_file_index_) {
       current_file_.reset();
       current_file_ = FileStream::Open(path, opts);
+      current_file_sz_ = current_file_->Size();
       current_file_index_ = file_index;
       // invalidate the buffer
-      if (use_o_direct_) read_buffer_.reset();
+      if (use_o_direct_)
+        read_buffer_.reset();
     }
 
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       should_seek_ = true;
-      tensor.Reset();
-      tensor.SetMeta(meta);
-      tensor.Resize({0}, DALI_UINT8);
+      sample.tensor.Reset();
+      sample.tensor.SetMeta(meta);
+      sample.tensor.Resize({0}, DALI_UINT8);
       return;
     }
 
@@ -98,10 +116,10 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + paths_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
-      tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
+      sample.tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
     } else {
-      if (tensor.shares_data()) {
-        tensor.Reset();
+      if (sample.tensor.shares_data()) {
+        sample.tensor.Reset();
       }
       if (opts.use_odirect) {
         /*
@@ -118,8 +136,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
          */
         // read again if there is no buffer of the requested piece if outside of the it
         bool after_buffer_start = seek_pos >= static_cast<int64>(read_buffer_pos_);
-        bool before_buffer_end = seek_pos + size <
-                                    static_cast<int64>(read_buffer_pos_ + read_buffer_data_size_);
+        bool before_buffer_end =
+            seek_pos + size < static_cast<int64>(read_buffer_pos_ + read_buffer_data_size_);
         // buffer need to exists and the ata we look for needs to be inside it
         if (!read_buffer_ || !(after_buffer_start && before_buffer_end)) {
           // check how much we need to allocate to house the required sample, but no less than
@@ -150,13 +168,13 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
             auto read_start = block_start + read_off;
             // we should read either the chunk size or the reminder of the file
             auto min_read = std::min(o_direct_chunk_size_tmp, seek_pos + size - read_start);
-            auto work = [tmp_file_ptr, file, dst_ptr, o_direct_chunk_size_tmp, min_read,
-                         read_start, file_name]() {
+            auto work = [tmp_file_ptr, file, dst_ptr, o_direct_chunk_size_tmp, min_read, read_start,
+                         file_name]() {
               auto ret = file->ReadAt(dst_ptr, o_direct_chunk_size_tmp, read_start);
               DALI_ENFORCE(ret >= min_read && ret <= o_direct_chunk_size_tmp,
-                           make_string("Failed to read file: ", file_name,
-                                       ", read: ", ret, " while it should be in range [", min_read,
-                                       ", ", o_direct_chunk_size_tmp, "]"));
+                           make_string("Failed to read file: ", file_name, ", read: ", ret,
+                                       " while it should be in range [", min_read, ", ",
+                                       o_direct_chunk_size_tmp, "]"));
             };
             // store the work lambda into queue so the prefetch thread can pick them up latter and
             // execute in multiple threads
@@ -165,17 +183,30 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
         }
         shared_ptr<void> tmp_mem(read_buffer_, read_buffer_.get() + (seek_pos - read_buffer_pos_));
         // make sure it is a big value in signed range
-        tensor.ShareData(tmp_mem, size, false, {size}, DALI_UINT8, -1);
+        sample.tensor.ShareData(tmp_mem, size, false, {size}, DALI_UINT8, -1);
+      } else if (!local_file) {
+        sample.tensor.Resize({size}, DALI_UINT8);
+        auto* out_data_ptr = static_cast<uint8_t*>(sample.tensor.raw_mutable_data());
+        auto file_sz = current_file_sz_;
+        auto work = [this, path, out_data_ptr, seek_pos, size, opts, file_sz]() {
+          auto file = FileStream::Open(path, opts, file_sz);
+          auto file_cleanup = AtScopeExit([&file] {
+            if (file)
+              file->Close();
+          });
+          file->SeekRead(seek_pos, SEEK_SET);
+          int64 n_read = file->Read(out_data_ptr, size);
+          DALI_ENFORCE(n_read == size, "Error reading from a file: " + path);
+        };
+        sample.work = std::move(work);
       } else {
-        tensor.Resize({size}, DALI_UINT8);
-
+        sample.tensor.Resize({size}, DALI_UINT8);
         int64 n_read =
-            current_file_->Read(static_cast<uint8_t*>(tensor.raw_mutable_data()), size);
+            current_file_->Read(static_cast<uint8_t*>(sample.tensor.raw_mutable_data()), size);
         DALI_ENFORCE(n_read == size, "Error reading from a file " + paths_[current_file_index_]);
       }
     }
-
-    tensor.SetMeta(meta);
+    sample.tensor.SetMeta(meta);
     return;
   }
 
@@ -189,7 +220,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
 
   virtual void ReadIndexFile(const std::vector<std::string>& index_uris) {
     DALI_ENFORCE(index_uris.size() == paths_.size(),
-        "Number of index files needs to match the number of data files");
+                 "Number of index files needs to match the number of data files");
     for (size_t i = 0; i < index_uris.size(); ++i) {
       const auto& path = index_uris[i];
       auto index_file = FileStream::Open(path);
@@ -215,8 +246,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
 
   void PrepareMetadataImpl() override {
     if (!dont_use_mmap_) {
-      mmap_reserver_ = FileStream::MappingReserver(
-                                  static_cast<unsigned int>(initial_buffer_fill_));
+      mmap_reserver_ = FileStream::MappingReserver(static_cast<unsigned int>(initial_buffer_fill_));
     }
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
@@ -244,9 +274,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
       opts.use_mmap = !copy_read_data_;
       opts.use_odirect = use_o_direct_;
       current_file_ = FileStream::Open(path, opts);
+      current_file_sz_ = current_file_->Size();
       current_file_index_ = file_index;
       // invalidate the buffer
-      if (use_o_direct_) read_buffer_.reset();
+      if (use_o_direct_)
+        read_buffer_.reset();
     }
     current_file_->SeekRead(seek_pos);
   }
@@ -269,6 +301,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
   size_t read_buffer_pos_ = 0;
   size_t read_buffer_size_ = 0;
   size_t read_buffer_data_size_ = 0;
+  size_t current_file_sz_ = 0;
 
   typedef std::function<void(void)> ReadWork;
   std::queue<ReadWork> jobs_;
