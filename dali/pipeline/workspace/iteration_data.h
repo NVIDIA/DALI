@@ -38,6 +38,8 @@ namespace dali {
 using operator_trace_map_t = std::unordered_map<
   std::string /* trace_name */, std::string /* trace_value */>;
 
+class Checkpoint;
+
 class OperatorTraces {
  public:
   /** Gets operator traces for a single operator.
@@ -74,7 +76,10 @@ class OperatorTraces {
 struct IterationData {
   int64_t iteration_index = 0;
   OperatorTraces operator_traces;
+  std::shared_ptr<Checkpoint> checkpoint;
 };
+
+using SharedIterData = std::shared_ptr<IterationData>;
 
 }  // namespace dali
 
