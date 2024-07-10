@@ -38,6 +38,7 @@ class FileRead : public StatelessOperator<CPUBackend> {
     output_descs[0].shape.resize(nsamples, 1);
     filenames_.resize(nsamples);
     files_.resize(nsamples);
+    auto &tp = ws.GetThreadPool();
     for (int i = 0; i < nsamples; i++) {
       size_t filename_len = filepaths.tensor_shape_span(i)[0];
       filenames_[i].resize(filename_len + 1);
@@ -48,17 +49,19 @@ class FileRead : public StatelessOperator<CPUBackend> {
       opts.use_mmap = !dont_use_mmap_;
       opts.use_odirect = use_o_direct_;
       opts.read_ahead = false;
-      files_[i] = FileStream::Open(filenames_[i], opts);
-      output_descs[0].shape.tensor_shape_span(i)[0] = files_[i]->Size();
+      tp.AddWork(
+        [&, i](int tid) {
+          files_[i] = FileStream::Open(filenames_[i], opts);
+          output_descs[0].shape.tensor_shape_span(i)[0] = files_[i]->Size();
+        }, -i);  // FIFO order
     }
+    tp.RunAll();
     return true;
   }
 
   void RunImpl(Workspace &ws) override {
-    auto &filenames = ws.Input<CPUBackend>(0);
     auto &file_contents = ws.Output<CPUBackend>(0);
     auto &tp = ws.GetThreadPool();
-    int nthreads = tp.NumThreads();
     for (size_t idx = 0; idx < filenames_.size(); idx++) {
       size_t file_size = file_contents.shape().tensor_size(idx);
       tp.AddWork(
