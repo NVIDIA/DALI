@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class Tensor : public Buffer<Backend> {
     order.wait(order_);
 
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-        data.data(), this->size(), order.stream());
+        data.data(), this->size(), order);
     order_.wait(order);
   }
 
@@ -102,7 +102,7 @@ class Tensor : public Buffer<Backend> {
 
     order.wait(order_);
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-        data.data(), this->size(), order.stream());
+        data.data(), this->size(), order);
     order_.wait(order);
   }
 
@@ -127,7 +127,7 @@ class Tensor : public Buffer<Backend> {
     this->SetSourceInfo(other.GetSourceInfo());
     this->SetSkipSample(other.ShouldSkipSample());
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size(), order.stream());
+        other.raw_data(), this->size(), order);
     order_.wait(order);
   }
 
