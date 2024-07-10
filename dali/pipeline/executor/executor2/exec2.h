@@ -69,6 +69,8 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
     int max_batch_size = 1;
     /** If true, checkpoints are generated */
     bool checkpointing = false;
+    /** If true, pipeline outputs are returned on a stream (no sync with host) */
+    bool async_output = false;
 
     QueueDepthPolicy queue_policy = QueueDepthPolicy::Legacy;
     OperatorConcurrency concurrency = OperatorConcurrency::Backend;

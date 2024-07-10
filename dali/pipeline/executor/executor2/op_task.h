@@ -33,6 +33,8 @@ struct OperatorIO {
   AccessOrder order = AccessOrder::host();
 };
 
+struct PipelineOutput;
+
 /** A context for task functions.
  *
  * OpTask is a context that's passed (by move) to the runnable used in tasking::Task.
@@ -97,12 +99,12 @@ class OpTask {
   void ResetWorkspaceInputs();
   OpTaskOutputs GetWorkspaceOutputs();
 
-  /** Returns a workspace in DALI pipeline compatible format.
+  /** Returns a workspace in DALI pipeline compatible format (along with supporting structures).
    *
    * In case of operators, the inputs of the node become inputs of the workspace. In case of
    * pipeline output, the inputs of the output node become the _outputs_ of the workspace.
    */
-  Workspace GetOutput();
+  PipelineOutput GetOutput();
 };
 
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cassert>
+#include <unordered_set>
 #include <utility>
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
@@ -28,11 +29,30 @@ using tasking::Semaphore;
 using tasking::Scheduler;
 
 void ClearWorkspacePayload(Workspace &ws) {
+  auto event = ws.has_event() ? ws.event() : nullptr;
   for (int i = 0; i < ws.NumInput(); i++) {
-    if (ws.InputIsType<CPUBackend>(i))
+    // TODO(michalz): Some smarter deletion management
+    // If an input has multiple consumers, we should guarantee that the buffer is not destroyed
+    // before all consumers are done with it. A simple way of achieving that is waiting in the
+    // stream associated with the buffer for the consumer's completion event.
+    // A low-hanging optimization is to skip that when the buffer's associated stream is
+    // the same stream as the one the consumer executes on. Doing so will create bubbles in
+    // per-operator streams.
+    // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
+    // on which we would record the completion events prior to decreasing the reference count.
+    if (ws.InputIsType<CPUBackend>(i)) {
+      auto &inp = ws.Input<CPUBackend>(i);
+      if (event && inp.order() != ws.output_order())
+        inp.order().wait(event);
+
       ws.SetInput<CPUBackend>(i, nullptr);
-    else if (ws.InputIsType<GPUBackend>(i))
+    } else if (ws.InputIsType<GPUBackend>(i)) {
+      auto &inp = ws.Input<GPUBackend>(i);
+      if (event && inp.order() != ws.output_order())
+        inp.order().wait(event);
+
       ws.SetInput<GPUBackend>(i, nullptr);
+    }
   }
 
   for (int i = 0; i < ws.NumArgumentInput(); i++)
@@ -48,7 +68,7 @@ void ClearWorkspacePayload(Workspace &ws) {
 }
 
 ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
-: op(std::move(op)), def(def) {
+: op(std::move(op)), instance_name(def ? def->instance_name : "") {
   if (def)
     backend = def->op_type;
 }
@@ -154,47 +174,90 @@ CachedWorkspace ExecNode::CreateOpWorkspace() {
   return ws;
 }
 
-void assert_valid(ExecGraph &eg) {
-  for (auto &exec_node : eg.nodes) {
-    for (int i = 0, nout = exec_node.outputs.size(); i < nout; i++) {
-      auto *e = exec_node.outputs[i];
-      assert(e->producer == &exec_node);
-      assert(e->consumer->inputs[e->consumer_input_idx] == e);
-    }
-    for (int i = 0, ninp = exec_node.inputs.size(); i < ninp; i++) {
-      auto *e = exec_node.inputs[i];
-      assert(e->consumer == &exec_node);
-      if (e->producer) {
-        bool found = false;
-        for (auto &out_e : e->producer->outputs) {
-          if (out_e == e) {
-            found = true;
-            break;
-          }
-        }
-        assert(found);
-        (void)found;
+void ExecGraph::Validate() {
+  auto err = [](auto &&... msg) {
+    throw std::logic_error(make_string("Internal error: ", msg...));
+  };
+
+  if (!dirty_)
+    return;
+  if (nodes_.empty()) {
+    if (!edges_.empty())
+      err("a graph without any node has edges.");
+    return;
+  }
+  std::unordered_set<const ExecNode *> known_nodes(nodes_.size());
+  std::unordered_set<const ExecEdge *> known_edges(edges_.size());
+
+  for (auto &n : nodes_)
+    known_nodes.insert(&n);
+  for (auto &e : edges_) {
+    known_edges.insert(&e);
+  }
+
+  for (auto &e : edges_) {
+    if (!known_nodes.count(e.producer))
+      err("an edge's producer is not a known node pointer.");
+    if (!known_nodes.count(e.consumer))
+      err("an edge's consumer is not a known node pointer.");
+    bool found = false;
+    for (auto *out : e.producer->outputs) {
+      if (out == &e) {
+        found = true;
+        break;
       }
     }
+    if (!found)
+      err("an edge was not found among its producer's outputs.");
+    if (e.consumer->inputs[e.consumer_input_idx] != &e)
+      err("inconsistent edge consumer vs consumer node's input.");
   }
+
+  for (auto &n : nodes_) {
+    for (int i = 0, nout = n.outputs.size(); i < nout; i++) {
+      auto *e = n.outputs[i];
+      if (!known_edges.count(e))
+        err("a node's output is not a known edge pointer.");
+      if (e->producer != &n)
+        err("a node's output's producer should always point to self.");
+      // There's no easy way to validate producer_output_idx.
+    }
+    for (int i = 0, ninp = n.inputs.size(); i < ninp; i++) {
+      auto *e = n.inputs[i];
+      if (!known_edges.count(e))
+        err("a node's output is not a known edge pointer.");
+      if (e->consumer != &n)
+        err("a node's input's consumer should always point to self.");
+      if (e->consumer_input_idx != i)
+        err("a node's input index must match it's position in the input array.");
+    }
+
+    bool is_last = &n == &nodes_.back();
+    if (is_last != n.is_pipeline_output)
+      err("there must be exactly one output node and it must be the last node in the graph.");
+  }
+
+  dirty_ = false;
 }
 
 void ExecGraph::PrepareIteration(
     const std::shared_ptr<IterationData> &iter_data,
     const WorkspaceParams &params) {
-  for (auto &n : nodes) {
+  Validate();
+  for (auto &n : nodes_) {
     n.NextIter();
     n.CreateMainTask(iter_data, params);
   }
-  for (auto &n : nodes) {
+  for (auto &n : nodes_) {
     n.AddDataDeps();
     n.CreateAuxTasks();
   }
 }
 
 tasking::TaskFuture ExecGraph::Launch(tasking::Scheduler &sched) {
+  Validate();
   std::optional<tasking::TaskFuture> ret;
-  for (auto &n : nodes) {
+  for (auto &n : nodes_) {
     auto maybe_future = n.Launch(sched);
     if (maybe_future) {
       assert(!ret && "Internal error - multiple output nodes present");

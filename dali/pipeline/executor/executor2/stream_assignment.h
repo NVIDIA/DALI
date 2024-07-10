@@ -50,7 +50,7 @@ inline OpType NodeType(const ExecNode *node) {
     OpType type = OpType::CPU;
     for (auto &pipe_out : node->inputs) {
       if (pipe_out->device == StorageDevice::GPU) {
-        auto producer_type = pipe_out->producer->def->op_type;
+        auto producer_type = pipe_out->producer->backend;
         if (producer_type == OpType::GPU) {
           return OpType::GPU;
         } else if (producer_type == OpType::MIXED) {
@@ -68,7 +68,7 @@ template <>
 class StreamAssignment<StreamPolicy::Single> {
  public:
   explicit StreamAssignment(ExecGraph &graph) {
-    for (auto &node : graph.nodes) {
+    for (auto &node : graph.Nodes()) {
       if (NeedsStream(&node)) {
         needs_stream_ = true;
       }
@@ -95,7 +95,7 @@ template <>
 class StreamAssignment<StreamPolicy::PerBackend> {
  public:
   explicit StreamAssignment(ExecGraph &graph) {
-    for (auto &node : graph.nodes) {
+    for (auto &node : graph.Nodes()) {
       switch (NodeType(&node)) {
       case OpType::GPU:
         has_gpu_ = true;
@@ -180,26 +180,26 @@ class StreamAssignment<StreamPolicy::PerOperator> {
  private:
   void Assign(ExecGraph &graph) {
     // pre-fill the id pool with sequential numbers
-    for (int i = 0, n = graph.nodes.size(); i < n; i++) {
+    for (int i = 0, n = graph.Nodes().size(); i < n; i++) {
       free_stream_ids_.insert(i);
     }
 
     // Sort the graph topologically with DFS
-    for (auto &node : graph.nodes) {
+    for (auto &node : graph.Nodes()) {
       Sort(&node);
     }
 
-    for (auto &node : graph.nodes) {
+    for (auto &node : graph.Nodes()) {
       if (node.inputs.empty())
         queue_.push({ node_ids_[&node], NextStreamId(&node).value_or(kInvalidStreamIdx) });
     }
 
-    assert(graph.nodes.size() == sorted_nodes_.size());
+    assert(graph.Nodes().size() == sorted_nodes_.size());
     stream_assignment_.resize(sorted_nodes_.size());
 
     FindGPUContributors(graph);
 
-    graph::ClearVisitMarkers(graph.nodes);
+    graph::ClearVisitMarkers(graph.Nodes());
     Traverse();
     ClearCPUStreams();
     total_streams_ = CalcNumStreams();
@@ -262,8 +262,8 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       auto [idx, stream_idx] = q2.top();
       q2.pop();
       auto *node = sorted_nodes_[idx];
-      if (node->def)
-        os << node->def->instance_name;
+      if (!node->instance_name.empty())
+        os << node->instance_name;
       else if (node->is_pipeline_output)
         os << "<output>";
       else
@@ -314,8 +314,8 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
   void FindGPUContributors(ExecGraph &graph) {
     // Run DFS, output to input, and find nodes which contribute to any node that requires a stream
-    graph::ClearVisitMarkers(graph.nodes);
-    for (auto &node : graph.nodes) {
+    graph::ClearVisitMarkers(graph.Nodes());
+    for (auto &node : graph.Nodes()) {
       if (node.outputs.empty())
         FindGPUContributors(&node, false);
     }

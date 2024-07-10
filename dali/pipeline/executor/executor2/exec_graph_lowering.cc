@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cassert>
+#include <unordered_map>
 #include <utility>
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"
@@ -21,15 +22,18 @@ namespace dali {
 namespace exec2 {
 
 void ExecGraph::Lower(const graph::OpGraph &def) {
+  std::unordered_map<const graph::OpNode *, ExecNode *> def2exec(def.OpNodes().size());
   for (const graph::OpNode &op_node : def.OpNodes()) {
     ExecNode *exec_node = AddNode(InstantiateOperator(op_node.spec), &op_node);
     def2exec.emplace(&op_node, exec_node);
   }
 
-  for (ExecNode &exec_node : nodes) {
-    auto *op_node = exec_node.def;
-    for (int o = 0, nout = op_node->outputs.size(); o < nout; o++) {
-      const auto &out = op_node->outputs[o];
+  auto it_def = def.OpNodes().begin();
+  for (ExecNode &exec_node : nodes_) {
+    assert(it_def != def.OpNodes().end());
+    auto op_node = *it_def++;
+    for (int o = 0, nout = op_node.outputs.size(); o < nout; o++) {
+      const auto &out = op_node.outputs[o];
       for (auto &consumer : out->consumers) {
         auto *exec_con = def2exec[consumer.op];
         assert(exec_con != nullptr);
@@ -51,6 +55,8 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
     auto *edge = Link(exec_prod, data_node->producer.idx, out_node, pipe_outs++);
     edge->device = data_node->device;
   }
+
+  Validate();
 }
 
 }  // namespace exec2

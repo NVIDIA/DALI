@@ -30,12 +30,12 @@ namespace exec2 {
 namespace {
 
 inline std::string_view NodeName(const ExecNode &n) {
-  return n.def ? n.def->instance_name : n.op->GetSpec().SchemaName();
+  return !n.instance_name.empty() ? n.instance_name : n.op->GetSpec().SchemaName();
 }
 
 void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
   auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
-  for (auto &n : graph.nodes) {
+  for (auto &n : graph.Nodes()) {
     if (n.backend == backend)
         n.concurrency = sem;
   }
@@ -54,7 +54,7 @@ void ApplyConcurrencyLimit(ExecGraph &graph, const Executor2::Config &config) {
     case OperatorConcurrency::None:
       {
         auto sem = std::make_shared<tasking::Semaphore>(1);
-        for (auto &n : graph.nodes)
+        for (auto &n : graph.Nodes())
             n.concurrency = sem;
       }
       break;
@@ -104,8 +104,12 @@ class Executor2::Impl {
       throw std::out_of_range("All pending outputs were already popped.");
     auto fut = std::move(pending_outputs_.front());
     pending_outputs_.pop();
-    auto ws = fut.Value<Workspace>();
+    auto &pipe_out = fut.Value<const PipelineOutput &>();
+    auto ws = pipe_out.workspace;
     last_iter_data_ = ws.GetIterationData();
+    if (ws.has_event())
+      CUDA_CALL(cudaEventSynchronize(ws.event()));
+    ws.set_event(nullptr);
     return ws;
   }
 
@@ -165,7 +169,7 @@ class Executor2::Impl {
       if (bs && *bs != op_bs)
         throw std::runtime_error(make_string(
           "Batch size clash! The input operator \"",
-          n->def ? n->def->instance_name : n->op->GetSpec().SchemaName(),
+          NodeName(*n),
           "\" returned a batch size ", op_bs,
           " which is different than ", *bs,
           " retruned by \"", NodeName(*graph_info_.batch_size_providers.front()), "\"."));
@@ -178,9 +182,9 @@ class Executor2::Impl {
   }
 
   void BuildNodeDict() {
-    for (auto &n : graph_.nodes)
-      if (n.def)
-        node_map_[n.def->instance_name] = &n;
+    for (auto &n : graph_.Nodes())
+      if (!n.instance_name.empty())
+        node_map_[n.instance_name] = &n;
   }
 
   void AnalyzeGraph() {
@@ -189,7 +193,7 @@ class Executor2::Impl {
   }
 
   void CountNodes() {
-    for (auto &n : graph_.nodes) {
+    for (auto &n : graph_.Nodes()) {
       switch (NodeType(&n)) {
       case OpType::CPU:
         graph_info_.num_cpu++;
@@ -224,10 +228,10 @@ class Executor2::Impl {
       depth = std::max(depth, config_.cpu_queue_depth);
     if (graph_info_.num_mixed_roots + graph_info_.num_gpu_roots > 0)
       depth = std::max(depth, config_.gpu_queue_depth);
-    for (auto &node : graph_.nodes) {
-      if (node.inputs.empty() && node.def) {
+    for (auto &node : graph_.Nodes()) {
+      if (node.inputs.empty() && node.op) {
         int op_depth;
-        if (node.def->spec.TryGetArgument(depth, "queue_depth"))
+        if (node.op->GetSpec().TryGetArgument(op_depth, "queue_depth"))
           depth = std::max(depth, op_depth);
       }
     }
@@ -236,7 +240,7 @@ class Executor2::Impl {
 
   void FindBatchSizeProviders() {
     graph_info_.batch_size_providers.clear();
-    for (auto &n : graph_.nodes)
+    for (auto &n : graph_.Nodes())
       if (auto *bsp = dynamic_cast<BatchSizeProvider *>(n.op.get()))
         graph_info_.batch_size_providers.push_back(&n);
   }
@@ -251,7 +255,7 @@ class Executor2::Impl {
     } else {
       tp_.reset();
     }
-    for (auto &n : graph_.nodes) {
+    for (auto &n : graph_.Nodes()) {
       if (n.backend == OpType::CPU)
         n.env.thread_pool = tp_.get();
     }
@@ -284,7 +288,7 @@ class Executor2::Impl {
       return;
     for (int i = 0; i < num_streams; i++)
       streams_.push_back(CUDAStreamPool::instance().Get());
-    for (auto &node : graph_.nodes) {
+    for (auto &node : graph_.Nodes()) {
       auto stream_idx = assignment[&node];
 
       node.env.order = stream_idx.has_value()

@@ -47,7 +47,7 @@ OpTask::OpTaskOutputs OpTask::Run() {
 }
 
 
-Workspace OpTask::GetOutput() {
+PipelineOutput OpTask::GetOutput() {
   assert(ws_->NumInput() == 0);
   assert(ws_->NumArgumentInput() == 0);
   std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
@@ -71,10 +71,20 @@ Workspace OpTask::GetOutput() {
   for (auto e : events)
     ws_->output_order().wait(e);
 
-  if (ws_->has_event() && ws_->has_stream())
+  cudaEvent_t completion_event = ws_->has_event() ? ws_->event() : nullptr;
+  if (ws_->has_event() && ws_->has_stream()) {
     CUDA_CALL(cudaEventRecord(ws_->event() , ws_->stream()));
+  }
 
-  Workspace ret = *ws_;
+  std::optional<int> device = {};
+  if (completion_event) {
+    int dev = -1;
+    CUDA_CALL(cudaGetDevice(&dev));
+    device = dev;
+  }
+
+  PipelineOutput ret{ *ws_, CUDAEvent(completion_event), device };
+  ws_->set_event(nullptr);  // the event was moved to PipelineOutput
   node_->PutWorkspace(std::move(ws_));
   return ret;
 }
@@ -104,6 +114,7 @@ void OpTask::SetupOp() {
     } else if (ws.OutputIsType<GPUBackend>(i)) {
       if (!ws.OutputPtr<GPUBackend>(i)) {
         auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
+        tl->set_order(ws.output_order());
         ws.SetOutput(i, tl);
       }
       if (should_resize)

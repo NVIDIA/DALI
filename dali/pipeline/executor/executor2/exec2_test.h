@@ -227,8 +227,8 @@ inline void CheckTestGraph2Results(const Workspace &ws, int batch_size) {
   auto &o0g = ws.Output<GPUBackend>(0);
   auto &o1g = ws.Output<GPUBackend>(1);
   TensorList<CPUBackend> o0, o1;
-  o0.Copy(o0g, AccessOrder::host());
-  o1.Copy(o1g, AccessOrder::host());
+  o0.Copy(o0g);
+  o1.Copy(o1g);
   ASSERT_EQ(o0.num_samples(), batch_size);
   ASSERT_EQ(o1.num_samples(), batch_size);
   for (int i = 0; i < batch_size; i++) {

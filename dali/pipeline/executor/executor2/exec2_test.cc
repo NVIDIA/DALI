@@ -153,6 +153,7 @@ Executor2::Config MakeCfg(QueueDepthPolicy q, OperatorConcurrency c, StreamPolic
 
 std::vector<Executor2::Config> configs = {
   MakeCfg(QueueDepthPolicy::OutputOnly, OperatorConcurrency::None, StreamPolicy::Single),
+  MakeCfg(QueueDepthPolicy::FullyBuffered, OperatorConcurrency::Full, StreamPolicy::Single),
   MakeCfg(QueueDepthPolicy::BackendChange, OperatorConcurrency::Backend, StreamPolicy::PerBackend),
   MakeCfg(QueueDepthPolicy::FullyBuffered, OperatorConcurrency::Full, StreamPolicy::PerOperator),
 };

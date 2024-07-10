@@ -68,9 +68,9 @@ OpSpec SpecCPU() {
 
 auto MakeNodeMap(const ExecGraph &graph) {
   std::map<std::string_view, const ExecNode *, std::less<>> map;
-  for (auto &n : graph.nodes)
-    if (n.def) {
-      map[n.def->instance_name] = &n;
+  for (auto &n : graph.Nodes())
+    if (!n.instance_name.empty()) {
+      map[n.instance_name] = &n;
     }
   return map;
 }
