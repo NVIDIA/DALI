@@ -157,7 +157,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
-  GetCurrentIterationData(iteration_id).iter_data->iteration_index = iteration_id;
+  GetCurrentIterationData(iteration_id)->iteration_index = iteration_id;
   PreRun();
   const char placement_error[] =
       "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
@@ -418,7 +418,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  ws.InjectIterationData(GetCurrentIterationData(iteration_id).iter_data);
+  ws.InjectIterationData(GetCurrentIterationData(iteration_id));
   ws.ClearOperatorTraces();
 
   auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
@@ -599,7 +599,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputsImpl(Workspace *ws, siz
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
 
-  ws->InjectIterationData(GetCurrentIterationData(iteration_id).iter_data);
+  ws->InjectIterationData(GetCurrentIterationData(iteration_id));
 
 
   // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
@@ -664,10 +664,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   size_t iteration_data_size = CalcIterationDataSize();
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
-    id.iter_data = std::make_shared<IterationData>();
+    id = std::make_shared<IterationData>();
     if (checkpointing_) {
+      id->checkpoint = std::make_shared<Checkpoint>();
       for (auto &node : graph_->GetOpNodes())
-        id.checkpoint.AddOperator(node.instance_name);
+        id->checkpoint->AddOperator(node.instance_name);
     }
   }
 }
@@ -707,7 +708,7 @@ template<typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::CreateCheckpoint(const OpNode &op_node,
                                                               int iteration_id,
                                                               AccessOrder order) {
-  auto &cpt = GetCurrentIterationData(iteration_id).checkpoint;
+  auto &cpt = *GetCurrentIterationData(iteration_id)->checkpoint;
   auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
   assert(op_cpt.OperatorName() == op_node.instance_name);
   cpt.SetIterationId(iteration_id);
@@ -744,7 +745,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::CreateInitialCheckpoints() {
 template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
   DALI_ENFORCE(checkpointing_, "Cannot access checkpoints when checkpointing is not enabled. ");
-  auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
+  auto &cpt = *GetCurrentIterationData(output_iteration_id_)->checkpoint;
   return cpt;
 }
 
@@ -767,7 +768,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Ch
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
-ExecIterData &
+const SharedIterData &
 Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(size_t iteration_id) {
   return iteration_data_[iteration_id % iteration_data_.size()];
 }

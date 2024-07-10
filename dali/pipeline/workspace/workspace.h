@@ -545,7 +545,7 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   ///@{
   /** Sets shared data associated with the current iteration */
-  void InjectIterationData(std::shared_ptr<IterationData> iter_data) {
+  void InjectIterationData(SharedIterData iter_data) {
     if (iter_data != iter_data_) {
       operator_traces_ = nullptr;
       iter_data_ = std::move(iter_data);
@@ -553,8 +553,8 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /** Gets the shared data associated with the current iteration */
-  auto &GetIterationData() const {
-    return *iter_data_;
+  SharedIterData GetIterationData() const {
+    return iter_data_;
   }
 
   /**
@@ -705,7 +705,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   mutable operator_trace_map_t *operator_traces_ = nullptr;
 
   /** Data shared across all workspaces in the current iteration. */
-  std::shared_ptr<IterationData> iter_data_;
+  SharedIterData iter_data_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};
