@@ -20,6 +20,7 @@
 #include <list>
 #include <memory>
 #include <utility>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
