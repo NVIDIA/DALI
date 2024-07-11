@@ -23,7 +23,6 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/builtin/copy.h"
 #include "dali/test/dali_test.h"
-#include "dali/test/dali_test_decoder.h"
 #include "dali/util/image.h"
 #include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"

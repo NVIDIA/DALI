@@ -15,7 +15,6 @@
 import glob
 import math
 import numpy as np
-import nvidia.dali.backend
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
@@ -28,6 +27,7 @@ from test_utils import get_dali_extra_path
 from test_utils import to_array
 from test_utils import get_arch
 from test_utils import dump_as_core_artifacts
+from test_utils import get_nvjpeg_ver
 from nose2.tools import params
 from nose import SkipTest
 
@@ -193,10 +193,7 @@ def test_image_decoder_fused():
     ]:
         # before CUDA 11.4 HW decoder API doesn't support ROI so we get slightly different results
         # HW decoder + slice vs fused which in this case is executed by the hybrid backend
-        if (
-            test_fun == create_decoder_random_crop_pipeline
-            or nvidia.dali.backend.GetNvjpegVersion() < 11040
-        ):
+        if test_fun == create_decoder_random_crop_pipeline or get_nvjpeg_ver() < (11, 4, 0):
             # random_resized_crop can properly handle border as it has pixels that are cropped out,
             # while plain resize following image_decoder_random_crop cannot do that
             # and must duplicate the border pixels
@@ -279,10 +276,10 @@ def check_fancy_upsampling_body(batch_size, img_type, device):
 
 @params(1, 8)
 def test_fancy_upsampling(batch_size):
-    if nvidia.dali.backend.GetNvjpegVersion() < 12001:
+    if get_nvjpeg_ver() < (12, 0, 1):
         from nose import SkipTest
 
-        raise SkipTest("nvJPEG doesn't support fancy upsampling in this version")
+        raise SkipTest("nvimgcodec/nvjpeg doesn't support fancy upsampling in this version")
     data_path = os.path.join(test_data_root, good_path, "jpeg")
     compare_pipelines(
         decoder_pipe(
@@ -487,7 +484,7 @@ def test_peek_shape():
 
 
 def is_nvjpeg_lossless_supported(device_id):
-    return get_arch(device_id) >= 6.0 and nvidia.dali.backend.GetNvjpegVersion() >= 12020
+    return get_arch(device_id) >= 6.0 and get_nvjpeg_ver() >= (12, 2, 0)
 
 
 @params(
