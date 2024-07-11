@@ -75,7 +75,7 @@ TEST(ExecGraphTest, SimpleGraph) {
   tasking::Executor ex(1);
   ex.Start();
   auto fut = g.Launch(ex);
-  auto pipe_out = fut.Value<PipelineOutput>();
+  auto &pipe_out = fut.Value<const PipelineOutput &>();
   auto &ws = pipe_out.workspace;
 
   auto &out = ws.Output<CPUBackend>(0);
@@ -136,7 +136,8 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
     auto start = dali::test::perf_timer::now();
     for (int i = 0; i < N; i++) {
       def.PrepareIteration(std::make_shared<IterationData>(), params);
-      auto pipe_out = def.Launch(ex).Value<PipelineOutput>();
+      auto fut = def.Launch(ex);
+      auto &pipe_out = fut.Value<const PipelineOutput &>();
       auto &ws = pipe_out.workspace;
       auto &out = ws.Output<CPUBackend>(0);
       ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
@@ -205,7 +206,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
 
   int ctr = 0;
   for (int i = 0; i < N; i++) {
-    auto pipe_out = fut[i].Value<PipelineOutput>();
+    auto &pipe_out = fut[i].Value<const PipelineOutput &>();
     auto &out = pipe_out.workspace.Output<CPUBackend>(0);
     ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
     for (int s = 0; s < batch_size; s++)
@@ -263,7 +264,7 @@ TEST(ExecGraphTest, Exception) {
     for (int i = 0; i < 10; i++) {
       def.PrepareIteration(std::make_shared<IterationData>(), params);
       auto fut = def.Launch(ex);
-      EXPECT_THROW(fut.Value<PipelineOutput>(), DALIException);
+      EXPECT_THROW(fut.Value<const PipelineOutput &>(), DALIException);
     }
   }
 }
@@ -279,7 +280,7 @@ TEST(ExecGraphTest, LoweredStructureMatch) {
   auto ex_it = g.Nodes().begin();
   for (; def_it != def.OpNodes().end(); def_it++, ex_it++) {
     EXPECT_EQ(ex_it->inputs.size(), def_it->inputs.size());
-    EXPECT_EQ(ex_it->outputs.size(), CountOutgoingEdges(*def_it));
+    EXPECT_EQ(ex_it->outputs.size(), def_it->outputs.size());
   }
   if (HasFailure())
     FAIL() << "Structure mismatch detected - test cannot proceed further.";
@@ -297,22 +298,26 @@ TEST(ExecGraphTest, LoweredStructureMatch) {
   auto &ex3 = *ex_it++;
   auto &ex_out = g.Nodes().back();
 
-  ASSERT_EQ(ex0.outputs.size(), 2_uz);
-  EXPECT_EQ(ex0.outputs[0]->consumer, &ex2);
-  EXPECT_EQ(ex0.outputs[1]->consumer, &ex3);
+  ASSERT_EQ(ex0.outputs.size(), 1_uz);
+  ASSERT_EQ(ex0.outputs[0].size(), 2_uz);
+  EXPECT_EQ(ex0.outputs[0][0]->consumer, &ex2);
+  EXPECT_EQ(ex0.outputs[0][1]->consumer, &ex3);
 
-  ASSERT_EQ(ex1.outputs.size(), 2_uz);
-  EXPECT_EQ(ex1.outputs[0]->consumer, &ex2);
-  EXPECT_EQ(ex1.outputs[1]->consumer, &ex3);
+  ASSERT_EQ(ex1.outputs.size(), 1_uz);
+  EXPECT_EQ(ex1.outputs[0][0]->consumer, &ex2);
+  ASSERT_EQ(ex1.outputs[0].size(), 2_uz);
+  EXPECT_EQ(ex1.outputs[0][1]->consumer, &ex3);
 
   ASSERT_EQ(ex2.outputs.size(), 1_uz);
-  EXPECT_EQ(ex2.outputs[0]->consumer, &ex_out);
+  ASSERT_EQ(ex2.outputs[0].size(), 1_uz);
+  EXPECT_EQ(ex2.outputs[0][0]->consumer, &ex_out);
   ASSERT_EQ(ex2.inputs.size(), 2_uz);
   EXPECT_EQ(ex2.inputs[0]->producer, &ex0);
   EXPECT_EQ(ex2.inputs[1]->producer, &ex1);
 
   ASSERT_EQ(ex3.outputs.size(), 1_uz);
-  EXPECT_EQ(ex3.outputs[0]->consumer, &ex_out);
+  ASSERT_EQ(ex3.outputs[0].size(), 1_uz);
+  EXPECT_EQ(ex3.outputs[0][0]->consumer, &ex_out);
   EXPECT_EQ(ex3.inputs[0]->producer, &ex0);
   EXPECT_EQ(ex3.inputs[1]->producer, &ex1);
 
@@ -338,7 +343,7 @@ TEST(ExecGraphTest, LoweredExec) {
     ex.Start();
     g.PrepareIteration(iter, params);
     auto fut = g.Launch(ex);
-    auto out = fut.Value<PipelineOutput>();
+    auto &out = fut.Value<const PipelineOutput &>();
     CheckTestGraph1Results(out.workspace, *params.batch_size);
   }
 }

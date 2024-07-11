@@ -21,6 +21,7 @@
 #include "dali/pipeline/executor/source_info_propagation.h"
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 namespace dali {
 namespace exec2 {
@@ -131,6 +132,9 @@ void OpTask::RunOp() {
     node_->op->Run(*ws_);
   }
   PropagateSourceInfo(*ws_);
+  if (auto cpt = ws_->GetIterationData()->checkpoint) {
+    node_->op->SaveState(cpt->GetOpCheckpoint(node_->instance_name), ws_->output_order());
+  }
   if (ws_->has_event() && ws_->has_stream())
     CUDA_CALL(cudaEventRecord(ws_->event(), ws_->stream()));
 }
@@ -166,6 +170,19 @@ void OpTask::SetWorkspaceInputs() {
     ws_->output_order().wait(e);
 }
 
+AccessOrder OpTask::OutputConsumerOrder(int output_idx) {
+  if (static_cast<size_t>(output_idx) >= node_->outputs.size())
+    return {};  // output not listed - trailing output with no consumer?
+  auto &consumers = node_->outputs[output_idx];
+  if (consumers.empty())
+    return {};  // definitely no consumer
+  AccessOrder order = consumers[0]->consumer->env.order;
+  for (size_t i = 1; i < consumers.size(); i++)
+    if (consumers[i]->consumer->env.order != order)
+      return {};
+  return order;
+}
+
 OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   OpTaskOutputs ret;
   int nout = ws_->NumOutput();
@@ -174,9 +191,19 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   auto order = ws_->output_order();
   for (int o = 0; o < nout; o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
-      ret.push_back(OperatorIO<CPUBackend>{ws_->OutputPtr<CPUBackend>(o), event, order});
+      auto ptr = ws_->OutputPtr<CPUBackend>(o);
+      if (!ptr->shares_data()) {
+        if (AccessOrder consumer_order = OutputConsumerOrder(o))
+          ptr->set_order(consumer_order, false);
+      }
+      ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), event, order});
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
+      auto ptr = ws_->OutputPtr<GPUBackend>(o);
+      if (!ptr->shares_data()) {
+        if (AccessOrder consumer_order = OutputConsumerOrder(o))
+          ptr->set_order(consumer_order, false);
+      }
       ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event, order});
     }
   }

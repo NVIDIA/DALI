@@ -102,9 +102,11 @@ void ExecNode::CreateAuxTasks() {
     release_outputs = Task::Create([]() {});
     release_outputs->ReleaseAfterRun(output_queue_limit);
     release_outputs->Succeed(main_task);
-    for (auto &edge : outputs) {
-      if (edge->consumer->main_task)
-        release_outputs->Succeed(edge->consumer->main_task);
+    for (auto &consumers : outputs) {
+      for (auto *edge : consumers) {
+        if (edge->consumer->main_task)
+          release_outputs->Succeed(edge->consumer->main_task);
+      }
     }
     main_task->Succeed(output_queue_limit);
   }
@@ -200,27 +202,28 @@ void ExecGraph::Validate() {
       err("an edge's producer is not a known node pointer.");
     if (!known_nodes.count(e.consumer))
       err("an edge's consumer is not a known node pointer.");
-    bool found = false;
-    for (auto *out : e.producer->outputs) {
-      if (out == &e) {
-        found = true;
-        break;
-      }
-    }
-    if (!found)
-      err("an edge was not found among its producer's outputs.");
+
+    if (e.producer_output_idx >= static_cast<int>(e.producer->outputs.size()))
+      err("producer output index is out of range.");
+    auto &consumer_edges = e.producer->outputs[e.producer_output_idx];
+    if (std::count(consumer_edges.begin(), consumer_edges.end(), &e) != 1)
+      err("the relevant producer's output doesn't have this edge as one of the consumers.");
+
     if (e.consumer->inputs[e.consumer_input_idx] != &e)
       err("inconsistent edge consumer vs consumer node's input.");
   }
 
   for (auto &n : nodes_) {
-    for (int i = 0, nout = n.outputs.size(); i < nout; i++) {
-      auto *e = n.outputs[i];
-      if (!known_edges.count(e))
-        err("a node's output is not a known edge pointer.");
-      if (e->producer != &n)
-        err("a node's output's producer should always point to self.");
-      // There's no easy way to validate producer_output_idx.
+    for (int o = 0, nout = n.outputs.size(); o < nout; o++) {
+      auto &consumers = n.outputs[o];
+      for (auto &e : consumers) {
+        if (!known_edges.count(e))
+          err("a node's output is not a known edge pointer.");
+        if (e->producer != &n)
+          err("a node's output's producer should always point to self.");
+        if (e->producer_output_idx != o)
+          err("a node's output's index must match its position in the output array.");
+      }
     }
     for (int i = 0, ninp = n.inputs.size(); i < ninp; i++) {
       auto *e = n.inputs[i];
@@ -229,7 +232,7 @@ void ExecGraph::Validate() {
       if (e->consumer != &n)
         err("a node's input's consumer should always point to self.");
       if (e->consumer_input_idx != i)
-        err("a node's input index must match it's position in the input array.");
+        err("a node's input index must match its position in the input array.");
     }
 
     bool is_last = &n == &nodes_.back();

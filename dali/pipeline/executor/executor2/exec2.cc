@@ -150,9 +150,21 @@ class Executor2::Impl {
   std::shared_ptr<IterationData> InitIterationData() {
     auto iter_data = std::make_shared<IterationData>();
     iter_data->iteration_index = iter_index_++;
+    if (config_.checkpointing) {
+      iter_data->checkpoint = CreateCheckpoint(iter_data->iteration_index);
+    }
     return iter_data;
   }
 
+  std::shared_ptr<Checkpoint> CreateCheckpoint(int64_t iteration_index) {
+    auto cpt = std::make_shared<Checkpoint>();
+    cpt->SetIterationId(iter_index_);
+    for (auto &n : graph_.Nodes()) {
+      if (!n.instance_name.empty())
+        cpt->AddOperator(n.instance_name);
+    }
+    return cpt;
+  }
 
   int InferBatchSize() {
     std::optional<int> bs;
@@ -327,7 +339,7 @@ class Executor2::Impl {
 
   // dynamic data
 
-  int iter_index_ = 0;
+  int64_t iter_index_ = 0;
   SharedIterData last_iter_data_;
 };
 
@@ -386,7 +398,7 @@ void Executor2::Shutdown() {
 Checkpoint &Executor2::GetCurrentCheckpoint() {
   auto iter_data = impl_->LastIterData();
   if (!iter_data) {
-    throw std::runtime_error("The pipeline has never been run yet.");
+    throw std::runtime_error("The pipeline has not been run yet.");
   }
   if (!iter_data->checkpoint) {
     throw std::runtime_error("The recent iteration was run without checkpoiting enabled.");

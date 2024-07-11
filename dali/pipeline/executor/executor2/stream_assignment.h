@@ -229,11 +229,13 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
       if (stream_id.has_value())
         free_stream_ids_.insert(*stream_id);
-      for (auto *out : node->outputs) {
-        auto out_stream_id = NextStreamId(out->consumer, stream_id);
-        if (out_stream_id.has_value())
-          keep_stream_id = false;
-        queue_.push({node_ids_[out->consumer], out_stream_id.value_or(kInvalidStreamIdx)});
+      for (auto &consumers : node->outputs) {
+        for (auto *out : consumers) {
+          auto out_stream_id = NextStreamId(out->consumer, stream_id);
+          if (out_stream_id.has_value())
+            keep_stream_id = false;
+          queue_.push({node_ids_[out->consumer], out_stream_id.value_or(kInvalidStreamIdx)});
+        }
       }
       if (keep_stream_id)
         free_stream_ids_.erase(*stream_id);

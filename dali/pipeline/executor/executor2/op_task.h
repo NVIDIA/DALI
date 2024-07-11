@@ -105,6 +105,13 @@ class OpTask {
    * pipeline output, the inputs of the output node become the _outputs_ of the workspace.
    */
   PipelineOutput GetOutput();
+
+  /** Returns the order in which the output is consumed or empty if the order is not uniform.
+   *
+   * This function is used for optimizing stream transition in cases where all consumers
+   * work on one stream.
+   */
+  AccessOrder OutputConsumerOrder(int output_idx);
 };
 
 

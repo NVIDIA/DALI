@@ -40,7 +40,7 @@ namespace exec2 {
 struct PipelineOutput {
   PipelineOutput(PipelineOutput &&) = default;
   PipelineOutput(const PipelineOutput &) {
-    throw std::logic_error("Not usable.");
+    throw std::logic_error("This object is not copyable, but std::any needs it at compile time.");
   }
   PipelineOutput(const Workspace &ws, CUDAEvent event, std::optional<int> device)
   : workspace(ws), event(std::move(event)), device(device) {}
@@ -108,14 +108,18 @@ class DLL_PUBLIC ExecNode {
   explicit ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def = nullptr);
   explicit ExecNode(PipelineOutputTag) : is_pipeline_output(true) {}
 
-  /** Inputs and outputs of the operator.
+  /** Inputs of the operator.
    *
    * The inputs must appear in the same order as they're defined in the operator's OpSpec.
-   * The outputs are not sorted in any particular order and their number doesn't match
-   * OpSpec, in general - ignored data nodes don't have any ExecEdge and outputs with multiple
-   * consumers can appear multiple times.
    */
-  std::vector<ExecEdge *> inputs, outputs;
+  SmallVector<ExecEdge *, 8> inputs;
+
+  /** Outputs of the operator.
+   *
+   * The outputs must appear in the same order as they're defined in the operator's OpSpec.
+   * The order of consumer edges in each output is not important.
+   */
+  SmallVector<SmallVector<ExecEdge *, 4>, 4> outputs;
 
   /** A semaphore limiting the cuncurrency of the operator.
    *
@@ -265,16 +269,26 @@ class DLL_PUBLIC ExecGraph {
   ExecNode *AddNode(Args &&...args) {
     dirty_ = true;
     ExecNode *node = &nodes_.emplace_back(std::forward<Args>(args)...);
-    if (!node->instance_name.empty())
-      name2node_[node->instance_name] = node;
+    if (!node->instance_name.empty()) {
+      if (!name2node_.emplace(node->instance_name, node).second) {
+        nodes_.pop_back();
+        throw std::invalid_argument(
+            make_string("Duplicate node name: \"", node->instance_name, "\""));
+      }
+    }
     return node;
   }
 
   ExecNode *AddOutputNode() {
     dirty_ = true;
     ExecNode *node = &nodes_.emplace_back(PipelineOutputTag());
-    if (!node->instance_name.empty())
-      name2node_[node->instance_name] = node;
+    if (!node->instance_name.empty()) {
+      if (!name2node_.emplace(node->instance_name, node).second) {
+        nodes_.pop_back();
+        throw std::invalid_argument(
+            make_string("Duplicate node name: \"", node->instance_name, "\""));
+      }
+    }
     return node;
   }
 
@@ -286,8 +300,8 @@ class DLL_PUBLIC ExecGraph {
     edge.consumer_input_idx = in_idx;
 
     if (producer) {
-      // The outputs are not sorted in any particular order.
-      producer->outputs.push_back(&edge);
+      producer->outputs.resize(std::max<size_t>(producer->outputs.size(), out_idx + 1));
+      producer->outputs[out_idx].push_back(&edge);
     }
     if (consumer) {
       consumer->inputs.resize(std::max<size_t>(consumer->inputs.size(), in_idx + 1));
@@ -310,6 +324,7 @@ class DLL_PUBLIC ExecGraph {
   std::unordered_map<std::string_view, ExecNode *> name2node_;
 
   bool dirty_ = true;
+  /** A bugcheck for graph inconsitency. It throws upon detecting misconneted nodes. */
   void Validate();
 };
 

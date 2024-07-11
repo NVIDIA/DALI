@@ -27,16 +27,6 @@ namespace dali {
 namespace exec2 {
 namespace test {
 
-inline size_t CountOutgoingEdges(const graph::OpNode &op, bool include_outputs = true) {
-  size_t n = 0;
-  for (auto &out : op.outputs) {
-    n += out->consumers.size();
-    if (out->pipeline_output && include_outputs)
-      n++;
-  }
-  return n;
-}
-
 constexpr char kTestOpName[] = "Exec2TestOp";
 
 class DummyOpCPU : public Operator<CPUBackend> {
