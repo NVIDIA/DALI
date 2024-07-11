@@ -365,16 +365,6 @@ def test_decoders_image():
     )
 
 
-def test_legacy_decoders_image():
-    check_single_input(
-        "legacy.decoders.image",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-    )
-
-
 def test_decoders_image_crop():
     check_single_input(
         "decoders.image_crop",
@@ -386,30 +376,9 @@ def test_decoders_image_crop():
     )
 
 
-def test_legacy_decoders_image_crop():
-    check_single_input(
-        "legacy.decoders.image_crop",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-        crop=(10, 10),
-    )
-
-
 def test_decoders_image_random_crop():
     check_single_input_stateful(
         "decoders.image_random_crop",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-    )
-
-
-def test_legacy_decoders_image_random_crop():
-    check_single_input_stateful(
-        "legacy.decoders.image_random_crop",
         pipe_fun=reader_op_pipeline,
         fn_source=images_dir,
         eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
@@ -1225,15 +1194,6 @@ def test_peek_image_shape():
     )
 
 
-def test_legacy_peek_image_shape():
-    check_single_input(
-        "legacy.peek_image_shape",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-    )
-
-
 def test_subscript_dim_check():
     check_single_input("subscript_dim_check", num_subscripts=3)
 
@@ -1534,10 +1494,6 @@ tested_methods = [
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
-    "legacy.decoders.image",
-    "legacy.decoders.image_crop",
-    "legacy.decoders.image_slice",
-    "legacy.decoders.image_random_crop",
     "rotate",
     "brightness_contrast",
     "hue",
@@ -1624,7 +1580,6 @@ tested_methods = [
     "squeeze",
     "peek_image_shape",
     "experimental.peek_image_shape",
-    "legacy.peek_image_shape",
     "subscript_dim_check",
     "get_property",
     "tensor_subscript",

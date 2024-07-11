@@ -44,7 +44,7 @@ class HybridDecoderPipeline(Pipeline):
         if cache_size > 0:
             policy = "threshold"
         print("Decoder type:", decoder_type)
-        decoder_module = ops.legacy.decoders if "legacy" in decoder_type else ops.decoders
+        decoder_module = ops.decoders
         self.decode = decoder_module.Image(
             device="mixed",
             output_type=types.RGB,
@@ -60,7 +60,7 @@ class HybridDecoderPipeline(Pipeline):
         return (images, labels)
 
 
-@params(("legacy",), ("default",))
+@params("default")
 def test_nvjpeg_cached(decoder_type):
     ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0, decoder_type)
     ref_pipe.build()
@@ -82,7 +82,6 @@ def test_nvjpeg_cached(decoder_type):
 
 
 def main():
-    test_nvjpeg_cached("legacy")
     test_nvjpeg_cached("default")
 
 

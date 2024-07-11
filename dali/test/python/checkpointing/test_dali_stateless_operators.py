@@ -814,11 +814,6 @@ def test_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.peek_image_shape, "cpu")
 
 
-@stateless_signed_off("legacy.peek_image_shape")
-def test_imgcodec_peek_image_shape_stateless():
-    check_single_encoded_jpeg_input(fn.legacy.peek_image_shape, "cpu")
-
-
 @stateless_signed_off("decoders.audio", "audio_decoder")
 def test_audio_decoder_stateless():
     def audio_decoder_wrapper(*args, **kwargs):
@@ -834,23 +829,11 @@ def test_image_decoder_stateless(device):
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image")
-def test_legacy_image_decoder_stateless(device):
-    check_single_encoded_jpeg_input(fn.legacy.decoders.image, device)
-
-
-@params("cpu", "mixed")
 @stateless_signed_off(
     "decoders.image_crop", "image_decoder_crop", "experimental.decoders.image_crop"
 )
 def test_image_decoder_crop_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image_crop, device, crop=(20, 50))
-
-
-@params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image_crop")
-def test_legacy_image_decoder_crop_stateless(device):
-    check_single_encoded_jpeg_input(fn.legacy.decoders.image_crop, device, crop=(20, 50))
 
 
 @params("cpu", "mixed")
@@ -861,14 +844,6 @@ def test_legacy_image_decoder_crop_stateless(device):
 )
 def test_image_decoder_slice_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image_slice, device, start=(5, 5), end=(45, 45))
-
-
-@params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image_slice")
-def test_legacy_image_decoder_slice_stateless(device):
-    check_single_encoded_jpeg_input(
-        fn.legacy.decoders.image_slice, device, start=(5, 5), end=(45, 45)
-    )
 
 
 @params("cpu", "gpu")
