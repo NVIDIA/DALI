@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "7.0" %}
+{% set build_version = "7.0.1" %}
 
   package:
     name: dali-ffmpeg
     version: {{ build_version }}
 
   source:
-    fn: FFmpeg-n7.0.tar.gz
-    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n7.0.tar.gz
-    sha256: a68fbc06a645cc93e5c877adbaa592cffc40e8595ba50eb716807c4a35bf0f03
+    fn: FFmpeg-n7.0.1.tar.gz
+    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n7.0.1.tar.gz
+    sha256: 8dab1da0c7ebccb2dce99265901f22ac40f8e0fbbe4a89a368d7645f2e79caa0
 
   build:
     number: 0
