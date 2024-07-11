@@ -72,6 +72,17 @@ PipelineOutput OpTask::GetOutput() {
   for (auto e : events)
     ws_->output_order().wait(e);
 
+  for (int o = 0; o < ws_->NumOutput(); o++) {
+    if (ws_->OutputIsType<CPUBackend>(o)) {
+      auto &out = ws_->Output<CPUBackend>(o);
+      if (out.order().is_device())  // Only change the order of device-ordered CPU outputs
+        out.set_order(ws_->output_order(), false);
+    } else {
+      auto &out = ws_->Output<GPUBackend>(o);
+      out.set_order(ws_->output_order(), false);
+    }
+  }
+
   cudaEvent_t completion_event = ws_->has_event() ? ws_->event() : nullptr;
   if (ws_->has_event() && ws_->has_stream()) {
     CUDA_CALL(cudaEventRecord(ws_->event() , ws_->stream()));
