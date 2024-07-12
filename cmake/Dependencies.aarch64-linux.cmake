@@ -95,3 +95,8 @@ get_link_libraries(PROTO_LIB_DEPS protobuf::libprotobuf)
 # libutf8_validity.a is a result of a generator expression, add it manually as it is
 # hard/impossible to learn its name during the configuration phase
 list(APPEND DALI_EXCLUDES ${PROTO_LIB_DEPS} libutf8_validity.a)
+
+##################################################################
+# pybind 11
+##################################################################
+set(PYBIND11_USE_CROSSCOMPILING ON)
