@@ -547,7 +547,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       DALI_ENFORCE(it->second.has_cpu, "Requested cpu output '" +
           name + "' only exists on gpu.");
       // Add a make contiguous op to produce this output. [cpu output of mixed]
-      auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "cpu", "cpu");
+      const char *dev = device_id_ == CPU_ONLY_DEVICE_ID ? "cpu" : "mixed";
+      auto output_name = AddMakeContiguousNode(it->second, name, "cpu", dev, "cpu");
       if (!it->second.has_contiguous) {
         it->second.has_contiguous = true;
       }
