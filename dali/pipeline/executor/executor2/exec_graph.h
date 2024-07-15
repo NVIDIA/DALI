@@ -129,6 +129,8 @@ class DLL_PUBLIC ExecNode {
    * from being executed concurrently.
    */
   std::shared_ptr<tasking::Semaphore> concurrency;
+  std::atomic_int actual_concurrency{0};
+
   /** Limits the number of output buffers for the operator.
    *
    * If the graph is scheduled multiple times ahead, the operator would produce multiple results,

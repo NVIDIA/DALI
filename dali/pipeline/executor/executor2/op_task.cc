@@ -22,6 +22,7 @@
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 namespace exec2 {
@@ -39,6 +40,11 @@ tasking::SharedTask OpTask::CreateTask(ExecNode *node, CachedWorkspace ws) {
 }
 
 OpTask::OpTaskOutputs OpTask::Run() {
+  auto c = ++node_->actual_concurrency;
+  AtScopeExit([&]() { --node_->actual_concurrency; });
+  if (node_->concurrency) {
+    assert(c <= node_->concurrency->MaxCount());
+  }
   SetWorkspaceInputs();
   SetupOp();
   RunOp();

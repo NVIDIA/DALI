@@ -24,6 +24,16 @@ namespace dali {
 namespace exec2 {
 namespace test {
 
+namespace {
+void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
+  auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
+  for (auto &n : graph.Nodes()) {
+    if (n.backend == backend)
+        n.concurrency = sem;
+  }
+}
+}  // namespace
+
 TEST(ExecGraphTest, SimpleGraph) {
   int batch_size = 32;
   OpSpec spec0(kTestOpName);
@@ -62,6 +72,7 @@ TEST(ExecGraphTest, SimpleGraph) {
   g.Link(n0, 0, n2, 0);
   g.Link(n1, 0, n2, 1);
   g.Link(n2, 0, no, 0);
+  LimitBackendConcurrency(g, OpType::CPU);
 
   WorkspaceParams params = {};
   auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, false, "test");
@@ -114,14 +125,15 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
        .AddOutput("op2e0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
-  ExecGraph def;
-  ExecNode *n2 = def.AddNode(std::move(op2));
-  ExecNode *n1 = def.AddNode(std::move(op1));
-  ExecNode *n0 = def.AddNode(std::move(op0));
-  ExecNode *no = def.AddOutputNode();
-  def.Link(n0, 0, n2, 0);
-  def.Link(n1, 0, n2, 1);
-  def.Link(n2, 0, no, 0);
+  ExecGraph g;
+  ExecNode *n2 = g.AddNode(std::move(op2));
+  ExecNode *n1 = g.AddNode(std::move(op1));
+  ExecNode *n0 = g.AddNode(std::move(op0));
+  ExecNode *no = g.AddOutputNode();
+  g.Link(n0, 0, n2, 0);
+  g.Link(n1, 0, n2, 1);
+  g.Link(n2, 0, no, 0);
+  LimitBackendConcurrency(g, OpType::CPU);
   ThreadPool tp(4, 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
@@ -135,8 +147,8 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
     ex.Start();
     auto start = dali::test::perf_timer::now();
     for (int i = 0; i < N; i++) {
-      def.PrepareIteration(std::make_shared<IterationData>(), params);
-      auto fut = def.Launch(ex);
+      g.PrepareIteration(std::make_shared<IterationData>(), params);
+      auto fut = g.Launch(ex);
       auto &pipe_out = fut.Value<const PipelineOutput &>();
       auto &ws = pipe_out.workspace;
       auto &out = ws.Output<CPUBackend>(0);
@@ -179,14 +191,16 @@ TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
        .AddOutput("op2e0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
-  ExecGraph def;
-  ExecNode *n2 = def.AddNode(std::move(op2));
-  ExecNode *n1 = def.AddNode(std::move(op1));
-  ExecNode *n0 = def.AddNode(std::move(op0));
-  ExecNode *no = def.AddOutputNode();
-  def.Link(n0, 0, n2, 0);
-  def.Link(n1, 0, n2, 1);
-  def.Link(n2, 0, no, 0);
+  ExecGraph g;
+  ExecNode *n2 = g.AddNode(std::move(op2));
+  ExecNode *n1 = g.AddNode(std::move(op1));
+  ExecNode *n0 = g.AddNode(std::move(op0));
+  ExecNode *no = g.AddOutputNode();
+  g.Link(n0, 0, n2, 0);
+  g.Link(n1, 0, n2, 1);
+  g.Link(n2, 0, no, 0);
+  LimitBackendConcurrency(g, OpType::CPU);
+
   ThreadPool tp(4, 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
@@ -200,8 +214,8 @@ TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
   std::vector<tasking::TaskFuture> fut;
   fut.reserve(N);
   for (int i = 0; i < N; i++) {
-    def.PrepareIteration(std::make_shared<IterationData>(), params);
-    fut.push_back(def.Launch(ex));
+    g.PrepareIteration(std::make_shared<IterationData>(), params);
+    fut.push_back(g.Launch(ex));
   }
 
   int ctr = 0;
@@ -330,6 +344,7 @@ TEST(ExecGraphTest, LoweredExec) {
   graph::OpGraph def = GetTestGraph1();
   ExecGraph g;
   g.Lower(def);
+  LimitBackendConcurrency(g, OpType::CPU);
 
   ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};

@@ -115,28 +115,30 @@ TEST_P(Exec2Test, Graph1_CPUOnly) {
   Executor2 exec(config_);
   graph::OpGraph graph = GetTestGraph1();
   exec.Build(graph);
-  exec.Run();
-  exec.Run();
+  for (int i = 0; i < 10; i++) {
+    exec.Run();
+  }
   Workspace ws;
-  exec.Outputs(&ws);
-  CheckTestGraph1Results(ws, config_.max_batch_size);
-  ws.Clear();
-  exec.Outputs(&ws);
-  CheckTestGraph1Results(ws, config_.max_batch_size);
+  for (int i = 0; i < 10; i++) {
+    ws.Clear();
+    exec.Outputs(&ws);
+    CheckTestGraph1Results(ws, config_.max_batch_size);
+  }
 }
 
 TEST_P(Exec2Test, Graph2_CPU2GPU) {
   Executor2 exec(config_);
   graph::OpGraph graph = GetTestGraph2();
   exec.Build(graph);
-  exec.Run();
-  exec.Run();
+  for (int i = 0; i < 10; i++) {
+    exec.Run();
+  }
   Workspace ws;
-  exec.Outputs(&ws);
-  CheckTestGraph2Results(ws, config_.max_batch_size);
-  ws.Clear();
-  exec.Outputs(&ws);
-  CheckTestGraph2Results(ws, config_.max_batch_size);
+  for (int i = 0; i < 10; i++) {
+    ws.Clear();
+    exec.Outputs(&ws);
+    CheckTestGraph2Results(ws, config_.max_batch_size);
+  }
 }
 
 

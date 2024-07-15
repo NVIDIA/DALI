@@ -48,6 +48,7 @@ void ApplyConcurrencyLimit(ExecGraph &graph, const Executor2::Config &config) {
       LimitBackendConcurrency(graph, OpType::CPU);
       break;  // other operators have no restrictions
     case OperatorConcurrency::Backend:
+      LimitBackendConcurrency(graph, OpType::CPU);
       LimitBackendConcurrency(graph, OpType::GPU);
       LimitBackendConcurrency(graph, OpType::MIXED);
       break;
@@ -70,6 +71,9 @@ class Executor2::Impl {
  public:
   explicit Impl(const Config &config) : config_(config) {
   }
+  ~Impl() {
+    Shutdown();
+  }
 
   enum class State {
     New = 0,
@@ -83,7 +87,6 @@ class Executor2::Impl {
   void Build(const graph::OpGraph &graph) {
     if (state_ != State::New)
       throw std::logic_error("Already built.");
-    std::cerr << "Building " << (void*)this << std::endl;
     state_ = State::Building;
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     graph_.Lower(graph);
@@ -154,7 +157,6 @@ class Executor2::Impl {
   void Shutdown() {
     if (state_ != State::Running)
       return;
-    std::cerr << "Shutting down " << (void*)this << std::endl;
     state_ = State::ShutdownRequested;
     if (exec_)
       exec_->Shutdown();

@@ -45,18 +45,27 @@ class DummyOpCPU : public Operator<CPUBackend> {
   void RunImpl(Workspace &ws) override {
     int N = ws.GetRequestedBatchSize(0);
     addend_.Acquire(spec_, ws, N);
+    sample_sums_.resize(N);
+    auto &tp = ws.GetThreadPool();
     for (int s = 0; s < N; s++) {
-      int sum = *addend_[s].data + s;
-      for (int i = 0; i < ws.NumInput(); i++) {
-        sum += *ws.Input<CPUBackend>(i)[s].data<int>();
-      }
-      *ws.Output<CPUBackend>(0)[s].mutable_data<int>() = sum;
+      auto sample_sum = [&, s](int) {
+        int sum = *addend_[s].data + s;
+        for (int i = 0; i < ws.NumInput(); i++) {
+          sum += *ws.Input<CPUBackend>(i)[s].data<int>();
+        }
+        sample_sums_[s] = sum;
+      };
+      tp.AddWork(sample_sum);
     }
+    tp.RunAll(true);
+    for (int s = 0; s < N; s++)
+      *ws.Output<CPUBackend>(0)[s].mutable_data<int>() = sample_sums_[s];
   }
 
   bool CanInferOutputs() const override { return true; }
   ArgValue<int> addend_{"addend", spec_};
 
+  std::vector<int> sample_sums_;
   std::string instance_name_;
 };
 
