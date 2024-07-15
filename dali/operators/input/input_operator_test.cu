@@ -151,7 +151,7 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
                      DALI_ext_force_sync);
       auto tv_out_data = out_data.cpu();
       auto tv_ref_data = ref_data.cpu();
-      cudaDeviceSynchronize();
+      CUDA_CALL(cudaDeviceSynchronize());
       Check(tv_out_data, tv_ref_data);
 
       daliOutputRelease(&h);
