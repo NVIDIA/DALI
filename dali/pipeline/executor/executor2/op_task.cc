@@ -182,8 +182,8 @@ void OpTask::SetWorkspaceInputs() {
 }
 
 AccessOrder OpTask::OutputConsumerOrder(int output_idx) {
-  if (static_cast<size_t>(output_idx) >= node_->outputs.size())
-    return {};  // output not listed - trailing output with no consumer?
+  assert(static_cast<size_t>(output_idx) < node_->outputs.size());
+  // Return the common strueam.
   auto &consumers = node_->outputs[output_idx];
   if (consumers.empty())
     return {};  // definitely no consumer

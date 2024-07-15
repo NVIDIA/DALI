@@ -71,7 +71,20 @@ class Executor2::Impl {
   explicit Impl(const Config &config) : config_(config) {
   }
 
+  enum class State {
+    New = 0,
+    Building,
+    Built,
+    Running,
+    ShutdownRequested,
+    ShutDown,
+  };
+
   void Build(const graph::OpGraph &graph) {
+    if (state_ != State::New)
+      throw std::logic_error("Already built.");
+    std::cerr << "Building " << (void*)this << std::endl;
+    state_ = State::Building;
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     graph_.Lower(graph);
     BuildNodeDict();
@@ -81,19 +94,23 @@ class Executor2::Impl {
     ApplyConcurrencyLimit(graph_, config_);
     SetupStreams();
     SetupThreadPool();
-    InitExecutor();
+
+    last_iter_data_ = InitIterationData(-1);
+    if (last_iter_data_->checkpoint)
+      PopulateInitialCheckpoint(*last_iter_data_->checkpoint);
+
+    state_ = State::Built;
+    Start();
   }
 
   void Run() {
-    if (!exec_)
+    if (state_ != State::Running)
       throw std::runtime_error("The executor is not initialized.");
     InitIteration();
     pending_outputs_.push(graph_.Launch(*exec_));
   }
 
   void Prefetch() {
-    if (!exec_)
-      throw std::runtime_error("The executor is not initialized.");
     for (int i = 0; i < prefetch_depth_; i++) {
       Run();
     }
@@ -116,7 +133,7 @@ class Executor2::Impl {
   void InitIteration() {
     WorkspaceParams params{};
     params.batch_size = InferBatchSize();
-    graph_.PrepareIteration(InitIterationData(), params);
+    graph_.PrepareIteration(InitIterationData(iter_index_++), params);
   }
 
   int InputFeedCount(std::string_view) {
@@ -135,7 +152,13 @@ class Executor2::Impl {
   }
 
   void Shutdown() {
-    exec_->Shutdown();
+    if (state_ != State::Running)
+      return;
+    std::cerr << "Shutting down " << (void*)this << std::endl;
+    state_ = State::ShutdownRequested;
+    if (exec_)
+      exec_->Shutdown();
+    state_ = State::ShutDown;
   }
 
   void EnableCheckpointing(bool enabled) {
@@ -147,9 +170,11 @@ class Executor2::Impl {
   }
 
  private:
-  std::shared_ptr<IterationData> InitIterationData() {
+  State state_ = State::New;
+
+  std::shared_ptr<IterationData> InitIterationData(int iter_index) {
     auto iter_data = std::make_shared<IterationData>();
-    iter_data->iteration_index = iter_index_++;
+    iter_data->iteration_index = iter_index;
     if (config_.checkpointing) {
       iter_data->checkpoint = CreateCheckpoint(iter_data->iteration_index);
     }
@@ -158,12 +183,18 @@ class Executor2::Impl {
 
   std::shared_ptr<Checkpoint> CreateCheckpoint(int64_t iteration_index) {
     auto cpt = std::make_shared<Checkpoint>();
-    cpt->SetIterationId(iter_index_);
+    cpt->SetIterationId(iter_index_ + 1);
     for (auto &n : graph_.Nodes()) {
       if (!n.instance_name.empty())
         cpt->AddOperator(n.instance_name);
     }
     return cpt;
+  }
+
+  void PopulateInitialCheckpoint(Checkpoint &cpt) {
+    for (auto &n : graph_.Nodes()) {
+      n.op->SaveState(cpt.GetOpCheckpoint(n.instance_name), n.env.order);
+    }
   }
 
   int InferBatchSize() {
@@ -273,9 +304,10 @@ class Executor2::Impl {
     }
   }
 
-  void InitExecutor() {
+  void Start() {
     exec_ = std::make_unique<tasking::Executor>(config_.operator_threads);
     exec_->Start();
+    state_ = State::Running;
   }
 
   void SetupStreams() {
@@ -350,7 +382,10 @@ class Executor2::Impl {
 Executor2::Executor2(const Config &config) : impl_(std::make_unique<Impl>(config)) {
 }
 
-Executor2::~Executor2() = default;
+Executor2::~Executor2() {
+  Shutdown();
+  impl_.reset();
+}
 
 void Executor2::Build(const graph::OpGraph &graph) {
   impl_->Build(graph);
@@ -398,7 +433,7 @@ void Executor2::Shutdown() {
 Checkpoint &Executor2::GetCurrentCheckpoint() {
   auto iter_data = impl_->LastIterData();
   if (!iter_data) {
-    throw std::runtime_error("The pipeline has not been run yet.");
+    throw std::runtime_error("The pipeline is not fully initialized.");
   }
   if (!iter_data->checkpoint) {
     throw std::runtime_error("The recent iteration was run without checkpoiting enabled.");

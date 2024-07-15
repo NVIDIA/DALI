@@ -69,8 +69,17 @@ void ClearWorkspacePayload(Workspace &ws) {
 
 ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
 : op(std::move(op)), instance_name(def ? def->instance_name : "") {
-  if (def)
+  if (def) {
     backend = def->op_type;
+    outputs.resize(def->outputs.size());
+    inputs.resize(def->inputs.size());
+  }
+  if (op) {
+    assert(!def || def->outputs.size() == static_cast<size_t>(op->GetSpec().NumOutput()));
+    assert(!def || def->inputs.size() == static_cast<size_t>(op->GetSpec().NumInput()));
+    outputs.resize(std::max<size_t>(outputs.size(), op->GetSpec().NumOutput()));
+    inputs.resize(std::max<size_t>(inputs.size(), op->GetSpec().NumInput()));
+  }
 }
 
 void ExecNode::PutWorkspace(CachedWorkspace ws) {
@@ -177,11 +186,12 @@ CachedWorkspace ExecNode::CreateOpWorkspace() {
 }
 
 void ExecGraph::Validate() {
+  // The checks here are extremely defensive, but they're only run once.
   auto err = [](auto &&... msg) {
     throw std::logic_error(make_string("Internal error: ", msg...));
   };
 
-  if (!dirty_)
+  if (validated_)
     return;
   if (nodes_.empty()) {
     if (!edges_.empty())
@@ -214,6 +224,14 @@ void ExecGraph::Validate() {
   }
 
   for (auto &n : nodes_) {
+    if (n.op) {
+      auto &spec = n.op->GetSpec();
+      if (n.inputs.size() != static_cast<size_t>(spec.NumInput()))
+        err("a node has a different number of inputs than used in the OpSpec");
+      if (n.outputs.size() != static_cast<size_t>(spec.NumOutput()))
+        err("a node has a different number of outputs than used in the OpSpec");
+    }
+
     for (int o = 0, nout = n.outputs.size(); o < nout; o++) {
       auto &consumers = n.outputs[o];
       for (auto &e : consumers) {
@@ -240,7 +258,7 @@ void ExecGraph::Validate() {
       err("there must be exactly one output node and it must be the last node in the graph.");
   }
 
-  dirty_ = false;
+  validated_ = true;
 }
 
 void ExecGraph::PrepareIteration(

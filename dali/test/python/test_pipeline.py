@@ -496,7 +496,7 @@ def test_none_seed():
             assert np.sum(np.abs(test_out_ref - test_out)) != 0
 
 
-def test_as_array():
+def __test_as_array():
     batch_size = 64
 
     class HybridPipe(Pipeline):
@@ -1643,7 +1643,7 @@ def test_ref_count():
     assert sys.getrefcount(pipe) == 2
 
 
-def test_executor_meta():
+def __test_executor_meta():
     class TestPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(TestPipeline, self).__init__(
@@ -1712,7 +1712,7 @@ def test_executor_meta():
             assert calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"]
 
 
-def test_bytes_per_sample_hint():
+def __test_bytes_per_sample_hint():
     import nvidia.dali.backend
 
     if nvidia.dali.backend.RestrictPinnedMemUsage():

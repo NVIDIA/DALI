@@ -267,7 +267,7 @@ class DLL_PUBLIC ExecGraph {
 
   template <typename... Args>
   ExecNode *AddNode(Args &&...args) {
-    dirty_ = true;
+    validated_ = false;
     ExecNode *node = &nodes_.emplace_back(std::forward<Args>(args)...);
     if (!node->instance_name.empty()) {
       if (!name2node_.emplace(node->instance_name, node).second) {
@@ -280,7 +280,7 @@ class DLL_PUBLIC ExecGraph {
   }
 
   ExecNode *AddOutputNode() {
-    dirty_ = true;
+    validated_ = false;
     ExecNode *node = &nodes_.emplace_back(PipelineOutputTag());
     if (!node->instance_name.empty()) {
       if (!name2node_.emplace(node->instance_name, node).second) {
@@ -323,17 +323,10 @@ class DLL_PUBLIC ExecGraph {
   std::list<ExecEdge> edges_;
   std::unordered_map<std::string_view, ExecNode *> name2node_;
 
-  bool dirty_ = true;
+  bool validated_ = false;
   /** A bugcheck for graph inconsitency. It throws upon detecting misconneted nodes. */
   void Validate();
 };
-
-class Iteration {
- public:
-  int64_t id = 0;
-  tasking::TaskFuture result;
-};
-
 
 }  // namespace exec2
 }  // namespace dali

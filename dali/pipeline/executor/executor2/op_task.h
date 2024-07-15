@@ -106,10 +106,11 @@ class OpTask {
    */
   PipelineOutput GetOutput();
 
-  /** Returns the order in which the output is consumed or empty if the order is not uniform.
+  /** Returns the order in which the output is consumed iff the consumption order is uniform.
    *
    * This function is used for optimizing stream transition in cases where all consumers
-   * work on one stream.
+   * work on one stream. When the output is consumed on multiple streams, the result is empty
+   * and the stream assignment of the output is not updated.
    */
   AccessOrder OutputConsumerOrder(int output_idx);
 };
