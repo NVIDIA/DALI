@@ -269,16 +269,16 @@ TYPED_TEST(PipelineTest, TestExternalSource) {
   auto &graph = this->GetGraph(&pipe);
 
   // Validate the graph
-  ASSERT_EQ(CountNodes(graph, OpType::CPU), 1);
-  ASSERT_EQ(CountNodes(graph, OpType::MIXED), 1);
-  ASSERT_EQ(CountNodes(graph, OpType::GPU), 0);
+  EXPECT_EQ(CountNodes(graph, OpType::CPU), 2);
+  EXPECT_EQ(CountNodes(graph, OpType::MIXED), 0);
+  EXPECT_EQ(CountNodes(graph, OpType::GPU), 0);
 
   // Validate the gpu source op
   auto it = graph.OpNodes().begin();
   graph::OpNode &node_external_source = *it++;
-  ASSERT_EQ(node_external_source.inputs.size(), 0);
-  ASSERT_EQ(node_external_source.outputs.size(), 1);
-  ASSERT_EQ(node_external_source.instance_name, "data");
+  EXPECT_EQ(node_external_source.inputs.size(), 0);
+  EXPECT_EQ(node_external_source.outputs.size(), 1);
+  EXPECT_EQ(node_external_source.instance_name, "data");
 
 
   graph::OpNode &node_make_contiguous = *it++;

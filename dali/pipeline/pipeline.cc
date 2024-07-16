@@ -357,6 +357,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                    "should not be `CPU_ONLY_DEVICE_ID`.");
     } else if (input_device == "cpu") {
       // device == gpu
+      // TODO(michalz): Add a D2H copy
       DALI_ENFORCE(it->second.has_cpu,
                    make_string("Error while specifying ", FormatInput(spec, i),
                                ". CPU input requested by operator exists only on GPU. CPU "
@@ -546,9 +547,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     if (device == "cpu") {
       DALI_ENFORCE(it->second.has_cpu, "Requested cpu output '" +
           name + "' only exists on gpu.");
-      // Add a make contiguous op to produce this output. [cpu output of mixed]
-      // TODO(klecki): we can revert back to using CPU stage here by changing mixed to cpu
-      auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "mixed", "cpu");
+      // Add a make contiguous op to produce this output - we need pipeline outputs to be dense.
+      auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "cpu", "cpu");
       if (!it->second.has_contiguous) {
         it->second.has_contiguous = true;
       }
@@ -1020,11 +1020,6 @@ void Pipeline::Shutdown() {
 std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode(
     EdgeMeta &meta, const std::string &input_name, const std::string &input_dev,
     const std::string &device, const std::string &output_dev) {
-  // TODO(klecki): If outputs from CPU stage are enabled, adjust this.
-  DALI_ENFORCE(device != "cpu",
-               "CPU MakeContiguous nodes are not supposed to be inserted this way, only Mixed and "
-               "GPU nodes are currently used as outputs.");
-
   // Prefix for the output name to be generated, so it is distinct after being made contiguous.
   const char *cpu_to_cpu_out = "contiguous_cpu_to_cpu_";
   const char *gpu_to_gpu_out = "contiguous_gpu_to_gpu_";
