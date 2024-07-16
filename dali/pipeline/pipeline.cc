@@ -357,6 +357,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                    "should not be `CPU_ONLY_DEVICE_ID`.");
     } else if (input_device == "cpu") {
       // device == gpu
+      // TODO(michalz): Add a D2H copy
       DALI_ENFORCE(it->second.has_cpu,
                    make_string("Error while specifying ", FormatInput(spec, i),
                                ". CPU input requested by operator exists only on GPU. CPU "
@@ -546,7 +547,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     if (device == "cpu") {
       DALI_ENFORCE(it->second.has_cpu, "Requested cpu output '" +
           name + "' only exists on gpu.");
-      // Add a make contiguous op to produce this output. [cpu output of mixed]
+      // Add a make contiguous op to produce this output - we need pipeline outputs to be dense.
       auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "cpu", "cpu");
       if (!it->second.has_contiguous) {
         it->second.has_contiguous = true;
