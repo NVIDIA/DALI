@@ -91,7 +91,12 @@ class FileRead : public StatelessOperator<CPUBackend> {
 
 DALI_REGISTER_OPERATOR(io__file__Read, io::FileRead, CPU);
 DALI_SCHEMA(io__file__Read)
-    .DocStr(R"(Reads raw file contents.)")
+    .DocStr(R"(Reads raw file contents from an encoded filename represented by a 1D byte array.
+
+.. note::
+  To produce a compatible encoded filepath from Python (e.g. in an external_source node generator),
+  use `np.frombuffer(filepath_str.encode("utf-8"), dtype=types.UINT8)`.
+)")
     .NumOutput(1)
     .NumInput(1)
     .InputDox(0, "filepaths", "TensorList", "File paths to read from.")
