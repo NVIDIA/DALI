@@ -12,6 +12,7 @@
       "nvmlSystemGetDriverVersion": {},
       "nvmlDeviceGetHandleByPciBusId": {},
       "nvmlDeviceGetHandleByIndex": {},
+      "nvmlDeviceGetHandleByUUID": {},
       "nvmlDeviceGetIndex": {},
       "nvmlDeviceSetCpuAffinity": {},
       "nvmlDeviceClearCpuAffinity": {},

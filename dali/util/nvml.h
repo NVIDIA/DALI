@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -151,13 +151,15 @@ inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   }
   int device_idx;
   CUDA_CALL(cudaGetDevice(&device_idx));
+  cudaDeviceProp prop;
+  CUDA_CALL(cudaGetDeviceProperties(&prop, device_idx));
 
   // Get the ideal placement from NVML
   size_t cpu_set_size = (num_cpus + 63) / 64;
   std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
   auto * nvml_mask = nvml_mask_container.data();
   nvmlDevice_t device;
-  CUDA_CALL(nvmlDeviceGetHandleByIndex(device_idx, &device));
+  CUDA_CALL(nvmlDeviceGetHandleByUUID(prop.uuid.bytes, &device));
   #if (CUDART_VERSION >= 11000)
     if (nvmlHasCuda11NvmlFunctions()) {
       CUDA_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
