@@ -34,15 +34,16 @@ NVCVBorderType GetBorderMode(std::string_view border_mode) {
   }
 }
 
-NVCVInterpolationType GetInterpolationType(std::string_view interpolation_type) {
-  if (interpolation_type == "nearest") {
-    return NVCV_INTERP_NEAREST;
-  } else if (interpolation_type == "linear") {
-    return NVCV_INTERP_LINEAR;
-  } else if (interpolation_type == "cubic") {
-    return NVCV_INTERP_CUBIC;
-  } else {
-    DALI_FAIL("Unknown interpolation type: " + std::string(interpolation_type));
+NVCVInterpolationType GetInterpolationType(DALIInterpType interpolation_type) {
+  switch (interpolation_type) {
+    case DALIInterpType::DALI_INTERP_NN:
+      return NVCV_INTERP_NEAREST;
+    case DALIInterpType::DALI_INTERP_LINEAR:
+      return NVCV_INTERP_LINEAR;
+    case DALIInterpType::DALI_INTERP_CUBIC:
+      return NVCV_INTERP_CUBIC;
+    default:
+      DALI_FAIL("Unknown interpolation type.");
   }
 }
 
@@ -159,9 +160,20 @@ void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBack
   }
 }
 
-nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "") {
-  auto shape = tensor.shape();
+nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "",
+                      const std::optional<TensorShape<>> &reshape = {}) {
+  auto orig_shape = tensor.shape();
   auto dtype = GetDataType(tensor.type(), 1);
+
+  TensorShape<> shape;
+  if (reshape.has_value()) {
+    DALI_ENFORCE(volume(*reshape) == volume(orig_shape),
+                 make_string("Cannot reshape from ", orig_shape, " to ", *reshape, "."));
+    shape = reshape.value();
+  } else {
+    shape = orig_shape;
+  }
+
   nvcv::TensorDataStridedCuda::Buffer inBuf;
   inBuf.basePtr = reinterpret_cast<NVCVByte*>(const_cast<void*>(tensor.raw_data()));
   inBuf.strides[shape.size() - 1] = dtype.strideBytes();
@@ -169,6 +181,9 @@ nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = ""
     inBuf.strides[d] = shape[d + 1] * inBuf.strides[d + 1];
   }
   TensorLayout out_layout = layout.empty() ? tensor.GetLayout() : layout;
+  DALI_ENFORCE(out_layout.empty() || out_layout.size() == shape.size(),
+               make_string("Layout ", out_layout,
+                           " does not match the number of dimensions: ", shape.size()));
   nvcv::TensorShape out_shape(shape.data(), shape.size(),
                               nvcv::TensorLayout(out_layout.c_str()));
   nvcv::TensorDataStridedCuda inData(out_shape, dtype, inBuf);

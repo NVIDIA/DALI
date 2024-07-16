@@ -26,18 +26,19 @@
 #include "dali/pipeline/operator/operator.h"
 
 #include "dali/operators/nvcvop/nvcvop.h"
+#include "dali/operators/image/remap/cvcuda/matrix_adjust.h"
 
 namespace dali {
 
 
 DALI_SCHEMA(experimental__WarpPerspective)
     .DocStr(R"doc(
-TODO
-  )doc")
+Performs a perspective transform on the images.
+)doc")
     .NumInput(1, 2)
     .InputDox(0, "input", "TensorList of uint8, uint16, int16 or float",
               "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
-    .InputDox(1, "matrix_data", "1D TensorList of float",
+    .InputDox(1, "matrix_gpu", "1D TensorList of float",
               "Transformation matrix data. Should be used to pass the GPU data. "
               "For CPU data, the `matrix` argument should be used.")
     .NumOutput(1)
@@ -52,7 +53,7 @@ specify ``(480,640)``, not ``(480,640,3)``.
     .AddOptionalArg<float>("matrix",
                            R"doc(
   Perspective transform mapping of destination to source coordinates.
-  If `inverse_map` argument is set to true, the matrix is interpreted
+  If `inverse_map` argument is set to false, the matrix is interpreted
   as a source to destination coordinates mapping.
 
 It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
@@ -63,25 +64,36 @@ analog to the ``WARP_INVERSE_MAP`` flag.
   case the matrix can be placed on the GPU.)doc",
                            std::vector<float>({}), true, true)
     .AddOptionalArg("border_mode",
-                    "Border mode to be used when accessing elements outside input image.",
+                    "Border mode to be used when accessing elements outside input image.\n"
+                    "Supported values are: \"constant\", \"replicate\", "
+                    "\"reflect\", \"reflect_101\", \"wrap\".",
                     "constant")
-    .AddOptionalArg("interp_type", "Interpolation method.", "nearest")
+    .AddOptionalArg("interp_type", "Type of interpolation used.", DALI_INTERP_LINEAR)
+    .AddOptionalArg("pixel_origin", R"doc(Pixel origin. Possible values: "corner", "center".
+
+Defines which part of the pixel (upper-left corner or center) is interpreted as its origin.
+This value impacts the interpolation result. To match OpenCV, please pick "center".))doc", "corner")
     .AddOptionalArg<float>("fill_value",
                            "Value used to fill areas that are outside the source image when the "
                            "\"constant\" border_mode is chosen.",
                            std::vector<float>({}))
-    .AddOptionalArg<bool>("inverse_map", "Inverse perspective transform matrix", false);
+    .AddOptionalArg<bool>("inverse_map",
+                          "If set to true (default), the matrix is interpreted as "
+                          "destination to source coordinates mapping. "
+                          "Otherwise it's interpreted as source to destination "
+                          "coordinates mapping.", true);
 
 
 class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
  public:
   explicit WarpPerspective(const OpSpec &spec)
       : nvcvop::NVCVSequenceOperator<StatelessOperator>(spec),
-        shape_arg_(spec.GetArgument<std::vector<float>>("size")),
+        // shape_arg_(spec.GetArgument<std::vector<float>>("size")),
         border_mode_(nvcvop::GetBorderMode(spec.GetArgument<std::string>("border_mode"))),
-        interp_type_(nvcvop::GetInterpolationType(spec.GetArgument<std::string>("interp_type"))),
+        interp_type_(nvcvop::GetInterpolationType(spec.GetArgument<DALIInterpType>("interp_type"))),
         inverse_map_(spec.GetArgument<bool>("inverse_map")),
-        fill_value_arg_(spec.GetArgument<std::vector<float>>("fill_value")) {
+        fill_value_arg_(spec.GetArgument<std::vector<float>>("fill_value")),
+        ocv_pixel_(OCVCompatArg(spec.GetArgument<std::string>("pixel_origin"))) {
     matrix_data_.SetContiguity(BatchContiguity::Contiguous);
   }
 
@@ -98,7 +110,7 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
       if (channels > 0) {
         if (channels == static_cast<int>(fill_value_arg_.size())) {
           float4 fill_value{0, 0, 0, 0};
-          memcpy(&fill_value, fill_value_arg_.data(), fill_value_arg_.size() * sizeof(float));
+          memcpy(&fill_value, fill_value_arg_.data(), sizeof(decltype(fill_value)));
           return fill_value;
         } else {
           DALI_FAIL(make_string(
@@ -127,7 +139,17 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     if (ws.NumInput() > 1) {
       auto mat_type = ws.Input<GPUBackend>(1).type();
       DALI_ENFORCE(mat_type == DALI_FLOAT,
-                   "Transformation matrix can be provided only as float values");
+                   "Transformation matrix can be provided only as float32 values.");
+    }
+  }
+
+  bool OCVCompatArg(const std::string &arg) {
+    if (arg == "corner") {
+      return false;
+    } else if (arg == "center") {
+      return true;
+    } else {
+      DALI_FAIL(make_string("Invalid pixel_origin argument: ", arg));
     }
   }
 
@@ -141,12 +163,15 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     auto output_shape = input_shape;
     int channels = (input_layout.find('C') != -1) ? input_shape[0][input_layout.find('C')] : -1;
     fill_value_ = GetFillValue(channels);
-    if (!shape_arg_.empty()) {
-      auto height = std::max<int>(std::roundf(shape_arg_[0]), 1);
-      auto width = std::max<int>(std::roundf(shape_arg_[1]), 1);
-      auto out_sample_shape = (channels != -1) ? TensorShape<>({height, width, channels}) :
-                                                 TensorShape<>({height, width});
-      output_shape = TensorListShape<>::make_uniform(input.num_samples(), out_sample_shape);
+    if (size_arg_.HasExplicitValue()) {
+      size_arg_.Acquire(spec_, ws, input_shape.size(), TensorShape<1>({2}));
+      for (int i = 0; i < input_shape.size(); i++) {
+        auto height = std::max<int>(std::roundf(size_arg_[i].data[0]), 1);
+        auto width = std::max<int>(std::roundf(size_arg_[i].data[1]), 1);
+        auto out_sample_shape = (channels != -1) ? TensorShape<>({height, width, channels}) :
+                                                   TensorShape<>({height, width});
+        output_shape.set_tensor_shape(i, out_sample_shape);
+      }
     }
 
     output_desc[0] = {output_shape, input.type()};
@@ -164,20 +189,23 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     if (ws.NumInput() > 1) {
       DALI_ENFORCE(!matrix_arg_.HasExplicitValue(),
                    "Matrix input and `matrix` argument should not be provided at the same time.");
-      Tensor<GPUBackend> matrix_tensor;
       auto &matrix_input = ws.Input<GPUBackend>(1);
       DALI_ENFORCE(is_uniform(matrix_input.shape()),
                    "Matrix data has to be a uniformly shaped batch.");
-      if (matrix_input.IsDenseTensor()) {
-        matrix_tensor = const_cast<TensorList<GPUBackend> &>(matrix_input).AsTensor();
-      } else {
-        matrix_data_.Copy(matrix_input, AccessOrder(ws.stream()));
-        matrix_tensor = matrix_data_.AsTensor();
-      }
-      matrix = nvcvop::AsTensor(matrix_tensor, "NW");
+      DALI_ENFORCE(matrix_input.tensor_shape(0) == TensorShape<2>(3, 3),
+                   make_string("Transformation matrix must be a 3x3 matrix. "
+                               "Instead got data with shape: {",
+                               matrix_input.tensor_shape(0), "}"));
+
+      matrix_data_.Copy(matrix_input, AccessOrder(ws.stream()));
+      Tensor<GPUBackend> matrix_tensor = matrix_data_.AsTensor();
+      matrix = nvcvop::AsTensor(matrix_tensor, "NW", TensorShape<2>{input.num_samples(), 9});
     } else {
-      matrix = AcquireTensorArgument(ws, scratchpad, matrix_arg_, TensorShape<1>(9),
-                                     nvcvop::GetDataType<float>(), "W");
+      matrix = AcquireTensorArgument(ws, scratchpad, matrix_arg_, TensorShape<2>{3, 3},
+                                     nvcvop::GetDataType<float>(), "W", TensorShape<1>{9});
+    }
+    if (!ocv_pixel_) {
+      warp_perspective::adjustMatrices(matrix, ws.stream());
     }
 
     auto input_images = GetInputBatch(ws, 0);
@@ -196,14 +224,16 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
 
  private:
   USE_OPERATOR_MEMBERS();
-  ArgValue<float, 1> matrix_arg_{"matrix", spec_};
+  ArgValue<float, 2> matrix_arg_{"matrix", spec_};
+  ArgValue<float, 1> size_arg_{"size", spec_};
   int op_batch_size_ = 0;
-  std::vector<float> shape_arg_;
+  // std::vector<float> shape_arg_;
   NVCVBorderType border_mode_{NVCV_BORDER_CONSTANT};
   NVCVInterpolationType interp_type_{NVCV_INTERP_NEAREST};
   bool inverse_map_{false};
   std::vector<float> fill_value_arg_{0, 0, 0, 0};
   float4 fill_value_{0, 0, 0, 0};
+  bool ocv_pixel_ = true;
   std::optional<cvcuda::WarpPerspective> warp_perspective_{};
   TensorList<GPUBackend> matrix_data_{};
 };

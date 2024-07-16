@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+if (BUILD_CVCUDA)
+    add_subdirectory(cvcuda)
+endif()
+
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
-
-if (BUILD_CVCUDA)
-    add_subdirectory(cvcuda)
-endif()
