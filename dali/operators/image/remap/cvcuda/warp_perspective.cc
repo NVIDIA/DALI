@@ -88,7 +88,6 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
  public:
   explicit WarpPerspective(const OpSpec &spec)
       : nvcvop::NVCVSequenceOperator<StatelessOperator>(spec),
-        // shape_arg_(spec.GetArgument<std::vector<float>>("size")),
         border_mode_(nvcvop::GetBorderMode(spec.GetArgument<std::string>("border_mode"))),
         interp_type_(nvcvop::GetInterpolationType(spec.GetArgument<DALIInterpType>("interp_type"))),
         inverse_map_(spec.GetArgument<bool>("inverse_map")),
@@ -133,7 +132,7 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
   void ValidateTypes(const Workspace &ws) const {
     auto inp_type = ws.Input<GPUBackend>(0).type();
     DALI_ENFORCE(inp_type == DALI_UINT8 || inp_type == DALI_INT16 || inp_type == DALI_UINT16 ||
-                     inp_type == DALI_FLOAT,
+                 inp_type == DALI_FLOAT,
                  "The operator accepts the following input types: "
                  "uint8, int16, uint16, float.");
     if (ws.NumInput() > 1) {
@@ -164,7 +163,7 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     int channels = (input_layout.find('C') != -1) ? input_shape[0][input_layout.find('C')] : -1;
     fill_value_ = GetFillValue(channels);
     if (size_arg_.HasExplicitValue()) {
-      size_arg_.Acquire(spec_, ws, input_shape.size(), TensorShape<1>({2}));
+      size_arg_.Acquire(spec_, ws, input_shape.size(), TensorShape<1>(2));
       for (int i = 0; i < input_shape.size(); i++) {
         auto height = std::max<int>(std::roundf(size_arg_[i].data[0]), 1);
         auto width = std::max<int>(std::roundf(size_arg_[i].data[1]), 1);
@@ -227,7 +226,6 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
   ArgValue<float, 2> matrix_arg_{"matrix", spec_};
   ArgValue<float, 1> size_arg_{"size", spec_};
   int op_batch_size_ = 0;
-  // std::vector<float> shape_arg_;
   NVCVBorderType border_mode_{NVCV_BORDER_CONSTANT};
   NVCVInterpolationType interp_type_{NVCV_INTERP_NEAREST};
   bool inverse_map_{false};
