@@ -111,8 +111,8 @@ void ExecNode::CreateAuxTasks() {
     release_outputs = Task::Create([]() {});
     release_outputs->ReleaseAfterRun(output_queue_limit);
     release_outputs->Succeed(main_task);
-    for (auto &consumers : outputs) {
-      for (auto *edge : consumers) {
+    for (auto &output : outputs) {
+      for (auto *edge : output.consumers) {
         if (edge->consumer->main_task)
           release_outputs->Succeed(edge->consumer->main_task);
       }
@@ -215,7 +215,7 @@ void ExecGraph::Validate() {
 
     if (e.producer_output_idx >= static_cast<int>(e.producer->outputs.size()))
       err("producer output index is out of range.");
-    auto &consumer_edges = e.producer->outputs[e.producer_output_idx];
+    auto &consumer_edges = e.producer->outputs[e.producer_output_idx].consumers;
     if (std::count(consumer_edges.begin(), consumer_edges.end(), &e) != 1)
       err("the relevant producer's output doesn't have this edge as one of the consumers.");
 
@@ -233,7 +233,7 @@ void ExecGraph::Validate() {
     }
 
     for (int o = 0, nout = n.outputs.size(); o < nout; o++) {
-      auto &consumers = n.outputs[o];
+      auto &consumers = n.outputs[o].consumers;
       for (auto &e : consumers) {
         if (!known_edges.count(e))
           err("a node's output is not a known edge pointer.");

@@ -91,6 +91,13 @@ struct ExecEdge {
 /** A tag type for constructing output ExecNode */
 struct PipelineOutputTag {};
 
+struct ExecOutputDesc {
+  SmallVector<ExecEdge *, 4> consumers;
+
+  StorageDevice device = StorageDevice::CPU;
+  bool          pinned = false;
+};
+
 /** An execution node.
  *
  * An execution node corresponds to an operator node or an output node in the pipeline
@@ -119,7 +126,7 @@ class DLL_PUBLIC ExecNode {
    * The outputs must appear in the same order as they're defined in the operator's OpSpec.
    * The order of consumer edges in each output is not important.
    */
-  SmallVector<SmallVector<ExecEdge *, 4>, 4> outputs;
+  SmallVector<ExecOutputDesc, 4> outputs;
 
   /** A semaphore limiting the cuncurrency of the operator.
    *
@@ -303,7 +310,7 @@ class DLL_PUBLIC ExecGraph {
 
     if (producer) {
       producer->outputs.resize(std::max<size_t>(producer->outputs.size(), out_idx + 1));
-      producer->outputs[out_idx].push_back(&edge);
+      producer->outputs[out_idx].consumers.push_back(&edge);
     }
     if (consumer) {
       consumer->inputs.resize(std::max<size_t>(consumer->inputs.size(), in_idx + 1));
@@ -319,6 +326,8 @@ class DLL_PUBLIC ExecGraph {
 
   /** Populates the graph based on a pipeline definiton graph. */
   void Lower(const graph::OpGraph &def);
+
+  void FindPinnedBuffers();
 
  private:
   std::list<ExecNode> nodes_;

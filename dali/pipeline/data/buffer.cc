@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,6 +64,11 @@ DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned,
 
 DLL_PUBLIC bool RestrictPinnedMemUsage() {
   static bool val = []() {
+    /* int n = 0;
+    if (cudaGetDeviceCount(&n) != CUDA_SUCCESS)
+      return true;
+    if (n == 0)
+      return true; */
     const char *env = getenv("DALI_RESTRICT_PINNED_MEM");
     return env && atoi(env);
   }();

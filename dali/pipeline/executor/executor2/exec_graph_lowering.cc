@@ -32,13 +32,16 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
   for (ExecNode &exec_node : nodes_) {
     assert(it_def != def.OpNodes().end());
     auto op_node = *it_def++;
+    assert(exec_node.outputs.size() == op_node.outputs.size());
     for (int o = 0, nout = op_node.outputs.size(); o < nout; o++) {
       const auto &out = op_node.outputs[o];
+      auto dev = out->device;
       for (auto &consumer : out->consumers) {
         auto *exec_con = def2exec[consumer.op];
         assert(exec_con != nullptr);
-        Link(&exec_node, o, exec_con, consumer.idx);
+        Link(&exec_node, o, exec_con, consumer.idx)->device = dev;
       }
+      exec_node.outputs[o].device = dev;
     }
   }
 
@@ -56,7 +59,75 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
     edge->device = data_node->device;
   }
 
+  FindPinnedBuffers();
   Validate();
+}
+
+namespace {
+
+/** Sets pinnedness of the input sources
+ *
+ * The function goes over the inputs of the node. If the node is non-CPU, then all of its
+ * CPU _regular_ inputs are marked as pinned.
+ * If the node is a CPU node but passes through an input `i` directly to a pinned output `o`,
+ * then the source of input `i` is also marked as pinned.
+ */
+void SetPinnedInputs(ExecNode *node) {
+  assert(node->op != nullptr);
+
+  // TODO(michalz): Update if/when we have passthrough for argument inputs
+  int ninp = node->op->GetSpec().NumRegularInput();
+  assert(static_cast<size_t>(ninp) <= node->inputs.size());
+
+  if (node->backend != OpType::CPU) {
+    for (int i = 0; i < ninp; i++) {
+      auto *inp = node->inputs[i];
+      inp->producer->outputs[inp->producer_output_idx].pinned = true;
+    }
+  } else if (node->op->GetSpec().GetSchema().HasPassThrough()) {
+    auto &schema = node->op->GetSpec().GetSchema();
+    int nout = node->outputs.size();
+    for (int i = 0; i < ninp; i++) {
+      auto *input = node->inputs[i];
+      if (input->device != StorageDevice::CPU)  // we're not interested in non-CPU buffers
+        continue;
+
+      auto &source_output = input->producer->outputs[input->producer_output_idx];
+      if (source_output.pinned)  // already pinned
+        continue;
+
+      for (int o = 0; o < nout; o++) {
+        // If input `i` passes to a pinned output `o`, then the input should also be marked
+        // as pinned. This will be followed in reverse topological order.
+        if (node->outputs[o].pinned && schema.IsPassThrough(i, o, false)) {
+          source_output.pinned = true;
+          break;
+        }
+      }
+    }
+  }
+}
+
+}  // namespace
+
+void ExecGraph::FindPinnedBuffers() {
+  // No non-cpu ops? Just mark everything as non-pinned and we're done.
+  auto is_gpu_edge = [](const ExecEdge &e) { return e.device == StorageDevice::GPU; };
+  bool has_gpu_buffers = std::find_if(edges_.begin(), edges_.end(), is_gpu_edge) != edges_.end();
+  if (!has_gpu_buffers) {
+    for (auto &n : nodes_)
+      for (auto &o : n.outputs)
+        o.pinned = false;
+    return;
+  }
+
+  // go in reverse topological order, from outputs to inputs
+  for (auto it = nodes_.rbegin(); it != nodes_.rend(); ++it) {
+    ExecNode &n = *it;
+    if (n.is_pipeline_output)
+      continue;
+    SetPinnedInputs(&n);
+  }
 }
 
 }  // namespace exec2

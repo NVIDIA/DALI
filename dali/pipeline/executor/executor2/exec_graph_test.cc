@@ -258,14 +258,15 @@ TEST(ExecGraphTest, Exception) {
        .AddOutput("op2e0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
-  ExecGraph def;
-  ExecNode *n2 = def.AddNode(std::move(op2));
-  ExecNode *n1 = def.AddNode(std::move(op1));
-  ExecNode *n0 = def.AddNode(std::move(op0));
-  ExecNode *no = def.AddOutputNode();
-  def.Link(n0, 0, n2, 0);
-  def.Link(n1, 0, n2, 1);
-  def.Link(n2, 0, no, 0);
+  ExecGraph g;
+  ExecNode *n2 = g.AddNode(std::move(op2));
+  ExecNode *n1 = g.AddNode(std::move(op1));
+  ExecNode *n0 = g.AddNode(std::move(op0));
+  ExecNode *no = g.AddOutputNode();
+  g.Link(n0, 0, n2, 0);
+  g.Link(n1, 0, n2, 1);
+  g.Link(n2, 0, no, 0);
+  LimitBackendConcurrency(g, OpType::CPU);
   ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
@@ -276,8 +277,8 @@ TEST(ExecGraphTest, Exception) {
     tasking::Executor ex(4);
     ex.Start();
     for (int i = 0; i < 10; i++) {
-      def.PrepareIteration(std::make_shared<IterationData>(), params);
-      auto fut = def.Launch(ex);
+      g.PrepareIteration(std::make_shared<IterationData>(), params);
+      auto fut = g.Launch(ex);
       EXPECT_THROW(fut.Value<const PipelineOutput &>(), DALIException);
     }
   }
@@ -313,25 +314,25 @@ TEST(ExecGraphTest, LoweredStructureMatch) {
   auto &ex_out = g.Nodes().back();
 
   ASSERT_EQ(ex0.outputs.size(), 1_uz);
-  ASSERT_EQ(ex0.outputs[0].size(), 2_uz);
-  EXPECT_EQ(ex0.outputs[0][0]->consumer, &ex2);
-  EXPECT_EQ(ex0.outputs[0][1]->consumer, &ex3);
+  ASSERT_EQ(ex0.outputs[0].consumers.size(), 2_uz);
+  EXPECT_EQ(ex0.outputs[0].consumers[0]->consumer, &ex2);
+  EXPECT_EQ(ex0.outputs[0].consumers[1]->consumer, &ex3);
 
   ASSERT_EQ(ex1.outputs.size(), 1_uz);
-  EXPECT_EQ(ex1.outputs[0][0]->consumer, &ex2);
-  ASSERT_EQ(ex1.outputs[0].size(), 2_uz);
-  EXPECT_EQ(ex1.outputs[0][1]->consumer, &ex3);
+  EXPECT_EQ(ex1.outputs[0].consumers[0]->consumer, &ex2);
+  ASSERT_EQ(ex1.outputs[0].consumers.size(), 2_uz);
+  EXPECT_EQ(ex1.outputs[0].consumers[1]->consumer, &ex3);
 
   ASSERT_EQ(ex2.outputs.size(), 1_uz);
-  ASSERT_EQ(ex2.outputs[0].size(), 1_uz);
-  EXPECT_EQ(ex2.outputs[0][0]->consumer, &ex_out);
+  ASSERT_EQ(ex2.outputs[0].consumers.size(), 1_uz);
+  EXPECT_EQ(ex2.outputs[0].consumers[0]->consumer, &ex_out);
   ASSERT_EQ(ex2.inputs.size(), 2_uz);
   EXPECT_EQ(ex2.inputs[0]->producer, &ex0);
   EXPECT_EQ(ex2.inputs[1]->producer, &ex1);
 
   ASSERT_EQ(ex3.outputs.size(), 1_uz);
-  ASSERT_EQ(ex3.outputs[0].size(), 1_uz);
-  EXPECT_EQ(ex3.outputs[0][0]->consumer, &ex_out);
+  ASSERT_EQ(ex3.outputs[0].consumers.size(), 1_uz);
+  EXPECT_EQ(ex3.outputs[0].consumers[0]->consumer, &ex_out);
   EXPECT_EQ(ex3.inputs[0]->producer, &ex0);
   EXPECT_EQ(ex3.inputs[1]->producer, &ex1);
 

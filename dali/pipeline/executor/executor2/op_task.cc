@@ -125,6 +125,7 @@ void OpTask::SetupOp() {
     if (ws.OutputIsType<CPUBackend>(i)) {
       if (!ws.OutputPtr<CPUBackend>(i)) {
         auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
+        tl->set_pinned(node_->outputs[i].pinned);
         ws.SetOutput(i, tl);
       }
       if (should_resize)
@@ -190,7 +191,7 @@ void OpTask::SetWorkspaceInputs() {
 AccessOrder OpTask::OutputConsumerOrder(int output_idx) {
   assert(static_cast<size_t>(output_idx) < node_->outputs.size());
   // Return the common strueam.
-  auto &consumers = node_->outputs[output_idx];
+  auto &consumers = node_->outputs[output_idx].consumers;
   if (consumers.empty())
     return {};  // definitely no consumer
   AccessOrder order = consumers[0]->consumer->env.order;
