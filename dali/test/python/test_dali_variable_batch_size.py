@@ -555,6 +555,31 @@ def test_random_normal():
     run_pipeline(generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_no_input)
 
 
+def test_random_beta():
+    def pipe_input(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device)
+        dist = fn.random.beta(data)
+        pipe.set_outputs(dist)
+        return pipe
+
+    def pipe_no_input(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device)
+        dist = data + fn.random.beta()
+        pipe.set_outputs(dist)
+        return pipe
+
+    run_pipeline(
+        generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_input, devices=["cpu"]
+    )
+    run_pipeline(
+        generate_data(31, 13, image_like_shape_generator),
+        pipeline_fn=pipe_no_input,
+        devices=["cpu"],
+    )
+
+
 def no_input_op_helper(operator_fn, opfn_args={}):
     data = generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8)
     check_pipeline(
@@ -1717,6 +1742,7 @@ tested_methods = [
     "random.coin_flip",
     "random.normal",
     "random.uniform",
+    "random.beta",
     "random_bbox_crop",
     "random_crop_generator",
     "random_resized_crop",

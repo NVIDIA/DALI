@@ -354,6 +354,10 @@ def test_coin_flip_cpu():
     check_no_input(fn.random.coin_flip)
 
 
+def test_random_beta_cpu():
+    check_no_input(fn.random.beta)
+
+
 def test_uniform_device():
     check_no_input(fn.random.uniform)
 
@@ -1475,6 +1479,7 @@ tested_methods = [
     "coin_flip",
     "uniform",
     "random.uniform",
+    "random.beta",
     "random.choice",
     "random.coin_flip",
     "random.normal",
