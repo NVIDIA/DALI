@@ -68,7 +68,15 @@ nvmlDevice_t nvmlGetDeviceHandleForCUDA(int cuda_idx) {
   cudaDeviceProp prop{};
   CUDA_CALL(cudaGetDeviceProperties(&prop, cuda_idx));
   auto uuid = uuid_str(prop.uuid.bytes);
-  CUDA_CALL(nvmlDeviceGetHandleByUUID(uuid.c_str(), &dev));
+  auto err = nvmlDeviceGetHandleByUUID(uuid.c_str(), &dev);
+  if (err == NVML_ERROR_NOT_FOUND) {
+    uuid[0] = 'M';
+    uuid[1] = 'I';
+    uuid[2] = 'G';
+    CUDA_CALL(nvmlDeviceGetHandleByUUID(uuid.c_str(), &dev));
+  } else {
+    CUDA_CALL(err);
+  }
   return dev;
 }
 
