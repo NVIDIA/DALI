@@ -188,7 +188,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
         sample.tensor.Resize({size}, DALI_UINT8);
         auto* out_data_ptr = static_cast<uint8_t*>(sample.tensor.raw_mutable_data());
         auto file_sz = current_file_sz_;
-        auto work = [this, path, out_data_ptr, seek_pos, size, opts, file_sz]() {
+        auto work = [path, out_data_ptr, seek_pos, size, opts, file_sz]() {
           auto file = FileStream::Open(path, opts, file_sz);
           auto file_cleanup = AtScopeExit([&file] {
             if (file)
