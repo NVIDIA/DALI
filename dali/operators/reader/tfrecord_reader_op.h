@@ -17,17 +17,18 @@
 
 #ifdef DALI_BUILD_PROTO3
 
-#include "dali/operators/reader/reader_op.h"
+#include <utility>
 #include "dali/operators/reader/loader/indexed_file_loader.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
+#include "dali/operators/reader/reader_op.h"
 
 namespace dali {
 
 class TFRecordReader
-    : public DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true> {
+    : public DataReader<CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true> {
  public:
   explicit TFRecordReader(const OpSpec& spec)
-  : DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true>(spec),
+  : DataReader<CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true>(spec),
     dont_use_mmap_(spec.GetArgument<bool>("dont_use_mmap")),
     use_o_direct_(spec.GetArgument<bool>("use_o_direct")),
     thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "TFRecordReader") {
@@ -40,9 +41,29 @@ class TFRecordReader
     this->SetInitialSnapshot();
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const auto& tensor = GetSample(ws.data_idx());
-    parser_->Parse(tensor, &ws);
+  void RunImpl(Workspace &ws) override {
+    auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : max_batch_size_;
+    for (int i = 0; i < ws.NumOutput(); i++) {
+      auto &output = ws.Output<CPUBackend>(i);
+      output.SetSize(curr_batch_size);
+    }
+    auto &thread_pool = ws.GetThreadPool();
+    for (int data_idx = 0; data_idx < curr_batch_size; ++data_idx) {
+      auto job = [this, &ws, data_idx](int tid) {
+        SampleWorkspace output_sample;
+        MakeSampleView(output_sample, ws, data_idx, tid);
+        const auto &loader_sample = GetSample(data_idx);
+        if (loader_sample.work)
+          loader_sample.work();
+        parser_->Parse(loader_sample.tensor, &output_sample);
+      };
+      thread_pool.AddWork(std::move(job), -data_idx);  // -data_idx for FIFO order
+    }
+    // Run all tasks and wait for them to finish
+    thread_pool.RunAll();
+    // Propagate metadata from individual samples to the whole batch as working with SampleWorkspace
+    // breaks metadata consistency - it sets it only to samples
+    FixBatchPropertiesConsistency(ws, CanInferOutputs());
   }
 
   ~TFRecordReader() override {
@@ -54,7 +75,7 @@ class TFRecordReader
   void Prefetch() override;
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true);
   bool dont_use_mmap_ = false;
   bool use_o_direct_ = false;
   size_t o_direct_chunk_size_ = 0;

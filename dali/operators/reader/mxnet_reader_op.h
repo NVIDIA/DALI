@@ -20,22 +20,23 @@
 #include "dali/operators/reader/parser/recordio_parser.h"
 
 namespace dali {
-class MXNetReader : public DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true> {
+class MXNetReader
+    : public DataReader<CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true> {
  public:
   explicit MXNetReader(const OpSpec& spec)
-  : DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true>(spec) {
+      : DataReader<CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true>(spec) {
     loader_ = InitLoader<RecordIOLoader>(spec);
     parser_.reset(new RecordIOParser(spec));
     this->SetInitialSnapshot();
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const auto& tensor = GetSample(ws.data_idx());
-    ParseIfNeeded(tensor, &ws);
+  void RunImpl(SampleWorkspace& ws) override {
+    const auto& sample = GetSample(ws.data_idx());
+    ParseIfNeeded(sample.tensor, &ws);
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true);
 };
 }  // namespace dali
 

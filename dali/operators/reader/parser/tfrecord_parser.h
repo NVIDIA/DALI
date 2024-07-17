@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,20 +46,20 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
         "No features provided");
   }
 
-  void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
+  void Parse(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) override {
     tensorflow::Example example;
 
     uint64_t length;
     uint32_t crc;
 
-    const uint8_t* raw_data = data.data<uint8_t>();
+    const uint8_t* raw_data = tensor.data<uint8_t>();
 
     std::memcpy(&length, raw_data, sizeof(length));
 
     // Omit length and crc
     raw_data = raw_data + sizeof(length) + sizeof(crc);
     DALI_ENFORCE(example.ParseFromArray(raw_data, length),
-      make_string("Error while parsing TFRecord file: ", data.GetSourceInfo(),
+      make_string("Error while parsing TFRecord file: ", tensor.GetSourceInfo(),
                   " (raw data length: ", length, " bytes)."));
 
     for (size_t i = 0; i < features_.size(); ++i) {
@@ -82,7 +82,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       }
       if (it == feature.end()) {
         output.Resize({});
-        output.SetSourceInfo(data.GetSourceInfo());
+        output.SetSourceInfo(tensor.GetSourceInfo());
         continue;
       }
       auto& encoded_feature = it->second;
@@ -125,7 +125,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               number_of_elms * sizeof(float));
           break;
       }
-      output.SetSourceInfo(data.GetSourceInfo());
+      output.SetSourceInfo(tensor.GetSourceInfo());
     }
   }
 

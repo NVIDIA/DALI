@@ -119,7 +119,7 @@ void TFRecordReader::Prefetch() {
   // We actually prepare the next batch
   DomainTimeRange tr("[DALI][TFRecordReader] Prefetch #" + to_string(curr_batch_producer_),
                      DomainTimeRange::kRed);
-  DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true>::Prefetch();
+  DataReader<CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true>::Prefetch();
 
   auto idx_loader = dynamic_cast<IndexedFileLoader*>(loader_.get());
   while (idx_loader->AnyWorkLeft()) {
