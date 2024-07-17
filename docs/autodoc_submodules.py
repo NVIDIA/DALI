@@ -62,6 +62,17 @@ mod_aditional_doc = {
         f"<{installation_page_url}#nvidia-dali-video>`__"
         " for more details."
     ),
+    "nvidia.dali.fn.readers": (
+        "Operators in this module are data-producing operators that read data from storage or a"
+        " different source, and where the data locations are known at pipeline construction time"
+        " via arguments. For data readers that are able to read from sources specified dynamically"
+        " via regular inputs, see `nvidia.dali.fn.io` module."
+    ),
+    "nvidia.dali.fn.io": (
+        "Operators in this module are data-reading operators that read data from a source  "
+        " specified at runtime by operator inputs. For inputless data readers that are able "
+        " to build the dataset at pipeline constructions, see `nvidia.dali.fn.readers` module."
+    ),
 }
 
 

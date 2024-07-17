@@ -1411,6 +1411,16 @@ def test_full_like():
         p.run()
 
 
+def test_io_file_read_cpu():
+    path_str = os.path.join(get_dali_extra_path(), "db/single/jpeg/100/swan-3584559_640.jpg")
+    check_single_input(
+        fn.io.file.read,
+        input_layout=None,
+        get_data=lambda: np.frombuffer(path_str.encode(), dtype=np.int8),
+        batch=False,
+    )
+
+
 tested_methods = [
     "_conditional.merge",
     "_conditional.split",
@@ -1598,6 +1608,7 @@ tested_methods = [
     "ones_like",
     "full",
     "full_like",
+    "io.file.read",
 ]
 
 excluded_methods = [

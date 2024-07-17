@@ -144,6 +144,16 @@ def check_single_1d_input(op, device, **kwargs):
     check_is_pipeline_stateless(pipeline_factory)
 
 
+def check_single_filepath_input(op, device, **kwargs):
+    @pipeline_def(enable_checkpointing=True)
+    def pipeline_factory():
+        path_str = os.path.join(get_dali_extra_path(), "db/single/jpeg/100/swan-3584559_640.jpg")
+        path = np.frombuffer(path_str.encode(), dtype=np.int8)
+        return op(move_to(path, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
 def check_single_encoded_jpeg_input(op, device, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
@@ -1013,3 +1023,9 @@ def test_full_operator_family(device):
         return zeros, ones, full, zeros_like, ones_like, full_like
 
     check_is_pipeline_stateless(pipeline_factory)
+
+
+@params("cpu")
+@stateless_signed_off("io.file.read")
+def test_io_file_read(device):
+    check_single_filepath_input(fn.io.file.read, device)

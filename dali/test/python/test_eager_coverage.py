@@ -1529,6 +1529,29 @@ def test_full_like():
     )
 
 
+def test_io_file_read():
+    filenames = [
+        os.path.join(get_dali_extra_path(), "db/single/png/0/cat-1046544_640.png"),
+    ]
+
+    data = []
+    i = 0
+    for _ in range(data_size):
+        batch = []
+        for _ in range(batch_size):
+            batch.append(np.frombuffer(filenames[i % len(filenames)].encode(), dtype=np.int8))
+            i += 1
+        data.append(batch)
+    data = GetData(data)
+
+    check_single_input(
+        "io.file.read",
+        fn_source=data.fn_source,
+        eager_source=data.eager_source,
+        layout=None,
+    )
+
+
 tested_methods = [
     "decoders.image",
     "decoders.image_crop",
@@ -1656,6 +1679,7 @@ tested_methods = [
     "ones_like",
     "full",
     "full_like",
+    "io.file.read",
 ]
 
 excluded_methods = [

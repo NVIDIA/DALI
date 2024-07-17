@@ -1618,6 +1618,33 @@ def test_full_like():
     run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
 
 
+def test_io_file_read():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device, num_outputs=1)
+        out = fn.io.file.read(data)
+        pipe.set_outputs(out)
+        return pipe
+
+    def get_data(batch_size):
+        rel_fpaths = [
+            "db/single/png/0/cat-1046544_640.png",
+            "db/single/png/0/cat-111793_640.png",
+            "db/single/multichannel/with_alpha/cat-111793_640-alpha.jp2",
+            "db/single/jpeg2k/2/tiled-cat-300572_640.jp2",
+        ]
+        path_strs = [
+            os.path.join(test_utils.get_dali_extra_path(), rel_fpath) for rel_fpath in rel_fpaths
+        ]
+        data = []
+        for i in range(batch_size):
+            data.append(np.frombuffer(path_strs[i % len(rel_fpaths)].encode(), dtype=np.int8))
+        return (data,)
+
+    input_data = [get_data(random.randint(3, 9)) for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe, devices=["cpu"])
+
+
 tested_methods = [
     "_conditional.merge",
     "_conditional.split",
@@ -1793,6 +1820,7 @@ tested_methods = [
     "ones_like",
     "full",
     "full_like",
+    "io.file.read",
 ]
 
 excluded_methods = [
