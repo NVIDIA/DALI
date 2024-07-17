@@ -43,7 +43,7 @@ NVCVInterpolationType GetInterpolationType(DALIInterpType interpolation_type) {
     case DALIInterpType::DALI_INTERP_CUBIC:
       return NVCV_INTERP_CUBIC;
     default:
-      DALI_FAIL("Unknown interpolation type.");
+      DALI_FAIL(make_string("Unknown interpolation type: ", static_cast<int>(interpolation_type)));
   }
 }
 
@@ -160,8 +160,8 @@ void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBack
   }
 }
 
-nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "",
-                      const std::optional<TensorShape<>> &reshape = {}) {
+nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout,
+                      const std::optional<TensorShape<>> &reshape) {
   auto orig_shape = tensor.shape();
   auto dtype = GetDataType(tensor.type(), 1);
 

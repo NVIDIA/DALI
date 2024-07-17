@@ -1000,7 +1000,7 @@ def test_erode_stateless(device):
 @params("gpu")
 @stateless_signed_off("experimental.warp_perspective")
 def test_warp_perspective_stateless(device):
-    check_single_input(fn.experimental.warp_perspective, device)
+    check_single_input(fn.experimental.warp_perspective, device, matrix=np.eye(3))
 
 
 @params("cpu")

@@ -83,8 +83,8 @@ nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat 
  * @param reshape shape of the resulting nvcv::Tensor.
  * Its volume must match the volume of the original tensor.
  */
-nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout,
-                      const std::optional<TensorShape<>> &reshape);
+nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "",
+                      const std::optional<TensorShape<>> &reshape = std::nullopt);
 
 /**
  * @brief Allocates an image batch using a dynamic scratchpad.
