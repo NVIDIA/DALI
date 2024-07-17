@@ -64,11 +64,11 @@ DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned,
 
 DLL_PUBLIC bool RestrictPinnedMemUsage() {
   static bool val = []() {
-    /* int n = 0;
-    if (cudaGetDeviceCount(&n) != CUDA_SUCCESS)
+    int n = 0;
+    if (cudaGetDeviceCount(&n) != cudaSuccess)
       return true;
     if (n == 0)
-      return true; */
+      return true;
     const char *env = getenv("DALI_RESTRICT_PINNED_MEM");
     return env && atoi(env);
   }();
