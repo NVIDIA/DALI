@@ -15,9 +15,12 @@
 #ifndef DALI_OPERATORS_READER_PARSER_SEQUENCE_PARSER_H_
 #define DALI_OPERATORS_READER_PARSER_SEQUENCE_PARSER_H_
 
+#include <mutex>
+#include <unordered_map>
 #include "dali/operators/imgcodec/image_decoder.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
 #include "dali/operators/reader/parser/parser.h"
+
 namespace dali {
 
 class SequenceParser : public Parser<TensorSequence> {
@@ -50,15 +53,21 @@ class SequenceParser : public Parser<TensorSequence> {
     exec_params_.executor = nullptr;
     exec_params_.max_num_cpu_threads = 1;
     exec_params_.pre_init = 1;
-    decoder_ = imgcodec::NvImageCodecDecoder::Create(instance_, &exec_params_, {});
   }
 
   void Parse(const TensorSequence& data, SampleWorkspace* ws) override;
 
+  imgcodec::NvImageCodecDecoder& GetDecoder(int tid) {
+    std::lock_guard<std::mutex> lock(decoders_mtx_);
+    return decoders_[tid];
+  }
+
  private:
   DALIImageType image_type_;
   imgcodec::NvImageCodecInstance instance_ = {};
-  imgcodec::NvImageCodecDecoder decoder_ = {};
+
+  std::mutex decoders_mtx_;
+  std::unordered_map<int, imgcodec::NvImageCodecDecoder> decoders_;
 
   nvimgcodecBackend_t backend_{
       NVIMGCODEC_STRUCTURE_TYPE_BACKEND,

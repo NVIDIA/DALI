@@ -18,7 +18,26 @@
 
 namespace dali {
 
+nvimgcodecSampleFormat_t image_type_to_sample_format(DALIImageType img_type) {
+  switch (img_type) {
+    case DALI_ANY_DATA:
+      return NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED;
+    case DALI_GRAY:
+      return NVIMGCODEC_SAMPLEFORMAT_P_Y;
+    case DALI_RGB:
+      return NVIMGCODEC_SAMPLEFORMAT_I_RGB;
+    case DALI_BGR:
+      return NVIMGCODEC_SAMPLEFORMAT_I_BGR;
+    case DALI_YCbCr:
+    default:
+      return NVIMGCODEC_SAMPLEFORMAT_UNSUPPORTED;
+  }
+}
+
 void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
+  auto& decoder = GetDecoder(ws->thread_idx());
+  if (!decoder)
+    decoder = imgcodec::NvImageCodecDecoder::Create(instance_, &exec_params_, {});
   Index seq_length = data.tensors.size();
   TensorShape<4> seq_shape;
   seq_shape[0] = seq_length;
@@ -35,8 +54,10 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
                                nullptr};
 
     auto file_name = data.tensors[i].GetSourceInfo();
-    auto encoded_stream = imgcodec::NvImageCodecCodeStream::FromHostMem(
-        instance_, data.tensors[i].data<uint8_t>(), data.tensors[i].size());
+    const uint8_t* data_ptr = data.tensors[i].data<uint8_t>();
+    size_t data_size = data.tensors[i].size();
+    auto encoded_stream =
+        imgcodec::NvImageCodecCodeStream::FromHostMem(instance_, data_ptr, data_size);
     CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetImageInfo(encoded_stream, &info));
 
     int64_t new_nchannels = image_type_ == DALI_GRAY                           ? 1 :
@@ -50,12 +71,12 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
       sequence.SetLayout("FHWC");
       sequence.Resize(seq_shape, DALI_UINT8);
     } else {
-      DALI_ENFORCE(info.plane_info[0].height == seq_shape[1],
-                   "All frames expected to have same height");
-      DALI_ENFORCE(info.plane_info[0].width == seq_shape[2],
-                   "All frames expected to have same width");
-      DALI_ENFORCE(new_nchannels == nchannels,
-                   "All frames expected to have same number of channels");
+      DALI_ENFORCE(
+          info.plane_info[0].height == seq_shape[1] && info.plane_info[0].width == seq_shape[2] &&
+              new_nchannels == nchannels,
+          make_string("Expected all frames to have same shape. (", info.plane_info[0].height, ", ",
+                      info.plane_info[0].width, ", ", info.plane_info[0].num_channels, ") != ( ",
+                      seq_shape[1], ", ", seq_shape[2], ", ", seq_shape[3], ")"));
     }
 
     auto view_i = sequence.SubspaceTensor(i);
@@ -64,18 +85,10 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
 
     // Decode to format
     info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
-    if (image_type_ == DALI_ANY_DATA) {
-      info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED;
-    } else if (image_type_ == DALI_GRAY) {
-      info.sample_format = NVIMGCODEC_SAMPLEFORMAT_P_Y;
-    } else if (image_type_ == DALI_RGB) {
-      info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_RGB;
-    } else if (image_type_ == DALI_BGR) {
-      info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_BGR;
-    } else {
-      DALI_FAIL(
-          "Format not supported. Only RGB, BGR, GRAY or ANY_DATA are supported on this operator");
-    }
+    info.sample_format = image_type_to_sample_format(image_type_);
+    DALI_ENFORCE(info.sample_format != NVIMGCODEC_SAMPLEFORMAT_UNSUPPORTED,
+      "Format not supported. Only RGB, BGR, GRAY or ANY_DATA are supported on this operator");
+
     info.cuda_stream = nullptr;
     info.region.ndim = 0;
     info.buffer_kind = NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST;
@@ -91,13 +104,15 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
     nvimgcodecFuture_t decode_future;
     auto enc_stream = encoded_stream.get();
     auto img_handle = image.get();
-    nvimgcodecDecoderDecode(decoder_, &enc_stream, &img_handle, 1, &decode_params, &decode_future);
-
+    CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder, &enc_stream, &img_handle, 1, &decode_params,
+                                             &decode_future));
     size_t status_size;
     nvimgcodecProcessingStatus_t decode_status;
     nvimgcodecFutureGetProcessingStatus(decode_future, &decode_status, &status_size);
     nvimgcodecFutureDestroy(decode_future);
-    DALI_ENFORCE(decode_status == NVIMGCODEC_PROCESSING_STATUS_SUCCESS);
+    DALI_ENFORCE(decode_status == NVIMGCODEC_PROCESSING_STATUS_SUCCESS,
+                 make_string("Failed to decode the ", i, "-th frame (", file_name,
+                             ") with error code ", decode_status));
   }
 }
 
