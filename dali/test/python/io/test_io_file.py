@@ -76,7 +76,8 @@ def test_io_file_const_str_err():
 
     with assert_raises(
         TypeError,
-        glob="expected inputs of type 'DataNode', list of 'DataNode' or convertible to constant nodes.",
+        glob="expected inputs of type 'DataNode', list of 'DataNode' "
+        "or convertible to constant nodes.",
     ):
         p = pipe()
         p.build()
