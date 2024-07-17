@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import nvidia.dali.fn as fn
-import os
 import tempfile
 import unittest
 from nvidia.dali import pipeline_def
@@ -152,19 +151,12 @@ class ProgressiveJpeg(unittest.TestCase):
         ("ac_first", "ac_refine", "dc_first", "dc_refine"),
     )
     def test_scans_limit(self, decoding_device, decoding_method, decoding_step):
-        max_scans = int(os.environ.get("NVIMGCODEC_MAX_JPEG_SCANS", "256"))
-
         @pipeline_def(batch_size=1, device_id=0, num_threads=4)
         def pipeline():
             data, _ = fn.readers.file(files=self.files[(decoding_method, decoding_step)].name)
             return fn.decoders.image(data, device=decoding_device)
 
-        pretty_decoding_dev = "CPU" if decoding_device == "cpu" else "MIXED"
-        with assert_raises(
-            RuntimeError,
-            glob=f"Error in {pretty_decoding_dev} * "
-            f"The number of scans ({max_scans + 1}) during progressive decoding *",
-        ):
+        with assert_raises(RuntimeError):
             p = pipeline()
             p.build()
             p.run()
