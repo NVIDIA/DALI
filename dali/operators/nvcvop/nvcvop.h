@@ -15,13 +15,14 @@
 #ifndef DALI_OPERATORS_NVCVOP_NVCVOP_H_
 #define DALI_OPERATORS_NVCVOP_NVCVOP_H_
 
-
+#include <cvcuda/Types.h>
 #include <nvcv/DataType.h>
 #include <nvcv/BorderType.h>
-#include <string>
-#include <vector>
 #include <nvcv/Tensor.hpp>
 #include <nvcv/ImageBatch.hpp>
+
+#include <string>
+#include <vector>
 
 #include "dali/core/call_at_exit.h"
 #include "dali/kernels/dynamic_scratchpad.h"
@@ -37,6 +38,13 @@ namespace dali::nvcvop {
  * @param border_mode border mode name
  */
 NVCVBorderType GetBorderMode(std::string_view border_mode);
+
+/**
+ * @brief Get the nvcv interpolation type from name
+ *
+ * @param interpolation_type interpolation type name
+ */
+NVCVInterpolationType GetInterpolationType(DALIInterpType interpolation_type);
 
 /**
  * @brief Get nvcv data kind of a given data type
@@ -65,6 +73,18 @@ nvcv::Image AsImage(SampleView<GPUBackend> sample, const nvcv::ImageFormat &form
  * @param format image format. It needs to match the shape and data type of the sample view
  */
 nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat &format);
+
+/**
+ * @brief Wrap a DALI tensor as an NVCV Tensor
+ *
+ * @param tensor DALI tensor
+ * @param layout layout of the resulting nvcv::Tensor.
+ * If not provided, layout of the DALI tensor is used.
+ * @param reshape shape of the resulting nvcv::Tensor.
+ * Its volume must match the volume of the original tensor.
+ */
+nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "",
+                      const std::optional<TensorShape<>> &reshape = std::nullopt);
 
 /**
  * @brief Allocates an image batch using a dynamic scratchpad.
@@ -118,13 +138,16 @@ class NVCVOperator: public BaseOp {
    *
    * @tparam T data type of the DALI operator argument
    * @tparam DTYPE expected nvcv Tensor data type
-   * @param arg_shape shape of the DALI operator argument.
+   * @param arg_shape shape of the DALI operator argument
+   * @param reshape shape of the resulting Tensor. Volume of this shape must match
+   * the volume of the argument (arg_shape).
    */
-  template <typename T>
+  template <typename T, int ndim>
   nvcv::Tensor AcquireTensorArgument(Workspace &ws, kernels::Scratchpad &scratchpad,
-                                     ArgValue<T, 1> &arg, const TensorShape<> &arg_shape,
+                                     ArgValue<T, ndim> &arg, const TensorShape<> &arg_shape,
                                      nvcv::DataType dtype = GetDataType<T>(),
-                                     TensorLayout layout = "") {
+                                     TensorLayout layout = "",
+                                     const std::optional<TensorShape<>> &reshape = {}) {
     int num_samples = ws.GetInputBatchSize(0);
     int arg_sample_vol = volume(arg_shape);
     arg.Acquire(spec_, ws, num_samples, arg_shape);
@@ -137,7 +160,15 @@ class NVCVOperator: public BaseOp {
     T *device_buffer = scratchpad.AllocateGPU<T>(num_samples * arg_sample_vol, dtype.alignment());
     MemCopy(device_buffer, staging_buffer, num_samples * arg_sample_vol * sizeof(T), ws.stream());
 
-    auto shape_data = CalcTensorShape(arg_shape, num_samples, dtype);
+    TensorShape<> shape_data;
+    if (reshape.has_value()) {
+      DALI_ENFORCE(arg_sample_vol == volume(*reshape),
+                   make_string("Cannot reshape ", arg_shape, " to ", *reshape, "."));
+      shape_data = CalcTensorShape(*reshape, num_samples, dtype);
+    } else {
+      shape_data = CalcTensorShape(arg_shape, num_samples, dtype);
+    }
+
     nvcv::TensorDataStridedCuda::Buffer inBuf;
     inBuf.basePtr = reinterpret_cast<NVCVByte*>(device_buffer);
     inBuf.strides[shape_data.size() - 1] = dtype.strideBytes();

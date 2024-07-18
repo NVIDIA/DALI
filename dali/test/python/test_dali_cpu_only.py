@@ -1606,6 +1606,7 @@ excluded_methods = [
     "experimental.median_blur",  # not supported for CPU
     "experimental.dilate",  # not supported for CPU
     "experimental.erode",  # not supported for CPU
+    "experimental.warp_perspective",  # not supported for CPU
     "plugin.video.decoder",  # not supported for CPU
 ]
 
