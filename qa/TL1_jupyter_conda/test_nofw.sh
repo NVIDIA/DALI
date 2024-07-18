@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy matplotlib<3.5.3 pillow opencv-python librosa==0.8.1 simpleaudio'
+pip_packages='jupyter numpy matplotlib<3.5.3 pillow opencv-python librosa==0.10.2 simpleaudio'
 target_dir=./docs/examples
 
 # populate epilog and prolog with variants to enable/disable conda
