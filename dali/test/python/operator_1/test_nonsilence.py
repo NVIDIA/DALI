@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,21 +19,16 @@ import test_utils
 import os
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
+from test_audio_utils_librosa_ref import nonsilent_region
 
 audio_files = test_utils.get_files(os.path.join("db", "audio", "wav"), "wav")
 
 
 def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
-    yt, index = librosa.effects.trim(
+    start, length = nonsilent_region(
         y=input_data, top_db=-cutoff_db, ref=ref, frame_length=frame_length, hop_length=hop_length
     )
-    # librosa's trim function calculates power with reference to center of window,
-    # while DALI uses beginning of window. Hence the subtraction below
-    begin = index[0] - frame_length // 2
-    length = index[1] - index[0]
-    if length != 0:
-        length += frame_length - 1
-    return np.array(begin), np.array(length)
+    return np.array(start), np.array(length)
 
 
 @pipeline_def
