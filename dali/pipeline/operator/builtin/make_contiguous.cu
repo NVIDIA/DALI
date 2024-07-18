@@ -21,7 +21,7 @@ namespace dali {
 
 void MakeContiguousMixed::RunImpl(Workspace &ws) {
   const auto& input = ws.Input<CPUBackend>(0);
-  int sample_dim = input[0].shape().sample_dim();
+  int sample_dim = input.shape().sample_dim();
   size_t batch_size = input.num_samples();
   DALIDataType type = input.type();
   size_t type_size = input.type_info().size();
