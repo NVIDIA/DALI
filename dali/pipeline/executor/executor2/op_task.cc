@@ -107,15 +107,77 @@ PipelineOutput OpTask::GetOutput() {
   return ret;
 }
 
+bool OpTask::ShouldSkip() const {
+  int ninp_reg = ws_->NumInput();
+  int ninp_arg = ws_->NumArgumentInput();
+  if (ninp_reg || ninp_arg) {
+    for (int i = 0; i < ninp_reg; i++) {
+      if (ws_->GetInputBatchSize(i) != 0)
+        return false;
+    }
+    for (int i = 0; i < ninp_arg; i++) {
+      if (ws_->ArgumentInput(i).num_samples() != 0)
+        return false;
+    }
+    return true;
+  } else {
+    for (int i = 0; i < ws_->NumOutput(); i++)
+      if (ws_->GetRequestedBatchSize(0) != 0)
+        return false;
+
+    return true;
+  }
+}
+
+template <typename Backend>
+void OpTask::ApplyDefaultLayout(int input_idx, const OpSchema &schema) {
+  TensorList<Backend> &input = ws_->UnsafeMutableInput<Backend>(input_idx);
+
+  TensorLayout layout_found = input.GetLayout();
+
+  auto layout = schema.GetInputLayout(input_idx, input.sample_dim(), layout_found);
+  if (layout == layout_found)
+    return;  // no need to adjust anything
+
+  auto *input_edge = node_->inputs[input_idx];
+  auto &source = input_edge->producer->outputs[input_edge->producer_output_idx];
+  if (!source.parallel_consumers) {
+    // If there's just one consumer, we can just set the layout
+    input.SetLayout(layout);
+  } else {
+    // If there are multiple consumers, then we have to create a new object
+    // sharing the data, as setting it in-place might cause a race condition.
+    auto new_input = std::make_shared<TensorList<Backend>>();
+    new_input->ShareData(input);
+    new_input->SetLayout(layout);
+    ws_->SetInput(input_idx, std::move(new_input));
+  }
+}
+
+void OpTask::ApplyDefaultLayouts() {
+  auto &schema = node_->op->GetSpec().GetSchema();
+  for (int i = 0; i < ws_->NumInput(); i++) {
+    if (ws_->InputIsType<CPUBackend>(i)) {
+      ApplyDefaultLayout<CPUBackend>(i, schema);
+    } else {
+      assert(ws_->InputIsType<GPUBackend>(i));
+      ApplyDefaultLayout<GPUBackend>(i, schema);
+    }
+  }
+}
+
 void OpTask::SetupOp() {
   auto &ws = *ws_;
-  int nout = node_->op->GetSpec().NumOutput();
+  int nout = node_->outputs.size();
   std::vector<OutputDesc> output_descs;
   assert(ws.NumOutput() == nout);
-  output_descs.resize(nout);
+  output_descs.reserve(nout);
   // Run the operator setup
-  bool should_resize;
-  {
+  bool should_resize = false;
+
+  skip_ = ShouldSkip();
+
+  if (!skip_) {
     DomainTimeRange tr("[DALI][OpTask] Setup " + GetOpDisplayName(node_->op->GetSpec()));
     should_resize = node_->op->Setup(output_descs, ws);
   }
@@ -145,11 +207,11 @@ void OpTask::SetupOp() {
 }
 
 void OpTask::RunOp() {
-  {
+  if (!skip_) {
     DomainTimeRange tr("[DALI][Executor] Run");
     node_->op->Run(*ws_);
+    PropagateSourceInfo(*ws_);
   }
-  PropagateSourceInfo(*ws_);
   if (auto cpt = ws_->GetIterationData()->checkpoint) {
     node_->op->SaveState(cpt->GetOpCheckpoint(node_->instance_name), ws_->output_order());
   }

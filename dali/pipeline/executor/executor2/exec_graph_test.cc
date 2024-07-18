@@ -25,12 +25,14 @@ namespace exec2 {
 namespace test {
 
 namespace {
+// TODO(michalz): Avoid this code duplication without messing up encapsulation
 void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
   auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
   for (auto &n : graph.Nodes()) {
     if (n.backend == backend)
         n.concurrency = sem;
   }
+  graph.Invalidate();
 }
 }  // namespace
 

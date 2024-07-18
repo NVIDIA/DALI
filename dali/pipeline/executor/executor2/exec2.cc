@@ -39,10 +39,11 @@ void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurren
     if (n.backend == backend)
         n.concurrency = sem;
   }
+  graph.Invalidate();
 }
 
-void ApplyConcurrencyLimit(ExecGraph &graph, const Executor2::Config &config) {
-  switch (config.concurrency) {
+void ApplyConcurrencyLimit(ExecGraph &graph, OperatorConcurrency concurrency) {
+  switch (concurrency) {
     case OperatorConcurrency::Full:
       // TODO(michalz): Fix ThreadPool.
       LimitBackendConcurrency(graph, OpType::CPU);
@@ -94,7 +95,7 @@ class Executor2::Impl {
     AnalyzeGraph();
     CheckNodeTypes();
     CalculatePrefetchDepth();
-    ApplyConcurrencyLimit(graph_, config_);
+    ApplyConcurrencyLimit(graph_, config_.concurrency);
     SetupStreams();
     SetupThreadPool();
 

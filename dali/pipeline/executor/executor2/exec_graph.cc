@@ -265,6 +265,7 @@ void ExecGraph::PrepareIteration(
     const std::shared_ptr<IterationData> &iter_data,
     const WorkspaceParams &params) {
   Validate();
+  Analyze();
   for (auto &n : nodes_) {
     n.NextIter();
     n.CreateMainTask(iter_data, params);
@@ -277,6 +278,7 @@ void ExecGraph::PrepareIteration(
 
 tasking::TaskFuture ExecGraph::Launch(tasking::Scheduler &sched) {
   Validate();
+  Analyze();
   std::optional<tasking::TaskFuture> ret;
   for (auto &n : nodes_) {
     auto maybe_future = n.Launch(sched);

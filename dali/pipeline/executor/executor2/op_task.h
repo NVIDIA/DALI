@@ -87,6 +87,7 @@ class OpTask {
   tasking::Task *task_ = nullptr;
   ExecNode *node_ = nullptr;
   CachedWorkspace ws_;
+  bool skip_ = false;
 
   template <typename Backend>
   const auto &TaskInput(int i) const {
@@ -113,6 +114,19 @@ class OpTask {
    * and the stream assignment of the output is not updated.
    */
   AccessOrder OutputConsumerOrder(int output_idx);
+
+  /** Checks if the execution of the operator should be skipped.
+   *
+   * The operator is skipped if:
+   * 1. It has inputs and all of them are empty batches.
+   * 2. It has no inputs and the requested batch size is 0.
+   */
+  bool ShouldSkip() const;
+
+  void ApplyDefaultLayouts();
+
+  template <typename Backend>
+  void ApplyDefaultLayout(int input_idx, const OpSchema &schema);
 };
 
 

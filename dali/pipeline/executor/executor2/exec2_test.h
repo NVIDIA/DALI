@@ -37,6 +37,7 @@ class DummyOpCPU : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
     int N = ws.GetRequestedBatchSize(0);
+    outs.resize(ws.NumOutput());
     outs[0].shape = uniform_list_shape(N, TensorShape<>{});
     outs[0].type = DALI_INT32;
     return true;
@@ -77,6 +78,7 @@ class DummyOpGPU : public Operator<GPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
     int N = ws.GetRequestedBatchSize(0);
+    outs.resize(ws.NumOutput());
     outs[0].shape = uniform_list_shape(N, TensorShape<>{});
     outs[0].type = DALI_INT32;
     return true;
@@ -102,6 +104,7 @@ class CounterOp : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
     int N = ws.GetRequestedBatchSize(0);
+    outs.resize(ws.NumOutput());
     outs[0].shape = uniform_list_shape(N, TensorShape<>{});
     outs[0].type = DALI_INT32;
     return true;

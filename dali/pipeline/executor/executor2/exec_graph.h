@@ -95,7 +95,9 @@ struct ExecOutputDesc {
   SmallVector<ExecEdge *, 4> consumers;
 
   StorageDevice device = StorageDevice::CPU;
-  bool          pinned = false;
+  bool pinned = false;
+
+  bool parallel_consumers = true;
 };
 
 /** An execution node.
@@ -276,7 +278,7 @@ class DLL_PUBLIC ExecGraph {
 
   template <typename... Args>
   ExecNode *AddNode(Args &&...args) {
-    validated_ = false;
+    Invalidate();
     ExecNode *node = &nodes_.emplace_back(std::forward<Args>(args)...);
     if (!node->instance_name.empty()) {
       if (!name2node_.emplace(node->instance_name, node).second) {
@@ -289,7 +291,7 @@ class DLL_PUBLIC ExecGraph {
   }
 
   ExecNode *AddOutputNode() {
-    validated_ = false;
+    Invalidate();
     ExecNode *node = &nodes_.emplace_back(PipelineOutputTag());
     if (!node->instance_name.empty()) {
       if (!name2node_.emplace(node->instance_name, node).second) {
@@ -302,6 +304,7 @@ class DLL_PUBLIC ExecGraph {
   }
 
   ExecEdge *Link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
+    Invalidate();
     auto &edge = edges_.emplace_back();
     edge.producer = producer;
     edge.producer_output_idx = out_idx;
@@ -319,6 +322,11 @@ class DLL_PUBLIC ExecGraph {
     return &edge;
   }
 
+  void Invalidate() {
+    validated_ = false;
+    analyzed_ = false;
+  }
+
   void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,
                         const WorkspaceParams &params);
 
@@ -327,14 +335,17 @@ class DLL_PUBLIC ExecGraph {
   /** Populates the graph based on a pipeline definiton graph. */
   void Lower(const graph::OpGraph &def);
 
-  void FindPinnedBuffers();
+  void Analyze();
 
  private:
+  class Analyzer;
+
   std::list<ExecNode> nodes_;
   std::list<ExecEdge> edges_;
   std::unordered_map<std::string_view, ExecNode *> name2node_;
 
   bool validated_ = false;
+  bool analyzed_ = false;
   /** A bugcheck for graph inconsitency. It throws upon detecting misconneted nodes. */
   void Validate();
 };
