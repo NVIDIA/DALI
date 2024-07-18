@@ -56,7 +56,7 @@ specify ``(480,640)``, not ``(480,640,3)``.
   If `inverse_map` argument is set to false, the matrix is interpreted
   as a source to destination coordinates mapping.
 
-It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
+It is equivalent to OpenCV's ``warpPerspective`` operation with the ``inverse_map`` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
 
 .. note::
@@ -71,8 +71,9 @@ analog to the ``WARP_INVERSE_MAP`` flag.
     .AddOptionalArg("interp_type", "Type of interpolation used.", DALI_INTERP_LINEAR)
     .AddOptionalArg("pixel_origin", R"doc(Pixel origin. Possible values: "corner", "center".
 
-Defines which part of the pixel (upper-left corner or center) is interpreted as its origin.
-This value impacts the interpolation result. To match OpenCV, please pick "center".))doc", "corner")
+Determines the meaning of (0, 0) coordinates - "corner" places the origin at the top-left corner of
+the top-left pixel (like in OpenGL); "center" places (0, 0) in the center of 
+the top-left pixel (like in OpenCV).))doc", "corner")
     .AddOptionalArg<float>("fill_value",
                            "Value used to fill areas that are outside the source image when the "
                            "\"constant\" border_mode is chosen.",
@@ -189,12 +190,11 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
       DALI_ENFORCE(!matrix_arg_.HasExplicitValue(),
                    "Matrix input and `matrix` argument should not be provided at the same time.");
       auto &matrix_input = ws.Input<GPUBackend>(1);
-      DALI_ENFORCE(is_uniform(matrix_input.shape()),
-                   "Matrix data has to be a uniformly shaped batch.");
-      DALI_ENFORCE(matrix_input.tensor_shape(0) == TensorShape<2>(3, 3),
-                   make_string("Transformation matrix must be a 3x3 matrix. "
-                               "Instead got data with shape: {",
-                               matrix_input.tensor_shape(0), "}"));
+      DALI_ENFORCE(matrix_input.shape() ==
+                     uniform_list_shape(matrix_input.num_samples(), TensorShape<2>(3, 3)),
+                   make_string("Expected a uniform list of 3x3 matrices. "
+                               "Instead got data with shape: ",
+                               matrix_input.shape()));
 
       matrix_data_.Copy(matrix_input, AccessOrder(ws.stream()));
       Tensor<GPUBackend> matrix_tensor = matrix_data_.AsTensor();

@@ -565,7 +565,9 @@ def test_warp_perspective_const_matrix_vs_warp_affine(
     compare_pipelines(pipe1, pipe2, bs, dtype)
 
 
-@raises(RuntimeError, glob="*must be a 3x3 matrix. Instead got data with shape: {3 x 4}*")
+@raises(
+    RuntimeError, glob="*Expected a uniform list of 3x3 matrices. Instead got data with shape: *"
+)
 def test_invalid_shape():
     pipe1 = dali.Pipeline(1, 1, 0)
     with pipe1:
