@@ -156,12 +156,13 @@ def train(model_func, params):
       boundaries=list(p[1] for p in common.LR_SCHEDULE[1:]),
       multipliers=list(p[0] for p in common.LR_SCHEDULE),
       compute_lr_on_cpu=True)
-  opt = keras.optimizers.SGD(learning_rate=lr_schedule, momentum=momentum, loss_scale_factor=1)
+  opt = keras.optimizers.SGD(learning_rate=lr_schedule, momentum=momentum)
   # Horovod: add Horovod DistributedOptimizer. We use a modified version to
   # support the custom learning rate schedule.
   opt = hvd.DistributedOptimizer(opt)
   if StrictVersion(tf.__version__) >= StrictVersion("2.4.0") and precision == 'fp16':
-    opt = keras.mixed_precision.LossScaleOptimizer(opt, initial_scale=loss_scale)
+    opt = keras.mixed_precision.LossScaleOptimizer(opt, dynamic=False,
+                                                   initial_scale=loss_scale)
 
   backend.set_image_data_format(image_format)
   dtype='float16' if precision == 'fp16' else 'float32'

@@ -17,7 +17,7 @@ import nvidia.dali as dali
 import os
 import tempfile
 from glob import glob
-from nose.tools import assert_equal
+from nose_utils import assert_equals
 
 import webdataset_base as base
 from nose_utils import assert_raises
@@ -112,7 +112,7 @@ def test_single_sample():
         num_threads=1,
     )
     wds_pipeline.build()
-    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
+    assert_equals(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
 def test_single_sample_and_junk():
@@ -148,7 +148,7 @@ def test_single_sample_and_junk():
         num_threads=1,
     )
     wds_pipeline.build()
-    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
+    assert_equals(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
 def test_wide_sample():
@@ -189,7 +189,7 @@ def test_wide_sample():
         num_threads=1,
     )
     wds_pipeline.build()
-    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
+    assert_equals(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
 def test_argument_errors():

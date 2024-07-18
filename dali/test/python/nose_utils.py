@@ -29,6 +29,17 @@ if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
 import nose.tools as tools
 import re
 import fnmatch
+import unittest
+
+
+class empty_case(unittest.TestCase):
+    def nop():
+        pass
+
+
+def assert_equals(x, y):
+    foo = empty_case()
+    foo.assertEqual(x, y)
 
 
 def glob_to_regex(glob):

@@ -483,10 +483,17 @@ all_packages = [
             PckgVer(">=1.17,<2", python_min_ver="3.12", python_max_ver="3.12"),
         ],
     ),
+    # there is no mix of working librosa and numpy for python 3.12 we can use
+    PlainPackage(
+        "librosa",
+        [
+            PckgVer("0.8.1", python_min_ver="3.8", python_max_ver="3.11"),
+        ],
+    ),
     PlainPackage("opencv-python", [PckgVer("4.8.1.78", dependencies=["numpy<2"])]),
     CudaPackage(
         "cupy",
-        {"118": [PckgVer("12.2.0", python_min_ver="3.8")]},
+        {"118": [PckgVer("12.3.0", python_min_ver="3.8")]},
         "cupy-cuda11x",
     ),
     CudaPackage(
@@ -519,19 +526,13 @@ all_packages = [
                     "2.16.2",
                     python_min_ver="3.9",
                     alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "urllib3<2.0",
-                    ],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.16"],
                 ),
                 PckgVer(
                     "2.17.0",
                     python_min_ver="3.9",
                     alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "urllib3<2.0",
-                    ],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.17"],
                 ),
             ],
         },
