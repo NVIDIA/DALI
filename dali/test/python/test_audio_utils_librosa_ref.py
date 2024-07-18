@@ -1,4 +1,3 @@
-
 # ISC License
 # Copyright (c) 2013--2023, librosa development team.
 
@@ -19,6 +18,7 @@
 #   to be used as a reference for testing purposes.
 
 import numpy as np
+
 
 def power_to_db(magnitude, ref=1.0, amin=1e-10, top_db=80.0):
     if amin <= 0:
@@ -42,10 +42,10 @@ def power_to_db(magnitude, ref=1.0, amin=1e-10, top_db=80.0):
 
 
 def extract_frames(x, frame_length, hop_length, axis=-1):
-    assert x.shape[axis] >= frame_length, \
-        f"Input should be of equal length or higher than frame_length: Got {x.shape[axis]} < {frame_length}"
-    assert hop_length >= 1, \
-        f"Invalid hop_length: {hop_length}"
+    assert (
+        x.shape[axis] >= frame_length
+    ), f"Input length should be <= frame_length: Got {x.shape[axis]} < {frame_length}"
+    assert hop_length >= 1, f"Invalid hop_length: {hop_length}"
     n_frames = 1 + (x.shape[axis] - frame_length) // hop_length
     x_frames = np.zeros((frame_length, n_frames), dtype=np.float32)
     for j in range(n_frames):
