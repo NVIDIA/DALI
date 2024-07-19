@@ -99,10 +99,7 @@ def test_beta_distribution(case_idx, alpha, beta, dtype):
         for _ in range(batch_size)
     ]
     assert len(batch) == len(refs)
-    pvs = [
-        sp.stats.kstest(sample, sample_ref, nan_policy="raise")[1]
-        for sample, sample_ref in zip(batch, refs)
-    ]
+    pvs = [sp.stats.kstest(sample, sample_ref)[1] for sample, sample_ref in zip(batch, refs)]
 
     # We're running a lot of tests in total so having a random failure
     # with 0.01 threshold is quite likely. Hence, the threshold for a single
