@@ -178,30 +178,35 @@ void OpTask::SetupOp() {
   skip_ = ShouldSkip();
 
   if (!skip_) {
+    for (int i = 0; i < nout; i++) {
+      if (ws.OutputIsType<CPUBackend>(i)) {
+        if (!ws.OutputPtr<CPUBackend>(i)) {
+          auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
+        }
+      } else if (!ws.OutputPtr<GPUBackend>(i)) {
+        auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
+        tl->set_order(ws.output_order());
+        ws.SetOutput(i, tl);
+      } else {
+        assert(!"Unreachable code - unknown backend.");
+      }
+    }
+
+    ApplyDefaultLayouts();
     DomainTimeRange tr("[DALI][OpTask] Setup " + GetOpDisplayName(node_->op->GetSpec()));
     should_resize = node_->op->Setup(output_descs, ws);
   }
   // If Setup returns true, we must resize the outputs;
   // otherwise we just get empty TensorLists with an expected number of samples.
-  for (int i = 0; i < nout; i++) {
-    if (ws.OutputIsType<CPUBackend>(i)) {
-      if (!ws.OutputPtr<CPUBackend>(i)) {
-        auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
-        tl->set_pinned(node_->outputs[i].pinned);
-        ws.SetOutput(i, tl);
-      }
-      if (should_resize)
-        ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-    } else if (ws.OutputIsType<GPUBackend>(i)) {
-      if (!ws.OutputPtr<GPUBackend>(i)) {
-        auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
-        tl->set_order(ws.output_order());
-        ws.SetOutput(i, tl);
-      }
-      if (should_resize)
+  if (should_resize) {
+    for (int i = 0; i < nout; i++) {
+      if (ws.OutputIsType<CPUBackend>(i)) {
+          ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+      } else if (ws.OutputIsType<GPUBackend>(i)) {
         ws.Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-    } else {
-      assert(!"Unreachable code - unknown backend.");
+      } else {
+        assert(!"Unreachable code - unknown backend.");
+      }
     }
   }
 }
