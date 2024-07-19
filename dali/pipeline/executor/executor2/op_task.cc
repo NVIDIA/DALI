@@ -177,21 +177,24 @@ void OpTask::SetupOp() {
 
   skip_ = ShouldSkip();
 
-  if (!skip_) {
-    for (int i = 0; i < nout; i++) {
-      if (ws.OutputIsType<CPUBackend>(i)) {
-        if (!ws.OutputPtr<CPUBackend>(i)) {
-          auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
-        }
-      } else if (!ws.OutputPtr<GPUBackend>(i)) {
-        auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
+  for (int i = 0; i < nout; i++) {
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      if (!ws.OutputPtr<CPUBackend>(i)) {
+        auto tl = std::make_shared<TensorList<CPUBackend>>();
+        ws.SetOutput(i, tl);
+      }
+    } else if (ws.OutputIsType<GPUBackend>(i)) {
+      if (!ws.OutputPtr<GPUBackend>(i)) {
+        auto tl = std::make_shared<TensorList<GPUBackend>>();
         tl->set_order(ws.output_order());
         ws.SetOutput(i, tl);
-      } else {
-        assert(!"Unreachable code - unknown backend.");
       }
+    } else {
+      assert(!"Unreachable code - unknown backend.");
     }
+  }
 
+  if (!skip_) {
     ApplyDefaultLayouts();
     DomainTimeRange tr("[DALI][OpTask] Setup " + GetOpDisplayName(node_->op->GetSpec()));
     should_resize = node_->op->Setup(output_descs, ws);
@@ -199,9 +202,10 @@ void OpTask::SetupOp() {
   // If Setup returns true, we must resize the outputs;
   // otherwise we just get empty TensorLists with an expected number of samples.
   if (should_resize) {
+    assert(output_descs.size() == static_cast<size_t>(nout));
     for (int i = 0; i < nout; i++) {
       if (ws.OutputIsType<CPUBackend>(i)) {
-          ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+        ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
       } else if (ws.OutputIsType<GPUBackend>(i)) {
         ws.Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
       } else {
