@@ -86,6 +86,7 @@ class DLL_PUBLIC TensorList {
   TensorList<Backend> &operator=(TensorList<Backend> &&other) noexcept;
   DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept;
 
+  ~TensorList();
 
   AccessOrder order() const {
     return order_;

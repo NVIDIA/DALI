@@ -180,21 +180,7 @@ class DLL_PUBLIC ExecNode {
 
   /** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
   CachedWorkspace GetWorkspace(std::shared_ptr<IterationData> iter_data,
-                               WorkspaceParams params) {
-    auto ws = workspace_cache_.Get(params);
-    if (!ws) {
-      if (op) {
-        ws = CreateOpWorkspace();
-      } else {
-        ws = CreateOutputWorkspace();
-      }
-    }
-    if (!params.env)
-      params.env = &env;
-    ApplyWorkspaceParams(*ws, params);
-    ws->InjectIterationData(iter_data);
-    return ws;
-  }
+                               WorkspaceParams params);
 
   /** The instance name of the operator. */
   const std::string instance_name;
@@ -204,6 +190,8 @@ class DLL_PUBLIC ExecNode {
 
   /** Whether the node is the very output of the pipeline. There's only one such node. */
   bool is_pipeline_output = false;
+
+  bool has_gpu_outputs = false;
 
   /** Visit marker for graph algorithms. */
   mutable bool visited = false;

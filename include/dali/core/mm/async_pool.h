@@ -232,6 +232,8 @@ class async_pool_resource : public async_memory_resource<Kind>,
   void do_deallocate_async(void *mem, size_t bytes, size_t alignment, stream_view stream) override {
     if (!mem || !bytes)
       return;
+    std::cerr << "deallocate " << bytes << " @" << mem << " stream = "
+              << (void*)stream.get() << std::endl;
     adjust_size_and_alignment(bytes, alignment, false);
 
     // Record an event outside of the mutex - it may take considerable time
@@ -464,20 +466,23 @@ class async_pool_resource : public async_memory_resource<Kind>,
    * @brief Returns the memory from completed deallocations to the global pool.
    */
   void free_ready(PerStreamFreeBlocks &free) {
-    if (stream_id_hint::is_unambiguous()) {
+    /*if (stream_id_hint::is_unambiguous()) {
       // strict order available - find the newest ready, all older entries must be ready too
       auto *f = find_first_ready(free);
       while (f) {
         global_pool_.deallocate(f->addr, f->bytes, f->alignment);
         f = remove_pending_free(free, f);
       }
-    } else {
+    } else*/ {
       // no strict order - go over elements and remove ones that are ready
       for (auto *f = free.free_list.head; f; ) {
+        std::cerr << "Checking pending free block: " << f->bytes << " @" << (void*)f->addr << "...";
         if (f->ready()) {
+          std::cerr << "free\n";
           global_pool_.deallocate(f->addr, f->bytes, f->alignment);
           f = remove_pending_free(free, f);
         } else {
+          std::cerr << "busy\n";
           f = f->next;
         }
       }

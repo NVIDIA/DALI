@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <set>
 #include <string>
 
 #include "dali/core/access_order.h"
@@ -167,8 +168,44 @@ void CopyImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src, const 
 
 }  // namespace copy_impl
 
+template <typename T>
+class InstanceTracker {
+ public:
+  void Track(T *t) {
+    std::lock_guard g(mtx_);
+    instances_.insert(t);
+    std::cerr << __PRETTY_FUNCTION__ << " " << instances_.size() << std::endl;
+  }
+  void Untrack(T *t) {
+    std::lock_guard g(mtx_);
+    instances_.erase(t);
+    std::cerr << __PRETTY_FUNCTION__ << " " << instances_.size() << std::endl;
+  }
+
+  static InstanceTracker &instance() {
+    static InstanceTracker instance;
+    return instance;
+  }
+
+ private:
+  std::mutex mtx_;
+  std::set<T *> instances_;
+};
+
+template <typename T>
+void TrackInstance(T *t) {
+  InstanceTracker<T>::instance().Track(t);
+}
+
+template <typename T>
+void UntrackInstance(T *t) {
+  InstanceTracker<T>::instance().Untrack(t);
+}
+
 template <typename Backend>
-TensorList<Backend>::TensorList() : curr_num_tensors_(0) {}
+TensorList<Backend>::TensorList() : curr_num_tensors_(0) {
+  TrackInstance(this);
+}
 
 
 template <typename Backend>
@@ -178,6 +215,7 @@ TensorList<Backend>::TensorList(int batch_size) : curr_num_tensors_(0) {
   // As the -1 and 0 sample dims (the latter being reserved for scalar case already),
   // are not widely supported within DALI codebase, we use `dim=1` and end up with samples
   // of shape {0}.
+  TrackInstance(this);
   set_sample_dim(1);
   resize_tensors(batch_size);
 }
@@ -186,8 +224,13 @@ TensorList<Backend>::TensorList(int batch_size) : curr_num_tensors_(0) {
 template <typename Backend>
 TensorList<Backend>::TensorList(TensorList<Backend> &&other) noexcept {
   *this = std::move(other);
+  TrackInstance(this);
 }
 
+template <typename Backend>
+TensorList<Backend>::~TensorList() {
+  UntrackInstance(this);
+}
 
 template <typename Backend>
 TensorList<Backend> &TensorList<Backend>::operator=(TensorList<Backend> &&other) noexcept {

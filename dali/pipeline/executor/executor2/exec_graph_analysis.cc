@@ -116,10 +116,21 @@ class ExecGraph::Analyzer {
     return false;
   }
 
-  void FindParallelConsumers(ExecGraph &g) {
+  void MarkOutputsWithParallelConsumers(ExecGraph &g) {
     for (auto &n : g.nodes_) {
       for (auto &o : n.outputs)
         o.parallel_consumers = HasParallelConsumers(o);
+    }
+  }
+
+  void MarkNodesWithGPUOutputs(ExecGraph &g) {
+    for (auto &n : g.nodes_) {
+      n.has_gpu_outputs = false;
+      for (auto &o : n.outputs)
+        if (o.device == StorageDevice::GPU) {
+          n.has_gpu_outputs = true;
+          break;
+        }
     }
   }
 };
@@ -129,7 +140,8 @@ void ExecGraph::Analyze() {
     return;
   Analyzer a;
   a.FindPinnedBuffers(*this);
-  // a.FindParallelConsumers(*this);
+  a.MarkOutputsWithParallelConsumers(*this);
+  a.MarkNodesWithGPUOutputs(*this);
   analyzed_ = true;
 }
 

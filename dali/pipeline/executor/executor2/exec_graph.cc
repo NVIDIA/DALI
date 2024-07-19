@@ -135,19 +135,13 @@ std::optional<tasking::TaskFuture> ExecNode::Launch(Scheduler &sched) {
 CachedWorkspace ExecNode::CreateOutputWorkspace() {
   assert(is_pipeline_output);
   CachedWorkspace ws(new Workspace(), {});
-  bool has_gpu_outputs = false;
   for (auto &e : inputs) {
     if (e->device == StorageDevice::GPU) {
       ws->AddOutput<GPUBackend>(nullptr);
-      has_gpu_outputs = true;
     } else {
       assert(e->device == StorageDevice::CPU);
       ws->AddOutput<CPUBackend>(nullptr);
     }
-  }
-  if (has_gpu_outputs) {
-    auto event = CUDAEventPool::instance().Get();
-    ws->set_event(event.release());
   }
   return ws;
 }
@@ -156,11 +150,9 @@ CachedWorkspace ExecNode::CreateOpWorkspace() {
   assert(op);
   const OpSpec &spec = op->GetSpec();
   CachedWorkspace ws(new Workspace(), {});
-  bool has_gpu_outputs = false;
-  for (int i = 0; i < spec.NumInput(); i++) {
+  for (int i = 0, ninp = inputs.size(); i < ninp; i++) {
     bool arg = spec.IsArgumentInput(i);
-    bool gpu = spec.InputDevice(i) == "gpu";
-    has_gpu_outputs |= gpu;
+    bool gpu = inputs[i]->device == StorageDevice::GPU;
     if (arg) {
       ws->AddArgumentInput(spec.ArgumentInputName(i), nullptr);
     } else if (gpu) {
@@ -169,21 +161,45 @@ CachedWorkspace ExecNode::CreateOpWorkspace() {
       ws->AddInput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
     }
   }
-  for (int i = 0; i < spec.NumOutput(); i++) {
-    bool gpu = spec.OutputDevice(i) == "gpu";
+  for (int i = 0, nout = outputs.size(); i < nout; i++) {
+    bool gpu = outputs[i].device == StorageDevice::GPU;
     if (gpu) {
-      has_gpu_outputs = true;
       ws->AddOutput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
     } else {
       ws->AddOutput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
     }
   }
-  if (has_gpu_outputs) {
-    CUDAEvent event = CUDAEventPool::instance().Get();
-    ws->set_event(event.release());
-  }
   return ws;
 }
+
+/** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
+CachedWorkspace ExecNode::GetWorkspace(std::shared_ptr<IterationData> iter_data,
+                                       WorkspaceParams params) {
+  auto ws = workspace_cache_.Get(params);
+  if (!ws) {
+    if (op) {
+      ws = CreateOpWorkspace();
+    } else {
+      ws = CreateOutputWorkspace();
+    }
+  }
+  if (!params.env)
+    params.env = &env;
+
+  if (!ws->has_event()) {
+    for (int o = 0; o < ws->NumOutput(); o++) {
+      if (ws->OutputIsType<GPUBackend>(o)) {
+        auto event = CUDAEventPool::instance().Get();
+        ws->set_event(event.release());
+      }
+    }
+  }
+
+  ApplyWorkspaceParams(*ws, params);
+  ws->InjectIterationData(iter_data);
+  return ws;
+}
+
 
 void ExecGraph::Validate() {
   // The checks here are extremely defensive, but they're only run once.
