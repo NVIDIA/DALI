@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy librosa==0.10.2 torch psutil'
+pip_packages='${python_test_runner_package} numpy librosa torch psutil'
 target_dir=./dali/test/python
 
 test_body() {

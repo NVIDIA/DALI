@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy numba scipy librosa==0.10.2'
+pip_packages='${python_test_runner_package} numpy numba scipy librosa'
 
 target_dir=./dali/test/python
 
