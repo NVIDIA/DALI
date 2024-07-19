@@ -14,8 +14,7 @@
 
 import nvidia.dali.ops as ops
 from nvidia.dali.types import Constant
-from nose_utils import assert_equals
-from nose_utils import assert_raises
+from nose_utils import assert_equals, assert_raises
 
 
 def test_group_inputs():
@@ -25,7 +24,7 @@ def test_group_inputs():
     cat_idx, edges, integers, reals = ops._group_inputs(inputs)
     assert_equals([("edge", 0), ("edge", 1), ("real", 0), ("integer", 0), ("integer", 1)], cat_idx)
     assert_equals([e0, e1], edges)
-    assert_equal([Constant(0).uint8(), 42], integers)
+    assert_equals([Constant(0).uint8(), 42], integers)
     assert_equals([10.0], reals)
     assert_raises(
         TypeError,

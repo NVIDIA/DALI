@@ -14,11 +14,9 @@
 
 import numpy as np
 import nvidia.dali as dali
-from nose.tools import with_setup
 from nvidia.dali.types import SampleInfo, BatchInfo
-
 import test_external_source_parallel_utils as utils
-from nose_utils import raises
+from nose_utils import raises, with_setup
 
 
 def no_arg_fun():

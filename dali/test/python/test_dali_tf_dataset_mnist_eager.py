@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import tensorflow as tf
-from nose.tools import with_setup
+from nose_utils import with_setup
 
 import test_dali_tf_dataset_mnist as mnist
 from test_utils_tensorflow import skip_for_incompatible_tf, available_gpus

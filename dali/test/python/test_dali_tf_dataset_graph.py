@@ -16,7 +16,7 @@ import itertools
 import numpy as np
 import random as random
 import tensorflow as tf
-from nose.tools import with_setup
+from nose_utils import with_setup
 
 from nose_utils import raises
 from test_dali_tf_dataset_pipelines import (

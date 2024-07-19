@@ -1250,7 +1250,7 @@ def test_python_formats():
         np.float32,
         np.float16,
         np.short,
-        np.long,
+        int,
         np.longlong,
         np.ushort,
         np.ulonglong,

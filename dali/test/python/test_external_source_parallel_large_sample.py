@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import numpy as np
-from nose.tools import with_setup
-
+from nose_utils import with_setup
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
-
 from test_external_source_parallel_utils import setup_function, teardown_function, capture_processes
 
 

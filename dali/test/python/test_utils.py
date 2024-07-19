@@ -26,92 +26,8 @@ import re
 import subprocess
 import sys
 import tempfile
-
-if sys.version_info >= (3, 12):
-    # to make sure we can import anything from nose
-    from importlib import machinery, util
-    from importlib._bootstrap import _exec, _load
-    import modulefinder
-    import types
-    import unittest
-
-    # the below are based on https://github.com/python/cpython/blob/3.11/Lib/imp.py
-    # based on PSF license
-    def find_module(name, path):
-        return modulefinder.ModuleFinder(path).find_module(name, path)
-
-    def load_module(name, file, filename, details):
-        PY_SOURCE = 1
-        PY_COMPILED = 2
-
-        class _HackedGetData:
-            """Compatibility support for 'file' arguments of various load_*()
-            functions."""
-
-            def __init__(self, fullname, path, file=None):
-                super().__init__(fullname, path)
-                self.file = file
-
-            def get_data(self, path):
-                """Gross hack to contort loader to deal w/ load_*()'s bad API."""
-                if self.file and path == self.path:
-                    # The contract of get_data() requires us to return bytes. Reopen the
-                    # file in binary mode if needed.
-                    file = None
-                    if not self.file.closed:
-                        file = self.file
-                        if "b" not in file.mode:
-                            file.close()
-                    if self.file.closed:
-                        self.file = file = open(self.path, "rb")
-
-                    with file:
-                        return file.read()
-                else:
-                    return super().get_data(path)
-
-        class _LoadSourceCompatibility(_HackedGetData, machinery.SourceFileLoader):
-            """Compatibility support for implementing load_source()."""
-
-        _, mode, type_ = details
-        if mode and (not mode.startswith("r") or "+" in mode):
-            raise ValueError("invalid file open mode {!r}".format(mode))
-        elif file is None and type_ in {PY_SOURCE, PY_COMPILED}:
-            msg = "file object required for import (type code {})".format(type_)
-            raise ValueError(msg)
-        assert type_ == PY_SOURCE, "load_module replacement supports only PY_SOURCE file type"
-        loader = _LoadSourceCompatibility(name, filename, file)
-        spec = util.spec_from_file_location(name, filename, loader=loader)
-        if name in sys.modules:
-            module = _exec(spec, sys.modules[name])
-        else:
-            module = _load(spec)
-        # To allow reloading to potentially work, use a non-hacked loader which
-        # won't rely on a now-closed file object.
-        module.__loader__ = machinery.SourceFileLoader(name, filename)
-        module.__spec__.loader = module.__loader__
-        return module
-
-    def acquire_lock():
-        pass
-
-    def release_lock():
-        pass
-
-    context = {
-        "find_module": find_module,
-        "load_module": load_module,
-        "acquire_lock": acquire_lock,
-        "release_lock": release_lock,
-    }
-    imp_module = types.ModuleType("imp", "Mimics old imp module")
-    imp_module.__dict__.update(context)
-    sys.modules["imp"] = imp_module
-    unittest._TextTestResult = unittest.TextTestResult
-
-from nose import SkipTest
-
 from distutils.version import LooseVersion
+from nose_utils import SkipTest
 
 
 def get_arch(device_id=0):
@@ -748,8 +664,8 @@ def np_type_to_dali(type):
         np.float16: dali_types.FLOAT16,
         np.float32: dali_types.FLOAT,
         np.float64: dali_types.FLOAT64,
-        np.longlong: types.INT64,
-        np.ulonglong: types.UINT64,
+        np.longlong: dali_types.INT64,
+        np.ulonglong: dali_types.UINT64,
     }
     return np_types_to_dali_dict[type]
 
@@ -1022,7 +938,6 @@ def restrict_platform(min_compute_cap=None, platforms=None):
 
 def check_numba_compatibility_cpu(if_skip=True):
     import numba
-    from nose import SkipTest
 
     # There's a bug in LLVM JIT linker that makes the tests fail
     # randomly on 64-bit ARM platform for some NUMBA versions.
@@ -1042,7 +957,6 @@ def check_numba_compatibility_cpu(if_skip=True):
 
 
 def check_numba_compatibility_gpu(if_skip=True):
-    from nose import SkipTest
     import nvidia.dali.plugin.numba.experimental as ex
 
     if not ex.NumbaFunction._check_minimal_numba_version(
