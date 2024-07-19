@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy pillow torch numba scipy librosa==0.8.1'
+pip_packages='${python_test_runner_package} numpy pillow torch numba scipy librosa'
 
 target_dir=./dali/test/python
 

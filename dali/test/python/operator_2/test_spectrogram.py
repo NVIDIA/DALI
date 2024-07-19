@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ from test_utils import get_files
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import ConstantDataIterator
-import librosa as librosa
 import math
+from test_audio_utils_librosa_ref import stft
 
 audio_files = get_files("db/audio/wav", "wav")
 
@@ -99,13 +99,14 @@ def spectrogram_func_librosa(nfft, win_len, win_step, window, center, input_data
 
     out = (
         np.abs(
-            librosa.stft(
+            stft(
                 y=input_data,
                 n_fft=nfft or win_len,
                 center=center,
                 win_length=win_len,
                 hop_length=win_step,
                 window=window,
+                pad_mode="reflect",
             )
         )
         ** 2
