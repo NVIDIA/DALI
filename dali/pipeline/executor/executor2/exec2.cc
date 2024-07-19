@@ -341,13 +341,6 @@ class Executor2::Impl {
       node.env.order = stream_idx.has_value()
                      ? AccessOrder(streams_[*stream_idx])
                      : AccessOrder::host();
-
-      std::cerr << "node " << node.instance_name << " stream ";
-      if (node.env.order.is_device())
-        std::cerr << make_string(node.env.order.stream());
-      else
-        std::cerr << "host";
-      std::cerr << std::endl;
     }
   }
 

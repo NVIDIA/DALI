@@ -191,8 +191,6 @@ class DLL_PUBLIC ExecNode {
   /** Whether the node is the very output of the pipeline. There's only one such node. */
   bool is_pipeline_output = false;
 
-  bool has_gpu_outputs = false;
-
   /** Visit marker for graph algorithms. */
   mutable bool visited = false;
 

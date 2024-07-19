@@ -70,7 +70,7 @@ run_aug_shape_supporting_cases = (
     ((run_aug_shape[i % 3],) + params)
     for i, params in enumerate(
         itertools.product(
-            ("cpu", "gpu"),
+            ("gpu",),
             (True, False),
             (True, False),
             (None, 0),

@@ -296,7 +296,7 @@ void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int de
 
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
-  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {
+  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) mutable {
     py::gil_scoped_acquire aqr;
     {
       auto tmp = std::move(obj_ref);
@@ -1280,9 +1280,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
-          // FillTensorFromCudaArray(object, t.get(), device_id, layout);
-          t->Resize(uniform_list_shape(32, { 1024, 1024, 4 }), DALI_INT32);
-          t->SetLayout(layout);
+          FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t;
         }),
       "object"_a,

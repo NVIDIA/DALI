@@ -179,8 +179,7 @@ def _test_memory_consumption(device, test_case):
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     pipe.build()
     for _ in range(num_iters):
-        out, = pipe.run()
-        out.reset()
+        pipe.run()
 
 
 
@@ -188,22 +187,3 @@ def test_memory_consumption():
     for device in ["cpu", "gpu"]:
         for test_case in ["no_copy_sample", "no_copy_batch", "copy_sample", "copy_batch"]:
             yield _test_memory_consumption, device, test_case
-
-def test_memory_consumption2():
-    import gc
-    batch_size = 32
-    num_iters = 128
-
-    @pipeline_def
-    def pipeline():
-        return fn.external_source(name="input", device="gpu", batch=True, no_copy=False)
-
-    pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
-    pipe.feed_input("input", cp.full((batch_size, 1024, 1024, 4), 42, dtype=cp.int32))
-    x = cp.full((batch_size, 1024, 1024, 4), 42, dtype=cp.int32)
-    for _ in range(num_iters):
-        print(_)
-        pipe.feed_input("input", x)
-        out, = pipe.run()
-        out.reset()

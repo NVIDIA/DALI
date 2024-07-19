@@ -40,7 +40,6 @@ tasking::SharedTask OpTask::CreateTask(ExecNode *node, CachedWorkspace ws) {
 }
 
 OpTask::OpTaskOutputs OpTask::Run() {
-  std::cerr << node_->instance_name << std::endl;
   auto c = ++node_->actual_concurrency;
   AtScopeExit([&]() { --node_->actual_concurrency; });
   if (node_->concurrency) {
@@ -91,10 +90,7 @@ PipelineOutput OpTask::GetOutput() {
   }
 
   cudaEvent_t completion_event = ws_->has_event() ? ws_->event() : nullptr;
-  std::cerr << "Completion: event  = " << (void*)completion_event << "\n"
-               "            stream = " << (void*)ws_->output_order().get() << std::endl;
   if (ws_->has_event() && ws_->has_stream()) {
-    std::cerr << "Recording completion event on " << (void*)ws_->stream() << std::endl;
     CUDA_CALL(cudaEventRecord(ws_->event() , ws_->stream()));
   }
 
