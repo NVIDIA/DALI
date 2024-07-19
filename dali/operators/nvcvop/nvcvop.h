@@ -21,6 +21,7 @@
 #include <nvcv/Tensor.hpp>
 #include <nvcv/ImageBatch.hpp>
 
+#include <optional>
 #include <string>
 #include <vector>
 
