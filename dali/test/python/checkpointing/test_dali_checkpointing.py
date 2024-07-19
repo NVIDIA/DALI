@@ -27,7 +27,7 @@ from test_utils import (
     get_dali_extra_path,
     module_functions,
 )
-from nose_utils import assert_warns
+from nose_utils import assert_warns, assert_raises
 from nose2.tools import params, cartesian_params
 from dataclasses import dataclass
 from nvidia.dali import tfrecord as tfrec
@@ -36,7 +36,6 @@ from nvidia.dali.auto_aug import rand_augment as ra
 from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
 from nose.plugins.attrib import attr
-from nose_utils import assert_raises
 
 
 reader_signed_off = create_sign_off_decorator()

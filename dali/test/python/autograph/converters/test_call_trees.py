@@ -14,7 +14,7 @@
 # ==============================================================================
 """Tests for call_trees module."""
 
-import imp
+import types
 
 from nvidia.dali._autograph.converters import call_trees
 from nvidia.dali._autograph.converters import functions
@@ -193,7 +193,7 @@ class CallTreesTest(converter_testing.TestCase):
     def test_debugger_set_trace(self):
         tracking_list = []
 
-        pdb = imp.new_module("fake_pdb")
+        pdb = types.ModuleType("fake_pdb")
         pdb.set_trace = lambda: tracking_list.append(1)
 
         def f():

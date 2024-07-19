@@ -220,7 +220,7 @@ def test_mxnet_iterator_empty_array():
         np.float32,
         np.float16,
         np.short,
-        np.long,
+        int,
         np.longlong,
         np.ushort,
         np.ulonglong,

@@ -14,7 +14,7 @@
 # ==============================================================================
 """Tests for conversion module."""
 
-import imp
+import types
 import sys
 import unittest
 
@@ -40,7 +40,7 @@ class ConversionTest(unittest.TestCase):
         self.assertFalse(conversion.is_allowlisted(test_fn))
 
     def test_is_allowlisted_callable_allowlisted_call(self):
-        allowlisted_mod = imp.new_module("test_allowlisted_call")
+        allowlisted_mod = types.ModuleType("test_allowlisted_call")
         sys.modules["test_allowlisted_call"] = allowlisted_mod
         config.CONVERSION_RULES = (
             config.DoNotConvert("test_allowlisted_call"),
