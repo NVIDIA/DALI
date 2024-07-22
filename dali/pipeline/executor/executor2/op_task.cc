@@ -177,16 +177,29 @@ void OpTask::SetupOp() {
 
   skip_ = ShouldSkip();
 
+  int device = -1;
+
   for (int i = 0; i < nout; i++) {
     if (ws.OutputIsType<CPUBackend>(i)) {
       if (!ws.OutputPtr<CPUBackend>(i)) {
         auto tl = std::make_shared<TensorList<CPUBackend>>();
+        bool pinned = node_->outputs[i].pinned;
+        tl->set_pinned(pinned);
+        if (pinned) {
+          tl->set_order(ws.output_order());
+          if (device < 0)
+            CUDA_CALL(cudaGetDevice(&device));
+          tl->set_device_id(device);
+        }
         ws.SetOutput(i, tl);
       }
     } else if (ws.OutputIsType<GPUBackend>(i)) {
       if (!ws.OutputPtr<GPUBackend>(i)) {
         auto tl = std::make_shared<TensorList<GPUBackend>>();
         tl->set_order(ws.output_order());
+        if (device < 0)
+          CUDA_CALL(cudaGetDevice(&device));
+        tl->set_device_id(device);
         ws.SetOutput(i, tl);
       }
     } else {
