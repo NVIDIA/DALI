@@ -257,6 +257,14 @@ void OpTask::SetWorkspaceInputs() {
 
   for (auto e : events)
     ws_->output_order().wait(e);
+
+  if (ws_->NumOutput()) {
+    if (ws_->NumInput() > 0) {
+      ws_->SetBatchSizes(ws_->GetInputBatchSize(0));
+    } else if (ws_->NumArgumentInput() > 0) {
+      ws_->SetBatchSizes(ws_->ArgumentInput(0).num_samples());
+    }
+  }
 }
 
 AccessOrder OpTask::OutputConsumerOrder(int output_idx) {
