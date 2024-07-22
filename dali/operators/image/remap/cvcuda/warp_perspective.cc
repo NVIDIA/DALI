@@ -72,7 +72,7 @@ analog to the ``WARP_INVERSE_MAP`` flag.
     .AddOptionalArg("pixel_origin", R"doc(Pixel origin. Possible values: "corner", "center".
 
 Determines the meaning of (0, 0) coordinates - "corner" places the origin at the top-left corner of
-the top-left pixel (like in OpenGL); "center" places (0, 0) in the center of 
+the top-left pixel (like in OpenGL); "center" places (0, 0) in the center of
 the top-left pixel (like in OpenCV).))doc", "corner")
     .AddOptionalArg<float>("fill_value",
                            "Value used to fill areas that are outside the source image when the "
@@ -91,8 +91,8 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
       : nvcvop::NVCVSequenceOperator<StatelessOperator>(spec),
         border_mode_(nvcvop::GetBorderMode(spec.GetArgument<std::string>("border_mode"))),
         interp_type_(nvcvop::GetInterpolationType(spec.GetArgument<DALIInterpType>("interp_type"))),
-        inverse_map_(spec.GetArgument<bool>("inverse_map")),
         fill_value_arg_(spec.GetArgument<std::vector<float>>("fill_value")),
+        inverse_map_(spec.GetArgument<bool>("inverse_map")),
         ocv_pixel_(OCVCompatArg(spec.GetArgument<std::string>("pixel_origin"))) {
     matrix_data_.SetContiguity(BatchContiguity::Contiguous);
   }
@@ -108,16 +108,16 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
   float4 GetFillValue(int channels) const {
     if (fill_value_arg_.size() > 1) {
       if (channels > 0) {
-        if (channels == static_cast<int>(fill_value_arg_.size())) {
-          float4 fill_value{0, 0, 0, 0};
-          memcpy(&fill_value, fill_value_arg_.data(), sizeof(decltype(fill_value)));
-          return fill_value;
-        } else {
+        if (channels != static_cast<int>(fill_value_arg_.size())) {
           DALI_FAIL(make_string(
               "Number of values provided as a fill_value should match the number of channels.\n"
               "Number of channels: ",
               channels, ". Number of values provided: ", fill_value_arg_.size(), "."));
         }
+        assert(channels <= 4);
+        float4 fill_value{0, 0, 0, 0};
+        memcpy(&fill_value, fill_value_arg_.data(), channels * sizeof(float));
+        return fill_value;
       } else {
         DALI_FAIL("Only scalar fill_value can be provided when processing data in planar layout.");
       }
@@ -162,6 +162,8 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
 
     auto output_shape = input_shape;
     int channels = (input_layout.find('C') != -1) ? input_shape[0][input_layout.find('C')] : -1;
+    if (channels > 4)
+      DALI_FAIL("Images with more than 4 channels are not supported.");
     fill_value_ = GetFillValue(channels);
     if (size_arg_.HasExplicitValue()) {
       size_arg_.Acquire(spec_, ws, input_shape.size(), TensorShape<1>(2));
@@ -226,14 +228,14 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
   ArgValue<float, 2> matrix_arg_{"matrix", spec_};
   ArgValue<float, 1> size_arg_{"size", spec_};
   int op_batch_size_ = 0;
-  NVCVBorderType border_mode_{NVCV_BORDER_CONSTANT};
-  NVCVInterpolationType interp_type_{NVCV_INTERP_NEAREST};
-  bool inverse_map_{false};
+  NVCVBorderType border_mode_ = NVCV_BORDER_CONSTANT;
+  NVCVInterpolationType interp_type_ = NVCV_INTERP_NEAREST;
   std::vector<float> fill_value_arg_{0, 0, 0, 0};
-  float4 fill_value_{0, 0, 0, 0};
+  float4 fill_value_;
+  bool inverse_map_ = false;
   bool ocv_pixel_ = true;
-  std::optional<cvcuda::WarpPerspective> warp_perspective_{};
-  TensorList<GPUBackend> matrix_data_{};
+  std::optional<cvcuda::WarpPerspective> warp_perspective_;
+  TensorList<GPUBackend> matrix_data_;
 };
 
 DALI_REGISTER_OPERATOR(experimental__WarpPerspective, WarpPerspective, GPU);
