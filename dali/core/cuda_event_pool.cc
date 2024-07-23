@@ -29,6 +29,9 @@ CUDAEventPool::CUDAEventPool(unsigned event_flags) {
   int num_devices = 0;
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   dev_events_.resize(num_devices);
+  for (int i = 0; i < 20000; i++) {
+    Put(CUDAEvent::CreateWithFlags(cudaEventDisableTiming));
+  }
 }
 
 CUDAEvent CUDAEventPool::Get(int device_id) {
