@@ -191,6 +191,9 @@ class DLL_PUBLIC ExecNode {
   /** Whether the node is the very output of the pipeline. There's only one such node. */
   bool is_pipeline_output = false;
 
+  /** Whether the operator in the node is a batch size provider. */
+  bool is_batch_size_provider = false;
+
   /** Visit marker for graph algorithms. */
   mutable bool visited = false;
 
@@ -309,6 +312,7 @@ class DLL_PUBLIC ExecGraph {
   }
 
   void Invalidate() {
+    sorted_ = false;
     validated_ = false;
     analyzed_ = false;
   }
@@ -323,13 +327,21 @@ class DLL_PUBLIC ExecGraph {
 
   void Analyze();
 
+  void Sort();
+
  private:
+
+  tasking::SharedTask InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
+                                     int max_batch_size);
+
   class Analyzer;
+  class SortHelper;
 
   std::list<ExecNode> nodes_;
   std::list<ExecEdge> edges_;
   std::unordered_map<std::string_view, ExecNode *> name2node_;
 
+  bool sorted_ = false;
   bool validated_ = false;
   bool analyzed_ = false;
   /** A bugcheck for graph inconsitency. It throws upon detecting misconneted nodes. */

@@ -35,7 +35,7 @@ struct ExecEnv {
 struct WorkspaceParams {
   ExecEnv *env = nullptr;
   std::shared_ptr<IterationData> iter_data;
-  std::optional<int> batch_size = 0;  // TODO(michalz): add more batch size logic
+  int batch_size = -1;
 };
 
 inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
@@ -44,8 +44,6 @@ inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
     ws.set_output_order(params.env->order);
   }
   ws.InjectIterationData(params.iter_data);
-  if (params.batch_size.has_value())
-    ws.SetBatchSizes(*params.batch_size);
 }
 
 struct CachedWorkspaceDeleter {

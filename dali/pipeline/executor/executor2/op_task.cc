@@ -276,6 +276,8 @@ void OpTask::SetWorkspaceInputs() {
       ws_->SetBatchSizes(ws_->GetInputBatchSize(0));
     } else if (ws_->NumArgumentInput() > 0) {
       ws_->SetBatchSizes(ws_->ArgumentInput(0).num_samples());
+    } else {
+      ws_->SetBatchSizes(ws_->GetIterationData()->default_batch_size);
     }
   }
 }

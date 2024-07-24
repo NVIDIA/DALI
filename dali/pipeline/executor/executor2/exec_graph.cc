@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #include <cassert>
-#include <unordered_set>
 #include <utility>
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/op_task.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/operator/batch_size_provider.h"
 
 namespace dali {
 namespace exec2 {
@@ -79,6 +79,7 @@ ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
     assert(!def || def->inputs.size() == static_cast<size_t>(op->GetSpec().NumInput()));
     outputs.resize(std::max<size_t>(outputs.size(), op->GetSpec().NumOutput()));
     inputs.resize(std::max<size_t>(inputs.size(), op->GetSpec().NumInput()));
+    is_batch_size_provider = dynamic_cast<BatchSizeProvider *>(op.get());
   }
 }
 
@@ -200,101 +201,89 @@ CachedWorkspace ExecNode::GetWorkspace(std::shared_ptr<IterationData> iter_data,
   return ws;
 }
 
-
-void ExecGraph::Validate() {
-  // The checks here are extremely defensive, but they're only run once.
-  auto err = [](auto &&... msg) {
-    throw std::logic_error(make_string("Internal error: ", msg...));
-  };
-
-  if (validated_)
-    return;
-  if (nodes_.empty()) {
-    if (!edges_.empty())
-      err("a graph without any node has edges.");
-    return;
-  }
-  std::unordered_set<const ExecNode *> known_nodes(nodes_.size());
-  std::unordered_set<const ExecEdge *> known_edges(edges_.size());
-
-  for (auto &n : nodes_)
-    known_nodes.insert(&n);
-  for (auto &e : edges_) {
-    known_edges.insert(&e);
-  }
-
-  for (auto &e : edges_) {
-    if (!known_nodes.count(e.producer))
-      err("an edge's producer is not a known node pointer.");
-    if (!known_nodes.count(e.consumer))
-      err("an edge's consumer is not a known node pointer.");
-
-    if (e.producer_output_idx >= static_cast<int>(e.producer->outputs.size()))
-      err("producer output index is out of range.");
-    auto &consumer_edges = e.producer->outputs[e.producer_output_idx].consumers;
-    if (std::count(consumer_edges.begin(), consumer_edges.end(), &e) != 1)
-      err("the relevant producer's output doesn't have this edge as one of the consumers.");
-
-    if (e.consumer->inputs[e.consumer_input_idx] != &e)
-      err("inconsistent edge consumer vs consumer node's input.");
-  }
-
-  for (auto &n : nodes_) {
-    if (n.op) {
-      auto &spec = n.op->GetSpec();
-      if (n.inputs.size() != static_cast<size_t>(spec.NumInput()))
-        err("a node has a different number of inputs than used in the OpSpec");
-      if (n.outputs.size() != static_cast<size_t>(spec.NumOutput()))
-        err("a node has a different number of outputs than used in the OpSpec");
-    }
-
-    for (int o = 0, nout = n.outputs.size(); o < nout; o++) {
-      auto &consumers = n.outputs[o].consumers;
-      for (auto &e : consumers) {
-        if (!known_edges.count(e))
-          err("a node's output is not a known edge pointer.");
-        if (e->producer != &n)
-          err("a node's output's producer should always point to self.");
-        if (e->producer_output_idx != o)
-          err("a node's output's index must match its position in the output array.");
-      }
-    }
-    for (int i = 0, ninp = n.inputs.size(); i < ninp; i++) {
-      auto *e = n.inputs[i];
-      if (!known_edges.count(e))
-        err("a node's output is not a known edge pointer.");
-      if (e->consumer != &n)
-        err("a node's input's consumer should always point to self.");
-      if (e->consumer_input_idx != i)
-        err("a node's input index must match its position in the input array.");
-    }
-
-    bool is_last = &n == &nodes_.back();
-    if (is_last != n.is_pipeline_output)
-      err("there must be exactly one output node and it must be the last node in the graph.");
-  }
-
-  validated_ = true;
-}
-
 void ExecGraph::PrepareIteration(
     const std::shared_ptr<IterationData> &iter_data,
     const WorkspaceParams &params) {
+  if (nodes_.empty())
+    throw std::logic_error("Cannot execute an empty graph");
+
+  if (params.batch_size <= 0)
+    throw std::runtime_error("Batch size must be a positive number.");
+
+  Sort();
   Validate();
   Analyze();
+
+  // Create a special task that checks the predicted batch size
+  // and populates the respective field in IterationData
+  auto batch_size_task = InferBatchSize(iter_data, params.batch_size);
+  if (!batch_size_task)
+    iter_data->default_batch_size = params.batch_size;
+
   for (auto &n : nodes_) {
     n.NextIter();
     n.CreateMainTask(iter_data, params);
   }
   for (auto &n : nodes_) {
+    // all "root" tasks must succeed batch size inference
+    if (n.inputs.empty() && batch_size_task)
+      n.main_task->Succeed(batch_size_task);
     n.AddDataDeps();
     n.CreateAuxTasks();
   }
 }
 
+inline std::string_view NodeName(const ExecNode &n) {
+  return !n.instance_name.empty() ? n.instance_name : n.op->GetSpec().SchemaName();
+}
+
+tasking::SharedTask ExecGraph::InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
+                                              int max_batch_size) {
+  std::vector<std::pair<ExecNode *, BatchSizeProvider *>> bsps;
+  for (auto &n : nodes_) {
+    if (!n.is_batch_size_provider)  // these should go first
+      break;
+    // this will throw bad_cast if n.op is not convertible, for whatever reason
+    bsps.emplace_back(&n, &dynamic_cast<BatchSizeProvider &>(*n.op));
+  }
+  if (bsps.empty())
+    return nullptr;
+
+  return tasking::Task::Create([bsps, iter = iter_data, max_batch_size]() {
+    std::optional<int> bs;
+    for (auto [n, bsp] : bsps) {
+      int op_bs = bsp->NextBatchSize();
+      if (op_bs > max_batch_size) {
+        throw std::runtime_error(make_string(
+          "Batch too big! The input operator \"",
+          NodeName(*n),
+          "\" returned a batch size ", op_bs,
+          " which is larger than 'max_batch_size' for the pipeline."));
+      }
+      for (size_t i = 1; i < bsps.size(); i++) {
+        if (bs && *bs != op_bs)
+          throw std::runtime_error(make_string(
+            "Batch size clash! The input operator \"",
+            NodeName(*n),
+            "\" returned a batch size ", op_bs,
+            " which is different than ", *bs,
+            " retruned by \"", NodeName(*bsps[0].first), "\"."));
+        bs = op_bs;
+      }
+    }
+    assert(bs);
+    iter->default_batch_size = *bs;
+    for (auto &bsp : bsps)
+      bsp.second->Advance();
+  });
+}
+
+
 tasking::TaskFuture ExecGraph::Launch(tasking::Scheduler &sched) {
+  Sort();
   Validate();
   Analyze();
+
   std::optional<tasking::TaskFuture> ret;
   for (auto &n : nodes_) {
     auto maybe_future = n.Launch(sched);

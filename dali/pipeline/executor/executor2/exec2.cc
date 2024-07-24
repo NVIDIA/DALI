@@ -21,17 +21,11 @@
 #include "dali/pipeline/executor/executor2/exec2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
-#include "dali/pipeline/operator/batch_size_provider.h"
-
 
 namespace dali {
 namespace exec2 {
 
 namespace {
-
-inline std::string_view NodeName(const ExecNode &n) {
-  return !n.instance_name.empty() ? n.instance_name : n.op->GetSpec().SchemaName();
-}
 
 void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
   auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
@@ -136,7 +130,7 @@ class Executor2::Impl {
 
   void InitIteration() {
     WorkspaceParams params{};
-    params.batch_size = InferBatchSize();
+    params.batch_size = config_.max_batch_size;
     graph_.PrepareIteration(InitIterationData(iter_index_++), params);
   }
 
@@ -200,33 +194,6 @@ class Executor2::Impl {
     }
   }
 
-  int InferBatchSize() {
-    std::optional<int> bs;
-    for (auto *n : graph_info_.batch_size_providers) {
-      auto *bsp = dynamic_cast<BatchSizeProvider *>(n->op.get());
-      assert(bsp);
-      int op_bs = bsp->NextBatchSize();
-      if (op_bs > config_.max_batch_size)
-        throw std::runtime_error(make_string(
-          "Batch too big! The input operator \"",
-          NodeName(*n),
-          "\" returned a batch size ", op_bs,
-          " which is larger than 'max_batch_size' for the pipeline."));
-      if (bs && *bs != op_bs)
-        throw std::runtime_error(make_string(
-          "Batch size clash! The input operator \"",
-          NodeName(*n),
-          "\" returned a batch size ", op_bs,
-          " which is different than ", *bs,
-          " retruned by \"", NodeName(*graph_info_.batch_size_providers.front()), "\"."));
-      bs = op_bs;
-    }
-    // Advance only after we've queried all of the operators to avoid inconsistent state
-    for (auto *n : graph_info_.batch_size_providers)
-      dynamic_cast<BatchSizeProvider *>(n->op.get())->Advance();
-    return bs.value_or(config_.max_batch_size);
-  }
-
   void BuildNodeDict() {
     for (auto &n : graph_.Nodes())
       if (!n.instance_name.empty())
@@ -235,7 +202,6 @@ class Executor2::Impl {
 
   void AnalyzeGraph() {
     CountNodes();
-    FindBatchSizeProviders();
   }
 
   void CountNodes() {
@@ -282,13 +248,6 @@ class Executor2::Impl {
       }
     }
     prefetch_depth_ = depth;
-  }
-
-  void FindBatchSizeProviders() {
-    graph_info_.batch_size_providers.clear();
-    for (auto &n : graph_.Nodes())
-      if (auto *bsp = dynamic_cast<BatchSizeProvider *>(n.op.get()))
-        graph_info_.batch_size_providers.push_back(&n);
   }
 
   void SetupThreadPool() {
@@ -359,7 +318,6 @@ class Executor2::Impl {
     int num_mixed_roots = 0;
     int num_gpu_roots = 0;
 
-    std::vector<ExecNode *> batch_size_providers;
   } graph_info_;
 
   // Runtime environment

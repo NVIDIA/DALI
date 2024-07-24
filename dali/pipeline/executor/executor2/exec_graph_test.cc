@@ -362,7 +362,7 @@ TEST(ExecGraphTest, LoweredExec) {
     g.PrepareIteration(iter, params);
     auto fut = g.Launch(ex);
     auto &out = fut.Value<const PipelineOutput &>();
-    CheckTestGraph1Results(out.workspace, *params.batch_size);
+    CheckTestGraph1Results(out.workspace, params.batch_size);
   }
 }
 

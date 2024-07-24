@@ -184,6 +184,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       free_stream_ids_.insert(i);
     }
 
+    graph::ClearVisitMarkers(graph.Nodes());
     // Sort the graph topologically with DFS
     for (auto &node : graph.Nodes()) {
       Sort(&node);
@@ -285,12 +286,12 @@ class StreamAssignment<StreamPolicy::PerOperator> {
     graph::Visit visit(node);
     if (!visit)
       return;
-    int idx = sorted_nodes_.size();
-    node_ids_.emplace(node, idx);
     for (auto *edge : node->inputs) {
       assert(edge);
       Sort(edge->producer);
     }
+    int idx = sorted_nodes_.size();
+    node_ids_.emplace(node, idx);
     sorted_nodes_.push_back(node);
   }
 
