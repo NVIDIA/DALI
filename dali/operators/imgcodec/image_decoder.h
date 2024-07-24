@@ -367,13 +367,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
     backends_.clear();
     backends_.reserve(4);
     if (nvimgcodec_device_id != NVIMGCODEC_DEVICE_CPU_ONLY) {
-      backends_.push_back(
-          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                              sizeof(nvimgcodecBackend_t),
-                              nullptr,
-                              NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
-                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, hw_load}});
+      if (hw_load > 0)
+        backends_.push_back(
+            nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                                sizeof(nvimgcodecBackend_t),
+                                nullptr,
+                                NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
+                                {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                                sizeof(nvimgcodecBackendParams_t), nullptr, hw_load}});
       backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
                                               sizeof(nvimgcodecBackend_t),
                                               nullptr,
@@ -407,7 +408,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
   nvimgcodecStatus_t launch(int device_id, int sample_idx, void *task_context,
                             void (*task)(int thread_id, int sample_idx, void *task_context)) {
     assert(tp_);
-    tp_->AddWork([=](int tid) { task(tid, sample_idx, task_context); }, 0, true);
+    tp_->AddWork([=](int tid) { task(tid, sample_idx, task_context); }, -sample_idx, true);
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
@@ -500,90 +501,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     return std::is_same<MixedBackend, Backend>::value ? thread_pool_.get() : &ws.GetThreadPool();
   }
 
-
-  bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
-    DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
-    tp_ = GetThreadPool(ws);
-    assert(tp_ != nullptr);
-    auto auto_cleanup = AtScopeExit([&] {
-      tp_ = nullptr;
-    });
-
-    output_descs.resize(1);
-    auto &input = ws.template Input<CPUBackend>(0);
-    int nsamples = input.num_samples();
-
-    SetupRoiGenerator(spec_, ws);
-    TensorListShape<> shapes;
-    shapes.resize(nsamples, 3);
-    while (static_cast<int>(state_.size()) < nsamples)
-      state_.push_back(std::make_unique<SampleState>());
-    rois_.resize(nsamples);
-
-    const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
-    auto get_task = [&](int block_idx, int nblocks) {
-      return [&, block_idx, nblocks](int tid) {
-        int i_start = nsamples * block_idx / nblocks;
-        int i_end = nsamples * (block_idx + 1) / nblocks;
-        for (int i = i_start; i < i_end; i++) {
-          auto *st = state_[i].get();
-          assert(st != nullptr);
-          const auto &input_sample = input[i];
-
-          auto src_info = input.GetMeta(i).GetSourceInfo();
-          if (use_cache && cache_->IsInCache(src_info)) {
-            auto cached_shape = cache_->CacheImageShape(src_info);
-            auto roi = GetRoi(spec_, ws, i, cached_shape);
-            if (!roi.use_roi()) {
-              shapes.set_tensor_shape(i, cached_shape);
-              continue;
-            }
-          }
-          ParseSample(st->parsed_sample,
-                      span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
-                                          volume(input_sample.shape())});
-          st->out_shape = st->parsed_sample.dali_img_info.shape;
-          st->out_shape[2] = NumberOfChannels(format_, st->out_shape[2]);
-          if (use_orientation_ &&
-              (st->parsed_sample.nvimgcodec_img_info.orientation.rotated % 180 != 0)) {
-            std::swap(st->out_shape[0], st->out_shape[1]);
-          }
-          ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->out_shape);
-          if (roi.use_roi()) {
-            auto roi_sh = roi.shape();
-            if (roi.end.size() >= 2) {
-              DALI_ENFORCE(0 <= roi.end[0] && roi.end[0] <= st->out_shape[0] &&
-                               0 <= roi.end[1] && roi.end[1] <= st->out_shape[1],
-                           "ROI end must fit within the image bounds");
-            }
-            if (roi.begin.size() >= 2) {
-              DALI_ENFORCE(0 <= roi.begin[0] && roi.begin[0] <= st->out_shape[0] &&
-                               0 <= roi.begin[1] && roi.begin[1] <= st->out_shape[1],
-                           "ROI begin must fit within the image bounds");
-            }
-            st->out_shape[0] = roi_sh[0];
-            st->out_shape[1] = roi_sh[1];
-          }
-          shapes.set_tensor_shape(i, st->out_shape);
-        }
-      };
-    };
-
-    int nblocks = tp_->NumThreads() + 1;
-    if (nsamples > nblocks * 4) {
-      int block_idx = 0;
-      for (; block_idx < tp_->NumThreads(); block_idx++) {
-        tp_->AddWork(get_task(block_idx, nblocks), -block_idx);
-      }
-      tp_->RunAll(false);                // start work but not wait
-      get_task(block_idx, nblocks)(-1);  // run last block
-      tp_->WaitForWork();                // wait for the other threads
-    } else {                             // not worth parallelizing
-      get_task(0, 1)(-1);                // run all in current thread
-    }
-
-    output_descs[0] = {std::move(shapes), dtype_};
-    return true;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return false;
   }
 
   /**
@@ -607,9 +526,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     return !version_at_least(0, 3, 0);
   }
 
-  template <typename OutBackend>
-  void PrepareOutput(SampleState &st, SampleView<OutBackend> out, const ROI &roi,
-                     const Workspace &ws) {
+  void PrepareOutput(SampleState &st, const ROI &roi, const Workspace &ws) {
     // Make a copy of the parsed img info. We might modify it
     // (for example, request planar vs. interleaved, etc)
     st.image_info = st.parsed_sample.nvimgcodec_img_info;
@@ -689,8 +606,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
         st.image_info.buffer = st.host_buf.get();
         st.decode_out_cpu = {st.image_info.buffer, decode_shape, st.parsed_sample.orig_dtype};
       }
-    } else {
-      st.image_info.buffer = static_cast<uint8_t *>(out.raw_mutable_data());
     }
 
     st.image_info.num_planes = 1;
@@ -700,6 +615,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.image_info.plane_info[0].height = decode_shape[0];
     st.image_info.plane_info[0].width = decode_shape[1];
     st.image_info.plane_info[0].num_channels = decode_shape[2];
+  }
+
+  void UpdateBuffer(SampleState &st, void *buffer) {
+    if (!st.need_processing)
+      st.image_info.buffer = buffer;
     st.image = NvImageCodecImage::Create(instance_, &st.image_info);
   }
 
@@ -716,14 +636,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
       tp_ = nullptr;
     });
 
-    bool has_any_roi = false;
-    for (auto &roi : rois_)
-      has_any_roi |= roi.use_roi();
-
-    nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
-                                              sizeof(nvimgcodecDecodeParams_t), nullptr};
-    decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
-    decode_params.enable_roi = static_cast<int>(has_any_roi);
+    SetupRoiGenerator(spec_, ws);
+    TensorListShape<> shapes;
+    shapes.resize(nsamples, 3);
+    while (static_cast<int>(state_.size()) < nsamples)
+      state_.push_back(std::make_unique<SampleState>());
+    rois_.resize(nsamples);
 
     assert(static_cast<int>(state_.size()) >= nsamples);
     batch_encoded_streams_.clear();
@@ -732,82 +650,123 @@ class ImageDecoder : public StatelessOperator<Backend> {
     batch_images_.reserve(nsamples);
     decode_sample_idxs_.clear();
     decode_sample_idxs_.reserve(nsamples);
+    load_from_cache_.resize(nsamples);
 
-    // TODO(janton): consider extending cache to different dtype as well
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
-    if (use_cache) {
-      int samples_to_load = 0;
-      DomainTimeRange tr(make_string("CacheLoad"), DomainTimeRange::kOrange);
-      for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
-        auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
-        // To simplify things, we do not allow caching ROIs
-        bool has_roi = rois_[orig_idx].use_roi();
-        if (cache_->IsInCache(src_info) && !has_roi) {
-          cache_->DeferCacheLoad(src_info, output.template mutable_tensor<uint8_t>(orig_idx));
-          samples_to_load++;
-        } else {
-          decode_sample_idxs_.push_back(orig_idx);
-        }
-      }
-      if (samples_to_load > 0)
-        cache_->LoadDeferred(ws.stream());
-    } else {
-      decode_sample_idxs_.resize(nsamples);
-      std::iota(decode_sample_idxs_.begin(), decode_sample_idxs_.end(), 0);
-    }
+    auto get_task = [&](int block_idx, int nblocks) {
+      return [&, block_idx, nblocks](int tid) {
+        int i_start = nsamples * block_idx / nblocks;
+        int i_end = nsamples * (block_idx + 1) / nblocks;
+        for (int i = i_start; i < i_end; i++) {
+          auto *st = state_[i].get();
+          assert(st != nullptr);
+          const auto &input_sample = input[i];
 
-    int decode_nsamples = decode_sample_idxs_.size();
-    {
-      DomainTimeRange tr(make_string("Prepare descs"), DomainTimeRange::kOrange);
-      auto get_task = [&](int block_idx, int nblocks) {
-        return [&, block_idx, nblocks](int tid) {
-          int i_start = decode_nsamples * block_idx / nblocks;
-          int i_end = decode_nsamples * (block_idx + 1) / nblocks;
-          for (int i = i_start; i < i_end; i++) {
-            int orig_idx = decode_sample_idxs_[i];
-            PrepareOutput(*state_[orig_idx], output[orig_idx], rois_[orig_idx], ws);
+          auto src_info = input.GetMeta(i).GetSourceInfo();
+          if (use_cache && cache_->IsInCache(src_info)) {
+            auto cached_shape = cache_->CacheImageShape(src_info);
+            auto roi = GetRoi(spec_, ws, i, cached_shape);
+            if (!roi.use_roi()) {
+              load_from_cache_[i] = true;
+              shapes.set_tensor_shape(i, cached_shape);
+              continue;
+            }
           }
-        };
-      };
 
-      int nblocks = tp_->NumThreads() + 1;
-      if (decode_nsamples > nblocks * 4) {
+          load_from_cache_[i] = false;
+
+          ParseSample(st->parsed_sample,
+                      span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
+                                          volume(input_sample.shape())});
+          st->out_shape = st->parsed_sample.dali_img_info.shape;
+          st->out_shape[2] = NumberOfChannels(format_, st->out_shape[2]);
+          if (use_orientation_ &&
+              (st->parsed_sample.nvimgcodec_img_info.orientation.rotated % 180 != 0)) {
+            std::swap(st->out_shape[0], st->out_shape[1]);
+          }
+          ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->out_shape);
+          if (roi.use_roi()) {
+            auto roi_sh = roi.shape();
+            if (roi.end.size() >= 2) {
+              DALI_ENFORCE(0 <= roi.end[0] && roi.end[0] <= st->out_shape[0] &&
+                               0 <= roi.end[1] && roi.end[1] <= st->out_shape[1],
+                           "ROI end must fit within the image bounds");
+            }
+            if (roi.begin.size() >= 2) {
+              DALI_ENFORCE(0 <= roi.begin[0] && roi.begin[0] <= st->out_shape[0] &&
+                               0 <= roi.begin[1] && roi.begin[1] <= st->out_shape[1],
+                           "ROI begin must fit within the image bounds");
+            }
+            st->out_shape[0] = roi_sh[0];
+            st->out_shape[1] = roi_sh[1];
+          }
+          shapes.set_tensor_shape(i, st->out_shape);
+          PrepareOutput(*state_[i], rois_[i], ws);
+        }
+      };
+    };
+
+    {
+      DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
+      const int minimum_block_nsamples = 16;
+      const int max_num_blocks = std::max(1, nsamples / minimum_block_nsamples);
+      int nblocks = std::min(tp_->NumThreads() + 1, max_num_blocks);
+      if (nblocks == 1) {
+        get_task(0, 1)(-1);                // run all in current thread
+      } else {
         int block_idx = 0;
-        for (; block_idx < tp_->NumThreads(); block_idx++) {
+        for (; block_idx < nblocks - 1; block_idx++) {
           tp_->AddWork(get_task(block_idx, nblocks), -block_idx);
         }
-        tp_->RunAll(false);                 // start work but not wait
-        get_task(block_idx, nblocks)(-1);   // run last block
-        tp_->WaitForWork();                 // wait for the other threads
-      } else {                              // not worth parallelizing
-        get_task(0, 1)(-1);                 // run all in current thread
+        tp_->RunAll(false);                // start work but not wait
+        get_task(block_idx, nblocks)(-1);  // run last block in current thread
+        tp_->WaitForWork();                // wait for the other threads
       }
+    }
 
-      for (int orig_idx : decode_sample_idxs_) {
-        auto &st = *state_[orig_idx];
+    output.Resize(shapes, dtype_);
+
+    bool has_any_roi = false;
+    int samples_to_load = 0;
+    bool any_need_processing = false;
+    for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
+      auto &st = *state_[orig_idx];
+      auto* data_ptr = output.raw_mutable_tensor(orig_idx);
+      has_any_roi |= rois_[orig_idx].use_roi();
+      if (load_from_cache_[orig_idx]) {
+        auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
+        cache_->DeferCacheLoad(src_info, static_cast<uint8_t*>(data_ptr));
+        samples_to_load++;
+      } else {
+        decode_sample_idxs_.push_back(orig_idx);
+        UpdateBuffer(st, data_ptr);
+        assert(!ws.has_stream() ||
+               ws.stream() == st.image_info.cuda_stream);  // assuming this is true
+        any_need_processing |= st.need_processing;
         batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
         batch_images_.push_back(st.image);
       }
     }
 
-    // This is a workaround for nvImageCodec <= 0.2
-    auto any_need_processing = [&]() {
-      for (int orig_idx : decode_sample_idxs_) {
-        auto& st = state_[orig_idx];
-        assert(ws.stream() == st->image_info.cuda_stream);  // assuming this is true
-        if (st->need_processing)
-          return true;
-      }
-      return false;
-    };
-    if (ws.has_stream() && need_host_sync_alloc() && any_need_processing()) {
+    nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
+                                              sizeof(nvimgcodecDecodeParams_t), nullptr};
+    decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
+    decode_params.enable_roi = static_cast<int>(has_any_roi);
+
+    if (ws.has_stream() && need_host_sync_alloc() && any_need_processing) {
       DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+    }
+
+    if (samples_to_load > 0) {
+      DomainTimeRange tr("LoadDeferred", DomainTimeRange::kOrange);
+      cache_->LoadDeferred(ws.stream());
     }
 
     {
       DomainTimeRange tr("Decode", DomainTimeRange::kOrange);
       nvimgcodecFuture_t future;
+      size_t decode_nsamples = decode_sample_idxs_.size();
       decode_status_.resize(decode_nsamples);
       size_t status_size = 0;
       CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, batch_encoded_streams_.data(),
@@ -815,11 +774,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                                &decode_params, &future));
       CHECK_NVIMGCODEC(
           nvimgcodecFutureGetProcessingStatus(future, decode_status_.data(), &status_size));
-      if (static_cast<int>(status_size) != decode_nsamples)
+      if (status_size != decode_nsamples)
         throw std::logic_error("Failed to retrieve processing status");
       CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
 
-      for (int i = 0; i < decode_nsamples; i++) {
+      for (size_t i = 0; i < decode_nsamples; i++) {
         if (decode_status_[i] != NVIMGCODEC_PROCESSING_STATUS_SUCCESS) {
           int orig_idx = decode_sample_idxs_[i];
           throw std::runtime_error(make_string("Failed to decode sample #", orig_idx, " : ",
@@ -908,6 +867,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   // In case of cache, the batch we send to the decoder might have fewer samples than the full batch
   // This vector is used to get the original index of the decoded samples
   std::vector<size_t> decode_sample_idxs_;
+  // True if the sample is loaded from cache, false otherwise
+  std::vector<bool> load_from_cache_;
 
   // Manually loaded extensions
   std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
