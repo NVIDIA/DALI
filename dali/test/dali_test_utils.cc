@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ namespace dali {
 namespace test {
 
 std::string CurrentExecutableDir() {
-    char result[PATH_MAX];
+    char result[PATH_MAX + 1] = {};  // readlink doesn't place a NULL terminator at the end of path
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
     if (count != -1) {
         return dirname(result);
