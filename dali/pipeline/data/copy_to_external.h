@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ inline void CopyToExternalImpl(void* dst,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
   const auto &type_info = src.type_info();
-  type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), order.stream(),
+  type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), order,
                                                   use_copy_kernel);
 }
 
@@ -70,7 +70,7 @@ inline void CopyToExternalImpl(void* dst,
 
   if (src.IsContiguous()) {
     type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src._num_elements(),
-                                                    order.stream(), use_copy_kernel);
+                                                    order, use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
     BatchVector<const void *> from;
@@ -84,7 +84,7 @@ inline void CopyToExternalImpl(void* dst,
     }
 
     type_info.template Copy<DstBackend, SrcBackend>(dst, from.data(), sizes.data(),
-                                                    num_samples, order.stream(), use_copy_kernel);
+                                                    num_samples, order, use_copy_kernel);
   }
 }
 
@@ -115,7 +115,7 @@ inline void CopyToExternalImpl(void** dsts,
 
   if (src.IsContiguous() && samples_to_copy == num_samples) {
     type_info.template Copy<DstBackend, SrcBackend>(dsts, unsafe_raw_data(src), sizes.data(),
-                                                    num_samples, order.stream(), use_copy_kernel);
+                                                    num_samples, order, use_copy_kernel);
 
   } else {
     BatchVector<const void *> from;
@@ -130,7 +130,7 @@ inline void CopyToExternalImpl(void** dsts,
     }
 
     type_info.template Copy<DstBackend, SrcBackend>(
-          to.data(), from.data(), sizes.data(), samples_to_copy, order.stream(), use_copy_kernel);
+          to.data(), from.data(), sizes.data(), samples_to_copy, order, use_copy_kernel);
   }
 }
 

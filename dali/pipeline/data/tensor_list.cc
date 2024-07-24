@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &s
   }
 
   type_info.Copy<SrcBackend, DstBackend>(dsts.data(), srcs.data(), sizes.data(), num_samples,
-                                         order.stream(), use_copy_kernel);
+                                         order, use_copy_kernel);
 }
 
 
@@ -114,7 +114,7 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeIn
   }
 
   type_info.Copy<DstBackend, SrcBackend>(dsts.data(), src, sizes.data(), num_samples,
-                                         order.stream(), use_copy_kernel);
+                                         order, use_copy_kernel);
 }
 
 
@@ -136,7 +136,7 @@ void CopySamplewiseImpl(void *dst, const SrcBatch<SrcBackend> &src, const TypeIn
   }
 
   type_info.Copy<DstBackend, SrcBackend>(dst, srcs.data(), sizes.data(), num_samples,
-                                         order.stream(), use_copy_kernel);
+                                         order, use_copy_kernel);
 }
 
 /**
@@ -149,7 +149,7 @@ void CopyImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src, const 
               AccessOrder copy_order, bool use_copy_kernel = false) {
   if (dst.IsContiguous() && src.IsContiguous()) {
     type_info.Copy<DstBackend, SrcBackend>(unsafe_raw_mutable_data(dst), unsafe_raw_data(src),
-                                           dst.shape().num_elements(), copy_order.stream(),
+                                           dst.shape().num_elements(), copy_order,
                                            use_copy_kernel);
   } else if (dst.IsContiguous() && !src.IsContiguous()) {
     copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(unsafe_raw_mutable_data(dst), src,

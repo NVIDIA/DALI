@@ -16,7 +16,8 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::Workspace &ws) {
           type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(
                             output.raw_mutable_tensor(sample_id),
                             input.raw_tensor(sample_id),
-                            in_shape.tensor_size(sample_id), 0);
+                            in_shape.tensor_size(sample_id),
+                            ::dali::AccessOrder::host());
         },
         in_shape.tensor_size(sample_id));
   }
