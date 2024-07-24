@@ -74,12 +74,13 @@ ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
     outputs.resize(def->outputs.size());
     inputs.resize(def->inputs.size());
   }
-  if (op) {
-    assert(!def || def->outputs.size() == static_cast<size_t>(op->GetSpec().NumOutput()));
-    assert(!def || def->inputs.size() == static_cast<size_t>(op->GetSpec().NumInput()));
-    outputs.resize(std::max<size_t>(outputs.size(), op->GetSpec().NumOutput()));
-    inputs.resize(std::max<size_t>(inputs.size(), op->GetSpec().NumInput()));
-    is_batch_size_provider = dynamic_cast<BatchSizeProvider *>(op.get());
+  if (this->op) {
+    auto &spec = this->op->GetSpec();
+    assert(!def || def->outputs.size() == static_cast<size_t>(spec.NumOutput()));
+    assert(!def || def->inputs.size() == static_cast<size_t>(spec.NumInput()));
+    outputs.resize(std::max<size_t>(outputs.size(), spec.NumOutput()));
+    inputs.resize(std::max<size_t>(inputs.size(), spec.NumInput()));
+    is_batch_size_provider = dynamic_cast<BatchSizeProvider *>(this->op.get()) != nullptr;
   }
 }
 
@@ -216,18 +217,23 @@ void ExecGraph::PrepareIteration(
 
   // Create a special task that checks the predicted batch size
   // and populates the respective field in IterationData
-  auto batch_size_task = InferBatchSize(iter_data, params.batch_size);
-  if (!batch_size_task)
+  auto prev_infer = infer_batch_size_task_;
+  infer_batch_size_task_ = InferBatchSize(iter_data, params.batch_size);
+  if (infer_batch_size_task_) {
+    if (prev_infer)
+      infer_batch_size_task_->Succeed(prev_infer);
+  } else {
     iter_data->default_batch_size = params.batch_size;
+  }
 
   for (auto &n : nodes_) {
     n.NextIter();
     n.CreateMainTask(iter_data, params);
   }
   for (auto &n : nodes_) {
-    // all "root" tasks must succeed batch size inference
-    if (n.inputs.empty() && batch_size_task)
-      n.main_task->Succeed(batch_size_task);
+    // all root tasks must succeed batch size inference
+    if (n.inputs.empty() && infer_batch_size_task_)
+      n.main_task->Succeed(infer_batch_size_task_);
     n.AddDataDeps();
     n.CreateAuxTasks();
   }
@@ -243,14 +249,15 @@ tasking::SharedTask ExecGraph::InferBatchSize(const std::shared_ptr<IterationDat
   for (auto &n : nodes_) {
     if (!n.is_batch_size_provider)  // these should go first
       break;
-    // this will throw bad_cast if n.op is not convertible, for whatever reason
-    bsps.emplace_back(&n, &dynamic_cast<BatchSizeProvider &>(*n.op));
+    bsps.emplace_back(&n, dynamic_cast<BatchSizeProvider *>(n.op.get()));
+    assert(bsps.back().second);
   }
   if (bsps.empty())
     return nullptr;
 
   return tasking::Task::Create([bsps, iter = iter_data, max_batch_size]() {
     std::optional<int> bs;
+    assert(!bsps.empty());
     for (auto [n, bsp] : bsps) {
       int op_bs = bsp->NextBatchSize();
       if (op_bs > max_batch_size) {
@@ -260,18 +267,16 @@ tasking::SharedTask ExecGraph::InferBatchSize(const std::shared_ptr<IterationDat
           "\" returned a batch size ", op_bs,
           " which is larger than 'max_batch_size' for the pipeline."));
       }
-      for (size_t i = 1; i < bsps.size(); i++) {
-        if (bs && *bs != op_bs)
-          throw std::runtime_error(make_string(
-            "Batch size clash! The input operator \"",
-            NodeName(*n),
-            "\" returned a batch size ", op_bs,
-            " which is different than ", *bs,
-            " retruned by \"", NodeName(*bsps[0].first), "\"."));
-        bs = op_bs;
-      }
+      if (bs && *bs != op_bs)
+        throw std::runtime_error(make_string(
+          "Batch size clash! The input operator \"",
+          NodeName(*n),
+          "\" returned a batch size ", op_bs,
+          " which is different than ", *bs,
+          " retruned by \"", NodeName(*bsps[0].first), "\"."));
+      bs = op_bs;
     }
-    assert(bs);
+    assert(bs.has_value());
     iter->default_batch_size = *bs;
     for (auto &bsp : bsps)
       bsp.second->Advance();
@@ -283,6 +288,9 @@ tasking::TaskFuture ExecGraph::Launch(tasking::Scheduler &sched) {
   Sort();
   Validate();
   Analyze();
+
+  if (infer_batch_size_task_)
+    sched.AddSilentTask(infer_batch_size_task_);
 
   std::optional<tasking::TaskFuture> ret;
   for (auto &n : nodes_) {

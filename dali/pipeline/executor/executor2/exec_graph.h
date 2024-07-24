@@ -330,7 +330,6 @@ class DLL_PUBLIC ExecGraph {
   void Sort();
 
  private:
-
   tasking::SharedTask InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
                                      int max_batch_size);
 
@@ -340,6 +339,7 @@ class DLL_PUBLIC ExecGraph {
   std::list<ExecNode> nodes_;
   std::list<ExecEdge> edges_;
   std::unordered_map<std::string_view, ExecNode *> name2node_;
+  tasking::SharedTask infer_batch_size_task_;
 
   bool sorted_ = false;
   bool validated_ = false;

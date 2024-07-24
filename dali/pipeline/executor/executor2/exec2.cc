@@ -317,7 +317,6 @@ class Executor2::Impl {
     int num_cpu_roots = 0;
     int num_mixed_roots = 0;
     int num_gpu_roots = 0;
-
   } graph_info_;
 
   // Runtime environment

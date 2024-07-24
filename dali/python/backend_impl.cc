@@ -296,7 +296,7 @@ void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int de
 
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
-  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) mutable {
+  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) mutable {  // NOLINT
     py::gil_scoped_acquire aqr;
     {
       auto tmp = std::move(obj_ref);
@@ -1009,7 +1009,7 @@ void ExposeTensorList(py::module &m) {
         const TypeInfo &type = TypeFromFormatStr(info.format);
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
-        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) mutable {
+        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) mutable {  // NOLINT
               py::gil_scoped_acquire aqr;
               {
                 auto tmp = std::move(buf_ref);

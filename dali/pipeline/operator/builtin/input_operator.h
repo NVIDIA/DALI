@@ -288,7 +288,11 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   void HandleDataAvailability() {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     if (blocking_) {
-      cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
+      cv_.wait(busy_lock, [&data = state_, &running = running_] {
+          return !data.empty() || !running; });
+
+      if (!running_)
+        DALI_FAIL("The pipeline was shut down.");
     } else {
       if (state_.empty()) {
         DALI_FAIL("No data was provided to the InputOperator. Make sure to feed it properly.");
