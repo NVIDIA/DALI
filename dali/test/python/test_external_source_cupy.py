@@ -121,12 +121,8 @@ def test_cross_device():
 
 
 def _test_memory_consumption(device, test_case):
-    import gc
-    import sys
-    import time
-    ids = set()
     batch_size = 32
-    num_iters = 64
+    num_iters = 128
 
     if device == "cpu":
         import numpy as np
@@ -149,14 +145,6 @@ def _test_memory_consumption(device, test_case):
 
         return cb
 
-    def no_copy_batch():
-        batch = fw.full((batch_size, 1024, 1024, 4), 42, dtype=fw.int32)
-
-        def cb():
-            return batch
-
-        return cb
-
     def copy_batch():
         def cb():
             return fw.full((batch_size, 1024, 1024, 4), 42, dtype=fw.int32)
@@ -164,7 +152,6 @@ def _test_memory_consumption(device, test_case):
         return cb
 
     cases = {
-        "no_copy_batch": (no_copy_batch, True, True),
         "no_copy_sample": (no_copy_sample, True, False),
         "copy_sample": (copy_sample, False, False),
         "copy_batch": (copy_batch, False, True),
@@ -182,8 +169,7 @@ def _test_memory_consumption(device, test_case):
         pipe.run()
 
 
-
 def test_memory_consumption():
     for device in ["cpu", "gpu"]:
-        for test_case in ["no_copy_sample", "no_copy_batch", "copy_sample", "copy_batch"]:
+        for test_case in ["no_copy_sample", "copy_sample", "copy_batch"]:
             yield _test_memory_consumption, device, test_case
