@@ -115,13 +115,13 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
                                    .AddArg("device", "cpu")
                                    .AddInput("compressed_images", "cpu")
                                    .AddOutput("PT_CPU", "cpu")
-                                   .AddArg("trace_name", std::string(operator_trace_names[0])),
+                                   .AddArg("trace_name", operator_trace_names[0]),
                            operator_under_test_names[0]);
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "gpu")
                                    .AddInput("compressed_images", "gpu")
                                    .AddOutput("PT_GPU", "gpu")
-                                   .AddArg("trace_name", std::string(operator_trace_names[1])),
+                                   .AddArg("trace_name", operator_trace_names[1]),
                            operator_under_test_names[1]);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
@@ -145,11 +145,12 @@ TEST_P(OperatorTraceTest, OperatorTraceTest) {
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
-      for (size_t i = 0; i < std::size(operator_under_test_names); ++i) {
-        const char *operator_name = operator_under_test_names[i];
-        const char *trace_name = operator_trace_names[i];
+      for (size_t op = 0; op < std::size(operator_under_test_names); op++) {
+        const char *operator_name = operator_under_test_names[op];
+        const char *trace_name = operator_trace_names[op];
         EXPECT_EQ(daliHasOperatorTrace(&h, operator_name, "this_trace_does_not_exist"), 0);
-        ASSERT_NE(daliHasOperatorTrace(&h, operator_name, trace_name), 0) << "name: " << trace_name;
+        ASSERT_NE(daliHasOperatorTrace(&h, operator_name, trace_name), 0)
+          << "operator_name: " << operator_name << "\ntrace_name: " << trace_name;
 
         EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name, trace_name)),
                   make_string("test_value", iteration * prefetch_depth + i));
@@ -194,11 +195,13 @@ class OperatorTraceTestExternalInput : public OperatorTraceTest {
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "cpu")
                                    .AddInput("OP_TRACE_IN_CPU", "cpu")
+                                   .AddArg("trace_name", operator_trace_names[0])
                                    .AddOutput("PT_CPU", "cpu"),
                            operator_under_test_names[0]);
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "gpu")
                                    .AddInput("OP_TRACE_IN_GPU", "gpu")
+                                   .AddArg("trace_name", operator_trace_names[1])
                                    .AddOutput("PT_GPU", "gpu"),
                            operator_under_test_names[1]);
 
@@ -262,11 +265,12 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
-      for (size_t i = 0; i < std::size(operator_under_test_names); i++) {
-        const char *operator_name = operator_under_test_names[i];
-        const char *trace_name = operator_trace_names[i];
+      for (size_t op = 0; op < std::size(operator_under_test_names); op++) {
+        const char *operator_name = operator_under_test_names[op];
+        const char *trace_name = operator_trace_names[op];
         EXPECT_EQ(daliHasOperatorTrace(&h, operator_name, "this_trace_does_not_exist"), 0);
-        ASSERT_NE(daliHasOperatorTrace(&h, operator_name, trace_name), 0) << "name: " << trace_name;
+        ASSERT_NE(daliHasOperatorTrace(&h, operator_name, trace_name), 0)
+          << "operator_name: " << operator_name << "\ntrace_name: " << trace_name;
 
         EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name, trace_name)),
                   make_string("test_value", iteration * prefetch_depth + i));
