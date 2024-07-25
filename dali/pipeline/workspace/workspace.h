@@ -590,26 +590,29 @@ class WorkspaceBase : public ArgumentWorkspace {
     GetOperatorTraces().clear();
   }
 
-
+  /** Gets operator traces for the currently assigned operator.
+   *
+   * Returns a map, that maps a trace key to a trace value: `ret_value[trace_key] = trace_value`.
+   * The usage is typically within the scope of an operator.
+   */
   DLL_PUBLIC auto &GetOperatorTraces() const {
-    return GetOperatorTraces(GetOperatorInstanceName());
+    if (!operator_traces_)
+      operator_traces_ = &iter_data_->operator_traces.Get(operator_instance_name_);
+    return *operator_traces_;
   }
 
-  /**
-   * Get the trace map for a given operator.
+  /** Get the trace map for a given operator.
    *
    * Returns a map, that maps a trace key to a trace value: `ret_value[trace_key] = trace_value`.
    *
-   * Typically, this function will be called when the traces shall be read.
+   * Typically, this function is be called when the traces are read.
    *
    * @see operator_trace_map_t
    *
    * @param operator_name Name (ID) of the operator.
    */
   DLL_PUBLIC auto &GetOperatorTraces(const std::string &operator_name) const {
-    if (!operator_traces_)
-      operator_traces_ = &iter_data_->operator_traces.Get(operator_name);
-    return *operator_traces_;
+    return iter_data_->operator_traces.Get(operator_name);
   }
   ///@}
 

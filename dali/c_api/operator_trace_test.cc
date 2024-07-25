@@ -52,8 +52,12 @@ OperatorTraceTestParam operator_trace_test_params_pipelined_executor_separate_qu
         {2, 2, true, false},
 };
 
-std::array<std::string, 2> operator_under_test_names = {
-        "PassthroughWithTraceOpCpu", "PassthroughWithTraceOpGpu"
+const char *operator_under_test_names[] = {
+    "PassthroughWithTraceOpCpu", "PassthroughWithTraceOpGpu"
+};
+
+const char *operator_trace_names[] = {
+    "trace1", "trace2"
 };
 
 }  // namespace
@@ -110,12 +114,14 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "cpu")
                                    .AddInput("compressed_images", "cpu")
-                                   .AddOutput("PT_CPU", "cpu"),
+                                   .AddOutput("PT_CPU", "cpu")
+                                   .AddArg("trace_name", std::string(operator_trace_names[0])),
                            operator_under_test_names[0]);
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "gpu")
                                    .AddInput("compressed_images", "gpu")
-                                   .AddOutput("PT_GPU", "gpu"),
+                                   .AddOutput("PT_GPU", "gpu")
+                                   .AddArg("trace_name", std::string(operator_trace_names[1])),
                            operator_under_test_names[1]);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
@@ -139,11 +145,13 @@ TEST_P(OperatorTraceTest, OperatorTraceTest) {
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
-      for (const auto & operator_name : operator_under_test_names) {
-        EXPECT_EQ(daliHasOperatorTrace(&h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
-        ASSERT_NE(daliHasOperatorTrace(&h, operator_name.c_str(), "test_trace"), 0);
+      for (size_t i = 0; i < std::size(operator_under_test_names); ++i) {
+        const char *operator_name = operator_under_test_names[i];
+        const char *trace_name = operator_trace_names[i];
+        EXPECT_EQ(daliHasOperatorTrace(&h, operator_name, "this_trace_does_not_exist"), 0);
+        ASSERT_NE(daliHasOperatorTrace(&h, operator_name, trace_name), 0) << "name: " << trace_name;
 
-        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name.c_str(), "test_trace")),
+        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name, trace_name)),
                   make_string("test_value", iteration * prefetch_depth + i));
       }
 
@@ -254,11 +262,13 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
-      for (const auto &operator_name : operator_under_test_names) {
-        EXPECT_EQ(daliHasOperatorTrace(&h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
-        ASSERT_NE(daliHasOperatorTrace(&h, operator_name.c_str(), "test_trace"), 0);
+      for (size_t i = 0; i < std::size(operator_under_test_names); i++) {
+        const char *operator_name = operator_under_test_names[i];
+        const char *trace_name = operator_trace_names[i];
+        EXPECT_EQ(daliHasOperatorTrace(&h, operator_name, "this_trace_does_not_exist"), 0);
+        ASSERT_NE(daliHasOperatorTrace(&h, operator_name, trace_name), 0) << "name: " << trace_name;
 
-        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name.c_str(), "test_trace")),
+        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name, trace_name)),
                   make_string("test_value", iteration * prefetch_depth + i));
       }
 
