@@ -58,6 +58,27 @@ if (BUILD_BENCHMARK)
 endif()
 
 ##################################################################
+# libjpeg-turbo
+##################################################################
+if (BUILD_JPEG_TURBO)
+  find_package(JPEG 62 REQUIRED) # 1.5.3 version
+  include_directories(${JPEG_INCLUDE_DIR})
+  message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
+  list(APPEND DALI_LIBS ${JPEG_LIBRARY})
+  add_definitions(-DDALI_USE_JPEG_TURBO)
+endif()
+
+##################################################################
+# libtiff
+##################################################################
+if (BUILD_LIBTIFF)
+  find_package(TIFF REQUIRED)
+  include_directories(${TIFF_INCLUDE_DIR})
+  message("Using libtiff at ${TIFF_LIBRARY}")
+  list(APPEND DALI_LIBS ${TIFF_LIBRARY})
+endif()
+
+##################################################################
 # PyBind
 ##################################################################
 if (BUILD_PYTHON)
