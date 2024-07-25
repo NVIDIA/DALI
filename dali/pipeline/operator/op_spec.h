@@ -174,6 +174,11 @@ class DLL_PUBLIC OpSpec {
     return this->SetArg<std::string>(name, c_str);
   }
 
+  // Forward to string implementation
+  DLL_PUBLIC inline OpSpec& SetArg(const string &name, const char *c_str) {
+    return this->SetArg<std::string>(name, c_str);
+  }
+
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
    * input to the op. Intermediate data all have unique names,
