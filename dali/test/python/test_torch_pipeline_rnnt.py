@@ -250,7 +250,7 @@ def torch_mel_fbank(spectrogram, sample_rate, device="cpu", nfilt=64, lowfreq=0,
         spectrogram = spectrogram.cuda()
     n_fft = 2 * (spectrogram.shape[0] - 1)
     filterbanks = torch.tensor(
-        librosa.filters.mel(sample_rate, n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
+        librosa.filters.mel(sr=sample_rate, n_fft=n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
         dtype=torch.float,
     )
     if device == "gpu":
