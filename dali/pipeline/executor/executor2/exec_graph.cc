@@ -153,6 +153,7 @@ CachedWorkspace ExecNode::CreateOpWorkspace() {
   assert(op);
   const OpSpec &spec = op->GetSpec();
   CachedWorkspace ws(new Workspace(), {});
+  ws->SetOperatorInstanceName(instance_name);
   for (int i = 0, ninp = inputs.size(); i < ninp; i++) {
     bool arg = spec.IsArgumentInput(i);
     bool gpu = inputs[i]->device == StorageDevice::GPU;
