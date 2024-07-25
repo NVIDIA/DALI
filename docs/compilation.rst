@@ -380,6 +380,7 @@ To run with sanitizers enabled issue:
 Following CMake parameters could be helpful in setting the right paths:
 
 * FFMPEG_ROOT_DIR - path to installed FFmpeg
+* NVJPEG_ROOT_DIR - where nvJPEG can be found (from CUDA 10.0 it is shipped with the CUDA toolkit so this option is not needed there)
 * libjpeg-turbo options can be obtained from `**libjpeg CMake docs page** <https://cmake.org/cmake/help/v3.11/module/FindJPEG.html>`_
 * protobuf options can be obtained from `**protobuf CMake docs page** <https://cmake.org/cmake/help/v3.11/module/FindProtobuf.html>`_
 

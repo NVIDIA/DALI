@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <map>
 #include "dali/core/common.h"
+#include "dali/operators/decoder/image/image.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/util/uri.h"

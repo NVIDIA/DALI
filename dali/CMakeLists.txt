@@ -49,6 +49,10 @@ if (BUILD_DALI_PIPELINE)
 endif()
 
 if(BUILD_DALI_OPERATORS)
+  if(BUILD_NVJPEG)
+    add_subdirectory(nvjpeg)
+  endif()
+
   if(BUILD_NVIMAGECODEC)
     add_subdirectory(nvimgcodec)
   endif()
@@ -108,7 +112,6 @@ if (BUILD_DALI_PIPELINE AND BUILD_TEST)
   if (BUILD_CUFILE)
     target_link_libraries(dali_test PRIVATE dynlink_cufile)
   endif()
-
   target_link_libraries(dali_test PRIVATE "-pie")
   set_target_properties(dali_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
   set_target_properties(dali_test PROPERTIES POSITION_INDEPENDENT_CODE ON)

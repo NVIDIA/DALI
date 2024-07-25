@@ -123,6 +123,7 @@ cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" O
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+
 cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
                       "WITH_DYNAMIC_CUDA_TOOLKIT;BUILD_NVJPEG" OFF)
 cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
@@ -302,6 +303,7 @@ propagate_option(BUILD_FFTS)
 propagate_option(BUILD_CFITSIO)
 propagate_option(BUILD_CVCUDA)
 propagate_option(BUILD_NVJPEG)
+propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
 propagate_option(BUILD_FFMPEG)

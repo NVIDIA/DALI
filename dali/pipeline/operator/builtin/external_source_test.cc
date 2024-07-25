@@ -17,14 +17,14 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+
+#include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/c_api.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
-#include "dali/pipeline/pipeline.h"
-#include "dali/test/dali_test_decoder.h"
 namespace dali {
 
 

@@ -1715,8 +1715,12 @@ PYBIND11_MODULE(backend_impl, m) {
   });
 
   m.def("GetNvjpegVersion", [] {
-    DALI_WARN("NVIDIA DALI does not link with nvjpeg directly anymore");
-    return -1;
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetNvjpegVersion();
+    } catch (const std::runtime_error &) {}
+    return ret;
   });
 
   m.def("GetNvimgcodecVersion", [] {

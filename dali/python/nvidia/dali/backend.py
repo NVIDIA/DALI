@@ -18,6 +18,7 @@ from nvidia.dali.backend_impl import (
     GetCudaVersion,
     GetCufftVersion,
     GetNppVersion,
+    GetNvjpegVersion,
     GetNvimgcodecVersion,
 )
 
@@ -99,6 +100,17 @@ def check_cuda_runtime():
             deprecation_warning(
                 "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
                 "You need to install it separately. NPP is typically "
+                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                "Please check "
+                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                "#pip-wheels-installation-linux "
+                "for the reference."
+            )
+
+        if GetNvjpegVersion() == -1:
+            deprecation_warning(
+                "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                "You need to install it separately. nvJPEG is typically "
                 "provided with CUDA Toolkit installation or an appropriate wheel. "
                 "Please check "
                 "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
