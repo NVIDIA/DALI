@@ -268,7 +268,10 @@ class Executor2::Impl {
 
   void Start() {
     exec_ = std::make_unique<tasking::Executor>(config_.operator_threads);
-    exec_->Start();
+    exec_->Start([this](){
+      if (config_.device)
+        CUDA_CALL(cudaSetDevice(*config_.device));
+    });
     state_ = State::Running;
   }
 
