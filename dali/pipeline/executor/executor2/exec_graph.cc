@@ -30,6 +30,7 @@ using tasking::Scheduler;
 
 void ClearWorkspacePayload(Workspace &ws) {
   auto event = ws.has_event() ? ws.event() : nullptr;
+  ws.InjectIterationData(nullptr);
   for (int i = 0; i < ws.NumInput(); i++) {
     // TODO(michalz): Some smarter deletion management
     // If an input has multiple consumers, we should guarantee that the buffer is not destroyed
