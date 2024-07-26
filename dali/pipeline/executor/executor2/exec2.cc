@@ -84,6 +84,15 @@ class Executor2::Impl {
   void Build(const graph::OpGraph &graph) {
     if (state_ != State::New)
       throw std::logic_error("Already built.");
+
+    if (config_.device.has_value()) {
+      int n;
+      CUDA_CALL(cudaGetDeviceCount(&n));
+      if (*config_.device < 0 || *config_.device >= n)
+        throw std::invalid_argument(make_string("The device_id=", *config_.device, " is invalid. "
+            "Valid range is [0..", n-1, "]"));
+    }
+
     state_ = State::Building;
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     graph_.Lower(graph);
@@ -164,6 +173,24 @@ class Executor2::Impl {
     state_ = State::ShutDown;
   }
 
+  void RestoreFromCheckpoint(const Checkpoint &cpt) {
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
+    int restored = 0;
+    for (auto &n : graph_.Nodes()) {
+      if (n.op) {
+        n.op->RestoreState(cpt.GetOpCheckpoint(n.instance_name));
+        restored++;
+      }
+    }
+    if (cpt.NumOp() > restored) {
+      throw std::runtime_error("The checkpoint data contains superfluous operator states.");
+    }
+    this->iter_index_ = cpt.GetIterationId();
+    if (!last_iter_data_)
+      last_iter_data_ = InitIterationData(-1);
+    last_iter_data_->checkpoint = std::make_shared<Checkpoint>(cpt);
+  }
+
   void EnableCheckpointing(bool enabled) {
     config_.checkpointing = enabled;
   }
@@ -196,7 +223,8 @@ class Executor2::Impl {
 
   void PopulateInitialCheckpoint(Checkpoint &cpt) {
     for (auto &n : graph_.Nodes()) {
-      n.op->SaveState(cpt.GetOpCheckpoint(n.instance_name), n.env.order);
+      if (n.op)
+        n.op->SaveState(cpt.GetOpCheckpoint(n.instance_name), n.env.order);
     }
   }
 
@@ -411,7 +439,7 @@ Checkpoint &Executor2::GetCurrentCheckpoint() {
 }
 
 void Executor2::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
-  throw std::runtime_error("Not implemented");
+  impl_->RestoreFromCheckpoint(cpt);
 }
 
 int Executor2::InputFeedCount(std::string_view input_name) {

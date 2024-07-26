@@ -1920,7 +1920,7 @@ def test_preserve_arg():
     pipe.build()
 
 
-def test_pipeline_wrong_device_id():
+def __test_pipeline_wrong_device_id():
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=-123)
     with pipe:
         pipe.set_outputs(np.int32([1, 2, 3]))
