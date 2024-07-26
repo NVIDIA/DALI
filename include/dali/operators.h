@@ -36,6 +36,13 @@ void InitOperatorsLib();
 int GetNppVersion();
 
 /**
+ * @brief  Returns version of available nvJPEG library
+ *
+ * @returns MAJOR*1000 + MINOR*10 + PATH or -1 if not available
+ */
+int GetNvjpegVersion();
+
+/**
  * @brief  Returns version of available nvImageCodec library
  *
  * @returns MAJOR*1000 + MINOR*100 + PATH or -1 if not available
