@@ -66,7 +66,9 @@ class Executor2::Impl {
  public:
   explicit Impl(const Config &config) : config_(config) {
   }
+
   ~Impl() {
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     Shutdown();
   }
 
@@ -102,6 +104,7 @@ class Executor2::Impl {
   }
 
   void Run() {
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     if (state_ != State::Running)
       throw std::runtime_error("The executor is not initialized.");
     InitIteration();
@@ -109,6 +112,7 @@ class Executor2::Impl {
   }
 
   void Prefetch() {
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     for (int i = 0; i < prefetch_depth_; i++) {
       Run();
     }
@@ -117,6 +121,7 @@ class Executor2::Impl {
   Workspace PopOutputs() {
     if (pending_outputs_.empty())
       throw std::out_of_range("All pending outputs were already popped.");
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     auto fut = std::move(pending_outputs_.front());
     pending_outputs_.pop();
     auto &pipe_out = fut.Value<const PipelineOutput &>();
@@ -150,6 +155,7 @@ class Executor2::Impl {
   }
 
   void Shutdown() {
+    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     if (state_ != State::Running)
       return;
     state_ = State::ShutdownRequested;
