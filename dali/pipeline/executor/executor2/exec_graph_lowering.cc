@@ -17,6 +17,7 @@
 #include <utility>
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/operator/error_reporting.h"
 
 namespace dali {
 namespace exec2 {
@@ -26,7 +27,16 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
   analyzed_ = false;
   std::unordered_map<const graph::OpNode *, ExecNode *> def2exec(def.OpNodes().size());
   for (const graph::OpNode &op_node : def.OpNodes()) {
-    ExecNode *exec_node = AddNode(InstantiateOperator(op_node.spec), &op_node);
+    std::unique_ptr<OperatorBase> op;
+    try {
+      op = InstantiateOperator(op_node.spec);
+    } catch (...) {
+      PropagateError({std::current_exception(),
+                      "Critical error when building pipeline:\n" +
+                          GetErrorContextMessage(op_node.spec),
+                      "\nCurrent pipeline object is no longer valid."});
+    }
+    ExecNode *exec_node = AddNode(std::move(op), &op_node);
     def2exec.emplace(&op_node, exec_node);
   }
 

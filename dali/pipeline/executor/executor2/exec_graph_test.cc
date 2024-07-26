@@ -281,7 +281,7 @@ TEST(ExecGraphTest, Exception) {
     for (int i = 0; i < 10; i++) {
       g.PrepareIteration(std::make_shared<IterationData>(), params);
       auto fut = g.Launch(ex);
-      EXPECT_THROW(fut.Value<const PipelineOutput &>(), DALIException);
+      EXPECT_THROW(fut.Value<const PipelineOutput &>(), std::runtime_error);
     }
   }
 }

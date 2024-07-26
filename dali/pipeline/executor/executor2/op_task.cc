@@ -23,6 +23,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
 #include "dali/core/call_at_exit.h"
+#include "dali/pipeline/operator/error_reporting.h"
 
 namespace dali {
 namespace exec2 {
@@ -45,12 +46,19 @@ OpTask::OpTaskOutputs OpTask::Run() {
   if (node_->concurrency) {
     assert(c <= node_->concurrency->MaxCount());
   }
-  SetWorkspaceInputs();
-  SetupOp();
-  RunOp();
-  auto &&ret = GetWorkspaceOutputs();
-  node_->PutWorkspace(std::move(ws_));
-  return ret;
+  try {
+    SetWorkspaceInputs();
+    SetupOp();
+    RunOp();
+    auto &&ret = GetWorkspaceOutputs();
+    node_->PutWorkspace(std::move(ws_));
+    return ret;
+  } catch (...) {
+    PropagateError({
+      std::current_exception(),
+      "Critical error in pipeline:\n" + GetErrorContextMessage(node_->op->GetSpec()),
+      "\nCurrent pipeline object is no longer valid."});
+  }
 }
 
 
