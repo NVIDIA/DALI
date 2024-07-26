@@ -34,6 +34,7 @@ void HostDecoderCrop::RunImpl(Workspace &ws) {
   HostDecoder::RunImpl(ws);
 }
 
-DALI_REGISTER_OPERATOR(legacy__decoders__ImageCrop, HostDecoderCrop, CPU);
+DALI_REGISTER_OPERATOR(decoders__ImageCrop, HostDecoderCrop, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderCrop, HostDecoderCrop, CPU);
 
 }  // namespace dali

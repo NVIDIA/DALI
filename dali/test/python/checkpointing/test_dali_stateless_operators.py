@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -819,14 +819,14 @@ def test_inflate_stateless():
     check_is_pipeline_stateless(pipeline)
 
 
-@stateless_signed_off("peek_image_shape", "experimental.peek_image_shape")
+@stateless_signed_off("peek_image_shape")
 def test_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.peek_image_shape, "cpu")
 
 
-@stateless_signed_off("legacy.peek_image_shape")
+@stateless_signed_off("experimental.peek_image_shape")
 def test_imgcodec_peek_image_shape_stateless():
-    check_single_encoded_jpeg_input(fn.legacy.peek_image_shape, "cpu")
+    check_single_encoded_jpeg_input(fn.experimental.peek_image_shape, "cpu")
 
 
 @stateless_signed_off("decoders.audio", "audio_decoder")
@@ -838,46 +838,40 @@ def test_audio_decoder_stateless():
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("decoders.image", "image_decoder", "experimental.decoders.image")
+@stateless_signed_off("decoders.image", "image_decoder")
 def test_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image, device)
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image")
-def test_legacy_image_decoder_stateless(device):
-    check_single_encoded_jpeg_input(fn.legacy.decoders.image, device)
+@stateless_signed_off("experimental.decoders.image")
+def test_experimental_image_decoder_stateless(device):
+    check_single_encoded_jpeg_input(fn.experimental.decoders.image, device)
 
 
 @params("cpu", "mixed")
-@stateless_signed_off(
-    "decoders.image_crop", "image_decoder_crop", "experimental.decoders.image_crop"
-)
+@stateless_signed_off("decoders.image_crop", "image_decoder_crop")
 def test_image_decoder_crop_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image_crop, device, crop=(20, 50))
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image_crop")
-def test_legacy_image_decoder_crop_stateless(device):
-    check_single_encoded_jpeg_input(fn.legacy.decoders.image_crop, device, crop=(20, 50))
+@stateless_signed_off("experimental.decoders.image_crop")
+def test_experimental_image_decoder_crop_stateless(device):
+    check_single_encoded_jpeg_input(fn.experimental.decoders.image_crop, device, crop=(20, 50))
 
 
 @params("cpu", "mixed")
-@stateless_signed_off(
-    "decoders.image_slice",
-    "image_decoder_slice",
-    "experimental.decoders.image_slice",
-)
+@stateless_signed_off("decoders.image_slice", "image_decoder_slice")
 def test_image_decoder_slice_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image_slice, device, start=(5, 5), end=(45, 45))
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image_slice")
-def test_legacy_image_decoder_slice_stateless(device):
+@stateless_signed_off("experimental.decoders.image_slice")
+def test_experimental_image_decoder_slice_stateless(device):
     check_single_encoded_jpeg_input(
-        fn.legacy.decoders.image_slice, device, start=(5, 5), end=(45, 45)
+        fn.experimental.decoders.image_slice, device, start=(5, 5), end=(45, 45)
     )
 
 

@@ -45,8 +45,8 @@ class CommonPipeline(Pipeline):
             batch_size, num_threads, device_id, random_shuffle, prefetch_queue_depth=prefetch
         )
         print(f"decoder type: {decoder_type}")
-        if "legacy" in decoder_type:
-            decoders_module = ops.legacy.decoders
+        if "experimental" in decoder_type:
+            decoders_module = ops.experimental.decoders
         else:
             decoders_module = ops.decoders
 
@@ -338,7 +338,7 @@ parser.add_argument(
     default="",
     type=str,
     metavar="N",
-    help="roi, cached, (default: regular nvjpeg). Also admit +legacy",
+    help="roi, cached, (default: regular nvjpeg). Also admit +experimental",
 )
 parser.add_argument("--cache_size", default=0, type=int, metavar="N", help="Cache size (in MB)")
 parser.add_argument("--cache_threshold", default=0, type=int, metavar="N", help="Cache threshold")
