@@ -496,7 +496,7 @@ def test_none_seed():
             assert np.sum(np.abs(test_out_ref - test_out)) != 0
 
 
-def __test_as_array():
+def test_as_array():
     batch_size = 64
 
     class HybridPipe(Pipeline):
@@ -1643,11 +1643,16 @@ def test_ref_count():
     assert sys.getrefcount(pipe) == 2
 
 
-def __test_executor_meta():
+def test_executor_meta():
     class TestPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(TestPipeline, self).__init__(
-                batch_size, num_threads, device_id, enable_memory_stats=True
+                batch_size,
+                num_threads,
+                device_id,
+                enable_memory_stats=True,
+                exec_async=False,
+                exec_pipelined=False,
             )
             self.input = ops.readers.Caffe(
                 path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus, seed=seed
@@ -1712,7 +1717,7 @@ def __test_executor_meta():
             assert calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"]
 
 
-def __test_bytes_per_sample_hint():
+def test_bytes_per_sample_hint():
     import nvidia.dali.backend
 
     if nvidia.dali.backend.RestrictPinnedMemUsage():
@@ -1721,7 +1726,9 @@ def __test_bytes_per_sample_hint():
 
     def obtain_reader_meta(iters=3, **kvargs):
         batch_size = 10
-        pipe = Pipeline(batch_size, 1, 0, enable_memory_stats=True)
+        pipe = Pipeline(
+            batch_size, 1, 0, exec_async=False, exec_pipelined=False, enable_memory_stats=True
+        )
         with pipe:
             out = fn.readers.caffe(path=caffe_db_folder, shard_id=0, num_shards=1, **kvargs)
             out = [o.gpu() for o in out]
@@ -1920,11 +1927,11 @@ def test_preserve_arg():
     pipe.build()
 
 
-def __test_pipeline_wrong_device_id():
+def test_pipeline_wrong_device_id():
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=-123)
     with pipe:
         pipe.set_outputs(np.int32([1, 2, 3]))
-    with assert_raises(RuntimeError, glob="wrong device_id"):
+    with assert_raises(Exception, regex="(wrong device_id)|(device_id.*is invalid)"):
         pipe.build()
         pipe.run()
 
