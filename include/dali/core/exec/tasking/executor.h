@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_EXEC_TASKING_EXECUTOR_H_
 #define DALI_CORE_EXEC_TASKING_EXECUTOR_H_
 
+#include <functional>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -38,13 +39,19 @@ class Executor : public Scheduler {
   /** Launches the worker threads.
    *
    * Multiple calls to Start have no effect. The function is not thread safe.
+   *
+   * @param thread_setup A function executed before the main loop.
    */
-  void Start() {
+  void Start(std::function<void()> thread_setup = {}) {
     if (started_)
       return;
     assert(workers_.empty());
     for (int i = 0; i < num_threads_; i++)
-      workers_.emplace_back([this]() { RunWorker(); });
+      workers_.emplace_back([thread_setup, this]() {
+        if (thread_setup)
+          thread_setup();
+        RunWorker();
+      });
     started_ = true;
   }
 

@@ -35,6 +35,30 @@ TEST(TaskingTest, ExecutorShutdown) {
   });
 }
 
+TEST(TaskingTest, ExecutorSetup) {
+  /** Check that setup has effect on all threads */
+  static thread_local int tls = 0;
+  int num_threads = 32;
+  Executor ex(num_threads);
+  ex.Start([]() { tls = 42; });  // set thread-local value
+  std::atomic_int correct{0}, incorrect{0};
+  auto complete = Task::Create([](){});
+  int num_tasks = num_threads * 8;  // launch a lot of tasks - all taks must see the expected value
+  for (int i = 0; i < num_tasks; i++) {
+    auto task = Task::Create([&](){
+      if (tls == 42)
+        ++correct;
+      else
+        ++incorrect;
+    });
+    complete->Succeed(task);
+    ex.AddSilentTask(task);
+  }
+  ex.AddSilentTask(complete);
+  ex.Wait(complete);
+  EXPECT_EQ(correct, num_tasks);
+  EXPECT_EQ(incorrect, 0);
+}
 
 TEST(TaskingTest, IndependentTasksAreParallel) {
   int num_threads = 4;
