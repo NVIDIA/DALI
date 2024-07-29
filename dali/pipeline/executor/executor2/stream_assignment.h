@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR2_STREAM_ASSIGNMENT_H_
 
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <optional>
 #include <queue>
@@ -184,15 +185,19 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       free_stream_ids_.insert(i);
     }
 
-    graph::ClearVisitMarkers(graph.Nodes());
-    // Sort the graph topologically with DFS
+    // the nodes in the graph must be sorted topologically
+    sorted_nodes_.reserve(graph.Nodes().size());
     for (auto &node : graph.Nodes()) {
-      Sort(&node);
-    }
-
-    for (auto &node : graph.Nodes()) {
-      if (node.inputs.empty())
+      int idx = sorted_nodes_.size();
+      sorted_nodes_.push_back(&node);
+      node_ids_[&node] = idx;
+      if (node.inputs.empty()) {
         queue_.push({ node_ids_[&node], NextStreamId(&node).value_or(kInvalidStreamIdx) });
+      } else {
+        for (auto &inp : node.inputs) {
+          assert(node_ids_.count(inp->producer) >= 0 && "Nodes must be topologically sorted.");
+        }
+      }
     }
 
     assert(graph.Nodes().size() == sorted_nodes_.size());
@@ -279,20 +284,6 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       os << ") ";
     }
     os << "\n";
-  }
-
-  void Sort(const ExecNode *node) {
-    assert(node);
-    graph::Visit visit(node);
-    if (!visit)
-      return;
-    for (auto *edge : node->inputs) {
-      assert(edge);
-      Sort(edge->producer);
-    }
-    int idx = sorted_nodes_.size();
-    node_ids_.emplace(node, idx);
-    sorted_nodes_.push_back(node);
   }
 
   std::optional<int> NextStreamId(const ExecNode *node,

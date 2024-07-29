@@ -23,8 +23,7 @@ namespace dali {
 namespace exec2 {
 
 void ExecGraph::Lower(const graph::OpGraph &def) {
-  validated_ = false;
-  analyzed_ = false;
+  Invalidate();
   std::unordered_map<const graph::OpNode *, ExecNode *> def2exec(def.OpNodes().size());
   for (const graph::OpNode &op_node : def.OpNodes()) {
     std::unique_ptr<OperatorBase> op;
