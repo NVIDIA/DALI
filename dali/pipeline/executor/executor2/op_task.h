@@ -40,6 +40,23 @@ struct PipelineOutput;
  * OpTask is a context that's passed (by move) to the runnable used in tasking::Task.
  */
 class OpTask {
+ public:
+  OpTask(OpTask &&) = default;
+  OpTask(const OpTask &) {
+    std::cerr << "This constructor is here only because std::function requires "
+                 "the functor to be copy-constructible. We never actually copy the target.\n"
+                 "See C++23 std::move_only_function." << std::endl;
+    std::abort();
+  }
+
+  /** Creates a tasking::Task from an ExecNode and a Workspace.
+   *
+   * There are two possible tasks:
+   * - operator task
+   * - output task.
+   */
+  static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws);
+
  private:
   OpTask(ExecNode *node, CachedWorkspace ws)
   : node_(node), ws_(std::move(ws)) {}
@@ -63,23 +80,6 @@ class OpTask {
     };
   }
 
- public:
-  OpTask(OpTask &&) = default;
-  OpTask(const OpTask &) {
-    std::cerr << "This constructor is here only because std::function requires "
-                 "the functor to be copy-constructible. We never actually copy the target.\n"
-                 "See C++23 std::move_only_function." << std::endl;
-    std::abort();
-  }
-
-  /** Creates a tasking::Task from an ExecNode and a Workspace.
-   *
-   * There are two possible tasks:
-   * - operator task
-   * - output task.
-   */
-  static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws);
-
   using OpTaskOutputs = SmallVector<std::any, 8>;
 
   OpTaskOutputs Run();
@@ -87,6 +87,7 @@ class OpTask {
   tasking::Task *task_ = nullptr;
   ExecNode *node_ = nullptr;
   CachedWorkspace ws_;
+  /** If true, the operator's Setup and Run are skipped. */
   bool skip_ = false;
 
   template <typename Backend>
@@ -97,7 +98,6 @@ class OpTask {
   void SetWorkspaceInputs();
   void SetupOp();
   void RunOp();
-  void ResetWorkspaceInputs();
   OpTaskOutputs GetWorkspaceOutputs();
 
   /** Returns a workspace in DALI pipeline compatible format (along with supporting structures).
