@@ -19,7 +19,6 @@ from nvidia.dali.backend_impl import (
     GetCufftVersion,
     GetNppVersion,
     GetNvjpegVersion,
-    GetNvimgcodecVersion,
 )
 
 # TODO: Handle forwarding imports from backend_impl
@@ -116,23 +115,4 @@ def check_cuda_runtime():
                 "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
                 "#pip-wheels-installation-linux "
                 "for the reference."
-            )
-
-
-nvimgcodec_checked = False
-
-
-def check_nvimgcodec():
-    """
-    Checks the availability of nvImageCodec library, and prints an appropriate warning.
-    """
-    global nvimgcodec_checked
-    if not nvimgcodec_checked:
-        nvimgcodec_checked = True
-        if GetNvimgcodecVersion() == -1:
-            deprecation_warning(
-                "DALI's experimental image decoder functionality now requires NVIDIA nvImageCodec "
-                "library to run. You need to install it separately. "
-                "See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
-                f"`pip install nvidia-nvimgcodec-cu{str(__cuda_version__)[:2]}`"
             )

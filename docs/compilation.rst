@@ -338,7 +338,7 @@ Optional CMake Build Parameters
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
 -  ``BUILD_CUFILE`` - build with ``GPU Direct Storage`` support (default: ON)
--  ``BUILD_NVIMGCODEC`` - build with ``NVIDIA nvImageCodec library`` support (default: ON)
+-  ``BUILD_NVIMAGECODEC`` - build with ``NVIDIA nvImageCodec library`` support (default: ON)
 -  ``VERBOSE_LOGS`` - enables verbose loging in DALI. (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``BUILD_DALI_NODEPS`` - disables support for third party libraries that are normally expected to be available in the system
