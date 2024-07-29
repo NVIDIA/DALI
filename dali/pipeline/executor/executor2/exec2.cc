@@ -68,7 +68,7 @@ class Executor2::Impl {
   }
 
   ~Impl() {
-    DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
+    dtor_guard_.emplace(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     Shutdown();
   }
 
@@ -200,6 +200,9 @@ class Executor2::Impl {
   }
 
  private:
+  // Must be 1st member to be destroyed last.
+  std::optional<DeviceGuard> dtor_guard_;
+
   State state_ = State::New;
 
   std::shared_ptr<IterationData> InitIterationData(int iter_index) {
