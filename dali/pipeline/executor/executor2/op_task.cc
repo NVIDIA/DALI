@@ -243,9 +243,6 @@ void OpTask::RunOp() {
     PropagateSourceInfo(*ws_);
   }
   if (auto cpt = ws_->GetIterationData()->checkpoint) {
-    print(std::cout,
-          "Saving a checkpoint for operator ", node_->instance_name, ", iteration ",
-          ws_->GetIterationData()->iteration_index, "\n");
     node_->op->SaveState(cpt->GetOpCheckpoint(node_->instance_name), ws_->output_order());
   }
   if (ws_->has_event() && ws_->has_stream())
