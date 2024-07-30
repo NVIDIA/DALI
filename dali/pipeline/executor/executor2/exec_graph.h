@@ -148,10 +148,13 @@ class DLL_PUBLIC ExecNode {
    */
   std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
+  /** The instance of the operator (or null for output node) */
   std::unique_ptr<OperatorBase> op;
 
-
+  /** The task from the previous iteration - kept in order to maintain execution order */
   tasking::SharedTask prev;
+
+  /** The task from the current iteration */
   tasking::SharedTask main_task;
 
   /** The task that releases the output_queue_limit semaphore.
@@ -232,6 +235,7 @@ class DLL_PUBLIC ExecNode {
   std::optional<tasking::TaskFuture> Launch(tasking::Scheduler &sched);
 };
 
+/** The execution graph */
 class DLL_PUBLIC ExecGraph {
  public:
   std::list<ExecNode> &Nodes() {
@@ -316,21 +320,23 @@ class DLL_PUBLIC ExecGraph {
     analyzed_ = false;
   }
 
+  /** Prepares the run-time resources necessary to execute an interation */
   void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,
                         const WorkspaceParams &params);
 
+  /** Executes the recently prepared iteration */
   tasking::TaskFuture Launch(tasking::Scheduler &sched);
 
   /** Populates the graph based on a pipeline definiton graph. */
   void Lower(const graph::OpGraph &def);
 
-  void Analyze();
-
-  void Sort();
-
  private:
-  tasking::SharedTask InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
-                                     int max_batch_size);
+  /** Sorts the graph topologically. */
+  void Sort();
+  /** Runs various analyses on the graph. */
+  void Analyze();
+  /** A bugcheck for graph inconsitency. It throws upon detecting misconneted nodes. */
+  void Validate();
 
   class Analyzer;
   class SortHelper;
@@ -338,13 +344,16 @@ class DLL_PUBLIC ExecGraph {
   std::list<ExecNode> nodes_;
   std::list<ExecEdge> edges_;
   std::unordered_map<std::string_view, ExecNode *> name2node_;
-  tasking::SharedTask infer_batch_size_task_;
 
   bool sorted_ = false;
   bool validated_ = false;
   bool analyzed_ = false;
-  /** A bugcheck for graph inconsitency. It throws upon detecting misconneted nodes. */
-  void Validate();
+
+  /** Creates a task that goes over batch sizes providers and establishes the batch size. */
+  tasking::SharedTask InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
+                                     int max_batch_size);
+  tasking::SharedTask infer_batch_size_task_;
+
 };
 
 }  // namespace exec2
