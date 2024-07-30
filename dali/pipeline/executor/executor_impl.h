@@ -315,7 +315,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   StageQueues stage_queue_depths_;
 
-  std::queue<int> batch_sizes_cpu_, batch_sizes_mixed_, batch_sizes_gpu_;
+  std::queue<int> upcoming_batch_sizes_;
 
   OpGraph *graph_ = nullptr;
   EventPool event_pool_;
