@@ -41,11 +41,6 @@ tasking::SharedTask OpTask::CreateTask(ExecNode *node, CachedWorkspace ws) {
 }
 
 OpTask::OpTaskOutputs OpTask::Run() {
-  auto c = ++node_->actual_concurrency;
-  AtScopeExit([&]() { --node_->actual_concurrency; });
-  if (node_->concurrency) {
-    assert(c <= node_->concurrency->MaxCount());
-  }
   // SetWorkspaceInputs must not go into the try/catch because it rethrows errors
   // from the inputs and we don't want them to be wrapped again as this operator's error.
   SetWorkspaceInputs();
