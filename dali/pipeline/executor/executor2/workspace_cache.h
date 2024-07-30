@@ -51,7 +51,7 @@ struct CachedWorkspaceDeleter {
     if (ws->has_event()) {
       CUDAEvent event(ws->event());
       ws->set_event(nullptr);
-      CUDAEventPool::instance().Put(std::move(event));
+      CUDAEventPool::instance().Put(std::move(event), ws->output_order().device_id());
     }
     delete ws;
   }
