@@ -154,6 +154,10 @@ void OpTask::ApplyDefaultLayout(int input_idx, const OpSchema &schema) {
   if (!source.parallel_consumers) {
     // If there's just one consumer, we can just set the layout
     input.SetLayout(layout);
+    if (source.consumers.size() > 1_uz) {
+      // There are multiple (sequential) consumers - we must reset the layout for the next consumer
+      reset_input_layouts_.push_back(input_idx);
+    }
   } else {
     // If there are multiple consumers, then we have to create a new object
     // sharing the data, as setting it in-place might cause a race condition.
@@ -163,6 +167,18 @@ void OpTask::ApplyDefaultLayout(int input_idx, const OpSchema &schema) {
     ws_->SetInput(input_idx, std::move(new_input));
   }
 }
+
+void OpTask::ResetInputLayouts() {
+  for (int i : reset_input_layouts_) {
+    if (ws_->InputIsType<CPUBackend>(i)) {
+      ws_->UnsafeMutableInput<CPUBackend>(i).SetLayout({});
+    } else {
+      assert(ws_->InputIsType<GPUBackend>(i));
+      ws_->UnsafeMutableInput<GPUBackend>(i).SetLayout({});
+    }
+  }
+}
+
 
 void OpTask::ApplyDefaultLayouts() {
   auto &schema = node_->op->GetSpec().GetSchema();
@@ -182,8 +198,6 @@ void OpTask::SetupOp() {
   std::vector<OutputDesc> output_descs;
   assert(ws.NumOutput() == nout);
   output_descs.reserve(nout);
-  // Run the operator setup
-  bool should_resize = false;
 
   skip_ = ShouldSkip();
 
@@ -220,19 +234,17 @@ void OpTask::SetupOp() {
   if (!skip_) {
     ApplyDefaultLayouts();
     DomainTimeRange tr("[DALI][OpTask] Setup " + GetOpDisplayName(node_->op->GetSpec()));
-    should_resize = node_->op->Setup(output_descs, ws);
-  }
-  // If Setup returns true, we must resize the outputs;
-  // otherwise we just get empty TensorLists with an expected number of samples.
-  if (should_resize) {
-    assert(output_descs.size() == static_cast<size_t>(nout));
-    for (int i = 0; i < nout; i++) {
-      if (ws.OutputIsType<CPUBackend>(i)) {
-        ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-      } else if (ws.OutputIsType<GPUBackend>(i)) {
-        ws.Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-      } else {
-        assert(!"Unreachable code - unknown backend.");
+    // If Setup returns true, we must resize the outputs;
+    if (node_->op->Setup(output_descs, ws)) {
+      assert(output_descs.size() == static_cast<size_t>(nout));
+      for (int i = 0; i < nout; i++) {
+        if (ws.OutputIsType<CPUBackend>(i)) {
+          ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+        } else if (ws.OutputIsType<GPUBackend>(i)) {
+          ws.Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+        } else {
+          assert(!"Unreachable code - unknown backend.");
+        }
       }
     }
   }
@@ -242,6 +254,7 @@ void OpTask::RunOp() {
   if (!skip_) {
     DomainTimeRange tr("[DALI][Executor] Run");
     node_->op->Run(*ws_);
+    ResetInputLayouts();
     PropagateSourceInfo(*ws_);
   }
   if (auto cpt = ws_->GetIterationData()->checkpoint) {
