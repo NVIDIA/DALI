@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cassert>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -58,11 +59,10 @@ std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool
   return s.str();
 }
 
-void PropagateError(ErrorInfo error) {
+[[noreturn]] void PropagateError(ErrorInfo error) {
   try {
-    if (error.exception) {
-      std::rethrow_exception(error.exception);
-    }
+    assert(error.exception);
+    std::rethrow_exception(error.exception);
   }
   // DALI <-> Python mapped type errors:
   catch (DaliError &e) {

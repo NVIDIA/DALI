@@ -75,7 +75,7 @@ struct ErrorInfo {
   std::string additional_message;
 };
 
-void PropagateError(ErrorInfo error);
+[[noreturn]] void PropagateError(ErrorInfo error);
 
 
 /**
