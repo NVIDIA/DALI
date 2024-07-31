@@ -35,8 +35,10 @@ CUDAEventPool::CUDAEventPool(unsigned event_flags) {
   if (const char *evt_pool_init_sz_env = std::getenv("DALI_EVENT_POOL_INITIAL_SIZE")) {
     evt_pool_init_sz = clamp(atoi(evt_pool_init_sz_env), 0, 10000);
   }
-  for (int i = 0; i < evt_pool_init_sz; i++) {
-    Put(CUDAEvent::CreateWithFlags(cudaEventDisableTiming));
+  for (int device_id = 0; device_id < num_devices; device_id++) {
+    for (int i = 0; i < evt_pool_init_sz; i++) {
+      Put(CUDAEvent::CreateWithFlags(cudaEventDisableTiming), device_id);
+    }
   }
 }
 

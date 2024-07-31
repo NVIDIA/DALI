@@ -617,12 +617,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.image_info.plane_info[0].num_channels = decode_shape[2];
   }
 
-  void UpdateBuffer(SampleState &st, void *buffer) {
-    if (!st.need_processing)
-      st.image_info.buffer = buffer;
-    st.image = NvImageCodecImage::Create(instance_, &st.image_info);
-  }
-
   void RunImplImpl(Workspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.template Output<typename OutBackend<Backend>::type>(0);
@@ -739,10 +733,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
         samples_to_load++;
       } else {
         decode_sample_idxs_.push_back(orig_idx);
-        UpdateBuffer(st, data_ptr);
+        any_need_processing |= st.need_processing;
+        if (!st.need_processing)
+          st.image_info.buffer = data_ptr;
         assert(!ws.has_stream() ||
                ws.stream() == st.image_info.cuda_stream);  // assuming this is true
-        any_need_processing |= st.need_processing;
+        st.image = NvImageCodecImage::Create(instance_, &st.image_info);
         batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
         batch_images_.push_back(st.image);
       }
