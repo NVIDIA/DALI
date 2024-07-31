@@ -125,8 +125,17 @@ class OpTask {
 
   void ApplyDefaultLayouts();
 
+  /** Applies a default layout to the input at index input_idx
+   *
+   * Operators have default layouts for inputs of specific rank, e.g. HWC for 3D.
+   * When no layout is specified, this function may adjust it.
+   */
   template <typename Backend>
   void ApplyDefaultLayout(int input_idx, const OpSchema &schema);
+
+  void ResetInputLayouts();
+
+  SmallVector<int, 4> reset_input_layouts_;
 };
 
 
