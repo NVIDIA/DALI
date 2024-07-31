@@ -355,6 +355,5 @@ void ExecNode::AddDataDeps() {
   }
 }
 
-
 }  // namespace exec2
 }  // namespace dali

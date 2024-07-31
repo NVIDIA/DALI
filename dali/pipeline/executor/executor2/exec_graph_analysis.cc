@@ -24,53 +24,6 @@
 namespace dali {
 namespace exec2 {
 
-namespace {
-
-/** Sets pinnedness of the input sources
- *
- * The function goes over the inputs of the node. If the node is non-CPU, then all of its
- * CPU _regular_ inputs are marked as pinned.
- * If the node is a CPU node but passes through an input `i` directly to a pinned output `o`,
- * then the source of input `i` is also marked as pinned.
- */
-void SetPinnedInputs(ExecNode *node) {
-  assert(node->op != nullptr);
-
-  // TODO(michalz): Update if/when we have passthrough for argument inputs
-  int ninp = node->op->GetSpec().NumRegularInput();
-  assert(static_cast<size_t>(ninp) <= node->inputs.size());
-
-  if (node->backend != OpType::CPU) {
-    for (int i = 0; i < ninp; i++) {
-      auto *inp = node->inputs[i];
-      inp->producer->outputs[inp->producer_output_idx].pinned = true;
-    }
-  } else if (node->op->GetSpec().GetSchema().HasPassThrough()) {
-    auto &schema = node->op->GetSpec().GetSchema();
-    int nout = node->outputs.size();
-    for (int i = 0; i < ninp; i++) {
-      auto *input = node->inputs[i];
-      if (input->device != StorageDevice::CPU)  // we're not interested in non-CPU buffers
-        continue;
-
-      auto &source_output = input->producer->outputs[input->producer_output_idx];
-      if (source_output.pinned)  // already pinned
-        continue;
-
-      for (int o = 0; o < nout; o++) {
-        // If input `i` passes to a pinned output `o`, then the input should also be marked
-        // as pinned. This will be followed in reverse topological order.
-        if (node->outputs[o].pinned && schema.IsPassThrough(i, o, false)) {
-          source_output.pinned = true;
-          break;
-        }
-      }
-    }
-  }
-}
-
-}  // namespace
-
 class ExecGraph::Analyzer {
  public:
   void FindPinnedBuffers(ExecGraph &g) {
@@ -123,6 +76,49 @@ class ExecGraph::Analyzer {
     for (auto &n : g.nodes_) {
       for (auto &o : n.outputs)
         o.parallel_consumers = HasParallelConsumers(o);
+    }
+  }
+
+ private:
+  /** Sets pinnedness of the input sources
+   *
+   * The function goes over the inputs of the node. If the node is non-CPU, then all of its
+   * CPU _regular_ inputs are marked as pinned.
+   * If the node is a CPU node but passes through an input `i` directly to a pinned output `o`,
+   * then the source of input `i` is also marked as pinned.
+   */
+  static void SetPinnedInputs(ExecNode *node) {
+    assert(node->op != nullptr);
+    // TODO(michalz): Update if/when we have passthrough for argument inputs
+    int ninp = node->op->GetSpec().NumRegularInput();
+    assert(static_cast<size_t>(ninp) <= node->inputs.size());
+
+    if (node->backend != OpType::CPU) {
+      for (int i = 0; i < ninp; i++) {
+        auto *inp = node->inputs[i];
+        inp->producer->outputs[inp->producer_output_idx].pinned = true;
+      }
+    } else if (node->op->GetSpec().GetSchema().HasPassThrough()) {
+      auto &schema = node->op->GetSpec().GetSchema();
+      int nout = node->outputs.size();
+      for (int i = 0; i < ninp; i++) {
+        auto *input = node->inputs[i];
+        if (input->device != StorageDevice::CPU)  // we're not interested in non-CPU buffers
+          continue;
+
+        auto &source_output = input->producer->outputs[input->producer_output_idx];
+        if (source_output.pinned)  // already pinned
+          continue;
+
+        for (int o = 0; o < nout; o++) {
+          // If input `i` passes to a pinned output `o`, then the input should also be marked
+          // as pinned. This will be followed in reverse topological order.
+          if (node->outputs[o].pinned && schema.IsPassThrough(i, o, false)) {
+            source_output.pinned = true;
+            break;
+          }
+        }
+      }
     }
   }
 };
@@ -281,7 +277,6 @@ void ExecGraph::Validate() {
 
   validated_ = true;
 }
-
 
 }  // namespace exec2
 }  // namespace dali
