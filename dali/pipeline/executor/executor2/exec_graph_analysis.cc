@@ -129,25 +129,21 @@ class ExecGraph::Analyzer {
 
 class ExecGraph::SortHelper {
  public:
-  explicit SortHelper(ExecGraph &graph) : graph_(graph) {
-  }
+  explicit SortHelper(ExecGraph &graph) : graph_(graph) {}
 
   using NodeList = std::list<ExecNode>;
   using NodeIt = NodeList::iterator;
 
   void Run() {
-    std::vector<NodeIt> iterators;
     sorted_.reserve(graph_.nodes_.size());
 
     graph::ClearVisitMarkers(graph_.nodes_);
 
     // Stable topological sort - if the graph is already sorted, then the order shouldn't change
-    for (auto &node : graph_.nodes_) {
+    for (auto &node : graph_.nodes_)
       SortNode(&node);
-    }
 
     MoveBatchSizeProvidersToFront();
-
     RecreateNodeList();
   }
 
@@ -172,14 +168,13 @@ class ExecGraph::SortHelper {
 
   void RecreateNodeList() {
     std::unordered_map<const ExecNode *, NodeIt> node2it;
-    for (auto it = graph_.nodes_.begin(); it != graph_.nodes_.end(); ++it) {
+    for (auto it = graph_.nodes_.begin(); it != graph_.nodes_.end(); ++it)
       node2it[&*it] = it;
-    }
 
     NodeList sorted_list;
-    for (auto *node : sorted_) {
+    for (auto *node : sorted_)
       sorted_list.splice(sorted_list.end(), graph_.nodes_, node2it[node]);
-    }
+
     assert(graph_.nodes_.empty() && "Everything should have been moved to the sorted list");
     graph_.nodes_ = std::move(sorted_list);
   }
