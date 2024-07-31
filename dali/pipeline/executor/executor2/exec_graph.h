@@ -353,7 +353,6 @@ class DLL_PUBLIC ExecGraph {
   tasking::SharedTask InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
                                      int max_batch_size);
   tasking::SharedTask infer_batch_size_task_;
-
 };
 
 }  // namespace exec2

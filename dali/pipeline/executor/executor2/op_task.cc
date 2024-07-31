@@ -286,6 +286,13 @@ void OpTask::SetWorkspaceInputs() {
     ws_->SetArgumentInput(i, inp.data);
   }
 
+  if (task_->NumInputs() > ti) {  // Artificial error input
+    // TODO(michalz): Add early failure mechanism to `dali::tasking` that makes the successors
+    //                of a task that threw an exception fail. Currently the error disappears,
+    //                so we have to add an artificial input which propagates the exception.
+    task_->GetInputValue<void>(ti++);
+  }
+
   for (auto e : events)
     ws_->output_order().wait(e);
 

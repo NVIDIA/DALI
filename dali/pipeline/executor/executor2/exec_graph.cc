@@ -233,11 +233,11 @@ void ExecGraph::PrepareIteration(
     n.CreateMainTask(iter_data, params);
   }
   for (auto &n : nodes_) {
-    // all root tasks must succeed batch size inference
-    if (n.inputs.empty() && infer_batch_size_task_)
-      n.main_task->Succeed(infer_batch_size_task_);
     n.AddDataDeps();
     n.CreateAuxTasks();
+    // all root tasks must succeed batch size inference
+    if (n.inputs.empty() && infer_batch_size_task_)
+      n.main_task->Subscribe(infer_batch_size_task_);
   }
 }
 
