@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_H_
-#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_H_
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_OPS_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_OPS_H_
 
 #include <gtest/gtest.h>
 #include <string>
@@ -126,4 +126,4 @@ class CounterOp : public Operator<CPUBackend> {
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_OPS_H_
