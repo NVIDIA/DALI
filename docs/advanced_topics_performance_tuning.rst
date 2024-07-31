@@ -133,6 +133,13 @@ In performance-critical applications, this can be avoided by preallocating the p
 .. autofunction:: PreallocateDeviceMemory
 .. autofunction:: PreallocatePinnedMemory
 
+Event Pool Initial Size
+-----------------------
+
+DALI utilizes a global CUDA event pool for certain operations. The application can borrow CUDA
+events from the pool and return them for reuse once they are no longer needed. The initial size
+of the event pool can be set using the environment variable ``DALI_EVENT_POOL_INITIAL_SIZE``.
+By default, the pool is filled with 2000 CUDA events.
 
 Freeing Memory Pools
 --------------------
