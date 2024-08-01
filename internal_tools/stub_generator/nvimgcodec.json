@@ -7,9 +7,11 @@
    "not_found_error":"NVIMGCODEC_STATUS_IMPLEMENTATION_UNSUPPORTED",
 "functions": {
       "nvimgcodecInstanceCreate": {},
+      "nvimgcodecDecoderCanDecode": {},
       "nvimgcodecCodeStreamCreateFromHostMem": {},
       "nvimgcodecCodeStreamGetImageInfo": {},
       "nvimgcodecDecoderCreate": {},
+      "nvimgcodecFutureWaitForAll": {},
       "nvimgcodecFutureGetProcessingStatus": {},
       "nvimgcodecInstanceDestroy": {},
       "nvimgcodecImageDestroy": {},
