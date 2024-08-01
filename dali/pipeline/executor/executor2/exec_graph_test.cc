@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <string>
-#include "dali/pipeline/executor/executor2/exec2_test_ops.h"
+#include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/executor/executor2/exec2_test_ops.h"
+#include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
 #include <vector>
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/kernels/dynamic_scratchpad.h"
