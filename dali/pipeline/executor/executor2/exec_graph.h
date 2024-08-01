@@ -224,7 +224,7 @@ class DLL_PUBLIC ExecNode {
    * The graph is built in multiple phases. First, the main tasks are created for all operators.
    * Then, data dependencies are added.
    * Finally, auxiliary tasks (e.g. release_outputs) are added. Creating all tasks for a node
-   * cannot be don in one go because release_outputs succeeds the main tasks of this node's
+   * cannot be done in one go because release_outputs succeeds the main tasks of this node's
    * consumers.
    */
   void CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params);
