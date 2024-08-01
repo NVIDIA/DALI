@@ -53,13 +53,11 @@ inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
   }
 }
 
-// We instantiate the operation of adding the input only for parent op_type and device
-// that are specifically allowed
+
 // We always use queue_idx = 0 if give queue has only one element -> it is not queued
 template <OpType op_type, OpType producer_type, StorageDevice device>
-enable_if_t<allows_op_input<op_type>(producer_type) && allows_tensor_input<op_type>(device)>
-add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
-          int queue_idx = 0) {
+void add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
+               int queue_idx = 0) {
   auto &queue = get_queue<producer_type, device>(storage);
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
@@ -67,10 +65,6 @@ add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
   ws.AddInput(tensor);
 }
 
-// If parent op_type or device is not allowed this is a no-op
-template <OpType op_type, OpType producer_type, StorageDevice device>
-enable_if_t<!allows_op_input<op_type>(producer_type) || !allows_tensor_input<op_type>(device)>
-add_input(Workspace &, const tensor_data_store_queue_t &, int = 0) {}
 
 template <OpType op_type, StorageDevice device>
 void add_output(Workspace &ws, const tensor_data_store_queue_t &storage,

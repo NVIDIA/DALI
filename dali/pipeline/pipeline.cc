@@ -355,16 +355,19 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
                    "Cannot add a Mixed operator with a GPU output, 'device_id' "
                    "should not be `CPU_ONLY_DEVICE_ID`.");
-    } else if (input_device == "cpu") {
-      // device == gpu
-      // TODO(michalz): Add a D2H copy
-      DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error while specifying ", FormatInput(spec, i),
-                               ". CPU input requested by operator exists only on GPU. CPU "
-                               "operator cannot follow GPU operator."));
-      SetupCPUInput(it, i, &spec);
-    } else {
+    }
+
+    if (input_device == "gpu") {
       SetupGPUInput(it);
+    } else {
+      if (device != "gpu") {
+        // device == gpu
+        // TODO(michalz): Add a D2H copy instead
+        DALI_ENFORCE(it->second.has_cpu,
+                    make_string("Error while specifying ", FormatInput(spec, i),
+                                ". CPU input requested by operator exists only on GPU. CPU "
+                                "operator cannot follow GPU operator."));
+      }
     }
   }
 
