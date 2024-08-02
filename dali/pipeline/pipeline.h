@@ -614,8 +614,6 @@ class DLL_PUBLIC Pipeline {
    */
   int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
-  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec);
-
   void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
 
   inline EdgeMeta NewEdge(const std::string &device) {
