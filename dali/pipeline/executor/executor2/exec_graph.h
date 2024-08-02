@@ -130,7 +130,7 @@ class DLL_PUBLIC ExecNode {
    */
   SmallVector<ExecOutputDesc, 4> outputs;
 
-  /** A semaphore limiting the cuncurrency of the operator.
+  /** A semaphore limiting the concurrency of the operator.
    *
    * Apart from data dependency and the implicit dependency on the previous iteration,
    * an operator might by subject to limits in concurrency. This semaphore may be used
@@ -149,30 +149,7 @@ class DLL_PUBLIC ExecNode {
   std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
   /** The instance of the operator (or null for output node) */
-  std::unique_ptr<OperatorBase> op;
-
-  /** The task from the previous iteration - kept in order to maintain execution order */
-  tasking::SharedTask prev;
-
-  /** The task from the current iteration */
-  tasking::SharedTask main_task;
-
-  /** The task that releases the output_queue_limit semaphore.
-   *
-   * IMPORTANT: Release_outputs is NOT required for correctness. It's sole function is limiting
-   *            the number of pending outputs from the operator.
-   *
-   * This is an auxiliary task which is scheduled after all direct successors of main_task.
-   *
-   * op A --- (output 0) ----- op B --------- ...
-   *    \                         /
-   *     ------- (output 1) -----(- op C --- ...
-   *                              \   |
-   *                               \  |
-   *                                \  \
-   *                                 \_release outptus (A)
-   */
-  tasking::SharedTask release_outputs;
+  const std::unique_ptr<OperatorBase> op;
 
   /** Data-independent execution environment (thread pool, stream, etc). */
   ExecEnv env = {};
@@ -188,10 +165,10 @@ class DLL_PUBLIC ExecNode {
   const std::string instance_name;
 
   /** The backend on which the operator runs. */
-  OpType backend = OpType::CPU;
+  const OpType backend = OpType::CPU;
 
   /** Whether the node is the very output of the pipeline. There's only one such node. */
-  bool is_pipeline_output = false;
+  const bool is_pipeline_output = false;
 
   /** Whether the operator in the node is a batch size provider. */
   bool is_batch_size_provider = false;
@@ -200,6 +177,29 @@ class DLL_PUBLIC ExecNode {
   mutable bool visited = false;
 
  private:
+  /** The task from the previous iteration - kept in order to maintain execution order */
+  tasking::SharedTask prev_task_;
+
+  /** The task from the current iteration */
+  tasking::SharedTask main_task_;
+
+  /** The task that releases the output_queue_limit semaphore.
+   *
+   * IMPORTANT: Release_outputs_ is NOT required for correctness. It's sole function is limiting
+   *            the number of pending outputs from the operator.
+   *
+   * This is an auxiliary task which is scheduled after all direct successors of main_task_.
+   *
+   * op A --- (output 0) ----- op B --------- ...
+   *    \                         /
+   *     ------- (output 1) -----(- op C --- ...
+   *                              \   |
+   *                               \  |
+   *                                \  \
+   *                                 \_release outptus (A)
+   */
+  tasking::SharedTask release_outputs_;
+
   /** Creates a workspace at the pipeline's output.
    *
    * Output node's inputs are converted to Pipeline's outputs. The output workspace doesn't have
@@ -213,8 +213,8 @@ class DLL_PUBLIC ExecNode {
 
   /** Moves to a new iteration. */
   void NextIter() {
-    prev = std::move(main_task);
-    release_outputs.reset();
+    prev_task_ = std::move(main_task_);
+    release_outputs_.reset();
   }
 
   friend class ExecGraph;
@@ -223,8 +223,8 @@ class DLL_PUBLIC ExecNode {
    *
    * The graph is built in multiple phases. First, the main tasks are created for all operators.
    * Then, data dependencies are added.
-   * Finally, auxiliary tasks (e.g. release_outputs) are added. Creating all tasks for a node
-   * cannot be done in one go because release_outputs succeeds the main tasks of this node's
+   * Finally, auxiliary tasks (e.g. release_outputs_) are added. Creating all tasks for a node
+   * cannot be done in one go because release_outputs_ succeeds the main tasks of this node's
    * consumers.
    */
   void CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params);

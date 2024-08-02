@@ -68,10 +68,23 @@ void ClearWorkspacePayload(Workspace &ws) {
   ws.InjectIterationData(nullptr);
 }
 
+inline OpType BackendFromOp(const OperatorBase *op) {
+  if (dynamic_cast<const Operator<CPUBackend>*>(op)) {
+    return OpType::CPU;
+  } else if (dynamic_cast<const Operator<GPUBackend>*>(op)) {
+    return OpType::GPU;
+  } else {
+    assert(dynamic_cast<const Operator<MixedBackend>*>(op));
+    return OpType::MIXED;
+  }
+}
+
 ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
-: op(std::move(op)), instance_name(def ? def->instance_name : "") {
+: op(std::move(op))
+, instance_name(def ? def->instance_name : "")
+, backend(def ? def->op_type : op ? BackendFromOp(op.get()) : OpType::CPU)
+, is_batch_size_provider(dynamic_cast<BatchSizeProvider *>(this->op.get()) != nullptr) {
   if (def) {
-    backend = def->op_type;
     outputs.resize(def->outputs.size());
     inputs.resize(def->inputs.size());
   }
@@ -81,7 +94,6 @@ ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
     assert(!def || def->inputs.size() == static_cast<size_t>(spec.NumInput()));
     outputs.resize(std::max<size_t>(outputs.size(), spec.NumOutput()));
     inputs.resize(std::max<size_t>(inputs.size(), spec.NumInput()));
-    is_batch_size_provider = dynamic_cast<BatchSizeProvider *>(this->op.get()) != nullptr;
   }
 }
 
@@ -91,9 +103,9 @@ void ExecNode::PutWorkspace(CachedWorkspace ws) {
 }
 
 void ExecNode::CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params) {
-  main_task = OpTask::CreateTask(this, GetWorkspace(iter, params));
-  if (prev)
-    main_task->Succeed(prev);
+  main_task_ = OpTask::CreateTask(this, GetWorkspace(iter, params));
+  if (prev_task_)
+    main_task_->Succeed(prev_task_);
 }
 
 void ExecNode::CreateAuxTasks() {
@@ -102,7 +114,7 @@ void ExecNode::CreateAuxTasks() {
   // Note that operator cannot run parallel to its previous iterations and we add a temporal
   // dependency between the previous and current iteration.
   if (concurrency)
-    main_task->GuardWith(concurrency);
+    main_task_->GuardWith(concurrency);
 
   // The output queue depth may be limited - this is guarded by a semaphore with initial count
   // equal to the queue depth.
@@ -111,26 +123,26 @@ void ExecNode::CreateAuxTasks() {
   // This means that nobody is accessing those outputs and they've been disposed of (unless
   // forwarded down the pipeline, but we're ok with that).
   if (output_queue_limit) {
-    release_outputs = Task::Create([]() {});
-    release_outputs->ReleaseAfterRun(output_queue_limit);
-    release_outputs->Succeed(main_task);
+    release_outputs_ = Task::Create([]() {});
+    release_outputs_->ReleaseAfterRun(output_queue_limit);
+    release_outputs_->Succeed(main_task_);
     for (auto &output : outputs) {
       for (auto *edge : output.consumers) {
-        if (edge->consumer->main_task)
-          release_outputs->Succeed(edge->consumer->main_task);
+        if (edge->consumer->main_task_)
+          release_outputs_->Succeed(edge->consumer->main_task_);
       }
     }
-    main_task->Succeed(output_queue_limit);
+    main_task_->Succeed(output_queue_limit);
   }
 }
 
 std::optional<tasking::TaskFuture> ExecNode::Launch(Scheduler &sched) {
-  if (release_outputs)
-    sched.AddSilentTask(release_outputs);
+  if (release_outputs_)
+    sched.AddSilentTask(release_outputs_);
   if (is_pipeline_output) {
-    return sched.AddTask(main_task);
+    return sched.AddTask(main_task_);
   } else {
-    sched.AddSilentTask(main_task);
+    sched.AddSilentTask(main_task_);
     return std::nullopt;
   }
 }
@@ -237,7 +249,7 @@ void ExecGraph::PrepareIteration(
     n.CreateAuxTasks();
     // all root tasks must succeed batch size inference
     if (n.inputs.empty() && infer_batch_size_task_)
-      n.main_task->Subscribe(infer_batch_size_task_);
+      n.main_task_->Subscribe(infer_batch_size_task_);
   }
 }
 
