@@ -360,14 +360,12 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     if (input_device == "gpu") {
       SetupGPUInput(it);
     } else {
-      if (device != "gpu") {
-        // device == gpu
-        // TODO(michalz): Add a D2H copy instead
-        DALI_ENFORCE(it->second.has_cpu,
-                    make_string("Error while specifying ", FormatInput(spec, i),
-                                ". CPU input requested by operator exists only on GPU. CPU "
-                                "operator cannot follow GPU operator."));
-      }
+      // device == gpu
+      // TODO(michalz): Add a D2H copy instead
+      DALI_ENFORCE(it->second.has_cpu,
+                  make_string("Error while specifying ", FormatInput(spec, i),
+                              ". CPU input requested by operator exists only on GPU. CPU "
+                              "operator cannot follow GPU operator."));
     }
   }
 
