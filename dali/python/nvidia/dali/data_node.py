@@ -81,6 +81,9 @@ class DataNode(object):
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
     def gpu(self) -> DataNode:
+        if self.device == "gpu":
+            return self
+
         from nvidia.dali import _conditionals
 
         if _conditionals.conditionals_enabled():
@@ -90,6 +93,20 @@ class DataNode(object):
             _conditionals.register_data_nodes(transferred_node, [self])
             return transferred_node
         return DataNode(self.name, "gpu", self.source)
+
+    def cpu(self) -> DataNode:
+        if self.device == "cpu":
+            return self
+
+        from nvidia.dali import _conditionals
+
+        if _conditionals.conditionals_enabled():
+            # Treat it the same way as regular operator would behave
+            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
+            transferred_node = DataNode(self_split.name, "gpu", self_split.source)
+            _conditionals.register_data_nodes(transferred_node, [self])
+            return transferred_node
+        return DataNode(self.name, "cpu", self.source)
 
     def __add__(self, other) -> DataNode:
         return _arithm_op("add", self, other)

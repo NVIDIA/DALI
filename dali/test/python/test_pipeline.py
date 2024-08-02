@@ -2229,3 +2229,19 @@ def test_subgraph_stealing():
         glob="The pipeline is invalid because it contains operators with non-unique names",
     ):
         p2.build()
+
+
+def test_gpu2cpu():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=True)
+    def pdef():
+        enc, _ = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        return img, img.cpu()
+
+    pipe = pdef()
+    pipe.build()
+    for i in range(10):
+        gpu, cpu = pipe.run()
+        check_batch(cpu, gpu, bs, 0, 0, "HWC")

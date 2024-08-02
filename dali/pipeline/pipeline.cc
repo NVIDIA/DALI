@@ -329,43 +329,14 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                  make_string("Data node \"", input_name, "\" requested as ", FormatInput(spec, i),
                              " to operator \"", inst_name, "\" is not known to the pipeline."));
 
-    // Table of possible scenarios:
-    // Op location / requested input type / data location
-    // cpu / cpu / cpu -> everything is fine
-    // cpu / cpu / gpu -> error, data does not exist on cpu
-    // cpu / gpu / cpu -> error, cpu op not allowed to have gpu inputs
-    // cpu / gpu / gpu -> both of above errors
-    // gpu / cpu / cpu -> need to use contiguous version
-    // gpu / cpu / gpu -> error, data not in specified location
-    // gpu / gpu / cpu -> need to insert copy to device
-    // gpu / gpu / gpu -> everything is fine
-    // mixed / cpu / cpu -> everything is fine
-    // mixed / cpu / gpu -> error, data does not exist on cpu
-    // mixed / gpu / cpu -> error, mixed op not allowed to have gpu inputs
-    // mixed / gpu / gpu -> both of above errors
-    if (device == "cpu" || device == "mixed") {
-      DALI_ENFORCE(input_device == "cpu",
-                   make_string("Error while specifying ", FormatInput(spec, i),
-                               ". CPU/Mixed ops can only take CPU inputs. CPU operator cannot "
-                               "follow GPU operator. "));
-      DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error while specifying ", FormatInput(spec, i),
-                               ". CPU input requested by operator exists only on GPU. CPU "
-                               "operator cannot follow GPU operator."));
-      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
-                   "Cannot add a Mixed operator with a GPU output, 'device_id' "
-                   "should not be `CPU_ONLY_DEVICE_ID`.");
-    }
+    DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
+                  "Cannot add a Mixed operator with a GPU output, 'device_id' "
+                  "should not be `CPU_ONLY_DEVICE_ID`.");
 
     if (input_device == "gpu") {
-      SetupGPUInput(it);
+      ToGPU(it);
     } else {
-      // device == gpu
-      // TODO(michalz): Add a D2H copy instead
-      DALI_ENFORCE(it->second.has_cpu,
-                  make_string("Error while specifying ", FormatInput(spec, i),
-                              ". CPU input requested by operator exists only on GPU. CPU "
-                              "operator cannot follow GPU operator."));
+      ToCPU(it);
     }
   }
 
@@ -379,12 +350,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
         make_string("Data node \"", input_name, "\" requested as ", FormatArgument(spec, arg_name),
                     " to operator \"", inst_name, "\" is not known to the pipeline."));
 
-    if (!it->second.has_cpu) {
-      assert(it->second.has_gpu);
-      DALI_FAIL(make_string("Error while specifying ", FormatArgument(spec, arg_name),
-                            ". Named argument inputs to operators must be CPU data nodes. "
-                            "However, a GPU data node was provided."));
-    }
+    ToCPU(it);
   }
 
   // Verify and record the outputs of the op
@@ -398,30 +364,14 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
         make_string("Error while specifying ", FormatOutput(spec, i), ". Output name \"",
                     output_name, "\" conflicts with an existing intermediate result name."));
 
-    // Validate output data conforms to graph constraints
-    // Note: DALI CPU -> GPU flow is enforced, when the operators are added via the Python layer
-    // in `generate_outputs` - the output_device is calculated and assigned to DataNode.
-    // TODO(michalz): Remove this constraint! Insert GPU->CPU copy instead.
-    bool mark_explicitly_contiguous = false;
     if (device == "cpu") {
       DALI_ENFORCE(output_device == "cpu",
                    make_string("Error while specifying ", FormatOutput(spec, i),
                                ". Only CPU operators can produce CPU outputs."));
-    } else if (device == "gpu") {
-      if (output_device == "cpu") {
-        mark_explicitly_contiguous = true;
-      }
     }
-
     // The edge describes that the named output of this operator produces the CPU or GPU data,
-    // the former for "cpu" ops, the latter for "mixed" and "gpu" (see Note above about the DALI
-    // CPU -> GPU flow).
-    // There are exceptions: we can have CPU output from Mixed MakeContiguous - see
-    // [cpu output of mixed] where we break the constraints from Python frontend.
+    // the former for "cpu" ops, the latter for "mixed" and "gpu".
     EdgeMeta meta = NewEdge(output_device);
-    if (mark_explicitly_contiguous) {
-      meta.has_contiguous = true;
-    }
 
     DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,
                  make_string("Error while specifying ", FormatOutput(spec, i), "node name: \"",
@@ -518,6 +468,50 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   executor_->EnableCheckpointing(checkpointing_);
   executor_->Init();
 
+  // Validate the output tensors names
+  vector<string> outputs;
+  for (const auto &out_desc : output_descs_) {
+    string name = out_desc.name;
+    string device = out_desc.device;
+    auto it = edge_names_.find(name);
+    DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +
+        name + "' is not known to the pipeline.");
+
+    if (device == "cpu") {
+      if (!it->second.has_cpu)
+        ToCPU(it);
+
+      if (!it->second.has_contiguous_cpu) {
+        // Add a make contiguous op to produce this output - we need pipeline outputs to be dense.
+        auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "cpu", "cpu");
+        outputs.push_back(output_name);
+      } else {
+        outputs.push_back(it->first + "_cpu");
+      }
+
+    } else if (device == "gpu") {
+      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
+                   make_string(
+                     "Cannot move the data node ", name, " to the GPU "
+                     "in a CPU-only pipeline. The 'device_id' parameter "
+                     "is set to `CPU_ONLY_DEVICE_ID`. Set 'device_id' "
+                     "to a valid GPU identifier to enable GPU features "
+                     "in the pipeline."));
+      if (!it->second.has_gpu)
+        ToGPU(it);
+
+      if (!it->second.has_contiguous_gpu) {
+        auto output_name = AddMakeContiguousNode(it->second, name, "gpu", "gpu", "gpu");
+        outputs.push_back(output_name);
+      } else {
+        outputs.push_back(it->first + "_gpu");
+      }
+    } else {
+      DALI_FAIL("Invalid device argument \"" + device +
+          "\". Valid options are \"cpu\" or \"gpu\"");
+    }
+  }
+
   // Creating the graph
 
   for (auto& name_op_spec : op_specs_) {
@@ -530,49 +524,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       PropagateError({std::current_exception(),
                       "Critical error when building pipeline:\n" + GetErrorContextMessage(op_spec),
                       "\nCurrent pipeline object is no longer valid."});
-    }
-  }
-
-  // Validate the output tensors names
-  vector<string> outputs;
-  for (const auto &out_desc : output_descs_) {
-    string name = out_desc.name;
-    string device = out_desc.device;
-    auto it = edge_names_.find(name);
-    DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +
-        name + "' is not known to the pipeline.");
-
-    if (device == "cpu") {
-      DALI_ENFORCE(it->second.has_cpu, "Requested cpu output '" +
-          name + "' only exists on gpu.");
-      // Add a make contiguous op to produce this output - we need pipeline outputs to be dense.
-      auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "cpu", "cpu");
-      if (!it->second.has_contiguous) {
-        it->second.has_contiguous = true;
-      }
-      outputs.push_back(output_name);
-    } else if (device == "gpu") {
-      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
-                   make_string(
-                     "Cannot move the data node ", name, " to the GPU "
-                     "in a CPU-only pipeline. The 'device_id' parameter "
-                     "is set to `CPU_ONLY_DEVICE_ID`. Set 'device_id' "
-                     "to a valid GPU identifier to enable GPU features "
-                     "in the pipeline."));
-      if (!it->second.has_gpu) {
-        DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
-            "' exists on neither cpu or gpu, internal error");
-        // Add a copy to device to create the gpu output
-        auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "mixed", "gpu");
-        outputs.push_back(output_name);
-      } else {
-        // Add an optional copy/pass through to normalize the output.
-        auto output_name = AddMakeContiguousNode(it->second, name, "gpu", "gpu", "gpu");
-        outputs.push_back(output_name);
-      }
-    } else {
-      DALI_FAIL("Invalid device argument \"" + device +
-          "\". Valid options are \"cpu\" or \"gpu\"");
     }
   }
 
@@ -677,8 +628,25 @@ void Pipeline::ReleaseOutputs() {
   }
 }
 
-void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
-  if (it->second.has_gpu) return;
+void Pipeline::ToCPU(std::map<string, EdgeMeta>::iterator it) {
+  // Insert a D2H copy, if needed
+  if (it->second.has_cpu)
+    return;
+  OpSpec copy_to_host_spec =
+    OpSpec("CopyD2H")
+    .AddArg("device", "cpu")
+    .AddInput(it->first, "gpu")
+    .AddOutput(it->first, "cpu");
+  // don't put it into op_specs_for_serialization_, only op_specs_
+  AddToOpSpecs("__Copy_GpuToCpu_" + it->first, copy_to_host_spec, GetNextInternalLogicalId());
+  it->second.has_cpu = true;
+  it->second.has_contiguous_cpu = true;  // the result is always contiguous
+}
+
+void Pipeline::ToGPU(std::map<string, EdgeMeta>::iterator it) {
+  // Insert a H2D copy, if needed
+  if (it->second.has_gpu)
+    return;
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
     .AddArg("device", "mixed")
@@ -687,6 +655,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   // don't put it into op_specs_for_serialization_, only op_specs_
   AddToOpSpecs("__Copy_CpuToGpu_" + it->first, copy_to_dev_spec, GetNextInternalLogicalId());
   it->second.has_gpu = true;
+  it->second.has_contiguous_gpu = true;  // the result is always contiguous
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
@@ -1048,8 +1017,8 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
   }
 
   // Add a make contiguous op to produce this output
-  PrepareOpSpec(&spec, GetNextInternalLogicalId());
-  graph_builder_.Add(op_name, std::move(spec));
+  auto id = GetNextInternalLogicalId();
+  AddToOpSpecs(op_name, std::move(spec), id);
 
   if (output_dev == "cpu") {
     meta.has_make_contiguous_cpu = true;
