@@ -770,6 +770,13 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
     if isinstance(inputs, tuple):
         inputs = list(inputs)
 
+    if schema and (len(inputs) < schema.MinNumInput() or len(inputs) > schema.MaxNumInput()):
+        raise ValueError(
+            f"Operator {op_name} expects "
+            f"from {schema.MinNumInput()} to {schema.MaxNumInput()} inputs, "
+            f"but received {len(inputs)}."
+        )
+
     def is_input(x):
         if isinstance(x, (_DataNode, nvidia.dali.types.ScalarConstant)):
             return True
