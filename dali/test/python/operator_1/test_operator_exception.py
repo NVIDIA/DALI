@@ -291,3 +291,28 @@ Error while specifying argument 'probability'. Named argument inputs to operator
         p = pipe()
         p.build()
         p.run()
+
+
+def test_operator_invalid_input_constant_promotion():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe0():
+        return fn.zeros([1, 100])
+
+    @pipeline_def(batch_size=4, num_threads=4, device_id=0)
+    def pipe1():
+        return fn.random.uniform([1, 100], 42)
+
+    for fn_name, min_args, max_args, num_args, p_def in [
+        ("fn.zeros", 0, 0, 1, pipe0),
+        ("fn.random.uniform", 0, 1, 2, pipe1),
+    ]:
+        with assert_raises(
+            ValueError,
+            glob=(
+                f"Operator nvidia.dali.{fn_name} expects from {min_args} "
+                f"to {max_args} inputs, but received {num_args}."
+            ),
+        ):
+            p = p_def()
+            p.build()
+            p.run()
