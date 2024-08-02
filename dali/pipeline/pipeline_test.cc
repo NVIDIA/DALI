@@ -249,10 +249,6 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
   RunTestEnforce("gpu", "cpu");
 }
 
-TEST_F(PipelineTestOnce, TestTriggerToContiguous) {
-  RunTestTrigger("cpu");
-}
-
 TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
   RunTestTrigger("gpu");
 }

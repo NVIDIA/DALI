@@ -355,16 +355,17 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
                    "Cannot add a Mixed operator with a GPU output, 'device_id' "
                    "should not be `CPU_ONLY_DEVICE_ID`.");
-    } else if (input_device == "cpu") {
-      // device == gpu
-      // TODO(michalz): Add a D2H copy
-      DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error while specifying ", FormatInput(spec, i),
-                               ". CPU input requested by operator exists only on GPU. CPU "
-                               "operator cannot follow GPU operator."));
-      SetupCPUInput(it, i, &spec);
-    } else {
+    }
+
+    if (input_device == "gpu") {
       SetupGPUInput(it);
+    } else {
+      // device == gpu
+      // TODO(michalz): Add a D2H copy instead
+      DALI_ENFORCE(it->second.has_cpu,
+                  make_string("Error while specifying ", FormatInput(spec, i),
+                              ". CPU input requested by operator exists only on GPU. CPU "
+                              "operator cannot follow GPU operator."));
     }
   }
 
@@ -384,9 +385,6 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                             ". Named argument inputs to operators must be CPU data nodes. "
                             "However, a GPU data node was provided."));
     }
-
-    if (device == "gpu" && separated_execution_)
-      SetupCPUInput(it, input_idx, &spec);
   }
 
   // Verify and record the outputs of the op
@@ -677,24 +675,6 @@ void Pipeline::ReleaseOutputs() {
   } catch (...) {
     ProcessException(std::current_exception());
   }
-}
-
-void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec) {
-  auto [make_contiguous_spec, op_name, contiguous_output_name] =
-      PrepareMakeContiguousNode(it->second, it->first, "cpu", "mixed", "cpu");
-  if (!it->second.has_contiguous) {
-    // Note that we are returning [cpu output of mixed] Operator.
-    AddToOpSpecs(op_name, make_contiguous_spec, GetNextInternalLogicalId());
-    it->second.has_contiguous = true;
-    it->second.has_make_contiguous_cpu = true;
-  }
-
-  // Update the OpSpec to use the contiguous input
-  auto& input_strs = spec->MutableInput(input_idx);
-  DALI_ENFORCE(input_strs.name == it->first, "Input at index " +
-      std::to_string(input_idx) + " does not match input iterator "
-      "name (" + input_strs.name + " v. " + it->first + ").");
-  input_strs.name = contiguous_output_name;
 }
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {

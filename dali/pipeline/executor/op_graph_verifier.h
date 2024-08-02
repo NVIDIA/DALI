@@ -59,24 +59,6 @@ struct parent_constraints<OpType::GPU> {
   static constexpr bool supports_argument_inputs = true;
 };
 
-template <typename T, size_t N>
-static constexpr bool is_in_array(const T value, const T (&arr)[N], size_t idx) {
-  // we encountered the end of array -> false
-  // otherwise we found at current position or search in next position recursivelly
-  return idx < N && (value == arr[idx] || is_in_array(value, arr, idx + 1));
-}
-
-template <OpType op_type>
-static constexpr bool allows_op_input(OpType parent) {
-  return is_in_array(parent, parent_constraints<op_type>::allowed_input_ops, 0);
-}
-
-template <OpType op_type>
-static constexpr bool allows_tensor_input(StorageDevice device) {
-  return is_in_array(device, parent_constraints<op_type>::allowed_input_tensors, 0);
-}
-
-
 DLL_PUBLIC std::vector<int> ArgumentInputConstraints();
 DLL_PUBLIC std::vector<std::set<OpType>> ParentOpTypeConstraints();
 

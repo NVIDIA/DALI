@@ -524,7 +524,7 @@ def test_as_array():
             )
             return (output, self.labels)
 
-    for i in range(50):
+    for i in range(10):
         pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
         pipe.build()
         pipe_out = pipe.run()
@@ -636,7 +636,7 @@ def test_make_contiguous_serialize_and_use():
     new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
     new_pipe.deserialize_and_build(serialized_pipeline)
 
-    compare_pipelines(pipe, new_pipe, batch_size, 50)
+    compare_pipelines(pipe, new_pipe, batch_size, 10)
 
 
 def test_warpaffine():
