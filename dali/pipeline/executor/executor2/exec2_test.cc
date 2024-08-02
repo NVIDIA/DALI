@@ -26,22 +26,6 @@ inline std::ostream &operator<<(std::ostream &os, const std::optional<T> &opt) {
 }  // namespace std
 
 namespace dali {
-
-DALI_SCHEMA(Exec2TestOp)  // DALI_SCHEMA can't take a macro :(
-  .NumInput(0, 99)
-  .NumOutput(1)
-  .AddArg("addend", "a value added to the sum of inputs", DALI_INT32, true);
-
-// DALI_REGISTER_OPERATOR can't take a macro for the name
-DALI_REGISTER_OPERATOR(Exec2TestOp, exec2::test::DummyOpCPU, CPU);
-DALI_REGISTER_OPERATOR(Exec2TestOp, exec2::test::DummyOpGPU, GPU);
-
-DALI_SCHEMA(Exec2Counter)
-  .NumInput(0)
-  .NumOutput(1);
-
-DALI_REGISTER_OPERATOR(Exec2Counter, exec2::test::CounterOp, CPU);
-
 namespace exec2 {
 
 #define PRINT_ENUM_VALUE(_label) case decltype(value)::_label:\
