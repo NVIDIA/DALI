@@ -227,6 +227,7 @@ class Pipeline(object):
         py_callback_pickler=None,
         output_dtype=None,
         output_ndim=None,
+        experimental_exec_dynamic=False,
     ):
         self._pipe = None
         self._sinks = []

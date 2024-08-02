@@ -25,13 +25,11 @@
 
 namespace dali {
 
-template <typename Backend>
-class Copy : public StatelessOperator<Backend> {
+template <typename DstBackend, typename SrcBackend = DstBackend>
+class Copy : public StatelessOperator<DstBackend> {
  public:
-  inline explicit Copy(const OpSpec &spec) :
-    StatelessOperator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {}
-
-  inline ~Copy() override = default;
+  explicit Copy(const OpSpec &spec) :
+    StatelessOperator<DstBackend>(spec) {}
 
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
@@ -42,36 +40,19 @@ class Copy : public StatelessOperator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    const auto &input = ws.Input<Backend>(0);
+    const auto &input = ws.Input<SrcBackend>(0);
     output_desc[0].type = input.type();
     output_desc[0].shape = input.shape();
     return true;
   }
 
   void RunImpl(Workspace &ws) override {
-    auto &input = ws.Input<Backend>(0);
-    auto data_type_size = input.type_info().size();
-    auto &output = ws.Output<Backend>(0);
-    output.SetLayout(input.GetLayout());
-    for (int i = 0; i < input.num_samples(); i++) {
-      auto tensor_shape = input.tensor_shape(i);
-      auto tensor_size = volume(tensor_shape);
-      scatter_gather_.AddCopy(output.raw_mutable_tensor(i), input.raw_tensor(i),
-                              tensor_size * data_type_size);
-    }
-    RunCopies(ws);
+    auto &input = ws.Input<SrcBackend>(0);
+    auto &output = ws.Output<DstBackend>(0);
+    output.Copy(input, ws.output_order());
   }
-
-  void RunCopies(Workspace &ws);
-
-  std::conditional_t<
-      std::is_same<Backend, CPUBackend>::value,
-      kernels::ScatterGatherCPU,
-      kernels::ScatterGatherGPU> scatter_gather_;
-  // 256 kB per block for GPU
-  static constexpr size_t kMaxSizePerBlock =
-      std::is_same<Backend, CPUBackend>::value ? kernels::ScatterGatherCPU::kAnyBlockSize : 1 << 18;
 };
+
 
 }  // namespace dali
 

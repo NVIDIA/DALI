@@ -589,10 +589,12 @@ class DLL_PUBLIC Pipeline {
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
-  using EdgeMeta = struct {
+  struct EdgeMeta {
     bool has_cpu;
     bool has_gpu;
-    bool has_contiguous;
+    // Whether the given backend is guaranteed to have contiguous storage
+    bool has_contiguous_cpu;
+    bool has_contiguous_gpu;
     // MakeContiguous was added after this node to be used as output on specified device:
     bool has_make_contiguous_cpu;
     bool has_make_contiguous_gpu;
@@ -614,22 +616,17 @@ class DLL_PUBLIC Pipeline {
    */
   int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
-  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
+  void ToCPU(std::map<string, EdgeMeta>::iterator it);
+  void ToGPU(std::map<string, EdgeMeta>::iterator it);
 
   inline EdgeMeta NewEdge(const std::string &device) {
-    EdgeMeta edge;
-    edge.has_cpu = false;
-    edge.has_gpu = false;
-    edge.has_contiguous = false;
-    edge.has_make_contiguous_cpu = false;
-    edge.has_make_contiguous_gpu = false;
+    EdgeMeta edge{};
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {
       edge.has_gpu = true;
     } else if (device == "mixed") {
       edge.has_gpu = true;
-      edge.has_contiguous = true;
     } else {
       DALI_FAIL("Invalid device argument \"" + device + "\". "
           "Valid options are \"cpu\", \"gpu\" or \"mixed\".");
