@@ -25,11 +25,11 @@
 
 namespace dali {
 
-template <typename DstBackend, typename SrcBackend = DstBackend>
-class Copy : public StatelessOperator<DstBackend> {
+template <typename Backend>
+class Copy : public StatelessOperator<Backend> {
  public:
   explicit Copy(const OpSpec &spec) :
-    StatelessOperator<DstBackend>(spec) {}
+    StatelessOperator<Backend>(spec) {}
 
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
@@ -40,17 +40,12 @@ class Copy : public StatelessOperator<DstBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    const auto &input = ws.Input<SrcBackend>(0);
-    output_desc[0].type = input.type();
-    output_desc[0].shape = input.shape();
+    output_desc[0].type = ws.GetInputDataType(0);
+    output_desc[0].shape = ws.GetInputShape(0);
     return true;
   }
 
-  void RunImpl(Workspace &ws) override {
-    auto &input = ws.Input<SrcBackend>(0);
-    auto &output = ws.Output<DstBackend>(0);
-    output.Copy(input, ws.output_order());
-  }
+  void RunImpl(Workspace &ws) override;
 };
 
 
