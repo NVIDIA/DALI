@@ -633,7 +633,7 @@ void Pipeline::ToCPU(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_cpu)
     return;
   OpSpec copy_to_host_spec =
-    OpSpec("CopyD2H")
+    OpSpec("Copy")
     .AddArg("device", "cpu")
     .AddInput(it->first, "gpu")
     .AddOutput(it->first, "cpu");

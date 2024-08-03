@@ -17,30 +17,47 @@
 namespace dali {
 
 template <>
-void Copy<CPUBackend, CPUBackend>::RunImpl(Workspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
+void Copy<CPUBackend>::RunImpl(Workspace &ws) {
+  if (ws.InputIsType<CPUBackend>(0)) {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
 
-  int batch_size = input.num_samples();
-  output.SetLayout(input.GetLayout());
-  auto shapes = input.shape();
+    int batch_size = input.num_samples();
+    output.SetLayout(input.GetLayout());
+    auto shapes = input.shape();
 
-  auto &thread_pool = ws.GetThreadPool();
-  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    thread_pool.AddWork(
-        [sample_id, &input, &output](int tid) {
-          output.CopySample(sample_id, input, sample_id, AccessOrder::host());
-        },
-        shapes.tensor_size(sample_id));
+    auto &thread_pool = ws.GetThreadPool();
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      thread_pool.AddWork(
+          [sample_id, &input, &output](int tid) {
+            output.CopySample(sample_id, input, sample_id, AccessOrder::host());
+          },
+          shapes.tensor_size(sample_id));
+    }
+    thread_pool.RunAll();
+  } else {
+    auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
+    output.Copy(input, ws.output_order());
   }
-  thread_pool.RunAll();
+}
+
+template <>
+void Copy<GPUBackend>::RunImpl(Workspace &ws) {
+  if (ws.InputIsType<CPUBackend>(0)) {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
+    output.Copy(input, ws.output_order());
+  } else {
+    auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
+    output.Copy(input, ws.output_order());
+  }
 }
 
 DALI_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(Copy, Copy<GPUBackend>, GPU);
 
-using CopyD2H = Copy<CPUBackend, GPUBackend>;
-DALI_REGISTER_OPERATOR(CopyD2H, CopyD2H, CPU);
 
 DALI_SCHEMA(Copy)
   .DocStr("Creates a copy of the input tensor.")
@@ -48,15 +65,5 @@ DALI_SCHEMA(Copy)
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric();
-
-
-DALI_SCHEMA(CopyD2H)
-  .DocStr("Creates a copy of the input tensor.")
-  .NumInput(1)
-  .InputDevice(0, InputDevice::GPU)
-  .NumOutput(1)
-  .AllowSequences()
-  .SupportVolumetric();
-
 
 }  // namespace dali
