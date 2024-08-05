@@ -241,10 +241,10 @@ class CudaDecoderUtilizationTest : public ::testing::Test {
 TEST_F(CudaDecoderUtilizationTest, UtilizationTest) {
   this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 0);
   EXPECT_EQ(nsamples_cuda, 47) << "HW Decoder malfunction: incorrect number "
                                   "of images decoded by CUDA";
@@ -274,8 +274,8 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
     pipeline_.Build(outputs_);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -295,10 +295,10 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
   this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
@@ -386,8 +386,8 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
     pipeline_.SetExternalInput("begin_data", begin_data);
     pipeline_.SetExternalInput("crop_data", crop_data);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -405,10 +405,10 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
 TEST_F(HwDecoderSliceUtilizationTest, UtilizationTest) {
   this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
@@ -438,8 +438,8 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
 
     pipeline_.Build(outputs_);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -456,10 +456,10 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
 
 TEST_F(HwDecoderCropUtilizationTest, UtilizationTest) {
   this->pipeline_.Run();
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
@@ -489,8 +489,8 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
 
     pipeline_.Build(outputs_);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -543,9 +543,9 @@ class Nvjpeg2kTest : public ::testing::Test {
 TEST_F(Nvjpeg2kTest, UtilizationTest) {
   this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_nvjpeg2k = op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
 #if NVJPEG2K_ENABLED
   std::cout << "Using nvJPEG2k" << std::endl;
   EXPECT_EQ(nsamples_nvjpeg2k, 21);
