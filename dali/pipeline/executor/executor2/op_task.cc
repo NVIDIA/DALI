@@ -275,7 +275,12 @@ void OpTask::SetWorkspaceInputs() {
     } else {
       assert(ws_->InputIsType<GPUBackend>(i));
       auto inp = TaskInput<GPUBackend>(ti);
-      if (inp.event && inp.order != order)
+      // If the output order of the operator is `host` then we don't wait for GPU
+      // inputs - they can't be accessed directly on host and the operator will
+      // have to issue some sort of synchronization if and when necessary.
+      // This optimization is essential to avoid oversynchronization
+      // when the operator needs to access the metadata only (e.g. getting the shape).
+      if (order.is_device() /*see comment above */ && inp.event && inp.order != order)
         events.insert(inp.event);
       ws_->SetInput(i, inp.data);
     }
