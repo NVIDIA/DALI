@@ -144,7 +144,7 @@ void OpTask::ApplyDefaultLayout(int input_idx, const OpSchema &schema) {
   auto layout = schema.GetInputLayout(input_idx, input.sample_dim(), layout_found);
   if (layout == layout_found)
     return;  // no need to adjust anything
-  assert(layout_found.empty() && "Layout found must match fnial layout or be empty.");
+  assert(layout_found.empty() && "Layout found must match the final layout or be empty.");
 
   auto *input_edge = node_->inputs[input_idx];
   auto &source = input_edge->producer->outputs[input_edge->producer_output_idx];
