@@ -28,46 +28,6 @@ using tasking::Task;
 using tasking::Semaphore;
 using tasking::Scheduler;
 
-void ClearWorkspacePayload(Workspace &ws) {
-  auto event = ws.has_event() ? ws.event() : nullptr;
-  ws.InjectIterationData(nullptr);
-  for (int i = 0; i < ws.NumInput(); i++) {
-    // TODO(michalz): Some smarter deletion management
-    // If an input has multiple consumers, we should guarantee that the buffer is not destroyed
-    // before all consumers are done with it. A simple way of achieving that is waiting in the
-    // stream associated with the buffer for the consumer's completion event.
-    // A low-hanging optimization is to skip that when the buffer's associated stream is
-    // the same stream as the one the consumer executes on. Doing so will create bubbles in
-    // per-operator streams.
-    // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
-    // on which we would record the completion events prior to decreasing the reference count.
-    if (ws.InputIsType<CPUBackend>(i)) {
-      auto &inp = ws.Input<CPUBackend>(i);
-      if (event && inp.order() != ws.output_order())
-        inp.order().wait(event);
-
-      ws.SetInput<CPUBackend>(i, nullptr);
-    } else if (ws.InputIsType<GPUBackend>(i)) {
-      auto &inp = ws.Input<GPUBackend>(i);
-      if (event && inp.order() != ws.output_order())
-        inp.order().wait(event);
-
-      ws.SetInput<GPUBackend>(i, nullptr);
-    }
-  }
-
-  for (int i = 0; i < ws.NumArgumentInput(); i++)
-    ws.SetArgumentInput(i, nullptr);
-
-  for (int o = 0; o < ws.NumOutput(); o++) {
-    if (ws.OutputIsType<CPUBackend>(o))
-      ws.SetOutput<CPUBackend>(o, nullptr);
-    else if (ws.OutputIsType<GPUBackend>(o))
-      ws.SetOutput<GPUBackend>(o, nullptr);
-  }
-  ws.InjectIterationData(nullptr);
-}
-
 inline OpType BackendFromOp(const OperatorBase *op) {
   if (dynamic_cast<const Operator<CPUBackend>*>(op)) {
     return OpType::CPU;
@@ -97,13 +57,8 @@ ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
   }
 }
 
-void ExecNode::PutWorkspace(CachedWorkspace ws) {
-  ClearWorkspacePayload(*ws);
-  workspace_cache_.Put(std::move(ws));
-}
-
-void ExecNode::CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params) {
-  main_task_ = OpTask::CreateTask(this, GetWorkspace(iter, params));
+void ExecNode::CreateMainTask(const WorkspaceParams &params) {
+  main_task_ = OpTask::CreateTask(this, params);
   if (prev_task_)
     main_task_->Succeed(prev_task_);
 }
@@ -147,9 +102,9 @@ std::optional<tasking::TaskFuture> ExecNode::Launch(Scheduler &sched) {
   }
 }
 
-CachedWorkspace ExecNode::CreateOutputWorkspace() {
+std::unique_ptr<Workspace> ExecNode::CreateOutputWorkspace() {
   assert(is_pipeline_output);
-  CachedWorkspace ws(new Workspace(), {});
+  auto ws = std::make_unique<Workspace>();
   for (auto &e : inputs) {
     if (e->device == StorageDevice::GPU) {
       ws->AddOutput<GPUBackend>(nullptr);
@@ -161,10 +116,10 @@ CachedWorkspace ExecNode::CreateOutputWorkspace() {
   return ws;
 }
 
-CachedWorkspace ExecNode::CreateOpWorkspace() {
+std::unique_ptr<Workspace> ExecNode::CreateOpWorkspace() {
   assert(op);
   const OpSpec &spec = op->GetSpec();
-  CachedWorkspace ws(new Workspace(), {});
+  auto ws = std::make_unique<Workspace>();
   ws->SetOperatorInstanceName(instance_name);
   for (int i = 0, ninp = inputs.size(); i < ninp; i++) {
     bool arg = spec.IsArgumentInput(i);
@@ -189,36 +144,41 @@ CachedWorkspace ExecNode::CreateOpWorkspace() {
 }
 
 /** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
-CachedWorkspace ExecNode::GetWorkspace(std::shared_ptr<IterationData> iter_data,
-                                       WorkspaceParams params) {
-  auto ws = workspace_cache_.Get(params);
-  if (!ws) {
+std::pair<Workspace *, SharedEventLease> ExecNode::GetWorkspace(WorkspaceParams params) {
+  if (!ws_) {
     if (op) {
-      ws = CreateOpWorkspace();
+      ws_ = CreateOpWorkspace();
     } else {
-      ws = CreateOutputWorkspace();
+      ws_ = CreateOutputWorkspace();
     }
   }
   if (!params.env)
     params.env = &env;
 
-  if (!ws->has_event()) {
-    for (int o = 0; o < ws->NumOutput(); o++) {
-      if (ws->OutputIsType<GPUBackend>(o)) {
-        auto event = CUDAEventPool::instance().Get();
-        ws->set_event(event.release());
+  ws_event_.reset();
+
+  if (!ws_->has_event()) {
+    for (int o = 0; o < ws_->NumOutput(); o++) {
+      if (ws_->OutputIsType<GPUBackend>(o)) {
+        ws_event_ = SharedEventLease::Get();
+        ws_->set_event(ws_event_);
+        break;
       }
     }
   }
 
-  ApplyWorkspaceParams(*ws, params);
-  ws->InjectIterationData(iter_data);
-  return ws;
+  ApplyWorkspaceParams(*ws_, params);
+  return { ws_.get(), ws_event_ };
 }
 
-void ExecGraph::PrepareIteration(
-    const std::shared_ptr<IterationData> &iter_data,
-    const WorkspaceParams &params) {
+void ExecNode::AddDataDeps() {
+  for (auto &edge : inputs) {
+    assert(edge->producer->main_task_);
+    main_task_->Subscribe(edge->producer->main_task_, edge->producer_output_idx);
+  }
+}
+
+void ExecGraph::PrepareIteration(const WorkspaceParams &params) {
   if (nodes_.empty())
     throw std::logic_error("Cannot execute an empty graph");
 
@@ -232,17 +192,17 @@ void ExecGraph::PrepareIteration(
   // Create a special task that checks the predicted batch size
   // and populates the respective field in IterationData
   auto prev_infer = infer_batch_size_task_;
-  infer_batch_size_task_ = InferBatchSize(iter_data, params.batch_size);
+  infer_batch_size_task_ = InferBatchSize(params.iter_data, params.batch_size);
   if (infer_batch_size_task_) {
     if (prev_infer)
       infer_batch_size_task_->Succeed(prev_infer);
   } else {
-    iter_data->default_batch_size = params.batch_size;
+    params.iter_data->default_batch_size = params.batch_size;
   }
 
   for (auto &n : nodes_) {
     n.NextIter();
-    n.CreateMainTask(iter_data, params);
+    n.CreateMainTask(params);
   }
   for (auto &n : nodes_) {
     n.AddDataDeps();

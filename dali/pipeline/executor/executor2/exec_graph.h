@@ -19,12 +19,13 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "dali/pipeline/executor/executor2/workspace_cache.h"
+#include "dali/pipeline/executor/executor2/shared_event_lease.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -37,22 +38,37 @@ struct OpNode;
 }  // namespace graph
 namespace exec2 {
 
+struct ExecEnv {
+  ThreadPool *thread_pool = nullptr;
+  AccessOrder order = AccessOrder::host();
+};
+
+struct WorkspaceParams {
+  ExecEnv *env = nullptr;
+  std::shared_ptr<IterationData> iter_data;
+  int batch_size = -1;
+};
+
+inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
+  if (params.env) {
+    ws.SetThreadPool(params.env->thread_pool);
+    ws.set_output_order(params.env->order);
+  }
+  ws.InjectIterationData(params.iter_data);
+}
+
 struct PipelineOutput {
   PipelineOutput(PipelineOutput &&) = default;
   PipelineOutput(const PipelineOutput &) {
     throw std::logic_error("This object is not copyable, but std::any needs it at compile time.");
   }
-  PipelineOutput(const Workspace &ws, CUDAEvent event, std::optional<int> device)
+  PipelineOutput(const Workspace &ws, SharedEventLease event, std::optional<int> device)
   : workspace(ws), event(std::move(event)), device(device) {}
 
-  ~PipelineOutput() {
-    if (event)
-      CUDAEventPool::instance().Put(std::move(event), device.value());
-  }
   /** The payload */
   Workspace workspace;
   /** Owns the event used by the workspace */
-  CUDAEvent event;
+  SharedEventLease event;
   /** The ordinal of the device used by the workspace */
   std::optional<int> device;
 };
@@ -154,12 +170,8 @@ class DLL_PUBLIC ExecNode {
   /** Data-independent execution environment (thread pool, stream, etc). */
   ExecEnv env = {};
 
-  /** Places a workspace in a workspace cache. */
-  void PutWorkspace(CachedWorkspace ws);
-
   /** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
-  CachedWorkspace GetWorkspace(std::shared_ptr<IterationData> iter_data,
-                               WorkspaceParams params);
+  std::pair<Workspace *, SharedEventLease> GetWorkspace(WorkspaceParams params);
 
   /** The instance name of the operator. */
   const std::string instance_name;
@@ -205,11 +217,19 @@ class DLL_PUBLIC ExecNode {
    * Output node's inputs are converted to Pipeline's outputs. The output workspace doesn't have
    * any inputs.
    */
-  CachedWorkspace CreateOutputWorkspace();
+  std::unique_ptr<Workspace> CreateOutputWorkspace();
   /** Creates a workspace suitable for running the operator `op`. */
-  CachedWorkspace CreateOpWorkspace();
+  std::unique_ptr<Workspace> CreateOpWorkspace();
 
-  WorkspaceCache workspace_cache_;
+  /** The workspace.
+   *
+   * An operator never executes in parallel with its previous instance,
+   * so we never need more than one workspace.
+   */
+  std::unique_ptr<Workspace> ws_;
+
+  /** The event associated with the workspace */
+  SharedEventLease ws_event_;
 
   /** Moves to a new iteration. */
   void NextIter() {
@@ -227,7 +247,7 @@ class DLL_PUBLIC ExecNode {
    * cannot be done in one go because release_outputs_ succeeds the main tasks of this node's
    * consumers.
    */
-  void CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params);
+  void CreateMainTask(const WorkspaceParams &params);
   /** Subscribes to the results of the precending tasks. */
   void AddDataDeps();
   /** Creates auxiliary tasks and applies concurrency constraints. */
@@ -321,8 +341,7 @@ class DLL_PUBLIC ExecGraph {
   }
 
   /** Prepares the run-time resources necessary to execute an interation */
-  void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,
-                        const WorkspaceParams &params);
+  void PrepareIteration(const WorkspaceParams &params);
 
   /** Executes the recently prepared iteration */
   tasking::TaskFuture Launch(tasking::Scheduler &sched);

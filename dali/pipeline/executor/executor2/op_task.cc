@@ -28,27 +28,73 @@
 namespace dali {
 namespace exec2 {
 
-tasking::SharedTask OpTask::CreateTask(ExecNode *node, CachedWorkspace ws) {
+void ClearWorkspacePayload(Workspace &ws) {
+  auto event = ws.has_event() ? ws.event() : nullptr;
+  ws.InjectIterationData(nullptr);
+  for (int i = 0; i < ws.NumInput(); i++) {
+    // TODO(michalz): Some smarter deletion management
+    // If an input has multiple consumers, we should guarantee that the buffer is not destroyed
+    // before all consumers are done with it. A simple way of achieving that is waiting in the
+    // stream associated with the buffer for the consumer's completion event.
+    // A low-hanging optimization is to skip that when the buffer's associated stream is
+    // the same stream as the one the consumer executes on. Doing so will create bubbles in
+    // per-operator streams.
+    // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
+    // on which we would record the completion events prior to decreasing the reference count.
+    if (ws.InputIsType<CPUBackend>(i)) {
+      auto &inp = ws.Input<CPUBackend>(i);
+      if (event && inp.order() != ws.output_order())
+        inp.order().wait(event);
+
+      ws.SetInput<CPUBackend>(i, nullptr);
+    } else if (ws.InputIsType<GPUBackend>(i)) {
+      auto &inp = ws.Input<GPUBackend>(i);
+      if (event && inp.order() != ws.output_order())
+        inp.order().wait(event);
+
+      ws.SetInput<GPUBackend>(i, nullptr);
+    }
+  }
+
+  for (int i = 0; i < ws.NumArgumentInput(); i++)
+    ws.SetArgumentInput(i, nullptr);
+
+  for (int o = 0; o < ws.NumOutput(); o++) {
+    if (ws.OutputIsType<CPUBackend>(o))
+      ws.SetOutput<CPUBackend>(o, nullptr);
+    else if (ws.OutputIsType<GPUBackend>(o))
+      ws.SetOutput<GPUBackend>(o, nullptr);
+  }
+  ws.InjectIterationData(nullptr);
+}
+
+void OpTask::ClearWorkspace() {
+  assert(ws_);
+  ClearWorkspacePayload(*ws_);
+  ws_ = nullptr;
+}
+
+tasking::SharedTask OpTask::CreateTask(ExecNode *node, const WorkspaceParams &params) {
   if (node->is_pipeline_output) {
     return tasking::Task::Create(
-      OpTask(node, std::move(ws)).GetOutputTaskRunnable());
+      OpTask(node, params).GetOutputTaskRunnable());
   } else {
-    int nout = ws->NumOutput();
+    int nout = node->outputs.size();
     return tasking::Task::Create(
       nout,
-      OpTask(node, std::move(ws)).GetOpTaskRunnable());
+      OpTask(node, params).GetOpTaskRunnable());
   }
 }
 
 OpTask::OpTaskOutputs OpTask::Run() {
   // SetWorkspaceInputs must not go into the try/catch because it rethrows errors
   // from the inputs and we don't want them to be wrapped again as this operator's error.
+  auto workspace_scope = GetWorkspace();
   SetWorkspaceInputs();
   try {
     SetupOp();
     RunOp();
     auto &&ret = GetWorkspaceOutputs();
-    node_->PutWorkspace(std::move(ws_));
     return ret;
   } catch (...) {
     PropagateError({
@@ -60,6 +106,7 @@ OpTask::OpTaskOutputs OpTask::Run() {
 
 
 PipelineOutput OpTask::GetOutput() {
+  auto workspace_scope = GetWorkspace();
   assert(ws_->NumInput() == 0);
   assert(ws_->NumArgumentInput() == 0);
   std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
@@ -94,21 +141,15 @@ PipelineOutput OpTask::GetOutput() {
     }
   }
 
-  cudaEvent_t completion_event = ws_->has_event() ? ws_->event() : nullptr;
-  if (ws_->has_event() && ws_->has_stream()) {
-    CUDA_CALL(cudaEventRecord(ws_->event() , ws_->stream()));
-  }
-
   std::optional<int> device = {};
-  if (completion_event) {
+  if (event_) {
     int dev = -1;
     CUDA_CALL(cudaGetDevice(&dev));
     device = dev;
   }
 
-  PipelineOutput ret{ *ws_, CUDAEvent(completion_event), device };
-  ws_->set_event(nullptr);  // the event was moved to PipelineOutput
-  node_->PutWorkspace(std::move(ws_));
+  PipelineOutput ret{ *ws_, event_, device };
+  ClearWorkspacePayload(*ws_);
   return ret;
 }
 
@@ -262,6 +303,7 @@ void OpTask::RunOp() {
 }
 
 void OpTask::SetWorkspaceInputs() {
+  std::tie(ws_, event_) = node_->GetWorkspace(ws_params_);
   int ti = 0;
   assert(ws_->NumInput() + ws_->NumArgumentInput() == static_cast<int>(node_->inputs.size()));
   auto order = ws_->output_order();
@@ -331,7 +373,6 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   OpTaskOutputs ret;
   int nout = ws_->NumOutput();
   ret.reserve(nout);
-  cudaEvent_t event = ws_->has_event() ? ws_->event() : nullptr;
   auto order = ws_->output_order();
   for (int o = 0; o < nout; o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
@@ -340,26 +381,22 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
         if (AccessOrder consumer_order = OutputConsumerOrder(o))
           ptr->set_order(consumer_order, false);
       }
-      ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), event, order});
+      ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), event_, order});
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
       auto ptr = ws_->OutputPtr<GPUBackend>(o);
       if (!ptr->shares_data()) {
-        if (AccessOrder consumer_order = OutputConsumerOrder(o))
-          ptr->set_order(consumer_order, false);
+        if (AccessOrder consumer_order = OutputConsumerOrder(o)) {
+          // Don't set the consumer order to `host`, because we don't synchronize on host.
+          if (consumer_order != AccessOrder::host())
+            ptr->set_order(consumer_order, false);
+        }
       }
-      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event, order});
+      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event_, order});
     }
   }
 
   return ret;
-}
-
-void ExecNode::AddDataDeps() {
-  for (auto &edge : inputs) {
-    assert(edge->producer->main_task_);
-    main_task_->Subscribe(edge->producer->main_task_, edge->producer_output_idx);
-  }
 }
 
 }  // namespace exec2

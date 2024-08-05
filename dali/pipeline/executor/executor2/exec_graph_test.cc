@@ -84,7 +84,8 @@ TEST(ExecGraphTest, SimpleGraph) {
   params.batch_size = batch_size;
 
   auto iter = std::make_shared<IterationData>();
-  g.PrepareIteration(iter, params);
+  params.iter_data = iter;
+  g.PrepareIteration(params);
   tasking::Executor ex(1);
   ex.Start();
   auto fut = g.Launch(ex);
@@ -149,7 +150,8 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
     ex.Start();
     auto start = dali::test::perf_timer::now();
     for (int i = 0; i < N; i++) {
-      g.PrepareIteration(std::make_shared<IterationData>(), params);
+      params.iter_data = std::make_shared<IterationData>();
+      g.PrepareIteration(params);
       auto fut = g.Launch(ex);
       auto &pipe_out = fut.Value<const PipelineOutput &>();
       auto &ws = pipe_out.workspace;
@@ -216,7 +218,8 @@ TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
   std::vector<tasking::TaskFuture> fut;
   fut.reserve(N);
   for (int i = 0; i < N; i++) {
-    g.PrepareIteration(std::make_shared<IterationData>(), params);
+    params.iter_data = std::make_shared<IterationData>();
+    g.PrepareIteration(params);
     fut.push_back(g.Launch(ex));
   }
 
@@ -279,7 +282,8 @@ TEST(ExecGraphTest, Exception) {
     tasking::Executor ex(4);
     ex.Start();
     for (int i = 0; i < 10; i++) {
-      g.PrepareIteration(std::make_shared<IterationData>(), params);
+      params.iter_data = std::make_shared<IterationData>();
+      g.PrepareIteration(params);
       auto fut = g.Launch(ex);
       EXPECT_THROW(fut.Value<const PipelineOutput &>(), std::runtime_error);
     }

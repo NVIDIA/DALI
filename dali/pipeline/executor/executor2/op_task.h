@@ -18,7 +18,8 @@
 #include <memory>
 #include <utility>
 #include "dali/core/exec/tasking.h"
-#include "dali/pipeline/executor/executor2/workspace_cache.h"
+#include "dali/core/call_at_exit.h"
+#include "dali/pipeline/executor/executor2/shared_event_lease.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 
 namespace dali {
@@ -29,7 +30,7 @@ class ExecNode;
 template <typename Backend>
 struct OperatorIO {
   const std::shared_ptr<TensorList<Backend>> data;
-  cudaEvent_t event = nullptr;
+  SharedEventLease event;
   AccessOrder order = AccessOrder::host();
 };
 
@@ -55,11 +56,11 @@ class OpTask {
    * - operator task
    * - output task.
    */
-  static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws);
+  static tasking::SharedTask CreateTask(ExecNode *node, const WorkspaceParams &params);
 
  private:
-  OpTask(ExecNode *node, CachedWorkspace ws)
-  : node_(node), ws_(std::move(ws)) {}
+  OpTask(ExecNode *node, WorkspaceParams ws_params)
+  : node_(node), ws_params_(std::move(ws_params)) {}
 
   /** Gets a functor that returns an output Workspace compatible with DALI pipeline.
    */
@@ -86,7 +87,9 @@ class OpTask {
 
   tasking::Task *task_ = nullptr;
   ExecNode *node_ = nullptr;
-  CachedWorkspace ws_;
+  WorkspaceParams ws_params_{};
+  Workspace *ws_ = nullptr;
+  SharedEventLease event_;
   /** If true, the operator's Setup and Run are skipped. */
   bool skip_ = false;
 
@@ -134,6 +137,13 @@ class OpTask {
   void ApplyDefaultLayout(int input_idx, const OpSchema &schema);
 
   void ResetInputLayouts();
+
+  void ClearWorkspace();
+
+  auto GetWorkspace() {
+    std::tie(ws_, event_) = node_->GetWorkspace(ws_params_);
+    return AtScopeExit([this]() { ClearWorkspace(); });
+  }
 
   SmallVector<int, 4> reset_input_layouts_;
 };
