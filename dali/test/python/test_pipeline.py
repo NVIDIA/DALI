@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ from nvidia.dali import pipeline_def
 import numpy as np
 from numpy.testing import assert_array_equal
 import os
-import cv2
 import random
 from math import floor, ceil
 import sys
@@ -671,6 +670,7 @@ def test_warpaffine():
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id=0)
     pipe.build()
     pipe_out = pipe.run()
+    import cv2
 
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):

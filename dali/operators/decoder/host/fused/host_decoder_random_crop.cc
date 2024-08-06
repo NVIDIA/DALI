@@ -45,6 +45,7 @@ HostDecoderRandomCrop::DeserializeCheckpoint(OpCheckpoint &cpt, const std::strin
     SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
 }
 
-DALI_REGISTER_OPERATOR(legacy__decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
+DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 
 }  // namespace dali

@@ -981,11 +981,7 @@ def test_noise_shot(device):
 
 
 @params("cpu", "mixed")
-@random_signed_off(
-    "image_decoder_random_crop",
-    "decoders.image_random_crop",
-    "experimental.decoders.image_random_crop",
-)
+@random_signed_off("image_decoder_random_crop", "decoders.image_random_crop")
 def test_image_random_crop(device):
     @pipeline_def
     def pipeline():
@@ -997,12 +993,14 @@ def test_image_random_crop(device):
 
 
 @params("cpu", "mixed")
-@random_signed_off("legacy.decoders.image_random_crop")
-def test_legacy_image_random_crop(device):
+@random_signed_off(
+    "experimental.image_decoder_random_crop", "experimental.decoders.image_random_crop"
+)
+def test_experimental_image_random_crop(device):
     @pipeline_def
     def pipeline():
         data, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.legacy.decoders.image_random_crop(data, device=device)
+        image = fn.experimental.decoders.image_random_crop(data, device=device)
         return image
 
     check_pipeline_checkpointing_native(pipeline)
