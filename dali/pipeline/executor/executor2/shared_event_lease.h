@@ -53,6 +53,10 @@ class SharedEventLease {
     return static_cast<cudaEvent_t>(event_.get());
   }
 
+  explicit operator bool() const {
+    return event_ != nullptr;
+  }
+
   operator cudaEvent_t() const {
     return get();
   }

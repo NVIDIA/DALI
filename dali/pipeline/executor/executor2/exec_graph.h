@@ -171,7 +171,9 @@ class DLL_PUBLIC ExecNode {
   ExecEnv env = {};
 
   /** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
-  std::pair<Workspace *, SharedEventLease> GetWorkspace(WorkspaceParams params);
+  std::pair<std::unique_ptr<Workspace>, SharedEventLease> GetWorkspace(WorkspaceParams params);
+
+  void PutWorkspace(std::unique_ptr<Workspace> &&ws);
 
   /** The instance name of the operator. */
   const std::string instance_name;
@@ -227,6 +229,7 @@ class DLL_PUBLIC ExecNode {
    * so we never need more than one workspace.
    */
   std::unique_ptr<Workspace> ws_;
+  bool has_workspace_ = false;
 
   /** The event associated with the workspace */
   SharedEventLease ws_event_;

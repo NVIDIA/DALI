@@ -88,7 +88,7 @@ class OpTask {
   tasking::Task *task_ = nullptr;
   ExecNode *node_ = nullptr;
   WorkspaceParams ws_params_{};
-  Workspace *ws_ = nullptr;
+  std::unique_ptr<Workspace> ws_ = nullptr;
   SharedEventLease event_;
   /** If true, the operator's Setup and Run are skipped. */
   bool skip_ = false;
@@ -141,8 +141,12 @@ class OpTask {
   void ClearWorkspace();
 
   auto GetWorkspace() {
+    assert(!ws_);
     std::tie(ws_, event_) = node_->GetWorkspace(ws_params_);
-    return AtScopeExit([this]() { ClearWorkspace(); });
+    return AtScopeExit([this]() {
+      ClearWorkspace();
+      node_->PutWorkspace(std::move(ws_));
+    });
   }
 
   SmallVector<int, 4> reset_input_layouts_;

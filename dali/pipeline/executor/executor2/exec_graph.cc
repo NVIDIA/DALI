@@ -144,31 +144,41 @@ std::unique_ptr<Workspace> ExecNode::CreateOpWorkspace() {
 }
 
 /** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
-std::pair<Workspace *, SharedEventLease> ExecNode::GetWorkspace(WorkspaceParams params) {
+std::pair<std::unique_ptr<Workspace>, SharedEventLease> ExecNode::GetWorkspace(WorkspaceParams params) {
   if (!ws_) {
+    assert(!has_workspace_);
     if (op) {
       ws_ = CreateOpWorkspace();
     } else {
       ws_ = CreateOutputWorkspace();
     }
+    has_workspace_ = true;
   }
   if (!params.env)
     params.env = &env;
 
-  ws_event_.reset();
+  //ws_event_.reset();
+  ws_->set_event(nullptr);
 
-  if (!ws_->has_event()) {
-    for (int o = 0; o < ws_->NumOutput(); o++) {
-      if (ws_->OutputIsType<GPUBackend>(o)) {
+  for (int o = 0; o < ws_->NumOutput(); o++) {
+    if (ws_->OutputIsType<GPUBackend>(o)) {
+      if (!ws_event_)
         ws_event_ = SharedEventLease::Get();
-        ws_->set_event(ws_event_);
-        break;
-      }
+      ws_->set_event(ws_event_);
+      break;
     }
   }
 
   ApplyWorkspaceParams(*ws_, params);
-  return { ws_.get(), ws_event_ };
+  return { std::move(ws_), ws_event_ };
+}
+
+void ExecNode::PutWorkspace(std::unique_ptr<Workspace> &&ws) {
+  assert(has_workspace_);
+  assert(ws);
+  assert(!ws_);
+  assert(!ws->has_event() || ws->event() == ws_event_.get());
+  ws_ = std::move(ws);
 }
 
 void ExecNode::AddDataDeps() {
