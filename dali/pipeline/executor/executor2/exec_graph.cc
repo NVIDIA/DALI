@@ -157,7 +157,7 @@ std::pair<std::unique_ptr<Workspace>, SharedEventLease> ExecNode::GetWorkspace(W
   if (!params.env)
     params.env = &env;
 
-  //ws_event_.reset();
+  ws_event_.reset();
   ws_->set_event(nullptr);
 
   for (int o = 0; o < ws_->NumOutput(); o++) {

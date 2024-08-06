@@ -41,17 +41,19 @@ void ClearWorkspacePayload(Workspace &ws) {
     // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
     // on which we would record the completion events prior to decreasing the reference count.
     if (ws.InputIsType<CPUBackend>(i)) {
-      auto &inp = ws.Input<CPUBackend>(i);
-      if (event && inp.order() != ws.output_order())
-        inp.order().wait(event);
-
-      ws.SetInput<CPUBackend>(i, nullptr);
+      if (auto &pinp = ws.InputPtr<CPUBackend>(i)) {
+        auto &inp = *pinp;
+        if (event && inp.order() != ws.output_order())
+          inp.order().wait(event);
+        ws.SetInput<CPUBackend>(i, nullptr);
+      }
     } else if (ws.InputIsType<GPUBackend>(i)) {
-      auto &inp = ws.Input<GPUBackend>(i);
-      if (event && inp.order() != ws.output_order())
-        inp.order().wait(event);
-
-      ws.SetInput<GPUBackend>(i, nullptr);
+      if (auto &pinp = ws.InputPtr<GPUBackend>(i)) {
+          auto &inp = *pinp;
+        if (event && inp.order() != ws.output_order())
+          inp.order().wait(event);
+        ws.SetInput<GPUBackend>(i, nullptr);
+      }
     }
   }
 
