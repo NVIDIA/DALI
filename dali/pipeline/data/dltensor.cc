@@ -24,6 +24,8 @@ DLDataType GetDLType(DALIDataType type) {
       dl_type.lanes = 1;
       if (dali::is_fp_or_half<T>::value) {
         dl_type.code = kDLFloat;
+      } else if (std::is_same<T, bool>::value) {
+        dl_type.code = kDLBool;
       } else if (std::is_unsigned<T>::value) {
         dl_type.code = kDLUInt;
       } else if (std::is_integral<T>::value) {
@@ -100,6 +102,10 @@ DALIDataType DLToDALIType(const DLDataType &dl_type) {
         case 32: return DALI_FLOAT;
         case 64: return DALI_FLOAT64;
       }
+      break;
+    }
+    case kDLBool: {
+      return DALI_BOOL;
       break;
     }
   }

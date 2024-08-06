@@ -665,6 +665,8 @@ def np_type_to_dali(type):
         np.float16: types.FLOAT16,
         np.float32: types.FLOAT,
         np.float64: types.FLOAT64,
+        np.longlong: types.INT64,
+        np.ulonglong: types.UINT64,
     }
     return np_types_to_dali_dict[type]
 
