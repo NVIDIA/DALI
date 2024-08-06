@@ -144,7 +144,6 @@ PipelineOutput OpTask::GetOutput() {
   std::optional<int> device = {};
   if (ws_->output_order().is_device()) {
     assert(ws_->event());
-
     device = ws_->output_order().device_id();
     CUDA_CALL(cudaEventRecord(ws_->event(), ws_->output_order().stream()));
   }
@@ -299,8 +298,10 @@ void OpTask::RunOp() {
   if (auto cpt = ws_->GetIterationData()->checkpoint) {
     node_->op->SaveState(cpt->GetOpCheckpoint(node_->instance_name), ws_->output_order());
   }
-  if (ws_->has_event() && ws_->has_stream())
+  if (ws_->has_stream()) {
+    assert(ws_->has_event());
     CUDA_CALL(cudaEventRecord(ws_->event(), ws_->stream()));
+  }
 }
 
 void OpTask::SetWorkspaceInputs() {
