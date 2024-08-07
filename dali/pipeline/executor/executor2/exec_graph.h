@@ -185,7 +185,7 @@ class DLL_PUBLIC ExecNode {
   const bool is_pipeline_output = false;
 
   /** Whether the operator in the node is a batch size provider. */
-  bool is_batch_size_provider = false;
+  const bool is_batch_size_provider = false;
 
   /** Visit marker for graph algorithms. */
   mutable bool visited = false;
