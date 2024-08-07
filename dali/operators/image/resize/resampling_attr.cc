@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/operators/image/resize/resampling_attr.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/span.h"
+#include "dali/core/call_once.h"
 
 namespace dali {
 
@@ -93,16 +94,6 @@ void ResamplingFilterAttr::PrepareFilterParams(
       }
       return false;
     };
-    if ((has_min && is_linear_default(make_cspan(min_arg_))) ||
-        (has_interp && is_linear_default(make_cspan(interp_type_arg_)))) {
-      static std::once_flag linear_default_warning_flag;
-      std::call_once(linear_default_warning_flag, [&]() {
-        DALI_WARN(
-            "The default behavior for LINEAR interpolation type has been changed to apply an "
-            "antialiasing filter. If you didn't mean to apply an antialiasing filter, please use "
-            "`antialias=False`");
-      });
-    }
   }
 
   min_filter_.resize(num_samples, ResamplingFilterType::Triangular);

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include "dali/core/call_once.h"
 #include "dali/core/bitmask.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/pipeline/data/tensor.h"
@@ -117,7 +118,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   std::vector<std::unique_ptr<FileStream>> wds_shards_;
   size_t sample_index_ = 0;
   FileStream::MappingReserver mmap_reserver_;
-  std::once_flag multiple_files_single_component;
+  dali::once_flag multiple_files_single_component;
 
   bool generate_index_ = true;
   std::string GetSampleSource(const detail::wds::SampleDesc& sample);

@@ -222,14 +222,14 @@ inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline
 
 
 void daliInitialize() {
-  static std::once_flag init_flag;
-  auto init = [&] {
-      dali::DALIInit(dali::OpSpec("CPUAllocator"),
-                     dali::OpSpec("PinnedCPUAllocator"),
-                     dali::OpSpec("GPUAllocator"));
-      dali_initialized = true;
-  };
-  std::call_once(init_flag, init);
+  static int init = []() {
+    dali::DALIInit(dali::OpSpec("CPUAllocator"),
+                    dali::OpSpec("PinnedCPUAllocator"),
+                    dali::OpSpec("GPUAllocator"));
+    dali_initialized = true;
+    return 0;
+  }();
+  (void)init;
 }
 
 

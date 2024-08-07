@@ -30,10 +30,10 @@ namespace dali {
 struct S3ClientManager {
  public:
   static S3ClientManager& Instance() {
-    static std::once_flag once;
-    std::call_once(once, []() {
+    static int init = [&]() {
       RunInitOrShutdown([&](int) { Aws::InitAPI(Aws::SDKOptions{}); });
-    });
+      return 0;
+    })();
     // We want RunInitOrShutdown s_thread_pool_ to outlive s_manager_
     static S3ClientManager s_manager_;
     return s_manager_;

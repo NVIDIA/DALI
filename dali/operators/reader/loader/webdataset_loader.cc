@@ -25,6 +25,7 @@
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/util/uri.h"
+#include "dali/core/call_once.h"
 
 namespace dali {
 
@@ -447,7 +448,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
             component.outputs.num++;
             was_output_set[output] = true;
           } else {
-            std::call_once(multiple_files_single_component, [&]() {
+            dali::call_once(multiple_files_single_component, [&]() {
               DALI_WARN(make_string("Multiple components matching output ", output, " at ",
                                     GetSampleSource(new_sample), "."));
             });
