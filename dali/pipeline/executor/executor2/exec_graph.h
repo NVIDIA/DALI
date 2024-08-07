@@ -372,6 +372,8 @@ class DLL_PUBLIC ExecGraph {
   bool validated_ = false;
   bool analyzed_ = false;
 
+  bool iteration_prepared_ = false;
+
   /** Creates a task that goes over batch sizes providers and establishes the batch size. */
   tasking::SharedTask InferBatchSize(const std::shared_ptr<IterationData> &iter_data,
                                      int max_batch_size);

@@ -20,6 +20,7 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/graph/op_graph2.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
+#include "dali/pipeline/operator/error_reporting.h"
 
 namespace dali {
 namespace exec2 {
@@ -221,6 +222,8 @@ void ExecGraph::PrepareIteration(const WorkspaceParams &params) {
     if (n.inputs.empty() && infer_batch_size_task_)
       n.main_task_->Subscribe(infer_batch_size_task_);
   }
+
+  iteration_prepared_ = true;
 }
 
 inline std::string_view NodeName(const ExecNode &n) {
@@ -244,34 +247,50 @@ tasking::SharedTask ExecGraph::InferBatchSize(const std::shared_ptr<IterationDat
     assert(!bsps.empty());
     for (auto [n, bsp] : bsps) {
       int op_bs = bsp->NextBatchSize();
-      if (op_bs > max_batch_size) {
-        throw std::runtime_error(make_string(
-          "Batch too big! The input operator \"",
-          NodeName(*n),
-          "\" returned a batch size ", op_bs,
-          " which is larger than 'max_batch_size' for the pipeline."));
+      try {
+        if (op_bs > max_batch_size) {
+            throw std::runtime_error(make_string(
+              "Batch too big! The input operator \"",
+              NodeName(*n),
+              "\" returned a batch size ", op_bs,
+              " which is larger than 'max_batch_size' for the pipeline."));
+        }
+        if (bs && *bs != op_bs)
+          throw std::runtime_error(make_string(
+            "Batch size clash! The input operator \"",
+            NodeName(*n),
+            "\" returned a batch size ", op_bs,
+            " which is different than ", *bs,
+            " retruned by \"", NodeName(*bsps[0].first), "\"."));
+        bs = op_bs;
+      } catch (...) {
+        PropagateError({
+          std::current_exception(),
+          "Critical error in pipeline:\n" + GetErrorContextMessage(n->op->GetSpec()),
+          "\nCurrent pipeline object is no longer valid."});
       }
-      if (bs && *bs != op_bs)
-        throw std::runtime_error(make_string(
-          "Batch size clash! The input operator \"",
-          NodeName(*n),
-          "\" returned a batch size ", op_bs,
-          " which is different than ", *bs,
-          " retruned by \"", NodeName(*bsps[0].first), "\"."));
-      bs = op_bs;
     }
     assert(bs.has_value());
     iter->default_batch_size = *bs;
-    for (auto &bsp : bsps)
-      bsp.second->Advance();
+    for (auto [n, bsp] : bsps) {
+      try {
+        bsp->Advance();
+      } catch (...) {
+        PropagateError({
+          std::current_exception(),
+          "Critical error in pipeline:\n" + GetErrorContextMessage(n->op->GetSpec()),
+          "\nCurrent pipeline object is no longer valid."});
+      }
+    }
   });
 }
 
 
 tasking::TaskFuture ExecGraph::Launch(tasking::Scheduler &sched) {
-  Sort();
-  Validate();
-  Analyze();
+  if (!iteration_prepared_)
+    throw std::logic_error("Launch called before PrepareIteration");
+  iteration_prepared_ = false;
+  assert(sorted_ && analyzed_ && validated_);
 
   if (infer_batch_size_task_)
     sched.AddSilentTask(infer_batch_size_task_);
