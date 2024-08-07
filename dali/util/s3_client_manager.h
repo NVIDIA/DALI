@@ -33,7 +33,7 @@ struct S3ClientManager {
     static int init = [&]() {
       RunInitOrShutdown([&](int) { Aws::InitAPI(Aws::SDKOptions{}); });
       return 0;
-    })();
+    }();
     // We want RunInitOrShutdown s_thread_pool_ to outlive s_manager_
     static S3ClientManager s_manager_;
     return s_manager_;
