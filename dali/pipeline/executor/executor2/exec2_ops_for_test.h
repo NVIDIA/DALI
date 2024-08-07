@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <thread>
+#include <chrono>
 #include <utility>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
@@ -38,6 +39,7 @@ class DummyOpCPU : public Operator<CPUBackend> {
  public:
   explicit DummyOpCPU(const OpSpec &spec) : Operator<CPUBackend>(spec) {
     instance_name_ = spec_.GetArgument<string>("name");
+    delay_ms_ = spec_.GetArgument<float>("delay");
   }
 
   bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
@@ -50,7 +52,8 @@ class DummyOpCPU : public Operator<CPUBackend> {
 
   void RunImpl(Workspace &ws) override {
     int N = ws.GetRequestedBatchSize(0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (delay_ms_)
+      std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(delay_ms_));
     addend_.Acquire(spec_, ws, N);
     sample_sums_.resize(N);
     auto &tp = ws.GetThreadPool();
@@ -71,6 +74,7 @@ class DummyOpCPU : public Operator<CPUBackend> {
 
   bool CanInferOutputs() const override { return true; }
   ArgValue<int> addend_{"addend", spec_};
+  double delay_ms_ = 0;
 
   std::vector<int> sample_sums_;
   std::string instance_name_;

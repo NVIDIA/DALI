@@ -177,7 +177,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
   int batch_size = 1;
   OpSpec spec0(kTestOpName);
   spec0.AddArg("addend", 10)
-       .AddArg("num_threads", 1)
+       .AddArg("num_threads", 4)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op0o0", "cpu")
@@ -185,7 +185,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
   auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
   OpSpec spec1(kCounterOpName);
-  spec1.AddArg("num_threads", 1)
+  spec1.AddArg("num_threads", 4)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op1o0", "cpu")
@@ -194,7 +194,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
 
   OpSpec spec2(kTestOpName);
   spec2.AddArg("addend", 1000)
-       .AddArg("num_threads", 1)
+       .AddArg("num_threads", 4)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddInput("op0o0", "cpu")
@@ -244,7 +244,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   int batch_size = 1;
   OpSpec spec0(kTestOpName);
   spec0.AddArg("addend", 10)
-       .AddArg("num_threads", 1)
+       .AddArg("num_threads", 4)
        .AddArg("device", "gpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op0o0", "gpu")
@@ -252,7 +252,8 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   auto op0 = std::make_unique<DummyOpGPU>(spec0);
 
   OpSpec spec1(kCounterOpName);
-  spec1.AddArg("num_threads", 1)
+  spec1.AddArg("num_threads", 4)
+       .AddArg("delay", 0)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
        .AddOutput("op1o0", "cpu")
@@ -260,7 +261,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   auto op1 = std::make_unique<CounterOp>(spec1);
 
   OpSpec spec1c("MakeContiguous");
-  spec1c.AddArg("num_threads", 1)
+  spec1c.AddArg("num_threads", 4)
         .AddArg("device", "mixed")
         .AddArg("max_batch_size", batch_size)
         .AddInput("op1o0", "cpu")
@@ -270,7 +271,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
 
   OpSpec spec2(kTestOpName);
   spec2.AddArg("addend", 1000)
-       .AddArg("num_threads", 1)
+       .AddArg("num_threads", 4)
        .AddArg("device", "gpu")
        .AddArg("max_batch_size", batch_size)
        .AddInput("op0o0", "gpu")
@@ -284,6 +285,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   ExecNode *n1c = g.AddNode(std::move(op1c));
   ExecNode *n0  = g.AddNode(std::move(op0));
   ExecNode *no  = g.AddOutputNode();
+  n0->output_queue_limit = std::make_shared<tasking::Semaphore>(3);
   SetOutputDevice(n0, 0, StorageDevice::GPU);
   SetOutputDevice(n1c, 0, StorageDevice::GPU);
   SetOutputDevice(n2, 0, StorageDevice::GPU);
@@ -311,7 +313,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   WorkspaceParams params = {};
   params.batch_size = batch_size;
 
-  int N = 1;
+  int N = 100;
   tasking::Executor ex(4);
   ex.Start();
   std::vector<tasking::TaskFuture> fut;
