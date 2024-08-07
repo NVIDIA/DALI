@@ -152,7 +152,6 @@ class ExecGraph::SortHelper {
       assert(edge);
       SortNode(edge->producer);
     }
-    int idx = sorted_.size();
     sorted_.push_back(node);
   }
 
