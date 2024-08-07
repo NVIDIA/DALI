@@ -85,7 +85,7 @@ class Iteration;
 struct ExecEdge {
   ExecNode *producer = nullptr;
   ExecNode *consumer = nullptr;
-  /** The index of the output in OpSpec. It doesn't need to match the index producer->outputs. */
+  /** The index of the output in OpSpec. It matches the edge's index in producer->outputs. */
   int producer_output_idx = 0;
   /** The index of the input in OpSpec. It matches the edge's index in consumer->inputs. */
   int consumer_input_idx = 0;
@@ -251,7 +251,7 @@ class DLL_PUBLIC ExecNode {
    * consumers.
    */
   void CreateMainTask(const WorkspaceParams &params);
-  /** Subscribes to the results of the precending tasks. */
+  /** Subscribes to the results of the preceding tasks. */
   void AddDataDeps();
   /** Creates auxiliary tasks and applies concurrency constraints. */
   void CreateAuxTasks();
@@ -329,6 +329,7 @@ class DLL_PUBLIC ExecGraph {
     if (producer) {
       producer->outputs.resize(std::max<size_t>(producer->outputs.size(), out_idx + 1));
       producer->outputs[out_idx].consumers.push_back(&edge);
+      edge.device = producer->outputs[out_idx].device;
     }
     if (consumer) {
       consumer->inputs.resize(std::max<size_t>(consumer->inputs.size(), in_idx + 1));

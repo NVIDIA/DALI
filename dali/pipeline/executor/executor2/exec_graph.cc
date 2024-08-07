@@ -41,7 +41,7 @@ inline OpType BackendFromOp(const OperatorBase *op) {
 ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
 : op(std::move(op))
 , instance_name(def ? def->instance_name : "")
-, backend(def ? def->op_type : op ? BackendFromOp(op.get()) : OpType::CPU)
+, backend(def ? def->op_type : this->op ? BackendFromOp(this->op.get()) : OpType::CPU)
 , is_batch_size_provider(dynamic_cast<BatchSizeProvider *>(this->op.get()) != nullptr) {
   if (def) {
     outputs.resize(def->outputs.size());

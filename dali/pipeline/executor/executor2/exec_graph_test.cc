@@ -18,6 +18,7 @@
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"
 #include "dali/test/timing.h"
+#include "dali/core/cuda_stream_pool.h"
 
 namespace dali {
 
@@ -33,6 +34,12 @@ void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurren
         n.concurrency = sem;
   }
   graph.Invalidate();
+}
+
+void SetOutputDevice(ExecNode *node, size_t out_idx, StorageDevice device) {
+  if (node->outputs.size() <= out_idx)
+    node->outputs.resize(out_idx + 1);
+  node->outputs[out_idx].device = device;
 }
 }  // namespace
 
@@ -61,9 +68,9 @@ TEST(ExecGraphTest, SimpleGraph) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
+       .AddInput("op0o0", "cpu")
        .AddInput("op1o0", "cpu")
-       .AddInput("op2o0", "cpu")
-       .AddOutput("op2e0", "cpu")
+       .AddOutput("op2o0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
@@ -123,9 +130,9 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
+       .AddInput("op0o0", "cpu")
        .AddInput("op1o0", "cpu")
-       .AddInput("op2o0", "cpu")
-       .AddOutput("op2e0", "cpu")
+       .AddOutput("op2o0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
@@ -166,7 +173,7 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
   }
 }
 
-TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
+TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
   int batch_size = 1;
   OpSpec spec0(kTestOpName);
   spec0.AddArg("addend", 10)
@@ -190,9 +197,9 @@ TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
+       .AddInput("op0o0", "cpu")
        .AddInput("op1o0", "cpu")
-       .AddInput("op2o0", "cpu")
-       .AddOutput("op2e0", "cpu")
+       .AddOutput("op2o0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
@@ -233,6 +240,104 @@ TEST(ExecGraphTest, SimpleGraphScheduleAhead) {
   }
 }
 
+TEST(ExecGraphTest, GraphScheduleAheadGPU) {
+  int batch_size = 1;
+  OpSpec spec0(kTestOpName);
+  spec0.AddArg("addend", 10)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "gpu")
+       .AddArg("max_batch_size", batch_size)
+       .AddOutput("op0o0", "gpu")
+       .AddArg("name", "op0");
+  auto op0 = std::make_unique<DummyOpGPU>(spec0);
+
+  OpSpec spec1(kCounterOpName);
+  spec1.AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", batch_size)
+       .AddOutput("op1o0", "cpu")
+       .AddArg("name", "op1");
+  auto op1 = std::make_unique<CounterOp>(spec1);
+
+  OpSpec spec1c("MakeContiguous");
+  spec1c.AddArg("num_threads", 1)
+        .AddArg("device", "mixed")
+        .AddArg("max_batch_size", batch_size)
+        .AddInput("op1o0", "cpu")
+        .AddOutput("op1o0", "gpu")
+        .AddArg("name", "op1c");
+  auto op1c = InstantiateOperator(spec1c);
+
+  OpSpec spec2(kTestOpName);
+  spec2.AddArg("addend", 1000)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "gpu")
+       .AddArg("max_batch_size", batch_size)
+       .AddInput("op0o0", "gpu")
+       .AddInput("op1o0", "gpu")
+       .AddOutput("op2o0", "gpu")
+       .AddArg("name", "op2");
+  auto op2 = std::make_unique<DummyOpGPU>(spec2);
+  ExecGraph g;
+  ExecNode *n2  = g.AddNode(std::move(op2));
+  ExecNode *n1  = g.AddNode(std::move(op1));
+  ExecNode *n1c = g.AddNode(std::move(op1c));
+  ExecNode *n0  = g.AddNode(std::move(op0));
+  ExecNode *no  = g.AddOutputNode();
+  SetOutputDevice(n0, 0, StorageDevice::GPU);
+  SetOutputDevice(n1c, 0, StorageDevice::GPU);
+  SetOutputDevice(n2, 0, StorageDevice::GPU);
+  g.Link(n0, 0, n2, 0);
+  g.Link(n1, 0, n1c, 0);
+  g.Link(n1c, 0, n2, 1);
+  g.Link(n2, 0, no, 0);
+  LimitBackendConcurrency(g, OpType::CPU);
+
+  auto s0 = CUDAStreamPool::instance().Get();
+  auto s1 = CUDAStreamPool::instance().Get();
+  auto s2 = CUDAStreamPool::instance().Get();
+  auto s3 = CUDAStreamPool::instance().Get();
+
+  // Each GPU-capable operator uses a different stream
+  n0->env.order = s0;
+  n1c->env.order = s1;
+  n2->env.order = s2;
+  no->env.order = s3;
+
+  ThreadPool tp(4, 0, false, "test");
+
+  n1->env.thread_pool = &tp;
+
+  WorkspaceParams params = {};
+  params.batch_size = batch_size;
+
+  int N = 1;
+  tasking::Executor ex(4);
+  ex.Start();
+  std::vector<tasking::TaskFuture> fut;
+  fut.reserve(N);
+  for (int i = 0; i < N; i++) {
+    params.iter_data = std::make_shared<IterationData>();
+    g.PrepareIteration(params);
+    fut.push_back(g.Launch(ex));
+  }
+
+  int ctr = 0;
+  for (int i = 0; i < N; i++) {
+    auto &pipe_out = fut[i].Value<const PipelineOutput &>();
+    ASSERT_TRUE(pipe_out.workspace.has_event());
+    EXPECT_EQ(pipe_out.workspace.stream(), s3.get());
+    EXPECT_EQ(pipe_out.workspace.event(), pipe_out.event.get());
+    AccessOrder::host().wait(pipe_out.workspace.event());
+    auto &out_gpu = pipe_out.workspace.Output<GPUBackend>(0);
+    ASSERT_EQ(out_gpu.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
+    TensorList<CPUBackend> out;
+    out.Copy(out_gpu);
+    for (int s = 0; s < batch_size; s++)
+      EXPECT_EQ(*out[s].data<int>(), 1010 + 2 * s + ctr++);
+  }
+}
+
 
 TEST(ExecGraphTest, Exception) {
   OpSpec spec0(kTestOpName);
@@ -258,9 +363,9 @@ TEST(ExecGraphTest, Exception) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
+       .AddInput("op0o0", "cpu")
        .AddInput("op1o0", "cpu")
-       .AddInput("op2o0", "cpu")
-       .AddOutput("op2e0", "cpu")
+       .AddOutput("op2o0", "cpu")
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;

@@ -467,7 +467,7 @@ void ClearWorkspacePayload(Workspace &ws) {
     // A low-hanging optimization is to skip that when the buffer's associated stream is
     // the same stream as the one the consumer executes on. Doing so will create bubbles in
     // per-operator streams.
-    // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
+    // Perhaps a better approach would be to move the inputs to a dedicated deletion stream.
     // on which we would record the completion events prior to decreasing the reference count.
     if (ws.InputIsType<CPUBackend>(i)) {
       if (auto &pinp = ws.InputPtr<CPUBackend>(i)) {
