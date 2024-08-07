@@ -210,7 +210,7 @@ class DLL_PUBLIC ExecNode {
    *                              \   |
    *                               \  |
    *                                \  \
-   *                                 \_release outptus (A)
+   *                                 \_release outputs (A)
    */
   tasking::SharedTask release_outputs_;
 

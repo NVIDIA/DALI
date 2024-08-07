@@ -261,7 +261,7 @@ tasking::SharedTask ExecGraph::InferBatchSize(const std::shared_ptr<IterationDat
             NodeName(*n),
             "\" returned a batch size ", op_bs,
             " which is different than ", *bs,
-            " retruned by \"", NodeName(*bsps[0].first), "\"."));
+            " returned by \"", NodeName(*bsps[0].first), "\"."));
         bs = op_bs;
       } catch (...) {
         PropagateError({

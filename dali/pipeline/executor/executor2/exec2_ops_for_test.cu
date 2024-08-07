@@ -24,7 +24,7 @@ namespace dali {
 DALI_SCHEMA(Exec2TestOp)  // DALI_SCHEMA can't take a macro :(
   .NumInput(0, 99)
   .NumOutput(1)
-  .AddOptionalArg("delay", "[CPU-only] in milliseoncds, to wait inside the operator's Run", 1.0f)
+  .AddOptionalArg("delay", "[CPU-only] in milliseconds, to wait inside the operator's Run", 1.0f)
   .AddArg("addend", "a value added to the sum of inputs", DALI_INT32, true);
 
 // DALI_REGISTER_OPERATOR can't take a macro for the name
