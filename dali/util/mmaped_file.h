@@ -36,7 +36,7 @@ class MmapedFileStream : public FileStream {
   static void FreeFileMappings(unsigned int num);
   size_t Read(void *buffer, size_t n_bytes) override;
   void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
-  int64 TellRead() const override;
+  int64_t TellRead() const override;
   size_t Size() const override;
 
   ~MmapedFileStream() override;

@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/dltensor.h"
 #include <string>
+#include "dali/pipeline/data/dltensor.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 
 DLDataType GetDLType(DALIDataType type) {
   DLDataType dl_type{};
-  DALI_TYPE_SWITCH_WITH_FP16(type, T,
-      dl_type.bits = sizeof(T) * 8;
+  TYPE_SWITCH(type, type2id, T, (DALI_NUMERIC_TYPES_FP16, bool), (
+    dl_type.bits = sizeof(T) * 8;
       dl_type.lanes = 1;
       if (dali::is_fp_or_half<T>::value) {
         dl_type.code = kDLFloat;
@@ -32,7 +34,8 @@ DLDataType GetDLType(DALIDataType type) {
         dl_type.code = kDLInt;
       } else {
         DALI_FAIL(make_string("This data type (", type, ") cannot be handled by DLTensor."));
-      })
+      }
+  ), (DALI_FAIL(make_string("The element type ", type, " is not supported."))));  // NOLINT
   return dl_type;
 }
 

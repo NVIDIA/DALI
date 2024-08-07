@@ -283,7 +283,7 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   if (cu_a_interface.contains("stream")) {
     const auto &stream_obj = cu_a_interface["stream"];
     if (!stream_obj.is_none()) {
-      auto stream_long_value = cu_a_interface["stream"].cast<int64>();
+      auto stream_long_value = cu_a_interface["stream"].cast<int64_t>();
       auto stream_value = PyLong_AsVoidPtr(cu_a_interface["stream"].ptr());
       DALI_ENFORCE(stream_value != 0, make_string("Provided stream is not a valid CUDA stream ",
                    "based on CUDA Array Interface v3. `0` value is ambiguous and disallowed"));
@@ -2151,7 +2151,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("NumOutput", &OpSpec::NumOutput)
     DALI_OPSPEC_ADDARG(std::string)
     DALI_OPSPEC_ADDARG(bool)
-    DALI_OPSPEC_ADDARG(int64)
+    DALI_OPSPEC_ADDARG(int64_t)
     DALI_OPSPEC_ADDARG(float)
     DALI_OPSPEC_ADDARG(DALIDataType)
     DALI_OPSPEC_ADDARG(DALIImageType)

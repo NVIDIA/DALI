@@ -93,7 +93,7 @@ DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, fitsfile *src);
 /** @brief Read raw data of rice coded image HDU. */
 DLL_PUBLIC int ExtractUndecodedData(fitsfile *fptr, std::vector<uint8_t> &data,
                                       std::vector<int64_t> &tile_offset,
-                                      std::vector<int64_t> &tile_size, int64 rows, int *status);
+                                      std::vector<int64_t> &tile_size, int64_t rows, int *status);
 
 class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
  public:

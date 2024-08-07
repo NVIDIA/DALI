@@ -86,7 +86,7 @@ const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
   AVCodecID::AV_CODEC_ID_MPEG4
 };
 
-int64 FramesDecoder::NumFrames() const {
+int64_t FramesDecoder::NumFrames() const {
     if (num_frames_.has_value()) {
       return num_frames_.value();
     }

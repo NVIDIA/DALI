@@ -162,7 +162,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
         crop_img.create(crop_h, crop_w, cv_type);
         const int crop_offset = (crop_y * rsz_w + crop_x) * c;
-        uint8 *crop_ptr = rsz_img.ptr() + crop_offset;
+        uint8_t *crop_ptr = rsz_img.ptr() + crop_offset;
 
         CUDA_CALL(cudaMemcpy2D(crop_img.ptr(), crop_w * c,
                                crop_ptr, rsz_w * c, crop_w * c, crop_h,

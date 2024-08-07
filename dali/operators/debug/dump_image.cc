@@ -35,7 +35,7 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace &ws) {
                make_string("Only 3-channel and gray images are supported, got input with `", c,
                            "` channels."));
 
-  WriteHWCImage(input.template data<uint8>(),
+  WriteHWCImage(input.template data<uint8_t>(),
       h, w, c, std::to_string(ws.data_idx()) + "-" + suffix_ + "-" + std::to_string(0));
 
   // Forward the input

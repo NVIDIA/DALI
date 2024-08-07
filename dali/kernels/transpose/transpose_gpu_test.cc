@@ -203,7 +203,7 @@ TEST(TransposeGPU, PerfDeinterleave) {
 
   std::cerr << "Permuting 1-byte data; permutation 2 0 1\ninput shape = \n" << shape << "\n";
 
-  RunPerfTest<uint8>(rng, shape, make_span(perm));
+  RunPerfTest<uint8_t>(rng, shape, make_span(perm));
 }
 
 
@@ -226,7 +226,7 @@ TEST(TransposeGPU, PerfInterleave) {
 
   std::cerr << "Permuting 1-byte data; permutation 1 2 0\ninput shape = \n" << shape << "\n";
 
-  RunPerfTest<uint8>(rng, shape, make_span(perm));
+  RunPerfTest<uint8_t>(rng, shape, make_span(perm));
 }
 
 

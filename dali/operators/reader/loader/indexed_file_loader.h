@@ -67,7 +67,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
   void ReadSample(IndexedFileLoaderSample& sample) override {
     MoveToNextShard(current_index_);
 
-    int64 seek_pos, size;
+    int64_t seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     ++current_index_;
@@ -135,9 +135,9 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
          *   ----------------XXXX************XXXXXXXXXXXXXXXXXXX----------------
          */
         // read again if there is no buffer of the requested piece if outside of the it
-        bool after_buffer_start = seek_pos >= static_cast<int64>(read_buffer_pos_);
+        bool after_buffer_start = seek_pos >= static_cast<int64_t>(read_buffer_pos_);
         bool before_buffer_end =
-            seek_pos + size < static_cast<int64>(read_buffer_pos_ + read_buffer_data_size_);
+            seek_pos + size < static_cast<int64_t>(read_buffer_pos_ + read_buffer_data_size_);
         // buffer need to exists and the ata we look for needs to be inside it
         if (!read_buffer_ || !(after_buffer_start && before_buffer_end)) {
           // check how much we need to allocate to house the required sample, but no less than
@@ -146,7 +146,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
           auto block_end = align_up(seek_pos + size, o_direct_alignm_);
           auto aligned_len = align_up(block_end - block_start, o_direct_chunk_size_);
           // make the staging buffer as big as the biggest sample so far
-          if (aligned_len > static_cast<int64>(read_buffer_size_)) {
+          if (aligned_len > static_cast<int64_t>(read_buffer_size_)) {
             read_buffer_size_ = aligned_len;
           }
           // the old memory will be used as long as any piece of it uses its, so it is safe
@@ -195,13 +195,13 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
               file->Close();
           });
           file->SeekRead(seek_pos, SEEK_SET);
-          int64 n_read = file->Read(out_data_ptr, size);
+          int64_t n_read = file->Read(out_data_ptr, size);
           DALI_ENFORCE(n_read == size, "Error reading from a file: " + path);
         };
         sample.work = std::move(work);
       } else {
         sample.tensor.Resize({size}, DALI_UINT8);
-        int64 n_read =
+        int64_t n_read =
             current_file_->Read(static_cast<uint8_t*>(sample.tensor.raw_mutable_data()), size);
         DALI_ENFORCE(n_read == size, "Error reading from a file " + paths_[current_file_index_]);
       }
@@ -232,7 +232,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
       FileStreamBuf<> stream_buf(index_file.get());
       std::istream fin(&stream_buf);
       DALI_ENFORCE(fin.good(), "Failed to open file " + path);
-      int64 pos, size;
+      int64_t pos, size;
       while (fin >> pos >> size) {
         indices_.emplace_back(pos, size, i);
       }
@@ -258,7 +258,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
   }
 
   void Reset(bool wrap_to_shard) override {
-    int64 seek_pos, size;
+    int64_t seek_pos, size;
     size_t file_index;
     if (wrap_to_shard) {
       current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
@@ -285,14 +285,14 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
 
   std::vector<std::string> paths_;
   std::vector<std::string> index_paths_;
-  std::vector<std::tuple<int64, int64, size_t>> indices_;
+  std::vector<std::tuple<int64_t, int64_t, size_t>> indices_;
   size_t current_index_;
   size_t current_file_index_;
   std::shared_ptr<FileStream> current_file_;
   FileStream::MappingReserver mmap_reserver_;
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;
-  int64 next_seek_pos_ = 0;
+  int64_t next_seek_pos_ = 0;
   bool use_o_direct_ = false;
   size_t o_direct_chunk_size_ = 0;
   size_t o_direct_alignm_ = 0;

@@ -343,12 +343,12 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   tl2.Resize(shape2, DALI_UINT8);
   for (int i = 0; i < batch_size; ++i) {
     std::memcpy(
-        tl1.template mutable_tensor<uint8>(i),
-        tl.template tensor<uint8>(i),
+        tl1.template mutable_tensor<uint8_t>(i),
+        tl.template tensor<uint8_t>(i),
         volume(tl.tensor_shape(i)));
     std::memcpy(
-        tl2.template mutable_tensor<uint8>(i),
-        tl.template tensor<uint8>(i+batch_size),
+        tl2.template mutable_tensor<uint8_t>(i),
+        tl.template tensor<uint8_t>(i+batch_size),
         volume(tl.tensor_shape(i+batch_size)));
   }
 

@@ -52,7 +52,7 @@ class FileListHarness {
 
     for (int i = 0; i < batch_size_; ++i) {
       std::memcpy(
-        input_data_.template mutable_tensor<uint8>(i),
+        input_data_.template mutable_tensor<uint8_t>(i),
         images_.data_[i],
         images_.sizes_[i]);
       input_data_.SetSourceInfo(i, image_names_[i] + "_" + std::to_string(i));

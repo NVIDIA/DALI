@@ -33,7 +33,7 @@ class DLL_PUBLIC DaliProtoPriv {
   DLL_PUBLIC void set_name(const string &);
   DLL_PUBLIC void set_type(const string &);
   DLL_PUBLIC void set_is_vector(const bool &);
-  DLL_PUBLIC void add_ints(const int64 &);
+  DLL_PUBLIC void add_ints(const int64_t &);
   DLL_PUBLIC void add_floats(const float &);
   DLL_PUBLIC void add_bools(const bool &);
   DLL_PUBLIC void add_strings(const string &);
@@ -42,8 +42,8 @@ class DLL_PUBLIC DaliProtoPriv {
   DLL_PUBLIC string name(void) const;
   DLL_PUBLIC string type(void) const;
   DLL_PUBLIC bool is_vector(void) const;
-  DLL_PUBLIC std::vector<int64> ints(void) const;
-  DLL_PUBLIC int64 ints(int index) const;
+  DLL_PUBLIC std::vector<int64_t> ints(void) const;
+  DLL_PUBLIC int64_t ints(int index) const;
   DLL_PUBLIC std::vector<float> floats(void) const;
   DLL_PUBLIC float floats(int index) const;
   DLL_PUBLIC std::vector<bool> bools(void) const;

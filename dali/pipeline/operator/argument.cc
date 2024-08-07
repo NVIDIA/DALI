@@ -55,7 +55,7 @@ std::shared_ptr<Argument> DeserializeProtobuf(const DaliProtoPriv &arg) {
   // map
   std::map<std::pair<string, bool>, std::function<std::shared_ptr<Argument>(const DaliProtoPriv&)>>
        fn_map{
-    ADD_SERIALIZABLE_ARG(int64)
+    ADD_SERIALIZABLE_ARG(int64_t)
     ADD_SERIALIZABLE_ARG(float)
     ADD_SERIALIZABLE_ARG(string)
     ADD_SERIALIZABLE_ARG(bool)

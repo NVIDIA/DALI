@@ -67,14 +67,14 @@ class RecordIOLoader : public IndexedFileLoader {
       if (temp[i] >= file_offsets[file_offset_index + 1]) {
         ++file_offset_index;
       }
-      int64 size = temp[i + 1] - temp[i];
+      int64_t size = temp[i + 1] - temp[i];
       // skip 0 sized images
       if (size) {
         indices_.emplace_back(temp[i] - file_offsets[file_offset_index],
                               size, file_offset_index);
       }
     }
-    int64 size = file_offsets.back() - temp.back();
+    int64_t size = file_offsets.back() - temp.back();
     // skip 0 sized images
     if (size) {
       indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
@@ -87,7 +87,7 @@ class RecordIOLoader : public IndexedFileLoader {
     // if we moved to next shard wrap up
     MoveToNextShard(current_index_);
 
-    int64 seek_pos, size;
+    int64_t seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
 
@@ -114,7 +114,7 @@ class RecordIOLoader : public IndexedFileLoader {
     }
 
     shared_ptr<void> p = nullptr;
-    int64 n_read = 0;
+    int64_t n_read = 0;
     bool use_read = copy_read_data_ || !current_file_->CanMemoryMap();
     if (use_read) {
       sample.tensor.Resize({size});

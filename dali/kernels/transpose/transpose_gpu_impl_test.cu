@@ -192,10 +192,10 @@ TEST(TransposeTiled, BuildDescVectorized) {
 TEST(TransposeTiled, BuildDescAndForceMisalignment) {
   TensorShape<> shape = { 57, 37, 52, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
-  vector<uint8> in_cpu(size + 4), out_cpu(size + 4);
-  vector<uint8> ref(size + 4);
+  vector<uint8_t> in_cpu(size + 4), out_cpu(size + 4);
+  vector<uint8_t> ref(size + 4);
 
-  DeviceBuffer<uint8> in_gpu, out_gpu;
+  DeviceBuffer<uint8_t> in_gpu, out_gpu;
   in_gpu.resize(size + 4);
   out_gpu.resize(size + 4);
 
@@ -208,7 +208,7 @@ TEST(TransposeTiled, BuildDescAndForceMisalignment) {
     SmallVector<int, 6> perm = { 1, 2, 0, 3 };
 
     int grid_size = 1024;
-    TiledTransposeDesc<uint8> desc;
+    TiledTransposeDesc<uint8_t> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu.data() + offset,
                        in_gpu.data() + offset, grid_size);
@@ -258,10 +258,10 @@ TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
 TEST(TransposeTiled, HighDimensionTest) {
   TensorShape<> shape = {3, 3, 5, 7, 23, 3, 37, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
-  vector<uint8> in_cpu(size), out_cpu(size);
-  vector<uint8> ref(size);
+  vector<uint8_t> in_cpu(size), out_cpu(size);
+  vector<uint8_t> ref(size);
 
-  DeviceBuffer<uint8> in_gpu, out_gpu;
+  DeviceBuffer<uint8_t> in_gpu, out_gpu;
   in_gpu.resize(size);
   out_gpu.resize(size);
 
@@ -276,7 +276,7 @@ TEST(TransposeTiled, HighDimensionTest) {
     SmallVector<int, 8> perm = { 1, 0, 4, 2, 6, 3, 5, 7 };
 
     int grid_size = 1024;
-    TiledTransposeDesc<uint8> desc;
+    TiledTransposeDesc<uint8_t> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu.data(), in_gpu.data(), grid_size);
 

@@ -73,7 +73,7 @@ bool IsCropWindowValid(const UncompressFlags& flags, int input_image_width,
          flags.crop_x + flags.crop_width <= input_image_width;
 }
 
-std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
+std::unique_ptr<uint8_t[]> UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   // unpack the argball
   const int datasize = argball->datasize_;
   const auto& flags = argball->flags_;
@@ -97,7 +97,7 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
 
   // Declare buffers here so that we can free on error paths
   std::unique_ptr<JSAMPLE[]> temp;
-  std::unique_ptr<uint8[]> dstdata;
+  std::unique_ptr<uint8_t[]> dstdata;
   JSAMPLE *tempdata = nullptr;
 
   // Initialize libjpeg structures to have a memory source
@@ -170,9 +170,9 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
   // OOM'ing doing the decompress
   jpeg_calc_output_dimensions(&cinfo);
 
-  int64 total_size = static_cast<int64>(cinfo.output_height) *
-                     static_cast<int64>(cinfo.output_width) *
-                     static_cast<int64>(cinfo.num_components);
+  int64_t total_size = static_cast<int64_t>(cinfo.output_height) *
+                     static_cast<int64_t>(cinfo.output_width) *
+                     static_cast<int64_t>(cinfo.num_components);
   // Some of the internal routines do not gracefully handle ridiculously
   // large images, so fail fast.
   if (cinfo.output_width <= 0 || cinfo.output_height <= 0) {
@@ -391,7 +391,7 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
   if (components == 4) {
     // Start on the last line.
     JSAMPLE* scanlineptr = static_cast<JSAMPLE*>(
-        dstdata.get() + static_cast<int64>(target_output_height - 1) * stride);
+        dstdata.get() + static_cast<int64_t>(target_output_height - 1) * stride);
     const JSAMPLE kOpaque = -1;  // All ones appropriate for JSAMPLE.
     const int right_rgb = (target_output_width - 1) * 3;
     const int right_rgba = (target_output_width - 1) * 4;
@@ -471,7 +471,7 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
     }
 
     const auto full_image = std::move(dstdata);
-    dstdata = std::unique_ptr<uint8[]>(
+    dstdata = std::unique_ptr<uint8_t[]>(
         new JSAMPLE[target_output_width, target_output_height, components]);
     if (dstdata == nullptr) {
       return nullptr;
@@ -490,8 +490,8 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
       argball->height_read_ = target_output_height;
     }
     const int crop_offset = flags.crop_x * components * sizeof(JSAMPLE);
-    const uint8* full_image_ptr = full_image.get() + flags.crop_y * full_image_stride;
-    uint8* crop_image_ptr = dstdata.get();
+    const uint8_t* full_image_ptr = full_image.get() + flags.crop_y * full_image_stride;
+    uint8_t* crop_image_ptr = dstdata.get();
     for (int i = 0; i < argball->height_read_; i++) {
       memcpy(crop_image_ptr, full_image_ptr + crop_offset, min_stride);
       crop_image_ptr += stride;
@@ -513,7 +513,7 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
 //  associated libraries aren't good enough to guarantee that 7
 //  parameters won't get clobbered by the longjmp.  So we help
 //  it out a little.
-std::unique_ptr<uint8[]> Uncompress(const void* srcdata, int datasize,
+std::unique_ptr<uint8_t[]> Uncompress(const void* srcdata, int datasize,
                                     const UncompressFlags& flags) {
   FewerArgsForCompiler argball(datasize, flags);
   auto dstdata = UncompressLow(srcdata, &argball);
@@ -532,7 +532,7 @@ std::unique_ptr<uint8[]> Uncompress(const void* srcdata, int datasize,
   // set the unread pixels to black
   if (argball.height_read_ != argball.height_) {
     const int first_bad_line = argball.height_read_;
-    uint8* start = dstdata.get() + first_bad_line * argball.stride_;
+    uint8_t* start = dstdata.get() + first_bad_line * argball.stride_;
     const int nbytes = (argball.height_ - first_bad_line) * argball.stride_;
     memset(static_cast<void*>(start), 0, nbytes);
   }

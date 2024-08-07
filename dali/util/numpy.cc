@@ -188,7 +188,7 @@ uint16_t GetHeaderLen(char *data) {
 void ParseHeaderItself(HeaderData &parsed_header, char *data, size_t header_len) {
   auto header = std::string(data);
   DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
-  int64 offset = 6 + 1 + 1 + 2;
+  int64_t offset = 6 + 1 + 1 + 2;
   offset += header_len;
 
   ParseHeaderContents(parsed_header, header);
@@ -256,7 +256,7 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   auto header_len = GetHeaderLen(token.data());
 
   // read header: the offset is a magic number
-  int64 offset = 6 + 1 + 1 + 2;
+  int64_t offset = 6 + 1 + 1 + 2;
   // The header_len can have up to 2**16 - 1 bytes. We do not support V2 headers
   // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
   // arrays (where dtype can be different for each column and the columns have arbitrary names).

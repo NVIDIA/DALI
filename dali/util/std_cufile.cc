@@ -103,7 +103,7 @@ void StdCUFileStream::SeekRead(ptrdiff_t pos, int whence) {
     pos += pos_;
   else if (whence == SEEK_END)
     pos += length_;
-  DALI_ENFORCE(pos >= 0 && pos <= (int64)length_, "Invalid seek");
+  DALI_ENFORCE(pos >= 0 && pos <= (int64_t)length_, "Invalid seek");
   pos_ = pos;
 }
 
@@ -111,7 +111,7 @@ ptrdiff_t StdCUFileStream::TellRead() const {
   return pos_;
 }
 
-void StdCUFileStream::HandleIOError(int64 ret) const {
+void StdCUFileStream::HandleIOError(int64_t ret) const {
   if (ret == -1) {
     std::string errmsg(256, '\0');
     int e = errno;
@@ -127,7 +127,7 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
 }
 
 size_t StdCUFileStream::ReadAtGPU(void *gpu_buffer, size_t n_bytes,
-                                  ptrdiff_t buffer_offset, int64 file_offset) {
+                                  ptrdiff_t buffer_offset, int64_t file_offset) {
   // compute size
   n_bytes = std::min(n_bytes, length_ - file_offset);
 
@@ -168,7 +168,7 @@ size_t StdCUFileStream::Read(void *cpu_buffer, size_t n_bytes) {
   size_t n_read = n_bytes;
   off_t read_off = 0;
   while (n_read) {
-    int64 read = pread(f_.fd, static_cast<char*>(cpu_buffer) + read_off, n_read, pos_ + read_off);
+    int64_t read = pread(f_.fd, static_cast<char*>(cpu_buffer) + read_off, n_read, pos_ + read_off);
 
     if (read >= 0) {
       n_read -= read;

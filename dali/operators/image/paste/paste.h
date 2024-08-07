@@ -40,7 +40,7 @@ class Paste : public StatelessOperator<Backend> {
     // because we use static shared memory for storing
     // fill value array
     DALI_ENFORCE(C_ <= 1024, "n_channels of more than 1024 is not supported");
-    std::vector<uint8> rgb;
+    std::vector<uint8_t> rgb;
     GetSingleOrRepeatedArg(spec, rgb, "fill_value", C_);
     fill_value_.set_order(cudaStream_t(0));
     fill_value_.Copy(rgb);
