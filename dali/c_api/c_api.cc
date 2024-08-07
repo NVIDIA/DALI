@@ -77,8 +77,6 @@ typedef daliPipelineHandle *daliPipelineHandle_t;
 
 namespace {
 
-bool dali_initialized = false;
-
 int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
                      const std::string &op_name) {
   auto it = batch_size_map->find(op_name);
@@ -224,9 +222,8 @@ inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline
 void daliInitialize() {
   static int init = []() {
     dali::DALIInit(dali::OpSpec("CPUAllocator"),
-                    dali::OpSpec("PinnedCPUAllocator"),
-                    dali::OpSpec("GPUAllocator"));
-    dali_initialized = true;
+                   dali::OpSpec("PinnedCPUAllocator"),
+                   dali::OpSpec("GPUAllocator"));
     return 0;
   }();
   (void)init;
