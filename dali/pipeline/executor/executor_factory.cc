@@ -20,8 +20,30 @@
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/executor2/exec2.h"
 
 namespace dali {
+
+auto MakeExec2Config(int batch_size, int num_thread, int device_id,
+                     size_t bytes_per_sample_hint, bool set_affinity,
+                     int max_num_stream,
+                     int default_cuda_stream_priority,
+                     QueueSizes prefetch_queue_depth) {
+  exec2::Executor2::Config cfg{};
+  cfg.async_output = false;
+  cfg.set_affinity = set_affinity;
+  cfg.thread_pool_threads = num_thread;
+  cfg.operator_threads = num_thread;
+  if (device_id != CPU_ONLY_DEVICE_ID)
+    cfg.device = device_id;
+  cfg.max_batch_size = batch_size;
+  cfg.cpu_queue_depth = prefetch_queue_depth.cpu_size;
+  cfg.gpu_queue_depth = prefetch_queue_depth.gpu_size;
+  cfg.queue_policy = exec2::QueueDepthPolicy::Legacy;
+  cfg.stream_policy = exec2::StreamPolicy::PerBackend;
+  cfg.concurrency = exec2::OperatorConcurrency::Backend;
+  return cfg;
+}
 
 template <typename... T>
 std::unique_ptr<ExecutorBase> GetExecutorImpl(bool pipelined, bool separated, bool async,
@@ -29,7 +51,9 @@ std::unique_ptr<ExecutorBase> GetExecutorImpl(bool pipelined, bool separated, bo
   if (async && separated && pipelined) {
     return std::make_unique<AsyncSeparatedPipelinedExecutor>(std::forward<T>(args)...);
   } else if (async && !separated && pipelined) {
-    return std::make_unique<AsyncPipelinedExecutor>(std::forward<T>(args)...);
+    // return std::make_unique<AsyncPipelinedExecutor>(std::forward<T>(args)...);
+    std::cerr << "\n!!! EXPERIMENTAL !!!\nUsing Executor 2.0" << std::endl;
+    return std::make_unique<exec2::Executor2>(MakeExec2Config(std::forward<T>(args)...));
   } else if (!async && separated && pipelined) {
     return std::make_unique<SeparatedPipelinedExecutor>(std::forward<T>(args)...);
   } else if (!async && !separated && pipelined) {

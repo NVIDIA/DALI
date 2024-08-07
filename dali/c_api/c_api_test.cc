@@ -622,9 +622,9 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
 
   pipe_ptr.reset();
   daliPipelineHandle handle;
-  daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
-                     this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
-                     prefetch_queue_depth, true);
+  daliCreatePipeline2(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
+                      this->device_id_, false, false, false,
+                      prefetch_queue_depth, prefetch_queue_depth, prefetch_queue_depth, true);
 
   daliRun(&handle);
   daliOutput(&handle);

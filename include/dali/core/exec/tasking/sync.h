@@ -158,6 +158,8 @@ class Semaphore : public Releasable {
   explicit Semaphore(int max_count) : Semaphore(max_count, max_count) {}
   Semaphore(int max_count, int initial_count) : count(initial_count), max_count(max_count) {}
 
+  constexpr int MaxCount() const { return max_count; }
+
  protected:
   mutable spinlock lock_;
 
