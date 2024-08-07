@@ -26,7 +26,7 @@ namespace exec2 {
 
 class ExecGraph::Analyzer {
  public:
-  void FindPinnedBuffers(ExecGraph &g) {
+  void MarkPinnedBuffers(ExecGraph &g) {
     // No non-cpu ops? Just mark everything as non-pinned and we're done.
     auto is_gpu_edge = [](const ExecEdge &e) { return e.device == StorageDevice::GPU; };
     bool has_gpu_buffers = std::find_if(g.edges_.begin(), g.edges_.end(), is_gpu_edge)
@@ -191,7 +191,7 @@ void ExecGraph::Analyze() {
   if (analyzed_)
     return;
   Analyzer a;
-  a.FindPinnedBuffers(*this);
+  a.MarkPinnedBuffers(*this);
   a.MarkOutputsWithParallelConsumers(*this);
   analyzed_ = true;
 }
