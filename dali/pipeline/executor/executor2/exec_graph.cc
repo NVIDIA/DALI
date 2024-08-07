@@ -16,7 +16,7 @@
 #include <utility>
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
-#include "dali/pipeline/executor/executor2/op_task.h"
+#include "dali/pipeline/executor/executor2/exec_node_task.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/graph/op_graph2.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
@@ -58,7 +58,7 @@ ExecNode::ExecNode(std::unique_ptr<OperatorBase> op, const graph::OpNode *def)
 }
 
 void ExecNode::CreateMainTask(const WorkspaceParams &params) {
-  main_task_ = OpTask::CreateTask(this, params);
+  main_task_ = ExecNodeTask::CreateTask(this, params);
   if (prev_task_)
     main_task_->Succeed(prev_task_);
 }

@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
@@ -29,6 +30,10 @@ namespace test {
 
 constexpr char kTestOpName[] = "Exec2TestOp";
 
+/** A dummy operator that takes a bunch of scalar inputs and returns their sum.
+ *
+ * This operator contains a sleep to increase latency and expose bugs.
+ */
 class DummyOpCPU : public Operator<CPUBackend> {
  public:
   explicit DummyOpCPU(const OpSpec &spec) : Operator<CPUBackend>(spec) {
@@ -45,6 +50,7 @@ class DummyOpCPU : public Operator<CPUBackend> {
 
   void RunImpl(Workspace &ws) override {
     int N = ws.GetRequestedBatchSize(0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     addend_.Acquire(spec_, ws, N);
     sample_sums_.resize(N);
     auto &tp = ws.GetThreadPool();
@@ -70,6 +76,10 @@ class DummyOpCPU : public Operator<CPUBackend> {
   std::string instance_name_;
 };
 
+/** A dummy operator that takes a bunch of scalar inputs and returns their sum.
+ *
+ * This operator introduces some pointless GPU work to increase latency and expose bugs.
+ */
 class DummyOpGPU : public Operator<GPUBackend> {
  public:
   explicit DummyOpGPU(const OpSpec &spec) : Operator<GPUBackend>(spec) {
@@ -97,6 +107,11 @@ class DummyOpGPU : public Operator<GPUBackend> {
 
 constexpr char kCounterOpName[] = "Exec2Counter";
 
+/** An operator with state.
+ *
+ * This operator counts iterations. Its purpose is to check that iterations are executed
+ * in correct order.
+ */
 class CounterOp : public Operator<CPUBackend> {
  public:
   explicit CounterOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {

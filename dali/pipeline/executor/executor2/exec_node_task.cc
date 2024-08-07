@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "dali/pipeline/executor/executor2/op_task.h"
+#include "dali/pipeline/executor/executor2/exec_node_task.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
 #include "dali/core/nvtx.h"
@@ -28,69 +28,82 @@
 namespace dali {
 namespace exec2 {
 
-void ClearWorkspacePayload(Workspace &ws) {
-  auto event = ws.has_event() ? ws.event() : nullptr;
-  for (int i = 0; i < ws.NumInput(); i++) {
-    // TODO(michalz): Some smarter deletion management
-    // If an input has multiple consumers, we should guarantee that the buffer is not destroyed
-    // before all consumers are done with it. A simple way of achieving that is waiting in the
-    // stream associated with the buffer for the consumer's completion event.
-    // A low-hanging optimization is to skip that when the buffer's associated stream is
-    // the same stream as the one the consumer executes on. Doing so will create bubbles in
-    // per-operator streams.
-    // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
-    // on which we would record the completion events prior to decreasing the reference count.
-    if (ws.InputIsType<CPUBackend>(i)) {
-      if (auto &pinp = ws.InputPtr<CPUBackend>(i)) {
-        auto &inp = *pinp;
-        if (event && inp.order() != ws.output_order())
-          inp.order().wait(event);
-        ws.SetInput<CPUBackend>(i, nullptr);
-      }
-    } else if (ws.InputIsType<GPUBackend>(i)) {
-      if (auto &pinp = ws.InputPtr<GPUBackend>(i)) {
-          auto &inp = *pinp;
-        if (event && inp.order() != ws.output_order())
-          inp.order().wait(event);
-        ws.SetInput<GPUBackend>(i, nullptr);
-      }
-    }
+//////////////////////////////////////////////////////////////////////////////////
+// OpTask
+
+class OpTask : public ExecNodeTask {
+ public:
+  /** Gets a functor that runs the operator. */
+  auto GetRunnable() && {
+    assert(!node_->is_pipeline_output);
+    return [self = std::move(*this)](tasking::Task *t) mutable {
+      self.task_ = t;
+      return self.Run();
+    };
   }
 
-  for (int i = 0; i < ws.NumArgumentInput(); i++)
-    ws.SetArgumentInput(i, nullptr);
+ private:
+  /** Returns the order in which the output is consumed iff the consumption order is uniform.
+   *
+   * This function is used for optimizing stream transition in cases where all consumers
+   * work on one stream. When the output is consumed on multiple streams, the result is empty
+   * and the stream assignment of the output is not updated.
+   */
+  AccessOrder OutputConsumerOrder(int output_idx) const;
 
-  for (int o = 0; o < ws.NumOutput(); o++) {
-    if (ws.OutputIsType<CPUBackend>(o))
-      ws.SetOutput<CPUBackend>(o, nullptr);
-    else if (ws.OutputIsType<GPUBackend>(o))
-      ws.SetOutput<GPUBackend>(o, nullptr);
-  }
+  /** Checks if the execution of the operator should be skipped.
+   *
+   * The operator is skipped if:
+   * 1. It has inputs and all of them are empty batches.
+   * 2. It has no inputs and the requested batch size is 0.
+   */
+  bool ShouldSkip() const;
 
-  ws.InjectIterationData(nullptr);
-}
+  /** Go over inputs and replace empty layouts with default layouts for the input ndim.
+   *
+   * The indices of inputs whose layout was changed in-place are stored in reset_input_layouts_
+   */
+  void ApplyDefaultLayouts();
 
-void OpTask::ClearWorkspace() {
-  assert(ws_);
-  ClearWorkspacePayload(*ws_);
-}
+  /** Applies a default layout to the input at index input_idx
+   *
+   * Operators have default layouts for inputs of specific rank, e.g. HWC for 3D.
+   * When no layout is specified, this function may adjust it.
+   */
+  template <typename Backend>
+  void ApplyDefaultLayout(int input_idx, const OpSchema &schema);
 
-tasking::SharedTask OpTask::CreateTask(ExecNode *node, const WorkspaceParams &params) {
-  if (node->is_pipeline_output) {
-    return tasking::Task::Create(
-      OpTask(node, params).GetOutputTaskRunnable());
-  } else {
-    int nout = node->outputs.size();
-    return tasking::Task::Create(
-      nout,
-      OpTask(node, params).GetOpTaskRunnable());
-  }
-}
+  /** Resets the layouts of inputs from reset_input_layouts_ to an empty one. */
+  void ResetInputLayouts();
+
+  friend class ExecNodeTask;
+  using ExecNodeTask::ExecNodeTask;
+
+  using OpTaskOutputs = SmallVector<std::any, 8>;
+
+  OpTaskOutputs Run();
+
+  /** Populates the workspace with the TensorLists passed as task inputs.
+   *
+   * This function sets the workspace inputs and performs the necessary synchronization
+   * with production events.
+   */
+  void SetWorkspaceInputs();
+  void SetupOp();
+  void RunOp();
+  OpTaskOutputs GetWorkspaceOutputs();
+
+
+  /** If true, the operator's Setup and Run are skipped. */
+  bool skip_ = false;
+
+  SmallVector<int, 4> reset_input_layouts_;
+};
 
 OpTask::OpTaskOutputs OpTask::Run() {
+  auto workspace_scope = GetWorkspace();
   // SetWorkspaceInputs must not go into the try/catch because it rethrows errors
   // from the inputs and we don't want them to be wrapped again as this operator's error.
-  auto workspace_scope = GetWorkspace();
   SetWorkspaceInputs();
   try {
     SetupOp();
@@ -103,53 +116,6 @@ OpTask::OpTaskOutputs OpTask::Run() {
       "Critical error in pipeline:\n" + GetErrorContextMessage(node_->op->GetSpec()),
       "\nCurrent pipeline object is no longer valid."});
   }
-}
-
-
-PipelineOutput OpTask::GetOutput() {
-  auto workspace_scope = GetWorkspace();
-  assert(ws_->NumInput() == 0);
-  assert(ws_->NumArgumentInput() == 0);
-  std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
-  assert(ws_->NumOutput() == static_cast<int>(node_->inputs.size()));
-
-  for (int o = 0; o < ws_->NumOutput(); o++) {
-    if (ws_->OutputIsType<CPUBackend>(o)) {
-      auto &inp = TaskInput<CPUBackend>(o);
-      if (inp.event)
-        events.insert(inp.event);
-      ws_->SetOutput(o, inp.data);
-    } else {
-      assert(ws_->OutputIsType<GPUBackend>(o));
-      auto &inp = TaskInput<GPUBackend>(o);
-      if (inp.event)
-        events.insert(inp.event);
-      ws_->SetOutput(o, inp.data);
-    }
-  }
-
-  for (auto e : events)
-    ws_->output_order().wait(e);
-
-  for (int o = 0; o < ws_->NumOutput(); o++) {
-    if (ws_->OutputIsType<CPUBackend>(o)) {
-      auto &out = ws_->Output<CPUBackend>(o);
-      out.set_order(ws_->output_order(), false);
-    } else {
-      auto &out = ws_->Output<GPUBackend>(o);
-      out.set_order(ws_->output_order(), false);
-    }
-  }
-
-  std::optional<int> device = {};
-  if (ws_->output_order().is_device()) {
-    assert(ws_->event());
-    device = ws_->output_order().device_id();
-    CUDA_CALL(cudaEventRecord(ws_->event(), ws_->output_order().stream()));
-  }
-
-  PipelineOutput ret{ *ws_, event_, device };
-  return ret;
 }
 
 bool OpTask::ShouldSkip() const {
@@ -216,7 +182,6 @@ void OpTask::ResetInputLayouts() {
   }
 }
 
-
 void OpTask::ApplyDefaultLayouts() {
   auto &schema = node_->op->GetSpec().GetSchema();
   for (int i = 0; i < ws_->NumInput(); i++) {
@@ -246,7 +211,7 @@ void OpTask::SetupOp() {
       tl->set_pinned(pinned);
       if (pinned) {
         if (ws.output_order().is_device())  // Only change the order of device-ordered CPU outputs
-          tl->set_order(ws.output_order());
+          tl->set_order(ws.output_order(), false);
         if (device < 0)
           CUDA_CALL(cudaGetDevice(&device));
         tl->set_device_id(device);
@@ -255,7 +220,7 @@ void OpTask::SetupOp() {
     } else if (ws.OutputIsType<GPUBackend>(i)) {
       assert(!ws.OutputPtr<GPUBackend>(i));
       auto tl = std::make_shared<TensorList<GPUBackend>>();
-      tl->set_order(ws.output_order());
+      tl->set_order(ws.output_order(), false);
       if (device < 0)
         CUDA_CALL(cudaGetDevice(&device));
       tl->set_device_id(device);
@@ -356,7 +321,7 @@ void OpTask::SetWorkspaceInputs() {
   }
 }
 
-AccessOrder OpTask::OutputConsumerOrder(int output_idx) {
+AccessOrder OpTask::OutputConsumerOrder(int output_idx) const {
   assert(static_cast<size_t>(output_idx) < node_->outputs.size());
   // Return the common stream.
   auto &consumers = node_->outputs[output_idx].consumers;
@@ -377,6 +342,11 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   for (int o = 0; o < nout; o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
       auto ptr = ws_->OutputPtr<CPUBackend>(o);
+      // If an input has a unique consumption order (all consumers use the same order),
+      // then we can simply move this buffer to a new order. The consumer stream
+      // will be properly syncrhonized in SetWorkspaceInputs.
+      // This is done to facilitate freeing of memory - if we're able to transfer the
+      // object to the consumption stream, it'll be freed in consumption order.
       if (!ptr->shares_data()) {
         if (AccessOrder consumer_order = OutputConsumerOrder(o))
           ptr->set_order(consumer_order, false);
@@ -386,6 +356,7 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
       assert(ws_->OutputIsType<GPUBackend>(o));
       auto ptr = ws_->OutputPtr<GPUBackend>(o);
       if (!ptr->shares_data()) {
+        // Transfer order - see above.
         if (AccessOrder consumer_order = OutputConsumerOrder(o)) {
           // Don't set the consumer order to `host`, because we don't synchronize on host.
           if (consumer_order != AccessOrder::host())
@@ -397,6 +368,140 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   }
 
   return ret;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// OutputTask
+
+class OutputTask : public ExecNodeTask {
+ public:
+  /** Gets a functor that returns an output Workspace compatible with DALI pipeline.
+   */
+  auto GetRunnable() && {
+    assert(node_->is_pipeline_output);
+    return [self = std::move(*this)](tasking::Task *t) mutable {
+      self.task_ = t;
+      return self.Run();
+    };
+  }
+ private:
+  friend class ExecNodeTask;
+  using ExecNodeTask::ExecNodeTask;
+
+  /** Returns a workspace in DALI pipeline compatible format (along with supporting structures).
+   *
+   * In case of operators, the inputs of the node become inputs of the workspace. In case of
+   * pipeline output, the inputs of the output node become the _outputs_ of the workspace.
+   */
+  PipelineOutput Run();
+};
+
+PipelineOutput OutputTask::Run() {
+  auto workspace_scope = GetWorkspace();
+  assert(ws_->NumInput() == 0);
+  assert(ws_->NumArgumentInput() == 0);
+  std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
+  assert(ws_->NumOutput() == static_cast<int>(node_->inputs.size()));
+
+  for (int o = 0; o < ws_->NumOutput(); o++) {
+    if (ws_->OutputIsType<CPUBackend>(o)) {
+      auto &inp = TaskInput<CPUBackend>(o);
+      if (inp.event)
+        events.insert(inp.event);
+      ws_->SetOutput(o, inp.data);
+    } else {
+      assert(ws_->OutputIsType<GPUBackend>(o));
+      auto &inp = TaskInput<GPUBackend>(o);
+      if (inp.event)
+        events.insert(inp.event);
+      ws_->SetOutput(o, inp.data);
+    }
+  }
+
+  for (auto e : events)
+    ws_->output_order().wait(e);
+
+  for (int o = 0; o < ws_->NumOutput(); o++) {
+    if (ws_->OutputIsType<CPUBackend>(o)) {
+      auto &out = ws_->Output<CPUBackend>(o);
+      out.set_order(ws_->output_order(), false);
+    } else {
+      auto &out = ws_->Output<GPUBackend>(o);
+      out.set_order(ws_->output_order(), false);
+    }
+  }
+
+  std::optional<int> device = {};
+  if (ws_->output_order().is_device()) {
+    assert(ws_->event());
+    device = ws_->output_order().device_id();
+    CUDA_CALL(cudaEventRecord(ws_->event(), ws_->output_order().stream()));
+  }
+
+  PipelineOutput ret{ *ws_, event_, device };
+  return ret;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// ExecNodeTask
+
+tasking::SharedTask ExecNodeTask::CreateTask(ExecNode *node, const WorkspaceParams &params) {
+  if (node->is_pipeline_output) {
+    return tasking::Task::Create(
+      OutputTask(node, params).GetRunnable());
+  } else {
+    int nout = node->outputs.size();
+    return tasking::Task::Create(
+      nout,
+      OpTask(node, params).GetRunnable());
+  }
+}
+
+void ClearWorkspacePayload(Workspace &ws) {
+  auto event = ws.has_event() ? ws.event() : nullptr;
+  for (int i = 0; i < ws.NumInput(); i++) {
+    // TODO(michalz): Some smarter deletion management
+    // If an input has multiple consumers, we should guarantee that the buffer is not destroyed
+    // before all consumers are done with it. A simple way of achieving that is waiting in the
+    // stream associated with the buffer for the consumer's completion event.
+    // A low-hanging optimization is to skip that when the buffer's associated stream is
+    // the same stream as the one the consumer executes on. Doing so will create bubbles in
+    // per-operator streams.
+    // Perhaps a better approach would be to move the inputs to a dedicated deleteion stream.
+    // on which we would record the completion events prior to decreasing the reference count.
+    if (ws.InputIsType<CPUBackend>(i)) {
+      if (auto &pinp = ws.InputPtr<CPUBackend>(i)) {
+        auto &inp = *pinp;
+        if (event && inp.order() != ws.output_order())
+          inp.order().wait(event);
+        ws.SetInput<CPUBackend>(i, nullptr);
+      }
+    } else if (ws.InputIsType<GPUBackend>(i)) {
+      if (auto &pinp = ws.InputPtr<GPUBackend>(i)) {
+          auto &inp = *pinp;
+        if (event && inp.order() != ws.output_order())
+          inp.order().wait(event);
+        ws.SetInput<GPUBackend>(i, nullptr);
+      }
+    }
+  }
+
+  for (int i = 0; i < ws.NumArgumentInput(); i++)
+    ws.SetArgumentInput(i, nullptr);
+
+  for (int o = 0; o < ws.NumOutput(); o++) {
+    if (ws.OutputIsType<CPUBackend>(o))
+      ws.SetOutput<CPUBackend>(o, nullptr);
+    else if (ws.OutputIsType<GPUBackend>(o))
+      ws.SetOutput<GPUBackend>(o, nullptr);
+  }
+
+  ws.InjectIterationData(nullptr);
+}
+
+void ExecNodeTask::ClearWorkspace() {
+  assert(ws_);
+  ClearWorkspacePayload(*ws_);
 }
 
 }  // namespace exec2

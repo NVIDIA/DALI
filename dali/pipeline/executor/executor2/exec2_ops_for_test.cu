@@ -60,6 +60,7 @@ void DummyOpGPU::RunImpl(Workspace &ws) {
   for (int i = 0; i < N; i++)
     addend_cpu_cont[i] = *addend_cpu[i].data;
 
+  // This should go early - if we clobber some memory with that, we'll see it
   pointers.push_back(
     scratch.ToGPU(ws.stream(), make_cspan(addend_cpu_cont)));
 
@@ -75,7 +76,16 @@ void DummyOpGPU::RunImpl(Workspace &ws) {
       pointers.push_back(inp[0].data<int>());
     }
   }
+
   sg.Run(ws.stream());
+
+  // The goal of this part is to introduce a delay in the GPU - and make the results come late
+  size_t junk_size = 16 << 20;
+  char *junk = scratch.Allocate<mm::memory_kind::device, char>(junk_size);
+  for (int i = 0; i < 256; i++)
+    CUDA_CALL(cudaMemsetAsync(junk, i, junk_size, ws.stream()));
+
+  // After the delay, we can finally run the test body
   auto &out = ws.Output<GPUBackend>(0);
   if (!out.IsContiguousInMemory()) {
     out.Reset();
