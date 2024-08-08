@@ -133,7 +133,7 @@ bool OpTask::ShouldSkip() const {
     return true;
   } else {
     for (int i = 0; i < ws_->NumOutput(); i++)
-      if (ws_->GetRequestedBatchSize(0) != 0)
+      if (ws_->GetRequestedBatchSize(i) != 0)
         return false;
 
     return true;
@@ -343,7 +343,7 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
       auto ptr = ws_->OutputPtr<CPUBackend>(o);
       // If an input has a unique consumption order (all consumers use the same order),
       // then we can simply move this buffer to a new order. The consumer stream
-      // will be properly syncrhonized in SetWorkspaceInputs.
+      // will be properly synchronized in SetWorkspaceInputs.
       // This is done to facilitate freeing of memory - if we're able to transfer the
       // object to the consumption stream, it'll be freed in consumption order.
       if (!ptr->shares_data()) {

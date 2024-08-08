@@ -170,9 +170,18 @@ class DLL_PUBLIC ExecNode {
   /** Data-independent execution environment (thread pool, stream, etc). */
   ExecEnv env = {};
 
-  /** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
+  /** Obtains the cached workspace, if present, or creates a new one.
+   *
+   * There can be only one workspace per node. The workspace is removed and then put back.
+   * Requesting multiple workspaces is a coding error.
+   * The workspace is updated with the WorkspaceParams supplied to this function.
+   */
   std::pair<std::unique_ptr<Workspace>, SharedEventLease> GetWorkspace(WorkspaceParams params);
 
+  /** Puts the workspace back into the node for later reuse.
+   *
+   * The workspace must not contain any TensorLists.
+   */
   void PutWorkspace(std::unique_ptr<Workspace> &&ws);
 
   /** The instance name of the operator. */

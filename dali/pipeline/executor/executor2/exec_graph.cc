@@ -143,7 +143,6 @@ std::unique_ptr<Workspace> ExecNode::CreateOpWorkspace() {
   return ws;
 }
 
-/** Obtains a worskpace from a workspace cache or, if not found, creates a new one. */
 std::pair<std::unique_ptr<Workspace>, SharedEventLease>
 ExecNode::GetWorkspace(WorkspaceParams params) {
   if (!ws_) {
