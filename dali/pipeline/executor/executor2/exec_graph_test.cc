@@ -466,11 +466,11 @@ TEST(ExecGraphTest, LoweredExec) {
   env.thread_pool = &tp;
   params.env = &env;
   params.batch_size = 32;
-  auto iter = std::make_shared<IterationData>();
+  params.iter_data = std::make_shared<IterationData>();
   {
     tasking::Executor ex(4);
     ex.Start();
-    g.PrepareIteration(iter, params);
+    g.PrepareIteration(params);
     auto fut = g.Launch(ex);
     auto &out = fut.Value<const PipelineOutput &>();
     CheckTestGraph1Results(out.workspace, params.batch_size);
