@@ -120,19 +120,20 @@ inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream
 }
 
 inline void get_nvimgcodec_version(int* major, int *minor, int* patch) {
-  static std::once_flag version_check_done;
   static int s_major = -1, s_minor = -1, s_patch = -1;
   auto version_check_f = [&] {
     nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
                                       sizeof(nvimgcodecProperties_t), 0};
     if (NVIMGCODEC_STATUS_SUCCESS != nvimgcodecGetProperties(&properties))
-      return;
+      return 0;
     int version = static_cast<int>(properties.version);
     s_major = NVIMGCODEC_MAJOR_FROM_SEMVER(version);
     s_minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
     s_patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
+    return 0;
   };
-  std::call_once(version_check_done, version_check_f);
+  static int version_check_done = version_check_f();
+  (void)version_check_done;
   if (s_major == -1 || s_minor == -1 || s_patch == -1)
     throw std::runtime_error("Failed to check nvImageCodec version");
   *major = s_major;

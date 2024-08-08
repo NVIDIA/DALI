@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,14 +161,14 @@ void ParseHeaderContents(HeaderData& target, const std::string &header) {
 void CheckNpyVersion(char *token) {
   int api_version = token[6];
   if (api_version != 1) {
-    static std::once_flag unrecognized_version;
-    std::call_once(unrecognized_version, [&]() {
+    static int unrecognized_version = [&]() {
       std::string actual_version =
           (api_version == 2 || api_version == 3) ? "higher" : "unrecognized";
       DALI_WARN(make_string(
           "Expected file in NPY file format version 1. The provided file uses ", actual_version,
           " version. Please note, DALI does not support structured NumPy arrays."));
-    });
+      return 0;
+    }();
   }
 }
 

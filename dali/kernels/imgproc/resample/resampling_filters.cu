@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -170,12 +170,11 @@ std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
 
 std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU() {
   (void)mm::GetDefaultResource<mm::memory_kind::host>();
-  static std::once_flag once;
-  static std::shared_ptr<ResamplingFilters> cpu_filters;
-  std::call_once(once, []() {
-    cpu_filters = std::make_shared<ResamplingFilters>();
-    InitFilters<mm::memory_kind::host>(*cpu_filters);
-  });
+  static std::shared_ptr<ResamplingFilters> cpu_filters = []() {
+    auto filters = std::make_shared<ResamplingFilters>();
+    InitFilters<mm::memory_kind::host>(*filters);
+    return filters;
+  }();
   return cpu_filters;
 }
 

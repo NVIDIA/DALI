@@ -28,6 +28,7 @@
 #include <atomic>
 #include <unordered_set>
 
+#include "dali/core/call_once.h"
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -469,7 +470,7 @@ class Loader {
     // Fetch image cache factory only the first time that we try to load an image
     // we don't do it in construction because we are not sure that the cache was
     // created since the order of operator creation is not guaranteed.
-    std::call_once(fetch_cache_, [this](){
+    dali::call_once(fetch_cache_, [this](){
       auto &image_cache_factory = ImageCacheFactory::Instance();
       if (image_cache_factory.IsInitialized(device_id_))
         cache_ = image_cache_factory.Get(device_id_);
@@ -553,7 +554,7 @@ class Loader {
   bool loading_flag_;
 
   // Image cache
-  std::once_flag fetch_cache_;
+  dali::once_flag fetch_cache_;
   std::shared_ptr<ImageCache> cache_;
 
   // Counts how many samples the reader have read returned in the current epoch (including padding)

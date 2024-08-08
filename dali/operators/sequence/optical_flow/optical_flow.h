@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,8 +64,6 @@ class OpticalFlow : public StatelessOperator<Backend> {
         enable_external_hints_(spec.GetArgument<bool>(detail::kEnableExternalHintsArgName)),
         of_params_({quality_factor_, out_grid_size_, hint_grid_size_, enable_temporal_hints_,
                     enable_external_hints_}),
-        optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
-            new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
         image_type_(spec.GetArgument<DALIImageType>(detail::kImageTypeArgName)),
         device_id_(spec.GetArgument<int>("device_id")) {
     // In case external hints are enabled, we need 2 inputs
@@ -145,18 +143,11 @@ class OpticalFlow : public StatelessOperator<Backend> {
    */
   void of_lazy_init(size_t width, size_t height, size_t channels, DALIImageType image_type,
                     int device_id, cudaStream_t stream) {
-    std::call_once(of_initialized_,
-                   [&]() {
-                       optical_flow_.reset(
-                               new optical_flow::OpticalFlowImpl(of_params_,
-                                                                 width,
-                                                                 height,
-                                                                 channels,
-                                                                 image_type,
-                                                                 device_id,
-                                                                 stream));
-                        optical_flow_->Init(of_params_);
-                   });
+    if (!optical_flow_) {
+      optical_flow_ = std::make_unique<optical_flow::OpticalFlowImpl>(
+        of_params_, width, height, channels, image_type, device_id, stream);
+      optical_flow_->Init(of_params_);
+    }
   }
 
   /**
@@ -217,7 +208,6 @@ class OpticalFlow : public StatelessOperator<Backend> {
   const int hint_grid_size_;
   const bool enable_temporal_hints_;
   const bool enable_external_hints_;
-  std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
   DALIImageType image_type_;
