@@ -46,7 +46,7 @@ struct ExecEnv {
 struct WorkspaceParams {
   ExecEnv *env = nullptr;
   std::shared_ptr<IterationData> iter_data;
-  int batch_size = -1;
+  int max_batch_size = -1;
 };
 
 inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {

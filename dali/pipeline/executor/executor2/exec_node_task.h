@@ -61,7 +61,7 @@ class ExecNodeTask {
 
   template <typename Backend>
   struct OperatorIO {
-    const std::shared_ptr<TensorList<Backend>> data;
+    std::shared_ptr<TensorList<Backend>> data;
     SharedEventLease event;
     AccessOrder order = AccessOrder::host();
   };
