@@ -77,6 +77,8 @@ class ExecNodeTask {
   auto GetWorkspace() {
     assert(!ws_);
     std::tie(ws_, event_) = node_->GetWorkspace(ws_params_);
+    assert(ws_ != nullptr);
+    assert(ws_->output_order() && "Workspace must have a valid order");
     return AtScopeExit([this]() {
       ClearWorkspace();
       node_->PutWorkspace(std::move(ws_));

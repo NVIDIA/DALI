@@ -210,8 +210,7 @@ void OpTask::SetupOp() {
       bool pinned = node_->outputs[i].pinned;
       tl->set_pinned(pinned);
       if (pinned) {
-        if (ws.output_order().is_device())  // Only change the order of device-ordered CPU outputs
-          tl->set_order(ws.output_order(), false);
+        tl->set_order(ws.output_order(), false);
         if (device < 0)
           CUDA_CALL(cudaGetDevice(&device));
         tl->set_device_id(device);

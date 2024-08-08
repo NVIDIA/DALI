@@ -158,19 +158,14 @@ ExecNode::GetWorkspace(WorkspaceParams params) {
   if (!params.env)
     params.env = &env;
 
-  ws_event_.reset();
-  ws_->set_event(nullptr);
-
-  for (int o = 0; o < ws_->NumOutput(); o++) {
-    if (ws_->OutputIsType<GPUBackend>(o)) {
-      if (!ws_event_)
-        ws_event_ = SharedEventLease::Get();
-      ws_->set_event(ws_event_);
-      break;
-    }
-  }
-
   ApplyWorkspaceParams(*ws_, params);
+
+  if (ws_->output_order().is_device())
+    ws_event_ = SharedEventLease::Get();
+  else
+    ws_event_.reset();
+  ws_->set_event(ws_event_);
+
   return { std::move(ws_), ws_event_ };
 }
 
