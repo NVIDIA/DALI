@@ -64,8 +64,6 @@ class OpticalFlow : public StatelessOperator<Backend> {
         enable_external_hints_(spec.GetArgument<bool>(detail::kEnableExternalHintsArgName)),
         of_params_({quality_factor_, out_grid_size_, hint_grid_size_, enable_temporal_hints_,
                     enable_external_hints_}),
-        optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
-            new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
         image_type_(spec.GetArgument<DALIImageType>(detail::kImageTypeArgName)),
         device_id_(spec.GetArgument<int>("device_id")) {
     // In case external hints are enabled, we need 2 inputs
