@@ -85,17 +85,6 @@ void ResamplingFilterAttr::PrepareFilterParams(
   bool has_antialias = spec.ArgumentDefined("antialias");
   antialias_ = spec.GetArgument<bool>("antialias");
 
-  if (!has_antialias) {  // antialias not provided explicitly
-    // ... and linear was selected explicitly
-    auto is_linear_default = [](span<const DALIInterpType> interp_types) -> bool {
-      for (auto &interp_type : interp_types) {
-        if (interp_type == DALI_INTERP_LINEAR)
-          return true;
-      }
-      return false;
-    };
-  }
-
   min_filter_.resize(num_samples, ResamplingFilterType::Triangular);
   mag_filter_.resize(num_samples, ResamplingFilterType::Linear);
 
