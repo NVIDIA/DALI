@@ -60,9 +60,6 @@ fi
 
 SCRIPT_PATH=$(dirname $(readlink -f $0))
 
-# For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
-OUTWHLNAME=${OUTWHLNAME//-none-/-}
-
 PKGNAME=$(echo "$OUTWHLNAME" | sed 's/-.*$//')
 PKGNAME_PATH=$(echo "$PKGNAME" | sed 's/_/\//' | sed 's/_.*$//')
 
@@ -273,8 +270,7 @@ echo "Fixed rpath of .lib files"
 
 # correct the metadata in the dist-info/WHEEL, e.g.:
 #Root-Is-Purelib: true
-#Tag: cp27-cp27mu-none-manylinux1_x86_64
-sed -i 's/\(Tag:.*\)-none-/\1-/;s/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}-*.dist-info/WHEEL
+sed -i 's/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}-*.dist-info/WHEEL
 
 # regenerate the RECORD file with new hashes
 RECORD_FILE=$(ls $PKGNAME-*.dist-info/RECORD)
