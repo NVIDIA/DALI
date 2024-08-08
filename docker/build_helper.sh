@@ -144,7 +144,7 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
     python setup.py bdist_wheel \
         --verbose \
         --compression=stored \
-        --python-tag=py3-none \
+        --python-tag=py3 \
         --plat-name=${WHL_PLATFORM_NAME} \
         --build-number=${NVIDIA_BUILD_ID}
     popd
