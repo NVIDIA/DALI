@@ -725,7 +725,7 @@ class DALISingleOpTest : public DALITest {
                           checkAll, &mean, shape1);
         } else {
           colorIdx = CheckBuffers<unsigned char>(lenBuffer,
-                          (*t1).template tensor<uint8>(i), (*t2).template tensor<uint8>(i),
+                          (*t1).template tensor<uint8_t>(i), (*t2).template tensor<uint8_t>(i),
                           checkAll, &mean, shape1);
         }
 
@@ -764,7 +764,7 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_, jpeg2k_decoded_;
+  vector<vector<uint8_t>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_, jpeg2k_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_, bmp_dims_, jpeg2k_dims_;
 
 

@@ -134,7 +134,7 @@ TEST(CopyWithStrideTest, TwoDimsGPU) {
   TensorShape<2> shape{2, 4};
   constexpr int vol = 8;
   ASSERT_EQ(vol, volume(shape));
-  DeviceBuffer<int64> data;
+  DeviceBuffer<int64_t> data;
   data.from_host(h_data);
   auto dl_tensors = DlTensorSingletonBatch(AsDlTensor(data, dtype, shape, stride));
   auto output_tl = SingletonTL(shape, dtype);

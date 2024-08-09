@@ -122,7 +122,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     }
   }
 
-  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs,
+  void VerifyDecode(const uint8_t *img, int h, int w, const ImgSetDescr &imgs,
                     int img_id) const {
     // Compare w/ opencv result
     const auto imgData = imgs.data_[img_id];
@@ -131,7 +131,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();
     this->DecodeImage(imgData, imgSize, c, this->ImageType(), &out);
-    this->CheckBuffers(h * w * c, out.mutable_data<uint8>(), img, false, nullptr, {h, w, c});
+    this->CheckBuffers(h * w * c, out.mutable_data<uint8_t>(), img, false, nullptr, {h, w, c});
   }
 
   uint32_t GetImageLoadingFlags() const override {

@@ -22,7 +22,7 @@
 
 namespace dali {
 
-inline std::string serialize_type(const int64&) {
+inline std::string serialize_type(const int64_t&) {
   return "int64";
 }
 
@@ -54,17 +54,17 @@ inline DaliProtoPriv * SerializeToProtobuf(const type& t, DaliProtoPriv *arg) { 
 
 #define SERIALIZE_ARGUMENT_AS_INT64(type) \
 inline DaliProtoPriv * SerializeToProtobuf(const type& t, DaliProtoPriv *arg) { \
-  return dali::SerializeToProtobuf(static_cast<int64>(t), arg); \
+  return dali::SerializeToProtobuf(static_cast<int64_t>(t), arg); \
 }
 
-SERIALIZE_ARGUMENT(int64, ints);
+SERIALIZE_ARGUMENT(int64_t, ints);
 SERIALIZE_ARGUMENT(float, floats);
 SERIALIZE_ARGUMENT(bool, bools);
 SERIALIZE_ARGUMENT(string, strings);
 
 SERIALIZE_ARGUMENT_AS_INT64(int);
 SERIALIZE_ARGUMENT_AS_INT64(unsigned int);
-SERIALIZE_ARGUMENT_AS_INT64(uint64);
+SERIALIZE_ARGUMENT_AS_INT64(uint64_t);
 
 template<typename T>
 inline auto SerializeToProtobuf(const T& t, DaliProtoPriv *arg)

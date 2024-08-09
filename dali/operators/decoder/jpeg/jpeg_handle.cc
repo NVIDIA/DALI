@@ -186,12 +186,12 @@ boolean MemFillInputBuffer(j_decompress_ptr cinfo) {
 void MemTermSource(j_decompress_ptr cinfo) {}
 
 // -----------------------------------------------------------------------------
-void MemSkipInputData(j_decompress_ptr cinfo, int64 jump) {
+void MemSkipInputData(j_decompress_ptr cinfo, int64_t jump) {
   MemSourceMgr *src = reinterpret_cast<MemSourceMgr *>(cinfo->src);
   if (jump < 0) {
     return;
   }
-  if (jump > static_cast<int64>(src->pub.bytes_in_buffer)) {
+  if (jump > static_cast<int64_t>(src->pub.bytes_in_buffer)) {
     src->pub.bytes_in_buffer = 0;
     (void)MemFillInputBuffer(cinfo);  // warn with a fake EOI or error
   } else {
@@ -202,7 +202,7 @@ void MemSkipInputData(j_decompress_ptr cinfo, int64 jump) {
 
 // -----------------------------------------------------------------------------
 void SetSrc(j_decompress_ptr cinfo, const void *data,
-            uint64 datasize, bool try_recover_truncated_jpeg) {
+            uint64_t datasize, bool try_recover_truncated_jpeg) {
   MemSourceMgr *src;
 
   cinfo->src = reinterpret_cast<struct jpeg_source_mgr *>(

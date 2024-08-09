@@ -631,8 +631,8 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < batch_size; j++) {
       std::memcpy(
-        split_tl[i].template mutable_tensor<uint8>(j),
-        tl.template tensor<uint8>(i * batch_size + j),
+        split_tl[i].template mutable_tensor<uint8_t>(j),
+        tl.template tensor<uint8_t>(i * batch_size + j),
         volume(tl.tensor_shape(i * batch_size + j)));
     }
   }

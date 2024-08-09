@@ -33,12 +33,12 @@ class StdCUFileStream : public CUFileStream {
   explicit StdCUFileStream(const std::string& path);
   void Close() override;
   size_t ReadAtGPU(void *gpu_buffer, size_t n_bytes,
-                   ptrdiff_t buffer_offset, int64 file_offset) override;
+                   ptrdiff_t buffer_offset, int64_t file_offset) override;
   size_t ReadGPU(void *buffer, size_t n_bytes, ptrdiff_t offset = 0) override;
   size_t Read(void *cpu_buffer, size_t n_bytes) override;
   void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
   ptrdiff_t TellRead() const override;
-  void HandleIOError(int64 ret) const;
+  void HandleIOError(int64_t ret) const;
   size_t Size() const override;
 
   ~StdCUFileStream() override;

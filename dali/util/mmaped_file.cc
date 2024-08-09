@@ -181,7 +181,7 @@ void MmapedFileStream::SeekRead(ptrdiff_t pos, int whence) {
     pos += pos_;
   else if (whence == SEEK_END)
     pos += length_;
-  DALI_ENFORCE(pos >= 0 && pos <= (int64)length_, "Invalid seek");
+  DALI_ENFORCE(pos >= 0 && pos <= (int64_t)length_, "Invalid seek");
   pos_ = pos;
 }
 

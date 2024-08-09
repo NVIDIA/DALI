@@ -26,9 +26,10 @@ import tempfile
 import time
 from PIL import Image, ImageEnhance
 from nvidia.dali.ops import _DataNode
+from nose2.tools import params
 
 from nose_utils import raises
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, np_type_to_dali
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
@@ -670,3 +671,48 @@ def test_current_pipeline():
     pipe2.build()
     pipe1.run()
     pipe2.run()
+
+
+@params(
+    numpy.bool_,
+    numpy.int_,
+    numpy.intc,
+    numpy.intp,
+    numpy.int8,
+    numpy.int16,
+    numpy.int32,
+    numpy.int64,
+    numpy.uint8,
+    numpy.uint16,
+    numpy.uint32,
+    numpy.uint64,
+    numpy.float_,
+    numpy.float32,
+    numpy.float16,
+    numpy.short,
+    numpy.longlong,
+    numpy.ushort,
+    numpy.ulonglong,
+)
+def test_different_types(input_type):
+    max_batch_size = 4
+
+    def check_type(data):
+
+        def check_type_fn(data):
+            assert data.dtype == input_type
+
+        fn.python_function(data, function=check_type_fn, num_outputs=0, preserve=True)
+
+    @pipeline_def
+    def test_pipe():
+        data = fn.ones(shape=[1, 1, 1], dtype=np_type_to_dali(input_type))
+        check_type(data)
+        return data
+
+    pipe = test_pipe(
+        batch_size=max_batch_size, num_threads=1, device_id=0, enable_conditionals=True
+    )
+    pipe.build()
+
+    _ = pipe.run()

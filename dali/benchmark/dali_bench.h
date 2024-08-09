@@ -60,7 +60,7 @@ class DALIBenchmark : public benchmark::Fixture {
     tl->Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < n; ++i) {
-      std::memcpy(tl->template mutable_tensor<uint8>(i),
+      std::memcpy(tl->template mutable_tensor<uint8_t>(i),
           jpegs_.data_[i % nImgs], jpegs_.sizes_[i % nImgs]);
       tl->SetSourceInfo(i, jpeg_names_[i % nImgs] + "_" + std::to_string(i));
     }

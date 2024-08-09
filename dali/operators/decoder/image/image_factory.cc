@@ -30,7 +30,7 @@ namespace dali {
 
 namespace {
 
-bool CheckIsJPEG(const uint8 *jpeg, int) {
+bool CheckIsJPEG(const uint8_t *jpeg, int) {
   DALI_ENFORCE(jpeg);
   return (jpeg[0] == 255) && (jpeg[1] == 216);
 }

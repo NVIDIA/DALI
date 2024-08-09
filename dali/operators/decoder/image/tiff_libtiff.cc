@@ -278,7 +278,7 @@ Image::Shape TiffImage_Libtiff::PeekShapeImpl(const uint8_t *encoded_buffer,
 
 std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
-                              const uint8 *encoded_buffer,
+                              const uint8_t *encoded_buffer,
                               size_t length) const {
   // This decoder only handles bitdepth=8, non-tiled and top-left orientation
   // Other cases go to OpenCV's based decoder

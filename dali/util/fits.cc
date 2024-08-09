@@ -108,13 +108,13 @@ std::vector<int64_t> GetTileSizes(fitsfile* fptr, int32_t n_dims) {
 template <unsigned level>
 inline void ExtractData(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
                         std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
-                        int64* ftile, int64* ltile, int64* tilesize, int64* thistilesize,
-                        int64* rowdim, int64* naxis, int64* offset, int* size, int64* sum_nelemll,
-                        int* status, unsigned max_level = level) {
+                        int64_t* ftile, int64_t* ltile, int64_t* tilesize, int64_t* thistilesize,
+                        int64_t* rowdim, int64_t* naxis, int64_t* offset, int* size,
+                        int64_t* sum_nelemll, int* status, unsigned max_level = level) {
   for (int i = ftile[level]; i <= ltile[level]; ++i) {
     // first and last image pixels along each dimension of the compression tile
-    int64 tfpixel = (i - 1) * tilesize[level] + 1;
-    int64 tlpixel = minvalue(tfpixel + tilesize[level] - 1, naxis[level]);
+    int64_t tfpixel = (i - 1) * tilesize[level] + 1;
+    int64_t tlpixel = minvalue(tfpixel + tilesize[level] - 1, naxis[level]);
     if (level == max_level) {
       thistilesize[level] = tlpixel - tfpixel + 1;
       offset[level] = (i - 1) * rowdim[level];
@@ -131,25 +131,25 @@ inline void ExtractData(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_d
 template <>
 inline void ExtractData<0>(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
                            std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
-                           int64* ftile, int64* ltile, int64* tilesize, int64* thistilesize,
-                           int64* rowdim, int64* naxis, int64* offset, int* size,
-                           int64* sum_nelemll, int* status, unsigned max_level) {
+                           int64_t* ftile, int64_t* ltile, int64_t* tilesize, int64_t* thistilesize,
+                           int64_t* rowdim, int64_t* naxis, int64_t* offset, int* size,
+                           int64_t* sum_nelemll, int* status, unsigned max_level) {
   for (int i = ftile[0]; i <= ltile[0]; ++i) {
-    int64 tfpixel = (i - 1) * tilesize[0] + 1;
-    int64 tlpixel = minvalue(tfpixel + tilesize[0] - 1, naxis[0]);
+    int64_t tfpixel = (i - 1) * tilesize[0] + 1;
+    int64_t tlpixel = minvalue(tfpixel + tilesize[0] - 1, naxis[0]);
     thistilesize[0] = thistilesize[1] * (tlpixel - tfpixel + 1);
-    int64 irow = i + offset[1];
+    int64_t irow = i + offset[1];
 
     LONGLONG nelemll = 0, noffset = 0;
     ffgdesll(fptr, (fptr->Fptr)->cn_compressed, irow, &nelemll, &noffset, status);
 
     tile_offset[*size] = *sum_nelemll;
-    tile_size[*size] = static_cast<int64>(thistilesize[0]);
+    tile_size[*size] = static_cast<int64_t>(thistilesize[0]);
 
     unsigned char charnull = 0;
     raw_data[*size].resize(nelemll / sizeof(unsigned char));
     FITS_CALL(fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1,
-                            static_cast<int64>(nelemll),
+                            static_cast<int64_t>(nelemll),
                             &charnull, raw_data[*size].data(), nullptr, status));
 
     ++(*size);
@@ -202,7 +202,7 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
 
 int ExtractUndecodedData(fitsfile* fptr, std::vector<uint8_t>& data,
                          std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
-                         int64 rows, int* status) {
+                         int64_t rows, int* status) {
   std::vector<std::vector<uint8_t>> raw_data;
   raw_data.resize(rows);
   tile_offset.resize(rows + 1);
@@ -216,31 +216,31 @@ int ExtractUndecodedData(fitsfile* fptr, std::vector<uint8_t>& data,
   }
 
   // length of each axis
-  int64 naxis[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64_t naxis[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   // number of tiles covering given axis
-  int64 tiledim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64_t tiledim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   // size of compression tiles
-  int64 tilesize[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64_t tilesize[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   // tile containing the first pixel we want to read in each dimension
-  int64 ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64_t ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   // tile containing the last pixel we want to read in each dimension
-  int64 ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64_t ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   // total tiles in each dimension
-  int64 rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  int64 offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
-  int64 mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];
-  int64 ntemp, sum_nelemll;
+  int64_t rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64_t offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
+  int64_t mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];
+  int64_t ntemp, sum_nelemll;
   int ndim, size;
 
   ndim = (fptr->Fptr)->zndim;
   ntemp = 1;
   for (int i = 0; i < ndim; ++i) {
     if (fpixel[i] <= lpixel[i]) {
-      mfpixel[i] = static_cast<int64>(fpixel[i]);
-      mlpixel[i] = static_cast<int64>(lpixel[i]);
+      mfpixel[i] = static_cast<int64_t>(fpixel[i]);
+      mlpixel[i] = static_cast<int64_t>(lpixel[i]);
     } else {
-      mfpixel[i] = static_cast<int64>(lpixel[i]);
-      mlpixel[i] = static_cast<int64>(fpixel[i]);
+      mfpixel[i] = static_cast<int64_t>(lpixel[i]);
+      mlpixel[i] = static_cast<int64_t>(fpixel[i]);
     }
 
     naxis[i] = (fptr->Fptr)->znaxis[i];

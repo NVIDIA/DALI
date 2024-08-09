@@ -339,7 +339,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAccess) {
     ASSERT_TRUE(tl.shares_data());
 
     // Access can't change the underlying data type (which can happen only through Resize)
-    ASSERT_THROW(tl.template mutable_tensor<int16>(0), std::runtime_error);
+    ASSERT_THROW(tl.template mutable_tensor<int16_t>(0), std::runtime_error);
     ASSERT_THROW(tl.template mutable_tensor<double>(0), std::runtime_error);
     // We also cannot allocate bigger
     ASSERT_THROW(tl.Resize(tl.shape(), DALI_FLOAT64), std::runtime_error);

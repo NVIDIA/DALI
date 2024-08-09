@@ -29,9 +29,9 @@ __launch_bounds__(PASTE_BLOCKSIZE, 1)
 void BatchedPaste(
     const int N,
     const int C,
-    const uint8* const __restrict__ fill_value,
-    const uint8* const * const __restrict__ in_batch,
-    uint8* const* const __restrict__ out_batch,
+    const uint8_t* const __restrict__ fill_value,
+    const uint8_t* const * const __restrict__ in_batch,
+    uint8_t* const* const __restrict__ out_batch,
     const int* const __restrict__ in_out_dims_paste_yx) {
   const int n = blockIdx.x;
 
@@ -40,7 +40,7 @@ void BatchedPaste(
   constexpr int nWaves = blockSize / nThreadsPerWave;
   constexpr int MAX_C = 1024;
 
-  __shared__ uint8 rgb[MAX_C];
+  __shared__ uint8_t rgb[MAX_C];
   __shared__ int jump[MAX_C];
   for (int i = threadIdx.x; i < C; i += blockDim.x) {
     rgb[i] = fill_value[i % C];
@@ -55,8 +55,8 @@ void BatchedPaste(
   const int paste_y = in_out_dims_paste_yx[offset + 4];
   const int paste_x = in_out_dims_paste_yx[offset + 5];
 
-  const uint8* const input_ptr = in_batch[n];
-  uint8 * const output_ptr = out_batch[n];
+  const uint8_t* const input_ptr = in_batch[n];
+  uint8_t * const output_ptr = out_batch[n];
 
   __syncthreads();
 
@@ -112,9 +112,9 @@ void Paste<GPUBackend>::RunHelper(Workspace &ws) {
   BatchedPaste<<<curr_batch_size, PASTE_BLOCKSIZE, 0, ws.stream()>>>(
       curr_batch_size,
       C_,
-      fill_value_.template data<uint8>(),
-      input_ptrs_gpu_.template data<const uint8*>(),
-      output_ptrs_gpu_.template data<uint8*>(),
+      fill_value_.template data<uint8_t>(),
+      input_ptrs_gpu_.template data<const uint8_t*>(),
+      output_ptrs_gpu_.template data<uint8_t*>(),
       in_out_dims_paste_yx_gpu_.template data<int>());
 }
 
@@ -173,10 +173,10 @@ void Paste<GPUBackend>::SetupSampleParams(Workspace &ws) {
   output.SetLayout("HWC");
 
   for (int i = 0; i < curr_batch_size; ++i) {
-      input_ptrs_.template mutable_data<const uint8*>()[i] =
-            input.template tensor<uint8>(i);
-      output_ptrs_.template mutable_data<uint8*>()[i] =
-            output.template mutable_tensor<uint8>(i);
+      input_ptrs_.template mutable_data<const uint8_t*>()[i] =
+            input.template tensor<uint8_t>(i);
+      output_ptrs_.template mutable_data<uint8_t*>()[i] =
+            output.template mutable_tensor<uint8_t>(i);
   }
 
   // Copy pointers on the GPU for fast access

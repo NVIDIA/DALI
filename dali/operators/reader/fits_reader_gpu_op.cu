@@ -33,8 +33,8 @@ __device__ unsigned int read_lastpix(unsigned char *compressed_tile) {
 
 template <typename T>
 __global__ void rice_decompress(unsigned char *compressed_data, T *uncompressed_data,
-                                const int64 *tile_offset, const int64 *tile_size, int blocksize,
-                                int64 tiles, int64 maxtilelen, double bscale, double bzero) {
+                                const int64_t *tile_offset, const int64_t *tile_size, int blocksize,
+                                int64_t tiles, int64_t maxtilelen, double bscale, double bzero) {
   const int fsbits[3] = {3, 4, 5};
   const int fsmax[3] = {6, 14, 25};
   const int nonzero_count[256] = {
@@ -50,13 +50,13 @@ __global__ void rice_decompress(unsigned char *compressed_data, T *uncompressed_
 
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = blockDim.x * gridDim.x;
-  for (int64 tile = index; tile < tiles; tile += stride) {
+  for (int64_t tile = index; tile < tiles; tile += stride) {
     unsigned char *compressed_tile = compressed_data + tile_offset[tile];
     int i, imax, k;
     int nbits, nzero, fs;
     unsigned int b, diff, lastpix;
     int bbits, bytelog2;
-    int64 beg;
+    int64_t beg;
 
     bytelog2 = 0;
     for (int i = sizeof(T); i > 1; i >>= 1) {

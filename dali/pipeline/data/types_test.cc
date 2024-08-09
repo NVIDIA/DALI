@@ -81,18 +81,18 @@ TYPENAME_FUNC(double, double);
 TYPENAME_FUNC(bool, bool);
 
 template <>
-std::string TypesTest<std::vector<uint8>>::TypeName() {
+std::string TypesTest<std::vector<uint8_t>>::TypeName() {
   return "list of uint8";
 }
 
 template <>
-std::string TypesTest<std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>::TypeName() {
+std::string TypesTest<std::array<std::vector<uint8_t>, DUMMY_ARRAY_SIZE>>::TypeName() {
   return "list of list of uint8";
 }
 
 typedef ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t,
-                         float16, float, double, bool, std::vector<uint8>,
-                         std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>
+                         float16, float, double, bool, std::vector<uint8_t>,
+                         std::array<std::vector<uint8_t>, DUMMY_ARRAY_SIZE>>
     TestTypes;
 
 TYPED_TEST_SUITE(TypesTest, TestTypes);

@@ -28,13 +28,13 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
 
   // Verify input
   DALI_ENFORCE(input.ndim() == 1, "Input must be 1D encoded jpeg string.");
-  DALI_ENFORCE(IsType<uint8>(input.type()), "Input must be stored as uint8 data.");
+  DALI_ENFORCE(IsType<uint8_t>(input.type()), "Input must be stored as uint8 data.");
 
   std::unique_ptr<Image> img;
   try {
     DomainTimeRange tr(make_string("Decode #", ws.data_idx(), " fast_idct=", use_fast_idct_),
                        DomainTimeRange::kBlue1);
-    img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
+    img = ImageFactory::CreateImage(input.data<uint8_t>(), input.size(), output_type_);
     img->SetCropWindowGenerator(GetCropWindowGenerator(ws.data_idx()));
     img->SetUseFastIdct(use_fast_idct_);
     img->Decode();

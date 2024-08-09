@@ -698,7 +698,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
           dst = reinterpret_cast<void *>(output.flat<int32_t>().data());
           break;
         case DT_INT64:
-          dst = reinterpret_cast<void *>(output.flat<int64>().data());
+          dst = reinterpret_cast<void *>(output.flat<int64_t>().data());
           break;
         default:
           return errors::InvalidArgument(

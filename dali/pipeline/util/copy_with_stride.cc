@@ -20,7 +20,7 @@
 
 namespace dali {
 
-inline void CopyVec(uint8 *output, const uint8 *input, size_t elems,
+inline void CopyVec(uint8_t *output, const uint8_t *input, size_t elems,
                     size_t in_stride, size_t item_size) {
   for (size_t i = 0; i < elems; ++i) {
     for (size_t j = 0; j < item_size; j++)
@@ -30,7 +30,7 @@ inline void CopyVec(uint8 *output, const uint8 *input, size_t elems,
 }
 
 template <size_t item_size>
-inline void CopyVecStatic(uint8 *output, const uint8 *input, size_t elems, size_t in_stride) {
+inline void CopyVecStatic(uint8_t *output, const uint8_t *input, size_t elems, size_t in_stride) {
   for (size_t i = 0; i < elems; ++i) {
     for (size_t j = 0; j < item_size; j++)
       output[j] = input[j];
@@ -45,8 +45,8 @@ inline void CopyWithStrideHelper(void *output, const void *input,
                                  const Index *shape,
                                  Index ndim,
                                  Index dim, Index deepest_contiguous) {
-  auto out_ptr = reinterpret_cast<uint8*>(output);
-  auto in_ptr = reinterpret_cast<const uint8*>(input);
+  auto out_ptr = reinterpret_cast<uint8_t*>(output);
+  auto in_ptr = reinterpret_cast<const uint8_t*>(input);
   const auto item_size = out_strides[ndim - 1];
   if (dim == deepest_contiguous) {
     std::memcpy(out_ptr, in_ptr,

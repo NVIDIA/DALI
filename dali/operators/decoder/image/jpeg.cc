@@ -28,7 +28,7 @@ JpegImage::JpegImage(const uint8_t *encoded_buffer,
 }
 
 #ifndef DALI_USE_JPEG_TURBO
-bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width, int *nchannels) {
+bool get_jpeg_size(const uint8_t *data, size_t data_size, int *height, int *width, int *nchannels) {
   unsigned int i = 0;
   if (!(data[i] == 0xFF && data[i + 1] == 0xD8))
     return false;  // Not a valid SOI header
@@ -59,7 +59,7 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width,
 #endif
 
 std::pair<std::shared_ptr<uint8_t>, Image::Shape>
-JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
+JpegImage::DecodeImpl(DALIImageType type, const uint8_t *jpeg, size_t length) const {
   const auto shape = PeekShapeImpl(jpeg, length);
   const auto h = shape[0];
   const auto w = shape[1];

@@ -55,12 +55,12 @@ typedef struct {
 typedef struct {
   struct jpeg_source_mgr pub;
   const unsigned char *data;
-  uint64 datasize;
+  uint64_t datasize;
   bool try_recover_truncated_jpeg;
 } MemSourceMgr;
 
 void SetSrc(j_decompress_ptr cinfo, const void *data,
-            uint64 datasize, bool try_recover_truncated_jpeg);
+            uint64_t datasize, bool try_recover_truncated_jpeg);
 
 // JPEG destination: we will store all the data in a buffer "buffer" of total
 // size "bufsize", if the buffer overflows, we will be in trouble.

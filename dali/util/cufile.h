@@ -56,7 +56,7 @@ class DLL_PUBLIC CUFileStream : public FileStream {
    * This function is thread-safe.
    */
   virtual size_t ReadAtGPU(void *buffer, size_t n_bytes,
-                           ptrdiff_t buffer_offset, int64 file_offset) = 0;
+                           ptrdiff_t buffer_offset, int64_t file_offset) = 0;
 
  protected:
   explicit CUFileStream(const std::string& path) : FileStream(path) {}

@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <vector>
+#include "dali/core/static_switch.h"
+#include "dali/core/error_handling.h"
 #include "dali/operators/generic/flip.h"
 #include "dali/kernels/imgproc/flip_cpu.h"
 #include "dali/kernels/kernel_params.h"
@@ -42,7 +44,7 @@ Flip<CPUBackend>::Flip(const OpSpec &spec)
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
              const TensorLayout &layout,
              bool horizontal, bool vertical, bool depthwise) {
-  DALI_TYPE_SWITCH(input.type(), DType,
+  TYPE_SWITCH(input.type(), type2id, DType, (DALI_NUMERIC_TYPES), (
       auto output_ptr = output.mutable_data<DType>();
       auto input_ptr = input.data<DType>();
       auto kernel = kernels::FlipCPU<DType>();
@@ -54,7 +56,7 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       auto out_shape = reqs.output_shapes[0][0].to_static<flip_ndim>();
       auto out_view = kernels::OutTensorCPU<DType, flip_ndim>(output_ptr, out_shape);
       kernel.Run(ctx, out_view, in_view, depthwise, vertical, horizontal);
-  )
+  ), (DALI_FAIL(make_string("The element type ", input.type(), " is not supported."))));  // NOLINT
 }
 
 template <>
