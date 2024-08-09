@@ -474,6 +474,11 @@ class Task : public CompletionEvent {
     return inputs_[index]->Value();
   }
 
+  /** Returns the number of inputs that the task is subscribed to. */
+  int NumInputs() const {
+    return inputs_.size();
+  }
+
   /** Returns a value returns by one of the producers and casts it to the specified type.
    */
   template <typename T>
