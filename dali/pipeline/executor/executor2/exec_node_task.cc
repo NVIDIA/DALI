@@ -43,13 +43,14 @@ class OpTask : public ExecNodeTask {
   }
 
  private:
-  /** Returns the order in which the output is consumed iff the consumption order is uniform.
+  /** Returns the stream in which the output is consumed if the consumers work on the same stream.
    *
    * This function is used for optimizing stream transition in cases where all consumers
    * work on one stream. When the output is consumed on multiple streams, the result is empty
    * and the stream assignment of the output is not updated.
+   * Consumption in host order is ingored.
    */
-  AccessOrder OutputConsumerOrder(int output_idx) const;
+  AccessOrder OutputConsumerStream(int output_idx) const;
 
   /** Checks if the execution of the operator should be skipped.
    *
@@ -272,23 +273,38 @@ void OpTask::SetWorkspaceInputs() {
   assert(ws_->NumInput() + ws_->NumArgumentInput() == static_cast<int>(node_->inputs.size()));
   auto order = ws_->output_order();
   std::unordered_set<cudaEvent_t> events(ws_->NumInput() + ws_->NumArgumentInput());
+  auto &schema = node_->op->GetSpec().GetSchema();
+
+  auto process_input = [&](int i, auto backend) {
+    using Backend = decltype(backend);
+    const auto &inp = TaskInput<Backend>(ti);
+    // If the output order of the operator is `host` then we don't wait for GPU
+    // inputs - they can't be accessed directly on host and the operator will
+    // have to issue some sort of synchronization if and when necessary.
+    // This optimization is essential to avoid oversynchronization
+    // when the operator needs to access the metadata only (e.g. getting the shape).
+    if ((order.is_device() || std::is_same_v<Backend, CPUBackend>) /*see comment above */ &&
+        inp.event && inp.order != order)
+      events.insert(inp.event);
+
+    if (inp.order == order) {  // use the input directly
+      ws_->SetInput(i, inp.data);
+    } else {  // create another TL and set its order (and layout, while we're at it)
+      auto tl = std::make_shared<TensorList<Backend>>();
+      tl->ShareData(*inp.data);
+      tl->set_order(order, false);
+      // this will avoid potentially one more proxy object, when adjusting layouts
+      SetDefaultLayoutIfNeeded(*tl, schema, i);
+      ws_->SetInput(i, std::move(tl));
+    }
+  };
+
   for (int i = 0; i < ws_->NumInput(); i++, ti++) {
     if (ws_->InputIsType<CPUBackend>(i)) {
-      auto inp = TaskInput<CPUBackend>(ti);
-      if (inp.event && inp.order != order)
-        events.insert(inp.event);
-      ws_->SetInput(i, inp.data);
+      process_input(i, CPUBackend());
     } else {
       assert(ws_->InputIsType<GPUBackend>(i));
-      auto inp = TaskInput<GPUBackend>(ti);
-      // If the output order of the operator is `host` then we don't wait for GPU
-      // inputs - they can't be accessed directly on host and the operator will
-      // have to issue some sort of synchronization if and when necessary.
-      // This optimization is essential to avoid oversynchronization
-      // when the operator needs to access the metadata only (e.g. getting the shape).
-      if (order.is_device() /*see comment above */ && inp.event && inp.order != order)
-        events.insert(inp.event);
-      ws_->SetInput(i, inp.data);
+      process_input(i, GPUBackend());
     }
   }
 
@@ -320,16 +336,23 @@ void OpTask::SetWorkspaceInputs() {
   }
 }
 
-AccessOrder OpTask::OutputConsumerOrder(int output_idx) const {
+AccessOrder OpTask::OutputConsumerStream(int output_idx) const {
   assert(static_cast<size_t>(output_idx) < node_->outputs.size());
   // Return the common stream.
   auto &consumers = node_->outputs[output_idx].consumers;
   if (consumers.empty())
     return {};  // definitely no consumer
-  AccessOrder order = consumers[0]->consumer->env.order;
-  for (size_t i = 1; i < consumers.size(); i++)
-    if (consumers[i]->consumer->env.order != order)
-      return {};
+  AccessOrder order = {};
+  for (size_t i = 0; i < consumers.size(); i++) {
+    AccessOrder consumer_order = consumers[i]->consumer->env.order;
+    if (consumer_order.is_device()) {
+      if (!order)  // not set yet? just use the first one found
+        order = consumer_order;
+      else if (consumer_order != order)  // different? bail out!
+        return {};
+    }
+  }
+  assert(!order || order.is_device());
   return order;
 }
 
@@ -341,25 +364,23 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
   for (int o = 0; o < nout; o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
       auto ptr = ws_->OutputPtr<CPUBackend>(o);
-      // If an input has a unique consumption order (all consumers use the same order),
-      // then we can simply move this buffer to a new order. The consumer stream
-      // will be properly synchronized in SetWorkspaceInputs.
+      // If an input has a unique consumption stream (all consumers use the same stream or host),
+      // then we can simply move this buffer to that stream.
+      // The consumer stream will be properly synchronized in SetWorkspaceInputs.
       // This is done to facilitate freeing of memory - if we're able to transfer the
       // object to the consumption stream, it'll be freed in consumption order.
       if (!ptr->shares_data()) {
-        if (AccessOrder consumer_order = OutputConsumerOrder(o))
+        if (AccessOrder consumer_order = OutputConsumerStream(o))
           ptr->set_order(consumer_order, false);
       }
       ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), event_, order});
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
       auto ptr = ws_->OutputPtr<GPUBackend>(o);
+      // Transfer to the consumption order - see above.
       if (!ptr->shares_data()) {
-        // Transfer order - see above.
-        if (AccessOrder consumer_order = OutputConsumerOrder(o)) {
-          // Don't set the consumer order to `host`, because we don't synchronize on host.
-          if (consumer_order != AccessOrder::host())
-            ptr->set_order(consumer_order, false);
+        if (AccessOrder consumer_order = OutputConsumerStream(o)) {
+          ptr->set_order(consumer_order, false);
         }
       }
       ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event_, order});
@@ -389,8 +410,8 @@ class OutputTask : public ExecNodeTask {
 
   /** Returns a workspace in DALI pipeline compatible format (along with supporting structures).
    *
-   * In case of operators, the inputs of the node become inputs of the workspace. In case of
-   * pipeline output, the inputs of the output node become the _outputs_ of the workspace.
+   * The output ExecNode's _inputs_ become the pipeline's _outputs_. This function populates the
+   * workspace's outputs with the task inputs and performs the necessary synchronization.
    */
   PipelineOutput Run();
 };
@@ -471,7 +492,7 @@ void ClearWorkspacePayload(Workspace &ws) {
     if (ws.InputIsType<CPUBackend>(i)) {
       if (auto &pinp = ws.InputPtr<CPUBackend>(i)) {
         auto &inp = *pinp;
-        if (event && inp.order() != ws.output_order())
+        if (inp.is_pinned() && event && inp.order() != ws.output_order())
           inp.order().wait(event);
         ws.SetInput<CPUBackend>(i, nullptr);
       }
@@ -485,8 +506,12 @@ void ClearWorkspacePayload(Workspace &ws) {
     }
   }
 
-  for (int i = 0; i < ws.NumArgumentInput(); i++)
+  for (int i = 0; i < ws.NumArgumentInput(); i++) {
+    auto &inp = ws.ArgumentInput(i);
+    if (inp.is_pinned() && event && inp.order() != ws.output_order())
+      inp.order().wait(event);
     ws.SetArgumentInput(i, nullptr);
+  }
 
   for (int o = 0; o < ws.NumOutput(); o++) {
     if (ws.OutputIsType<CPUBackend>(o))
