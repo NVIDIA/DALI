@@ -403,8 +403,8 @@ DALI_SCHEMA(DummyPresizeOp)
 TEST_F(PipelineTestOnce, TestPresize) {
   const int batch_size = 1;
   const int num_thread = 1;
-  const bool pipelined = true;
-  const bool async =  true;
+  const bool pipelined = false;
+  const bool async =  false;
   DALIImageType img_type = DALI_RGB;
 
   const int presize_val_CPU = 11;
