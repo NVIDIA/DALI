@@ -73,6 +73,8 @@ do_once() {
 }
 
 test_body() {
+    # for the compatibility with the old keras API
+    export TF_USE_LEGACY_KERAS=1
     # test code
     mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
         python -u resnet.py \

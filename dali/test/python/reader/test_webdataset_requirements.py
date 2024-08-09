@@ -18,7 +18,7 @@ import math
 import nvidia.dali as dali
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
-from nose.tools import assert_equal
+from nose_utils import assert_equals
 from webdataset_base import (
     generate_temp_extract,
     generate_temp_index_file,
@@ -99,7 +99,7 @@ def test_skip_sample():
         num_threads=1,
     )
     wds_pipeline.build()
-    assert_equal(list(wds_pipeline.epoch_size().values())[0], num_samples)
+    assert_equals(list(wds_pipeline.epoch_size().values())[0], num_samples)
 
 
 def test_raise_error_on_missing():

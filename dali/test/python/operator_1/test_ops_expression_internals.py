@@ -14,9 +14,7 @@
 
 import nvidia.dali.ops as ops
 from nvidia.dali.types import Constant
-import numpy as np
-from nose.tools import assert_equal
-from nose_utils import assert_raises
+from nose_utils import assert_equals, assert_raises
 
 
 def test_group_inputs():
@@ -24,30 +22,30 @@ def test_group_inputs():
     e1 = ops._DataNode("op1", "cpu")
     inputs = [e0, e1, 10.0, Constant(0).uint8(), 42]
     cat_idx, edges, integers, reals = ops._group_inputs(inputs)
-    assert_equal([("edge", 0), ("edge", 1), ("real", 0), ("integer", 0), ("integer", 1)], cat_idx)
-    assert_equal([e0, e1], edges)
-    assert_equal([Constant(0).uint8(), 42], integers)
-    assert_equal([10.0], reals)
+    assert_equals([("edge", 0), ("edge", 1), ("real", 0), ("integer", 0), ("integer", 1)], cat_idx)
+    assert_equals([e0, e1], edges)
+    assert_equals([Constant(0).uint8(), 42], integers)
+    assert_equals([10.0], reals)
     assert_raises(
         TypeError,
         ops._group_inputs,
-        [np.complex()],
+        [complex()],
         glob="Expected scalar value of type 'bool', 'int' or 'float', got *.",
     )
     _, _, _, none_reals = ops._group_inputs([e0, 10])
-    assert_equal(None, none_reals)
+    assert_equals(None, none_reals)
 
 
 def test_generate_input_desc():
     desc0 = ops._generate_input_desc([("edge", 0)], [], [])
     desc1 = ops._generate_input_desc([("edge", 0), ("edge", 1), ("edge", 2)], [], [])
-    assert_equal("&0", desc0)
-    assert_equal("&0 &1 &2", desc1)
+    assert_equals("&0", desc0)
+    assert_equals("&0 &1 &2", desc1)
 
     desc2 = ops._generate_input_desc(
         [("integer", 1), ("integer", 0), ("edge", 0)], [Constant(42).uint8(), 42], []
     )
-    assert_equal("$1:int32 $0:uint8 &0", desc2)
+    assert_equals("$1:int32 $0:uint8 &0", desc2)
 
     c = Constant(42)
     desc3 = ops._generate_input_desc(
@@ -75,7 +73,7 @@ def test_generate_input_desc():
         ],
         [],
     )
-    assert_equal(
+    assert_equals(
         "$0:int32 $1:uint8 $2:uint16 $3:uint32 $4:uint64 $5:int8 $6:int16 $7:int32 $8:int64", desc3
     )
 
@@ -84,4 +82,4 @@ def test_generate_input_desc():
         [],
         [float(), c.float16(), c.float32(), c.float64()],
     )
-    assert_equal("$0:float32 $1:float16 $2:float32 $3:float64", desc4)
+    assert_equals("$0:float32 $1:float16 $2:float32 $3:float64", desc4)

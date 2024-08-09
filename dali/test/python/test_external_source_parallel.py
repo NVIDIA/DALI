@@ -272,7 +272,7 @@ def test_num_outputs():
         utils.ExtCallbackMultipleOutputs,
         utils.ExtCallbackMultipleOutputs,
         num_outputs=2,
-        dtypes=[np.uint8, np.float],
+        dtypes=[np.uint8, float],
     )
 
 

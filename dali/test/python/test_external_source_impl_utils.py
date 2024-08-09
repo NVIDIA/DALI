@@ -15,8 +15,7 @@
 from nvidia.dali._utils import external_source_impl
 from nvidia.dali import tensors, pipeline_def
 import nvidia.dali.fn as fn
-from nose.tools import assert_equals
-from nose_utils import raises
+from nose_utils import raises, assert_equals
 from nose.plugins.attrib import attr
 import numpy as np
 

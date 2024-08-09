@@ -22,7 +22,6 @@ import scipy.io.wavfile
 import nvidia.dali.fn as fn
 import nvidia.dali.math as dmath
 from nvidia.dali.pipeline import pipeline_def
-from test_audio_decoder_utils import generate_waveforms
 
 
 def setup_test_nemo_asr_reader_cpu():
@@ -55,6 +54,8 @@ def setup_test_nemo_asr_reader_cpu():
     lengths = [10000, 54321, 12345]
 
     def create_ref():
+        from test_audio_decoder_utils import generate_waveforms
+
         ref = []
         for i in range(len(names)):
             wave = generate_waveforms(lengths[i], freqs[i])

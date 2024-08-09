@@ -14,6 +14,9 @@
 
 import numpy as np
 import nvidia.dali as dali
+
+# to initialize nose for python 3.12
+import nose_utils  # noqa: F401
 from nose.tools import with_setup
 
 from test_pool_utils import capture_processes, teardown_function, setup_function

@@ -159,6 +159,7 @@ do
             NPP_VERSION=$(if [[ $DALI_CUDA_MAJOR_VERSION == "12" ]]; then echo "==12.2.5.30"; else echo ""; fi)
             install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}${NPP_VERSION}    \
                                                    nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                   nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
                                                    -f /pip-packages"
           fi

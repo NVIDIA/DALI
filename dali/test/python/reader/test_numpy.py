@@ -150,7 +150,7 @@ all_numpy_types = set(
         np.float_,
         np.complex64,
         np.complex128,
-        np.complex_,
+        complex,
     ]
 )
 unsupported_numpy_types = set(
@@ -161,7 +161,7 @@ unsupported_numpy_types = set(
         np.complex64,
         np.complex128,
         np.longdouble,
-        np.complex_,
+        complex,
     ]
 )
 rng = np.random.RandomState(12345)

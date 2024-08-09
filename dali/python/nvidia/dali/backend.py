@@ -41,14 +41,6 @@ if not initialized:
     Init(OpSpec("CPUAllocator"), OpSpec("PinnedCPUAllocator"), OpSpec("GPUAllocator"))
     initialized = True
 
-    # py3.12 warning
-    if sys.version_info[0] == 3 and sys.version_info[1] >= 12:
-        deprecation_warning(
-            "DALI support for Python {0}.{1} is experimental and some "
-            "functionalities may not work."
-            "".format(sys.version_info[0], sys.version_info[1])
-        )
-
     # py3.6 warning
     if sys.version_info[0] == 3 and sys.version_info[1] == 6:
         deprecation_warning(

@@ -20,8 +20,7 @@ import nvidia.dali.types as dali_types
 from test_utils_tensorflow import skip_for_incompatible_tf
 
 import os
-from nose.tools import assert_equals
-from nose_utils import raises
+from nose_utils import raises, assert_equals
 import itertools
 import warnings
 
