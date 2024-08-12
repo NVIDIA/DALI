@@ -61,7 +61,16 @@ conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
 conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
 
 # Build nvimagecodec
+# conda does bare mirror first and then clones the code to the build dir
+# it also fetches the LFS object, but it does that only for the built reference, if there are
+# other objects they are left out. Then it does the full cone and checkout and that is why it
+# complains about missing objects. Also, it doesn't allow running any post-clone hooks.
+# see https://github.com/conda/conda-build/issues/1462
+export GIT_LFS_SKIP_SMUDGE=1
+export GIT_CLONE_PROTECTION_ACTIVE=false
 conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_nvimagecodec/recipe
+export GIT_LFS_SKIP_SMUDGE=0
+export GIT_CLONE_PROTECTION_ACTIVE=true
 
 # Building DALI core package
 conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
