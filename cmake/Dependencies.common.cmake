@@ -274,7 +274,7 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_REQ_VERSION "0.2.0")
+  set(NVIMGCODEC_REQ_VERSION "0.3.0")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
 

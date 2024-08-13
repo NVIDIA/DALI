@@ -21,7 +21,7 @@ package:
 
 source:
   git_url: https://github.com/NVIDIA/nvImageCodec.git
-  git_rev: v0.2.0
+  git_rev: v0.3.0
 
 build:
   number: 0
