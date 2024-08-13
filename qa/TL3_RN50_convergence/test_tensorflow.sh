@@ -44,7 +44,7 @@ fi
 
 MIN_TOP1=0.75
 MIN_TOP5=0.92
-MIN_PERF=7700
+MIN_PERF=23000
 
 TOP1=$(grep "loss:" $LOG | awk '{print $18}' | tail -1)
 TOP5=$(grep "loss:" $LOG | awk '{print $21}' | tail -1)

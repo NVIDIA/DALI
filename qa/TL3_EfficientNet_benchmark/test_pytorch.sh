@@ -77,12 +77,12 @@ python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 -
 # grep "train.total_ips" <filename>.json | tail -1 | cut -c 5- | python3 -c "import sys, json; print(json.load(sys.stdin))"
 
 # Actual results are about 500 samples/s more
-SYNTH_THRESHOLD=10800
-DALI_NONE_THRESHOLD=8900
-DALI_AA_THRESHOLD=9000
-DALI_TA_THRESHOLD=9000
-PYTORCH_NONE_THRESHOLD=7000
-PYTORCH_AA_THRESHOLD=6800
+SYNTH_THRESHOLD=32000
+DALI_NONE_THRESHOLD=27000
+DALI_AA_THRESHOLD=26000
+DALI_TA_THRESHOLD=26000
+PYTORCH_NONE_THRESHOLD=23000
+PYTORCH_AA_THRESHOLD=22000
 
 function CHECK_PERF_THRESHOLD {
     FILENAME=$1
@@ -106,7 +106,7 @@ CHECK_PERF_THRESHOLD "bench_report_pytorch.json" $PYTORCH_NONE_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_pytorch_aa.json" $PYTORCH_AA_THRESHOLD
 
 
-# In the initial training we get siginificant increase in accuracy on the first few epochs,
+# In the initial training we get significant increase in accuracy on the first few epochs,
 # after 10 epochs we typically cross 50%.
 # Do an additional run of DALI + AA for 10 epochs and check against 48 top1 accuracy (with some
 # safety margin).
