@@ -17,7 +17,7 @@ BUILD_INHOST=[create build dir with object outside docker, just mount it as a vo
 REBUILD_BUILDERS=[default is NO]
 DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${CUDA_VERSION}]
 ARCH=[default is x86_64]
-WHL_PLATFORM_NAME=[default is manylinux2014_x86_64]
+WHL_PLATFORM_NAME=[default is manylinux_2_28_x86_64]
 BUILDER_EXTRA_DEPS=[default is scratch]
 
 where:
@@ -69,10 +69,10 @@ export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
 export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export PREBUILD_TF_PLUGINS=${PREBUILD_TF_PLUGINS:-YES}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${CUDA_VER}}_${ARCH}
-export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux2014_${ARCH}}
+export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux_2_28_${ARCH}}
 export WHL_COMPRESSION=${WHL_COMPRESSION:-YES}
 #################################
-export BASE_NAME=quay.io/pypa/manylinux2014_${ARCH}
+export BASE_NAME=quay.io/pypa/manylinux_2_28_${ARCH}
 export DEPS_IMAGE=nvidia/dali:${ARCH}.deps
 export CUDA_DEPS_IMAGE=nvidia/dali:cu${CUDA_VER}_${ARCH}.deps
 export CUDA_TOOLKIT_IMAGE=nvidia/dali:cuda${CUDA_VER}_${ARCH}.toolkit
