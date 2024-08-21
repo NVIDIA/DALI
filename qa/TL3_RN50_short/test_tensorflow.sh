@@ -25,6 +25,10 @@ OUT=${LOG%.log}.dir
 mkdir -p $OUT
 
 SECONDS=0
+
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 export TF_XLA_FLAGS="--tf_xla_enable_lazy_compilation=false"
 
 mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \

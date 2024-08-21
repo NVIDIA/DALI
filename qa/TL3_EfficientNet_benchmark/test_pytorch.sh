@@ -48,6 +48,9 @@ fi
 
 popd
 
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 export PATH_TO_IMAGENET=/imagenet
 
 export RESULT_WORKSPACE=./

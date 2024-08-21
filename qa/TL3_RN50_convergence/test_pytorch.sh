@@ -12,6 +12,9 @@ cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 if [ ! -d "val" ]; then
    ln -sf /data/imagenet/val-jpeg/ val
 fi

@@ -25,6 +25,10 @@ LOG=dali.log
 
 SECONDS=0
 EPOCHS=25  # limiting to 25 epochs to save time
+
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 export FLAGS_fraction_of_gpu_memory_to_use=.80
 export FLAGS_apply_pass_to_program=1
 
