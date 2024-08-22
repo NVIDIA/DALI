@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include <typeinfo>
 #include <unordered_map>
 #include <vector>
+#include "dali/core/access_order.h"
 #include "dali/core/common.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/float16.h"
@@ -344,7 +345,7 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, AccessOrder order,
                        bool use_copy_kernel = false) const;
 
   /**
@@ -359,7 +360,7 @@ class DLL_PUBLIC TypeInfo {
    */
   template <typename DstBackend, typename SrcBackend>
   DLL_PUBLIC void Copy(void **dst, const void **srcs, const Index *sizes, int n,
-                       cudaStream_t stream, bool use_copy_kernel = false) const;
+                       AccessOrder order, bool use_copy_kernel = false) const;
 
   /**
    * @brief Copies from SrcBackend scattered locations to a contiguous DstBackend buffer
@@ -372,7 +373,7 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void **srcs, const Index *sizes, int n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void *dst, const void **srcs, const Index *sizes, int n, AccessOrder order,
                        bool use_copy_kernel = false) const;
 
   /**
@@ -386,7 +387,7 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void **dsts, const void *src, const Index *sizes, int n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void **dsts, const void *src, const Index *sizes, int n, AccessOrder order,
                        bool use_copy_kernel = false) const;
 
   DLL_PUBLIC inline DALIDataType id() const {
