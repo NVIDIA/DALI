@@ -12,7 +12,7 @@ topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
-export PYTHONPATH=${PYTHONPATH}:$topdir/qa
+export PYTHONPATH=${PYTHONPATH}:$topdir/qa:$topdir/dali/test/python
 python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
 # use DALI nose wrapper to patch nose to support Python 3.10
 python_test_runner="python -m nose_wrapper"
