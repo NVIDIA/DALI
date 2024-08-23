@@ -25,6 +25,10 @@ OUT=${LOG%.log}.dir
 mkdir -p $OUT
 
 SECONDS=0
+
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 export TF_XLA_FLAGS="--tf_xla_enable_lazy_compilation=false"
 
 mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
@@ -44,7 +48,7 @@ fi
 
 MIN_TOP1=0.75
 MIN_TOP5=0.92
-MIN_PERF=7700
+MIN_PERF=23000
 
 TOP1=$(grep "loss:" $LOG | awk '{print $18}' | tail -1)
 TOP5=$(grep "loss:" $LOG | awk '{print $21}' | tail -1)

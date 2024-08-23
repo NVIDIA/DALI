@@ -25,6 +25,10 @@ LOG=dali.log
 
 SECONDS=0
 EPOCHS=25  # limiting to 25 epochs to save time
+
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 export FLAGS_fraction_of_gpu_memory_to_use=.80
 export FLAGS_apply_pass_to_program=1
 
@@ -48,7 +52,7 @@ fi
 
 MIN_TOP1=.45  # would be 75% if we run 90 epochs
 MIN_TOP5=.70  # would be 92% if we run 90 epochs
-MIN_PERF=7000
+MIN_PERF=27000
 
 function PRINT_THRESHOLD {
     FILENAME=$1

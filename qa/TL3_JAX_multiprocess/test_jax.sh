@@ -4,6 +4,9 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 python -c "import jax; print(jax.devices()); assert jax.device_count() > 0"
 
 echo "Test one GPU per process"

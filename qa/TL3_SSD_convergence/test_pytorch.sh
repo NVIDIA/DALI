@@ -18,6 +18,10 @@ NUM_GPUS=$(nvidia-smi -L | wc -l)
 LOG=dali.log
 
 SECONDS=0
+
+# turn off SHARP to avoid NCCL errors
+export NCCL_NVLS_ENABLE=0
+
 # Prevent OOM due to fragmentation on 16G machines
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:4096
 torchrun --nproc_per_node=${NUM_GPUS} main.py --backbone resnet50 --warmup 300 --bs 64 --eval-batch-size 8 --data /coco --data /data/coco/coco-2017/coco2017/ --data_pipeline dali --target 0.25 2>&1 | tee $LOG
