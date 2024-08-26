@@ -14,10 +14,8 @@
 
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
-from nose import with_setup, SkipTest
-
+from nose_utils import with_setup, SkipTest, raises
 import test_dali_tf_dataset_mnist as mnist
-from nose_utils import raises
 from distutils.version import StrictVersion
 
 mnist.tf.compat.v1.disable_eager_execution()

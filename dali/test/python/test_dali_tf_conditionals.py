@@ -18,8 +18,7 @@ from nvidia.dali.pipeline.experimental import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.tf as dali_tf
-
-from nose.tools import with_setup
+from nose_utils import with_setup
 from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 
 

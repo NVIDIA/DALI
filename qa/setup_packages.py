@@ -476,11 +476,17 @@ class CudaHttpPackage(CudaPackage):
 
 
 all_packages = [
-    PlainPackage("numpy", [">=1.17,<1.24"]),
-    PlainPackage("opencv-python", [PckgVer("4.8.1.78", dependencies=["numpy<1.24"])]),
+    PlainPackage(
+        "numpy",
+        [
+            PckgVer(">=1.17,<1.24", python_min_ver="3.8", python_max_ver="3.11"),
+            PckgVer(">=1.17,<2", python_min_ver="3.12", python_max_ver="3.12"),
+        ],
+    ),
+    PlainPackage("opencv-python", [PckgVer("4.8.1.78", dependencies=["numpy<2"])]),
     CudaPackage(
         "cupy",
-        {"118": [PckgVer("12.2.0", python_min_ver="3.8", dependencies=["numpy<1.24"])]},
+        {"118": [PckgVer("12.3.0", python_min_ver="3.8")]},
         "cupy-cuda11x",
     ),
     CudaPackage(
@@ -494,68 +500,58 @@ all_packages = [
                     alias="tensorflow",
                     dependencies=[
                         "protobuf<4",
-                        "numpy<1.24",
                         "urllib3<2.0",
                     ],
                 ),
                 PckgVer(
                     "2.14.1",
                     python_min_ver="3.9",
+                    python_max_ver="3.11",
                     alias="tensorflow",
                     dependencies=[
                         "protobuf<4",
-                        "numpy<1.24",
                         "urllib3<2.0",
                     ],
                 ),
             ],
             "120": [
                 PckgVer(
-                    "2.14.1",
+                    "2.16.2",
                     python_min_ver="3.9",
                     alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "numpy<1.24",
-                        "urllib3<2.0",
-                    ],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.16"],
                 ),
                 PckgVer(
-                    "2.15.1",
+                    "2.17.0",
                     python_min_ver="3.9",
                     alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "numpy<1.24",
-                        "urllib3<2.0",
-                    ],
-                ),
-                PckgVer(
-                    "2.16.1",
-                    python_min_ver="3.9",
-                    alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "numpy<1.24",
-                        "urllib3<2.0",
-                    ],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.17"],
                 ),
             ],
         },
     ),
     CudaPackageExtraIndex(
         "torch",
-        {"118": [PckgVer("2.1.0", python_min_ver="3.8", dependencies=["numpy<1.24"])]},
+        {"118": [PckgVer("2.2.0", python_min_ver="3.8", python_max_ver="3.12")]},
         extra_index="https://download.pytorch.org/whl/cu{cuda_v}/",
     ),
     CudaPackageExtraIndex(
         "torchvision",
-        {"118": [PckgVer("0.16.0", python_min_ver="3.8", dependencies=["numpy<1.24"])]},
+        {"118": [PckgVer("0.17.0", python_min_ver="3.8")]},
         extra_index="https://download.pytorch.org/whl/cu{cuda_v}/",
     ),
     CudaPackageExtraIndex(
         "paddlepaddle-gpu",
-        {"110": [PckgVer("2.5.2.post117", dependencies=["protobuf<4", "numpy<1.24"])]},
+        {
+            "110": [
+                PckgVer(
+                    "2.6.0.post117",
+                    dependencies=["protobuf<4", "numpy<2"],
+                    python_min_ver="3.8",
+                    python_max_ver="3.12",
+                )
+            ]
+        },
         links_index="https://www.paddlepaddle.org.cn/" "whl/linux/mkl/avx/stable.html",
     ),
     CudaPackageExtraIndex(
@@ -567,7 +563,9 @@ all_packages = [
                 ),
                 # dax.fn.jax_function requires at least 0.4.16 which is the first one supporting
                 # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
-                PckgVer("0.4.16", python_min_ver="3.9", dependencies=["jaxlib"]),
+                PckgVer(
+                    "0.4.16", python_min_ver="3.9", python_max_ver="3.11", dependencies=["jaxlib"]
+                ),
             ]
         },
         # name used during installation
@@ -585,7 +583,7 @@ all_packages = [
                     python_max_ver="3.8",
                     dependencies=["numpy<1.24"],
                 ),
-                PckgVer("0.59.1", python_min_ver="3.9", dependencies=["numpy<1.24"]),
+                PckgVer("0.59.1", python_min_ver="3.9", dependencies=["numpy<2"]),
             ]
         },
     ),

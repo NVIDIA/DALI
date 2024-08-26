@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import inspect
-import nose
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.math as dmath
@@ -22,6 +21,7 @@ import os
 import random
 import re
 from functools import partial
+from nose_utils import SkipTest
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
@@ -1263,7 +1263,7 @@ def test_segmentation_select_masks():
 
 def test_optical_flow():
     if not is_of_supported():
-        raise nose.SkipTest("Optical Flow is not supported on this platform")
+        raise SkipTest("Optical Flow is not supported on this platform")
 
     def pipe(max_batch_size, input_data, device, input_layout=None):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)

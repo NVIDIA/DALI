@@ -14,11 +14,9 @@
 
 import numpy as np
 import nvidia.dali as dali
-from nose.tools import with_setup
 from nvidia.dali.types import SampleInfo, BatchInfo
-
 import test_external_source_parallel_utils as utils
-from nose_utils import raises
+from nose_utils import raises, with_setup
 
 
 def no_arg_fun():
@@ -272,7 +270,7 @@ def test_num_outputs():
         utils.ExtCallbackMultipleOutputs,
         utils.ExtCallbackMultipleOutputs,
         num_outputs=2,
-        dtypes=[np.uint8, np.float],
+        dtypes=[np.uint8, float],
     )
 
 

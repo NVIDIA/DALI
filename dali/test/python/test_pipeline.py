@@ -824,7 +824,7 @@ def test_iter_setup():
         def __next__(self):
             batch = []
             if self.i < self.n:
-                batch.append(np.arange(0, 1, dtype=np.float))
+                batch.append(np.arange(0, 1, dtype=float))
                 self.i += 1
                 return batch
             else:
@@ -1250,7 +1250,7 @@ def test_python_formats():
         np.float32,
         np.float16,
         np.short,
-        np.long,
+        int,
         np.longlong,
         np.ushort,
         np.ulonglong,

@@ -34,7 +34,7 @@ def normalize(x, axes=None, mean=None, stddev=None, ddof=0, eps=0):
 
     if stddev is None:
         factor = num_reduced - ddof
-        sqr = (x - mean).astype(np.float) ** 2
+        sqr = (x - mean).astype(float) ** 2
         var = np.sum(sqr, axis=axes, keepdims=True)
         if factor > 0:
             var /= factor
@@ -198,7 +198,7 @@ def normalize_list(whole_batch, data_batch, axes=None, mean=None, stddev=None, d
         if type(stddev) is not list:
             stddev = [stddev] * len(data_batch)
         return [
-            normalize(data_batch[i].astype(np.float), axes, mean[i], stddev[i], ddof, eps)
+            normalize(data_batch[i].astype(float), axes, mean[i], stddev[i], ddof, eps)
             for i in range(len(data_batch))
         ]
 

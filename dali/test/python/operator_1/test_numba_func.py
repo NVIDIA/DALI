@@ -19,7 +19,7 @@ from nvidia.dali.pipeline import do_not_convert
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
-from nose import with_setup
+from nose_utils import with_setup
 from test_utils import (
     get_dali_extra_path,
     to_array,

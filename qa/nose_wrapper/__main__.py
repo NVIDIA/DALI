@@ -1,19 +1,9 @@
 import sys
-from nose.core import run_exit
-import collections
-import nose.case
-import nose.inspector
-import nose.loader
-import nose.suite
-import nose.plugins.attrib
-import inspect
 
-if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
-    nose.case.collections = collections.abc
-    nose.inspector.collections = collections.abc
-    nose.loader.collections = collections.abc
-    nose.suite.collections = collections.abc
-    nose.plugins.attrib.collections = collections.abc
+# before running the test we add dali/test/python to the python path
+import nose_utils  # noqa:F401  - for Python 3.10
+from nose.core import run_exit
+import inspect
 
 if sys.version_info >= (3, 11):
 

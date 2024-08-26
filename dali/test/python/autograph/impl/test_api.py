@@ -19,7 +19,6 @@ import collections
 import contextlib
 import functools
 import gc
-import imp
 import inspect
 import os
 import re
@@ -593,7 +592,7 @@ class ApiTest(unittest.TestCase):
         self.assertAllEqual(self.evaluate(x), 2)
 
     def test_converted_call_exec_generated_code(self):
-        temp_mod = imp.new_module("test_module")
+        temp_mod = types.ModuleType("test_module")
         dynamic_code = """
       def foo(x):
         return x + 1

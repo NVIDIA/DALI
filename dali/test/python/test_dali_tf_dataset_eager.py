@@ -18,7 +18,7 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
 from nvidia.dali.plugin.tf.experimental import Input
 from nvidia.dali import fn
-from nose.tools import with_setup
+from nose_utils import with_setup
 from test_dali_tf_dataset_pipelines import (
     FixedSampleIterator,
     RandomSampleIterator,

@@ -20,8 +20,7 @@ from nvidia.dali.types import SampleInfo
 from functools import wraps
 import numpy as np
 import os
-from nose.tools import with_setup
-from nose_utils import raises
+from nose_utils import raises, with_setup
 
 from test_pool_utils import capture_processes, setup_function, teardown_function
 

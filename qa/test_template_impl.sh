@@ -12,7 +12,7 @@ topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
-export PYTHONPATH=${PYTHONPATH}:$topdir/qa
+export PYTHONPATH=${PYTHONPATH}:$topdir/qa:$topdir/dali/test/python
 python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
 # use DALI nose wrapper to patch nose to support Python 3.10
 python_test_runner="python -m nose_wrapper"
@@ -159,6 +159,7 @@ do
             NPP_VERSION=$(if [[ $DALI_CUDA_MAJOR_VERSION == "12" ]]; then echo "==12.2.5.30"; else echo ""; fi)
             install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}${NPP_VERSION}    \
                                                    nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                   nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
                                                    -f /pip-packages"
           fi

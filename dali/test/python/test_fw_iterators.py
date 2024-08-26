@@ -220,7 +220,7 @@ def test_mxnet_iterator_empty_array():
         np.float32,
         np.float16,
         np.short,
-        np.long,
+        int,
         np.longlong,
         np.ushort,
         np.ulonglong,
@@ -2716,7 +2716,7 @@ def test_jax_prepare_first_batch():
 
 @pipeline_def
 def feed_ndarray_test_pipeline():
-    return np.array([1], dtype=np.float)
+    return np.array([1], dtype=float)
 
 
 @attr("mxnet")
