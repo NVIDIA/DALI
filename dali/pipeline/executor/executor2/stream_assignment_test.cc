@@ -331,5 +331,82 @@ TEST(Exec2Test, StreamAssignment_PerOperator_2) {
   EXPECT_EQ(assignment[map["k"]], 2);
 }
 
+
+TEST(Exec2Test, StreamAssignment_PerOperator_3) {
+  ExecGraph eg;
+  /*
+  a --- c -- out
+    \ /
+     X
+    / \
+  b --- d -- out
+  */
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecGPU()
+        .AddOutput("a->c", "gpu")
+        .AddOutput("a->d", "gpu"));
+  b.Add("b",
+        SpecGPU()
+        .AddOutput("b->c", "gpu")
+        .AddOutput("b->d", "gpu"));
+  b.Add("c",
+        SpecGPU()
+        .AddInput("a->c", "gpu")
+        .AddInput("b->c", "gpu")
+        .AddOutput("c->o", "gpu"));
+  b.Add("d",
+        SpecGPU()
+        .AddInput("a->d", "gpu")
+        .AddInput("b->d", "gpu")
+        .AddOutput("d->o", "gpu"));
+  b.AddOutput("c->o_gpu");
+  b.AddOutput("d->o_gpu");
+  auto g = std::move(b).GetGraph(true);
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::PerOperator> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], 0);
+  EXPECT_EQ(assignment[map["b"]], 1);
+  EXPECT_EQ(assignment[map["c"]], 0);
+  EXPECT_EQ(assignment[map["d"]], 1);
+}
+
+TEST(Exec2Test, StreamAssignment_PerOperator_4) {
+  ExecGraph eg;
+  /*
+  a --- b -- out
+
+  c (sink node)
+  d (sink node)
+  */
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecGPU()
+        .AddOutput("a->b", "gpu"));
+  b.Add("b",
+        SpecGPU()
+        .AddInput("a->b", "gpu")
+        .AddOutput("b->o", "gpu"));
+  b.Add("c",
+        SpecGPU()
+        .AddArg("preserve", true));
+  b.Add("d",
+        SpecGPU()
+        .AddArg("preserve", true));
+  b.AddOutput("b->o_gpu");
+  auto g = std::move(b).GetGraph(true);
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::PerOperator> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], 0);
+  EXPECT_EQ(assignment[map["b"]], 0);
+  EXPECT_EQ(assignment[map["c"]], 1);
+  EXPECT_EQ(assignment[map["d"]], 2);
+}
+
+
 }  // namespace exec2
 }  // namespace dali

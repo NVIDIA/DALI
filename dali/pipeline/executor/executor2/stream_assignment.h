@@ -203,18 +203,20 @@ class StreamAssignment<StreamPolicy::PerOperator> {
  private:
   void Assign(ExecGraph &graph) {
     // pre-fill the id pool with sequential numbers
-    for (int i = 0, n = graph.Nodes().size(); i < n; i++) {
+    int num_nodes = graph.Nodes().size();
+    for (int i = 0; i < num_nodes; i++) {
       free_stream_ids_.insert(i);
     }
 
     // the nodes in the graph must be sorted topologically
-    sorted_nodes_.reserve(graph.Nodes().size());
+    sorted_nodes_.reserve(num_nodes);
+    stream_assignment_.resize(num_nodes);
     for (auto &node : graph.Nodes()) {
       int idx = sorted_nodes_.size();
       sorted_nodes_.push_back(&node);
       node_ids_[&node] = idx;
       if (node.inputs.empty()) {
-        queue_.push({ node_ids_[&node], NextStreamId(&node).value_or(kInvalidStreamIdx) });
+        queue_.push({ node_ids_[&node], AssignStreamId(&node).value_or(kInvalidStreamIdx) });
       } else {
         for (auto &inp : node.inputs) {
           assert(node_ids_.count(inp->producer) >= 0 && "Nodes must be topologically sorted.");
@@ -222,8 +224,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       }
     }
 
-    assert(graph.Nodes().size() == sorted_nodes_.size());
-    stream_assignment_.resize(sorted_nodes_.size());
+    assert(static_cast<size_t>(num_nodes) == sorted_nodes_.size());
 
     FindGPUContributors(graph);
 
@@ -243,7 +244,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
       queue_.pop();
       auto *node = sorted_nodes_[idx];
-      // This will be true for nodes which has no outputs or which doesn't contribute to any
+      // This will be true for nodes which have no outputs or which don't contribute to any
       // GPU nodes.
       bool keep_stream_id = stream_id.has_value();
 
@@ -260,7 +261,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
       for (auto &output_desc : node->outputs) {
         for (auto *out : output_desc.consumers) {
-          auto out_stream_id = NextStreamId(out->consumer, stream_id);
+          auto out_stream_id = AssignStreamId(out->consumer, stream_id);
           if (out_stream_id.has_value())
             keep_stream_id = false;
           queue_.push({node_ids_[out->consumer], out_stream_id.value_or(kInvalidStreamIdx)});
@@ -309,7 +310,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
     os << "\n";
   }
 
-  std::optional<int> NextStreamId(const ExecNode *node,
+  std::optional<int> AssignStreamId(const ExecNode *node,
                                   std::optional<int> prev_stream_id = std::nullopt) {
     // If the preceding node had a stream, then we have to pass it on through CPU nodes if
     // there are any GPU nodes down the graph.
@@ -321,9 +322,13 @@ class StreamAssignment<StreamPolicy::PerOperator> {
     if (needs_stream) {
       assert(!free_stream_ids_.empty());
       auto b = free_stream_ids_.begin();
-      int ret = *b;
-      free_stream_ids_.erase(b);
-      return ret;
+      int next_free = *b;
+      auto &current = stream_assignment_[node_ids_[node]];
+      if (!current.has_value() || *current > next_free) {
+        current = next_free;
+        free_stream_ids_.erase(b);
+      }
+      return *current;
     } else {
       return std::nullopt;
     }
