@@ -238,6 +238,9 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       // GPU nodes.
       bool keep_stream_id = stream_id.has_value();
 
+      if (stream_id.has_value())
+        free_stream_ids_.insert(*stream_id);
+
       graph::Visit v(node);
       if (!v) {
         assert(stream_assignment_[idx].value_or(kInvalidStreamIdx) <= stream_idx);
@@ -246,8 +249,6 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
       stream_assignment_[idx] = stream_id;
 
-      if (stream_id.has_value())
-        free_stream_ids_.insert(*stream_id);
       for (auto &output_desc : node->outputs) {
         for (auto *out : output_desc.consumers) {
           auto out_stream_id = NextStreamId(out->consumer, stream_id);
