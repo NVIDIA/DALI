@@ -78,6 +78,7 @@ inline OpType NodeType(const ExecNode *node) {
   }
 }
 
+/** A trivial stream policy, with just one stream shared by all non-CPU operaotrs. */
 template <>
 class StreamAssignment<StreamPolicy::Single> {
  public:
@@ -85,6 +86,7 @@ class StreamAssignment<StreamPolicy::Single> {
     for (auto &node : graph.Nodes()) {
       if (NeedsStream(&node)) {
         needs_stream_ = true;
+        break;
       }
     }
   }
@@ -105,6 +107,13 @@ class StreamAssignment<StreamPolicy::Single> {
 };
 
 
+/** A simple stream policy where all mixed and GPU operators share their respective streams.
+ *
+ * In this policy there are 0..2 streams, depending on the number of mixed and GPU nodes:
+ * 0 - only CPU nodes
+ * 1 - there are some mixed or some GPU nodes, but not both
+ * 2 - there are both mixed and CPU nodes present.
+ */
 template <>
 class StreamAssignment<StreamPolicy::PerBackend> {
  public:
@@ -302,10 +311,10 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
   std::optional<int> NextStreamId(const ExecNode *node,
                                   std::optional<int> prev_stream_id = std::nullopt) {
-    // If the preceding node had a stream, then we have to pass it on through CPU nodes
-    // if there are any GPU nodes down the graph.
-    // If the preceding node didn't have a stream, then we only need a stream if current
-    // node needs a stram.
+    // If the preceding node had a stream, then we have to pass it on through CPU nodes if
+    // there are any GPU nodes down the graph.
+    // If the preceding node didn't have a stream, then we only need a stream if the current
+    // node needs one.
     bool needs_stream = prev_stream_id.has_value()
                       ? gpu_contributors_.count(node) != 0
                       : NeedsStream(node);
@@ -323,9 +332,9 @@ class StreamAssignment<StreamPolicy::PerOperator> {
   void FindGPUContributors(ExecGraph &graph) {
     // Run DFS, output to input, and find nodes which contribute to any node that requires a stream
     graph::ClearVisitMarkers(graph.Nodes());
-    for (auto &node : graph.Nodes()) {
-      if (node.outputs.empty())
-        FindGPUContributors(&node, false);
+    for (auto it = graph.Nodes().rbegin(); it != graph.Nodes().rend(); ++it) {
+      auto &node = *it;
+      FindGPUContributors(&node, false);
     }
   }
 

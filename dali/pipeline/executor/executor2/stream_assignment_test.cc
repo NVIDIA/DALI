@@ -81,6 +81,118 @@ auto MakeNodeMap(const ExecGraph &graph) {
 
 }  // namespace
 
+TEST(Exec2Test, StreamAssignment_Single_OnlyCPU) {
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecCPU()
+        .AddOutput("a->out", "cpu"));
+  b.AddOutput("a->out_cpu");
+  auto g = std::move(b).GetGraph(true);
+  ExecGraph eg;
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::Single> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], std::nullopt);
+}
+
+TEST(Exec2Test, StreamAssignment_Single_CPUMixedGPU) {
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecCPU()
+        .AddOutput("a->b", "cpu"));
+  b.Add("b",
+        SpecMixed()
+        .AddInput("a->b", "cpu")
+        .AddOutput("b->c", "gpu"));
+  b.Add("c",
+        SpecGPU()
+        .AddInput("b->c", "gpu")
+        .AddOutput("c->out", "gpu"));
+  b.AddOutput("c->out_gpu");
+  auto g = std::move(b).GetGraph(true);
+  ExecGraph eg;
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::Single> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], std::nullopt);
+  EXPECT_EQ(assignment[map["b"]], 0);
+  EXPECT_EQ(assignment[map["c"]], 0);
+}
+
+
+TEST(Exec2Test, StreamAssignment_PerBackend_OnlyCPU) {
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecCPU()
+        .AddOutput("a->out", "cpu"));
+  b.AddOutput("a->out_cpu");
+  auto g = std::move(b).GetGraph(true);
+  ExecGraph eg;
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::Single> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], std::nullopt);
+}
+
+
+TEST(Exec2Test, StreamAssignment_PerBackend_CPUMixed) {
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecCPU()
+        .AddOutput("a->b", "cpu")
+        .AddOutput("a->c", "cpu"));
+  b.Add("b",
+        SpecMixed()
+        .AddInput("a->b", "cpu")
+        .AddOutput("b->out", "gpu"));
+  b.Add("c",
+        SpecMixed()
+        .AddInput("a->c", "cpu")
+        .AddOutput("c->out", "gpu"));
+  b.AddOutput("b->out_gpu");
+  b.AddOutput("c->out_gpu");
+  auto g = std::move(b).GetGraph(true);
+  ExecGraph eg;
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::PerBackend> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], std::nullopt);
+  EXPECT_EQ(assignment[map["b"]], 0);
+  EXPECT_EQ(assignment[map["c"]], 0);
+}
+
+TEST(Exec2Test, StreamAssignment_PerBackend_CPUMixedGPU) {
+  graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecCPU()
+        .AddOutput("a->b", "cpu")
+        .AddOutput("a->c", "cpu"));
+  b.Add("b",
+        SpecGPU()
+        .AddInput("a->b", "cpu")
+        .AddOutput("b->out", "gpu"));
+  b.Add("c",
+        SpecMixed()
+        .AddInput("a->c", "cpu")
+        .AddOutput("c->out", "gpu"));
+  b.AddOutput("b->out_gpu");
+  b.AddOutput("c->out_gpu");
+  auto g = std::move(b).GetGraph(true);
+  ExecGraph eg;
+  eg.Lower(g);
+
+  StreamAssignment<StreamPolicy::PerBackend> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], std::nullopt);
+  EXPECT_EQ(assignment[map["b"]], 1);
+  EXPECT_EQ(assignment[map["c"]], 0);
+}
+
+
 
 TEST(Exec2Test, StreamAssignment_PerOperator_1) {
   ExecGraph eg;
