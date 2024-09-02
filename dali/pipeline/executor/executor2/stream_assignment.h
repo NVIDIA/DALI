@@ -216,7 +216,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       sorted_nodes_.push_back(&node);
       node_ids_[&node] = idx;
       if (node.inputs.empty()) {
-        queue_.push({ node_ids_[&node], AssignStreamId(&node).value_or(kInvalidStreamIdx) });
+        queue_.push({ node_ids_[&node], AssignStreamId(&node).first.value_or(kInvalidStreamIdx) });
       } else {
         for (auto &inp : node.inputs) {
           assert(node_ids_.count(inp->producer) >= 0 && "Nodes must be topologically sorted.");
@@ -261,13 +261,14 @@ class StreamAssignment<StreamPolicy::PerOperator> {
 
       for (auto &output_desc : node->outputs) {
         for (auto *out : output_desc.consumers) {
-          auto out_stream_id = AssignStreamId(out->consumer, stream_id);
-          if (out_stream_id.has_value())
+          auto [out_stream_id, is_new] = AssignStreamId(out->consumer, stream_id);
+          if (out_stream_id == stream_id)
             keep_stream_id = false;
-          queue_.push({node_ids_[out->consumer], out_stream_id.value_or(kInvalidStreamIdx)});
+          if (is_new)
+            queue_.push({node_ids_[out->consumer], out_stream_id.value_or(kInvalidStreamIdx)});
         }
       }
-      if (keep_stream_id)
+      if (stream_id.has_value() && keep_stream_id)
         free_stream_ids_.erase(*stream_id);
     }
   }
@@ -310,8 +311,9 @@ class StreamAssignment<StreamPolicy::PerOperator> {
     os << "\n";
   }
 
-  std::optional<int> AssignStreamId(const ExecNode *node,
-                                  std::optional<int> prev_stream_id = std::nullopt) {
+  std::pair<std::optional<int>, bool> AssignStreamId(
+        const ExecNode *node,
+        std::optional<int> prev_stream_id = std::nullopt) {
     // If the preceding node had a stream, then we have to pass it on through CPU nodes if
     // there are any GPU nodes down the graph.
     // If the preceding node didn't have a stream, then we only need a stream if the current
@@ -327,10 +329,12 @@ class StreamAssignment<StreamPolicy::PerOperator> {
       if (!current.has_value() || *current > next_free) {
         current = next_free;
         free_stream_ids_.erase(b);
+        return { next_free, true };
+      } else {
+        return { *current, false };
       }
-      return *current;
     } else {
-      return std::nullopt;
+      return { std::nullopt, true };
     }
   }
 

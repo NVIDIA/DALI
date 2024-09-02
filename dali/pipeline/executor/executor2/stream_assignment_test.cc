@@ -335,11 +335,11 @@ TEST(Exec2Test, StreamAssignment_PerOperator_2) {
 TEST(Exec2Test, StreamAssignment_PerOperator_3) {
   ExecGraph eg;
   /*
-  a --- c -- out
-    \ /
-     X
-    / \
-  b --- d -- out
+  a --- c --- e -- out
+    \ /   \ /
+     X     X
+    / \   / \
+  b --- d --- f -- out
   */
   graph::OpGraph::Builder b;
   b.Add("a",
@@ -354,14 +354,26 @@ TEST(Exec2Test, StreamAssignment_PerOperator_3) {
         SpecGPU()
         .AddInput("a->c", "gpu")
         .AddInput("b->c", "gpu")
-        .AddOutput("c->o", "gpu"));
+        .AddOutput("c->e", "gpu")
+        .AddOutput("c->f", "gpu"));
   b.Add("d",
         SpecGPU()
         .AddInput("a->d", "gpu")
         .AddInput("b->d", "gpu")
-        .AddOutput("d->o", "gpu"));
-  b.AddOutput("c->o_gpu");
-  b.AddOutput("d->o_gpu");
+        .AddOutput("d->e", "gpu")
+        .AddOutput("d->f", "gpu"));
+  b.Add("e",
+        SpecGPU()
+        .AddInput("c->e", "gpu")
+        .AddInput("d->e", "gpu")
+        .AddOutput("e->o", "gpu"));
+  b.Add("f",
+        SpecGPU()
+        .AddInput("c->f", "gpu")
+        .AddInput("d->f", "gpu")
+        .AddOutput("f->o", "gpu"));
+  b.AddOutput("e->o_gpu");
+  b.AddOutput("f->o_gpu");
   auto g = std::move(b).GetGraph(true);
   eg.Lower(g);
 
@@ -371,6 +383,8 @@ TEST(Exec2Test, StreamAssignment_PerOperator_3) {
   EXPECT_EQ(assignment[map["b"]], 1);
   EXPECT_EQ(assignment[map["c"]], 0);
   EXPECT_EQ(assignment[map["d"]], 1);
+  EXPECT_EQ(assignment[map["e"]], 0);
+  EXPECT_EQ(assignment[map["f"]], 1);
 }
 
 TEST(Exec2Test, StreamAssignment_PerOperator_4) {
