@@ -24,6 +24,8 @@
 
 namespace dali {
 
+namespace {
+
 auto MakeExec2Config(int batch_size, int num_thread, int device_id,
                      size_t bytes_per_sample_hint, bool set_affinity,
                      int max_num_stream,
@@ -45,15 +47,28 @@ auto MakeExec2Config(int batch_size, int num_thread, int device_id,
   return cfg;
 }
 
+bool ForceExec2() {
+  static bool force_exec2 = []() {
+    const char *env = getenv("DALI_USE_EXEC2");
+    return env && atoi(env);
+  }();
+  return force_exec2;
+}
+
+}  // namespace
+
 template <typename... T>
 std::unique_ptr<ExecutorBase> GetExecutorImpl(bool pipelined, bool separated, bool async,
                                               T&&... args) {
   if (async && separated && pipelined) {
     return std::make_unique<AsyncSeparatedPipelinedExecutor>(std::forward<T>(args)...);
   } else if (async && !separated && pipelined) {
-    // return std::make_unique<AsyncPipelinedExecutor>(std::forward<T>(args)...);
-    std::cerr << "\n!!! EXPERIMENTAL !!!\nUsing Executor 2.0" << std::endl;
-    return std::make_unique<exec2::Executor2>(MakeExec2Config(std::forward<T>(args)...));
+    if (ForceExec2()) {
+      std::cerr << "\n!!! Forced use of Executor 2.0 !!!" << std::endl;
+      return std::make_unique<exec2::Executor2>(MakeExec2Config(std::forward<T>(args)...));
+    } else {
+     return std::make_unique<AsyncPipelinedExecutor>(std::forward<T>(args)...);
+    }
   } else if (!async && separated && pipelined) {
     return std::make_unique<SeparatedPipelinedExecutor>(std::forward<T>(args)...);
   } else if (!async && !separated && pipelined) {
