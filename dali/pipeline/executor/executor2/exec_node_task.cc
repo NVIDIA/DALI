@@ -507,9 +507,9 @@ void ClearWorkspacePayload(Workspace &ws) {
   }
 
   for (int i = 0; i < ws.NumArgumentInput(); i++) {
-    auto &inp = ws.ArgumentInput(i);
-    if (inp.is_pinned() && event && inp.order() != ws.output_order())
-      inp.order().wait(event);
+    auto &inp = ws.ArgumentInputPtr(i);
+    if (inp && inp->is_pinned() && event && inp->order() != ws.output_order())
+      inp->order().wait(event);
     ws.SetArgumentInput(i, nullptr);
   }
 

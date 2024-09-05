@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_WORKSPACE_WORKSPACE_H_
 #define DALI_PIPELINE_WORKSPACE_WORKSPACE_H_
 
+#include <cassert>
 #include <vector>
 #include <utility>
 #include <memory>
@@ -74,6 +75,7 @@ class ArgumentWorkspace {
   const TensorList<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     auto it = argument_input_idxs_.find(arg_name);
     DALI_ENFORCE(it != argument_input_idxs_.end(), "Argument \"" + arg_name + "\" not found.");
+    assert(argument_inputs_[it->second].cpu);
     return *argument_inputs_[it->second].cpu;
   }
 
@@ -82,9 +84,15 @@ class ArgumentWorkspace {
     return argument_inputs_[idx].name;
   }
 
-  const TensorList<CPUBackend>& ArgumentInput(int idx) const {
+  const TensorList<CPUBackend> &ArgumentInput(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumArgumentInput());
+    assert(argument_inputs_[idx].cpu);
     return *argument_inputs_[idx].cpu;
+  }
+
+  const std::shared_ptr<TensorList<CPUBackend>> ArgumentInputPtr(int idx) const {
+    DALI_ENFORCE_VALID_INDEX(idx, NumArgumentInput());
+    return argument_inputs_[idx].cpu;
   }
 
   std::shared_ptr<TensorList<CPUBackend>>&
