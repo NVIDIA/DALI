@@ -144,9 +144,10 @@ class OpticalFlow : public StatelessOperator<Backend> {
   void of_lazy_init(size_t width, size_t height, size_t channels, DALIImageType image_type,
                     int device_id, cudaStream_t stream) {
     if (!optical_flow_) {
-      optical_flow_ = std::make_unique<optical_flow::OpticalFlowImpl>(
+      auto flow = std::make_unique<optical_flow::OpticalFlowImpl>(
         of_params_, width, height, channels, image_type, device_id, stream);
-      optical_flow_->Init(of_params_);
+      flow->Init(of_params_);
+      optical_flow_ = std::move(flow);
     }
   }
 
