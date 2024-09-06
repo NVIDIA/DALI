@@ -417,8 +417,8 @@ TEST(Exec2Test, StreamAssignment_PerOperator_4) {
   auto map = MakeNodeMap(eg);
   EXPECT_EQ(assignment[map["a"]], 0);
   EXPECT_EQ(assignment[map["b"]], 0);
-  EXPECT_EQ(assignment[map["c"]], 2);
-  EXPECT_EQ(assignment[map["d"]], 1);
+  EXPECT_EQ(assignment[map["c"]], 1);
+  EXPECT_EQ(assignment[map["d"]], 2);
 }
 
 TEST(Exec2Test, StreamAssignment_PerOperator_5) {

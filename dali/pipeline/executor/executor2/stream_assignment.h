@@ -209,7 +209,7 @@ class StreamAssignment<StreamPolicy::PerOperator> {
   void Assign(ExecGraph &graph) {
     int num_nodes = graph.Nodes().size();
 
-    // the nodes in the graph must be sorted topologically
+    // the nodes in the are already sorted topologically
     sorted_nodes_.reserve(num_nodes);
     for (auto &node : graph.Nodes()) {
       int idx = sorted_nodes_.size();
@@ -257,19 +257,13 @@ class StreamAssignment<StreamPolicy::PerOperator> {
   }
 
   void RunAssignment(ExecGraph &graph) {
-    graph::ClearVisitMarkers(graph.Nodes());
-    // Process the nodes in reverse topological order, from outputs to inputs
-    for (int i = sorted_nodes_.size() - 1; i >= 0; i--) {
-      // Run DFS-based assignment algorithm
-      ProcessNode(sorted_nodes_[i].first, sorted_nodes_[i].second);
+    // Process the nodes in topological order.
+    for (auto [node, meta] : sorted_nodes_) {
+      ProcessNode(node, meta);
     }
   }
 
   void ProcessNode(const ExecNode *node, NodeMeta *meta) {
-    graph::Visit v(node);
-    if (!v)
-      return;
-
     /* The algorithm
 
     Each node has an associated NodeMeta, which contains the stream assignment and a set
@@ -280,28 +274,22 @@ class StreamAssignment<StreamPolicy::PerOperator> {
     Later, when trying to reuse the ready streams, the streams which were inserted with an
     outdated use count are rejected.
 
-    For each node (starting from outputs):
+    For each node (topologically sorted):
 
-    0. Check and set the visit marker
-       - early-exit if already set
-    1. Call recursively for the producers of this node's inputs
+    1a. Pick the producers' ready stream with ths smallest id (reject streams with stale use count).
+    1b. If there are no ready streams, bump the total number of streams and get a new stream id.
 
-    2a. Pick the producers' ready stream with ths smallest id (reject streams with stale use count).
-    2b. If there are no ready streams, bump the total number of streams and get a new stream id.
+    2. Bump the use count of the currently assigned stream.
 
-    3. Bump the use count of the currently assigned stream.
-
-    4. Compute the current ready set as the union of input ready sets + the current stream id.
+    3. Compute the current ready set as the union of input ready sets + the current stream id.
 
     When computing the union, stale streams are removed to speed up subsequent lookups.
-
     */
 
     std::optional<int> stream_id = {};
 
     for (auto &e : node->inputs) {
       auto &prod_meta = node_meta_[e->producer];
-      ProcessNode(e->producer, &prod_meta);
       // If we're a GPU contributor (and therefore we need a stream assignment), check if the
       // producer's ready stream set contains something.
       if (meta->gpu_contributor) {
