@@ -276,6 +276,7 @@ set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
   set(NVIMGCODEC_MIN_VERSION "0.3.0")
   set(NVIMGCODEC_MAX_VERSION "0.4.0")
+  message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
 
