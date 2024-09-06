@@ -33,11 +33,11 @@
 #include "dali/pipeline/operator/operator.h"
 
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
-nvimgcodecStatus_t get_libjpeg_turbo_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
-nvimgcodecStatus_t get_libtiff_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
-nvimgcodecStatus_t get_opencv_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
-nvimgcodecStatus_t get_nvjpeg_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
-nvimgcodecStatus_t get_nvjpeg2k_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
+nvimgcodecStatus_t get_libjpeg_turbo_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
+nvimgcodecStatus_t get_libtiff_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
+nvimgcodecStatus_t get_opencv_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
+nvimgcodecStatus_t get_nvjpeg_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
+nvimgcodecStatus_t get_nvjpeg2k_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
 #endif
 
 bool nvjpegIsSymbolAvailable(const char *name);
@@ -121,7 +121,7 @@ inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream
   return cudaSuccess;
 }
 
-inline void get_nvimgcodec_version(int* major, int *minor, int* patch) {
+inline void get_nvimgcodec_version(int *major, int *minor, int *patch) {
   static int s_major = -1, s_minor = -1, s_patch = -1;
   auto version_check_f = [&] {
     nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
@@ -149,10 +149,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
  public:
   ~ImageDecoder() override {
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
-    hw_decoder_.reset()  // stop the hw decoder
-    for (auto& decoder : decoders_)
-      decoder.reset();  // stop the all the other decoders
-    for (auto& extension : extensions_) {
+    decoder_.reset();  // first stop the decoder
+    for (auto &extension : extensions_) {
       nvimgcodecExtensionDestroy(extension);
     }
 #endif
@@ -189,38 +187,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     SampleView<CPUBackend> decode_out_cpu;
     SampleView<GPUBackend> decode_out_gpu;
-
-    // Sorting order:
-    // subsampling_score,
-    // image_volume,
-    // -sample_idx
-    using sort_score_t = std::tuple<uint8_t, uint64_t, int>;
-    sort_score_t sort_score;
-
-    sort_score_t get_sort_score(int sample_idx) {
-      uint8_t subsampling_score;
-      switch (image_info.chroma_subsampling) {
-        case NVIMGCODEC_SAMPLING_444:
-          subsampling_score = 8;
-        case NVIMGCODEC_SAMPLING_422:
-          subsampling_score = 7;
-        case NVIMGCODEC_SAMPLING_420:
-          subsampling_score = 6;
-        case NVIMGCODEC_SAMPLING_440:
-          subsampling_score = 5;
-        case NVIMGCODEC_SAMPLING_411:
-          subsampling_score = 4;
-        case NVIMGCODEC_SAMPLING_410:
-          subsampling_score = 3;
-        case NVIMGCODEC_SAMPLING_GRAY:
-          subsampling_score = 2;
-        case NVIMGCODEC_SAMPLING_410V:
-        default:
-          subsampling_score = 1;
-      }
-      uint64_t image_volume = image_info.plane_info[0].height * image_info.plane_info[0].width;
-      return std::make_tuple(subsampling_score, image_volume, -sample_idx);
-    }
   };
 
   struct nvImagecodecOpts {
@@ -259,53 +225,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
     dtype_ = spec.GetArgument<DALIDataType>("dtype");
     use_orientation_ = spec.GetArgument<bool>("adjust_orientation");
     max_batch_size_ = spec.GetArgument<int>("max_batch_size");
-    max_batch_size_hw_ = 0;
     num_threads_ = spec.GetArgument<int>("num_threads");
     GetDecoderSpecificArguments(spec);
 
     if (std::is_same<MixedBackend, Backend>::value) {
       thread_pool_ = std::make_unique<ThreadPool>(num_threads_, device_id_,
                                                   spec.GetArgument<bool>("affine"), "MixedDecoder");
-
       if (spec_.HasArgument("cache_size"))
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);
-
-      float hw_load = spec.GetArgument<float>("hw_decoder_load");
-      max_batch_size_hw_ = std::round(max_batch_size_ * hw_load);
-
-      nvjpegStatus_t hw_dec_info_status = NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED;
-      unsigned int num_hw_engines;
-      unsigned int num_cores_per_hw_engine;
-      nvjpegHandle_t handle;
-      if (nvjpegCreateEx(NVJPEG_BACKEND_HARDWARE, nullptr, nullptr, 0, &handle) == NVJPEG_STATUS_SUCCESS) {
-        if (nvjpegIsSymbolAvailable("nvjpegGetHardwareDecoderInfo")) {
-          hw_dec_info_status = nvjpegGetHardwareDecoderInfo(handle, &num_hw_engines, &num_cores_per_hw_engine);
-          if (hw_dec_info_status != NVJPEG_STATUS_SUCCESS) {
-            num_hw_engines = 0;
-            num_cores_per_hw_engine = 0;
-            max_batch_size_hw_ = 0;
-          }
-        } else {
-            num_hw_engines = 1;
-            num_cores_per_hw_engine = 5;
-            hw_dec_info_status = NVJPEG_STATUS_SUCCESS;
-        }
-        nvjpegDestroy(handle);
-      } else {
-        num_hw_engines = 0;
-        num_cores_per_hw_engine = 0;
-        max_batch_size_hw_ = 0;
-      }
-
-      if (max_batch_size_hw_ > 0) {
-        int tail = max_batch_size_hw_ % num_cores_per_hw_engine;
-        if (tail > 0) {
-            max_batch_size_hw_ = max_batch_size_hw_ + num_cores_per_hw_engine - tail;
-        }
-        if (max_batch_size_hw_ > max_batch_size_) {
-            max_batch_size_hw_ = max_batch_size_;
-        }
-      }
     }
     EnforceMinimumNvimgcodecVersion();
 
@@ -340,7 +267,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         nullptr};
 
     const char *log_lvl_env = std::getenv("DALI_NVIMGCODEC_LOG_LEVEL");
-    int log_lvl = log_lvl_env ? clamp(atoi(log_lvl_env), 1, 5): 2;
+    int log_lvl = log_lvl_env ? clamp(atoi(log_lvl_env), 1, 5) : 2;
 
     instance_create_info.load_extension_modules = static_cast<int>(WITH_DYNAMIC_NVIMGCODEC_ENABLED);
     instance_create_info.load_builtin_modules = static_cast<int>(true);
@@ -383,6 +310,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 #endif
 
     std::stringstream opts_ss;
+    float hw_load = 0.9f;
 
     std::vector<std::pair<std::string, std::string>> option_strs;
     for (auto &[key, value] : decoder_params_) {
@@ -391,6 +319,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
       } else if (key == "hybrid_huffman_threshold") {
         opts_.add_module_option("nvjpeg_cuda_decoder", "hybrid_huffman_threshold",
                                 std::any_cast<size_t>(value));
+      } else if (key == "hw_decoder_load") {
+        hw_load = std::any_cast<float>(value);
       } else if (key == "jpeg_fancy_upsampling") {
         // TODO(janton): Make fancy_upsampling default `true` and let the option control the CPU
         // decoder as well. For backward compatibility reasons, we don't set the fancy upsampling
@@ -425,7 +355,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     opts_.add_module_option("nvjpeg_cuda_decoder", "preallocate_buffers", true);
 
     // Batch size
-    opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_batch_size", max_batch_size_hw_);
+    opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_batch_size", max_batch_size_);
     // Nvjpeg2k parallel tiles
     opts_.add_module_option("nvjpeg2k_cuda_decoder", "num_parallel_tiles", 16);
 
@@ -433,61 +363,95 @@ class ImageDecoder : public StatelessOperator<Backend> {
         device_id_ == CPU_ONLY_DEVICE_ID ? NVIMGCODEC_DEVICE_CPU_ONLY : device_id_;
 
     exec_params_.device_id = nvimgcodec_device_id;
-    exec_params_hw_.device_id = nvimgcodec_device_id;
     backends_.clear();
-    backends_.reserve(3);
+    backends_.reserve(4);
     if (nvimgcodec_device_id != NVIMGCODEC_DEVICE_CPU_ONLY) {
-      backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                                              sizeof(nvimgcodecBackend_t),
-                                              nullptr,
-                                              NVIMGCODEC_BACKEND_KIND_GPU_ONLY,
-                                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
-      backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                                              sizeof(nvimgcodecBackend_t),
-                                              nullptr,
-                                              NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU,
-                                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
+      backends_.push_back(
+          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                              sizeof(nvimgcodecBackend_t),
+                              nullptr,
+                              NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
+                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                               sizeof(nvimgcodecBackendParams_t), nullptr, hw_load, false}});
+      backends_.push_back(
+          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                              sizeof(nvimgcodecBackend_t),
+                              nullptr,
+                              NVIMGCODEC_BACKEND_KIND_GPU_ONLY,
+                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f, false}});
+      backends_.push_back(
+          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                              sizeof(nvimgcodecBackend_t),
+                              nullptr,
+                              NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU,
+                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f, false}});
     }
-    backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                                            sizeof(nvimgcodecBackend_t),
-                                            nullptr,
-                                            NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
-                                            {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                                             sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
-
-    exec_params_hw_.backends = &backend_hw_;
-    exec_params_hw_.num_backends = 1;
-    exec_params_hw_.device_allocator = dev_alloc_ptr;
-    exec_params_hw_.pinned_allocator = pinned_alloc_ptr;
-    exec_params_hw_.executor = &executor_;
-    exec_params_hw_.max_num_cpu_threads = 1;  // TODO(janton): use 0 if possible.
-    exec_params_hw_.pre_init = 1;
-    decoder_hw_ = NvImageCodecDecoder::Create(instance_, &exec_params_hw_, opts_.to_string());
+    backends_.push_back(
+        nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                            sizeof(nvimgcodecBackend_t),
+                            nullptr,
+                            NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
+                            {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                             sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f, false}});
 
     exec_params_.backends = backends_.data();
     exec_params_.num_backends = backends_.size();
     exec_params_.device_allocator = dev_alloc_ptr;
     exec_params_.pinned_allocator = pinned_alloc_ptr;
     exec_params_.executor = &executor_;
-    exec_params_.max_num_cpu_threads = 1;  // TODO(janton): use 0 if possible.
+    exec_params_.max_num_cpu_threads = num_threads_;
     exec_params_.pre_init = 1;
-    decoders_.resize(num_threads_);
-    for (auto& decoder : decoders_)
-      decoder = NvImageCodecDecoder::Create(instance_, &exec_params_, opts_.to_string());
+    decoder_ = NvImageCodecDecoder::Create(instance_, &exec_params_, opts_.to_string());
   }
 
-  static nvimgcodecStatus_t static_launch(void *instance, int device_id, int sample_idx,
-                                          void *task_context,
-                                          void (*task)(int thread_id, int sample_idx,
-                                                       void *task_context)) {
-    task(0, sample_idx, task_context);
+  nvimgcodecStatus_t schedule(int device_id, int sample_idx, void *task_context,
+                              void (*task)(int thread_id, int sample_idx, void *task_context)) {
+    assert(tp_);
+    tp_->AddWork([=](int tid) { task(tid, sample_idx, task_context); }, -(task_count_++), false);
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
+  nvimgcodecStatus_t run(int device_id) {
+    assert(tp_);
+    tp_->RunAll(false);
+    return NVIMGCODEC_STATUS_SUCCESS;
+  }
+
+  nvimgcodecStatus_t wait(int device_id) {
+    assert(tp_);
+    tp_->WaitForWork();
+    return NVIMGCODEC_STATUS_SUCCESS;
+  }
+
+  int get_num_threads() const {
+    // For the host backend, the thread pool is not available until we see the first batch.
+    // this allows nvimgcodec accessing number of threads before the thread pool is available
+    return num_threads_;
+  }
+
+  static nvimgcodecStatus_t static_schedule(void *instance, int device_id, int sample_idx,
+                                            void *task_context,
+                                            void (*task)(int thread_id, int sample_idx,
+                                                         void *task_context)) {
+    auto *handle = static_cast<ImageDecoder<Backend> *>(instance);
+    return handle->schedule(device_id, sample_idx, task_context, task);
+  }
+
+  static nvimgcodecStatus_t static_run(void *instance, int device_id) {
+    auto *handle = static_cast<ImageDecoder<Backend> *>(instance);
+    return handle->run(device_id);
+  }
+
+  static nvimgcodecStatus_t static_wait(void *instance, int device_id) {
+    auto *handle = static_cast<ImageDecoder<Backend> *>(instance);
+    return handle->wait(device_id);
+  }
+
   static int static_get_num_threads(void *instance) {
-    return 1;
+    auto *handle = static_cast<ImageDecoder<Backend> *>(instance);
+    return handle->get_num_threads();
   }
 
   virtual void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) {}
@@ -517,6 +481,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     GetDecoderSpecificArgument<size_t>(spec, "device_memory_padding_jpeg2k");
     GetDecoderSpecificArgument<size_t>(spec, "host_memory_padding");
     GetDecoderSpecificArgument<size_t>(spec, "host_memory_padding_jpeg2k");
+    GetDecoderSpecificArgument<float>(spec, "hw_decoder_load");
     GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
     GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
     GetDecoderSpecificArgument<bool>(spec, "use_fast_idct");
@@ -741,8 +706,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           if (roi.use_roi()) {
             auto roi_sh = roi.shape();
             if (roi.end.size() >= 2) {
-              DALI_ENFORCE(0 <= roi.end[0] && roi.end[0] <= st->out_shape[0] &&
-                               0 <= roi.end[1] && roi.end[1] <= st->out_shape[1],
+              DALI_ENFORCE(0 <= roi.end[0] && roi.end[0] <= st->out_shape[0] && 0 <= roi.end[1] &&
+                               roi.end[1] <= st->out_shape[1],
                            "ROI end must fit within the image bounds");
             }
             if (roi.begin.size() >= 2) {
@@ -755,8 +720,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
           }
           shapes.set_tensor_shape(i, st->out_shape);
           PrepareOutput(*state_[i], rois_[i], ws);
-
-          st->sort_score = st->get_sort_score(i);
         }
       };
     };
@@ -767,7 +730,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       const int max_num_blocks = std::max(1, nsamples / minimum_block_nsamples);
       int nblocks = std::min(tp_->NumThreads() + 1, max_num_blocks);
       if (nblocks == 1) {
-        get_task(0, 1)(-1);                // run all in current thread
+        get_task(0, 1)(-1);  // run all in current thread
       } else {
         int block_idx = 0;
         for (; block_idx < nblocks - 1; block_idx++) {
@@ -779,16 +742,19 @@ class ImageDecoder : public StatelessOperator<Backend> {
       }
     }
 
-    output.Resize(shapes, dtype_);
+    {
+      DomainTimeRange tr("output resize", DomainTimeRange::kOrange);
+      output.Resize(shapes, dtype_);
+    }
 
     int samples_to_load = 0;
     bool any_need_processing = false;
     for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
       auto &st = *state_[orig_idx];
-      auto* data_ptr = output.raw_mutable_tensor(orig_idx);
+      auto *data_ptr = output.raw_mutable_tensor(orig_idx);
       if (load_from_cache_[orig_idx]) {
         auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
-        cache_->DeferCacheLoad(src_info, static_cast<uint8_t*>(data_ptr));
+        cache_->DeferCacheLoad(src_info, static_cast<uint8_t *>(data_ptr));
         samples_to_load++;
       } else {
         decode_sample_idxs_.push_back(orig_idx);
@@ -801,12 +767,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
       }
     }
 
-    auto order_fn = [&](size_t lhs, size_t rhs) { return state_[lhs]->sort_score > state_[rhs]->sort_score; };
-    std::sort(decode_sample_idxs_.begin(), decode_sample_idxs_.end(), order_fn);
-
-    // HW batch takes indices from decode_sample_idxs_ from the range [0, hw_decoder_idx_end)
-    size_t hw_decoder_idx_end = std::min(static_cast<size_t>(max_batch_size_hw_), decode_sample_idxs_.size());
-
     if (ws.has_stream() && need_host_sync_alloc() && any_need_processing) {
       DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
@@ -817,113 +777,73 @@ class ImageDecoder : public StatelessOperator<Backend> {
       cache_->LoadDeferred(ws.stream());
     }
 
-    for (size_t idx = hw_decoder_idx_end; idx < decode_sample_idxs_.size(); idx++) {
-      size_t orig_idx = decode_sample_idxs_[idx];
-      auto* st_ptr = state_[orig_idx].get();
-      tp_->AddWork(
-        [&, out = output[orig_idx], st_ptr, orig_idx](int tid) {
-          DomainTimeRange tr("Decode #" + std::to_string(orig_idx), DomainTimeRange::kOrange);
-          auto& st = *st_ptr;
-          nvimgcodecFuture_t future;
-          nvimgcodecProcessingStatus_t decode_status;
-          size_t decode_status_size;
-          nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
-                                                sizeof(nvimgcodecDecodeParams_t), nullptr};
-          decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
-          decode_params.enable_roi = rois_[orig_idx].use_roi();
-
-          auto code_stream = st.parsed_sample.encoded_stream.get();
-          auto image = st.image.get();
-          CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoders_[tid], &code_stream, &image, 1, &decode_params, &future));
-          CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
-          CHECK_NVIMGCODEC(
-              nvimgcodecFutureGetProcessingStatus(future, &decode_status, &decode_status_size));
-          CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
-          if (decode_status_size != 1 || decode_status != NVIMGCODEC_PROCESSING_STATUS_SUCCESS) {
-            throw std::runtime_error(make_string("Failed to decode sample #", orig_idx, " : ",
-                                                 input.GetMeta(orig_idx).GetSourceInfo()));
-          }
-          if (st.need_processing) {
-            DomainTimeRange tr(make_string("Convert #", orig_idx), DomainTimeRange::kOrange);
-            if constexpr (std::is_same<MixedBackend, Backend>::value) {
-              ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu, st.req_layout,
-                         st.orig_img_type, ws.stream(), ROI{}, nvimgcodecOrientation_t{},
-                         st.dyn_range_multiplier);
-              st.device_buf.reset();
-            } else {
-              ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu, st.req_layout,
-                         st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
-              st.host_buf.reset();
-            }
-          }
-        },
-        -idx);
-    }
-    tp_->RunAll(false);
-
-    if (hw_decoder_idx_end > 0) {
+    size_t nsamples_decode = decode_sample_idxs_.size();
+    if (nsamples_decode > 0) {
       nvimgcodecFuture_t future;
-      std::vector<nvimgcodecCodeStream_t> code_streams;
-      code_streams.reserve(hw_decoder_idx_end);
-      std::vector<nvimgcodecImage_t> images;
-      images.reserve(hw_decoder_idx_end);
+
       bool has_any_roi = false;
-      for (size_t idx = 0; idx < hw_decoder_idx_end; idx++) {
+      for (size_t idx = 0; idx < nsamples_decode; idx++) {
         size_t orig_idx = decode_sample_idxs_[idx];
-        auto& st = *state_[orig_idx];
+        auto &st = *state_[orig_idx];
         has_any_roi |= rois_[orig_idx].use_roi();
-        code_streams.push_back(st.parsed_sample.encoded_stream);
-        images.push_back(st.image);
+        batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
+        batch_images_.push_back(st.image);
       }
-      std::vector<nvimgcodecProcessingStatus_t> decode_status(hw_decoder_idx_end);
+      std::vector<nvimgcodecProcessingStatus_t> decode_status(nsamples_decode);
       size_t decode_status_size = 0;
       nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
                                                 sizeof(nvimgcodecDecodeParams_t), nullptr};
       decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
       decode_params.enable_roi = static_cast<int>(has_any_roi);
 
-      CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_hw_, code_streams.data(), images.data(), hw_decoder_idx_end, &decode_params, &future));
-      CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
-      CHECK_NVIMGCODEC(
-        nvimgcodecFutureGetProcessingStatus(future, decode_status.data(), &decode_status_size));
-      CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
-      if (decode_status_size != hw_decoder_idx_end)
+      {
+        DomainTimeRange tr("nvimgcodecDecoderDecode", DomainTimeRange::kOrange);
+        CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, batch_encoded_streams_.data(),
+                                                 batch_images_.data(), nsamples_decode,
+                                                 &decode_params, &future));
+        CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
+        CHECK_NVIMGCODEC(
+            nvimgcodecFutureGetProcessingStatus(future, decode_status.data(), &decode_status_size));
+        CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
+      }
+      if (decode_status_size != nsamples_decode)
         throw std::runtime_error("Failed to run hardware decoder");
-      for (size_t idx = 0; idx < hw_decoder_idx_end; idx++) {
+      for (size_t idx = 0; idx < nsamples_decode; idx++) {
         size_t orig_idx = decode_sample_idxs_[idx];
         auto st_ptr = state_[orig_idx].get();
         if (decode_status[idx] != NVIMGCODEC_PROCESSING_STATUS_SUCCESS) {
           throw std::runtime_error(make_string("Failed to decode sample #", orig_idx, " : ",
-                                              input.GetMeta(orig_idx).GetSourceInfo()));
+                                               input.GetMeta(orig_idx).GetSourceInfo()));
         }
       }
 
-      for (size_t idx = 0; idx < hw_decoder_idx_end; idx++) {
-        size_t orig_idx = decode_sample_idxs_[idx];
-        auto st_ptr = state_[orig_idx].get();
-        if (st_ptr->need_processing) {
-          tp_->AddWork(
-              [&, out = output[orig_idx], st_ptr, orig_idx](int tid) {
-                DomainTimeRange tr(make_string("Convert #", orig_idx), DomainTimeRange::kOrange);
-                auto &st = *st_ptr;
-                if constexpr (std::is_same<MixedBackend, Backend>::value) {
-                  ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu, st.req_layout,
-                            st.orig_img_type, ws.stream(), ROI{}, nvimgcodecOrientation_t{},
-                            st.dyn_range_multiplier);
-                  st.device_buf.reset();
-                } else {
-                  assert(st.dyn_range_multiplier == 1.0f);  // TODO(janton): enable
-                  ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu, st.req_layout,
-                            st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
-                  st.host_buf.reset();
-                }
-              },
-              -idx);
+      if (any_need_processing) {
+        for (size_t idx = 0; idx < nsamples_decode; idx++) {
+          size_t orig_idx = decode_sample_idxs_[idx];
+          auto st_ptr = state_[orig_idx].get();
+          if (st_ptr->need_processing) {
+            tp_->AddWork(
+                [&, out = output[orig_idx], st_ptr, orig_idx](int tid) {
+                  DomainTimeRange tr(make_string("Convert #", orig_idx), DomainTimeRange::kOrange);
+                  auto &st = *st_ptr;
+                  if constexpr (std::is_same<MixedBackend, Backend>::value) {
+                    ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu,
+                               st.req_layout, st.orig_img_type, ws.stream(), ROI{},
+                               nvimgcodecOrientation_t{}, st.dyn_range_multiplier);
+                    st.device_buf.reset();
+                  } else {
+                    assert(st.dyn_range_multiplier == 1.0f);  // TODO(janton): enable
+                    ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu,
+                               st.req_layout, st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
+                    st.host_buf.reset();
+                  }
+                },
+                -idx);
+          }
         }
+        tp_->RunAll(true);
       }
-      tp_->RunAll(false);
     }
-    tp_->WaitForWork();
 
     if (use_cache) {
       DomainTimeRange tr(make_string("CacheStore"), DomainTimeRange::kOrange);
@@ -949,27 +869,20 @@ class ImageDecoder : public StatelessOperator<Backend> {
   std::unique_ptr<CachedDecoderImpl> cache_;
 
   NvImageCodecInstance instance_ = {};
-  NvImageCodecDecoder decoder_hw_ = {};
-  std::vector<NvImageCodecDecoder> decoders_ = {};
+  NvImageCodecDecoder decoder_ = {};
 
   nvimgcodecExecutorDesc_t executor_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTOR_DESC,
                                      sizeof(nvimgcodecExecutorDesc_t),
                                      nullptr,
                                      this,
-                                     &static_launch,
+                                     &static_schedule,
+                                     &static_run,
+                                     &static_wait,
                                      &static_get_num_threads};
 
   nvimgcodecDeviceAllocator_t dev_alloc_ = {};
   nvimgcodecPinnedAllocator_t pinned_alloc_ = {};
-  nvimgcodecBackend_t backend_hw_ = {
-      NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-      sizeof(nvimgcodecBackend_t),
-      nullptr,
-      NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
-      {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS, sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}};
   std::vector<nvimgcodecBackend_t> backends_;
-  nvimgcodecExecutionParams_t exec_params_hw_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
-                                              sizeof(nvimgcodecExecutionParams_t), nullptr};
   nvimgcodecExecutionParams_t exec_params_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
                                            sizeof(nvimgcodecExecutionParams_t), nullptr};
 
@@ -981,9 +894,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
   TensorLayout layout_ = "HWC";
   bool use_orientation_ = true;
   int max_batch_size_ = 1;
-  int max_batch_size_hw_ = 0;
   int num_threads_ = -1;
-  ThreadPool* tp_ = nullptr;
+  ThreadPool *tp_ = nullptr;
+  int64_t task_count_ = 0;
   std::vector<std::unique_ptr<SampleState>> state_;
   std::vector<nvimgcodecCodeStream_t> batch_encoded_streams_;
   std::vector<nvimgcodecImage_t> batch_images_;
