@@ -20,7 +20,8 @@ namespace dali {
 
 VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
     : DataReader<CPUBackend, VideoSampleCpu, VideoSampleCpu, true>(spec),
-      has_labels_(spec.HasArgument("labels")) {
+      has_labels_(spec.HasArgument("labels")),
+      has_frame_no_(spec.GetArgument<bool>("enable_frame_num")) {
       loader_ = InitLoader<VideoLoaderDecoderCpu>(spec);
       this->SetInitialSnapshot();
 }
@@ -32,16 +33,28 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   video_output.Copy(sample.data_);
   video_output.SetSourceInfo(sample.data_.GetSourceInfo());
 
+  int out_index = 1;
   if (has_labels_) {
-    auto &label_output = ws.Output<CPUBackend>(1);
+    auto &label_output = ws.Output<CPUBackend>(out_index);
     label_output.Resize({}, DALIDataType::DALI_INT32);
     label_output.mutable_data<int>()[0] = sample.label_;
+    out_index++;
+  }
+  if (has_frame_no_) {
+    auto &frame_no_output = ws.Output<CPUBackend>(out_index);
+    frame_no_output.Resize({}, DALIDataType::DALI_INT32);
+    frame_no_output.mutable_data<int>()[0] = sample.first_frame_;
+    out_index++;
   }
 }
 
 namespace detail {
 inline int VideoReaderDecoderOutputFn(const OpSpec &spec) {
-  return spec.HasArgument("labels") ? 2 : 1;
+  int num_outputs = 1;
+  if (spec.HasArgument("labels")) num_outputs++;
+  bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
+  if (enable_frame_num) num_outputs++;
+  return num_outputs;
 }
 }  // namespace detail
 
@@ -68,6 +81,10 @@ even in the variable frame rate scenario.)code")
   .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
       DALI_INT32)
+  .AddOptionalArg("enable_frame_num",
+      R"code(If set, returns the first frame number in the decoded sequence
+as a separate output.)code",
+      false)
   .AddOptionalArg("step",
       R"code(Frame interval between each sequence.
 

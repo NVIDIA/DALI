@@ -29,6 +29,7 @@ class VideoReaderDecoderCpu
 
  private:
   bool has_labels_ = false;
+  bool has_frame_no_ = false;
 };
 
 }  // namespace dali

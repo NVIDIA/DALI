@@ -20,7 +20,8 @@ namespace dali {
 
 VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
     : DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>(spec),
-      has_labels_(spec.HasArgument("labels")) {
+      has_labels_(spec.HasArgument("labels")),
+      has_frame_no_(spec.GetArgument<bool>("enable_frame_num")) {
       loader_ = InitLoader<VideoLoaderDecoderGpu>(spec);
       this->SetInitialSnapshot();
 }
@@ -50,14 +51,21 @@ bool VideoReaderDecoderGpu::SetupImpl(
 
   output_desc[0] = { video_shape, DALI_UINT8 };
 
-  if (!has_labels_) {
-    return true;
+  int out_index = 1;
+  if (has_labels_) {
+    output_desc[out_index] = {
+      uniform_list_shape<1>(batch_size, {1}),
+      DALI_INT32
+    };
+    out_index++;
   }
-
-  output_desc[1] = {
-    uniform_list_shape<1>(batch_size, {1}),
-    DALI_INT32
-  };
+  if (has_frame_no_) {
+    output_desc[out_index] = {
+      uniform_list_shape<1>(batch_size, {1}),
+      DALI_INT32
+    };
+    out_index++;
+  }
 
   return true;
 }
@@ -80,23 +88,39 @@ void VideoReaderDecoderGpu::RunImpl(Workspace &ws) {
     video_output.SetSourceInfo(sample_id, sample.data_.GetSourceInfo());
   }
 
-  if (!has_labels_) {
-    return;
+  int out_index = 1;
+  if (has_labels_) {
+    auto &labels_output = ws.Output<GPUBackend>(out_index);
+    SmallVector<int, 32> labels_cpu;
+
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      auto &sample = GetSample(sample_id);
+      labels_cpu[sample_id] = sample.label_;
+    }
+
+    MemCopy(
+      labels_output.AsTensor().raw_mutable_data(),
+      labels_cpu.data(),
+      batch_size * sizeof(DALI_INT32),
+      ws.stream());
+    out_index++;
   }
+  if (has_frame_no_) {
+    auto &frame_no_output = ws.Output<GPUBackend>(out_index);
+    SmallVector<int, 32> frame_no_output_cpu;
 
-  auto &labels_output = ws.Output<GPUBackend>(1);
-  SmallVector<int, 32> labels_cpu;
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      auto &sample = GetSample(sample_id);
+      frame_no_output_cpu[sample_id] = sample.span_ ? sample.span_->start_ : -1;
+    }
 
-  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    auto &sample = GetSample(sample_id);
-    labels_cpu[sample_id] = sample.label_;
+    MemCopy(
+      frame_no_output.AsTensor().raw_mutable_data(),
+      frame_no_output_cpu.data(),
+      batch_size * sizeof(DALI_INT32),
+      ws.stream());
+    out_index++;
   }
-
-  MemCopy(
-    labels_output.AsTensor().raw_mutable_data(),
-    labels_cpu.data(),
-    batch_size * sizeof(DALI_INT32),
-    ws.stream());
 }
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoderGpu, GPU);
