@@ -103,7 +103,7 @@ class DataNode(object):
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
             [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNode(self_split.name, "gpu", self_split.source)
+            transferred_node = DataNode(self_split.name, "cpu", self_split.source)
             _conditionals.register_data_nodes(transferred_node, [self])
             return transferred_node
         return DataNode(self.name, "cpu", self.source)
