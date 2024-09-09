@@ -25,6 +25,21 @@
 namespace dali {
 namespace exec2 {
 
+/** Determines the output queue size for the operators in different places in the graph.
+ *
+ * An operator produces its output and stores it in a (virtual) queue. The size of the queue
+ * determines, how many times an operator can be run ahead of its consumers.
+ *
+ * A queue size of 1 means there's no queue - the operator has just one output buffer and it
+ * must be consumed before the next iteration can start. A queue size of 2 means that the operator
+ * can be be run twice before the result of the first iteration is consumed, and so on.
+ *
+ * Depending on where in the graph an operator is, it may, or may not, have a queue longer than 1.
+ * To maintain meaningful prefetching, at least the producers of the pipeline outputs must have a
+ * queue (OutputOnly). The opposite is the FullyBuffered policy, where all operators can accumulate
+ * multiple results. BackendChange policy maintains a queue only for operators which have consumers
+ * with a different backend (e.g. a CPU operator's results are consumed by a Mixed operator).
+ */
 enum class QueueDepthPolicy : int {
   FullyBuffered,  //< All operators maintain a queue
   BackendChange,  //< Only operators followed by one with a different backend have a queue
@@ -32,12 +47,14 @@ enum class QueueDepthPolicy : int {
   Legacy = BackendChange,
 };
 
+/** Determines which operators can run in parallel. */
 enum class OperatorConcurrency : int {
   None,      //< at no time can mutliple operators run
   Backend,   //< operators from different backends can execute in parallel
   Full,      //< independent operators can run in parallel
 };
 
+/** Determines how CUDA streams are assigned to the operators. */
 enum class StreamPolicy : int {
   Single,       //< There's just one stream that's used by all operators
   PerBackend,   //< Operators are scheduled on a stream specific to their backend (mixed or GPU)

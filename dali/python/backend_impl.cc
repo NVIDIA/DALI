@@ -297,10 +297,13 @@ void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int de
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
   batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) mutable {  // NOLINT
+    // acquire GIL ...
     py::gil_scoped_acquire aqr;
     {
+      // now move out the object stored in the closure to a local variable...
       auto tmp = std::move(obj_ref);
       (void)tmp;
+      /// ...and let it go out of scope while GIL is held
     }
   }),
       bytes, false, typed_shape, type.id(), device_id);

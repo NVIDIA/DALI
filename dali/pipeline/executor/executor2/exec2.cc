@@ -63,6 +63,9 @@ void ApplyConcurrencyLimit(ExecGraph &graph, OperatorConcurrency concurrency) {
 }  // namespace
 
 class Executor2::Impl {
+  // Must be declared as the 1st member, so it's always be destroyed last.
+  std::optional<DeviceGuard> dtor_guard_;
+
  public:
   explicit Impl(const Config &config) : config_(config) {
   }
@@ -201,9 +204,6 @@ class Executor2::Impl {
   }
 
  private:
-  // Must be 1st member to be destroyed last.
-  std::optional<DeviceGuard> dtor_guard_;
-
   State state_ = State::New;
 
   std::shared_ptr<IterationData> InitIterationData(int iter_index) {
