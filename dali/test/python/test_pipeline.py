@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -2245,3 +2245,58 @@ def test_gpu2cpu():
     for i in range(10):
         gpu, cpu = pipe.run()
         check_batch(cpu, gpu, bs, 0, 0, "HWC")
+
+
+def test_gpu2cpu_old_exec_error():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=False)
+    def pdef():
+        gpu = fn.external_source("input", device="gpu")
+        return gpu.cpu()
+
+    pipe = pdef()
+    with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
+        pipe.build()
+
+
+def test_gpu2cpu_conditionals():
+    bs = 4
+
+    @pipeline_def(
+        batch_size=bs,
+        num_threads=4,
+        device_id=0,
+        experimental_exec_dynamic=True,
+        enable_conditionals=True,
+    )
+    def pcond():
+        enc, label = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        if (label[0] & 1) == 0:
+            out = fn.cast(255 - img, dtype=types.UINT8)
+            out_cpu = out.cpu()
+        else:
+            out = img
+            out_cpu = out.cpu()
+        return out, out_cpu
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0)
+    def pref():
+        enc, label = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        inv = fn.cast(255 - img, dtype=types.UINT8)
+        even = (label[0] & 1) == 0
+        mask = fn.cast(even * 255, dtype=types.UINT8)
+        odd_mask = fn.cast((1 - even) * 255, dtype=types.UINT8)
+        return (img & odd_mask) | (inv & mask)
+
+    pipe = pcond()
+    pipe.build()
+    ref_pipe = pref()
+    ref_pipe.build()
+    for i in range(3):
+        gpu, cpu = pipe.run()
+        (ref,) = ref_pipe.run()
+        check_batch(cpu, ref, bs, 0, 0, "HWC")
+        check_batch(gpu, ref, bs, 0, 0, "HWC")

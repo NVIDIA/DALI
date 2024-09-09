@@ -83,8 +83,10 @@ class DLL_PUBLIC Pipeline {
    * @param prefetch_queue_depth sets the length of the executor internal pipeline
    * @param async_execution whether to use extra host-threads to enable asynchronous execution
    * of cpu and gpu work. See AsyncExecutor/AsyncPipelinedExecutor.
+   * @param dynamic_execution whether to use the dynamic executor, enabling GPU->CPU transfers
+   * and dynamic allocation of memory.
    * @param bytes_per_sample_hint Estimated size of each sample to be processed.
-   * Defaults to 0.
+   * Defaults to 0. Ignored when dynamic_execution is true.
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'false'.
    * @param max_num_stream set an upper limit on the number of cudaStreams
@@ -94,13 +96,14 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
-                      bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                      bool set_affinity = false, int max_num_stream = -1,
-                      int default_cuda_stream_priority = 0);
+                      bool async_execution = true, bool dynamic_execution = false,
+                      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+                      int max_num_stream = -1, int default_cuda_stream_priority = 0);
 
-  DLL_PUBLIC Pipeline(const string &serialized_pipe, int max_batch_size = -1, int num_threads = -1,
-                      int device_id = -1, bool pipelined_execution = true,
-                      int prefetch_queue_depth = 2, bool async_execution = true,
+  DLL_PUBLIC Pipeline(const string &serialized_pipe,
+                      int max_batch_size = -1, int num_threads = -1, int device_id = -1,
+                      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+                      bool async_execution = true, bool dynamic_execution = false,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
                       int64_t seed = -1);
@@ -115,10 +118,10 @@ class DLL_PUBLIC Pipeline {
    * device placemnt.
    */
   DLL_PUBLIC int AddExternalInput(const string &name,
-                                         const string &device = "cpu",
-                                         DALIDataType dtype = DALI_NO_TYPE,
-                                         int ndim = -1,
-                                         const TensorLayout &layout = "") {
+                                  const string &device = "cpu",
+                                  DALIDataType dtype = DALI_NO_TYPE,
+                                  int ndim = -1,
+                                  const TensorLayout &layout = "") {
     auto spec = OpSpec("ExternalSource")
                       .AddArg("name", name)
                       .AddArg("device", device)
@@ -585,7 +588,8 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
-            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
+            bool separated_execution, bool async_execution, bool dynamic_execution,
+            size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
@@ -711,6 +715,7 @@ class DLL_PUBLIC Pipeline {
   bool pipelined_execution_ = false;
   bool separated_execution_ = false;
   bool async_execution_ = false;
+  bool dynamic_execution_ = false;
   size_t bytes_per_sample_hint_ = 0;
   int set_affinity_ = 0;
   int max_num_stream_ = 0;
@@ -722,7 +727,7 @@ class DLL_PUBLIC Pipeline {
   bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
-  int original_seed_ = 0;
+  int64_t original_seed_ = 0;
   size_t current_seed_ = 0;
 
   std::unique_ptr<ExecutorBase> executor_;

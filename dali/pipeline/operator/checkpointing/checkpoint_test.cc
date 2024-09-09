@@ -36,7 +36,7 @@ void BuildFromLegacyGraph(Checkpoint &checkpoint, const OpGraph &graph) {
 }
 
 auto GetSimpleExecutor() {
-  return GetExecutor(false, false, false, 1, 1, CPU_ONLY_DEVICE_ID, 0);
+  return GetExecutor(false, false, false, false, 1, 1, CPU_ONLY_DEVICE_ID, 0);
 }
 
 }  // namespace

@@ -256,6 +256,7 @@ class Pipeline(object):
         self._batches_to_consume = 0
         self._names_and_devices = None
         self._exec_async = exec_async
+        self._exec_dynamic = experimental_exec_dynamic
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
@@ -866,6 +867,7 @@ class Pipeline(object):
             self._exec_pipelined,
             self._cpu_queue_size,
             self._exec_async,
+            self._exec_dynamic,
             self._bytes_per_sample,
             self._set_affinity,
             self._max_streams,
@@ -1520,6 +1522,7 @@ class Pipeline(object):
             kw.get("exec_pipelined", True),
             kw.get("prefetch_queue_depth", 2),
             kw.get("exec_async", True),
+            kw.get("exec_dynamic", False),
             kw.get("bytes_per_sample", 0),
             kw.get("set_affinity", False),
             kw.get("max_streams", -1),
@@ -1567,6 +1570,7 @@ class Pipeline(object):
             self._exec_pipelined,
             self._prefetch_queue_depth,
             self._exec_async,
+            self._exec_dynamic,
             self._bytes_per_sample,
             self._set_affinity,
             self._max_streams,
