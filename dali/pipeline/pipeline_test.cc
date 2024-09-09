@@ -366,6 +366,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
   const int num_thread = 1;
   const bool pipelined = false;
   const bool async =  false;
+  const bool dynamic = false;
   DALIImageType img_type = DALI_RGB;
 
   const int presize_val_CPU = 11;
@@ -379,6 +380,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
       num_thread,
       0, -1, pipelined, 3,
       async,
+      dynamic,
       presize_val_default);
 
   TensorList<CPUBackend> data;

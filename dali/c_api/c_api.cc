@@ -246,13 +246,33 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     int async_execution, int separated_execution, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
-  bool se = separated_execution != 0;
-  bool pe = pipelined_execution != 0;
-  bool ae = async_execution != 0;
+  dali_exec_flags_t flags = {};
+  if (async_execution)
+    flags = flags | DALI_EXEC_IS_ASYNC;
+  if (pipelined_execution)
+    flags = flags | DALI_EXEC_IS_PIPELINED;
+  if (separated_execution)
+    flags = flags | DALI_EXEC_IS_SEPARATED;
+  daliCreatePipeline3(pipe_handle, serialized_pipeline, length,
+                      max_batch_size, num_threads, device_id, flags,
+                      prefetch_queue_depth, cpu_prefetch_queue_depth, gpu_prefetch_queue_depth,
+                      enable_memory_stats);
+}
 
-  auto pipeline =
-          std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
-                                           num_threads, device_id, pe, prefetch_queue_depth, ae);
+DLL_PUBLIC void
+daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id,
+                    dali_exec_flags_t exec_flags, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats) {
+  bool se = exec_flags & DALI_EXEC_IS_SEPARATED;
+  bool pe = exec_flags & DALI_EXEC_IS_PIPELINED;
+  bool ae = exec_flags & DALI_EXEC_IS_ASYNC;
+  bool de = exec_flags & DALI_EXEC_IS_DYNAMIC;
+
+  auto pipeline = std::make_unique<dali::Pipeline>(
+    std::string(serialized_pipeline, length), max_batch_size, num_threads, device_id,
+    pe, prefetch_queue_depth, ae, de);
   pipeline->SetExecutionTypes(pe, se, ae);
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
@@ -262,7 +282,6 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
 
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();
 }
-
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {

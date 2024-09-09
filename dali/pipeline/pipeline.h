@@ -65,13 +65,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Creates a pipeline that will produce batches of size `batch_size`,
    * using `num_threads` worker threads on gpu `device_id`.
    *
-   * GPU memory and pinned memory allocations cause implicit synchronization of
-   * the device, resulting in very slow startup times as dali buffer sizes
-   * stabilize. To avoid this slowdown, we optionally take in an estimated size
-   * of each image that will be processed in bytes. This hint is used to
-   * pre-size buffers, potentially avoiding slow startup if the hint is close
-   * to the true amount of memory that will be needed by the largest image to
-   * be processed.
+   * TODO(michalz): Rework Pipeline construction to use a configuration structure.
    *
    * @param max_batch_size the maximum size of the batch that can be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
@@ -282,6 +276,9 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Set execution characteristics for this Pipeline
+   *
+   * TODO(michalz): Remove this function and rework Pipeline construction
+   *                to use a configuration structure.
    *
    * @param pipelined_execution Use pipelined execution
    * @param separated_execution Use separated queues
