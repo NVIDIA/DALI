@@ -75,6 +75,12 @@ class Executor2::Impl {
     Shutdown();
   }
 
+  /** Executor state
+   *
+   * The state can only advance.
+   * A successful call to shutdown will result in a transition to ShutDown, regardless of the
+   * initial state.
+   */
   enum class State {
     New = 0,
     Building,
@@ -169,11 +175,11 @@ class Executor2::Impl {
 
   void Shutdown() {
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
-    if (state_ != State::Running)
-      return;
-    state_ = State::ShutdownRequested;
-    if (exec_)
-      exec_->Shutdown();
+    if (state_ == State::Running) {
+      state_ = State::ShutdownRequested;
+      if (exec_)
+        exec_->Shutdown();
+    }
     state_ = State::ShutDown;
   }
 
@@ -305,6 +311,8 @@ class Executor2::Impl {
   }
 
   void Start() {
+    if (state_ != State::Built)
+      throw std::logic_error("Incorrect state transition.");
     exec_ = std::make_unique<tasking::Executor>(config_.operator_threads);
     exec_->Start([this](){
       if (config_.device)
@@ -393,6 +401,7 @@ void Executor2::Build(const graph::OpGraph &graph) {
 }
 
 void Executor2::Init() {
+  // no-op
 }
 
 void Executor2::Run() {
@@ -417,6 +426,7 @@ void Executor2::ReleaseOutputs() {
 }
 
 void Executor2::EnableMemoryStats(bool enable_memory_stats) {
+  // no-op
 }
 
 void Executor2::EnableCheckpointing(bool checkpointing) {
@@ -424,7 +434,8 @@ void Executor2::EnableCheckpointing(bool checkpointing) {
 }
 
 ExecutorMetaMap Executor2::GetExecutorMeta() {
-    return {};
+  // not supported - the "meta" thing assumed persistence of allocations
+  return {};
 }
 
 void Executor2::Shutdown() {
