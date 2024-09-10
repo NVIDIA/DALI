@@ -66,6 +66,8 @@ enum class InputDevice : uint8_t {
   MatchBackend = 0,
   CPU = 1,
   GPU = 2,
+  Any = 3,
+  MatchBackendOrCPU = 4
 };
 
 class DLL_PUBLIC OpSchema {

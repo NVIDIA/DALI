@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,6 +80,7 @@ bool IsPassThrough(const OperatorBase &op) {
 DALI_SCHEMA(MakeContiguous)
   .DocStr(R"code(Move input batch to a contiguous representation, more suitable for execution on the GPU)code")
   .NumInput(1)
+  .InputDevice(0, InputDevice::MatchBackendOrCPU)
   .NumOutput(1)
   .MakeInternal();
 
