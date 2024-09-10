@@ -2247,10 +2247,35 @@ def test_gpu2cpu():
         check_batch(cpu, gpu, bs, 0, 0, "HWC")
 
 
+def test_shapes_gpu():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=True)
+    def pdef():
+        enc, _ = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        peek = fn.peek_image_shape(enc)
+        return peek, fn.shapes(img, device="cpu"), fn.shapes(img.cpu())
+
+    pipe = pdef()
+    pipe.build()
+    for i in range(10):
+        peek, gpu, cpu = pipe.run()
+        check_batch(gpu, peek, bs, 0, 0, "HWC")
+        check_batch(cpu, peek, bs, 0, 0, "HWC")
+
+
 def test_gpu2cpu_old_exec_error():
     bs = 8
 
-    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=False)
+    @pipeline_def(
+        batch_size=bs,
+        num_threads=4,
+        device_id=0,
+        exec_async=False,
+        exec_pipelined=False,
+        experimental_exec_dynamic=False,
+    )
     def pdef():
         gpu = fn.external_source("input", device="gpu")
         return gpu.cpu()
@@ -2267,36 +2292,42 @@ def test_gpu2cpu_conditionals():
         batch_size=bs,
         num_threads=4,
         device_id=0,
-        experimental_exec_dynamic=True,
+        experimental_exec_dynamic=True,  # use new executor
         enable_conditionals=True,
     )
-    def pcond():
+    def def_test():
         enc, label = fn.readers.file(file_root=jpeg_folder)
         img = fn.decoders.image(enc, device="mixed")
+        # return inverted image for even samples
         if (label[0] & 1) == 0:
-            out = fn.cast(255 - img, dtype=types.UINT8)
+            out = img ^ np.uint8(255)
             out_cpu = out.cpu()
         else:
             out = img
             out_cpu = out.cpu()
         return out, out_cpu
 
-    @pipeline_def(batch_size=bs, num_threads=4, device_id=0)
-    def pref():
+    @pipeline_def(
+        batch_size=bs,
+        num_threads=4,
+        device_id=0,
+        exec_async=False,  # use old executor, even in presence of DALI_USE_EXEC2
+        exec_pipelined=False,
+    )
+    def def_ref():
         enc, label = fn.readers.file(file_root=jpeg_folder)
         img = fn.decoders.image(enc, device="mixed")
-        inv = fn.cast(255 - img, dtype=types.UINT8)
+        # return inverted image for even samples
         even = (label[0] & 1) == 0
         mask = fn.cast(even * 255, dtype=types.UINT8)
-        odd_mask = fn.cast((1 - even) * 255, dtype=types.UINT8)
-        return (img & odd_mask) | (inv & mask)
+        return img ^ mask
 
-    pipe = pcond()
-    pipe.build()
-    ref_pipe = pref()
+    test_pipe = def_test()
+    test_pipe.build()
+    ref_pipe = def_ref()
     ref_pipe.build()
     for i in range(3):
-        gpu, cpu = pipe.run()
+        gpu, cpu = test_pipe.run()
         (ref,) = ref_pipe.run()
         check_batch(cpu, ref, bs, 0, 0, "HWC")
         check_batch(gpu, ref, bs, 0, 0, "HWC")

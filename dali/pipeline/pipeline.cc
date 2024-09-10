@@ -517,11 +517,11 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
   // Creating the graph
 
-  for (auto& name_op_spec : op_specs_) {
-    string& inst_name = name_op_spec.instance_name;
+  for (auto &name_op_spec : op_specs_) {
+    const string &inst_name = name_op_spec.instance_name;
     OpSpec op_spec = name_op_spec.spec;
-    PrepareOpSpec(&op_spec, name_op_spec.logical_id);
     try {
+      PrepareOpSpec(&op_spec, name_op_spec.logical_id);
       graph_builder_.Add(inst_name, op_spec);
     } catch (...) {
       PropagateError({std::current_exception(),

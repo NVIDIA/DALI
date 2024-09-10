@@ -604,8 +604,11 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         device = device_param
         device_id = 0
 
-    if device == "cpu" and input_device == "gpu":
-        raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+    # TODO(michalz): Verify against InputDevice from the schema.
+    # TODO(michalz): Add InputDevice::Any for operators which can take any input backend
+    # Temporarily the check is disabled
+    # if device == "cpu" and input_device == "gpu":
+    #     raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
 
     if device != "cpu" and device != "gpu":
         raise ValueError(f"Incorrect device type '{device}'.")
