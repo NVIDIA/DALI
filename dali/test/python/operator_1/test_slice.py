@@ -1175,7 +1175,7 @@ def test_wrong_arg_backend():
         sliced = fn.slice(fake_data, rel_start, rel_shape, device="cpu")
         return sliced
 
-    with assert_raises(RuntimeError, glob="is stored on incompatible device \"gpu\""):
+    with assert_raises(RuntimeError, glob='is stored on incompatible device "gpu"'):
         p = make_pipe()
         p.build()
         p.run()
