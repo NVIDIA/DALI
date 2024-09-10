@@ -20,8 +20,6 @@ do_once() {
 
 test_body() {
   for BINNAME in \
-    "dali_core_test.bin" \
-    "dali_kernel_test.bin" \
     "dali_test.bin" \
     "dali_operator_test.bin"
   do
@@ -40,7 +38,7 @@ test_body() {
         exit 1
     fi
 
-    DALI_USE_EXEC2=0 "$FULLPATH"
+    DALI_USE_EXEC2=1 "$FULLPATH"
   done
 }
 

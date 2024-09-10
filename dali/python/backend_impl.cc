@@ -74,7 +74,7 @@ using namespace pybind11::literals; // NOLINT
  * definitions can look it up when pybind is generating the signatures, otherwise the annotations
  * will contain the backend_impl module path.
  */
-static std::string tensor_module_impl(const py::object object) {
+static std::string tensor_module_impl(const py::object &object) {
   (void)object;
   return "nvidia.dali.tensors";
 }
@@ -236,7 +236,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
 }
 
 template <typename TensorType>
-void FillTensorFromCudaArray(const py::object object, TensorType *batch, int device_id,
+void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int device_id,
                              string layout) {
   auto cu_a_interface_val = getattr(object, "__cuda_array_interface__", py::none());
   if (cu_a_interface_val.is_none()) {
@@ -296,8 +296,18 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
 
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
-  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),
-                   bytes, false, typed_shape, type.id(), device_id);
+  batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) mutable {  // NOLINT
+    // acquire GIL ...
+    py::gil_scoped_acquire aqr;
+    {
+      // now move out the object stored in the closure to a local variable...
+      auto tmp = std::move(obj_ref);
+      (void)tmp;
+      /// ...and let it go out of scope while GIL is held
+    }
+  }),
+      bytes, false, typed_shape, type.id(), device_id);
+
   batch->SetLayout(layout);
 }
 
@@ -697,7 +707,7 @@ void ExposeTensor(py::module &m) {
         As private this API may change without notice.
       )code"
     )
-    .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
+    .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t.release();
@@ -1002,8 +1012,13 @@ void ExposeTensorList(py::module &m) {
         const TypeInfo &type = TypeFromFormatStr(info.format);
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
-        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, is_pinned, i_shape, type.id(), device_id);
+        t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) mutable {  // NOLINT
+              py::gil_scoped_acquire aqr;
+              {
+                auto tmp = std::move(buf_ref);
+                (void)tmp;
+              }
+            }), bytes, is_pinned, i_shape, type.id(), device_id);
         t->SetLayout(layout);
         return t;
       }),
@@ -1198,6 +1213,7 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns the address of the first element of TensorList.
       )code")
+    .def("reset", &TensorList<CPUBackend>::Reset)
     .def("__str__", [](TensorList<CPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
     })
@@ -1265,7 +1281,7 @@ void ExposeTensorList(py::module &m) {
       layout : str
             Layout of the data
       )code")
-    .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
+    .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t;
@@ -1344,6 +1360,7 @@ void ExposeTensorList(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
+    .def("reset", &TensorList<GPUBackend>::Reset)
     .def("__getitem__",
         [](TensorList<GPUBackend> &t, Index i) -> std::unique_ptr<Tensor<GPUBackend>> {
           return TensorListGetItemImpl(t, i);

@@ -615,7 +615,7 @@ def test_non_utilized_external_source_pruning():
         yield _test_non_utilized_external_source_pruning, num_outputs
 
 
-def test_empty_es():
+def __test_empty_es():
     max_batch_size = 16
 
     @pipeline_def

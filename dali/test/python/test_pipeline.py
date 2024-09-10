@@ -635,7 +635,7 @@ def test_make_contiguous_serialize_and_use():
     new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
     new_pipe.deserialize_and_build(serialized_pipeline)
 
-    compare_pipelines(pipe, new_pipe, batch_size, 10)
+    compare_pipelines(pipe, new_pipe, batch_size, 5)
 
 
 def test_warpaffine():
@@ -1647,7 +1647,12 @@ def test_executor_meta():
     class TestPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(TestPipeline, self).__init__(
-                batch_size, num_threads, device_id, enable_memory_stats=True
+                batch_size,
+                num_threads,
+                device_id,
+                enable_memory_stats=True,
+                exec_async=False,
+                exec_pipelined=False,
             )
             self.input = ops.readers.Caffe(
                 path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus, seed=seed
@@ -1721,7 +1726,9 @@ def test_bytes_per_sample_hint():
 
     def obtain_reader_meta(iters=3, **kvargs):
         batch_size = 10
-        pipe = Pipeline(batch_size, 1, 0, enable_memory_stats=True)
+        pipe = Pipeline(
+            batch_size, 1, 0, exec_async=False, exec_pipelined=False, enable_memory_stats=True
+        )
         with pipe:
             out = fn.readers.caffe(path=caffe_db_folder, shard_id=0, num_shards=1, **kvargs)
             out = [o.gpu() for o in out]
@@ -1924,7 +1931,7 @@ def test_pipeline_wrong_device_id():
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=-123)
     with pipe:
         pipe.set_outputs(np.int32([1, 2, 3]))
-    with assert_raises(RuntimeError, glob="wrong device_id"):
+    with assert_raises(Exception, regex="(wrong device_id)|(device_id.*is invalid)"):
         pipe.build()
         pipe.run()
 

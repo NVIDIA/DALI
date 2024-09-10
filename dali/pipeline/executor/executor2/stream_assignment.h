@@ -26,20 +26,10 @@
 #include <vector>
 #include "dali/pipeline/graph/graph_util.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
-// TODO(michalz): This is here for review process only. Remove when exec2.h is available
-// #include "dali/pipeline/executor/executor2/exec2.h"
-#include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/executor/executor2/exec2.h"
 
 namespace dali {
 namespace exec2 {
-
-// TODO(michalz): This is here for review process only. Remove when exec2.h is available
-enum class StreamPolicy : int {
-  Single,       //< There's just one stream that's used by all operators
-  PerBackend,   //< Operators are scheduled on a stream specific to their backend (mixed or GPU)
-  PerOperator   //< Independent operators are executed on separate streams.
-};
-
 
 template <StreamPolicy policy>
 class StreamAssignment;
