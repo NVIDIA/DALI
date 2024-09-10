@@ -2261,8 +2261,8 @@ def test_shapes_gpu():
     pipe.build()
     for i in range(10):
         peek, gpu, cpu = pipe.run()
-        check_batch(gpu, peek, bs, 0, 0, "HWC")
-        check_batch(cpu, peek, bs, 0, 0, "HWC")
+        check_batch(gpu, peek, bs, 0, 0)
+        check_batch(cpu, peek, bs, 0, 0)
 
 
 def test_gpu2cpu_old_exec_error():

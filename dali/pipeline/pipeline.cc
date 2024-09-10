@@ -353,6 +353,13 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
         make_string("Data node \"", input_name, "\" requested as ", FormatArgument(spec, arg_name),
                     " to operator \"", inst_name, "\" is not known to the pipeline."));
 
+    if (!it->second.has_cpu) {
+      assert(it->second.has_gpu);
+      DALI_FAIL(make_string("Error while specifying ", FormatArgument(spec, arg_name),
+                            ". Named argument inputs to operators must be CPU data nodes. "
+                            "However, a GPU data node was provided."));
+    }
+
     ToCPU(it);
   }
 
