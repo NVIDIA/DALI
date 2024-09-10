@@ -50,11 +50,9 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
 
 namespace detail {
 inline int VideoReaderDecoderOutputFn(const OpSpec &spec) {
-  int num_outputs = 1;
-  if (spec.HasArgument("labels")) num_outputs++;
-  bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
-  if (enable_frame_num) num_outputs++;
-  return num_outputs;
+  bool has_labels = spec.HasArgument("labels")
+  bool has_frame_num_output  = spec.GetArgument<bool>("enable_frame_num");
+  return 1 + has_labels + has_frame_num_output;
 }
 }  // namespace detail
 
@@ -82,8 +80,8 @@ even in the variable frame rate scenario.)code")
       R"code(Frames to load per sequence.)code",
       DALI_INT32)
   .AddOptionalArg("enable_frame_num",
-      R"code(If set, returns the first frame number in the decoded sequence
-as a separate output.)code",
+      R"code(If set, returns the index of the first frame in the decoded sequence
+as an additional output.)code",
       false)
   .AddOptionalArg("step",
       R"code(Frame interval between each sequence.

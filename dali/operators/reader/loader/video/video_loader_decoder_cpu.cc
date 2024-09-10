@@ -45,7 +45,7 @@ void VideoLoaderDecoderCpu::ReadSample(VideoSample<CPUBackend> &sample) {
   if (has_labels_) {
     sample.label_ = labels_[sample_span.video_idx_];
   }
-  if (has_frame_no_) {
+  if (has_frame_idx_) {
     sample.first_frame_ = sample_span.start_;
   }
 }

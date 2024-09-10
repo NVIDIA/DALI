@@ -41,7 +41,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
     int frame_id, const uint8_t *frame, TestVideo &ground_truth) = 0;
 
   template<typename Backend>
-  int GetFrameNo(dali::TensorList<Backend> &device_frame_no);
+  int GetFrameIdx(dali::TensorList<Backend> &device_frame_idx);
 
  private:
   template<typename Backend>
@@ -151,7 +151,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
       auto &frame_video_output = ws.Output<Backend>(0);
       const auto sample = frame_video_output.template tensor<uint8_t>(0);
-      int frame_no = GetFrameNo(ws.Output<Backend>(1));
+      int frame_no = GetFrameIdx(ws.Output<Backend>(1));
 
       // We want to access correct order, so we compare only the first frame of the sequence
       AssertFrame(frame_no, sample, ground_truth_video);
@@ -173,9 +173,9 @@ void VideoReaderDecoderBaseTest::RunShuffleTest<dali::CPUBackend>() {
 }
 
 template<>
-int VideoReaderDecoderBaseTest::GetFrameNo(
-  dali::TensorList<dali::CPUBackend> &device_frame_no) {
-    const auto frame_no = device_frame_no.template tensor<int>(0);
+int VideoReaderDecoderBaseTest::GetFrameIdx(
+  dali::TensorList<dali::CPUBackend> &device_frame_idx) {
+    const auto frame_no = device_frame_idx.template tensor<int>(0);
     int frame_no_buffer = -1;
     std::copy_n(frame_no, 1, &frame_no_buffer);
     return frame_no_buffer;
@@ -195,9 +195,9 @@ void VideoReaderDecoderBaseTest::RunShuffleTest<dali::GPUBackend>() {
 }
 
 template<>
-int VideoReaderDecoderBaseTest::GetFrameNo(
-  dali::TensorList<dali::GPUBackend> &device_frame_no) {
-    const auto frame_no = device_frame_no.template tensor<int>(0);
+int VideoReaderDecoderBaseTest::GetFrameIdx(
+  dali::TensorList<dali::GPUBackend> &device_frame_idx) {
+    const auto frame_no = device_frame_idx.template tensor<int>(0);
     int frame_no_buffer = -1;
     MemCopy(&frame_no_buffer, frame_no, sizeof(int));
     return frame_no_buffer;

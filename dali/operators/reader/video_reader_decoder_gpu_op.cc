@@ -21,7 +21,7 @@ namespace dali {
 VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
     : DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>(spec),
       has_labels_(spec.HasArgument("labels")),
-      has_frame_no_(spec.GetArgument<bool>("enable_frame_num")) {
+      has_frame_idx_(spec.GetArgument<bool>("enable_frame_num")) {
       loader_ = InitLoader<VideoLoaderDecoderGpu>(spec);
       this->SetInitialSnapshot();
 }
@@ -59,7 +59,7 @@ bool VideoReaderDecoderGpu::SetupImpl(
     };
     out_index++;
   }
-  if (has_frame_no_) {
+  if (has_frame_idx_) {
     output_desc[out_index] = {
       uniform_list_shape<1>(batch_size, {1}),
       DALI_INT32
@@ -105,7 +105,7 @@ void VideoReaderDecoderGpu::RunImpl(Workspace &ws) {
       ws.stream());
     out_index++;
   }
-  if (has_frame_no_) {
+  if (has_frame_idx_) {
     auto &frame_no_output = ws.Output<GPUBackend>(out_index);
     SmallVector<int, 32> frame_no_output_cpu;
 
