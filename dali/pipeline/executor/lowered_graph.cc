@@ -141,14 +141,14 @@ OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
   // Validate the op specification
   CheckOpConstraints(spec);
 
-  string device = spec.GetArgument<string>("device");
-  auto op_type = ParseOpType(device);
-  // TODO(klecki): refactor this out
   const char *gpu2cpu_error =
     "This pipeline doesn't support transition from GPU to CPU within the pipeline.\n"
     "To enable GPU->CPU transitions, use the experimental \"dynamic\" executor.\n"
     "Specify experimental_exec_dynamic=True in your Pipeline constructor or @pipeline_def.";
 
+  string device = spec.GetArgument<string>("device");
+  auto op_type = ParseOpType(device);
+  // TODO(klecki): refactor this out
   switch (op_type) {
     case OpType::CPU: {
       // Enforce graph constraints
