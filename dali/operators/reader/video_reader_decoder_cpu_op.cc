@@ -21,7 +21,7 @@ namespace dali {
 VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
     : DataReader<CPUBackend, VideoSampleCpu, VideoSampleCpu, true>(spec),
       has_labels_(spec.HasArgument("labels")),
-      has_frame_no_(spec.GetArgument<bool>("enable_frame_num")) {
+      has_frame_idx_(spec.GetArgument<bool>("enable_frame_num")) {
       loader_ = InitLoader<VideoLoaderDecoderCpu>(spec);
       this->SetInitialSnapshot();
 }
@@ -40,10 +40,10 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
     label_output.mutable_data<int>()[0] = sample.label_;
     out_index++;
   }
-  if (has_frame_no_) {
-    auto &frame_no_output = ws.Output<CPUBackend>(out_index);
-    frame_no_output.Resize({}, DALIDataType::DALI_INT32);
-    frame_no_output.mutable_data<int>()[0] = sample.first_frame_;
+  if (has_frame_idx_) {
+    auto &frame_idx_output = ws.Output<CPUBackend>(out_index);
+    frame_idx_output.Resize({}, DALIDataType::DALI_INT32);
+    frame_idx_output.mutable_data<int>()[0] = sample.first_frame_;
     out_index++;
   }
 }

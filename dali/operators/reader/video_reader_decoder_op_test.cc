@@ -138,9 +138,9 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
         "filenames",
         std::vector<std::string>{cfr_videos_paths_[0]})
       .AddOutput("frames", backend)
-      .AddOutput("frame_no", backend));
+      .AddOutput("frame_idx", backend));
 
-    pipe.Build({{"frames", backend}, {"frame_no", backend}});
+    pipe.Build({{"frames", backend}, {"frame_idx", backend}});
 
     int num_sequences = 5;
 
@@ -151,10 +151,10 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
       auto &frame_video_output = ws.Output<Backend>(0);
       const auto sample = frame_video_output.template tensor<uint8_t>(0);
-      int frame_no = GetFrameIdx(ws.Output<Backend>(1));
+      int frame_idx = GetFrameIdx(ws.Output<Backend>(1));
 
       // We want to access correct order, so we compare only the first frame of the sequence
-      AssertFrame(frame_no, sample, ground_truth_video);
+      AssertFrame(frame_idx, sample, ground_truth_video);
     }
   }
 };
@@ -175,10 +175,10 @@ void VideoReaderDecoderBaseTest::RunShuffleTest<dali::CPUBackend>() {
 template<>
 int VideoReaderDecoderBaseTest::GetFrameIdx(
   dali::TensorList<dali::CPUBackend> &device_frame_idx) {
-    const auto frame_no = device_frame_idx.template tensor<int>(0);
-    int frame_no_buffer = -1;
-    std::copy_n(frame_no, 1, &frame_no_buffer);
-    return frame_no_buffer;
+    const auto frame_idx = device_frame_idx.template tensor<int>(0);
+    int frame_idx_buffer = -1;
+    std::copy_n(frame_idx, 1, &frame_idx_buffer);
+    return frame_idx_buffer;
 }
 
 template<>
@@ -197,10 +197,10 @@ void VideoReaderDecoderBaseTest::RunShuffleTest<dali::GPUBackend>() {
 template<>
 int VideoReaderDecoderBaseTest::GetFrameIdx(
   dali::TensorList<dali::GPUBackend> &device_frame_idx) {
-    const auto frame_no = device_frame_idx.template tensor<int>(0);
-    int frame_no_buffer = -1;
-    MemCopy(&frame_no_buffer, frame_no, sizeof(int));
-    return frame_no_buffer;
+    const auto frame_idx = device_frame_idx.template tensor<int>(0);
+    int frame_idx_buffer = -1;
+    MemCopy(&frame_idx_buffer, frame_idx, sizeof(int));
+    return frame_idx_buffer;
 }
 
 class VideoReaderDecoderCpuTest : public VideoReaderDecoderBaseTest {

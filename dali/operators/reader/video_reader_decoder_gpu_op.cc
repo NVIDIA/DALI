@@ -106,17 +106,17 @@ void VideoReaderDecoderGpu::RunImpl(Workspace &ws) {
     out_index++;
   }
   if (has_frame_idx_) {
-    auto &frame_no_output = ws.Output<GPUBackend>(out_index);
-    SmallVector<int, 32> frame_no_output_cpu;
+    auto &frame_idx_output = ws.Output<GPUBackend>(out_index);
+    SmallVector<int, 32> frame_idx_output_cpu;
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
-      frame_no_output_cpu[sample_id] = sample.span_ ? sample.span_->start_ : -1;
+      frame_idx_output_cpu[sample_id] = sample.span_ ? sample.span_->start_ : -1;
     }
 
     MemCopy(
-      frame_no_output.AsTensor().raw_mutable_data(),
-      frame_no_output_cpu.data(),
+      frame_idx_output.AsTensor().raw_mutable_data(),
+      frame_idx_output_cpu.data(),
       batch_size * sizeof(DALI_INT32),
       ws.stream());
     out_index++;
