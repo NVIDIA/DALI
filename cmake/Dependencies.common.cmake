@@ -275,6 +275,7 @@ endif()
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
   set(NVIMGCODEC_REQ_VERSION "0.3.0")
+  message(STATUS "nvImageCodec - requires version ${NVIMGCODEC_REQ_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
 
@@ -283,19 +284,8 @@ if(BUILD_NVIMAGECODEC)
       cmake_policy(SET CMP0135 NEW)
     endif()
 
-    # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
-    include(FetchContent)
-    FetchContent_Declare(
-      nvimgcodec_headers
-      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.2.0.6-archive.tar.xz
-      URL_HASH SHA512=6577a8ff5589400cdf5767aa4a507245527a96e48065f23f626dfc6ba13b136960cacfe7f61c345dc158ed0352e1e971834aec6fd98038649b08b250c3306aeb
-    )
-    FetchContent_Populate(nvimgcodec_headers)
-    set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
-    find_path(nvimgcodec_INCLUDE_DIR nvimgcodec.h PATHS "${nvimgcodec_SEARCH_PATH}")
-    if (${nvimgcodec_INCLUDE_DIR} STREQUAL "nvimgcodec_INCLUDE_DIR-NOTFOUND")
-      message(FATAL_ERROR "nvimgcodec not found in ${nvimgcodec_SEARCH_PATH} - something went wrong with the download")
-    endif()
+
+    set(nvimgcodec_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/third_party/nvimgcodec/include")
     message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
     include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
 
