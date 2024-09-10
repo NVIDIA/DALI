@@ -35,8 +35,8 @@ template <typename Backend>
 class VideoSample {
  public:
   Tensor<Backend> data_;
-  int label_;
-  int first_frame_;
+  int label_ = -1;
+  int first_frame_ = -1;
 };
 
 class VideoLoaderDecoderBase {
