@@ -50,7 +50,7 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
 
 namespace detail {
 inline int VideoReaderDecoderOutputFn(const OpSpec &spec) {
-  bool has_labels = spec.HasArgument("labels")
+  bool has_labels = spec.HasArgument("labels");
   bool has_frame_num_output  = spec.GetArgument<bool>("enable_frame_num");
   return 1 + has_labels + has_frame_num_output;
 }
