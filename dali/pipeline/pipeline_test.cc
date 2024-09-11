@@ -54,49 +54,10 @@ class PipelineTest : public DALITest {
   void RunTestEnforce(const string &dev1, const string &dev2) {
     Pipeline pipe(1, 1, 0);
 
-    // TODO(michalz): This is a totally artificial limitation. Remove the constraint and the tests.
-
-    // Inputs must be know to the pipeline, i.e. ops
-    // must be added in a topological ordering.
-    ASSERT_THROW(
-      pipe.AddOperator(
-        OpSpec("Copy")
-          .AddArg("device", dev1)
-          .AddInput("data", dev1)
-          .AddOutput("copy_out", dev1)),
-      std::runtime_error);
-
     pipe.AddOperator(
       OpSpec("ExternalSource")
         .AddArg("device", "gpu")
         .AddOutput("data", "gpu"));
-
-    // TODO(michalz): Remove this constraint and the tests. This should be a build-time error,
-    //                with old executor, not a construction-time error.
-
-    // For dev1 = "cpu": Inputs to CPU ops must be on CPU,
-    //                   we do not auto-copy them from gpu to cpu.
-    // For dev1 = "gpu": CPU inputs to GPU ops must be on CPU,
-    //                   we will not copy them back to the host.
-    ASSERT_THROW(
-      pipe.AddOperator(
-        OpSpec("Copy")
-          .AddArg("device", dev1)
-          .AddInput("data", dev2)
-          .AddOutput("copy_out", dev1)),
-      std::runtime_error);
-
-    if (dev1 == "cpu") {
-      // Inputs to CPU ops must already exist on CPU,
-      // we do not auto-copy them from gpu to cpu.
-      ASSERT_THROW(
-        pipe.AddOperator(
-          OpSpec("Copy")
-            .AddArg("device", dev1)
-            .AddInput("data", dev1)
-            .AddOutput("copy_out", dev1)),
-        std::runtime_error);
-    }
 
     pipe.AddOperator(
       OpSpec("ExternalSource")
@@ -405,6 +366,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
   const int num_thread = 1;
   const bool pipelined = false;
   const bool async =  false;
+  const bool dynamic = false;
   DALIImageType img_type = DALI_RGB;
 
   const int presize_val_CPU = 11;
@@ -418,6 +380,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
       num_thread,
       0, -1, pipelined, 3,
       async,
+      dynamic,
       presize_val_default);
 
   TensorList<CPUBackend> data;

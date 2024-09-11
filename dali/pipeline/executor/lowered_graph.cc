@@ -97,8 +97,18 @@ void OpGraph::Lower(const graph::OpGraph &definition) {
   if (!op_nodes_.empty() || !tensor_nodes_.empty())
     throw std::logic_error("The target graph must be empty");
   for (auto &node : definition.OpNodes()) {
-    auto &lowered_op = AddOp(node.spec, node.instance_name);
-    lowered_op.definition = &node;
+    try {
+      auto &lowered_op = AddOp(node.spec, node.instance_name);
+      lowered_op.definition = &node;
+    } catch (...) {
+      PropagateError({
+          std::current_exception(),
+          make_string(
+              "Critical error when building pipeline:\n",
+              GetErrorContextMessage(node.spec)),
+          "\nCurrent pipeline object is no longer valid."
+        });
+    }
   }
   for (auto &t : tensor_nodes_) {
     t.definition = definition.GetData(t.name);
@@ -131,14 +141,19 @@ OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
   // Validate the op specification
   CheckOpConstraints(spec);
 
+  const char *gpu2cpu_error =
+    "This pipeline doesn't support transition from GPU to CPU.\n"
+    "To enable GPU->CPU transitions, use the experimental \"dynamic\" executor.\n"
+    "Specify experimental_exec_dynamic=True in your Pipeline constructor or @pipeline_def.";
+
   string device = spec.GetArgument<string>("device");
   auto op_type = ParseOpType(device);
   // TODO(klecki): refactor this out
   switch (op_type) {
     case OpType::CPU: {
       // Enforce graph constraints
-      DALI_ENFORCE(AllInputsCPU(spec), "CPU ops cannot receive GPU input data.");
-      DALI_ENFORCE(AllOutputsCPU(spec), "CPU ops can only produce CPU output data.");
+      DALI_ENFORCE(AllInputsCPU(spec), gpu2cpu_error);
+      DALI_ENFORCE(AllOutputsCPU(spec), "CPU operators can only produce CPU output data.");
       break;
     }
     case OpType::GPU: {
@@ -146,7 +161,7 @@ OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     }
     case OpType::MIXED: {
       // Enforce graph constraints
-      DALI_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
+      DALI_ENFORCE(AllInputsCPU(spec), gpu2cpu_error);
       break;
     }
     default:

@@ -59,6 +59,27 @@ typedef enum {
   DALI_BOOL     =  11,
 } dali_data_type_t;
 
+typedef enum {
+  DALI_EXEC_IS_PIPELINED    = 1,
+  DALI_EXEC_IS_ASYNC        = 2,
+  DALI_EXEC_IS_SEPARATED    = 4,
+  DALI_EXEC_IS_DYNAMIC      = 8,
+
+  DALI_EXEC_SIMPLE          = 0,
+  DALI_EXEC_ASYNC_PIPELINED = DALI_EXEC_IS_PIPELINED | DALI_EXEC_IS_ASYNC,
+  DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
+} dali_exec_flags_t;
+
+#ifdef __cplusplus
+constexpr dali_exec_flags_t operator|(dali_exec_flags_t x, dali_exec_flags_t y) {
+    return dali_exec_flags_t(static_cast<int>(x) | static_cast<int>(y));
+}
+
+constexpr dali_exec_flags_t operator&(dali_exec_flags_t x, dali_exec_flags_t y) {
+    return dali_exec_flags_t(static_cast<int>(x) & static_cast<int>(y));
+}
+
+#endif
 
 /*
  * Need to keep that in sync with ReaderMeta from operator.h
@@ -155,6 +176,31 @@ DLL_PUBLIC void
 daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
                     int max_batch_size, int num_threads, int device_id, int pipelined_execution,
                     int async_execution, int separated_execution, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats);
+
+/**
+ * Create a DALI Pipeline, using a pipeline that has been serialized beforehand.
+ *
+ * @param pipe_handle Pipeline handle.
+ * @param serialized_pipeline Serialized pipeline.
+ * @param length Length of the serialized pipeline string.
+ * @param max_batch_size Maximum batch size.
+ * @param num_threads Number of CPU threads which this pipeline uses.
+ * @param device_id ID of the GPU device which this pipeline uses.
+ * @param pipelined_execution If != 0, this pipeline will execute in Pipeline mode.
+ * @param exec_flags Executor congiguration flags
+ * @param cpu_prefetch_queue_depth Depth of the prefetching queue in the CPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param gpu_prefetch_queue_depth Depth of the prefetching queue in the GPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param enable_memory_stats Enable memory stats.
+ */
+DLL_PUBLIC void
+daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id,
+                    dali_exec_flags_t exec_flags,
+                    int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats);
 
@@ -663,7 +709,7 @@ DLL_PUBLIC void daliLoadPluginDirectory(const char* plugin_dir);
 /**
  * @brief Load default plugin library
  * @remarks DALI_PRELOAD_PLUGINS are environment variables that can be used to control what
- * plugins are loaded. If the variable is set, it is interpreted as a list of paths separated 
+ * plugins are loaded. If the variable is set, it is interpreted as a list of paths separated
  * by colon (:), where each element can be a directory or library path.
  * If not set, the "default" path is scanned, which is a subdirectory called plugin under the
  * directory where the DALI library is installed.

@@ -65,13 +65,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Creates a pipeline that will produce batches of size `batch_size`,
    * using `num_threads` worker threads on gpu `device_id`.
    *
-   * GPU memory and pinned memory allocations cause implicit synchronization of
-   * the device, resulting in very slow startup times as dali buffer sizes
-   * stabilize. To avoid this slowdown, we optionally take in an estimated size
-   * of each image that will be processed in bytes. This hint is used to
-   * pre-size buffers, potentially avoiding slow startup if the hint is close
-   * to the true amount of memory that will be needed by the largest image to
-   * be processed.
+   * TODO(michalz): Rework Pipeline construction to use a configuration structure.
    *
    * @param max_batch_size the maximum size of the batch that can be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
@@ -83,8 +77,10 @@ class DLL_PUBLIC Pipeline {
    * @param prefetch_queue_depth sets the length of the executor internal pipeline
    * @param async_execution whether to use extra host-threads to enable asynchronous execution
    * of cpu and gpu work. See AsyncExecutor/AsyncPipelinedExecutor.
+   * @param dynamic_execution whether to use the dynamic executor, enabling GPU->CPU transfers
+   * and dynamic allocation of memory.
    * @param bytes_per_sample_hint Estimated size of each sample to be processed.
-   * Defaults to 0.
+   * Defaults to 0. Ignored when dynamic_execution is true.
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'false'.
    * @param max_num_stream set an upper limit on the number of cudaStreams
@@ -94,13 +90,14 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
-                      bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                      bool set_affinity = false, int max_num_stream = -1,
-                      int default_cuda_stream_priority = 0);
+                      bool async_execution = true, bool dynamic_execution = false,
+                      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
+                      int max_num_stream = -1, int default_cuda_stream_priority = 0);
 
-  DLL_PUBLIC Pipeline(const string &serialized_pipe, int max_batch_size = -1, int num_threads = -1,
-                      int device_id = -1, bool pipelined_execution = true,
-                      int prefetch_queue_depth = 2, bool async_execution = true,
+  DLL_PUBLIC Pipeline(const string &serialized_pipe,
+                      int max_batch_size = -1, int num_threads = -1, int device_id = -1,
+                      bool pipelined_execution = true, int prefetch_queue_depth = 2,
+                      bool async_execution = true, bool dynamic_execution = false,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
                       int64_t seed = -1);
@@ -115,10 +112,10 @@ class DLL_PUBLIC Pipeline {
    * device placemnt.
    */
   DLL_PUBLIC int AddExternalInput(const string &name,
-                                         const string &device = "cpu",
-                                         DALIDataType dtype = DALI_NO_TYPE,
-                                         int ndim = -1,
-                                         const TensorLayout &layout = "") {
+                                  const string &device = "cpu",
+                                  DALIDataType dtype = DALI_NO_TYPE,
+                                  int ndim = -1,
+                                  const TensorLayout &layout = "") {
     auto spec = OpSpec("ExternalSource")
                       .AddArg("name", name)
                       .AddArg("device", device)
@@ -279,6 +276,9 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Set execution characteristics for this Pipeline
+   *
+   * TODO(michalz): Remove this function and rework Pipeline construction
+   *                to use a configuration structure.
    *
    * @param pipelined_execution Use pipelined execution
    * @param separated_execution Use separated queues
@@ -585,14 +585,17 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
-            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
+            bool separated_execution, bool async_execution, bool dynamic_execution,
+            size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
-  using EdgeMeta = struct {
+  struct EdgeMeta {
     bool has_cpu;
     bool has_gpu;
-    bool has_contiguous;
+    // Whether the given backend is guaranteed to have contiguous storage
+    bool has_contiguous_cpu;
+    bool has_contiguous_gpu;
     // MakeContiguous was added after this node to be used as output on specified device:
     bool has_make_contiguous_cpu;
     bool has_make_contiguous_gpu;
@@ -614,22 +617,17 @@ class DLL_PUBLIC Pipeline {
    */
   int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
-  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
+  void ToCPU(std::map<string, EdgeMeta>::iterator it);
+  void ToGPU(std::map<string, EdgeMeta>::iterator it);
 
   inline EdgeMeta NewEdge(const std::string &device) {
-    EdgeMeta edge;
-    edge.has_cpu = false;
-    edge.has_gpu = false;
-    edge.has_contiguous = false;
-    edge.has_make_contiguous_cpu = false;
-    edge.has_make_contiguous_gpu = false;
+    EdgeMeta edge{};
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {
       edge.has_gpu = true;
     } else if (device == "mixed") {
       edge.has_gpu = true;
-      edge.has_contiguous = true;
     } else {
       DALI_FAIL("Invalid device argument \"" + device + "\". "
           "Valid options are \"cpu\", \"gpu\" or \"mixed\".");
@@ -714,6 +712,7 @@ class DLL_PUBLIC Pipeline {
   bool pipelined_execution_ = false;
   bool separated_execution_ = false;
   bool async_execution_ = false;
+  bool dynamic_execution_ = false;
   size_t bytes_per_sample_hint_ = 0;
   int set_affinity_ = 0;
   int max_num_stream_ = 0;
@@ -725,7 +724,7 @@ class DLL_PUBLIC Pipeline {
   bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
-  int original_seed_ = 0;
+  int64_t original_seed_ = 0;
   size_t current_seed_ = 0;
 
   std::unique_ptr<ExecutorBase> executor_;

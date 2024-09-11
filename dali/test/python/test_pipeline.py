@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -2229,3 +2229,113 @@ def test_subgraph_stealing():
         glob="The pipeline is invalid because it contains operators with non-unique names",
     ):
         p2.build()
+
+
+def test_gpu2cpu():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=True)
+    def pdef():
+        enc, _ = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        return img, img.cpu()
+
+    pipe = pdef()
+    pipe.build()
+    for i in range(10):
+        gpu, cpu = pipe.run()
+        assert isinstance(gpu, dali.backend_impl.TensorListGPU)
+        assert isinstance(cpu, dali.backend_impl.TensorListCPU)
+        check_batch(cpu, gpu, bs, 0, 0, "HWC")
+
+
+def test_shapes_gpu():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=True)
+    def pdef():
+        enc, _ = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        peek = fn.peek_image_shape(enc)
+        return peek, fn.shapes(img, device="cpu"), fn.shapes(img.cpu())
+
+    pipe = pdef()
+    pipe.build()
+    for i in range(10):
+        peek, shape_of_gpu, shape_of_cpu = pipe.run()
+        # all results must be CPU tensor lists
+        assert isinstance(peek, dali.backend_impl.TensorListCPU)
+        assert isinstance(shape_of_gpu, dali.backend_impl.TensorListCPU)
+        assert isinstance(shape_of_cpu, dali.backend_impl.TensorListCPU)
+        check_batch(shape_of_gpu, peek, bs, 0, 0)
+        check_batch(shape_of_cpu, peek, bs, 0, 0)
+
+
+def test_gpu2cpu_old_exec_error():
+    bs = 8
+
+    @pipeline_def(
+        batch_size=bs,
+        num_threads=4,
+        device_id=0,
+        exec_async=False,
+        exec_pipelined=False,
+        experimental_exec_dynamic=False,
+    )
+    def pdef():
+        gpu = fn.external_source("input", device="gpu")
+        return gpu.cpu()
+
+    pipe = pdef()
+    with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
+        pipe.build()
+
+
+def test_gpu2cpu_conditionals():
+    bs = 4
+
+    @pipeline_def(
+        batch_size=bs,
+        num_threads=4,
+        device_id=0,
+        experimental_exec_dynamic=True,  # use new executor
+        enable_conditionals=True,
+    )
+    def def_test():
+        enc, label = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        # return inverted image for even samples
+        if (label[0] & 1) == 0:
+            out = img ^ np.uint8(255)
+            out_cpu = out.cpu()
+        else:
+            out = img
+            out_cpu = out.cpu()
+        return out, out_cpu
+
+    @pipeline_def(
+        batch_size=bs,
+        num_threads=4,
+        device_id=0,
+        exec_async=False,  # use old executor, even in presence of DALI_USE_EXEC2
+        exec_pipelined=False,
+    )
+    def def_ref():
+        enc, label = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed")
+        # return inverted image for even samples
+        even = (label[0] & 1) == 0
+        mask = fn.cast(even * 255, dtype=types.UINT8)
+        return img ^ mask
+
+    test_pipe = def_test()
+    test_pipe.build()
+    ref_pipe = def_ref()
+    ref_pipe.build()
+    for i in range(3):
+        gpu, cpu = test_pipe.run()
+        assert isinstance(gpu, dali.backend_impl.TensorListGPU)
+        assert isinstance(cpu, dali.backend_impl.TensorListCPU)
+        (ref,) = ref_pipe.run()
+        check_batch(cpu, ref, bs, 0, 0, "HWC")
+        check_batch(gpu, ref, bs, 0, 0, "HWC")

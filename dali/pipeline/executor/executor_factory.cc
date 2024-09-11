@@ -58,40 +58,44 @@ bool ForceExec2() {
 }  // namespace
 
 template <typename... T>
-std::unique_ptr<ExecutorBase> GetExecutorImpl(bool pipelined, bool separated, bool async,
-                                              T&&... args) {
-  if (async && separated && pipelined) {
+std::unique_ptr<ExecutorBase> GetExecutorImpl(
+      bool pipelined, bool separated, bool async, bool dynamic, T&&... args) {
+  // Go over possible combinations and throw otherwise.
+  if (async && separated && pipelined && !dynamic) {
     return std::make_unique<AsyncSeparatedPipelinedExecutor>(std::forward<T>(args)...);
   } else if (async && !separated && pipelined) {
-    if (ForceExec2()) {
-      std::cerr << "\n!!! Forced use of Executor 2.0 !!!" << std::endl;
+    bool force_exec2 = ForceExec2();
+    if (dynamic || force_exec2) {
+      if (force_exec2)
+        std::cerr << "\n!!! Forced use of Executor 2.0 !!!" << std::endl;
       return std::make_unique<exec2::Executor2>(MakeExec2Config(std::forward<T>(args)...));
     } else {
      return std::make_unique<AsyncPipelinedExecutor>(std::forward<T>(args)...);
     }
-  } else if (!async && separated && pipelined) {
+  } else if (!async && separated && pipelined && !dynamic) {
     return std::make_unique<SeparatedPipelinedExecutor>(std::forward<T>(args)...);
-  } else if (!async && !separated && pipelined) {
+  } else if (!async && !separated && pipelined && !dynamic) {
     return std::make_unique<PipelinedExecutor>(std::forward<T>(args)...);
-  } else if (!async && !separated && !pipelined) {
+  } else if (!async && !separated && !pipelined && !dynamic) {
     return std::make_unique<SimpleExecutor>(std::forward<T>(args)...);
   }
   std::stringstream error;
   error << std::boolalpha;
   error << "No supported executor selected for pipelined = " << pipelined
-        << ", separated = " << separated << ", async = " << async << std::endl;
+        << ", separated = " << separated << ", async = " << async
+        << ", dynamic = " << dynamic << std::endl;
   DALI_FAIL(error.str());
 }
 
 
-std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool async,
+std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool async, bool dynamic,
                                           int batch_size, int num_thread, int device_id,
                                           size_t bytes_per_sample_hint, bool set_affinity,
                                           int max_num_stream,
                                           int default_cuda_stream_priority,
                                           QueueSizes prefetch_queue_depth) {
   return GetExecutorImpl(
-    pipelined, separated, async,
+    pipelined, separated, async, dynamic,
     batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
     max_num_stream, default_cuda_stream_priority, prefetch_queue_depth);
 }
