@@ -2244,6 +2244,8 @@ def test_gpu2cpu():
     pipe.build()
     for i in range(10):
         gpu, cpu = pipe.run()
+        assert isinstance(gpu, dali.backend_impl.TensorListGPU)
+        assert isinstance(cpu, dali.backend_impl.TensorListCPU)
         check_batch(cpu, gpu, bs, 0, 0, "HWC")
 
 
@@ -2260,9 +2262,13 @@ def test_shapes_gpu():
     pipe = pdef()
     pipe.build()
     for i in range(10):
-        peek, gpu, cpu = pipe.run()
-        check_batch(gpu, peek, bs, 0, 0)
-        check_batch(cpu, peek, bs, 0, 0)
+        peek, shape_of_gpu, shape_of_cpu = pipe.run()
+        # all results must be CPU tensor lists
+        assert isinstance(peek, dali.backend_impl.TensorListCPU)
+        assert isinstance(shape_of_gpu, dali.backend_impl.TensorListCPU)
+        assert isinstance(shape_of_cpu, dali.backend_impl.TensorListCPU)
+        check_batch(shape_of_gpu, peek, bs, 0, 0)
+        check_batch(shape_of_cpu, peek, bs, 0, 0)
 
 
 def test_gpu2cpu_old_exec_error():
@@ -2328,6 +2334,8 @@ def test_gpu2cpu_conditionals():
     ref_pipe.build()
     for i in range(3):
         gpu, cpu = test_pipe.run()
+        assert isinstance(gpu, dali.backend_impl.TensorListGPU)
+        assert isinstance(cpu, dali.backend_impl.TensorListCPU)
         (ref,) = ref_pipe.run()
         check_batch(cpu, ref, bs, 0, 0, "HWC")
         check_batch(gpu, ref, bs, 0, 0, "HWC")

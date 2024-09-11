@@ -77,11 +77,17 @@ class DataNode(object):
 
     __repr__ = __str__
 
+    def gpu(self) -> DataNode:
+        return self._to_backend("gpu")
+
+    def cpu(self) -> DataNode:
+        return self._to_backend("cpu")
+
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
-    def gpu(self) -> DataNode:
-        if self.device == "gpu":
+    def _to_backend(self, backend) -> DataNode:
+        if self.device == backend:
             return self
 
         from nvidia.dali import _conditionals
@@ -89,24 +95,10 @@ class DataNode(object):
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
             [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNode(self_split.name, "gpu", self_split.source)
+            transferred_node = DataNode(self_split.name, backend, self_split.source)
             _conditionals.register_data_nodes(transferred_node, [self])
             return transferred_node
-        return DataNode(self.name, "gpu", self.source)
-
-    def cpu(self) -> DataNode:
-        if self.device == "cpu":
-            return self
-
-        from nvidia.dali import _conditionals
-
-        if _conditionals.conditionals_enabled():
-            # Treat it the same way as regular operator would behave
-            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNode(self_split.name, "cpu", self_split.source)
-            _conditionals.register_data_nodes(transferred_node, [self])
-            return transferred_node
-        return DataNode(self.name, "cpu", self.source)
+        return DataNode(self.name, backend, self.source)
 
     def __add__(self, other) -> DataNode:
         return _arithm_op("add", self, other)
