@@ -40,6 +40,9 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
   virtual void AssertFrame(
     int frame_id, const uint8_t *frame, TestVideo &ground_truth) = 0;
 
+  template<typename Backend>
+  int GetFrameIdx(dali::TensorList<Backend> &device_frame_idx);
+
  private:
   template<typename Backend>
   void RunTestImpl(
@@ -129,15 +132,15 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
       .AddArg("device", backend)
       .AddArg("sequence_length", sequence_length)
       .AddArg("random_shuffle", true)
+      .AddArg("enable_frame_num", true)
       .AddArg("initial_fill", cfr_videos_[0].NumFrames())
       .AddArg(
         "filenames",
         std::vector<std::string>{cfr_videos_paths_[0]})
-      .AddOutput("frames", backend));
+      .AddOutput("frames", backend)
+      .AddOutput("frame_idx", backend));
 
-    pipe.Build({{"frames", backend}});
-
-    std::vector<int> expected_order = {29, 46, 33, 6, 37};
+    pipe.Build({{"frames", backend}, {"frame_idx", backend}});
 
     int num_sequences = 5;
 
@@ -148,9 +151,10 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
       auto &frame_video_output = ws.Output<Backend>(0);
       const auto sample = frame_video_output.template tensor<uint8_t>(0);
+      int frame_idx = GetFrameIdx(ws.Output<Backend>(1));
 
-      // We want to access correct order, so we comapre only the first frame of the sequence
-      AssertFrame(expected_order[sequence_id], sample, ground_truth_video);
+      // We want to access correct order, so we compare only the first frame of the sequence
+      AssertFrame(frame_idx, sample, ground_truth_video);
     }
   }
 };
@@ -169,6 +173,15 @@ void VideoReaderDecoderBaseTest::RunShuffleTest<dali::CPUBackend>() {
 }
 
 template<>
+int VideoReaderDecoderBaseTest::GetFrameIdx(
+  dali::TensorList<dali::CPUBackend> &device_frame_idx) {
+    const auto frame_idx = device_frame_idx.template tensor<int>(0);
+    int frame_idx_buffer = -1;
+    std::copy_n(frame_idx, 1, &frame_idx_buffer);
+    return frame_idx_buffer;
+}
+
+template<>
 void VideoReaderDecoderBaseTest::RunTest<dali::GPUBackend>(
   std::vector<std::string> &videos_paths,
   std::vector<TestVideo> &ground_truth_videos) {
@@ -179,6 +192,15 @@ void VideoReaderDecoderBaseTest::RunTest<dali::GPUBackend>(
 template<>
 void VideoReaderDecoderBaseTest::RunShuffleTest<dali::GPUBackend>() {
     RunShuffleTestImpl<dali::GPUBackend>("gpu", 0);
+}
+
+template<>
+int VideoReaderDecoderBaseTest::GetFrameIdx(
+  dali::TensorList<dali::GPUBackend> &device_frame_idx) {
+    const auto frame_idx = device_frame_idx.template tensor<int>(0);
+    int frame_idx_buffer = -1;
+    MemCopy(&frame_idx_buffer, frame_idx, sizeof(int));
+    return frame_idx_buffer;
 }
 
 class VideoReaderDecoderCpuTest : public VideoReaderDecoderBaseTest {

@@ -35,7 +35,8 @@ template <typename Backend>
 class VideoSample {
  public:
   Tensor<Backend> data_;
-  int label_;
+  int label_ = -1;
+  int first_frame_ = -1;
 };
 
 class VideoLoaderDecoderBase {
@@ -46,6 +47,7 @@ class VideoLoaderDecoderBase {
     stride_(spec.GetArgument<int>("stride")),
     step_(spec.GetArgument<int>("step")) {
     has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
+    has_frame_idx_ = spec.GetArgument<bool>("enable_frame_num");
     DALI_ENFORCE(
         !has_labels_ || labels_.size() == filenames_.size(),
         make_string(
@@ -61,6 +63,7 @@ class VideoLoaderDecoderBase {
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
   bool has_labels_ = false;
+  bool has_frame_idx_ = false;
 
   Index current_index_ = 0;
 

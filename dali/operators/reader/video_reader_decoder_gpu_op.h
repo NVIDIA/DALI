@@ -35,6 +35,7 @@ class VideoReaderDecoderGpu : public DataReader<GPUBackend, VideoSampleGpu, Vide
 
  private:
   bool has_labels_ = false;
+  bool has_frame_idx_  = false;
 };
 
 }  // namespace dali
