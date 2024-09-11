@@ -163,7 +163,7 @@ def test_mixed_devices_decoder():
     (pipe_out,) = pipe.run()
 
     jpeg, _ = next(eager.readers.file(file_root=file_root, batch_size=batch_size, seed=seed))
-    eager_out = eager.decoders.image(jpeg, device="gpu")
+    eager_out = eager.decoders.image(jpeg, device="mixed")
 
     assert len(pipe_out) == len(eager_out)
 

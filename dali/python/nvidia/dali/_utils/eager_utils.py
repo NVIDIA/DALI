@@ -604,7 +604,7 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         device = device_param
         device_id = 0
 
-    if device != "cpu" and device != "gpu":
+    if device not in ["cpu", "gpu", "mixed"]:
         raise ValueError(f"Incorrect device type '{device}'.")
 
     return device, device_id
