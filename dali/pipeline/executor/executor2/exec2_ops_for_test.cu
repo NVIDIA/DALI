@@ -94,11 +94,9 @@ void DummyOpGPU::RunImpl(Workspace &ws) {
     out.Resize(uniform_list_shape(N, TensorShape<0>()), DALI_INT32);
     assert(out.IsContiguousInMemory());
   }
-  Sum<<<div_ceil(N, 256), 256, 0, ws.stream()>>>(
-    out[0].mutable_data<int>(),
-    scratch.ToGPU(ws.stream(), pointers),
-    ws.NumInput() + 1,
-    N);
+  CUDA_CALL(Sum<<<div_ceil(N, 256), 256, 0, ws.stream()>>>
+       (out[0].mutable_data<int>(), scratch.ToGPU(ws.stream(), pointers),
+        ws.NumInput() + 1, N));
 }
 
 

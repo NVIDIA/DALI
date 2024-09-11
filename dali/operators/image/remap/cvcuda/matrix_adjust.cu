@@ -54,7 +54,7 @@ void adjustMatrices(nvcv::Tensor &matrices, cudaStream_t stream) {
 
   int num_blocks = div_ceil(bs, 256);
   int threads_per_block = std::min(bs, 256);
-  adjustMatricesKernel2<<<num_blocks, threads_per_block, 0, stream>>>(wrap, bs);
+  CUDA_CALL(adjustMatricesKernel2<<<num_blocks, threads_per_block, 0, stream>>>(wrap, bs));
 }
 
 }  // namespace warp_perspective

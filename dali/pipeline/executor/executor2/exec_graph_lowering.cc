@@ -59,7 +59,7 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
   ExecNode *out_node = AddOutputNode();
 
   int pipe_outs = 0;
-  for (auto out : def.Outputs()) {
+  for (auto& out : def.Outputs()) {
     auto *data_node = def.GetData(out);
     assert(data_node);
     assert(data_node->pipeline_output);
