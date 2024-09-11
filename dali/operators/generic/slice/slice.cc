@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ arguments.
 By default, the :meth:`nvidia.dali.fn.slice` operator uses normalized coordinates and ``WH``
 order for the slice arguments.)code")
     .NumInput(1, 3)
-    .InputDevice(1, 3, InputDevice::CPU)
+    .InputDevice(1, 3, InputDevice::MatchBackendOrCPU)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
     .InputDox(1, "anchor", "1D TensorList of float or int",
