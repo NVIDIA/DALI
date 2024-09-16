@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -301,7 +301,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const Tensor<Backend> &owner
 
 
 template <typename Backend>
-void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
+void TensorList<Backend>::SetSample(int sample_idx, shared_ptr<void> ptr, size_t bytes,
                                     bool pinned, const TensorShape<> &shape, DALIDataType type,
                                     int device_id, AccessOrder order, const TensorLayout &layout) {
   // Bounds check
@@ -316,7 +316,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr,
 
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
-  tensors_[sample_idx].ShareData(ptr, bytes, pinned, shape, type, device_id, order);
+  tensors_[sample_idx].ShareData(std::move(ptr), bytes, pinned, shape, type, device_id, order);
   // As the order was simply copied over, we have to fix it back.
   // We will be accessing it in order of this buffer, so we need to wait for all the work
   // from the "incoming" src order.
@@ -460,13 +460,6 @@ std::vector<size_t> TensorList<Backend>::_chunks_capacity() const {
   return result;
 }
 
-
-template <typename Backend>
-const TensorListShape<> &TensorList<Backend>::shape() const & {
-  return shape_;
-}
-
-
 template <typename Backend>
 void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
   DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
@@ -529,6 +522,7 @@ void TensorList<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataTyp
   if (old_size < new_shape.num_samples()) {
     tensors_.resize(new_shape.num_samples());
   }
+
   for (int i = old_size; i < new_shape.num_samples(); i++) {
     setup_tensor_allocation(i);
   }
@@ -575,6 +569,7 @@ void TensorList<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataTyp
   for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i].Resize(new_shape[i], new_type);
   }
+
   if (curr_num_tensors_ > 0) {
     order_ = tensors_[0].order();
     device_ = tensors_[0].device_id();
@@ -629,19 +624,6 @@ void TensorList<Backend>::set_type(DALIDataType new_type_id) {
   }
 }
 
-
-template <typename Backend>
-DALIDataType TensorList<Backend>::type() const {
-  return type_.id();
-}
-
-
-template <typename Backend>
-const TypeInfo &TensorList<Backend>::type_info() const {
-  return type_;
-}
-
-
 template <typename Backend>
 void TensorList<Backend>::SetLayout(const TensorLayout &layout) {
   for (auto &t : tensors_) {
@@ -661,13 +643,6 @@ template <typename Backend>
 void TensorList<Backend>::SetSourceInfo(int idx, const std::string &source_info) {
   tensors_[idx].SetSourceInfo(source_info);
 }
-
-
-template <typename Backend>
-TensorLayout TensorList<Backend>::GetLayout() const {
-  return layout_;
-}
-
 
 template <typename Backend>
 const DALIMeta &TensorList<Backend>::GetMeta(int idx) const {
@@ -695,13 +670,6 @@ void TensorList<Backend>::set_pinned(bool pinned) {
   pinned_ = pinned;
 }
 
-
-template <typename Backend>
-bool TensorList<Backend>::is_pinned() const {
-  return pinned_;
-}
-
-
 template <typename Backend>
 void TensorList<Backend>::set_device_id(int device_id) {
   contiguous_buffer_.set_device_id(device_id);
@@ -710,13 +678,6 @@ void TensorList<Backend>::set_device_id(int device_id) {
   }
   device_ = device_id;
 }
-
-
-template <typename Backend>
-int TensorList<Backend>::device_id() const {
-  return device_;
-}
-
 
 template <typename Backend>
 void TensorList<Backend>::reserve(size_t total_bytes) {
@@ -744,30 +705,18 @@ void TensorList<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
   }
 }
 
-
-template <typename Backend>
-bool TensorList<Backend>::IsContiguous() const noexcept {
-  return state_.IsContiguous();
-}
-
-
-template <typename Backend>
-BatchContiguity TensorList<Backend>::GetContiguity() const noexcept {
-  return state_.Get();
-}
-
-
 template <typename Backend>
 void TensorList<Backend>::recreate_views() {
   // precondition: type, shape are configured
   uint8_t *sample_ptr = static_cast<uint8_t *>(contiguous_buffer_.raw_mutable_data());
   int64_t num_samples = shape().num_samples();
+  auto &data_ptr = contiguous_buffer_.get_data_ptr();
   for (int64_t i = 0; i < num_samples; i++) {
     // or any other way
     auto tensor_size = shape().tensor_size(i);
 
-    std::shared_ptr<void> sample_alias(contiguous_buffer_.get_data_ptr(), sample_ptr);
-    tensors_[i].ShareData(sample_alias, tensor_size * type_info().size(), is_pinned(), shape()[i],
+    tensors_[i].ShareData(std::shared_ptr<void>(data_ptr, sample_ptr),
+                          tensor_size * type_info().size(), is_pinned(), shape()[i],
                           type(), device_id(), order());
     tensors_[i].SetLayout(GetLayout());
     sample_ptr += tensor_size * type_info().size();
@@ -996,7 +945,8 @@ Tensor<Backend> TensorList<Backend>::AsReshapedTensor(const TensorShape<> &new_s
     ptr = nullptr;
   }
 
-  result.ShareData(ptr, capacity(), is_pinned(), new_shape, type(), device_id(), order());
+  result.ShareData(std::move(ptr), capacity(), is_pinned(),
+                   new_shape, type(), device_id(), order());
 
   auto result_layout = GetLayout();
   if (result_layout.ndim() + 1 == new_shape.sample_dim()) {
@@ -1022,10 +972,11 @@ Tensor<Backend> TensorList<Backend>::AsTensor() {
 
 
 template <typename Backend>
-void TensorList<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+void TensorList<Backend>::ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                                     const TensorListShape<> &shape, DALIDataType type,
                                     int device_id, AccessOrder order, const TensorLayout &layout) {
-  contiguous_buffer_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements(),
+  contiguous_buffer_.set_backing_allocation(std::move(ptr), bytes, pinned,
+                                            type, shape.num_elements(),
                                             device_id, order);
   buffer_bkp_.reset();
   tensors_.clear();

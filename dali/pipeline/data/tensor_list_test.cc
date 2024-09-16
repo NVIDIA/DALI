@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/test/timing.h"
 
 namespace dali {
 namespace test {
@@ -1992,6 +1993,26 @@ TEST_F(TensorListVariableBatchSizeTest, UpdatePropertiesFromSamples) {
   tv.SetSample(1, tv.tensor_handle(2));
 }
 
+TEST(TensorList, ResizeOverheadPerf) {
+  cudaFree(0);
+  int niter = 20000;
+  int total_size = 256 << 10;
+  int nsamples = 1024;
+  auto shape = uniform_list_shape(nsamples, {total_size / nsamples});
+  for (int i = 0; i < 5000; i++) {
+    TensorList<CPUBackend> tl;
+    tl.set_pinned(false);
+    tl.Resize(shape, DALI_UINT8);
+  }
+  auto start = perf_timer::now();
+  for (int i = 0; i < niter; i++) {
+    TensorList<CPUBackend> tl;
+    tl.set_pinned(false);
+    tl.Resize(shape, DALI_UINT8);
+  }
+  auto end = perf_timer::now();
+  std::cout << format_time((end - start) / niter) << std::endl;
+}
 
 }  // namespace test
 }  // namespace dali
