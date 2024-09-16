@@ -21,28 +21,6 @@
 namespace dali {
 namespace graph {
 
-namespace {
-
-OpType ParseOpType(const std::string &device) {
-  if (device == "gpu") {
-    return OpType::GPU;
-  } else if (device == "cpu") {
-    return OpType::CPU;
-  } else if (device == "mixed") {
-    return OpType::MIXED;
-  }
-  DALI_FAIL("Unsupported device type: " + device + ".");
-}
-
-StorageDevice ParseStorageDevice(const std::string &io_device) {
-  if (io_device == "cpu") {
-    return StorageDevice::CPU;
-  }
-  return StorageDevice::GPU;
-}
-
-}  // namespace
-
 //////////////////////////////////////////////////////////////////////////////
 // OpGraph
 

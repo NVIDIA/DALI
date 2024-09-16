@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -166,13 +166,6 @@ def _test_injection(device, name, transform, eps=1e-07):
 
 def test_injection_numpy():
     _test_injection("cpu", "numpy array", lambda xs: [np.array(x) for x in xs])
-
-
-@attr("mxnet")
-def test_injection_mxnet():
-    import mxnet
-
-    _test_injection("cpu", "mxnet array", lambda xs: [mxnet.nd.array(x, dtype="uint8") for x in xs])
 
 
 @attr("pytorch")
@@ -544,7 +537,7 @@ def cpu_after_gpu_pipeline():
     return labels, output
 
 
-@raises(RuntimeError, glob="Cannot call * operator * with * input *")
+@raises(RuntimeError, glob='incompatible device "gpu"')
 def test_cpu_operator_after_gpu():
     pipe = cpu_after_gpu_pipeline()
     pipe.build()

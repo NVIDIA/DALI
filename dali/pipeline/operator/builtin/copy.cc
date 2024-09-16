@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ DALI_REGISTER_OPERATOR(Copy, Copy<GPUBackend>, GPU);
 DALI_SCHEMA(Copy)
   .DocStr("Creates a copy of the input tensor.")
   .NumInput(1)
+  .InputDevice(0, InputDevice::Any)
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric();

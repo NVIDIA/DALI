@@ -27,7 +27,7 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
   auto dtype = output.type();
   auto &tp = ws.GetThreadPool();
   if (has_fill_value_) {
-    auto &fill_value = ws.Input<CPUBackend>(kValueInputIdx);
+    auto &fill_value = ws.Input<CPUBackend>(value_input_idx_);
     const auto &fill_value_sh = fill_value.shape();
     TYPE_SWITCH(fill_value.type(), type2id, FillValueType, (DALI_CONSTANT_VALUE_TYPES), (
       TYPE_SWITCH(dtype, type2id, OutputType, (DALI_CONSTANT_VALUE_TYPES), (
@@ -84,6 +84,7 @@ DALI_SCHEMA(FullLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input data, filled with a `fill_value`.)code")
     .NumInput(2)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDevice(0, InputDevice::Any)
     .InputDox(1, "fill_value", "TensorList", R"code(The fill value.)code")
     .NumOutput(1);
 DALI_REGISTER_OPERATOR(FullLike, FullLike<CPUBackend>, CPU);
@@ -101,6 +102,7 @@ DALI_SCHEMA(ZerosLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with zeros.)code")
     .NumInput(1)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDevice(0, InputDevice::Any)
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(ZerosLike, ZerosLike<CPUBackend>, CPU);
@@ -118,6 +120,7 @@ DALI_SCHEMA(OnesLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with ones.)code")
     .NumInput(1)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDevice(0, InputDevice::Any)
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(OnesLike, OnesLike<CPUBackend>, CPU);
