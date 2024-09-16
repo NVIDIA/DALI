@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,5 +141,37 @@ TEST(ListTypeNames, ListTypeNames) {
       "uint8, int8, uint16, int16, uint32, int32, uint64, int64, float, double, float16";
   ASSERT_EQ(str1, expected_str1);
 }
+
+// The following disabled code tests the scenario when we need to grow the type table
+// - for which we need an inordinate number of artifical types. The compilation is extremely
+// slow and setting a breakpoint in types.h becomes a nightmare.
+// Uncomment to test this particular scenario, leave commented otherwise.
+#if 0
+
+template <int n = 0>
+void TestTypeTableGrowth(std::integral_constant<int, n> = {}) {
+  if constexpr (n < 3000) {
+    const TypeInfo &ti = TypeTable::GetTypeInfo<std::integral_constant<int, n>>();
+    std::cout << ti.name() << std::endl;
+    EXPECT_NE(ti.name().find(std::to_string(n)), std::string::npos);
+
+    TestTypeTableGrowth(std::integral_constant<int, 2*n+1>());
+    TestTypeTableGrowth(std::integral_constant<int, 2*n+2>());
+
+    const TypeInfo &ti2 = TypeTable::GetTypeInfo<std::integral_constant<int, n>>();
+    EXPECT_EQ(&ti, &ti2);
+  }
+  if constexpr (n == 0)
+    exit(0);
+}
+
+
+TEST(TypeTable, TestTableGrowth) {
+  TestTypeTableGrowth();
+  GTEST_FLAG_SET(death_test_style, "threadsafe");
+  // This avoids polluting the global type table with dummy types
+  EXPECT_EXIT(TestTypeTableGrowth(), ::testing::ExitedWithCode(0), "");
+}
+#endif
 
 }  // namespace dali

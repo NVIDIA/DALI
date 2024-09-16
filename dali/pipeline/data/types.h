@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_DATA_TYPES_H_
 #define DALI_PIPELINE_DATA_TYPES_H_
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -478,6 +480,12 @@ class DLL_PUBLIC TypeTable {
           capacity = kMinCapacity;
         auto &m = type_info_maps_.emplace_back();
         m.resize(capacity);
+        if (type_info_map_)  // copy the old map into the new one
+          std::copy(type_info_map_->begin(), type_info_map_->end(), m.begin());
+        // The new map contains everything that the old map did - we can "publish" it.
+        // Make sure that the compiler doesn't reorder after the "publishing".
+        std::atomic_thread_fence(std::memory_order_release);
+        // Publish the new map.
         type_info_map_ = &m;
       }
       TypeInfo &info = type_infos_.emplace_back();
@@ -493,11 +501,19 @@ class DLL_PUBLIC TypeTable {
   }
 
   using TypeInfoMap = std::vector<TypeInfo*>;
+  // The "current" type map - it's just a vector that maps type_id (adjusted and treated as index)
+  // to a TypeInfo pointer.
   TypeInfoMap *type_info_map_ = nullptr;
 
   std::mutex insert_lock_;
+  // All type info maps - old ones are never deleted to avoid locks when only read access is needed.
   std::list<TypeInfoMap> type_info_maps_;
+  // The actual type info objects. Each type has exactly one TypeInfo - even if we need to grow
+  // the storage - hence, we need to store TypeInfo* in the pas (see typedef TypeInfoMap) and
+  // we need to store TypeInfo instances in a container that never invalidates pointers
+  // (e.g. a list).
   std::list<TypeInfo> type_infos_;
+
   int next_id_ = DALI_CUSTOM_TYPE_START;
   DLL_PUBLIC static TypeTable &instance();
 };
