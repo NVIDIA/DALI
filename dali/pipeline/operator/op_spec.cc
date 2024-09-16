@@ -18,15 +18,70 @@
 
 namespace dali {
 
+inline bool IsCompatibleDevice(StorageDevice provided, InputDevice required, OpType op_device) {
+  switch (required) {
+  case InputDevice::CPU:
+    return provided == StorageDevice::CPU;
+  case InputDevice::GPU:
+    return provided == StorageDevice::GPU;
+  case InputDevice::MatchBackend:
+    return op_device == OpType::GPU
+      ? provided == StorageDevice::GPU
+      : provided == StorageDevice::CPU;
+  case InputDevice::MatchBackendOrCPU:
+    return op_device == OpType::CPU ? provided == StorageDevice::CPU : true;
+  case InputDevice::Any:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline std::string ValidDevices(InputDevice required, OpType op_device) {
+  switch (required) {
+    case InputDevice::CPU:
+      return "\"cpu\"";
+    case InputDevice::GPU:
+      return "\"gpu\"";
+    case InputDevice::MatchBackend:
+      return op_device == OpType::GPU ? "\"gpu\"" : "\"cpu\"";
+    case InputDevice::MatchBackendOrCPU:
+      return op_device == OpType::GPU ? "\"gpu\" or \"cpu\"" : "\"cpu\"";
+    case InputDevice::Any:
+      return "\"gpu\" or \"cpu\"";
+    default:
+      assert(!"Unrechable");
+      return "<invalid>";
+  }
+}
+
 OpSpec& OpSpec::AddInput(const string &name, const string &device, bool regular_input) {
-  DALI_ENFORCE(device == "gpu" || device == "cpu", "Invalid device "
-      "specifier \"" + device + "\" for input \"" + name + "\". "
-      "Valid options are \"cpu\" or \"gpu\"");
+  auto dev = ParseStorageDevice(device);
   if (regular_input) {
     // We rely on the fact that regular inputs are first in inputs_ vector
     DALI_ENFORCE(NumArgumentInput() == 0,
-        "All regular inputs (particularly, `" + name + "`) need to be added to the op `" +
+        "All regular inputs (particularly, \"" + name + "\") need to be added to the op `" +
         GetOpDisplayName(*this, true) + "` before argument inputs.");
+
+    if (schema_) {
+      int idx = inputs_.size();
+      DALI_ENFORCE(idx < schema_->MaxNumInput(), make_string(
+        "The operator `", GetOpDisplayName(*this, true), "` takes up to ", schema_->MaxNumInput(),
+        " inputs. The input \"", name , "\" is out of range."));
+
+      if (HasArgument("device")) {
+        auto op_type_str = GetArgument<std::string>("device");
+        OpType op_type = ParseOpType(op_type_str);
+        auto inp_dev = schema_->GetInputDevice(idx);
+        DALI_ENFORCE(IsCompatibleDevice(dev, inp_dev, op_type),
+          make_string("The input ", idx, " for ", op_type_str, " operator `",
+          GetOpDisplayName(*this, true), "` is stored on incompatible device \"", device,
+          "\". Valid device is ", ValidDevices(inp_dev, op_type), "."));
+      }
+    }
+  } else {
+    DALI_ENFORCE(dev == StorageDevice::CPU, make_string("Invalid storage device \"", device,
+      "\" for a named input \"", name, "\". All named inputs must be on CPU."));
   }
 
   inputs_.push_back({name, device});

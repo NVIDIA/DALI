@@ -38,6 +38,7 @@ class StreamAssignmentDummyOp : public Operator<Backend> {
 
 DALI_SCHEMA(StreamAssignmentDummyOp)
   .NumInput(0, 999)
+  .InputDevice(0, 999, InputDevice::Any)
   .NumOutput(0)
   .AdditionalOutputsFn([](const OpSpec &spec) {
     return spec.NumOutput();

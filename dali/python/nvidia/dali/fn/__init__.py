@@ -70,11 +70,6 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         init_args, call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
         default_dev = nvidia.dali.ops._choose_device(inputs)
-        # TODO(michalz): Verify against InputDevice from the schema.
-        # TODO(michalz): Add InputDevice::Any for operators which can take any input backend
-        # Temporarily the check is disabled
-        # if default_dev == "gpu" and init_args.get("device") == "cpu":
-        #     raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
 
         if "device" not in init_args:
             init_args["device"] = default_dev

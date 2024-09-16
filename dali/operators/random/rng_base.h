@@ -183,15 +183,7 @@ class RNGBase : public OperatorWithRng<Backend> {
       shape_ = ws.Input<Backend>(0).shape();
     } else if (has_shape_like) {
       int shape_like_idx = spec_.GetSchema().MinNumInput();
-      if (ws.InputIsType<Backend>(shape_like_idx)) {
-        shape_ = ws.Input<Backend>(shape_like_idx).shape();
-      } else if (std::is_same<GPUBackend, Backend>::value &&
-                 ws.InputIsType<CPUBackend>(shape_like_idx)) {
-        shape_ = ws.Input<CPUBackend>(shape_like_idx).shape();
-      } else {
-        DALI_FAIL(
-            "Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
-      }
+      shape_ = ws.GetInputShape(shape_like_idx);
     } else if (has_shape) {
       GetShapeArgument(shape_, spec_, "shape", ws, nsamples);
     } else {

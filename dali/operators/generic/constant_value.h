@@ -42,7 +42,7 @@ class ConstantValue : public StatelessOperator<Backend> {
 
   int GetBatchSize(const Workspace &ws) const {
     if (is_shape_like_)
-      return ws.Input<Backend>(kShapeLikeInputIdx).shape().size();
+      return ws.GetInputBatchSize(shape_like_input_idx_);
     else
       return ws.GetRequestedBatchSize(0);
   }
@@ -70,10 +70,10 @@ class ConstantValue : public StatelessOperator<Backend> {
     output_desc.resize(1);
     auto &dtype = output_desc[0].type;
     auto &shape = output_desc[0].shape;
-    dtype = is_shape_like_ && !has_dtype_ ? ws.Input<Backend>(kShapeLikeInputIdx).type() : dtype_;
+    dtype = is_shape_like_ && !has_dtype_ ? ws.GetInputDataType(shape_like_input_idx_) : dtype_;
 
     if (is_shape_like_) {
-      shape = ws.Input<Backend>(kShapeLikeInputIdx).shape();
+      shape = ws.GetInputShape(shape_like_input_idx_);
     } else if (has_shape_) {
       GetShapeArgument(shape, spec_, "shape", ws, nsamples);
     } else {
@@ -81,7 +81,7 @@ class ConstantValue : public StatelessOperator<Backend> {
     }
 
     if (has_fill_value_) {
-      auto& fill_value = ws.Input<Backend>(kValueInputIdx);
+      auto& fill_value = ws.Input<Backend>(value_input_idx_);
       auto fill_value_shape = fill_value.shape();
       auto fill_value_dtype = fill_value.type();
       int new_ndim = shape.sample_dim() + fill_value_shape.sample_dim();
@@ -110,16 +110,16 @@ class ConstantValue : public StatelessOperator<Backend> {
  protected:
   using Operator<Backend>::spec_;
   using Operator<Backend>::max_batch_size_;
-  const bool has_fill_value_;
-  const bool is_shape_like_;
+  bool has_fill_value_;
+  bool is_shape_like_;
   bool has_shape_, has_dtype_;
   DALIDataType dtype_;
 
   bool has_const_value_ = false;
   int const_value_ = 0;
 
-  const int kShapeLikeInputIdx = is_shape_like_ ? 0 : -1;
-  const int kValueInputIdx = is_shape_like_ ? 1 : 0;
+  int shape_like_input_idx_ = is_shape_like_ ? 0 : -1;
+  int value_input_idx_ = is_shape_like_ ? 1 : 0;
 };
 
 template <typename Backend>

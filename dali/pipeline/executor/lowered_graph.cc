@@ -73,24 +73,6 @@ void CheckOpConstraints(const OpSpec &spec) {
                            " outputs, but was passed ", spec.NumOutput(), "."));
 }
 
-OpType ParseOpType(const std::string &device) {
-  if (device == "gpu") {
-    return OpType::GPU;
-  } else if (device == "cpu") {
-    return OpType::CPU;
-  } else if (device == "mixed") {
-    return OpType::MIXED;
-  }
-  DALI_FAIL("Unsupported device type: " + device + ".");
-}
-
-StorageDevice ParseStorageDevice(const std::string &io_device) {
-  if (io_device == "cpu") {
-    return StorageDevice::CPU;
-  }
-  return StorageDevice::GPU;
-}
-
 }  // namespace
 
 void OpGraph::Lower(const graph::OpGraph &definition) {

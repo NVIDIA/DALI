@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ namespace dali {
 DALI_SCHEMA(Shapes)
     .DocStr(R"code(Returns the shapes of inputs.)code")
     .NumInput(1)
+    .InputDevice(0, InputDevice::Any)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
