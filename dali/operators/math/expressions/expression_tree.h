@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,9 +84,10 @@ class ExprNode {
 
   virtual std::string GetOutputDesc() const {
     const auto &op_type = TypeTable::GetTypeInfo(GetTypeId()).name();
-    std::string result = GetAbbreviation(GetNodeType());
-    result += IsScalarLike(GetShape()) ? "C:" : "T:";
-    return result + op_type;
+    return make_string(
+      GetAbbreviation(GetNodeType()),
+      IsScalarLike(GetShape()) ? "C:" : "T:",
+      op_type);
   }
 
   virtual NodeType GetNodeType() const = 0;
@@ -140,15 +141,18 @@ class ExprFunc : public ExprNode {
 
   std::string GetNodeDesc() const override {
     const auto &op_type = TypeTable::GetTypeInfo(GetTypeId()).name();
-    std::string result = func_name_ + (IsScalarLike(GetShape()) ? ":C:" : ":T:") + op_type + "(";
+    std::stringstream result;
+    result << func_name_ << (IsScalarLike(GetShape()) ? ":C:" : ":T:") << op_type << "(";
+
     for (int i = 0; i < GetSubexpressionCount(); i++) {
-      result += (*this)[i].GetOutputDesc();
+      result << (*this)[i].GetOutputDesc();
       if (i < GetSubexpressionCount() - 1) {
-        result += " ";
+        result << " ";
       }
     }
-    result += ")";
-    return result;
+
+    result << ")";
+    return result.str();
   }
 
   NodeType GetNodeType() const override {
