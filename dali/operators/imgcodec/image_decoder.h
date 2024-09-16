@@ -20,7 +20,6 @@
 #include "dali/core/mm/memory.h"
 #include "dali/operators.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"  // TODO(janton): needed to check HW decoder capabilities
 #include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/image/crop/crop_attr.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
@@ -39,8 +38,6 @@ nvimgcodecStatus_t get_opencv_extension_desc(nvimgcodecExtensionDesc_t *ext_desc
 nvimgcodecStatus_t get_nvjpeg_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
 nvimgcodecStatus_t get_nvjpeg2k_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
 #endif
-
-bool nvjpegIsSymbolAvailable(const char *name);
 
 #ifndef DALI_OPERATORS_IMGCODEC_IMAGE_DECODER_H_
 #define DALI_OPERATORS_IMGCODEC_IMAGE_DECODER_H_
