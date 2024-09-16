@@ -259,7 +259,7 @@ void OpTask::RunOp() {
     ResetInputLayouts();
     PropagateSourceInfo(*ws_);
   }
-  if (!ws_->GetIterationData()) throw std::runtime_exception("Failed to acquire Iteration Data.");
+  assert(ws_->GetIterationData());
   if (auto cpt = ws_->GetIterationData()->checkpoint) {
     node_->op->SaveState(cpt->GetOpCheckpoint(node_->instance_name), ws_->output_order());
   }
