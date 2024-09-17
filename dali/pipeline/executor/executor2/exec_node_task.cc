@@ -477,7 +477,7 @@ tasking::SharedTask ExecNodeTask::CreateTask(ExecNode *node, const WorkspacePara
   }
 }
 
-void ClearWorkspacePayload(Workspace &ws) {
+void ClearWorkspacePayload(Workspace &ws, ExecNode &node) {
   auto event = ws.has_event() ? ws.event() : nullptr;
   for (int i = 0; i < ws.NumInput(); i++) {
     // TODO(michalz): Some smarter deletion management
@@ -492,14 +492,16 @@ void ClearWorkspacePayload(Workspace &ws) {
     if (ws.InputIsType<CPUBackend>(i)) {
       if (auto &pinp = ws.InputPtr<CPUBackend>(i)) {
         auto &inp = *pinp;
-        if (inp.is_pinned() && event && inp.order() != ws.output_order())
+        if (event &&
+            !node.inputs[i]->metadata &&
+            inp.is_pinned() && inp.order() != ws.output_order())
           inp.order().wait(event);
         ws.SetInput<CPUBackend>(i, nullptr);
       }
     } else if (ws.InputIsType<GPUBackend>(i)) {
       if (auto &pinp = ws.InputPtr<GPUBackend>(i)) {
           auto &inp = *pinp;
-        if (event && inp.order() != ws.output_order())
+        if (event && !node.inputs[i]->metadata && inp.order() != ws.output_order())
           inp.order().wait(event);
         ws.SetInput<GPUBackend>(i, nullptr);
       }
@@ -525,7 +527,7 @@ void ClearWorkspacePayload(Workspace &ws) {
 
 void ExecNodeTask::ClearWorkspace() {
   assert(ws_);
-  ClearWorkspacePayload(*ws_);
+  ClearWorkspacePayload(*ws_, *node_);
 }
 
 }  // namespace exec2
