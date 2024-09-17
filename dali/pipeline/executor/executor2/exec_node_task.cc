@@ -31,6 +31,9 @@ namespace exec2 {
 //////////////////////////////////////////////////////////////////////////////////
 // OpTask
 
+inline std::string_view NodeName(const ExecNode &n) {
+  return !n.instance_name.empty() ? n.instance_name : n.op->GetSpec().SchemaName();
+}
 class OpTask : public ExecNodeTask {
  public:
   /** Gets a functor that runs the operator. */
@@ -278,16 +281,13 @@ void OpTask::SetWorkspaceInputs() {
   auto process_input = [&](int i, auto backend) {
     using Backend = decltype(backend);
     const auto &inp = TaskInput<Backend>(ti);
-    // If the output order of the operator is `host` then we don't wait for GPU
-    // inputs - they can't be accessed directly on host and the operator will
-    // have to issue some sort of synchronization if and when necessary.
-    // This optimization is essential to avoid oversynchronization
-    // when the operator needs to access the metadata only (e.g. getting the shape).
-    if ((order.is_device() || std::is_same_v<Backend, CPUBackend>) /*see comment above */ &&
-        inp.event && inp.order != order)
+    bool is_meta = node_->inputs[i]->metadata;
+    // metadata-only inputs don't need to be synchronized
+    if (!is_meta && inp.event && inp.order != order)
       events.insert(inp.event);
 
-    if (inp.order == order) {  // use the input directly
+    // metadata-only inputs don't need a proper stream
+    if (inp.order == order || is_meta) {  // use the input directly
       ws_->SetInput(i, inp.data);
     } else {  // create another TL and set its order (and layout, while we're at it)
       auto tl = std::make_shared<TensorList<Backend>>();

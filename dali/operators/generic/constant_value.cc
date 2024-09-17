@@ -84,7 +84,7 @@ DALI_SCHEMA(FullLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input data, filled with a `fill_value`.)code")
     .NumInput(2)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
-    .InputDevice(0, InputDevice::Any)
+    .InputDevice(0, InputDevice::Metadata)
     .InputDox(1, "fill_value", "TensorList", R"code(The fill value.)code")
     .NumOutput(1);
 DALI_REGISTER_OPERATOR(FullLike, FullLike<CPUBackend>, CPU);
@@ -102,7 +102,7 @@ DALI_SCHEMA(ZerosLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with zeros.)code")
     .NumInput(1)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
-    .InputDevice(0, InputDevice::Any)
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(ZerosLike, ZerosLike<CPUBackend>, CPU);
@@ -120,7 +120,7 @@ DALI_SCHEMA(OnesLike)
     .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with ones.)code")
     .NumInput(1)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
-    .InputDevice(0, InputDevice::Any)
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(OnesLike, OnesLike<CPUBackend>, CPU);

@@ -63,11 +63,12 @@ struct TensorArgDesc {
 };
 
 enum class InputDevice : uint8_t {
-  MatchBackend = 0,
-  CPU = 1,
-  GPU = 2,
-  Any = 3,
-  MatchBackendOrCPU = 4
+  MatchBackend = 0,   //< CPU for CPU and Mixed operators; GPU for GPU operators.
+  CPU,
+  GPU,
+  Any,
+  MatchBackendOrCPU,  //< CPU for CPU and Mixed operatorss and anywhere for GPU ops
+  Metadata,           //< Any backend, but the operator doesn't need to access the payload
 };
 
 class DLL_PUBLIC OpSchema {
