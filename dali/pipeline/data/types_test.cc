@@ -97,19 +97,32 @@ typedef ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t,
 
 TYPED_TEST_SUITE(TypesTest, TestTypes);
 
+IMPL_HAS_MEMBER(value);
+
+template <typename T, decltype(type2id<T>::value) = {}>
+void CheckBuiltinType(const TypeInfo *t) {
+  EXPECT_EQ(t->id(), type2id<T>::value);
+  EXPECT_EQ(TypeTable::GetTypeId<T>(), type2id<T>::value);
+}
+
+template <typename T>
+void CheckBuiltinType(...) {}
+
+
 TYPED_TEST(TypesTest, TestRegisteredType) {
   typedef TypeParam T;
 
   TypeInfo type;
 
   // Verify we start with no type
-  ASSERT_EQ(type.name(), "<no_type>");
-  ASSERT_EQ(type.size(), 0);
+  EXPECT_EQ(type.name(), "<no_type>");
+  EXPECT_EQ(type.size(), 0);
 
   type.SetType<T>();
 
-  ASSERT_EQ(type.size(), sizeof(T));
-  ASSERT_EQ(type.name(), this->TypeName());
+  EXPECT_EQ(type.size(), sizeof(T));
+  EXPECT_EQ(type.name(), this->TypeName());
+  CheckBuiltinType<T>(&type);
 }
 
 struct CustomTestType {};

@@ -26,6 +26,7 @@
 #include <type_traits>
 #include <typeindex>
 #include <typeinfo>
+#include <unordered_map>
 #include <vector>
 #include "dali/core/util.h"
 #include "dali/core/common.h"
@@ -472,6 +473,12 @@ class DLL_PUBLIC TypeTable {
     static DALIDataType id = [dtype, this]() {
       std::lock_guard guard(insert_lock_);
       size_t idx = dtype - DALI_NO_TYPE;
+      // We need the map because this function (and the static variable) may be instantiated
+      // in multiple shared objects whereas the map instance is tied to one well defined
+      // instance of the TypeTable returned by `instance()`.
+      auto [it, inserted] = type_map_.emplace(typeid(T), dtype);
+      if (!inserted)
+        return it->second;
       if (!type_info_map_ || idx >= type_info_map_->size()) {
         constexpr size_t kMinCapacity = next_pow2(DALI_CUSTOM_TYPE_START + 100);
         // we don't need to look at the previous capacity to achieve std::vector-like growth
@@ -513,6 +520,9 @@ class DLL_PUBLIC TypeTable {
   // we need to store TypeInfo instances in a container that never invalidates pointers
   // (e.g. a list).
   std::list<TypeInfo> type_infos_;
+  // This is necessary because it turns out that static field in RegisterType has many instances
+  // in a program built with multiple shared libraries.
+  std::unordered_map<std::type_index, DALIDataType> type_map_;
 
   int next_id_ = DALI_CUSTOM_TYPE_START;
   DLL_PUBLIC static TypeTable &instance();
