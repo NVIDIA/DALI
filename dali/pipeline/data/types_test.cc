@@ -99,7 +99,7 @@ TYPED_TEST_SUITE(TypesTest, TestTypes);
 
 IMPL_HAS_MEMBER(value);
 
-template <typename T, decltype(type2id<T>::value) = {}>
+template <typename T, decltype(type2id<T>::value) = type2id<T>::value>
 void CheckBuiltinType(const TypeInfo *t) {
   EXPECT_EQ(t->id(), type2id<T>::value);
   EXPECT_EQ(TypeTable::GetTypeId<T>(), type2id<T>::value);
