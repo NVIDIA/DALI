@@ -35,7 +35,7 @@ template <StreamPolicy policy>
 class StreamAssignment;
 
 inline bool NeedsStream(const ExecNode *node) {
-  if (node->backend == OpType::CPU) {
+  if (node->is_pipeline_output || node->backend == OpType::CPU) {
     for (auto &input : node->inputs) {
       if (input->device == StorageDevice::GPU && !input->metadata)
         return true;

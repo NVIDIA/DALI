@@ -63,12 +63,34 @@ struct TensorArgDesc {
 };
 
 enum class InputDevice : uint8_t {
-  MatchBackend = 0,   //< CPU for CPU and Mixed operators; GPU for GPU operators.
+  /** CPU for CPU and Mixed operators; GPU for GPU operators. */
+  MatchBackend = 0,
+
+  /** Always CPU */
   CPU,
+
+  /** Always GPU */
   GPU,
+
+  /** Any kind of input device, regardless of operator's backend */
   Any,
-  MatchBackendOrCPU,  //< CPU for CPU and Mixed operatorss and anywhere for GPU ops
-  Metadata,           //< Any backend, but the operator doesn't need to access the payload
+
+  /** CPU for CPU and Mixed; anything for GPU */
+  MatchBackendOrCPU,
+
+  /** Any backend, but the operator will not access the actual data.
+   *
+   * This is useful for operators that only look at the metadata of the input - things like shape,
+   * source info, dtype, etc.
+   *
+   * Specifying this flag allows the executor to skip synchronization or even to provide
+   * a tensor without actual payload.
+   * It is forbidden to:
+   * - look at the data inside the operator (`data`, `raw_data`, etc)
+   * - copy the input data (`TensorList::Copy` or calling copy on the samples)
+   * - forward the input or its parts to the output with ShareData, SetSample or similar.
+   */
+  Metadata,
 };
 
 class DLL_PUBLIC OpSchema {
