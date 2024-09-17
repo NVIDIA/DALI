@@ -31,9 +31,6 @@ namespace exec2 {
 //////////////////////////////////////////////////////////////////////////////////
 // OpTask
 
-inline std::string_view NodeName(const ExecNode &n) {
-  return !n.instance_name.empty() ? n.instance_name : n.op->GetSpec().SchemaName();
-}
 class OpTask : public ExecNodeTask {
  public:
   /** Gets a functor that runs the operator. */
