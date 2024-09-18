@@ -95,16 +95,9 @@ void ResizeBase<CPUBackend>::SetupResizeStatic(
       span<const kernels::ResamplingParams> params,
       int first_spatial_dim) {
   using ImplType = ResizeOpImplCPU<OutputType, InputType, spatial_ndim>;
-  auto *impl = dynamic_cast<ImplType*>(impl_.get());
-  if (!impl) {
-    impl_.reset();
-    auto unq_impl = std::make_unique<ImplType>(kmgr_);
-    impl = unq_impl.get();
-    impl_ = std::move(unq_impl);
-  }
-  impl->Setup(out_shape, in_shape, first_spatial_dim, params);
+  SetImpl<ImplType>([&]{ return std::make_unique<ImplType>(kmgr_); });
+  impl_->Setup(out_shape, in_shape, first_spatial_dim, params);
 }
-
 
 template <>
 void ResizeBase<CPUBackend>::InitializeCPU(int num_threads) {

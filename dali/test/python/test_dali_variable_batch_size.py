@@ -375,6 +375,7 @@ ops_image_custom_args = [
     (fn.experimental.dilate, {"devices": ["gpu"]}),
     (fn.experimental.erode, {"devices": ["gpu"]}),
     (fn.experimental.warp_perspective, {"matrix": np.eye(3), "devices": ["gpu"]}),
+    (fn.experimental.resize, {"resize_x": 50, "resize_y": 50, "devices": ["gpu"]}),
     (fn.zeros_like, {"devices": ["cpu"]}),
     (fn.ones_like, {"devices": ["cpu"]}),
 ]
@@ -1697,6 +1698,7 @@ tested_methods = [
     "experimental.median_blur",
     "experimental.peek_image_shape",
     "experimental.remap",
+    "experimental.resize",
     "experimental.warp_perspective",
     "external_source",
     "fast_resize_crop_mirror",

@@ -14,6 +14,7 @@
 
 #include "dali/operators/nvcvop/nvcvop.h"
 
+
 #include <string>
 
 namespace dali::nvcvop {
@@ -163,8 +164,6 @@ void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBack
 nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout,
                       const std::optional<TensorShape<>> &reshape) {
   auto orig_shape = tensor.shape();
-  auto dtype = GetDataType(tensor.type(), 1);
-
   TensorShape<> shape;
   if (reshape.has_value()) {
     DALI_ENFORCE(volume(*reshape) == volume(orig_shape),
@@ -174,20 +173,79 @@ nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout,
     shape = orig_shape;
   }
 
+  TensorLayout out_layout = layout.empty() ? tensor.GetLayout() : layout;
+
+  return AsTensor(const_cast<void *>(tensor.raw_data()), shape, tensor.type(), out_layout);
+}
+
+nvcv::Tensor AsTensor(SampleView<GPUBackend> sample, TensorLayout layout,
+                      const std::optional<TensorShape<>> &reshape) {
+  auto orig_shape = sample.shape();
+  TensorShape<> shape;
+  if (reshape.has_value()) {
+    DALI_ENFORCE(volume(*reshape) == volume(orig_shape),
+                 make_string("Cannot reshape from ", orig_shape, " to ", *reshape, "."));
+    shape = reshape.value();
+  } else {
+    shape = orig_shape;
+  }
+
+  return AsTensor(sample.raw_mutable_data(), shape, sample.type(), layout);
+}
+
+nvcv::Tensor AsTensor(ConstSampleView<GPUBackend> sample, TensorLayout layout,
+                      const std::optional<TensorShape<>> &reshape) {
+  auto orig_shape = sample.shape();
+  TensorShape<> shape;
+  if (reshape.has_value()) {
+    DALI_ENFORCE(volume(*reshape) == volume(orig_shape),
+                 make_string("Cannot reshape from ", orig_shape, " to ", *reshape, "."));
+    shape = reshape.value();
+  } else {
+    shape = orig_shape;
+  }
+
+  return AsTensor(const_cast<void *>(sample.raw_data()), shape, sample.type(), layout);
+}
+
+nvcv::Tensor AsTensor(void *data, const TensorShape<> shape, DALIDataType daliDType,
+                      TensorLayout layout) {
+  auto dtype = GetDataType(daliDType, 1);
   nvcv::TensorDataStridedCuda::Buffer inBuf;
-  inBuf.basePtr = reinterpret_cast<NVCVByte*>(const_cast<void*>(tensor.raw_data()));
+  inBuf.basePtr = reinterpret_cast<NVCVByte *>(const_cast<void *>(data));
   inBuf.strides[shape.size() - 1] = dtype.strideBytes();
   for (int d = shape.size() - 2; d >= 0; --d) {
     inBuf.strides[d] = shape[d + 1] * inBuf.strides[d + 1];
   }
-  TensorLayout out_layout = layout.empty() ? tensor.GetLayout() : layout;
-  DALI_ENFORCE(out_layout.empty() || out_layout.size() == shape.size(),
-               make_string("Layout ", out_layout,
-                           " does not match the number of dimensions: ", shape.size()));
-  nvcv::TensorShape out_shape(shape.data(), shape.size(),
-                              nvcv::TensorLayout(out_layout.c_str()));
+  DALI_ENFORCE(
+      layout.empty() || layout.size() == shape.size(),
+      make_string("Layout ", layout, " does not match the number of dimensions: ", shape.size()));
+  nvcv::TensorShape out_shape(shape.data(), shape.size(), nvcv::TensorLayout(layout.c_str()));
   nvcv::TensorDataStridedCuda inData(out_shape, dtype, inBuf);
   return nvcv::TensorWrapData(inData);
+}
+
+void PushTensorsToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
+                        TensorLayout layout) {
+  for (int s = 0; s < t_list.num_samples(); ++s) {
+    batch.pushBack(AsTensor(t_list[s], layout));
+  }
+}
+
+cvcuda::Workspace NVCVOpWorkspace::Allocate(const cvcuda::WorkspaceRequirements &reqs,
+                                            kernels::Scratchpad &scratchpad) {
+  auto *hostBuffer = scratchpad.AllocateHost<uint8_t>(reqs.hostMem.size, reqs.hostMem.alignment);
+  auto *pinnedBuffer =
+      scratchpad.AllocatePinned<uint8_t>(reqs.pinnedMem.size, reqs.pinnedMem.alignment);
+  auto *gpuBuffer = scratchpad.AllocateGPU<uint8_t>(reqs.cudaMem.size, reqs.cudaMem.alignment);
+
+  workspace_.hostMem.data = hostBuffer;
+  workspace_.hostMem.req = reqs.hostMem;
+  workspace_.pinnedMem.data = pinnedBuffer;
+  workspace_.pinnedMem.req = reqs.pinnedMem;
+  workspace_.cudaMem.data = gpuBuffer;
+  workspace_.cudaMem.req = reqs.cudaMem;
+  return workspace_;
 }
 
 }  // namespace dali::nvcvop
