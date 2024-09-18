@@ -35,15 +35,15 @@ template <StreamPolicy policy>
 class StreamAssignment;
 
 inline bool NeedsStream(const ExecNode *node) {
-  if (node->is_pipeline_output) {
-    for (auto &pipe_out : node->inputs) {
-      if (pipe_out->device == StorageDevice::GPU)
+  if (node->is_pipeline_output || node->backend == OpType::CPU) {
+    for (auto &input : node->inputs) {
+      if (input->device == StorageDevice::GPU && !input->metadata)
         return true;
     }
+    return false;
   } else {
-    return node->backend != OpType::CPU;
+    return true;
   }
-  return false;
 }
 
 inline OpType NodeType(const ExecNode *node) {
@@ -117,6 +117,12 @@ class StreamAssignment<StreamPolicy::PerBackend> {
         if (has_gpu_)
           return;  // we already have both, nothing more can happen
         break;
+      case OpType::CPU:
+        if (NeedsStream(&node)) {  // treat CPU nodes with GPU inputs as GPU
+          has_gpu_ = true;
+          if (has_mixed_)
+            return;
+        }
       default:
         break;
       }
@@ -128,11 +134,14 @@ class StreamAssignment<StreamPolicy::PerBackend> {
    * If the node is a Mixed node, it gets stream index 0.
    * If the node is a GPU node it gets stream index 1 if there are any mixed nodes, otherwise
    * the only stream is the GPU stream and the returned index is 0.
+   * CPU nodes get GPU stream if they need one (i.e. they have a GPU input)
    */
   std::optional<int> operator[](const ExecNode *node) const {
     switch (NodeType(node)) {
     case OpType::CPU:
-      return std::nullopt;
+      if (!NeedsStream(node))
+        return std::nullopt;
+      // fall-through to GPU
     case OpType::GPU:
       return has_mixed_ ? 1 : 0;
     case OpType::MIXED:

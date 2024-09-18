@@ -19,7 +19,7 @@ namespace dali {
 DALI_SCHEMA(Shapes)
     .DocStr(R"code(Returns the shapes of inputs.)code")
     .NumInput(1)
-    .InputDevice(0, InputDevice::Any)
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()

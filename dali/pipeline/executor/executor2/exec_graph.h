@@ -90,13 +90,16 @@ struct ExecEdge {
   /** The index of the input in OpSpec. It matches the edge's index in consumer->inputs. */
   int consumer_input_idx = 0;
   StorageDevice device = {};
+  /** The input passes only the metadata, skipping stream synchronization. */
+  bool metadata = false;
 
   constexpr bool operator==(const ExecEdge &other) const {
     return producer == other.producer &&
            consumer == other.consumer &&
            producer_output_idx == other.producer_output_idx &&
            consumer_input_idx == other.consumer_input_idx &&
-           device == other.device;
+           device == other.device &&
+           metadata == other.metadata;
   }
 
   constexpr bool operator!=(const ExecEdge &other) const {
