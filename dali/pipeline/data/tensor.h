@@ -225,9 +225,35 @@ class Tensor : public Buffer<Backend> {
    * individually. The device_id describes the location of the memory and the order can describe
    * the dependency on the work that is happening on another device.
    */
-  void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
-                 const TensorShape<> &shape, DALIDataType type, int device_id,
-                 AccessOrder order = {});
+  inline void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
+                        const TensorShape<> &shape, DALIDataType type, int device_id,
+                        AccessOrder order = {}) {
+    Index new_size = volume(shape);
+    DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
+      "Only empty tensors can be shared without specifying a type.");
+
+    // Free the underlying storage.
+    if (!same_managed_object(data_, ptr))
+      free_storage();
+
+    // Set the new order, if provided.
+    if (order)
+      this->set_order(order);
+
+    // Save our new pointer and bytes. Reset our type, shape, and size
+    type_ = TypeTable::GetTypeInfo(type);
+    data_ = std::move(ptr);
+    size_ = new_size;
+    num_bytes_ = bytes;
+    device_ = device_id;
+
+    // If the input pointer stores a non-zero size allocation, mark
+    // that we are sharing our underlying data
+    shares_data_ = num_bytes_ > 0 ? true : false;
+    pinned_ = pinned;
+
+    shape_ = shape;
+  }
 
   /**
    * @brief Interprets a raw allocation as a tensor with given shape.
@@ -432,39 +458,6 @@ class Tensor : public Buffer<Backend> {
   template <typename InBackend>
   friend class TensorList;
 };
-
-
-template <typename Backend>
-void Tensor<Backend>::ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
-                                const TensorShape<> &shape, DALIDataType type, int device_id,
-                                AccessOrder order) {
-  Index new_size = volume(shape);
-  DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
-    "Only empty tensors can be shared without specifying a type.");
-
-  // Free the underlying storage.
-  if (!same_managed_object(data_, ptr))
-    free_storage();
-
-  // Set the new order, if provided.
-  if (order)
-    this->set_order(order);
-
-  // Save our new pointer and bytes. Reset our type, shape, and size
-  type_ = TypeTable::GetTypeInfo(type);
-  data_ = std::move(ptr);
-  size_ = new_size;
-  num_bytes_ = bytes;
-  device_ = device_id;
-
-  // If the input pointer stores a non-zero size allocation, mark
-  // that we are sharing our underlying data
-  shares_data_ = num_bytes_ > 0 ? true : false;
-  pinned_ = pinned;
-
-  shape_ = shape;
-}
-
 
 }  // namespace dali
 
