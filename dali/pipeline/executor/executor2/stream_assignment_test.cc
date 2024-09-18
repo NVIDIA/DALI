@@ -48,6 +48,31 @@ DALI_REGISTER_OPERATOR(StreamAssignmentDummyOp, StreamAssignmentDummyOp<CPUBacke
 DALI_REGISTER_OPERATOR(StreamAssignmentDummyOp, StreamAssignmentDummyOp<MixedBackend>, Mixed);
 DALI_REGISTER_OPERATOR(StreamAssignmentDummyOp, StreamAssignmentDummyOp<GPUBackend>, GPU);
 
+
+template <typename Backend>
+class StreamAssignmentMetaOp : public Operator<Backend> {
+ public:
+  using Operator<Backend>::Operator;
+  USE_OPERATOR_MEMBERS();
+
+  void RunImpl(Workspace &ws) override {}
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return false;
+  }
+};
+
+DALI_SCHEMA(StreamAssignmentMetaOp)
+  .NumInput(0, 999)
+  .InputDevice(0, 999, InputDevice::Metadata)
+  .NumOutput(0)
+  .AdditionalOutputsFn([](const OpSpec &spec) {
+    return spec.NumOutput();
+  });
+
+DALI_REGISTER_OPERATOR(StreamAssignmentMetaOp, StreamAssignmentMetaOp<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(StreamAssignmentMetaOp, StreamAssignmentMetaOp<MixedBackend>, Mixed);
+DALI_REGISTER_OPERATOR(StreamAssignmentMetaOp, StreamAssignmentMetaOp<GPUBackend>, GPU);
+
 namespace exec2 {
 
 namespace {
@@ -70,6 +95,27 @@ OpSpec SpecCPU() {
 OpSpec SpecMixed() {
   return SpecDev("mixed");
 }
+
+
+OpSpec SpecMetaDev(const std::string &device) {
+  return OpSpec("StreamAssignmentMetaOp")
+    .AddArg("device", device)
+    .AddArg("num_threads", 1)
+    .AddArg("max_batch_size", 1);
+}
+
+OpSpec SpecMetaGPU() {
+  return SpecMetaDev("gpu");
+}
+
+OpSpec SpecMetaCPU() {
+  return SpecMetaDev("cpu");
+}
+
+OpSpec SpecMetaMixed() {
+  return SpecMetaDev("mixed");
+}
+
 
 auto MakeNodeMap(const ExecGraph &graph) {
   std::map<std::string_view, const ExecNode *, std::less<>> map;
@@ -120,6 +166,38 @@ TEST(Exec2Test, StreamAssignment_Single_CPUMixedGPU) {
   EXPECT_EQ(assignment[map["a"]], std::nullopt);
   EXPECT_EQ(assignment[map["b"]], 0);
   EXPECT_EQ(assignment[map["c"]], 0);
+}
+
+template <StreamPolicy policy>
+void TestGPU2CPUAssignment() {
+      graph::OpGraph::Builder b;
+  b.Add("a",
+        SpecGPU()
+        .AddOutput("a->b", "gpu")
+        .AddOutput("a->c", "gpu"));
+  b.Add("b",
+        SpecCPU()
+        .AddInput("a->b", "gpu")
+        .AddOutput("b->out", "cpu"));
+  b.Add("c",
+        SpecMetaCPU()
+        .AddInput("a->c", "gpu")
+        .AddOutput("c->out", "cpu"));
+  b.AddOutput("b->out_cpu");
+  b.AddOutput("c->out_cpu");
+  auto g = std::move(b).GetGraph(true);
+  ExecGraph eg;
+  eg.Lower(g);
+
+  StreamAssignment<policy> assignment(eg);
+  auto map = MakeNodeMap(eg);
+  EXPECT_EQ(assignment[map["a"]], 0);
+  EXPECT_EQ(assignment[map["b"]], 0);  // CPU operator with GPU input
+  EXPECT_EQ(assignment[map["c"]], std::nullopt);  // metadata-only
+}
+
+TEST(Exec2Test, StreamAssignment_Single_GPU2CPU) {
+  TestGPU2CPUAssignment<StreamPolicy::Single>();
 }
 
 
@@ -194,6 +272,13 @@ TEST(Exec2Test, StreamAssignment_PerBackend_CPUMixedGPU) {
 }
 
 
+TEST(Exec2Test, StreamAssignment_PerBackend_GPU2CPU) {
+  TestGPU2CPUAssignment<StreamPolicy::PerBackend>();
+}
+
+TEST(Exec2Test, StreamAssignment_OperOperator_GPU2CPU) {
+  TestGPU2CPUAssignment<StreamPolicy::PerOperator>();
+}
 
 TEST(Exec2Test, StreamAssignment_PerOperator_1) {
   ExecGraph eg;
@@ -272,7 +357,7 @@ TEST(Exec2Test, StreamAssignment_PerOperator_2) {
         SpecGPU()
         .AddOutput("i->j", "gpu"));
   b.Add("j",
-        SpecCPU()
+        SpecMetaCPU()
         .AddInput("i->j", "gpu")
         .AddOutput("j->h", "cpu"));
   b.Add("b",
@@ -320,7 +405,7 @@ TEST(Exec2Test, StreamAssignment_PerOperator_2) {
   StreamAssignment<StreamPolicy::PerOperator> assignment(eg);
   auto map = MakeNodeMap(eg);
   EXPECT_EQ(assignment[map["a"]], 0);
-  EXPECT_EQ(assignment[map["b"]], std::nullopt);
+  EXPECT_EQ(assignment[map["b"]], 0);  // CPU operator with a GPU input needs a stream
   EXPECT_EQ(assignment[map["c"]], 0);
   EXPECT_EQ(assignment[map["d"]], 0);
   EXPECT_EQ(assignment[map["e"]], 1);
@@ -328,7 +413,7 @@ TEST(Exec2Test, StreamAssignment_PerOperator_2) {
   EXPECT_EQ(assignment[map["g"]], 0);
   EXPECT_EQ(assignment[map["h"]], 0);
   EXPECT_EQ(assignment[map["i"]], 2);
-  EXPECT_EQ(assignment[map["j"]], std::nullopt);
+  EXPECT_EQ(assignment[map["j"]], std::nullopt);  // metadata only
   EXPECT_EQ(assignment[map["k"]], 3);
 }
 

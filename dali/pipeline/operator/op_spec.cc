@@ -31,6 +31,7 @@ inline bool IsCompatibleDevice(StorageDevice provided, InputDevice required, OpT
   case InputDevice::MatchBackendOrCPU:
     return op_device == OpType::CPU ? provided == StorageDevice::CPU : true;
   case InputDevice::Any:
+  case InputDevice::Metadata:
     return true;
   default:
     return false;
@@ -48,6 +49,7 @@ inline std::string ValidDevices(InputDevice required, OpType op_device) {
     case InputDevice::MatchBackendOrCPU:
       return op_device == OpType::GPU ? "\"gpu\" or \"cpu\"" : "\"cpu\"";
     case InputDevice::Any:
+    case InputDevice::Metadata:
       return "\"gpu\" or \"cpu\"";
     default:
       assert(!"Unrechable");

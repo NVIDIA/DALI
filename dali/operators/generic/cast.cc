@@ -76,7 +76,7 @@ DALI_SCHEMA(Cast)
 DALI_SCHEMA(CastLike)
     .DocStr("Cast the first tensor to the type of the second tensor.")
     .NumInput(2)
-    .InputDevice(1, InputDevice::Any)
+    .InputDevice(1, InputDevice::Metadata)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric();

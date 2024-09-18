@@ -42,6 +42,7 @@ that is: :meth:`nvidia.dali.types.DALIDataType`, :meth:`nvidia.dali.types.DALIIm
               "Otherwise ``__a`` is treated as 1D array of input samples.")
     .InputDox(1, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output, if provided.")
+    .InputDevice(1, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalArg<std::vector<float>>("p",
                                         "Distribution of the probabilities. "

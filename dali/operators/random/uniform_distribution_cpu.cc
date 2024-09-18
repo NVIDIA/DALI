@@ -32,6 +32,7 @@ a single value per sample is generated.
     .NumInput(0, 1)
     .InputDox(0, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output, if provided.")
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalArg("range",
       R"code(Range ``[min, max)`` of a continuous uniform distribution.
@@ -67,6 +68,7 @@ a single value per sample is generated.
     .NumInput(0, 1)
     .InputDox(0, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output, if provided.")
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalArg("range",
       R"code(Range ``[min, max)`` of a continuous uniform distribution.

@@ -50,7 +50,16 @@ void ExecGraph::Lower(const graph::OpGraph &def) {
       for (auto &consumer : out->consumers) {
         auto *exec_con = def2exec[consumer.op];
         assert(exec_con != nullptr);
-        Link(&exec_node, o, exec_con, consumer.idx)->device = dev;
+        auto *edge = Link(&exec_node, o, exec_con, consumer.idx);
+        edge->device = dev;
+        if (consumer.op) {
+          auto &consumer_spec = consumer.op->spec;
+          auto &schema = consumer_spec.GetSchemaOrDefault();
+          if (edge->consumer_input_idx < schema.MaxNumInput()) {  // only regular inputs
+            if (schema.GetInputDevice(edge->consumer_input_idx) == InputDevice::Metadata)
+              edge->metadata = true;
+          }
+        }
       }
       exec_node.outputs[o].device = dev;
     }

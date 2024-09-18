@@ -28,7 +28,7 @@ a single value per sample is generated.
     .NumInput(0, 1)
     .InputDox(0, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output, if provided.")
-    .InputDevice(0, InputDevice::Any)
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalArg<float>("mean",
       R"code(Mean of the distribution.)code",
@@ -51,7 +51,7 @@ a single value per sample is generated.
     .NumInput(0, 1)
     .InputDox(0, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output, if provided.")
-    .InputDevice(0, InputDevice::Any)
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddParent("random__Normal")
     .Deprecate("random__Normal");  // Deprecated in 0.30
