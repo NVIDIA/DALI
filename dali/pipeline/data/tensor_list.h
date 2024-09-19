@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -143,7 +143,9 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the shape of the batch.
    */
-  const TensorListShape<> &shape() const &;
+  const TensorListShape<> &shape() const & {
+    return shape_;
+  }
 
   /**
    * @brief Get the shape of the sample.
@@ -273,7 +275,7 @@ class DLL_PUBLIC TensorList {
    * We wait for the order of incoming sample in the order of the batch to allow correctly ordered
    * access of the new sample.
    */
-  DLL_PUBLIC void SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+  DLL_PUBLIC void SetSample(int sample_idx, shared_ptr<void> ptr, size_t bytes, bool pinned,
                             const TensorShape<> &shape, DALIDataType type, int device_id,
                             AccessOrder order, const TensorLayout &layout = "");
   /** @} */
@@ -325,14 +327,18 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the type of samples in the batch.
    */
-  DALIDataType type() const;
+  DALIDataType type() const {
+    return type_.id();
+  }
 
   /**
    * @brief Get the TypeInfo of samples in the batch.
    *
    * @note Using DALIDataType via type() is recommended over accessing type_info().
    */
-  const TypeInfo &type_info() const;
+  const TypeInfo &type_info() const {
+    return type_;
+  }
   /** @} */
 
   /**
@@ -428,7 +434,10 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief If the batch is backed by contiguous buffer
    */
-  bool IsContiguous() const noexcept;
+  bool IsContiguous() const noexcept {
+    return state_.IsContiguous();
+  }
+
 
   /**
    * @brief Pin the current state for further allocating calls like Resize() or set_type
@@ -440,7 +449,9 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Check the batch contiguity state.
    */
-  BatchContiguity GetContiguity() const noexcept;
+  BatchContiguity GetContiguity() const noexcept {
+    return state_.Get();
+  }
 
   /**
    * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
@@ -472,7 +483,7 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Set the provided buffer as backing memory for this batch.
    */
-  DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+  DLL_PUBLIC void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                             const TensorListShape<> &shape, DALIDataType type, int device_id,
                             AccessOrder order = {}, const TensorLayout &layout = "");
 
@@ -483,11 +494,15 @@ class DLL_PUBLIC TensorList {
 
   void set_pinned(bool pinned);
 
-  bool is_pinned() const;
+  bool is_pinned() const {
+    return pinned_;
+  }
 
   void set_device_id(int device_id);
 
-  int device_id() const;
+  int device_id() const {
+    return device_;
+  }
 
   bool has_data() const;
 
@@ -531,7 +546,9 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the layout of the sample in the batch.
    */
-  TensorLayout GetLayout() const;
+  TensorLayout GetLayout() const {
+    return layout_;
+  }
 
   /**
    * @brief Set cache metadata for given sample
@@ -817,7 +834,7 @@ class DLL_PUBLIC TensorList {
    * Only allowed for contiguous batch, in typical scenario it is equivalent to
    * unsafe_sample_owner(batch, 0)
    */
-  friend shared_ptr<void> unsafe_owner(TensorList<Backend> &batch) {
+  friend const shared_ptr<void> &unsafe_owner(TensorList<Backend> &batch) {
     DALI_ENFORCE(batch.IsContiguous(),
                  "Data owner pointer can be obtain only for contiguous TensorList.");
     return batch.contiguous_buffer_.get_data_ptr();

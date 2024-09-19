@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ class Tensor : public Buffer<Backend> {
  public:
   inline Tensor() {}
   inline ~Tensor() override = default;
-
 
   /**
    *
@@ -226,7 +225,7 @@ class Tensor : public Buffer<Backend> {
    * individually. The device_id describes the location of the memory and the order can describe
    * the dependency on the work that is happening on another device.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+  inline void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                         const TensorShape<> &shape, DALIDataType type, int device_id,
                         AccessOrder order = {}) {
     Index new_size = volume(shape);
@@ -243,7 +242,7 @@ class Tensor : public Buffer<Backend> {
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     type_ = TypeTable::GetTypeInfo(type);
-    data_ = ptr;
+    data_ = std::move(ptr);
     size_ = new_size;
     num_bytes_ = bytes;
     device_ = device_id;
