@@ -234,7 +234,8 @@ html_static_path = ["_static"]
 switcher_path = os.path.join(html_static_path[0], "switcher.json")
 versions = []
 # the latest is in the archive
-for i in range(10, int(version_short.split(".")[1]) - 1):
+correction = -1 if "dev" in version_long else 0
+for i in range(10, int(version_short.split(".")[1]) + correction):
     if i >= 34:
         versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
     else:
