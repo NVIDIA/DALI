@@ -71,8 +71,8 @@ requirements:
     - python-clang
     - git-lfs
   host:
-    - protobuf >=3.26.1
-    - libprotobuf-static >=3.6.1
+    - protobuf =5.27.4
+    - libprotobuf-static =5.27.4
     - libjpeg-turbo
     - dali-opencv
     - dali-ffmpeg
@@ -97,11 +97,6 @@ requirements:
     # Since we link statically, we need to add those dependencies explicitly
     - libwebp-base
     - openjpeg
-    # libprotobuf-static we link statically depends on libabseil so add protobuf here as a runtime
-    # dependency to install the right version on the libabseil (as protobuf depends on
-    # libprotobuf-static and a newer version of libprotobuf-static may be available than
-    # the protobuf was build with)
-    - protobuf >=3.26.1
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
 
