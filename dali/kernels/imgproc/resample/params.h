@@ -62,6 +62,14 @@ struct FilterDesc {
   ResamplingFilterType type = ResamplingFilterType::Nearest;
   bool antialias = true;
   float radius = 0;
+
+  constexpr bool operator==(const FilterDesc &rhs) {
+    return type == rhs.type && antialias == rhs.antialias && radius == rhs.radius;
+  }
+
+  constexpr bool operator!=(const FilterDesc &rhs) {
+    return !(*this == rhs);
+  }
 };
 
 /**

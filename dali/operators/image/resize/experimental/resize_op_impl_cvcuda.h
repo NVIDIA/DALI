@@ -17,6 +17,7 @@
 
 #include <cvcuda/OpHQResize.hpp>
 
+#include <utility>
 #include <vector>
 
 #include "dali/kernels/imgproc/resample/params.h"
@@ -48,46 +49,62 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     // effective frames (from videos, channel planes, etc).
     GetResizedShape(out_shape_, in_shape_, make_cspan(params_), 0);
 
-    curr_minibatch_size_ = minibatch_size_;
-    // CV-CUDA tensors can't represent empty samples,
-    // so curr_minibatch_size_ is set to 1 to skip each empty sample one by one
-    if (HasEmptySamples(in_shape_)) {
-      curr_minibatch_size_ = 1;
-    }
+    // Create a map of non-empty samples
+    SetFrameIdxs();
 
     // Now that we know how many logical frames there are, calculate batch subdivision.
-    CalculateMinibatchPartition(in_shape_.num_samples(), curr_minibatch_size_);
+    CalculateMinibatchPartition(minibatch_size_);
 
     SetupKernel();
   }
 
+  // Set the frame_idx_ map with indices of samples that are not empty
+  void SetFrameIdxs() {
+    frame_idx_.clear();
+    frame_idx_.reserve(in_shape_.num_samples());
+    for (int i = 0; i < in_shape_.num_samples(); ++i) {
+      if (volume(out_shape_.tensor_shape_span(i)) != 0 &&
+                   volume(in_shape_.tensor_shape_span(i)) != 0) {
+        frame_idx_.push_back(i);
+      }
+      total_frames_ = frame_idx_.size();
+    }
+  }
+
+  // get the index of a frame in the DALI TensorList
+  int frame_idx(int f) {
+    return frame_idx_[f];
+  }
+
   void SetupKernel() {
     kernels::KernelContext ctx;
-    rois_.clear();
-    rois_.reserve(minibatch_size_ * minibatches_.size());
+    rois_.resize(total_frames_);
     workspace_reqs_ = {};
-    std::vector<HQResizeTensorShapeI> mb_input_shapes(curr_minibatch_size_);
-    std::vector<HQResizeTensorShapeI> mb_output_shapes(curr_minibatch_size_);
+    std::vector<HQResizeTensorShapeI> mb_input_shapes(minibatch_size_);
+    std::vector<HQResizeTensorShapeI> mb_output_shapes(minibatch_size_);
+    auto *rois_ptr = rois_.data();
     for (int mb_idx = 0, num_mb = minibatches_.size(); mb_idx < num_mb; mb_idx++) {
       auto &mb = minibatches_[mb_idx];
 
       int end = mb.start + mb.count;
-      auto param_slice = make_span(&params_[mb.start], mb.count);
       for (int i = mb.start, j = 0; i < end; i++, j++) {
-        rois_.push_back(GetRoi(param_slice[j]));
+        auto f_id = frame_idx(i);
+        rois_ptr[j] = GetRoi(params_[f_id]);
         for (int d = 0; d < spatial_ndim; ++d) {
-          mb_input_shapes[j].extent[d] = static_cast<int32_t>(in_shape_.tensor_shape_span(i)[d]);
-          mb_output_shapes[j].extent[d] = static_cast<int32_t>(out_shape_.tensor_shape_span(i)[d]);
+          mb_input_shapes[j].extent[d] = static_cast<int32_t>(in_shape_.tensor_shape_span(f_id)[d]);
+          mb_output_shapes[j].extent[d] =
+              static_cast<int32_t>(out_shape_.tensor_shape_span(f_id)[d]);
         }
       }
-      int num_channels = in_shape_[0][frame_ndim - 1];
+      int num_channels = in_shape_[frame_idx(0)][frame_ndim - 1];
       HQResizeTensorShapesI mb_input_shape{mb_input_shapes.data(), mb.count, spatial_ndim,
                                            num_channels};
       HQResizeTensorShapesI mb_output_shape{mb_output_shapes.data(), mb.count, spatial_ndim,
                                             num_channels};
-      mb.rois = HQResizeRoisF{mb.count, spatial_ndim, &rois_.data()[mb.start]};
+      mb.rois = HQResizeRoisF{mb.count, spatial_ndim, rois_ptr};
+      rois_ptr += mb.count;
 
-      auto param = params_[mb.start][0];
+      auto param = params_[frame_idx(mb.start)][0];
       mb.min_interpolation = GetInterpolationType(param.min_filter);
       mb.mag_interpolation = GetInterpolationType(param.mag_filter);
       mb.antialias = param.min_filter.antialias || param.mag_filter.antialias;
@@ -96,15 +113,6 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
                                                         mb.antialias, mb.rois);
       workspace_reqs_ = nvcvop::MaxWorkspaceRequirements(workspace_reqs_, ws_req);
     }
-  }
-
-  static bool HasEmptySamples(const TensorListShape<> &in_shape) {
-    for (int s = 0; s < in_shape.num_samples(); s++) {
-      if (volume(in_shape.tensor_shape_span(s)) == 0) {
-        return true;
-      }
-    }
-    return false;
   }
 
   HQResizeRoiF GetRoi(const ResamplingParamsND<spatial_ndim> &params) {
@@ -155,32 +163,49 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
     for (size_t b = 0; b < minibatches_.size(); b++) {
       MiniBatch &mb = minibatches_[b];
-      if (mb.input.numTensors() == 0 || mb.output.numTensors() == 0) {
-        assert(mb.count == 1);
-        // we skip empty samples
-        continue;
-      }
       resize_op_(ws.stream(), workspace_mem, mb.input, mb.output, mb.min_interpolation,
                  mb.mag_interpolation, mb.antialias, mb.rois);
     }
   }
 
-  int CalculateMinibatchPartition(int total_frames, int minibatch_size) {
-    int num_minibatches = div_ceil(total_frames, minibatch_size);
-
-    minibatches_.resize(num_minibatches);
-    int start = 0;
-    for (int i = 0; i < num_minibatches; i++) {
-      int end = (i + 1) * total_frames / num_minibatches;
-      auto &mb = minibatches_[i];
-      mb.start = start;
-      mb.count = end - start;
-      start = end;
+  void CalculateMinibatchPartition(int minibatch_size) {
+    std::vector<std::pair<int, int>> continuous_ranges;
+    kernels::FilterDesc min_filter_desc = params_[frame_idx(0)][0].min_filter;
+    kernels::FilterDesc mag_filter_desc = params_[frame_idx(0)][0].mag_filter;
+    int start_id = 0;
+    for (int i = 0; i < total_frames_; i++) {
+      if (params_[frame_idx(i)][0].min_filter != min_filter_desc ||
+          params_[frame_idx(i)][0].mag_filter != mag_filter_desc) {
+        // we break the range if different filter types are used
+        continuous_ranges.emplace_back(start_id, i);
+        start_id = i;
+      }
     }
-    return num_minibatches;
+    if (start_id < total_frames_) {
+      continuous_ranges.emplace_back(start_id, total_frames_);
+    }
+
+    minibatches_.clear();
+    int mb_idx = 0;
+    for (auto &range : continuous_ranges) {
+      int range_count = range.second - range.first;
+      int num_minibatches = div_ceil(range_count, minibatch_size);
+
+      minibatches_.resize(minibatches_.size() + num_minibatches);
+      int start = 0;
+      for (int i = 0; i < num_minibatches; ++i, ++mb_idx) {
+        int end = (i + 1) * range_count / num_minibatches;
+        auto &mb = minibatches_[mb_idx];
+        mb.start = start + range.first;
+        mb.count = end - start;
+        start = end;
+      }
+    }
   }
 
   TensorListShape<frame_ndim> in_shape_, out_shape_;
+  std::vector<int> frame_idx_;  // map of absolute frame indices in the input TensorList
+  int total_frames_;  // number of non-empty frames
   std::vector<ResamplingParamsND<spatial_ndim>> params_;
 
   cvcuda::HQResize resize_op_{};
@@ -203,7 +228,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
   void PrepareInput(const TensorList<GPUBackend> &input) {
     for (auto &mb : minibatches_) {
-      int curr_capacity = mb.output ? mb.output.capacity() : 0;
+      int curr_capacity = mb.input ? mb.input.capacity() : 0;
       if (mb.count > curr_capacity) {
         int new_capacity = std::max(mb.count, curr_capacity * 2);
         auto reqs = nvcv::TensorBatch::CalcRequirements(new_capacity);
@@ -212,9 +237,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
         mb.input.clear();
       }
       for (int i = mb.start; i < mb.start + mb.count; ++i) {
-        if (volume(in_shape_.tensor_shape_span(i)) != 0) {
-          mb.input.pushBack(nvcvop::AsTensor(input[i], sample_layout_));
-        }
+        mb.input.pushBack(nvcvop::AsTensor(input[frame_idx(i)], sample_layout_));
       }
     }
   }
@@ -230,15 +253,12 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
         mb.output.clear();
       }
       for (int i = mb.start; i < mb.start + mb.count; ++i) {
-        if (volume(out_shape_.tensor_shape_span(i)) != 0) {
-          mb.output.pushBack(nvcvop::AsTensor(out[i], sample_layout_));
-        }
+        mb.output.pushBack(nvcvop::AsTensor(out[frame_idx(i)], sample_layout_));
       }
     }
   }
 
   int minibatch_size_;
-  int curr_minibatch_size_;
 };
 
 }  // namespace dali
