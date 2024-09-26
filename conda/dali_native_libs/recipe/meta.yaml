@@ -97,6 +97,11 @@ requirements:
     # Since we link statically, we need to add those dependencies explicitly
     - libwebp-base
     - openjpeg
+    # libprotobuf-static we link statically depends on libabseil so add libprotobuf here as a runtime
+    # dependency to install the right version on the libabseil (as protobuf depends on
+    # libprotobuf-static and a newer version of libprotobuf-static may be available than
+    # the protobuf was build with)
+    - libprotobuf =5.27.4
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
 
