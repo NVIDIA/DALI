@@ -855,7 +855,13 @@ def test_nn_on_one_axis(device, axis):
         dtype=np.float32,
     )
 
-    ref = np.array([[0, 0.3333334, 0], [0, 1.6666667, 0]], dtype=np.float32)
+    ref = np.array(
+        [
+            [0, 0, 0.3333334, 0.3333334, 0, 0],
+            [0, 0, 1.6666667, 1.6666667, 0, 0],
+        ],
+        dtype=np.float32,
+    )
 
     if axis == 1:
         data = np.transpose(data, (1, 0))
