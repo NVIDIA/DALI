@@ -855,6 +855,7 @@ def test_nn_on_one_axis(device, axis):
         dtype=np.float32,
     )
 
+    # magnification is NN, minification is triangular
     ref = np.array(
         [
             [0, 0, 0.3333334, 0.3333334, 0, 0],
@@ -867,6 +868,7 @@ def test_nn_on_one_axis(device, axis):
         data = np.transpose(data, (1, 0))
         ref = np.transpose(ref, (1, 0))
 
+    # add channel
     data = data[..., np.newaxis]
     ref = ref[..., np.newaxis]
 
