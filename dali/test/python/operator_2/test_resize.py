@@ -843,6 +843,52 @@ def test_large_gpu(interp, antialias):
     assert np.max(np.abs(out - large_data_resized)) < 2
 
 
+@params(("cpu", 0), ("cpu", 1), ("gpu", 0), ("gpu", 1))
+def test_nn_on_one_axis(device, axis):
+    # Checks whether having NN interpolation in one axis and full resampling in the other works
+    data = np.array(
+        [
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 2, 0],
+        ],
+        dtype=np.float32,
+    )
+
+    # magnification is NN, minification is triangular
+    ref = np.array(
+        [
+            [0, 0, 0.3333334, 0.3333334, 0, 0],
+            [0, 0, 1.6666667, 1.6666667, 0, 0],
+        ],
+        dtype=np.float32,
+    )
+
+    if axis == 1:
+        data = np.transpose(data, (1, 0))
+        ref = np.transpose(ref, (1, 0))
+
+    # add channel
+    data = data[..., np.newaxis]
+    ref = ref[..., np.newaxis]
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def test_pipe():
+        src = dali.types.Constant(data, device=device)
+        return fn.resize(
+            src,
+            size=ref.shape[:-1],
+            min_filter=dali.types.INTERP_LINEAR,
+            mag_filter=dali.types.INTERP_NN,
+            antialias=True,
+        )
+
+    pipe = test_pipe()
+    pipe.build()
+    (out,) = pipe.run()
+    check_batch(out, [ref], 1, 1e-5, 1e-5, None, False)
+
+
 def test_checkerboard_dali_vs_onnx_ref():
     improc_data_dir = os.path.join(test_data_root, "db", "imgproc")
     ref_dir = os.path.join(improc_data_dir, "ref", "resampling")
