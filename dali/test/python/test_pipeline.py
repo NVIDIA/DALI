@@ -2293,7 +2293,7 @@ def test_gpu2cpu_old_exec_error():
         return to_cpu(gpu)
 
     with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
-        pipe = pdef(lambda gpu: gpu.cpu())  # this will raise an error at construction time
+        _ = pdef(lambda gpu: gpu.cpu())  # this will raise an error at construction time
 
     pipe = pdef(lambda gpu: gpu._to_backend("cpu"))  # this will not raise errors until build-time
 
