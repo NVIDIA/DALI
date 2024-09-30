@@ -205,7 +205,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
   TensorListShape<frame_ndim> in_shape_, out_shape_;
   std::vector<int> frame_idx_;  // map of absolute frame indices in the input TensorList
-  int total_frames_;  // number of non-empty frames
+  int total_frames_ = 0;  // number of non-empty frames
   std::vector<ResamplingParamsND<spatial_ndim>> params_;
 
   cvcuda::HQResize resize_op_{};
