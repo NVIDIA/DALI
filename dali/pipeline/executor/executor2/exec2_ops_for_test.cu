@@ -99,6 +99,7 @@ void DummyOpGPU::RunImpl(Workspace &ws) {
     scratch.ToGPU(ws.stream(), pointers),
     ws.NumInput() + 1,
     N);
+  CUDA_CALL(cudaGetLastError());
 }
 
 

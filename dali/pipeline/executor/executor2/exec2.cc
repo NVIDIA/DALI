@@ -347,7 +347,7 @@ class Executor2::Impl {
       auto stream_idx = assignment[&node];
 
       node.env.order = stream_idx.has_value()
-                     ? AccessOrder(streams_[*stream_idx])
+                     ? AccessOrder(streams_[*stream_idx].get())
                      : AccessOrder::host();
     }
   }
