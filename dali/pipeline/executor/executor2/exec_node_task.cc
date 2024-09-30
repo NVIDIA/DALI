@@ -259,6 +259,7 @@ void OpTask::RunOp() {
     ResetInputLayouts();
     PropagateSourceInfo(*ws_);
   }
+  assert(ws_->GetIterationData());
   if (auto cpt = ws_->GetIterationData()->checkpoint) {
     node_->op->SaveState(cpt->GetOpCheckpoint(node_->instance_name), ws_->output_order());
   }
