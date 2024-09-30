@@ -200,18 +200,8 @@
 	#include <functional>
 #endif
 
-#ifdef __CUDA_ARCH__
-  #include "caffe/util/half.cuh"
-  #include "caffe/util/gpu_math_functions.cuh"
-#endif
-
-#if !defined(CPU_ONLY) && defined(__CUDA_ARCH__)
-  #define CAFFE_UTIL_HD __host__ __device__
-  #define CAFFE_UTIL_IHD __inline__ __host__ __device__
-#else
-  #define CAFFE_UTIL_HD
-  #define CAFFE_UTIL_IHD inline
-#endif
+#define CAFFE_UTIL_HD
+#define CAFFE_UTIL_IHD inline
 
 /// Default rounding mode.
 /// This specifies the rounding mode used for all conversions between [half](\ref half_float::half)s and `float`s as well as
