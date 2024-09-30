@@ -1006,6 +1006,12 @@ def test_warp_perspective_stateless(device):
     check_single_input(fn.experimental.warp_perspective, device, matrix=np.eye(3))
 
 
+@params("gpu")
+@stateless_signed_off("experimental.resize")
+def test_experimental_resize(device):
+    check_single_input(fn.experimental.resize, device, resize_x=50, resize_y=50)
+
+
 @params("cpu")
 @stateless_signed_off("zeros", "ones", "full", "zeros_like", "ones_like", "full_like")
 def test_full_operator_family(device):

@@ -74,6 +74,26 @@ class DLL_PUBLIC ResizeBase {
   }
 
   struct Impl;  // this needs to be public, because implementations inherit from it
+
+ protected:
+  template <typename ImplType, typename ImplTypeFactory>
+  auto SetImpl(const ImplTypeFactory &impl_factory)
+    -> std::enable_if_t<std::is_same_v<decltype(impl_factory()), std::unique_ptr<ImplType>>, void> {
+    auto *impl = dynamic_cast<ImplType*>(impl_.get());
+    if (!impl) {
+      impl_.reset();
+      auto unq_impl = impl_factory();
+      impl = unq_impl.get();
+      impl_ = std::move(unq_impl);
+    }
+  }
+
+  int GetMinibatchSize() const {
+    return minibatch_size_;
+  }
+
+  std::unique_ptr<Impl> impl_;
+
  private:
   template <typename OutType, typename InType, int spatial_ndim>
   void SetupResizeStatic(TensorListShape<> &out_shape,
@@ -90,7 +110,6 @@ class DLL_PUBLIC ResizeBase {
 
   int num_threads_ = 1;
   int minibatch_size_ = 32;
-  std::unique_ptr<Impl> impl_;
   kernels::KernelManager kmgr_;
 };
 

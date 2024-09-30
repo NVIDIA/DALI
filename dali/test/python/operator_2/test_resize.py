@@ -183,7 +183,26 @@ def resize_PIL(dim, channel_first, dtype, interp, data, size, roi_start, roi_end
     )
 
 
+def resize_op(backend):
+    if backend in ["cpu", "gpu"]:
+        return fn.resize
+    elif backend == "cvcuda":
+        return fn.experimental.resize
+    else:
+        assert False
+
+
+def backend_device(backend):
+    if backend in ["cvcuda", "gpu"]:
+        return "gpu"
+    elif backend == "cpu":
+        return "cpu"
+    else:
+        assert False
+
+
 def resize_dali(
+    backend,
     input,
     channel_first,
     dtype,
@@ -198,7 +217,7 @@ def resize_dali(
     minibatch_size,
     max_size,
 ):
-    return fn.resize(
+    return resize_op(backend)(
         input,
         interp_type=interp,
         dtype=dtype,
@@ -301,7 +320,7 @@ def max_size(dim):
 
 
 def build_pipes(
-    device,
+    backend,
     dim,
     batch_size,
     channel_first,
@@ -315,7 +334,14 @@ def build_pipes(
     use_size_input,
     use_roi,
 ):
-    dali_pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
+    dali_pipe = Pipeline(
+        batch_size=batch_size,
+        num_threads=8,
+        device_id=0,
+        seed=1234,
+        exec_async=False,
+        exec_pipelined=False,
+    )
     with dali_pipe:
         if dim == 2:
             files, labels = dali.fn.readers.caffe(path=db_2d_folder, random_shuffle=True)
@@ -323,7 +349,7 @@ def build_pipes(
         else:
             images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
-        images_hwc = images_cpu if device == "cpu" else images_cpu.gpu()
+        images_hwc = images_cpu if backend_device(backend) == "cpu" else images_cpu.gpu()
 
         if channel_first:
             images = dali.fn.transpose(
@@ -363,6 +389,7 @@ def build_pipes(
                 size = [300, 400] if dim == 2 else [80, 100, 120]
 
             resized = resize_dali(
+                backend,
                 images,
                 channel_first,
                 dtype,
@@ -398,6 +425,7 @@ def build_pipes(
                     d = 31  # some other fixed value
 
             resized = resize_dali(
+                backend,
                 images,
                 channel_first,
                 dtype,
@@ -456,7 +484,7 @@ def interior(array, channel_first):
 
 
 def _test_ND(
-    device,
+    backend,
     dim,
     batch_size,
     channel_first,
@@ -471,7 +499,7 @@ def _test_ND(
     use_roi,
 ):
     dali_pipe, pil_pipe = build_pipes(
-        device,
+        backend,
         dim,
         batch_size,
         channel_first,
@@ -567,7 +595,7 @@ def _test_ND(
         check_batch(dali_interior, ref_interior, batch_size, max_avg_err, max_err)
 
 
-def _tests(dim, device):
+def _tests(dim, backend):
     batch_size = 2 if dim == 3 else 10
     # - Cannot test linear against PIL, because PIL uses triangular filter when downscaling
     # - Cannot test Nearest Neighbor because rounding errors cause gross discrepancies (pixel shift)
@@ -593,7 +621,7 @@ def _tests(dim, device):
             interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp]
             yield (
                 _test_ND,
-                device,
+                backend,
                 dim,
                 batch_size,
                 False,
@@ -629,7 +657,17 @@ def test_3D_cpu():
         yield (f, *args)
 
 
-def _test_stitching(device, dim, channel_first, dtype, interp):
+def test_2D_cvcuda():
+    for f, *args in _tests(2, "cvcuda"):
+        yield (f, *args)
+
+
+def test_3D_cvcuda():
+    for f, *args in _tests(3, "cvcuda"):
+        yield (f, *args)
+
+
+def _test_stitching(backend, dim, channel_first, dtype, interp):
     batch_size = 1 if dim == 3 else 10
     pipe = dali.pipeline.Pipeline(
         batch_size=batch_size, num_threads=1, device_id=0, seed=1234, prefetch_queue_depth=1
@@ -641,7 +679,7 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
         else:
             images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
-        images_hwc = images_cpu if device == "cpu" else images_cpu.gpu()
+        images_hwc = images_cpu if backend_device(backend) == "cpu" else images_cpu.gpu()
 
         if channel_first:
             images = dali.fn.transpose(
@@ -656,7 +694,7 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
         roi_start = [0] * dim
         roi_end = [1] * dim
 
-        resized = fn.resize(
+        resized = resize_op(backend)(
             images, dtype=dtype, min_filter=interp, mag_filter=interp, size=out_size_full
         )
 
@@ -689,7 +727,7 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
     pipe.build()
     for iter in range(1):
         out = pipe.run()
-        if device == "gpu":
+        if backend_device(backend) == "gpu":
             out = [x.as_cpu() for x in out]
         whole = out[0]
         tiled = []
@@ -716,7 +754,7 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
 
 
 def test_stitching():
-    for device in ["cpu", "gpu"]:
+    for backend in ["cpu", "gpu", "cvcuda"]:
         for dim in [3]:
             for dtype in [types.UINT8, types.FLOAT]:
                 for channel_first in [False, True]:
@@ -726,10 +764,10 @@ def test_stitching():
                         types.INTERP_TRIANGULAR,
                         types.INTERP_LANCZOS3,
                     ]:
-                        yield _test_stitching, device, dim, channel_first, dtype, interp
+                        yield _test_stitching, backend, dim, channel_first, dtype, interp
 
 
-def _test_empty_input(dim, device):
+def _test_empty_input(dim, backend):
     batch_size = 8
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
@@ -738,7 +776,7 @@ def _test_empty_input(dim, device):
     else:
         images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
-    images = images_cpu if device == "cpu" else images_cpu.gpu()
+    images = images_cpu if backend_device(backend) == "cpu" else images_cpu.gpu()
 
     in_rel_shapes = np.ones([batch_size, dim], dtype=np.float32)
 
@@ -751,15 +789,15 @@ def _test_empty_input(dim, device):
     sizes = np.random.randint(20, 50, [batch_size, dim], dtype=np.int32)
     size_inp = fn.external_source(lambda: [x.astype(np.float32) for x in sizes])
 
-    resize_no_empty = fn.resize(images, size=size_inp, mode="not_larger")
-    resize_with_empty = fn.resize(degenerate_images, size=size_inp, mode="not_larger")
+    resize_no_empty = resize_op(backend)(images, size=size_inp, mode="not_larger")
+    resize_with_empty = resize_op(backend)(degenerate_images, size=size_inp, mode="not_larger")
 
     pipe.set_outputs(resize_no_empty, resize_with_empty)
     pipe.build()
 
     for it in range(3):
         out_no_empty, out_with_empty = pipe.run()
-        if device == "gpu":
+        if backend_device(backend) == "gpu":
             out_no_empty = out_no_empty.as_cpu()
             out_with_empty = out_with_empty.as_cpu()
         for i in range(batch_size):
@@ -770,12 +808,12 @@ def _test_empty_input(dim, device):
 
 
 def test_empty_input():
-    for device in ["cpu", "gpu"]:
+    for backend in ["cpu", "gpu", "cvcuda"]:
         for dim in [2, 3]:
-            yield _test_empty_input, dim, device
+            yield _test_empty_input, dim, backend
 
 
-def _test_very_small_output(dim, device):
+def _test_very_small_output(dim, backend):
     batch_size = 8
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
@@ -784,9 +822,9 @@ def _test_very_small_output(dim, device):
     else:
         images_cpu = dali.fn.external_source(source=random_3d_loader(batch_size), layout="DHWC")
 
-    images = images_cpu if device == "cpu" else images_cpu.gpu()
+    images = images_cpu if backend_device(backend) == "cpu" else images_cpu.gpu()
 
-    resize_tiny = fn.resize(images, size=1e-10)
+    resize_tiny = resize_op(backend)(images, size=1e-10)
 
     pipe.set_outputs(resize_tiny)
     pipe.build()
@@ -799,9 +837,9 @@ def _test_very_small_output(dim, device):
 
 
 def test_very_small_output():
-    for device in ["cpu", "gpu"]:
+    for backend in ["cpu", "gpu", "cvcuda"]:
         for dim in [2, 3]:
-            yield _test_very_small_output, dim, device
+            yield _test_very_small_output, dim, backend
 
 
 large_data = None

@@ -15,10 +15,12 @@
 #ifndef DALI_OPERATORS_NVCVOP_NVCVOP_H_
 #define DALI_OPERATORS_NVCVOP_NVCVOP_H_
 
-#include <cvcuda/Types.h>
 #include <nvcv/DataType.h>
 #include <nvcv/BorderType.h>
+#include <cvcuda/Types.h>
+#include <cvcuda/Workspace.hpp>
 #include <nvcv/Tensor.hpp>
+#include <nvcv/TensorBatch.hpp>
 #include <nvcv/ImageBatch.hpp>
 
 #include <optional>
@@ -30,6 +32,7 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
+#include "dali/core/cuda_event_pool.h"
 
 namespace dali::nvcvop {
 
@@ -51,6 +54,22 @@ NVCVInterpolationType GetInterpolationType(DALIInterpType interpolation_type);
  * @brief Get nvcv data kind of a given data type
  */
 nvcv::DataKind GetDataKind(DALIDataType dtype);
+
+/**
+ * @brief Construct a DataType object with a given number of channels and given channel type
+ */
+nvcv::DataType GetDataType(DALIDataType dtype, int num_channels = 1);
+
+/**
+ * @brief Construct a DataType object with a given number of channels and given channel type
+ *
+ * @tparam T channel type
+ */
+template <typename T>
+nvcv::DataType GetDataType(int num_channels = 1) {
+  return GetDataType(TypeTable::GetTypeId<T>(), num_channels);
+}
+
 
 /**
  * @brief Get image format for an image with a given data type and number of channels.
@@ -87,6 +106,15 @@ nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat 
 nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout = "",
                       const std::optional<TensorShape<>> &reshape = std::nullopt);
 
+nvcv::Tensor AsTensor(SampleView<GPUBackend> sample, TensorLayout layout = "",
+                      const std::optional<TensorShape<>> &reshape = std::nullopt);
+
+nvcv::Tensor AsTensor(ConstSampleView<GPUBackend> sample, TensorLayout layout = "",
+                      const std::optional<TensorShape<>> &reshape = std::nullopt);
+
+nvcv::Tensor AsTensor(void *data, const TensorShape<> shape, DALIDataType dtype,
+                      TensorLayout layout);
+
 /**
  * @brief Allocates an image batch using a dynamic scratchpad.
  * Allocated images have the shape and data type matching the samples in the given TensorList.
@@ -99,24 +127,54 @@ void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBa
                         kernels::Scratchpad &scratchpad);
 
 /**
- * @brief Wrap samples from the given TensorList into nvcv Images and push them to an output Image batch
- * The resulting images cannot outlive the TensorList.
+ * @brief Wrap samples from the given TensorList into nvcv Images and push them to an output Image
+ * batch The resulting images cannot outlive the TensorList.
  */
 void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list);
 
-/**
- * @brief Construct a DataType object with a given number of channels and given channel type
- */
-nvcv::DataType GetDataType(DALIDataType dtype, int num_channels = 1);
 
-/**
- * @brief Construct a DataType object with a given number of channels and given channel type
- *
- * @tparam T channel type
- */
-template <typename T>
-nvcv::DataType GetDataType(int num_channels = 1) {
-  return GetDataType(TypeTable::GetTypeId<T>(), num_channels);
+void PushTensorsToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
+                        TensorLayout layout);
+
+class NVCVOpWorkspace {
+ public:
+  NVCVOpWorkspace() {
+    CUDA_CALL(cudaGetDevice(&device_id_));
+    auto &eventPool = CUDAEventPool::instance();
+    workspace_.hostMem.ready = eventPool.Get(device_id_).release();
+    workspace_.pinnedMem.ready = eventPool.Get(device_id_).release();
+    workspace_.cudaMem.ready = eventPool.Get(device_id_).release();
+  }
+
+  cvcuda::Workspace Allocate(const cvcuda::WorkspaceRequirements &reqs,
+                             kernels::Scratchpad &scratchpad);
+
+  ~NVCVOpWorkspace() {
+    CUDA_DTOR_CALL(cudaEventSynchronize(workspace_.hostMem.ready));
+    CUDA_DTOR_CALL(cudaEventSynchronize(workspace_.pinnedMem.ready));
+    CUDA_DTOR_CALL(cudaEventSynchronize(workspace_.cudaMem.ready));
+
+    auto &eventPool = CUDAEventPool::instance();
+    eventPool.Put(CUDAEvent(workspace_.hostMem.ready), device_id_);
+    eventPool.Put(CUDAEvent(workspace_.pinnedMem.ready), device_id_);
+    eventPool.Put(CUDAEvent(workspace_.cudaMem.ready), device_id_);
+  }
+
+ private:
+  cvcuda::Workspace workspace_{};
+  int device_id_{};
+};
+
+inline cvcuda::WorkspaceRequirements MaxWorkspaceRequirements(
+    const cvcuda::WorkspaceRequirements &a, const cvcuda::WorkspaceRequirements &b) {
+  cvcuda::WorkspaceRequirements max;
+  max.hostMem.size = std::max(a.hostMem.size, b.hostMem.size);
+  max.hostMem.alignment = std::max(a.hostMem.alignment, b.hostMem.alignment);
+  max.pinnedMem.size = std::max(a.pinnedMem.size, b.pinnedMem.size);
+  max.pinnedMem.alignment = std::max(a.pinnedMem.alignment, b.pinnedMem.alignment);
+  max.cudaMem.size = std::max(a.cudaMem.size, b.cudaMem.size);
+  max.cudaMem.alignment = std::max(a.cudaMem.alignment, b.cudaMem.alignment);
+  return max;
 }
 
 /**
