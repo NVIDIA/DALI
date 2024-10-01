@@ -2257,18 +2257,24 @@ def test_shapes_gpu():
         enc, _ = fn.readers.file(file_root=jpeg_folder)
         img = fn.decoders.image(enc, device="mixed")
         peek = fn.peek_image_shape(enc)
-        return peek, fn.shapes(img, device="cpu"), fn.shapes(img.cpu())
+        shapes_of_gpu = fn.shapes(img, device="cpu")
+        shapes_of_cpu = fn.shapes(img.cpu())
+        return peek, shapes_of_gpu, shapes_of_cpu, img.shape(), img.cpu().shape()
 
     pipe = pdef()
     pipe.build()
     for i in range(10):
-        peek, shape_of_gpu, shape_of_cpu = pipe.run()
+        peek, shape_of_gpu, shape_of_cpu, shape_func_gpu, shape_func_cpu = pipe.run()
         # all results must be CPU tensor lists
         assert isinstance(peek, dali.backend_impl.TensorListCPU)
         assert isinstance(shape_of_gpu, dali.backend_impl.TensorListCPU)
         assert isinstance(shape_of_cpu, dali.backend_impl.TensorListCPU)
+        assert isinstance(shape_func_gpu, dali.backend_impl.TensorListCPU)
+        assert isinstance(shape_func_cpu, dali.backend_impl.TensorListCPU)
         check_batch(shape_of_gpu, peek, bs, 0, 0)
         check_batch(shape_of_cpu, peek, bs, 0, 0)
+        check_batch(shape_func_gpu, peek, bs, 0, 0)
+        check_batch(shape_func_cpu, peek, bs, 0, 0)
 
 
 def test_gpu2cpu_old_exec_error():
@@ -2282,11 +2288,15 @@ def test_gpu2cpu_old_exec_error():
         exec_pipelined=False,
         experimental_exec_dynamic=False,
     )
-    def pdef():
+    def pdef(to_cpu):
         gpu = fn.external_source("input", device="gpu")
-        return gpu.cpu()
+        return to_cpu(gpu)
 
-    pipe = pdef()
+    with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
+        _ = pdef(lambda gpu: gpu.cpu())  # this will raise an error at construction time
+
+    pipe = pdef(lambda gpu: gpu._to_backend("cpu"))  # this will not raise errors until build-time
+
     with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
         pipe.build()
 

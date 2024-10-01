@@ -81,6 +81,7 @@ class DataNode(object):
         return self._to_backend("gpu")
 
     def cpu(self) -> DataNode:
+        self._check_gpu2cpu()
         return self._to_backend("cpu")
 
     # Note: Regardless of whether we want the cpu or gpu version
@@ -258,6 +259,32 @@ class DataNode(object):
             return sliced
         else:
             return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
+
+    def shape(self, *, dtype=None, device="cpu"):
+        """Returns the run-time shapes of this DataNode as a new DataNode
+
+        Parameters
+        ----------
+        arg_dtype : DALIDataType, optional
+            If specified, the shape will be converted to this data type; defaults to INT64.
+        device : str, optional
+            The device ("cpu" or "gpu") where the result is returned; defaults to CPU.
+        """
+        from . import fn
+
+        if device == "cpu":
+            self._check_gpu2cpu()
+        return fn.shapes(self, dtype=dtype, device=device)
+
+    def _check_gpu2cpu(self):
+        if self.device == "gpu" and self.source and self.source.pipeline:
+            if not self.source.pipeline._exec_dynamic:
+                raise RuntimeError(
+                    "This pipeline doesn't support transition from GPU to CPU.\n"
+                    'To enable GPU->CPU transitions, use the experimental "dynamic" executor.\n'
+                    "Specify experimental_exec_dynamic=True in your Pipeline constructor or "
+                    "@pipeline_def."
+                )
 
 
 not_iterable(DataNode)
