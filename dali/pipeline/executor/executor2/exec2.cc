@@ -136,7 +136,7 @@ class Executor2::Impl {
     }
   }
 
-  Workspace PopOutputs() {
+  Workspace PopOutputs(AccessOrder output_order) {
     if (pending_outputs_.empty())
       throw std::out_of_range("All pending outputs were already popped.");
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
@@ -145,9 +145,28 @@ class Executor2::Impl {
     auto &pipe_out = fut.Value<const PipelineOutput &>();
     auto ws = pipe_out.workspace;
     last_iter_data_ = ws.GetIterationData();
-    if (ws.has_event())
-      CUDA_CALL(cudaEventSynchronize(ws.event()));
-    ws.set_event(nullptr);
+    if (ws.has_event()) {
+      if (output_order.has_value() && output_order != ws.output_order())
+        output_order.wait(ws.event());
+      ws.set_event(nullptr);
+    }
+
+    if (output_order.has_value() && output_order != ws.output_order()) {
+      // Set the order of the outputs to the requested output_order - no synchronization
+      // is necessary, the stream has been properly synchronized a few lines above.
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        if (ws.OutputIsType<GPUBackend>(i)) {
+          ws.Output<GPUBackend>(i).set_order(output_order, false);
+        } else {
+          assert(ws.OutputIsType<CPUBackend>(i));
+          auto &out = ws.Output<CPUBackend>(i);
+          if (out.order().is_device())
+            out.set_order(output_order, false);
+        }
+      }
+
+      ws.set_output_order(output_order);
+    }
     return ws;
   }
 
@@ -414,7 +433,7 @@ void Executor2::Prefetch() {
 
 
 void Executor2::Outputs(Workspace *ws) {
-  *ws = impl_->PopOutputs();
+  *ws = impl_->PopOutputs(ws->output_order());
 }
 
 void Executor2::ShareOutputs(Workspace *ws) {

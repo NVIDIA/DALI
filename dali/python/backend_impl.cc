@@ -1994,8 +1994,12 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
     .def("Prefetch", &Pipeline::Prefetch, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
-        [](Pipeline *p) {
+        [](Pipeline *p, py::object cuda_stream) {
           Workspace ws;
+
+          if (!cuda_stream.is_none())
+            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
+
           {
             py::gil_scoped_release interpreter_unlock{};
             p->Outputs(&ws);
@@ -2009,10 +2013,16 @@ PYBIND11_MODULE(backend_impl, m) {
             }
           }
           return outs;
-        }, py::return_value_policy::take_ownership)
+        },
+        "cuda_stream"_a = py::none(),
+        py::return_value_policy::take_ownership)
     .def("ShareOutputs",
-        [](Pipeline *p) {
+        [](Pipeline *p, py::object cuda_stream) {
           Workspace ws;
+
+          if (!cuda_stream.is_none())
+            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
+
           {
             py::gil_scoped_release interpreter_unlock{};
             p->ShareOutputs(&ws);
@@ -2027,7 +2037,9 @@ PYBIND11_MODULE(backend_impl, m) {
             }
           }
           return outs;
-        }, py::return_value_policy::take_ownership)
+        },
+        "cuda_stream"_a = py::none(),
+        py::return_value_policy::take_ownership)
     .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
