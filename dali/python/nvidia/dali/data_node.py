@@ -276,7 +276,43 @@ class DataNode(object):
             self._check_gpu2cpu()
         return fn.shapes(self, dtype=dtype, device=device)
 
+    def property(self, key, *, device="cpu"):
+        """Returns a metadata property associated with a DataNode
+
+        Parameters
+        ----------
+        key : str
+            The name of the metadata item. Currently supported:
+            "source_info"   - the file name or location in the dataset where the data originated
+                              (each sample is a 1D uint8 tensor)
+            "layout"        - the layout string
+                              (each sample is a 1D uint8 tensor)
+        device : str, optional
+            The device, where the value is returned; defaults to CPU.
+        """
+
+        from . import fn
+
+        if device == "cpu":
+            self._check_gpu2cpu()
+
+        return fn.get_property(self, key=key, device=device)
+
+    def source_info(self, *, device="cpu"):
+        """Returns the "source_info" property. Equivalent to self.meta("source_info")."""
+        return self.property("source_info", device=device)
+
     def _check_gpu2cpu(self):
+        """Checks whether using this `DataNode` in a CPU operator is legal.
+
+        The function checks whether it's legal to pass it as an input to a CPU operator.
+        If the node is a result of a GPU operator which belongs to a pipeline with non-dynamic
+        executor, an error is raised.
+
+        .. note::
+        If the defining operator does not yet belong to any pipeline, the error is not raised and
+        the check is deferred until `Pipeline.build`.
+        """
         if self.device == "gpu" and self.source and self.source.pipeline:
             if not self.source.pipeline._exec_dynamic:
                 raise RuntimeError(

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,8 @@
 from nvidia.dali import pipeline_def
 import os
 import numpy as np
-from nvidia.dali import fn
+import nvidia.dali as dali
+import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path
 from nose_utils import raises
 import tempfile
@@ -52,12 +53,12 @@ def test_file_properties():
         yield _test_file_properties, dev
 
 
-@pipeline_def
-def wds_properties(root_path, device, idx_paths):
+@pipeline_def(experimental_exec_dynamic=True)
+def wds_source_info(root_path, device, idx_paths):
     read = fn.readers.webdataset(paths=[root_path], index_paths=idx_paths, ext=["jpg"])
     if device == "gpu":
         read = read.gpu()
-    return fn.get_property(read, key="source_info")
+    return read.source_info()
 
 
 def generate_wds_index(root_path, index_path):
@@ -67,7 +68,7 @@ def generate_wds_index(root_path, index_path):
         ic.create_index()
 
 
-def _test_wds_properties(device, generate_index):
+def _test_wds_source_info(device, generate_index):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     ref_filenames = [
         "2000.jpg",
@@ -84,25 +85,24 @@ def _test_wds_properties(device, generate_index):
         with tempfile.TemporaryDirectory() as idx_dir:
             index_paths = [os.path.join(idx_dir, os.path.basename(root_path) + ".idx")]
             generate_wds_index(root_path, index_paths[0])
-            p = wds_properties(
+            p = wds_source_info(
                 root_path, device, index_paths, batch_size=8, num_threads=4, device_id=0
             )
             p.build()
             output = p.run()
     else:
-        p = wds_properties(root_path, device, None, batch_size=8, num_threads=4, device_id=0)
+        p = wds_source_info(root_path, device, None, batch_size=8, num_threads=4, device_id=0)
         p.build()
         output = p.run()
     for out in output:
-        out = out if device == "cpu" else out.as_cpu()
         for source_info, ref_fname, ref_idx in zip(out, ref_filenames, ref_indices):
             assert _uint8_tensor_to_string(source_info) == f"{root_path}:{ref_idx}:{ref_fname}"
 
 
-def test_wds_properties():
+def test_wds_source_info():
     for dev in ["cpu", "gpu"]:
         for gen_idx in [True, False]:
-            yield _test_wds_properties, dev, gen_idx
+            yield _test_wds_source_info, dev, gen_idx
 
 
 @pipeline_def
@@ -180,7 +180,7 @@ def improper_property(root_path, device):
     return fn.get_property(read, key=["this key doesn't exist"])
 
 
-@raises(RuntimeError, glob="Unknown property key*")
+@raises(RuntimeError, glob="Unsupported property key*")
 def _test_improper_property(device):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     p = improper_property(root_path, device, batch_size=8, num_threads=4, device_id=0)
@@ -191,3 +191,16 @@ def _test_improper_property(device):
 def test_improper_property():
     for dev in ["cpu", "gpu"]:
         yield _test_improper_property, dev
+
+
+def test_get_property_gpu2cpu():
+    @pipeline_def(batch_size=2, device_id=0, num_threads=1, experimental_exec_dynamic=True)
+    def test_pipe():
+        data = dali.types.Constant(np.array([[[42]]]), device="gpu", layout="abc")
+        return fn.get_property(data, key="layout", device="cpu")
+
+    pipe = test_pipe()
+    pipe.build()
+    (out,) = pipe.run()
+    assert _uint8_tensor_to_string(out[0]) == "abc"
+    assert _uint8_tensor_to_string(out[1]) == "abc"
