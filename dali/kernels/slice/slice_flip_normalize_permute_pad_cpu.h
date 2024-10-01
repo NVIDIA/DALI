@@ -26,7 +26,6 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
-#include "dali/util/half.hpp"
 
 namespace dali {
 namespace kernels {

@@ -17,7 +17,6 @@
 #include "dali/core/tensor_layout.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/util/half.hpp"
 
 namespace dali {
 

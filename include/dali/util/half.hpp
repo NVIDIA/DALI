@@ -22,6 +22,10 @@
 #ifndef HALF_HALF_HPP
 #define HALF_HALF_HPP
 
+#ifndef DALI_CORE_FLOAT16_H_INTERNAL
+#error This header is not meant for direct inclusion. Include dali/core/float16.h instead.
+#endif  // DALI_CORE_FLOAT16_H_INTERNAL
+
 #include <math.h>
 #include <stdio.h>
 
@@ -198,11 +202,6 @@
 #endif
 #if HALF_ENABLE_CPP11_HASH
 	#include <functional>
-#endif
-
-#ifdef __CUDA_ARCH__
-  #include "caffe/util/half.cuh"
-  #include "caffe/util/gpu_math_functions.cuh"
 #endif
 
 #if !defined(CPU_ONLY) && defined(__CUDA_ARCH__)
