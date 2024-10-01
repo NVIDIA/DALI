@@ -303,6 +303,16 @@ class DataNode(object):
         return self.property("source_info", device=device)
 
     def _check_gpu2cpu(self):
+        """Checks whether using this `DataNode` in a CPU operator is legal.
+
+        The function checks whether it's legal to pass it as an input to a CPU operator.
+        If the node is a result of a GPU operator which belongs to a pipeline with non-dynamic
+        executor, an error is raised.
+
+        .. note::
+        If the defining operator does not yet belong to any pipeline, the error is not raised and
+        the check is deferred until `Pipeline.build`.
+        """
         if self.device == "gpu" and self.source and self.source.pipeline:
             if not self.source.pipeline._exec_dynamic:
                 raise RuntimeError(
