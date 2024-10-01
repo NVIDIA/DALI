@@ -501,6 +501,9 @@ class Pipeline(object):
             * ``max_reserved_memory_size`` - list of maximum memory sizes per tensor that is
               reserved for each of the operator outputs. Index in the list corresponds to
               the output index.
+
+        .. note::
+            Executor statistics are not available when using `experimental_exec_dynamic=True`.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -1047,19 +1050,14 @@ class Pipeline(object):
 
         if cuda_stream is None:
             cuda_stream = types._get_default_stream_for_array(data)
-        if cuda_stream == -1:
-            cuda_stream = None
-        else:
-            cuda_stream = types._raw_cuda_stream(cuda_stream)
+        cuda_stream_ptr = types._raw_cuda_stream_ptr(cuda_stream)
 
         data = _prep_data_for_feed_input(data, self._max_batch_size, layout, self._device_id)
 
         if isinstance(data, list):
-            self._pipe.SetExternalTensorInput(
-                name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel
-            )
+            self._pipe.SetExternalTensorInput(name, data, cuda_stream_ptr, use_copy_kernel)
         else:
-            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+            self._pipe.SetExternalTLInput(name, data, cuda_stream_ptr, use_copy_kernel)
 
     def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
         """Pass a multidimensional array or DLPack (or a list thereof) to an eligible operator.
@@ -1151,22 +1149,40 @@ class Pipeline(object):
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
-    def outputs(self):
+    def _require_exec_dynamic(self, error_message_prefix):
+        if not self._exec_dynamic:
+            raise ValueError(
+                error_message_prefix + " dynamic execution, enabled by passing "
+                "`experimental_exec_dynamic=True` to the Pipeline's constructor."
+            )
+
+    def outputs(self, cuda_stream=None):
         """Returns the outputs of the pipeline and releases previous buffer.
 
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
         reached its end - usually when iter_setup cannot produce any more data.
 
+        Parameters
+        ----------
+        cuda_stream : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
+            e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
+            The stream to which the returned `TensorLists` are bound.
+            Defaults to None, which means that the outputs are synchronized with the host.
+            Works only with pipelines constructed with `experimental_exec_dynamic=True`.
+
         :return:
             A list of `TensorList` objects for respective pipeline outputs
         """
+        if cuda_stream is not None:
+            self._require_exec_dynamic("Asynchronous outputs require")
+
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
             if self._batches_to_consume == 0:
                 raise StopIteration
             self._batches_to_consume -= 1
-            return self._outputs()
+            return self._outputs(cuda_stream)
 
     def schedule_run(self):
         """Run the pipeline without returning the resulting buffers.
@@ -1185,13 +1201,19 @@ class Pipeline(object):
             else:
                 self._run_once()
 
+    def output_stream(self):
+        """Returns the internal CUDA stream on which the outputs are produced."""
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        return self._pipe.GetOutputStream()
+
     # for the backward compatibility
     def _run(self):
         """Deprecated. Use `schedule_run` instead."""
         _show_deprecation_warning("_run", "schedule_run")
         self.schedule_run()
 
-    def share_outputs(self):
+    def share_outputs(self, cuda_stream=None):
         """Returns the outputs of the pipeline.
 
         Main difference to :meth:`outputs`
@@ -1205,15 +1227,26 @@ class Pipeline(object):
         and :meth:`schedule_run`
         Should not be mixed with :meth:`run` in the same pipeline.
 
+        Parameters
+        ----------
+        cuda_stream : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
+            e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
+            The stream to which the returned `TensorLists` are bound.
+            Defaults to None, which means that the outputs are synchronized with the host.
+            Works only with pipelines constructed with `experimental_exec_dynamic=True`.
+
         :return:
             A list of `TensorList` objects for respective pipeline outputs
         """
+        if cuda_stream is not None:
+            self._require_exec_dynamic("Asynchronous outputs require")
+
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
             if self._batches_to_consume == 0:
                 raise StopIteration
             self._batches_to_consume -= 1
-            return self._pipe.ShareOutputs()
+            return self._pipe.ShareOutputs(types._raw_cuda_stream_ptr(cuda_stream))
 
     # for the backward compatibility
     def _share_outputs(self):
@@ -1244,14 +1277,14 @@ class Pipeline(object):
         _show_deprecation_warning("_release_outputs", "release_outputs")
         self.release_outputs()
 
-    def _outputs(self):
+    def _outputs(self, cuda_stream=None):
         """Release buffers previously returned and returns  the calls.
 
         Calling this function is equivalent to calling release_outputs
         then calling share_outputs"""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        return self._pipe.Outputs()
+        return self._pipe.Outputs(types._raw_cuda_stream_ptr(cuda_stream))
 
     def _are_pipeline_inputs_possible(self):
         """
