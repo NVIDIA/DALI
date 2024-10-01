@@ -27,8 +27,7 @@
 const auto &_type_info_##Id = TypeTable::GetTypeId<Type>()
 
 #include "dali/pipeline/data/types.h"
-#include "dali/util/half.hpp"
-
+#include "dali/core/float16.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/core/per_stream_pool.h"
 #include "dali/kernels/common/scatter_gather.h"
