@@ -411,7 +411,7 @@ def _get_default_stream_for_array(array):
 
 def _raw_cuda_stream_ptr(stream_obj):
     raw_stream = _raw_cuda_stream(stream_obj)
-    return None if raw_stream is None else ctypes.c_void_ptr(raw_stream)
+    return None if raw_stream is None else ctypes.c_void_p(raw_stream)
 
 
 def _get_device_id_for_array(array):
