@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,26 @@ void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
   if (dlm_tensor_ptr && dlm_tensor_ptr->deleter) {
     dlm_tensor_ptr->deleter(dlm_tensor_ptr);
   }
+}
+
+DLTensor MakeDLTensor(void *data, DALIDataType type,
+                      std::optional<int> device_id,
+                      const TensorShape<> &shape,
+                      const TensorShape<> &strides) {
+  DLTensor dl_tensor{};
+  dl_tensor.data = data;
+  dl_tensor.ndim = shape.size();
+  dl_tensor.shape = shape.data();
+  if (!strides.empty()) {
+    dl_tensor.strides = strides.data();
+  }
+  if (device_id) {
+    dl_tensor.device = {kDLCUDA, *device_id};
+  } else {
+    dl_tensor.device = {kDLCPU, 0};
+  }
+  dl_tensor.dtype = GetDLType(type);
+  return dl_tensor;
 }
 
 DLMTensorPtr MakeDLTensor(void* data, DALIDataType type,

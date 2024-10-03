@@ -193,10 +193,15 @@ struct PyBindInitializer {
 // so this workaround initializes them manually
 static PyBindInitializer pybind_initializer{}; // NOLINT
 
-struct DLTensorNumpyResource: public DLTensorResource {
+struct DLTensorNumpyResource: public DLTensorResource<py::array> {
   explicit DLTensorNumpyResource(const py::array &array)
-      : DLTensorResource(TensorShape<>(array.shape(), array.shape() + array.ndim()))
-      , array(array) {
+  : DLTensorNumpyResource(array, array.request()) {}
+
+  DLTensorNumpyResource(const py::array &array, pybind11::buffer_info buffer) {
+      : DLTensorResource<py::array>(
+          MakeDLTensor(buffer.ptr, TypeFromFormatStr(buffer.format),
+          TensorShape<>(array.shape(), array.shape() + array.ndim())),
+          array(array)) {
     strides.resize(array.ndim());
     auto itemsize = array.dtype().itemsize();
     for (int i = 0; i < array.ndim(); ++i) {
@@ -234,7 +239,9 @@ PYBIND11_MODULE(python_function_plugin, m) {
 
   m.def("ArrayToDLTensor", [](py::array array) {
     auto buffer = array.request();
-    auto dlm_tensor_ptr = MakeDLTensor(buffer.ptr, TypeFromFormatStr(buffer.format).id(),
+    auto dlm_tensor_ptr = DLTensorNumpyResource::Create(
+        DLTensor(
+        buffer.ptr, TypeFromFormatStr(buffer.format).id(),
                                        false, 0, std::make_unique<DLTensorNumpyResource>(array));
     return DLTensorToCapsule(std::move(dlm_tensor_ptr));
   });
