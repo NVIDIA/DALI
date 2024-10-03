@@ -1297,10 +1297,10 @@ class Pipeline(object):
         return self.prefetch_queue_depth <= 1
 
     def run(
-        self, **pipeline_inputs
+        self, cuda_stream=None, /, **pipeline_inputs
     ) -> Tuple[Union[tensors.TensorListCPU, tensors.TensorListGPU], ...]:
         """
-        Run the pipeline and return the result.
+        Run the pipeline and return the result on the specified CUDA stream.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
@@ -1311,6 +1311,11 @@ class Pipeline(object):
 
         Parameters
         ----------
+        cuda_stream : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
+            If provided, the outputs are returned on this stream. If skipped, the results
+            are host-synchronous.
+            Note that with prefetch_queue_depth>1 it's possible to get host-synchronous output
+            without waiting for the results of the most recent iteration.
         pipeline_inputs :
             Optional argument that can be used to provide inputs to DALI.
             When DALI has any input operators defined (e.g. fn.external_source), you can provide the
@@ -1361,7 +1366,8 @@ class Pipeline(object):
             self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run()
-            return self.outputs()
+            return self.outputs(cuda_stream)
+
 
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
