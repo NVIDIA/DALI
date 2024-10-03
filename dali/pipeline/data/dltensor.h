@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,29 +25,50 @@
 
 namespace dali {
 
-DLL_PUBLIC void DLManagedTensorDeleter(DLManagedTensor *self);
-
-DLL_PUBLIC void DLMTensorPtrDeleter(DLManagedTensor *ptr);
-
 using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>;
 
 DLL_PUBLIC DLDataType GetDLType(DALIDataType type);
 
+template <typename Payload = std::tuple</* empty type */>>
 struct DLTensorResource {
-  explicit DLTensorResource(TensorShape<> shape)
-  : shape(std::move(shape))
-  , strides() {}
-
-  TensorShape<> shape;
-  TensorShape<> strides;
   DLManagedTensor dlm_tensor{};
+  Payload payload{};
 
-  virtual ~DLTensorResource() = default;
+  template <typename... PayloadArgs>
+  DLMTensorPtr Create(const DLTensor &tensor, PayloadArgs &&...args) {
+    auto rsrc = std::make_unique<DLTensorResource>(
+      tensor, std::forward<PayloadArgs>(args)...);
+    return { rsrc.release(), uptr_deleter };
+  }
+
+ private:
+  template <typename PayloadArgs>
+  explicit DLTensorResource(DLTensor tensor, PayloadArgs &&...args)
+  : dlm_tensor{tensor, this, dlm_deleter}
+  , payload(std::forward<PayloadArgs>(args)...) {}
+
+  static void uptr_deleter(DLManagedTensor *tensor) {
+    if (tensor && tensor->deleter) {
+      tensor->deleter(tensor);
+    }
+  }
+
+  static void dlm_deleter(DLManagedTensor *tensor) {
+    if (tensor == nullptr)
+      return;
+    auto *This = static_cast<DLTensorResource *>(tensor->manager_ctx);
+    assert(&This->dlm_tensor == tensor);  // is that always the case?
+    delete This;
+  }
 };
 
-DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
-                                     bool device, int device_id,
-                                     std::unique_ptr<DLTensorResource> resource);
+
+DLTensor MakeDLTensor(void *data, DALIDataType type,
+                      bool device, int device_id,
+                      const TensorShape<> &shape,
+                      const TensorShape<> &stride) {
+
+}
 
 template <typename Backend>
 DLMTensorPtr GetDLTensorView(SampleView<Backend> tensor, int device_id) {
