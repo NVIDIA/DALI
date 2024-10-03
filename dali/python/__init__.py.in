@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ __version__ = '@DALI_VERSION@'
 __cuda_version__ = int('@CUDA_VERSION@'.replace('.', ''))
 __git_sha__ = '@GIT_SHA@'
 
+from . import backend
 from . import ops
 from . import pipeline
 from . import tensors

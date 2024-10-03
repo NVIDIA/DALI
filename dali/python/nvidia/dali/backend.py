@@ -28,7 +28,6 @@ from . import __cuda_version__
 import warnings
 import sys
 
-
 def deprecation_warning(what):
     # show only this warning
     with warnings.catch_warnings():
