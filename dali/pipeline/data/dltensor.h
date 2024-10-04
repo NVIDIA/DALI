@@ -30,7 +30,39 @@ using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>
 
 DLL_PUBLIC DLDataType GetDLType(DALIDataType type);
 
-template <typename Payload = std::tuple</* empty type */>>
+struct ShapeAndStride {
+  TensorShape<> shape, stride;
+};
+
+/** A wrapper for DLManagedTensor along with its `context_manager`.
+ *
+ * This is a non-intuitive circular-reference structure.
+ * DLManagedTensor lives inside the "resource", but the context_manager points to the resource.
+ *
+ * The diagram below depicts a typical relationship between DLTensorResource and its members:
+ *
+ * ```
+ * DLTensorResource   <-------------+
+ * |                                |
+ * +-- DLManagedTensor              |
+ * |   |                            |
+ * |   +-- DLTensor                 |
+ * |   |   |                        |
+ * |   |   +-- *shape --------+     |
+ * |   |   +-- *strides ------)--+  |
+ * |   |   +-- ...            |  |  |
+ * |   |                      |  |  |
+ * |   +- *context_manager ---)--)--+
+ * |   +- *deleter            |  |
+ * |                          |  |
+ * +-- Payload                |  |
+ *     |                      |  |
+ *     +-- shape  <-----------+  |
+ *     +-- strides  <------------+
+ *     +-- ...
+ * ```
+ */
+template <typename Payload = ShapeAndStride>
 struct DLTensorResource {
   DLManagedTensor dlm_tensor{};
   Payload payload{};
@@ -64,27 +96,34 @@ struct DLTensorResource {
 };
 
 
-DLL_PUBLIC DLTensor MakeDLTensor(void *data, DALIDataType type,
-                                 std::optional<int> device_id,
-                                 const TensorShape<> &shape,
-                                 const TensorShape<> &strides = {});
+DLL_PUBLIC DLTensor PopulateDLTensor(void *data, DALIDataType type,
+                                     std::optional<int> device_id,
+                                     span<int64_t> shape,
+                                     span<int64_t> strides = {});
+
+template <int ndim>
+DLTensor PopulateDLTensor(void *data, DALIDataType type,
+                          std::optional<int> device_id,
+                          TensorShape<ndim> shape) {
+  return PopulateDLTensor(data, type, device_id, make_span(shape));
+}
 
 template <typename Backend>
-DLTensor MakeDLTensor(SampleView<Backend> tensor, int device_id) {
-  return MakeDLTensor(tensor.raw_mutable_data(),
-                      tensor.type(),
-                      std::is_same<Backend, GPUBackend>::value ? device_id : std::nullopt,
-                      tensor.shape());
+DLTensor PopulateDLTensor(SampleView<Backend> tensor, int device_id) {
+  return PopulateDLTensor(tensor.raw_mutable_data(),
+                          tensor.type(),
+                          std::is_same<Backend, GPUBackend>::value ? device_id : std::nullopt,
+                          make_span(tensor.shape));
 }
 
 template <typename Backend>
 DLMTensorPtr GetDLTensorView(SampleView<Backend> tensor, int device_id) {
   return DLTensorResource<>::Create(
-      MakeDLTensor(tensor.raw_mutable_data(),
-                   tensor.type(),
-                   std::is_same<Backend, GPUBackend>::value,
-                   tensor.shape(),
-                   device_id));
+      PopulateDLTensor(tensor.raw_mutable_data(),
+                       tensor.type(),
+                       std::is_same<Backend, GPUBackend>::value,
+                       tensor.shape(),
+                       device_id), tensor.shape);
 }
 
 template <typename Backend>
