@@ -479,8 +479,8 @@ all_packages = [
     PlainPackage(
         "numpy",
         [
-            PckgVer(">=1.17,<1.24", python_min_ver="3.8", python_max_ver="3.11"),
-            PckgVer(">=1.17,<2", python_min_ver="3.12", python_max_ver="3.12"),
+            PckgVer(">=1.23,<1.24", python_min_ver="3.8", python_max_ver="3.11"),
+            PckgVer(">=1.23,<2", python_min_ver="3.12", python_max_ver="3.12"),
         ],
     ),
     PlainPackage("opencv-python", [PckgVer("4.8.1.78", dependencies=["numpy<2"])]),
