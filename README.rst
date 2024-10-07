@@ -114,18 +114,19 @@ DALI success stories:
 ---------------------
 
 - `During Kaggle computer vision competitions <https://www.kaggle.com/code/theoviel/rsna-breast-baseline-faster-inference-with-dali>`__:
-  `"*DALI is one of the best things I have learned in this competition*" <https://www.kaggle.com/competitions/rsna-breast-cancer-detection/discussion/391059>`__
+  `"DALI is one of the best things I have learned in this competition" <https://www.kaggle.com/competitions/rsna-breast-cancer-detection/discussion/391059>`__
 - `Lightning Pose - state of the art pose estimation research model <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10168383/>`__
 - `To improve the resource utilization in Advanced Computing Infrastructure <https://arcwiki.rs.gsu.edu/en/dali/using_nvidia_dali_loader>`__
 - `MLPerf - the industry standard for benchmarking compute and deep learning hardware and software <https://developer.nvidia.com/blog/mlperf-hpc-v1-0-deep-dive-into-optimizations-leading-to-record-setting-nvidia-performance/>`__
+- `"we optimized major models inside eBay with the DALI framework" <https://www.nvidia.com/en-us/on-demand/session/gtc24-s62578/>`__
 
 ----
 
 DALI Roadmap
 ------------
 
-`The following issue represents <https://github.com/NVIDIA/DALI/issues/4578>`__ a high-level overview of our 2023 plan. You should be aware that this
-roadmap may change at any time and the order below does not reflect any type of priority.
+`The following issue represents <https://github.com/NVIDIA/DALI/issues/5320>`__ a high-level overview of our 2024 plan. You should be aware that this
+roadmap may change at any time and the order of its items does not reflect any type of priority.
 
 We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
 GitHub issue.
@@ -177,6 +178,8 @@ depending on your version.
 Additional Resources
 --------------------
 
+- GPU Technology Conference 2024; **Optimizing Inference Model Serving for Highest Performance at eBay**; Yiheng Wang:
+  `event <https://www.nvidia.com/en-us/on-demand/session/gtc24-s62578/>`__
 - GPU Technology Conference 2023; **Developer Breakout: Accelerating Enterprise Workflows With Triton Server and DALI**; Brandon Tuttle:
   `event <https://www.nvidia.com/en-us/on-demand/session/gtcspring23-se52140/>`__.
 - GPU Technology Conference 2023; **GPU-Accelerating End-to-End Geospatial Workflows**; Kevin Green:
