@@ -125,6 +125,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libaws-c-mqtt.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-event-stream.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-common.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-common.so.1"
     "${DEPS_PATH}/lib/libaws-c-sdkutils.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-io.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-cal.so.1.0.0"
