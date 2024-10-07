@@ -122,7 +122,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libaws-cpp-sdk-core.so"
     "${DEPS_PATH}/lib/libaws-cpp-sdk-s3.so"
     "${DEPS_PATH}/lib/libaws-crt-cpp.so"
-    "${DEPS_PATH}/lib/libaws-c-mqtt.so"
+    "${DEPS_PATH}/lib/libaws-c-mqtt.so.1.0.0"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
     # cvcuda adds _d suffix to lib names for debug builds
