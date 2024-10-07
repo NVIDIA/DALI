@@ -89,10 +89,12 @@ constexpr DLDevice ToDLDevice(bool is_device, bool is_pinned, int device_id) {
 //////////////////////////////////////////////////////////////////////////////
 // DLTensorResource
 
+/** Default non-owning payload for DLPack tensors. */
 struct TensorViewPayload {
   TensorShape<> shape, strides;
 };
 
+/** Default ownership-sharing payload for DLPack tensors. */
 struct SharedTensorPayload : TensorViewPayload {
   std::shared_ptr<void> data;
 
@@ -130,6 +132,9 @@ struct SharedTensorPayload : TensorViewPayload {
  *     +-- strides  <------------+
  *     +-- ...
  * ```
+ *
+ * You can use any payload structure of your choice, but it must privde the storage for DLTensor's
+ * `shapes` (and `strides`, if necessary).
  */
 template <typename Payload>
 struct DLTensorResource {
@@ -156,11 +161,15 @@ struct DLTensorResource {
   }
 };
 
+/** Type-erases the DLTensorResource and returns a smart pointer to the contained DLManagedTensor.
+ */
 template <typename Payload>
 DLMTensorPtr ToDLMTensor(std::unique_ptr<DLTensorResource<Payload>> rsrc) {
   return { &rsrc.release()->dlm_tensor, DLMTensorPtrDeleter };
 }
 
+namespace detail {
+/** Populates the DLTensor stored in `rsrc`. Shapes and strides will point to `rsrc.payload`. */
 template <typename Payload>
 void InitResourceDLTensor(DLTensorResource<Payload> &rsrc,
                           void *data, DALIDataType type,
@@ -174,7 +183,9 @@ void InitResourceDLTensor(DLTensorResource<Payload> &rsrc,
   tensor.device = ToDLDevice(device, pinned, device_id);
   tensor.dtype = ToDLType(type);
 }
+}  // namespace detail
 
+/** Constructs a DLTensorResource WITHOUT data ownership. */
 inline auto MakeDLTensorResource(void *data, DALIDataType type,
                                  bool device, bool pinned, int device_id,
                                  const TensorShape<> &shape,
@@ -183,10 +194,11 @@ inline auto MakeDLTensorResource(void *data, DALIDataType type,
     throw std::invalid_argument("If `strides` are not empty they must have the same number "
                                 "of elements as `shape`.");
   auto rsrc = DLTensorResource<TensorViewPayload>::Create(shape, strides);
-  InitResourceDLTensor(*rsrc, data, type, device, pinned, device_id);
+  detail::InitResourceDLTensor(*rsrc, data, type, device, pinned, device_id);
   return rsrc;
 }
 
+/** Constructs a DLManagedTensor WITHOUT data ownership. */
 inline DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
                                  bool device, bool pinned, int device_id,
                                  const TensorShape<> &shape,
@@ -194,6 +206,7 @@ inline DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
   return ToDLMTensor(MakeDLTensorResource(data, type, device, pinned, device_id, shape, strides));
 }
 
+/** Constructs a DLTensorResource sharing the data ownership. */
 inline auto MakeDLTensorResource(std::shared_ptr<void> data, DALIDataType type,
                                  bool device, bool pinned, int device_id,
                                  const TensorShape<> &shape,
@@ -202,10 +215,11 @@ inline auto MakeDLTensorResource(std::shared_ptr<void> data, DALIDataType type,
     throw std::invalid_argument("If `strides` are not empty they must have the same number "
                                 "of elements as `shape`.");
   auto rsrc = DLTensorResource<SharedTensorPayload>::Create(shape, strides, std::move(data));
-  InitResourceDLTensor(*rsrc, rsrc->payload.data.get(), type, device, pinned, device_id);
+  detail::InitResourceDLTensor(*rsrc, rsrc->payload.data.get(), type, device, pinned, device_id);
   return rsrc;
 }
 
+/** Constructs a DLManagedTensor sharing the data ownership. */
 inline DLMTensorPtr MakeDLTensor(std::shared_ptr<void> data, DALIDataType type,
                                  bool device, bool pinned, int device_id,
                                  const TensorShape<> &shape,
@@ -214,6 +228,11 @@ inline DLMTensorPtr MakeDLTensor(std::shared_ptr<void> data, DALIDataType type,
     std::move(data), type, device, pinned, device_id, shape, strides));
 }
 
+/** Gets a DLManagedTensor which does not hold a reference on the data.
+ *
+ * This function constructs a DLTensor whose context manager stores only the shape data.
+ * The returned DLPack tensor must not outlive the original Tensor.
+ */
 template <typename Backend>
 DLMTensorPtr GetDLTensorView(const SampleView<Backend> &tensor, bool pinned, int device_id) {
   auto rsrc = MakeDLTensorResource(
@@ -224,6 +243,11 @@ DLMTensorPtr GetDLTensorView(const SampleView<Backend> &tensor, bool pinned, int
 }
 
 
+/** Gets a list of DLManagedTensors which do not hold a reference on the data.
+ *
+ * This function constructs a list of DLTensors whose context managers store only the shape data.
+ * The returned DLPack tensors must not outlive the original TensorList.
+ */
 template <typename Backend>
 std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) {
   int device_id = tensor_list.device_id();
@@ -238,6 +262,12 @@ std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) 
 }
 
 
+/** Gets a DLManagedTensor which shares the buffer ownership with a tensor.
+ *
+ * This function constructs a DLTensor whose context manager stores a shared pointer to the
+ * tensor contents.
+ * It can be used to remove data ownership from DALI to an external library.
+ */
 template <typename Backend>
 DLMTensorPtr GetSharedDLTensor(Tensor<Backend> &tensor) {
   auto rsrc = MakeDLTensorResource(
@@ -248,6 +278,12 @@ DLMTensorPtr GetSharedDLTensor(Tensor<Backend> &tensor) {
 }
 
 
+/** Gets a vector of DLManagedTensors which share the buffer ownership with a TensorList.
+ *
+ * This function constructs a list DLTensor whose context managers store shared pointers to the
+ * samples in the TensorList.
+ * It can be used to remove data ownership from DALI to an external library.
+ */
 template <typename Backend>
 std::vector<DLMTensorPtr> GetSharedDLTensorList(TensorList<Backend> &tensor_list) {
   int device_id = tensor_list.device_id();
