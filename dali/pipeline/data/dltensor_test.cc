@@ -21,6 +21,41 @@
 
 namespace dali {
 
+TEST(DLPackTest, DLType) {
+  DLDataType dl;
+  for (DALIDataType dali : {
+      DALI_BOOL,
+      DALI_FLOAT16, DALI_FLOAT, DALI_FLOAT64,
+      DALI_INT8, DALI_UINT8,
+      DALI_INT16, DALI_UINT16,
+      DALI_INT32, DALI_UINT32,
+      DALI_INT64, DALI_UINT64 }) {
+    dl = ToDLType(dali);
+    TypeInfo info = TypeTable::GetTypeInfo(dali);
+    EXPECT_EQ(dl.lanes, 1);
+    EXPECT_EQ(dl.bits, info.size() * 8);
+    if (info.name().find("uint") == 0)
+      EXPECT_EQ(dl.code, kDLUInt);
+    else if (info.name().find("int") == 0)
+      EXPECT_EQ(dl.code, kDLInt);
+    else if (info.name().find("float") == 0)
+      EXPECT_EQ(dl.code, kDLFloat);
+    else if (info.name().find("bool") == 0)
+      EXPECT_EQ(dl.code, kDLBool);
+
+    EXPECT_EQ(ToDALIType(dl), dali) << "Conversion back to DALI type yielded a different type.";
+  }
+}
+
+TEST(DLPackTest, DLTypeToString) {
+  EXPECT_EQ(to_string(DLDataType{ kDLBool, 8, 1 }), "b8");
+  EXPECT_EQ(to_string(DLDataType{ kDLBfloat, 16, 1 }), "bf16");
+  EXPECT_EQ(to_string(DLDataType{ kDLFloat, 32, 4 }), "f32x4");
+  EXPECT_EQ(to_string(DLDataType{ kDLUInt, 16, 2 }), "u16x2");
+  EXPECT_EQ(to_string(DLDataType{ kDLInt, 64, 1 }), "i64");
+  EXPECT_EQ(to_string(DLDataType{ 123, 8, 16 }), "<unknown:123>8x16");
+}
+
 namespace {
 
 void TestSampleViewCPU(bool pinned) {

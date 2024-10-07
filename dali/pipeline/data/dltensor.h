@@ -46,7 +46,7 @@ DLL_PUBLIC DALIDataType ToDALIType(const DLDataType &dl_type);
  *
  * The text representation looks like:
  * <type><bits>[x<lanes>]
- * with <lanes>x present only if the number of lanes is > 1
+ * with x<lanes> present only if the number of lanes is > 1
  *
  * Examples:
  * u8     - 8-bit unsigned integer
@@ -68,10 +68,10 @@ inline std::string to_string(const DLDataType &dl_type) {
   if (dl_type.code < std::size(code_str))
     ss << code_str[dl_type.code];
   else
-    ss << "<unknown" << dl_type.code + 0 << ">";
-  ss << dl_type.bits;
+    ss << "<unknown:" << dl_type.code + 0 << ">";
+  ss << dl_type.bits + 0;
   if (dl_type.lanes > 1)
-    ss << 'x' << dl_type.lanes;
+    ss << 'x' << dl_type.lanes + 0;
   return ss.str();
 }
 
@@ -133,7 +133,7 @@ struct SharedTensorPayload : TensorViewPayload {
  *     +-- ...
  * ```
  *
- * You can use any payload structure of your choice, but it must privde the storage for DLTensor's
+ * You can use any payload structure of your choice, but it must provide the storage for DLTensor's
  * `shapes` (and `strides`, if necessary).
  */
 template <typename Payload>
