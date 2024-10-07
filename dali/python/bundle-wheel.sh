@@ -121,6 +121,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libcfitsio.so.4"
     "${DEPS_PATH}/lib/libaws-cpp-sdk-core.so"
     "${DEPS_PATH}/lib/libaws-cpp-sdk-s3.so"
+    "${DEPS_PATH}/lib/libaws-crt-cpp.so"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
     # cvcuda adds _d suffix to lib names for debug builds
