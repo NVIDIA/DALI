@@ -126,7 +126,7 @@ DALI Roadmap
 ------------
 
 `The following issue represents <https://github.com/NVIDIA/DALI/issues/5320>`__ a high-level overview of our 2024 plan. You should be aware that this
-roadmap may change at any time and the order below does not reflect any type of priority.
+roadmap may change at any time and the order of its items does not reflect any type of priority.
 
 We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
 GitHub issue.
