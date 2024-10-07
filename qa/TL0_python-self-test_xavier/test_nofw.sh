@@ -4,7 +4,7 @@
 if [ -z "$gather_pip_packages" ]
 then
   # due to https://github.com/numpy/numpy/issues/18131 we cannot use 1.19.5
-  pip_packages='${python_test_runner_package} dataclasses numpy>=1.20 opencv-python pillow psutil astropy'
+  pip_packages='${python_test_runner_package} dataclasses numpy>=1.23 opencv-python pillow psutil astropy'
 fi
 
 target_dir=./dali/test/python
