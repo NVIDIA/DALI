@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ std::vector<DLMTensorPtr> CastToDLTensorList(py::list &list, Index exp_size, Ind
       result.push_back(DLMTensorPtrFromCapsule(caps));
       DALI_ENFORCE(result[i]->dl_tensor.device.device_type == Backend2DLDevice<Backend>(),
                    "Wrong output backend.");
-      DALI_ENFORCE(DLToDALIType(result[i]->dl_tensor.dtype) == DLToDALIType(dtype),
+      DALI_ENFORCE(ToDALIType(result[i]->dl_tensor.dtype) == ToDALIType(dtype),
                    "Output DLPack tensor list should have consistent data type.");
       DALI_ENFORCE(result[i]->dl_tensor.ndim == ndim,
                    "All samples in the batch should have the same number of dimensions.");
@@ -94,7 +94,7 @@ void PrepareOutputs(Workspace &ws, const py::object &output_o, int batch_size) {
     auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
     if (dl_tensors.empty()) continue;
     auto &tlist = ws.Output<Backend>(idx);
-    tlist.Resize(GetDLTensorListShape(dl_tensors), DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
+    tlist.Resize(GetDLTensorListShape(dl_tensors), ToDALIType(dl_tensors[0]->dl_tensor.dtype));
     CopyOutputData(tlist, dl_tensors, ws);
   }
 }

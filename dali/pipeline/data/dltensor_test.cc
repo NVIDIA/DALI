@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,118 +21,148 @@
 
 namespace dali {
 
-TEST(DLMTensorPtr, CPU) {
+namespace {
+
+void TestSampleViewCPU(bool pinned) {
   Tensor<CPUBackend> tensor;
+  tensor.set_pinned(pinned);
+  tensor.set_device_id(0);
   tensor.Resize({100, 50, 3}, DALI_FLOAT);
   SampleView<CPUBackend> sv{tensor.raw_mutable_data(), tensor.shape(), tensor.type()};
-  DLMTensorPtr dlm_tensor = GetDLTensorView(sv, tensor.device_id());
-  ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
-  ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
-  ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
-  ASSERT_EQ(dlm_tensor->dl_tensor.shape[2], 3);
-  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv.raw_data());
-  ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLFloat);
-  ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(float) * 8);
-  ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCPU);
-  ASSERT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
+  DLMTensorPtr dlm_tensor = GetDLTensorView(sv, tensor.is_pinned(), tensor.device_id());
+  EXPECT_EQ(dlm_tensor->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
+  EXPECT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
+  EXPECT_EQ(dlm_tensor->dl_tensor.shape[2], 3);
+  EXPECT_EQ(dlm_tensor->dl_tensor.data, sv.raw_data());
+  EXPECT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLFloat);
+  EXPECT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(float) * 8);
+  EXPECT_EQ(dlm_tensor->dl_tensor.device.device_type, pinned ? kDLCUDAHost : kDLCPU);
+  EXPECT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
 }
 
-TEST(DLMTensorPtr, GPU) {
+}  // namespace
+
+TEST(DLMTensorPtr, ViewCPU) {
+  TestSampleViewCPU(false);
+}
+
+TEST(DLMTensorPtr, ViewPinnedCPU) {
+  TestSampleViewCPU(true);
+}
+
+TEST(DLMTensorPtr, CPUShared) {
+  Tensor<CPUBackend> tensor;
+  tensor.set_pinned(false);
+  tensor.set_device_id(0);
+  tensor.Resize({100, 50, 3}, DALI_FLOAT);
+  {
+    DLMTensorPtr dlm_tensor = GetSharedDLTensor(tensor, tensor.device_id());
+    EXPECT_EQ(tensor.get_data_ptr().use_count(), 2) << "Reference count not increased";
+    EXPECT_EQ(dlm_tensor->dl_tensor.ndim, 3);
+    EXPECT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
+    EXPECT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
+    EXPECT_EQ(dlm_tensor->dl_tensor.shape[2], 3);
+    EXPECT_EQ(dlm_tensor->dl_tensor.data, tensor.raw_data());
+    EXPECT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLFloat);
+    EXPECT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(float) * 8);
+    EXPECT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCPU);
+    EXPECT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
+  }
+  EXPECT_EQ(tensor.get_data_ptr().use_count(), 1) << "Reference leaked.";
+}
+
+TEST(DLMTensorPtr, ViewGPU) {
   Tensor<GPUBackend> tensor;
   tensor.Resize({100, 50, 1}, DALI_INT32);
   SampleView<GPUBackend> sv{tensor.raw_mutable_data(), tensor.shape(), tensor.type()};
-  DLMTensorPtr dlm_tensor = GetDLTensorView(sv, tensor.device_id());
-  ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
-  ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
-  ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
-  ASSERT_EQ(dlm_tensor->dl_tensor.shape[2], 1);
-  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv.raw_data());
-  ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLInt);
-  ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(int) * 8);
-  ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCUDA);
-  ASSERT_EQ(dlm_tensor->dl_tensor.device.device_id, tensor.device_id());
-  ASSERT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
+  DLMTensorPtr dlm_tensor = GetDLTensorView(sv, false, tensor.device_id());
+  EXPECT_EQ(dlm_tensor->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
+  EXPECT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
+  EXPECT_EQ(dlm_tensor->dl_tensor.shape[2], 1);
+  EXPECT_EQ(dlm_tensor->dl_tensor.data, sv.raw_data());
+  EXPECT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLInt);
+  EXPECT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(int) * 8);
+  EXPECT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCUDA);
+  EXPECT_EQ(dlm_tensor->dl_tensor.device.device_id, tensor.device_id());
+  EXPECT_EQ(dlm_tensor->dl_tensor.byte_offset, 0);
 }
 
 TEST(DLMTensorPtr, CPUList) {
   TensorList<CPUBackend> tlist;
+  tlist.set_pinned(false);
   tlist.Resize({{100, 50, 1}, {50, 30, 3}}, DALI_FLOAT64);
   std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[2], 1);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLFloat);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(double) * 8);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLCPU);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[2], 1);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLFloat);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(double) * 8);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLCPU);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
 
-  ASSERT_EQ(tlist.tensor_shape(1).size(), 3);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.ndim, 3);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[0], 50);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[1], 30);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[2], 3);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLFloat);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(double) * 8);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLCPU);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
+  EXPECT_EQ(tlist.tensor_shape(1).size(), 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[0], 50);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[1], 30);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[2], 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLFloat);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(double) * 8);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLCPU);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
 }
 
 TEST(DLMTensorPtr, GPUList) {
   TensorList<GPUBackend> tlist;
   tlist.Resize({{100, 50, 1}, {50, 30, 3}}, DALI_UINT8);
   std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[2], 1);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLUInt);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(uint8_t) * 8);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLCUDA);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
-  ASSERT_EQ(dlm_tensors[0]->dl_tensor.device.device_id, tlist.device_id());
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[2], 1);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLUInt);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(uint8_t) * 8);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLCUDA);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.device.device_id, tlist.device_id());
 
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.ndim, 3);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[0], 50);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[1], 30);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.shape[2], 3);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLUInt);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(uint8_t) * 8);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLCUDA);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
-  ASSERT_EQ(dlm_tensors[1]->dl_tensor.device.device_id, tlist.device_id());
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[0], 50);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[1], 30);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[2], 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLUInt);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(uint8_t) * 8);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLCUDA);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.device.device_id, tlist.device_id());
 }
 
-struct TestDLTensorResource: public DLTensorResource {
-  TestDLTensorResource(TensorShape<> shape, bool &called)
-  : DLTensorResource(std::move(shape))
-  , called(called) {
-    called = false;
+struct TestDLPayload {
+  explicit TestDLPayload(bool &destroyed)
+  : destroyed(destroyed) {}
+
+  ~TestDLPayload() {
+    destroyed = true;
   }
 
-  bool &called;
-
-  ~TestDLTensorResource() override {
-    called = true;
-  }
+  bool &destroyed;
 };
 
+
 TEST(DLMTensorPtr, Cleanup) {
-  Tensor<CPUBackend> tensor;
-  tensor.Resize({100, 50, 3}, DALI_FLOAT);
   bool deleter_called = false;
   {
-    auto dlm_tensor = MakeDLTensor(tensor.raw_mutable_data(),
-                                   tensor.type(),
-                                   false, -1,
-                                   std::make_unique<TestDLTensorResource>(tensor.shape(),
-                                                                          deleter_called));
+    auto rsrc = DLTensorResource<TestDLPayload>::Create(deleter_called);
+    auto dlm_tensor = ToDLMTensor(std::move(rsrc));
+    EXPECT_EQ(rsrc, nullptr);
   }
-  ASSERT_TRUE(deleter_called);
+  EXPECT_TRUE(deleter_called);
 }
 
 }  // namespace dali

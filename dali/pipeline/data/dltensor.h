@@ -17,6 +17,8 @@
 
 #include <memory>
 #include <optional>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 #include "third_party/dlpack/include/dlpack/dlpack.h"
@@ -26,13 +28,80 @@
 
 namespace dali {
 
+//////////////////////////////////////////////////////////////////////////////
+// DLPack utilities
+
 using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>;
 
-DLL_PUBLIC DLDataType GetDLType(DALIDataType type);
+/** A deleter which calls `DLManagedTensor::deleter` */
+DLL_PUBLIC void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr);
 
-struct ShapeAndStride {
-  TensorShape<> shape, stride;
+/** Converts a DALI type to DLPack type. */
+DLL_PUBLIC DLDataType ToDLType(DALIDataType type);
+
+/** Converts a DLPack type to DALI type. */
+DLL_PUBLIC DALIDataType ToDALIType(const DLDataType &dl_type);
+
+/** Returns type string for given DLPack type
+ *
+ * The text representation looks like:
+ * <type><bits>[x<lanes>]
+ * with <lanes>x present only if the number of lanes is > 1
+ *
+ * Examples:
+ * u8     - 8-bit unsigned integer
+ * i32    - 32-bit signed integer
+ * f64    - 64-bit floating point number
+ * bf16   - bfloat16
+ * b8     - 8-bit boolean
+ * c64    - 64-bit complex number
+ * f32x4 - 128-bit vector consisting of 4 32-bit floating point numbers
+ *
+ * If the code is unknown, the type code is replaced by '<unknown:value>' - a type with an unknown
+ * code 42, 2 lanes and 32-bits would look like <unknown:42>32x2
+ */
+inline std::string to_string(const DLDataType &dl_type) {
+  const char *code_str[] = {
+    "i", "u", "f", "p", "bf", "c", "b"
+  };
+  std::stringstream ss;
+  if (dl_type.code < std::size(code_str))
+    ss << code_str[dl_type.code];
+  else
+    ss << "<unknown" << dl_type.code + 0 << ">";
+  ss << dl_type.bits;
+  if (dl_type.lanes > 1)
+    ss << 'x' << dl_type.lanes;
+  return ss.str();
+}
+
+inline std::ostream &operator<<(std::ostream &os, const DLDataType &dl_type) {
+  return os << to_string(dl_type);
+}
+
+constexpr DLDevice ToDLDevice(bool is_device, bool is_pinned, int device_id) {
+  if (is_device)
+    return {kDLCUDA, device_id};
+  else
+    return {is_pinned ? kDLCUDAHost : kDLCPU, 0};
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// DLTensorResource
+
+struct TensorViewPayload {
+  TensorShape<> shape, strides;
 };
+
+struct SharedTensorPayload : TensorViewPayload {
+  std::shared_ptr<void> data;
+
+  SharedTensorPayload() = default;
+  SharedTensorPayload(TensorShape<> shape, TensorShape<> strides, std::shared_ptr<void> data)
+  : TensorViewPayload{ std::move(shape), std::move(strides) }
+  , data(std::move(data)) {}
+};
+
 
 /** A wrapper for DLManagedTensor along with its `context_manager`.
  *
@@ -62,28 +131,20 @@ struct ShapeAndStride {
  *     +-- ...
  * ```
  */
-template <typename Payload = ShapeAndStride>
+template <typename Payload>
 struct DLTensorResource {
+  template <typename... PayloadArgs>
+  explicit DLTensorResource(PayloadArgs &&...args)
+  : dlm_tensor{{}, this, dlm_deleter}
+  , payload{std::forward<PayloadArgs>(args)...} {}
+
+
   DLManagedTensor dlm_tensor{};
-  Payload payload{};
+  Payload payload;
 
   template <typename... PayloadArgs>
-  DLMTensorPtr Create(const DLTensor &tensor, PayloadArgs &&...args) {
-    auto rsrc = std::make_unique<DLTensorResource>(
-      tensor, std::forward<PayloadArgs>(args)...);
-    return { rsrc.release(), uptr_deleter };
-  }
-
- protected:
-  template <typename PayloadArgs>
-  explicit DLTensorResource(DLTensor tensor, PayloadArgs &&...args)
-  : dlm_tensor{tensor, this, dlm_deleter}
-  , payload(std::forward<PayloadArgs>(args)...) {}
-
-  static void uptr_deleter(DLManagedTensor *tensor) {
-    if (tensor && tensor->deleter) {
-      tensor->deleter(tensor);
-    }
+  static std::unique_ptr<DLTensorResource> Create(PayloadArgs &&...args) {
+    return std::make_unique<DLTensorResource>(std::forward<PayloadArgs>(args)...);
   }
 
   static void dlm_deleter(DLManagedTensor *tensor) {
@@ -95,58 +156,111 @@ struct DLTensorResource {
   }
 };
 
+template <typename Payload>
+DLMTensorPtr ToDLMTensor(std::unique_ptr<DLTensorResource<Payload>> rsrc) {
+  return { &rsrc.release()->dlm_tensor, DLMTensorPtrDeleter };
+}
 
-DLL_PUBLIC DLTensor PopulateDLTensor(void *data, DALIDataType type,
-                                     std::optional<int> device_id,
-                                     span<int64_t> shape,
-                                     span<int64_t> strides = {});
+template <typename Payload>
+void InitResourceDLTensor(DLTensorResource<Payload> &rsrc,
+                          void *data, DALIDataType type,
+                          bool device, bool pinned, int device_id) {
+  auto &tensor = rsrc.dlm_tensor.dl_tensor;
+  tensor = {};
+  tensor.data = data;
+  tensor.shape = rsrc.payload.shape.data();
+  tensor.ndim = rsrc.payload.shape.size();
+  tensor.strides = rsrc.payload.strides.empty() ? nullptr : rsrc.payload.strides.data();
+  tensor.device = ToDLDevice(device, pinned, device_id);
+  tensor.dtype = ToDLType(type);
+}
 
-template <int ndim>
-DLTensor PopulateDLTensor(void *data, DALIDataType type,
-                          std::optional<int> device_id,
-                          TensorShape<ndim> shape) {
-  return PopulateDLTensor(data, type, device_id, make_span(shape));
+inline auto MakeDLTensorResource(void *data, DALIDataType type,
+                                 bool device, bool pinned, int device_id,
+                                 const TensorShape<> &shape,
+                                 const TensorShape<> &strides = {}) {
+  if (!strides.empty() && strides.size() != shape.size())
+    throw std::invalid_argument("If `strides` are not empty they must have the same number "
+                                "of elements as `shape`.");
+  auto rsrc = DLTensorResource<TensorViewPayload>::Create(shape, strides);
+  InitResourceDLTensor(*rsrc, data, type, device, pinned, device_id);
+  return rsrc;
+}
+
+inline DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
+                                 bool device, bool pinned, int device_id,
+                                 const TensorShape<> &shape,
+                                 const TensorShape<> &strides = {}) {
+  return ToDLMTensor(MakeDLTensorResource(data, type, device, pinned, device_id, shape, strides));
+}
+
+inline auto MakeDLTensorResource(std::shared_ptr<void> data, DALIDataType type,
+                                 bool device, bool pinned, int device_id,
+                                 const TensorShape<> &shape,
+                                 const TensorShape<> &strides = {}) {
+  if (!strides.empty() && strides.size() != shape.size())
+    throw std::invalid_argument("If `strides` are not empty they must have the same number "
+                                "of elements as `shape`.");
+  auto rsrc = DLTensorResource<SharedTensorPayload>::Create(shape, strides, std::move(data));
+  InitResourceDLTensor(*rsrc, rsrc->payload.data.get(), type, device, pinned, device_id);
+  return rsrc;
+}
+
+inline DLMTensorPtr MakeDLTensor(std::shared_ptr<void> data, DALIDataType type,
+                                 bool device, bool pinned, int device_id,
+                                 const TensorShape<> &shape,
+                                 const TensorShape<> &strides = {}) {
+  return ToDLMTensor(MakeDLTensorResource(
+    std::move(data), type, device, pinned, device_id, shape, strides));
 }
 
 template <typename Backend>
-DLTensor PopulateDLTensor(SampleView<Backend> tensor, int device_id) {
-  return PopulateDLTensor(tensor.raw_mutable_data(),
-                          tensor.type(),
-                          std::is_same<Backend, GPUBackend>::value ? device_id : std::nullopt,
-                          make_span(tensor.shape));
+DLMTensorPtr GetDLTensorView(const SampleView<Backend> &tensor, bool pinned, int device_id) {
+  auto rsrc = MakeDLTensorResource(
+                  const_cast<void*>(tensor.raw_data()), tensor.type(),
+                  std::is_same_v<Backend, GPUBackend>, pinned, device_id,
+                  tensor.shape());
+  return ToDLMTensor(std::move(rsrc));
 }
 
-template <typename Backend>
-DLMTensorPtr GetDLTensorView(SampleView<Backend> tensor, int device_id) {
-  return DLTensorResource<>::Create(
-      PopulateDLTensor(tensor.raw_mutable_data(),
-                       tensor.type(),
-                       std::is_same<Backend, GPUBackend>::value,
-                       tensor.shape(),
-                       device_id), tensor.shape);
-}
 
 template <typename Backend>
 std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) {
-  std::optional<int> device_id = std::is_same<Backend, GPUBackend>::value
-                               ? tensor_list.device_id()
-                               : std::nullopt;
+  int device_id = tensor_list.device_id();
+  bool pinned = tensor_list.is_pinned();
 
   std::vector<DLMTensorPtr> dl_tensors{};
   dl_tensors.reserve(tensor_list.num_samples());
 
-  for (int i = 0; i < tensor_list.num_samples(); ++i) {
-    const auto &shape = tensor_list.tensor_shape(i);
-    dl_tensors.push_back(DLTensorResource<>::Create(
-        MakeDLTensor(tensor_list.raw_mutable_tensor(i),
-                     tensor_list.type(),
-                     device_id,
-                     shape)));
-  }
+  for (int i = 0; i < tensor_list.num_samples(); ++i)
+    dl_tensors.push_back(GetDLTensorView(tensor_list[i], pinned, device_id));
   return dl_tensors;
 }
 
-DLL_PUBLIC DALIDataType DLToDALIType(const DLDataType &dl_type);
+
+template <typename Backend>
+DLMTensorPtr GetSharedDLTensor(Tensor<Backend> &tensor, int device_id) {
+  auto rsrc = MakeDLTensorResource(
+                  tensor.get_data_ptr(), tensor.type(),
+                  std::is_same_v<Backend, GPUBackend>, tensor.is_pinned(), device_id,
+                  tensor.shape());
+  return ToDLMTensor(std::move(rsrc));
+}
+
+
+template <typename Backend>
+std::vector<DLMTensorPtr> GetSharedDLTensorList(TensorList<Backend> &tensor_list) {
+  int device_id = tensor_list.device_id();
+  bool pinned = tensor_list.is_pinned();
+
+  std::vector<DLMTensorPtr> dl_tensors{};
+  dl_tensors.reserve(tensor_list.num_samples());
+
+  for (int i = 0; i < tensor_list.num_samples(); ++i)
+    dl_tensors.push_back(GetDLTensorView(tensor_list[i], pinned, device_id));
+  return dl_tensors;
+}
+
 
 }  // namespace dali
 #endif  // DALI_PIPELINE_DATA_DLTENSOR_H_

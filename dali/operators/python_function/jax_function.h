@@ -47,7 +47,7 @@ DLMTensorPtr SetupTensorResource(std::unique_ptr<DLDaliTensorResource<Backend>> 
   DLManagedTensor &dlm_tensor = tensor_resource->dlm_tensor;
 
   // copy relevant meta-data from the tensor to dl pack struct
-  dlm_tensor.dl_tensor.dtype = GetDLType(tensor.type());
+  dlm_tensor.dl_tensor.dtype = ToDLType(tensor.type());
   dlm_tensor.dl_tensor.data = tensor.raw_mutable_data();
   TensorShape<> &tensor_shape = const_cast<TensorShape<> &>(tensor.shape());
   dlm_tensor.dl_tensor.ndim = tensor_shape.size();
@@ -313,7 +313,7 @@ class JaxFunction : public StatelessOperator<Backend> {
       TensorListShape<> batch_shape =
           uniform_list_shape(batch_size, dl_batch_shape.last(dl_batch_shape.size() - 1));
 
-      auto dtype = DLToDALIType(dl_batch.dtype);
+      auto dtype = ToDALIType(dl_batch.dtype);
       auto type_info = dali::TypeTable::GetTypeInfo(dtype);
       size_t size_of_dtype = type_info.size();
       int64_t bytes = dl_batch_shape.num_elements() * size_of_dtype;

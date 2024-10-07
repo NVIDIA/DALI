@@ -200,7 +200,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
                   dl_tensor.device.device_type == kDLCPU),
                "DLPack device type doesn't match Tensor type");
 
-  const TypeInfo &dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
+  const TypeInfo &dali_type = TypeTable::GetTypeInfo(ToDALIType(dl_tensor.dtype));
   TensorShape<> shape;
   shape.resize(dl_tensor.ndim);
   for (ssize_t i = 0; i < dl_tensor.ndim; ++i) {
@@ -497,7 +497,7 @@ void ExposeTensor(py::module &m) {
       [](Tensor<CPUBackend> &t) -> py::capsule {
         SampleView<CPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
 
-        return TensorToDLPackView(sv, t.device_id());
+        return TensorToDLPackView(sv, t.is_pinned(), t.device_id());
       },
       R"code(
       Exposes tensor data as DLPack compatible capsule.
@@ -692,7 +692,7 @@ void ExposeTensor(py::module &m) {
       [](Tensor<GPUBackend> &t) -> py::capsule {
         SampleView<GPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
 
-        return TensorToDLPackView(sv, t.device_id());
+        return TensorToDLPackView(sv, t.is_pinned(), t.device_id());
       },
       R"code(
       Exposes tensor data as DLPack compatible capsule.
