@@ -57,7 +57,7 @@ TEST(DLMTensorPtr, CPUShared) {
   tensor.set_device_id(0);
   tensor.Resize({100, 50, 3}, DALI_FLOAT);
   {
-    DLMTensorPtr dlm_tensor = GetSharedDLTensor(tensor, tensor.device_id());
+    DLMTensorPtr dlm_tensor = GetSharedDLTensor(tensor);
     EXPECT_EQ(tensor.get_data_ptr().use_count(), 2) << "Reference count not increased";
     EXPECT_EQ(dlm_tensor->dl_tensor.ndim, 3);
     EXPECT_EQ(dlm_tensor->dl_tensor.shape[0], 100);

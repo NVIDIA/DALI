@@ -239,10 +239,10 @@ std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) 
 
 
 template <typename Backend>
-DLMTensorPtr GetSharedDLTensor(Tensor<Backend> &tensor, int device_id) {
+DLMTensorPtr GetSharedDLTensor(Tensor<Backend> &tensor) {
   auto rsrc = MakeDLTensorResource(
                   tensor.get_data_ptr(), tensor.type(),
-                  std::is_same_v<Backend, GPUBackend>, tensor.is_pinned(), device_id,
+                  std::is_same_v<Backend, GPUBackend>, tensor.is_pinned(), tensor.device_id(),
                   tensor.shape());
   return ToDLMTensor(std::move(rsrc));
 }
