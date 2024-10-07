@@ -46,6 +46,9 @@ TEST(SampleView, Constructors) {
   SampleView<CPUBackend> default_view{};
   compare(default_view, nullptr, {0}, DALI_NO_TYPE);
 
+  default_view = {};
+  compare(default_view, nullptr, {0}, DALI_NO_TYPE);
+
   int32_t data{};
   SampleView<CPUBackend> from_ptr{&data, {1, 2, 3}};
   compare(from_ptr, &data, {1, 2, 3}, DALI_INT32);

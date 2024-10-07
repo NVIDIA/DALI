@@ -155,9 +155,6 @@ class SampleView : public SampleViewBase<Backend, void *> {
   using Base = SampleViewBase<Backend, void *>;
   using Base::Base;
 
-  explicit SampleView(const ConstSampleView<Backend> &csv) = delete;
-  SampleView &operator=(const ConstSampleView<Backend> &csv) = delete;
-
  private:
   using Base::data_;
   using Base::shape_;
