@@ -440,6 +440,10 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
   }
 }
 
+template <typename Backend>
+py::capsule ToDLPack(Tensor<Backend> &backend) {
+}
+
 /**
  * Pipeline output descriptor.
  */
@@ -493,24 +497,31 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
-      "_expose_dlpack_capsule",
-      [](Tensor<CPUBackend> &t) -> py::capsule {
-        SampleView<CPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
-
-        return TensorToDLPackView(sv, t.is_pinned(), t.device_id());
-      },
+      "__dlpack__", ToDLPack<CPUBackend>,
+      "stream"_a = py::none(),
+      "max_version"_a = py::none(),
+      "dl_device"_a = py::none(),
+      "copy"_a = py::none(),
       R"code(
-      Exposes tensor data as DLPack compatible capsule.
+      Exposes the tensor as a DLPack capsule.
 
       Note:
-        This function does not implement full DLPack contract and
-      should not be used to export DALI CPU tensors to DLPack compatible
-      endpoints.
+        When NOT using the dynamic execution (i.e. the pipeline parameter
+        `experimental_exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        outputs may be reused and overwritten by DALI after `release_outputs` has been called.
+        Use `experimental_exec_dynamic=True` if you want to keep the outputs indefinitely.
 
-      Warning:
-        As private this API may change without notice.
-      )code"
-    )
+      stream : int, None
+          The CUDA stream the the caller is going to use to access the buffer.
+          A synchronization event might be inserted, if necessary, into that stream.
+          Special values:
+          None - any stream; wait on host
+          -1   - do not synchronize at all
+          1    - legacy default stream
+          2    - legacy per-thread stream
+          >2   - a CUDA stream handle converted to an integer
+          0    - forbidden value
+      )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
             "buffer info for tensor w/ invalid type.");
@@ -688,24 +699,31 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
-      "_expose_dlpack_capsule",
-      [](Tensor<GPUBackend> &t) -> py::capsule {
-        SampleView<GPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
-
-        return TensorToDLPackView(sv, t.is_pinned(), t.device_id());
-      },
+      "__dlpack__", ToDLPack<GPUBackend>,
+      "stream"_a = py::none(),
+      "max_version"_a = py::none(),
+      "dl_device"_a = py::none(),
+      "copy"_a = py::none(),
       R"code(
-      Exposes tensor data as DLPack compatible capsule.
+      Exposes the tensor as a DLPack capsule.
 
       Note:
-        This function does not implement full DLPack contract and
-      should not be used to export DALI GPU tensors to DLPack compatible
-      endpoints.
+        When NOT using the dynamic execution (i.e. the pipeline parameter
+        `experimental_exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        outputs may be reused and overwritten by DALI after `release_outputs` has been called.
+        Use `experimental_exec_dynamic=True` if you want to keep the outputs indefinitely.
 
-      Warning:
-        As private this API may change without notice.
-      )code"
-    )
+      stream : int, None
+          The CUDA stream the the caller is going to use to access the buffer.
+          A synchronization event might be inserted, if necessary, into that stream.
+          Special values:
+          None - any stream; wait on host
+          -1   - do not synchronize at all
+          1    - legacy default stream
+          2    - legacy per-thread stream
+          >2   - a CUDA stream handle converted to an integer
+          0    - forbidden value
+      )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
