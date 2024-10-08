@@ -574,6 +574,7 @@ void VideoLoader::read_file() {
   int frames_send = 0;
   VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
 
+  bool seek_before_last_key = false;
   while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
     auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
 
@@ -587,6 +588,21 @@ void VideoLoader::read_file() {
     auto frame = av_rescale_q(pkt->pts - file.start_time_,
                               file.stream_base_,
                               file.frame_base_);
+    if (seek_before_last_key) {
+      if (last_key_frame <= frame) {
+        LOG_LINE << "Failed to seek to one before the last keyframe: " << last_key_frame
+                 << " , arrived at "<< last_key_frame << ". Trying --last_key_frame\n";
+        --last_key_frame;
+        DALI_ENFORCE(frame != 0, "Rewind to the frame 0 and the decoding has't started, "
+                                 "please check if your video is not corrupted");
+        seek(file, last_key_frame - 1);
+        continue;
+      }
+      LOG_LINE << "Seek to one before the last keyframe: " << last_key_frame
+               << " , arrived at "<< frame << "\n";
+      seek_before_last_key = false;
+      last_key_frame = -1;
+    }
     LOG_LINE << "Frame candidate " << frame << " (for " << req.frame  <<" )...\n";
 
     file.last_frame_ = frame;
@@ -608,12 +624,12 @@ void VideoLoader::read_file() {
         }
 
       LOG_LINE << "Decoding not started, seek to preceding key frame, "
-                << "current frame " << frame
-                << ", last key frame " << last_key_frame
-                << ", is_key " << key << std::endl;
+               << "current frame " << frame
+               << ", last key frame " << last_key_frame
+               << ", is_key " << key << std::endl;
       seek(file, last_key_frame - 1);
       frames_send = 0;
-      last_key_frame = -1;
+      seek_before_last_key = true;
       continue;
     }
 
