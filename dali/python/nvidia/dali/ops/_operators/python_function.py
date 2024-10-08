@@ -14,6 +14,7 @@
 
 
 import nvidia.dali.python_function_plugin
+import weakref
 from nvidia.dali import ops
 from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
@@ -51,8 +52,10 @@ def _get_base_impl(name, impl_name):
 
         def __call__(self, *inputs, **kwargs):
             inputs = ops._preprocess_inputs(inputs, impl_name, self._device, None)
-            self.pipeline = _Pipeline.current()
-            if self.pipeline is None:
+            if _Pipeline.current():
+                self._pipeline = weakref.ref(_Pipeline.current())
+            else:
+                self._pipeline = None
                 _Pipeline._raise_pipeline_required("PythonFunction operator")
 
             for inp in inputs:
@@ -75,6 +78,10 @@ def _get_base_impl(name, impl_name):
             kwargs.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
 
             return super().__call__(*inputs, **kwargs)
+
+        @property
+        def pipeline(self):
+            return None if self._pipeline is None else self._pipeline()
 
     return PythonFunctionBase
 
