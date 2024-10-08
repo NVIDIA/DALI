@@ -34,14 +34,15 @@ TEST(DLPackTest, DLType) {
     TypeInfo info = TypeTable::GetTypeInfo(dali);
     EXPECT_EQ(dl.lanes, 1);
     EXPECT_EQ(dl.bits, info.size() * 8);
-    if (info.name().find("uint") == 0)
+    if (info.name().find("uint") == 0) {
       EXPECT_EQ(dl.code, kDLUInt);
-    else if (info.name().find("int") == 0)
+    } else if (info.name().find("int") == 0) {
       EXPECT_EQ(dl.code, kDLInt);
-    else if (info.name().find("float") == 0)
+    } else if (info.name().find("float") == 0) {
       EXPECT_EQ(dl.code, kDLFloat);
-    else if (info.name().find("bool") == 0)
+    } else if (info.name().find("bool") == 0) {
       EXPECT_EQ(dl.code, kDLBool);
+    }
 
     EXPECT_EQ(ToDALIType(dl), dali) << "Conversion back to DALI type yielded a different type.";
   }

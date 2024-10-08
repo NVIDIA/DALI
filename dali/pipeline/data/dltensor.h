@@ -236,7 +236,7 @@ inline DLMTensorPtr MakeDLTensor(std::shared_ptr<void> data, DALIDataType type,
 template <typename Backend>
 DLMTensorPtr GetDLTensorView(const SampleView<Backend> &tensor, bool pinned, int device_id) {
   auto rsrc = MakeDLTensorResource(
-                  const_cast<void*>(tensor.raw_data()), tensor.type(),
+                  tensor.raw_mutable_data(), tensor.type(),
                   std::is_same_v<Backend, GPUBackend>, pinned, device_id,
                   tensor.shape());
   return ToDLMTensor(std::move(rsrc));
