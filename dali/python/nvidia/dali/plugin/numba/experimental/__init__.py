@@ -25,6 +25,7 @@ import numba as nb
 
 
 _to_numpy = {
+    dali_types.BOOL: "bool_",
     dali_types.UINT8: "uint8",
     dali_types.UINT16: "uint16",
     dali_types.UINT32: "uint32",
@@ -39,6 +40,7 @@ _to_numpy = {
 }
 
 _to_numba = {
+    dali_types.BOOL: numba_types.boolean,
     dali_types.UINT8: numba_types.uint8,
     dali_types.UINT16: numba_types.uint16,
     dali_types.UINT32: numba_types.uint32,
