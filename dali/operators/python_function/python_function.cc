@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,11 @@ namespace dali {
 
 DALI_SCHEMA(PythonFunctionBase)
     .AddArg("function",
-            "Function object.",
+            R"code(A callable object that defines the function of the operator.
+
+.. warning::
+    The function must not hold a reference to the pipeline in which it is used. If it does,
+    a circular reference to the pipeline will form and the pipeline will never be freed.)code",
             DALI_PYTHON_OBJECT)
     .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
     .AddOptionalArg<std::vector<TensorLayout>>("output_layouts",
@@ -41,7 +45,7 @@ a more universal data format, see :meth:`nvidia.dali.fn.dl_tensor_python_functio
 The function should not modify input tensors.
 
 .. warning::
-  This operator is not compatible with TensorFlow integration.
+    This operator is not compatible with TensorFlow integration.
 
 .. warning::
     When the pipeline has conditional execution enabled, additional steps must be taken to
