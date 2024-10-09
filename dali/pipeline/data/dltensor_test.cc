@@ -152,6 +152,39 @@ TEST(DLMTensorPtr, CPUList) {
   EXPECT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
 }
 
+
+TEST(DLMTensorPtr, CPUSharedList) {
+  TensorList<CPUBackend> tlist;
+  tlist.set_pinned(false);
+  tlist.Resize({{100, 50, 1}, {50, 30, 3}}, DALI_FLOAT64);
+  const auto &ptr = unsafe_owner(tlist);
+  EXPECT_EQ(ptr.use_count(), 3);
+  std::vector<DLMTensorPtr> dlm_tensors = GetSharedDLTensorList(tlist);
+  EXPECT_EQ(ptr.use_count(), 5);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.shape[2], 1);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.data, tlist.raw_tensor(0));
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.dtype.code, kDLFloat);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.dtype.bits, sizeof(double) * 8);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.device.device_type, kDLCPU);
+  EXPECT_EQ(dlm_tensors[0]->dl_tensor.byte_offset, 0);
+
+  EXPECT_EQ(tlist.tensor_shape(1).size(), 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.ndim, 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[0], 50);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[1], 30);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.shape[2], 3);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.data, tlist.raw_tensor(1));
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.dtype.code, kDLFloat);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.dtype.bits, sizeof(double) * 8);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.device.device_type, kDLCPU);
+  EXPECT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
+  dlm_tensors.clear();
+  EXPECT_EQ(ptr.use_count(), 3);
+}
+
 TEST(DLMTensorPtr, GPUList) {
   TensorList<GPUBackend> tlist;
   tlist.Resize({{100, 50, 1}, {50, 30, 3}}, DALI_UINT8);

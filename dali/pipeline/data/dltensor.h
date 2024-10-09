@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_DATA_DLTENSOR_H_
 #define DALI_PIPELINE_DATA_DLTENSOR_H_
 
+#include <cassert>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -277,6 +278,23 @@ DLMTensorPtr GetSharedDLTensor(Tensor<Backend> &tensor) {
   return ToDLMTensor(std::move(rsrc));
 }
 
+/** Gets a DLManagedTensor which shares the buffer ownership with a tensor.
+ *
+ * This function constructs a DLTensor whose context manager stores a shared pointer to the
+ * tensor contents.
+ * It can be used to remove data ownership from DALI to an external library.
+ */
+template <typename Backend>
+DLMTensorPtr GetSharedDLTensor(const SampleView<Backend> &tensor,
+                               std::shared_ptr<void> data, bool pinned, int device_id) {
+  assert(tensor.raw_mutable_data() == data.get());
+  auto rsrc = MakeDLTensorResource(
+                  std::move(data), tensor.type(),
+                  std::is_same_v<Backend, GPUBackend>, pinned, device_id,
+                  tensor.shape());
+  return ToDLMTensor(std::move(rsrc));
+}
+
 
 /** Gets a vector of DLManagedTensors which share the buffer ownership with a TensorList.
  *
@@ -293,7 +311,11 @@ std::vector<DLMTensorPtr> GetSharedDLTensorList(TensorList<Backend> &tensor_list
   dl_tensors.reserve(tensor_list.num_samples());
 
   for (int i = 0; i < tensor_list.num_samples(); ++i)
-    dl_tensors.push_back(GetDLTensorView(tensor_list[i], pinned, device_id));
+    dl_tensors.push_back(GetSharedDLTensor(
+        tensor_list[i],
+        unsafe_sample_owner(tensor_list, i),
+        pinned,
+        device_id));
   return dl_tensors;
 }
 
