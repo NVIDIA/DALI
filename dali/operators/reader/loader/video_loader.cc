@@ -593,8 +593,9 @@ void VideoLoader::read_file() {
         LOG_LINE << "Failed to seek to one before the last keyframe: " << last_key_frame
                  << " , arrived at "<< last_key_frame << ". Trying --last_key_frame\n";
         --last_key_frame;
-        DALI_ENFORCE(frame != 0, "Rewind to the frame 0 and the decoding has't started, "
-                                 "please check if your video is not corrupted");
+        DALI_ENFORCE(frame != 0 && last_key_frame > 0,
+                     "Rewound to the frame 0 and the decoding hasn't started, "
+                     "please check if your video is not corrupted");
         seek(file, last_key_frame - 1);
         continue;
       }
