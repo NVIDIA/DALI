@@ -443,12 +443,10 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
 template <typename Backend>
 py::capsule ToDLPack(Tensor<Backend> &backend,
                      std::optional<uintptr_t> stream,
-                     std::optional<std::pair<int, int>> version,
-                     std::optional<std::pair<_,) {
-      "stream"_a = py::none(),
-      "max_version"_a = py::none(),
-      "dl_device"_a = py::none(),
-      "copy"_a = py::none()
+                     std::optional<std::pair<int, int>> max_version,
+                     std::optional<std::pair<int, int>> dl_device,
+                     std::optional<bool> copy) {
+
 }
 
 /**
