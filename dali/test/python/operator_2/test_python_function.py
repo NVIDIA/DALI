@@ -28,7 +28,7 @@ from PIL import Image, ImageEnhance
 from nvidia.dali.ops import _DataNode
 from nose2.tools import params
 
-from nose_utils import raises, assert_raises
+from nose_utils import raises
 from test_utils import get_dali_extra_path, np_type_to_dali
 
 test_data_root = get_dali_extra_path()

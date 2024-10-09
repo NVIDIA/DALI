@@ -14,7 +14,6 @@
 
 
 import nvidia.dali.python_function_plugin
-import weakref
 from nvidia.dali import ops
 from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
