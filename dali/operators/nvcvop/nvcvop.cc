@@ -14,8 +14,8 @@
 
 #include "dali/operators/nvcvop/nvcvop.h"
 
-
 #include <string>
+#include <utility>
 
 namespace dali::nvcvop {
 
@@ -208,7 +208,7 @@ nvcv::Tensor AsTensor(ConstSampleView<GPUBackend> sample, TensorLayout layout,
   return AsTensor(const_cast<void *>(sample.raw_data()), shape, sample.type(), layout);
 }
 
-nvcv::Tensor AsTensor(void *data, const TensorShape<> shape, DALIDataType daliDType,
+nvcv::Tensor AsTensor(void *data, const TensorShape<> &shape, DALIDataType daliDType,
                       TensorLayout layout) {
   auto dtype = GetDataType(daliDType, 1);
   nvcv::TensorDataStridedCuda::Buffer inBuf;
@@ -225,11 +225,38 @@ nvcv::Tensor AsTensor(void *data, const TensorShape<> shape, DALIDataType daliDT
   return nvcv::TensorWrapData(inData);
 }
 
-void PushTensorsToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
-                        TensorLayout layout) {
-  for (int s = 0; s < t_list.num_samples(); ++s) {
-    batch.pushBack(AsTensor(t_list[s], layout));
+nvcv::Tensor AsTensor(const void *data, span<const int64_t> shape_data, const nvcv::DataType &dtype,
+                      const nvcv::TensorLayout &layout) {
+  int ndim = shape_data.size();
+  nvcv::TensorDataStridedCuda::Buffer inBuf;
+  inBuf.basePtr = reinterpret_cast<NVCVByte *>(const_cast<void *>(data));
+  inBuf.strides[ndim - 1] = dtype.strideBytes();
+  for (int d = ndim - 2; d >= 0; --d) {
+    inBuf.strides[d] = shape_data[d + 1] * inBuf.strides[d + 1];
   }
+  nvcv::TensorShape out_shape(shape_data.data(), ndim, layout);
+  nvcv::TensorDataStridedCuda inData(out_shape, dtype, inBuf);
+  return nvcv::TensorWrapData(inData);
+}
+
+
+void PushTensorsToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
+                        int64_t start, int64_t count, const TensorLayout &layout) {
+  int ndim = t_list.sample_dim();
+  auto dtype = GetDataType(t_list.type(), 1);
+  TensorLayout out_layout = layout.empty() ? t_list.GetLayout() : layout;
+  DALI_ENFORCE(
+      out_layout.empty() || out_layout.size() == ndim,
+      make_string("Layout ", out_layout, " does not match the number of dimensions: ", ndim));
+  auto nvcv_layout = nvcv::TensorLayout(out_layout.c_str());
+  std::vector<nvcv::Tensor> tensors;
+  tensors.reserve(count);
+
+  for (int s = 0; s < count; ++s) {
+    tensors.push_back(AsTensor(t_list.raw_tensor(s + start), t_list.tensor_shape_span(s + start),
+                               dtype, nvcv_layout));
+  }
+  batch.pushBack(tensors.begin(), tensors.end());
 }
 
 cvcuda::Workspace NVCVOpWorkspace::Allocate(const cvcuda::WorkspaceRequirements &reqs,
@@ -246,6 +273,23 @@ cvcuda::Workspace NVCVOpWorkspace::Allocate(const cvcuda::WorkspaceRequirements 
   workspace_.cudaMem.data = gpuBuffer;
   workspace_.cudaMem.req = reqs.cudaMem;
   return workspace_;
+}
+
+nvcv::Allocator GetScratchpadAllocator(kernels::Scratchpad &scratchpad) {
+  auto hostAllocator = nvcv::CustomHostMemAllocator(
+      [&](int64_t size, int32_t align) { return scratchpad.AllocateHost<uint8_t>(size, align); },
+      [](void *, int64_t, int32_t) {});
+
+  auto pinnedAllocator = nvcv::CustomHostPinnedMemAllocator(
+      [&](int64_t size, int32_t align) { return scratchpad.AllocatePinned<uint8_t>(size, align); },
+      [](void *, int64_t, int32_t) {});
+
+  auto gpuAllocator = nvcv::CustomCudaMemAllocator(
+      [&](int64_t size, int32_t align) { return scratchpad.AllocateGPU<uint8_t>(size, align); },
+      [](void *, int64_t, int32_t) {});
+
+  return nvcv::CustomAllocator(std::move(hostAllocator), std::move(pinnedAllocator),
+                               std::move(gpuAllocator));
 }
 
 }  // namespace dali::nvcvop
