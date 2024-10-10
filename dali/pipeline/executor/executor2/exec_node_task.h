@@ -19,7 +19,7 @@
 #include <utility>
 #include "dali/core/exec/tasking.h"
 #include "dali/core/call_at_exit.h"
-#include "dali/pipeline/executor/executor2/shared_event_lease.h"
+#include "dali/core/shared_event_lease.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 
 namespace dali {
@@ -62,8 +62,10 @@ class ExecNodeTask {
   template <typename Backend>
   struct OperatorIO {
     std::shared_ptr<TensorList<Backend>> data;
-    SharedEventLease event;
     AccessOrder order = AccessOrder::host();
+    cudaEvent_t event() const {
+      return data ? data->ready_event().get() : nullptr;
+    }
   };
 
   template <typename Backend>
