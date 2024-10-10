@@ -942,7 +942,7 @@ Tensor<Backend> TensorList<Backend>::AsReshapedTensor(const TensorShape<> &new_s
   }
 
   result.ShareData(std::move(ptr), capacity(), is_pinned(),
-                   new_shape, type(), device_id(), order());
+                   new_shape, type(), device_id(), order(), ready_);
 
   auto result_layout = GetLayout();
   if (result_layout.ndim() + 1 == new_shape.sample_dim()) {
