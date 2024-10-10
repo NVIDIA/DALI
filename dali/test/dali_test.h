@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 #include <numeric>
+#include <iomanip>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
