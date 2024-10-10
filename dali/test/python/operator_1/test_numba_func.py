@@ -34,6 +34,10 @@ test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, "db", "lmdb")
 
 
+def set_all_values_to_1_batch(out0, in0):
+    out0[0][:] = 1
+
+
 def set_all_values_to_255_batch(out0, in0):
     out0[0][:] = 255
 
@@ -42,14 +46,18 @@ def set_all_values_to_255_sample(out0, in0):
     out0[:] = 255
 
 
+def set_all_values_to_1_sample_gpu(out0, in0):
+    tx, ty, tz = cuda.grid(3)
+    x_s, y_s, z_s = cuda.gridsize(3)
+
+    out0[tz::z_s, ty::y_s, tx::x_s] = 1
+
+
 def set_all_values_to_255_sample_gpu(out0, in0):
     tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
 
-    for z in range(tz, out0.shape[0], z_s):
-        for y in range(ty, out0.shape[1], y_s):
-            for x in range(tx, out0.shape[2], x_s):
-                out0[z][y][x] = 255
+    out0[tz::z_s, ty::y_s, tx::x_s] = 255
 
 
 def set_all_values_to_float_batch(out0, in0):
@@ -64,10 +72,7 @@ def set_all_values_to_float_sample_gpu(out0, in0):
     tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
 
-    for z in range(tz, out0.shape[0], z_s):
-        for y in range(ty, out0.shape[1], y_s):
-            for x in range(tx, out0.shape[2], x_s):
-                out0[z][y][x] = 0.5
+    out0[tz::z_s, ty::y_s, tx::x_s] = 0.5
 
 
 def setup_change_out_shape(out_shape, in_shape):
@@ -92,10 +97,7 @@ def change_out_shape_sample_gpu(out0, in0):
     tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
 
-    for z in range(tz, out0.shape[0], z_s):
-        for y in range(ty, out0.shape[1], y_s):
-            for x in range(tx, out0.shape[2], x_s):
-                out0[z][y][x] = 42
+    out0[tz::z_s, ty::y_s, tx::x_s] = 42
 
 
 # in shape [x] -> out shape [2, 2, 2, x]
@@ -208,6 +210,18 @@ def test_numba_func():
     # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
     # expected_out
     args = [
+        (
+            [(10, 10, 10)],
+            np.bool_,
+            set_all_values_to_1_batch,
+            [dali_types.BOOL],
+            [dali_types.BOOL],
+            [3],
+            [3],
+            None,
+            True,
+            [np.full((10, 10, 10), 1, dtype=np.bool_)],
+        ),
         (
             [(10, 10, 10)],
             np.uint8,
@@ -359,6 +373,18 @@ def test_numba_func_gpu():
     # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
     # expected_out
     args = [
+        (
+            [(10, 10, 10)],
+            np.bool_,
+            set_all_values_to_1_sample_gpu,
+            [dali_types.BOOL],
+            [dali_types.BOOL],
+            [3],
+            [3],
+            None,
+            None,
+            [np.full((10, 10, 10), 1, dtype=np.bool_)],
+        ),
         (
             [(10, 10, 10)],
             np.uint8,
