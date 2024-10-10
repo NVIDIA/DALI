@@ -37,6 +37,13 @@ DALI_SCHEMA(Exec2Counter)
 
 DALI_REGISTER_OPERATOR(Exec2Counter, exec2::test::CounterOp, CPU);
 
+DALI_SCHEMA(Exec2Sink)
+  .NumInput(0, 99)
+  .NumOutput(0)
+  .NoPrune();
+
+DALI_REGISTER_OPERATOR(Exec2Sink, exec2::test::SinkOp, CPU);
+
 namespace exec2 {
 namespace test {
 

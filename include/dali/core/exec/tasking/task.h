@@ -87,6 +87,10 @@ class TaskResult {
     value_ = std::forward<T>(t);
   }
 
+  void SetVoid() {
+    value_ = void_result();
+  }
+
   /** Sets an exception. */
   void SetException(std::exception_ptr e) {
     exception_ = std::move(e);
@@ -143,8 +147,9 @@ static constexpr int ScalarResult = -1;
 class TaskResults : public SmallVector<SharedTaskResult, 4> {
  public:
   void Init(int num_results = ScalarResult) {
-    assert(num_results == ScalarResult || num_results > 0);
-    is_scalar_ = num_results < 0;
+    assert(num_results == ScalarResult || num_results >= 0);
+    is_scalar_ = num_results <= 0;
+    is_empty_ = num_results == 0;
     resize(std::max(num_results, 1));
     for (auto &r : *this)
       r = std::make_shared<TaskResult>();
@@ -153,12 +158,23 @@ class TaskResults : public SmallVector<SharedTaskResult, 4> {
   /** If true, the object represents a single, scalar result. */
   bool IsScalar() const noexcept { return is_scalar_; }
 
-  /** Returns the scalar return value of a task. */
+  bool IsEmpty() const noexcept { return is_empty_; }
+
+  int NumValues() const noexcept {
+    return size();
+  }
+
+  /** Returns the scalar return value of a task.
+   *
+   * NOTE: If the task has 0 outputs, you can use Value<void>() to rethrow the exception, if any.
+   */
   template <typename T>
   decltype(auto) Value() const {
-    if (!is_scalar_)
+    if (!is_scalar_) {
       throw std::logic_error("Cannot use argumentless Value to get a non-scalar value");
-    return Value<T>(0);
+    } else {
+      return Value<T>(0);
+    }
   }
 
   /** Returns one of the return values of a task.
@@ -187,16 +203,22 @@ class TaskResults : public SmallVector<SharedTaskResult, 4> {
 
   /** Returns the SharedTaskResult at the specified index or throws std::out_of_range. */
   const SharedTaskResult &GetChecked(int index) const & {
-    if (index < 0 || static_cast<size_t>(index) >= size())
+    if (index < 0 || index >= NumValues())
       throw std::out_of_range(
           "The result index out of range. Valid range is [0.." +
-          std::to_string(size() - 1) + "], got: " +
+          std::to_string(NumValues() - 1) + "], got: " +
           std::to_string(index));
     return (*this)[index];
   }
 
+  void SetException(std::exception_ptr exception) {
+    for (auto &r : *this)
+      r->SetException(exception);
+  }
+
  private:
   bool is_scalar_ = true;
+  bool is_empty_ = false;
 };
 
 enum class TaskState {
@@ -248,7 +270,7 @@ class Task : public CompletionEvent {
   template <typename F, typename... Args>
   void SetResult(F &&f, Args &&...args) {
     assert(state_ == TaskState::Running);
-    assert(results_.size() == 1 && results_[0]);
+    assert(results_.NumValues() == 1 && results_[0]);
     results_[0]->SetResultOf([&]() { return std::forward<F>(f)(std::forward<Args>(args)...); });
   }
 
@@ -272,9 +294,9 @@ class Task : public CompletionEvent {
         std::forward<Args>(args)...))>;
       if constexpr (detail::is_iterable_v<result_t>) {
         auto &&results = f(std::forward<Args>(args)...);
-        size_t n = 0;
+        int n = 0;
         for (auto &&r : results) {
-          if (n >= results_.size())
+          if (n >= results_.NumValues())
             throw std::logic_error("The function provided more results than "
                                    "the task was declared to have.");
           using T = std::remove_reference_t<decltype(r)>;
@@ -282,21 +304,27 @@ class Task : public CompletionEvent {
           n++;
         }
 
-        if (n < results_.size())
-          throw std::logic_error("The function provided fewer results than "
-                                 "the task was declared to have.");
+        if (n < results_.NumValues()) {
+          if (!(n == 0 && results_.IsEmpty()))
+            throw std::logic_error("The function provided fewer results than "
+                                   "the task was declared to have.");
+          else
+            results_[0]->SetVoid();
+        }
       } else if constexpr (detail::is_tuple_v<result_t>) {  // NOLINT
-        assert(std::tuple_size_v<result_t> == results_.size() &&
+        int tuple_size = std::tuple_size_v<result_t>;
+        assert((tuple_size == results_.NumValues() || (tuple_size == 0 && results_.IsEmpty())) &&
                "Internal error - incorrect tuple size should have been detected earlier.");
         auto &&results = f(std::forward<Args>(args)...);
-        UnpackResults<0>(results_, std::move(results));
+        if (results_.IsEmpty())
+          results_[0]->SetVoid();
+        else
+          UnpackResults<0>(results_, std::move(results));
       } else {
         assert(!"Internal error - the output type should have been rejected earlier.");
       }
     } catch (...) {
-      auto ex = std::current_exception();
-      for (auto &r : results_)
-        r->SetException(ex);
+      results_.SetException(std::current_exception());
     }
   }
 

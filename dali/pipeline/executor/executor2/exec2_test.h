@@ -154,6 +154,21 @@ inline void CheckTestGraph2Results(const Workspace &ws, int batch_size) {
   }
 }
 
+inline auto GetTestGraph3() {
+  auto spec0 = OpSpec(kTestOpName)
+    .AddArg("name", "op0")
+    .AddOutput("op0_0", "cpu")
+    .AddArg("addend", 0);
+  auto spec1 = OpSpec(kSinkOpName)
+    .AddArg("name", "op1")
+    .AddInput("op0_0", "cpu");
+
+  graph::OpGraph::Builder b;
+  b.Add("op0",  std::move(AddCommonArgs(spec0,  32, "cpu", 1)));
+  b.Add("op1",  std::move(AddCommonArgs(spec1,  32, "cpu", 1)));
+  return std::move(b).GetGraph(true);
+}
+
 }  // namespace test
 }  // namespace exec2
 }  // namespace dali
