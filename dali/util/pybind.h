@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -217,8 +217,8 @@ static py::capsule DLTensorToCapsule(DLMTensorPtr dl_tensor) {
 }
 
 template <typename Backend>
-py::capsule TensorToDLPackView(SampleView<Backend> tensor, int device_id) {
-  DLMTensorPtr dl_tensor = GetDLTensorView(tensor, device_id);
+py::capsule TensorToDLPackView(SampleView<Backend> tensor, bool pinned, int device_id) {
+  DLMTensorPtr dl_tensor = GetDLTensorView(tensor, pinned, device_id);
   return DLTensorToCapsule(std::move(dl_tensor));
 }
 

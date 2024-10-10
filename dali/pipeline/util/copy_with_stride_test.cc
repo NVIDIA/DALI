@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,10 +30,7 @@ TEST(CopyWithStrideTest, OneDim) {
   constexpr int vol = 3;
   ASSERT_EQ(vol, volume(shape));
   std::array<T, vol> out;
-  DLTensorResource resource(shape);
-  resource.strides = stride;
-  auto dl_tensor =
-      MakeDLTensor(data, dtype, false, -1, std::make_unique<DLTensorResource>(resource));
+  auto dl_tensor = MakeDLTensor(data, dtype, false, false, -1, shape, stride);
   CopyDlTensorCpu(out.data(), dl_tensor);
   ASSERT_TRUE((out == std::array<T, vol>{1, 3, 5}));
 }
@@ -50,10 +47,7 @@ TEST(CopyWithStrideTest, TwoDims)  {
   constexpr int vol = 8;
   ASSERT_EQ(vol, volume(shape));
   std::array<T, vol> out;
-  DLTensorResource resource(shape);
-  resource.strides = stride;
-  auto dl_tensor =
-      MakeDLTensor(data, dtype, false, -1, std::make_unique<DLTensorResource>(resource));
+  auto dl_tensor = MakeDLTensor(data, dtype, false, false, -1, shape, stride);
   CopyDlTensorCpu(out.data(), dl_tensor);
   ASSERT_TRUE((out == std::array<T, vol>{11, 12, 13, 14,
                                          31, 32, 33, 34}));
@@ -72,10 +66,7 @@ TEST(CopyWithStrideTest, SimpleCopy) {
   constexpr int vol = 8;
   ASSERT_EQ(vol, volume(shape));
   std::array<T, vol> out;
-  DLTensorResource resource(shape);
-  resource.strides = stride;
-  auto dl_tensor =
-      MakeDLTensor(data, dtype, false, -1, std::make_unique<DLTensorResource>(resource));
+  auto dl_tensor = MakeDLTensor(data, dtype, false, false, -1, shape, stride);
   CopyDlTensorCpu(out.data(), dl_tensor);
   ASSERT_TRUE((out == std::array<T, vol>{1, 2,
                                          3, 4,
@@ -85,9 +76,7 @@ TEST(CopyWithStrideTest, SimpleCopy) {
 }
 
 DLMTensorPtr AsDlTensor(void* data, DALIDataType dtype, TensorShape<> shape, TensorShape<> stride) {
-  DLTensorResource resource(shape);
-  resource.strides = stride;
-  return MakeDLTensor(data, dtype, true, 0, std::make_unique<DLTensorResource>(resource));
+  return MakeDLTensor(data, dtype, false, false, -1, shape, stride);
 }
 
 std::vector<DLMTensorPtr> DlTensorSingletonBatch(DLMTensorPtr dl_tensor) {

@@ -31,52 +31,6 @@ namespace dali {
 
 namespace detail {
 
-template <typename Backend>
-struct DLDaliTensorResource {
-  explicit DLDaliTensorResource(Tensor<Backend> &&tensor)
-      : tensor(std::move(tensor)), dlm_tensor{} {}
-  Tensor<Backend> tensor;
-  DLManagedTensor dlm_tensor;
-};
-
-
-template <typename Backend>
-DLMTensorPtr SetupTensorResource(std::unique_ptr<DLDaliTensorResource<Backend>> tensor_resource) {
-  static_assert(std::is_same_v<Backend, GPUBackend> || std::is_same_v<Backend, CPUBackend>);
-  Tensor<Backend> &tensor = tensor_resource->tensor;
-  DLManagedTensor &dlm_tensor = tensor_resource->dlm_tensor;
-
-  // copy relevant meta-data from the tensor to dl pack struct
-  dlm_tensor.dl_tensor.dtype = GetDLType(tensor.type());
-  dlm_tensor.dl_tensor.data = tensor.raw_mutable_data();
-  TensorShape<> &tensor_shape = const_cast<TensorShape<> &>(tensor.shape());
-  dlm_tensor.dl_tensor.ndim = tensor_shape.size();
-  dlm_tensor.dl_tensor.shape = tensor_shape.begin();
-  if (std::is_same_v<Backend, GPUBackend>) {
-    dlm_tensor.dl_tensor.device = {kDLCUDA, tensor.device_id()};
-  } else {
-    dlm_tensor.dl_tensor.device = {kDLCPU, 0};
-  }
-
-  // transfer ownership of both tensor and dl pack structure to dl pack structure
-  // and re-expose it as a unique_ptr to just dlpack structure
-  DLDaliTensorResource<Backend> *raw_ptr = tensor_resource.release();
-  dlm_tensor.manager_ctx = raw_ptr;
-  dlm_tensor.deleter = [](DLManagedTensor *dlm_tensor) {
-    delete static_cast<DLDaliTensorResource<Backend> *>(dlm_tensor->manager_ctx);
-  };
-  return {&raw_ptr->dlm_tensor,
-          [](DLManagedTensor *dlm_tensor) { dlm_tensor->deleter(dlm_tensor); }};
-}
-
-template <typename Backend>
-DLMTensorPtr AsDLTensor(Tensor<Backend> &&tensor) {
-  static_assert(std::is_same_v<Backend, GPUBackend> || std::is_same_v<Backend, CPUBackend>);
-  // 1. allocate DLDaliTensorResource that will hold dlpack struct and the actual tensor together
-  // 2. copy relevant meta-data from the tensor to managed dl pack struct
-  return SetupTensorResource(std::make_unique<DLDaliTensorResource<Backend>>(std::move(tensor)));
-}
-
 /**
  * @brief Exposes vector of tensors as a Python list of DLTensorObjs.
  *
@@ -90,12 +44,12 @@ DLMTensorPtr AsDLTensor(Tensor<Backend> &&tensor) {
  * @return py::list of DlTensorObjs.
  */
 template <typename Backend>
-py::list TensorsAsDLTensorObjs(std::vector<Tensor<Backend>> &&tensors,
+py::list TensorsAsDLTensorObjs(std::vector<Tensor<Backend>> &tensors,
                                std::optional<cudaStream_t> producer_stream) {
   py::list dl_tensor_objs;
   for (size_t i = 0; i < tensors.size(); ++i) {
     dl_tensor_objs.append(
-        py::cast(DLTensorObj{AsDLTensor(std::move(tensors[i])), producer_stream}));
+        py::cast(DLTensorObj{GetSharedDLTensor(tensors[i]), producer_stream}));
   }
   return dl_tensor_objs;
 }
@@ -243,14 +197,14 @@ class JaxFunction : public StatelessOperator<Backend> {
                                               std::vector<Tensor<Backend>> &&batched_inputs) {
     py::gil_scoped_acquire interpreter_guard{};
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      auto dl_inputs = detail::TensorsAsDLTensorObjs(std::move(batched_inputs), std::nullopt);
+      auto dl_inputs = detail::TensorsAsDLTensorObjs(batched_inputs, std::nullopt);
       auto dl_outputs = python_function_(*dl_inputs);
       return ConsumePythonOutputs(ws, std::move(dl_outputs));
     } else if constexpr (!std::is_same_v<Backend, CPUBackend>) {  // NOLINT
       static_assert(std::is_same_v<Backend, GPUBackend>,
                     "The operator supports only CPU and GPU backends");
       cudaStream_t stream = ws.stream();
-      auto dl_inputs = detail::TensorsAsDLTensorObjs(std::move(batched_inputs), stream);
+      auto dl_inputs = detail::TensorsAsDLTensorObjs(batched_inputs, stream);
       auto dl_outputs = python_function_(reinterpret_cast<int64_t>(stream), *dl_inputs);
       return ConsumePythonOutputs(ws, std::move(dl_outputs));
     }
@@ -313,7 +267,7 @@ class JaxFunction : public StatelessOperator<Backend> {
       TensorListShape<> batch_shape =
           uniform_list_shape(batch_size, dl_batch_shape.last(dl_batch_shape.size() - 1));
 
-      auto dtype = DLToDALIType(dl_batch.dtype);
+      auto dtype = ToDALIType(dl_batch.dtype);
       auto type_info = dali::TypeTable::GetTypeInfo(dtype);
       size_t size_of_dtype = type_info.size();
       int64_t bytes = dl_batch_shape.num_elements() * size_of_dtype;

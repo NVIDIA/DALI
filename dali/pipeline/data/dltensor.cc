@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,18 +19,18 @@
 
 namespace dali {
 
-DLDataType GetDLType(DALIDataType type) {
+DLDataType ToDLType(DALIDataType type) {
   DLDataType dl_type{};
   TYPE_SWITCH(type, type2id, T, (DALI_NUMERIC_TYPES_FP16, bool), (
     dl_type.bits = sizeof(T) * 8;
       dl_type.lanes = 1;
-      if (dali::is_fp_or_half<T>::value) {
+      if constexpr (dali::is_fp_or_half<T>::value) {
         dl_type.code = kDLFloat;
-      } else if (std::is_same<T, bool>::value) {
+      } else if constexpr (std::is_same_v<T, bool>) {
         dl_type.code = kDLBool;
-      } else if (std::is_unsigned<T>::value) {
+      } else if constexpr (std::is_unsigned_v<T>) {
         dl_type.code = kDLUInt;
-      } else if (std::is_integral<T>::value) {
+      } else if constexpr (std::is_integral_v<T>) {
         dl_type.code = kDLInt;
       } else {
         DALI_FAIL(make_string("This data type (", type, ") cannot be handled by DLTensor."));
@@ -39,45 +39,13 @@ DLDataType GetDLType(DALIDataType type) {
   return dl_type;
 }
 
-void DLManagedTensorDeleter(DLManagedTensor *self) {
-  delete static_cast<DLTensorResource*>(self->manager_ctx);
-}
-
 void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
   if (dlm_tensor_ptr && dlm_tensor_ptr->deleter) {
     dlm_tensor_ptr->deleter(dlm_tensor_ptr);
   }
 }
 
-DLMTensorPtr MakeDLTensor(void* data, DALIDataType type,
-                          bool device, int device_id,
-                          std::unique_ptr<DLTensorResource> resource) {
-  DLManagedTensor *dlm_tensor_ptr = &resource->dlm_tensor;
-  DLTensor &dl_tensor = dlm_tensor_ptr->dl_tensor;
-  dl_tensor.data = data;
-  dl_tensor.ndim = resource->shape.size();
-  dl_tensor.shape = resource->shape.begin();
-  if (!resource->strides.empty()) {
-    dl_tensor.strides = resource->strides.data();
-  }
-  if (device) {
-    dl_tensor.device = {kDLCUDA, device_id};
-  } else {
-    dl_tensor.device = {kDLCPU, 0};
-  }
-  dl_tensor.dtype = GetDLType(type);
-  dlm_tensor_ptr->deleter = &DLManagedTensorDeleter;
-  dlm_tensor_ptr->manager_ctx = resource.release();
-  return {dlm_tensor_ptr, &DLMTensorPtrDeleter};
-}
-
-inline std::string to_string(const DLDataType &dl_type) {
-  return std::string("{code: ")
-    + (dl_type.code ? ((dl_type.code == 2) ? "kDLFloat" : "kDLUInt") : "kDLInt")
-    + ", bits: " + std::to_string(dl_type.bits) + ", lanes: " + std::to_string(dl_type.lanes) + "}";
-}
-
-DALIDataType DLToDALIType(const DLDataType &dl_type) {
+DALIDataType ToDALIType(const DLDataType &dl_type) {
   DALI_ENFORCE(dl_type.lanes == 1,
                "DALI Tensors do not support types with the number of lanes other than 1");
   switch (dl_type.code) {

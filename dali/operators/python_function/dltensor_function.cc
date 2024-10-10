@@ -81,7 +81,7 @@ py::list PrepareDLTensorInputs<CPUBackend>(Workspace &ws) {
     py::list dl_tensor_list;
     auto &input = ws.UnsafeMutableInput<CPUBackend>(idx);
     for (Index i = 0; i < ws.GetInputBatchSize(idx); ++i) {
-      auto dl_capsule = TensorToDLPackView(input[i], input.device_id());
+      auto dl_capsule = TensorToDLPackView(input[i], input.is_pinned(), input.device_id());
       dl_tensor_list.append(dl_capsule);
     }
     input_tuple.append(dl_tensor_list);
@@ -109,7 +109,7 @@ py::list PrepareDLTensorInputsPerSample<CPUBackend>(Workspace &ws) {
     py::list tuple;
     for (Index idx = 0; idx < ws.NumInput(); ++idx) {
       auto &input = ws.UnsafeMutableInput<CPUBackend>(idx);
-      auto dl_capsule = TensorToDLPackView(input[s], input.device_id());
+      auto dl_capsule = TensorToDLPackView(input[s], input.is_pinned(), input.device_id());
       tuple.append(dl_capsule);
     }
     input_tuples.append(tuple);
@@ -193,21 +193,34 @@ struct PyBindInitializer {
 // so this workaround initializes them manually
 static PyBindInitializer pybind_initializer{}; // NOLINT
 
-struct DLTensorNumpyResource: public DLTensorResource {
-  explicit DLTensorNumpyResource(const py::array &array)
-      : DLTensorResource(TensorShape<>(array.shape(), array.shape() + array.ndim()))
-      , array(array) {
-    strides.resize(array.ndim());
+struct PyArrayPayload : TensorViewPayload {
+  explicit PyArrayPayload(const py::array &array) : array(array) {
+    shape = TensorShape<>(array.shape(), array.shape() + array.ndim());
+    strides.resize(shape.size());
     auto itemsize = array.dtype().itemsize();
     for (int i = 0; i < array.ndim(); ++i) {
       strides[i] = array.strides(i) / itemsize;
     }
   }
-
   py::array array;
-
-  ~DLTensorNumpyResource() override = default;
 };
+
+
+using DLTensorNumpyResource = DLTensorResource<PyArrayPayload>;
+
+auto GetDLTensorResource(const py::array &array) {
+  auto rsrc = DLTensorNumpyResource::Create(array);
+  auto &tensor = rsrc->dlm_tensor.dl_tensor;
+  auto buffer = rsrc->payload.array.request();
+  tensor.data = buffer.ptr;
+  tensor.shape = rsrc->payload.shape.data();
+  tensor.ndim = rsrc->payload.shape.size();
+  tensor.strides = rsrc->payload.strides.empty() ? nullptr : rsrc->payload.strides.data();
+  tensor.device = ToDLDevice(false, false, 0);
+  tensor.dtype = ToDLType(TypeFromFormatStr(buffer.format).id());
+  return rsrc;
+}
+
 
 PYBIND11_MODULE(python_function_plugin, m) {
   m.def("current_dali_stream", []() { return reinterpret_cast<uint64_t>(GetCurrentStream()); });
@@ -215,7 +228,7 @@ PYBIND11_MODULE(python_function_plugin, m) {
   m.def("DLTensorToArray", [](py::capsule dl_capsule) {
     auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(dl_capsule);
     const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-    auto dali_type = DLToDALIType(dl_tensor.dtype);
+    auto dali_type = ToDALIType(dl_tensor.dtype);
     py::dtype dtype(FormatStrFromType(dali_type));
     auto shape = make_span(dl_tensor.shape, dl_tensor.ndim);
     py::array array;
@@ -233,10 +246,8 @@ PYBIND11_MODULE(python_function_plugin, m) {
   });
 
   m.def("ArrayToDLTensor", [](py::array array) {
-    auto buffer = array.request();
-    auto dlm_tensor_ptr = MakeDLTensor(buffer.ptr, TypeFromFormatStr(buffer.format).id(),
-                                       false, 0, std::make_unique<DLTensorNumpyResource>(array));
-    return DLTensorToCapsule(std::move(dlm_tensor_ptr));
+    auto rsrc = GetDLTensorResource(array);
+    return DLTensorToCapsule(ToDLMTensor(std::move(rsrc)));
   });
 
   // For the _a suffix
