@@ -26,6 +26,7 @@ from nvidia.dali._utils.external_source_impl import SourceKind as _SourceKind
 from threading import local as tls
 from . import data_node as _data_node
 import atexit
+import copy
 import ctypes
 import functools
 import inspect
@@ -1763,6 +1764,33 @@ class Pipeline(object):
             (name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
             for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)
         ]
+
+    def _stub(self):
+        """Produce a stub by shallow-copying the pipeline, removing the backend and forbidding
+        operations that require the backend.
+
+        Stub pipelines are necessary in contexts where passing the actual pipeline would cause
+        circular reference - notably, PythonFunction operator.
+        """
+        stub = copy.copy(self)
+        stub._pipe = None
+
+        def short_circuit(self, *args, **kwargs):
+            raise RuntimeError("This method is forbidden in current context")
+
+        stub.start_py_workers = short_circuit
+        stub.build = short_circuit
+        stub.run = short_circuit
+        stub.schedule_run = short_circuit
+        stub.outputs = short_circuit
+        stub.share_outputs = short_circuit
+        stub.release_outputs = short_circuit
+        stub.add_sink = short_circuit
+        stub.checkpoint = short_circuit
+        stub.set_outputs = short_circuit
+        stub.executor_statistics = short_circuit
+        stub.external_source_shm_statistics = short_circuit
+        return stub
 
 
 def _shutdown_pipelines():

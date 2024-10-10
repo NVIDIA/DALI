@@ -56,7 +56,7 @@ class TorchPythonFunction(
             )
 
     def __call__(self, *inputs, **kwargs):
-        pipeline = Pipeline.current()
+        pipeline = Pipeline.current()._stub()
         if pipeline is None:
             Pipeline._raise_pipeline_required("TorchPythonFunction")
         if self.stream is None:

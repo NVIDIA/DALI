@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -649,30 +649,6 @@ def test_python_function_conditionals():
     pipe.run()
 
 
-def verify_pipeline(pipeline, input):
-    assert pipeline is Pipeline.current()
-    return input
-
-
-def test_current_pipeline():
-    pipe1 = Pipeline(13, 4, 0)
-    with pipe1:
-        dummy = types.Constant(numpy.ones((1)))
-        output = fn.python_function(dummy, function=lambda inp: verify_pipeline(pipe1, inp))
-        pipe1.set_outputs(output)
-
-    pipe2 = Pipeline(6, 2, 0)
-    with pipe2:
-        dummy = types.Constant(numpy.ones((1)))
-        output = fn.python_function(dummy, function=lambda inp: verify_pipeline(pipe2, inp))
-        pipe2.set_outputs(output)
-
-    pipe1.build()
-    pipe2.build()
-    pipe1.run()
-    pipe2.run()
-
-
 @params(
     numpy.bool_,
     numpy.int_,
@@ -716,3 +692,16 @@ def test_different_types(input_type):
     pipe.build()
 
     _ = pipe.run()
+
+
+def test_delete_pipe_while_function_running():
+    def func(x):
+        time.sleep(0.02)
+        return x
+
+    for i in range(5):
+        with Pipeline(batch_size=1, num_threads=1, device_id=None) as pipe:
+            pipe.set_outputs(fn.python_function(types.Constant(0), function=func))
+            pipe.build()
+            pipe.run()
+        del pipe

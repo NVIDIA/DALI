@@ -51,9 +51,10 @@ def _get_base_impl(name, impl_name):
 
         def __call__(self, *inputs, **kwargs):
             inputs = ops._preprocess_inputs(inputs, impl_name, self._device, None)
-            self.pipeline = _Pipeline.current()
-            if self.pipeline is None:
+            curr_pipe = _Pipeline.current()
+            if curr_pipe is None:
                 _Pipeline._raise_pipeline_required("PythonFunction operator")
+            self.pipeline = curr_pipe._stub()
 
             for inp in inputs:
                 if not isinstance(inp, _DataNode):
