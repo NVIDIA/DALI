@@ -85,11 +85,11 @@ class SharedEventLease {
   }
 
 
-  bool operator==(nullptr_t) const noexcept {
+  bool operator==(std::nullptr_t) const noexcept {
     return get() == nullptr;
   }
 
-  bool operator!=(nullptr_t) const noexcept {
+  bool operator!=(std::nullptr_t) const noexcept {
     return get() != nullptr;
   }
 
