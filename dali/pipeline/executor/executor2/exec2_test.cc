@@ -125,6 +125,27 @@ TEST_P(Exec2Test, Graph2_CPU2GPU) {
   }
 }
 
+TEST_P(Exec2Test, Graph3_SinkOnly) {
+  Executor2 exec(config_);
+  graph::OpGraph graph = GetTestGraph3();
+  exec.Build(graph);
+  for (int i = 0; i < 10; i++) {
+    exec.Run();
+  }
+  Workspace ws;
+  int64_t acc = 0;
+  int bs = config_.max_batch_size;
+  for (int i = 0; i < 10; i++) {
+    ws.Clear();
+    exec.Outputs(&ws);
+    auto *sink = dynamic_cast<SinkOp*>(exec.GetOperator("op1"));
+    ASSERT_NE(sink, nullptr);
+    int64_t batch_sum = bs * (bs - 1) / 2;
+    acc += batch_sum;
+    EXPECT_EQ(sink->acc, acc);
+  }
+}
+
 
 Executor2::Config MakeCfg(QueueDepthPolicy q, OperatorConcurrency c, StreamPolicy s) {
   Executor2::Config cfg;
