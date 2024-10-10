@@ -281,8 +281,8 @@ void OpTask::SetWorkspaceInputs() {
     const auto &inp = TaskInput<Backend>(ti);
     bool is_meta = node_->inputs[i]->metadata;
     // metadata-only inputs don't need to be synchronized
-    if (!is_meta && inp.event && inp.order != order)
-      events.insert(inp.event);
+    if (!is_meta && inp.event() && inp.order != order)
+      events.insert(inp.event());
 
     // metadata-only inputs don't need a proper stream
     if (inp.order == order || is_meta) {  // use the input directly
@@ -308,8 +308,8 @@ void OpTask::SetWorkspaceInputs() {
 
   for (int i = 0; i < ws_->NumArgumentInput(); i++, ti++) {
     auto &inp = TaskInput<CPUBackend>(ti);
-    if (inp.event)
-      events.insert(inp.event);
+    if (inp.event())
+      events.insert(inp.event());
     ws_->SetArgumentInput(i, inp.data);
   }
 
@@ -371,7 +371,9 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
         if (AccessOrder consumer_order = OutputConsumerStream(o))
           ptr->set_order(consumer_order, false);
       }
-      ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), event_, order});
+      if (ptr->is_pinned())
+        ptr->set_ready_event(event_);
+      ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), order});
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
       auto ptr = ws_->OutputPtr<GPUBackend>(o);
@@ -381,7 +383,8 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
           ptr->set_order(consumer_order, false);
         }
       }
-      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event_, order});
+      ptr->set_ready_event(event_);
+      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), order});
     }
   }
 
@@ -424,14 +427,14 @@ PipelineOutput OutputTask::Run() {
   for (int o = 0; o < ws_->NumOutput(); o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
       auto &inp = TaskInput<CPUBackend>(o);
-      if (inp.event)
-        events.insert(inp.event);
+      if (inp.event())
+        events.insert(inp.event());
       ws_->SetOutput(o, inp.data);
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
       auto &inp = TaskInput<GPUBackend>(o);
-      if (inp.event)
-        events.insert(inp.event);
+      if (inp.event())
+        events.insert(inp.event());
       ws_->SetOutput(o, inp.data);
     }
   }
@@ -442,10 +445,16 @@ PipelineOutput OutputTask::Run() {
   for (int o = 0; o < ws_->NumOutput(); o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
       auto &out = ws_->Output<CPUBackend>(o);
-      out.set_order(ws_->output_order(), false);
+      if (out.is_pinned()) {
+        out.set_order(ws_->output_order(), false);
+        out.set_ready_event(event_);
+      } else {
+        assert(out.order() == AccessOrder::host());
+      }
     } else {
       auto &out = ws_->Output<GPUBackend>(o);
       out.set_order(ws_->output_order(), false);
+      out.set_ready_event(event_);
     }
   }
 

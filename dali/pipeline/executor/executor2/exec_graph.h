@@ -25,7 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "dali/pipeline/executor/executor2/shared_event_lease.h"
+#include "dali/core/shared_event_lease.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
