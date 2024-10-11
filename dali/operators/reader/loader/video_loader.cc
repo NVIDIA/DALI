@@ -618,7 +618,7 @@ void VideoLoader::read_file() {
       }
       LOG_LINE << "Decoding not started, seek to preceding key frame, "
                << "current frame " << frame
-               << ", look fir a key frame before " << previous_last_key_frame
+               << ", look for a key frame before " << previous_last_key_frame
                << ", is_key " << key << std::endl;
       seek(file, previous_last_key_frame);
       previous_last_key_frame_updated = false;
