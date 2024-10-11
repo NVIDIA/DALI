@@ -576,7 +576,6 @@ void VideoLoader::read_file() {
   int frames_send = 0;
   VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
 
-  bool seek_before_last_key = false;
   while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
     auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
 
