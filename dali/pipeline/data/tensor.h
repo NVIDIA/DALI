@@ -24,7 +24,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/shared_event_lease.h"
+#include "dali/core/cuda_shared_event.h"
 #include "dali/core/span.h"
 #include "dali/core/traits.h"
 #include "dali/core/tensor_shape.h"
@@ -229,7 +229,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                         const TensorShape<> &shape, DALIDataType type, int device_id,
-                        AccessOrder order = {}, SharedEventLease ready = {}) {
+                        AccessOrder order = {}, CUDASharedEvent ready = {}) {
     Index new_size = volume(shape);
     DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
       "Only empty tensors can be shared without specifying a type.");
@@ -280,7 +280,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
                         DALIDataType type, int device_id, AccessOrder order = {},
-                        SharedEventLease ready = {}) {
+                        CUDASharedEvent ready = {}) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type,
                                device_id, order, std::move(ready));
   }
@@ -307,7 +307,7 @@ class Tensor : public Buffer<Backend> {
    * the dependency on the work that is happening on another device.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, DALIDataType type, int device_id,
-                        AccessOrder order = {}, SharedEventLease ready = {}) {
+                        AccessOrder order = {}, CUDASharedEvent ready = {}) {
     ShareData(ptr, bytes, pinned, { 0 }, type, device_id, order, std::move(ready));
   }
 
@@ -459,19 +459,19 @@ class Tensor : public Buffer<Backend> {
    * This ready event may be shared by multiple tensor lists or tensors. It may also be null.
    * Typical DALI operators don't need to record or wait for this event.
    */
-  const SharedEventLease &ready_event() const {
+  const CUDASharedEvent &ready_event() const {
     return ready_;
   }
 
   /** Sets the shared event handle that marks the readiness of the tensor data. */
-  void set_ready_event(SharedEventLease ready) {
+  void set_ready_event(CUDASharedEvent ready) {
     ready_ = std::move(ready);
   }
 
  protected:
   TensorShape<> shape_ = { 0 };
   DALIMeta meta_;
-  SharedEventLease ready_;
+  CUDASharedEvent ready_;
   USE_BUFFER_MEMBERS();
 
   // So TensorList can access data_ of the tensor directly

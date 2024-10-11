@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_SHARED_EVENT_LEASE_H_
-#define DALI_CORE_SHARED_EVENT_LEASE_H_
+#ifndef DALI_CORE_CUDA_SHARED_EVENT_H_
+#define DALI_CORE_CUDA_SHARED_EVENT_H_
 
-#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
 #include <memory>
 #include <utility>
 #include "dali/core/cuda_event_pool.h"
@@ -23,29 +23,53 @@
 
 namespace dali {
 
-class SharedEventLease {
+/** A reference counting wrapper around cudaEvent_t.
+ *
+ * This class wraps a cudaEvent_t in a shared_ptr-like interface.
+ * Internally it uses a std::shared_ptr to manage the handle.
+ *
+ * The class provides convenience functions for getting the event from CUDAEventPool.
+ */
+class CUDASharedEvent {
  public:
-  SharedEventLease() = default;
-  explicit SharedEventLease(CUDAEvent &&event, int device_id = -1, CUDAEventPool *owner = nullptr) {
-    if (device_id < 0)
-      CUDA_CALL(cudaGetDevice(&device_id));
-    if (!owner)
-      owner = &CUDAEventPool::instance();
-    event_ = std::shared_ptr<void>(event.get(), [device_id, owner](void *e) {
-      owner->Put(CUDAEvent(static_cast<cudaEvent_t>(e)), device_id);
-    });
-    event.release();
+  CUDASharedEvent() = default;
+
+  template <typename EventDeleter>
+  CUDASharedEvent(cudaEvent_t event, EventDeleter &&deleter)
+  : event_{
+    event,
+    [del = std::move(deleter)](void *handle) mutable {
+      del(static_cast<cudaEvent_t>(handle));
+    }} {}
+
+  explicit CUDASharedEvent(CUDAEvent event)
+  : CUDASharedEvent(event.get(), CUDAEvent::DestroyHandle)  {
+    (void)event.release();
   }
 
-  static SharedEventLease Get(CUDAEventPool &pool, int device_id = -1) {
-    if (device_id < 0)
-      CUDA_CALL(cudaGetDevice(&device_id));
-    CUDAEvent event = pool.Get(device_id);
-    return SharedEventLease(std::move(event), device_id, &pool);
+  template <typename EventDeleter>
+  explicit CUDASharedEvent(CUDAEvent event, EventDeleter &&deleter)
+  : CUDASharedEvent(event.get(), std::forward<EventDeleter>(deleter)) {
+    (void)event.release();
   }
 
-  static SharedEventLease Get(int device_id = -1) {
-    return Get(CUDAEventPool::instance(), device_id);
+  static CUDASharedEvent GetFromPool(CUDAEventPool &pool, int device_id = -1) {
+    if (device_id < 0)
+      CUDA_CALL(cudaGetDevice(&device_id));
+    CUDAEvent &&event = pool.Get(device_id);
+    return CUDASharedEvent(
+        std::move(event),
+        [device_id, owner = &pool](void *e) {
+          owner->Put(CUDAEvent(static_cast<cudaEvent_t>(e)), device_id);
+        });
+  }
+
+  static CUDASharedEvent GetFromPool(int device_id = -1) {
+    return GetFromPool(CUDAEventPool::instance(), device_id);
+  }
+
+  static CUDASharedEvent Create(int device_id = -1) {
+    return CUDASharedEvent(CUDAEvent::Create(device_id));
   }
 
   void reset() noexcept {
@@ -68,11 +92,11 @@ class SharedEventLease {
     return get();
   }
 
-  bool operator==(const SharedEventLease &other) const noexcept {
+  bool operator==(const CUDASharedEvent &other) const noexcept {
     return get() == other.get();
   }
 
-  bool operator!=(const SharedEventLease &other) const noexcept {
+  bool operator!=(const CUDASharedEvent &other) const noexcept {
     return get() != other.get();
   }
 
@@ -103,4 +127,4 @@ class SharedEventLease {
 
 }  // namespace dali
 
-#endif  // DALI_CORE_SHARED_EVENT_LEASE_H_
+#endif  // DALI_CORE_CUDA_SHARED_EVENT_H_

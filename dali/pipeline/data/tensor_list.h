@@ -486,7 +486,7 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                             const TensorListShape<> &shape, DALIDataType type, int device_id,
                             AccessOrder order = {}, const TensorLayout &layout = "",
-                            SharedEventLease ready = {});
+                            CUDASharedEvent ready = {});
 
   /**
    * @brief Set other batch as backing memory for this one. Preserves the contiguity status.
@@ -593,12 +593,12 @@ class DLL_PUBLIC TensorList {
    * This ready event may be shared by multiple tensor lists or tensors. It may also be null.
    * Typical DALI operators don't need to record or wait for this event.
    */
-  const SharedEventLease &ready_event() const {
+  const CUDASharedEvent &ready_event() const {
     return ready_;
   }
 
   /** Sets the shared event handle that marks the readiness of the data. */
-  void set_ready_event(SharedEventLease ready) {
+  void set_ready_event(CUDASharedEvent ready) {
     ready_ = std::move(ready);
   }
 
@@ -799,7 +799,7 @@ class DLL_PUBLIC TensorList {
   TensorLayout layout_;
 
   AccessOrder order_ = AccessOrder::host();
-  SharedEventLease ready_;
+  CUDASharedEvent ready_;
 
   // So we can access the members of other TensorLists
   // with different template types

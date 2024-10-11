@@ -971,7 +971,7 @@ template <typename Backend>
 void TensorList<Backend>::ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                                     const TensorListShape<> &shape, DALIDataType type,
                                     int device_id, AccessOrder order, const TensorLayout &layout,
-                                    SharedEventLease ready) {
+                                    CUDASharedEvent ready) {
   contiguous_buffer_.set_backing_allocation(std::move(ptr), bytes, pinned,
                                             type, shape.num_elements(),
                                             device_id, order);

@@ -19,7 +19,7 @@
 #include <utility>
 #include "dali/core/exec/tasking.h"
 #include "dali/core/call_at_exit.h"
-#include "dali/core/shared_event_lease.h"
+#include "dali/core/cuda_shared_event.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 
 namespace dali {
@@ -57,7 +57,7 @@ class ExecNodeTask {
   ExecNode *node_ = nullptr;
   WorkspaceParams ws_params_{};
   std::unique_ptr<Workspace> ws_ = nullptr;
-  SharedEventLease event_;
+  CUDASharedEvent event_;
 
   template <typename Backend>
   struct OperatorIO {

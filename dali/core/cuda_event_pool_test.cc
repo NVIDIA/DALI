@@ -20,7 +20,7 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_stream.h"
-#include "dali/core/shared_event_lease.h"
+#include "dali/core/cuda_shared_event.h"
 
 namespace dali {
 namespace test {
@@ -59,7 +59,7 @@ TEST(EventPoolTest, PutGet) {
     t.join();
 }
 
-TEST(SharedEventLeaseTest, RefCounting) {
+TEST(CUDASharedEventTest, RefCounting) {
   int devices = 0;
   (void)cudaGetDeviceCount(&devices);
   if (devices == 0) {
@@ -67,26 +67,26 @@ TEST(SharedEventLeaseTest, RefCounting) {
     GTEST_SKIP();
   }
 
-  SharedEventLease lease1 = SharedEventLease::Get();
-  SharedEventLease lease2 = SharedEventLease::Get();
-  ASSERT_EQ(lease1, lease1.get()) << "Sanity check failed - object not equal to itself.";
-  ASSERT_NE(lease1.get(), nullptr) << "Sanity check failed - returned null instead of throwing.";
-  ASSERT_NE(lease2.get(), nullptr) << "Sanity check failed - returned null instead of throwing.";
-  ASSERT_NE(lease1, nullptr) << "Sanity check failed - comparison to null broken.";
-  ASSERT_NE(lease1, lease2) << "Sanity check failed - returned the same object twice.";
+  CUDASharedEvent ev1 = CUDASharedEvent::GetFromPool();
+  CUDASharedEvent ev2 = CUDASharedEvent::GetFromPool();
+  ASSERT_EQ(ev1, ev1.get()) << "Sanity check failed - object not equal to itself.";
+  ASSERT_NE(ev1.get(), nullptr) << "Sanity check failed - returned null instead of throwing.";
+  ASSERT_NE(ev2.get(), nullptr) << "Sanity check failed - returned null instead of throwing.";
+  ASSERT_NE(ev1, nullptr) << "Sanity check failed - comparison to null broken.";
+  ASSERT_NE(ev1, ev2) << "Sanity check failed - returned the same object twice.";
 
-  EXPECT_EQ(lease1.use_count(), 1);
-  EXPECT_EQ(lease2.use_count(), 1);
-  SharedEventLease lease3 = lease1;
-  EXPECT_EQ(lease1, lease3);
-  EXPECT_EQ(lease1.use_count(), 2);
-  EXPECT_EQ(lease3.use_count(), 2);
-  lease1.reset();
-  EXPECT_EQ(lease1.use_count(), 0);
-  EXPECT_EQ(lease3.use_count(), 1);
+  EXPECT_EQ(ev1.use_count(), 1);
+  EXPECT_EQ(ev2.use_count(), 1);
+  CUDASharedEvent ev3 = ev1;
+  EXPECT_EQ(ev1, ev3);
+  EXPECT_EQ(ev1.use_count(), 2);
+  EXPECT_EQ(ev3.use_count(), 2);
+  ev1.reset();
+  EXPECT_EQ(ev1.use_count(), 0);
+  EXPECT_EQ(ev3.use_count(), 1);
 }
 
-TEST(SharedEventLeaseTest, ReturnToPool) {
+TEST(CUDASharedEventTest, ReturnToPool) {
   int devices = 0;
   (void)cudaGetDeviceCount(&devices);
   if (devices == 0) {
@@ -96,15 +96,15 @@ TEST(SharedEventLeaseTest, ReturnToPool) {
 
   CUDAEventPool pool;
 
-  SharedEventLease lease1 = SharedEventLease::Get(pool);
-  EXPECT_NE(lease1, nullptr);
-  cudaEvent_t orig = lease1.get();
-  lease1.reset();
-  EXPECT_EQ(lease1, nullptr);
-  SharedEventLease lease2 = SharedEventLease::Get(pool);
-  EXPECT_EQ(lease2.get(), orig) << "Should have got the sole event from the pool";
-  lease1 = SharedEventLease::Get(pool);
-  EXPECT_NE(lease1, lease2);
+  CUDASharedEvent ev1 = CUDASharedEvent::GetFromPool(pool);
+  EXPECT_NE(ev1, nullptr);
+  cudaEvent_t orig = ev1.get();
+  ev1.reset();
+  EXPECT_EQ(ev1, nullptr);
+  CUDASharedEvent ev2 = CUDASharedEvent::GetFromPool(pool);
+  EXPECT_EQ(ev2.get(), orig) << "Should have got the sole event from the pool";
+  ev1 = CUDASharedEvent::GetFromPool(pool);
+  EXPECT_NE(ev1, ev2);
 }
 
 }  // namespace test
