@@ -450,7 +450,7 @@ DLDevice GetDLDevice(const Tensor<Backend> &tensor) {
 
 template <typename Backend>
 DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
-                         std::optional<uintptr_t> stream_handle_value,
+                         std::optional<intptr_t> stream_handle_value,
                          std::optional<std::pair<DLDeviceType, int>> dl_device) {
   DLDevice dev;
 
@@ -460,11 +460,16 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
     dev = GetDLDevice(tensor);
 
   if (dev.device_type == kDLCUDA) {
-    cudaStream_t stream = cudaStreamLegacy;
+    AccessOrder target_order = cudaStreamLegacy;
     if (stream_handle_value.has_value()) {
-      stream = cudaStream_t(*stream_handle_value);
-      if (stream == 0)
-        throw std::invalid_argument("Stream 0 is explicitly forbidden by DLPack protocol");
+      if (*stream_handle_value == -1) {
+        target_order = AccessOrder{};
+      } else {
+        cudaStream_t stream = cudaStream_t(*stream_handle_value);
+        if (stream == 0)
+          throw std::invalid_argument("Stream 0 is explicitly forbidden by DLPack protocol");
+        target_order = AccessOrder(stream, dev.device_id);
+      }
     }
 
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
@@ -475,10 +480,12 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
       throw std::runtime_error(make_string("Requested a DLPack tensor for GPU_", dev.device_id,
         "while the tensor resides in GPU_", tensor.device_id(), " memory."));
 
-    if (tensor.ready_event()) {
-      AccessOrder(stream, dev.device_id).wait(tensor.ready_event());
-    } else {
-      AccessOrder(stream, dev.device_id).wait(tensor.order());
+    if (target_order) {
+      if (tensor.ready_event()) {
+        target_order.wait(tensor.ready_event());
+      } else {
+        target_order.wait(tensor.order());
+      }
     }
     return GetSharedDLTensor(tensor);
   } else if (dev.device_type == kDLCPU || dev.device_id == kDLCUDAHost) {
@@ -509,9 +516,12 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
 
 template <typename Backend>
 py::capsule ToDLPack(Tensor<Backend> &tensor,
-                     std::optional<uintptr_t> stream,
+                     std::optional<intptr_t> stream,
                      std::optional<std::pair<DLDeviceType, int>> dl_device) {
-  return DLTensorToCapsule(ToDLMTensor(tensor, stream, dl_device));
+  return DLTensorToCapsule([&]() {
+    py::gil_scoped_release interpreter_unlock{};
+    return ToDLMTensor(tensor, stream, dl_device);
+  }());
 }
 
 /**
@@ -779,9 +789,7 @@ void ExposeTensor(py::module &m) {
     .def(
       "__dlpack__", ToDLPack<GPUBackend>,
       "stream"_a = py::none(),
-      // "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
-      // "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
@@ -930,7 +938,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto &sample_shared_ptr = unsafe_sample_owner(t, id);
   ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type(),
-                 t.device_id(), t.order());
+                 t.device_id(), t.order(), t.ready_event());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
 }
@@ -1871,6 +1879,27 @@ PYBIND11_MODULE(backend_impl, m) {
   py::module types_m = m.def_submodule("types");
   types_m.doc() = "Datatypes and options used by DALI";
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
+
+  py::enum_<DLDeviceType> dl_device_type(
+    m, "DLDeviceType", "DLPack device type");
+
+  #define DL_DEVICE_TYPE(x) dl_device_type.value(#x, x)
+
+  DL_DEVICE_TYPE(kDLCPU);
+  DL_DEVICE_TYPE(kDLCUDA);
+  DL_DEVICE_TYPE(kDLCUDAHost);
+  DL_DEVICE_TYPE(kDLOpenCL);
+  DL_DEVICE_TYPE(kDLVulkan);
+  DL_DEVICE_TYPE(kDLMetal);
+  DL_DEVICE_TYPE(kDLVPI);
+  DL_DEVICE_TYPE(kDLROCM);
+  DL_DEVICE_TYPE(kDLROCMHost);
+  DL_DEVICE_TYPE(kDLExtDev);
+  DL_DEVICE_TYPE(kDLCUDAManaged);
+  DL_DEVICE_TYPE(kDLOneAPI);
+  DL_DEVICE_TYPE(kDLWebGPU);
+  DL_DEVICE_TYPE(kDLHexagon);
+  DL_DEVICE_TYPE(kDLMAIA);
 
   // DALIDataType
   py::enum_<DALIDataType> dali_data_type(
