@@ -30,7 +30,7 @@ OpNode &OpGraph::AddOp(std::string instance_name, OpSpec spec) {
   std::string device;
   if (spec.TryGetArgument(device, "device"))
     type = ParseOpType(device);
-  bool preserve = spec.GetArgument<bool>("preserve");
+  bool preserve = spec.GetArgument<bool>("preserve") || spec.GetSchemaOrDefault().IsNoPrune();
   auto &op_node = tmp.emplace_back(std::move(instance_name), type, std::move(spec));
   if (!name2op_.emplace(op_node.instance_name, &op_node).second) {
     throw std::invalid_argument(

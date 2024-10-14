@@ -336,6 +336,52 @@ TEST(TaskingTest, MultiOutputTuple) {
   EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
 }
 
+TEST(TaskingTest, ZeroResults) {
+  Executor ex(4);
+  ex.Start();
+  auto producer1 = Task::Create(0, []() {
+    return std::tuple<>();
+  });
+  auto producer2 = Task::Create(0, []() {
+    return std::vector<std::any>();
+  });
+
+  auto consumer = Task::Create([]() { });
+  consumer->Succeed(producer1);
+  consumer->Succeed(producer2);
+
+  ex.AddSilentTask(producer1);
+  ex.AddSilentTask(producer2);
+  auto fut = ex.AddTask(consumer);
+  EXPECT_NO_THROW(fut.Value<void>());
+}
+
+TEST(TaskingTest, ZeroResultsThrow) {
+  Executor ex(4);
+  ex.Start();
+  auto producer1 = Task::Create(0, []() {
+    return std::tuple<>();
+  });
+  class MyError {};
+  auto producer2 = Task::Create(0, []() {
+    throw MyError();
+    return std::tuple<>();
+  });
+
+  auto consumer = Task::Create([](Task *t) {
+    t->GetInputValue<void>(0);
+    t->GetInputValue<void>(1);
+  });
+  consumer->Subscribe(producer1);
+  consumer->Subscribe(producer2);
+
+  ex.AddSilentTask(producer1);
+  ex.AddSilentTask(producer2);
+  auto fut = ex.AddTask(consumer);
+  EXPECT_THROW(fut.Value<void>(), MyError);
+}
+
+
 namespace {
 
 template <typename T>

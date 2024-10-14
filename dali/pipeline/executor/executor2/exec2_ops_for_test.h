@@ -141,6 +141,42 @@ class CounterOp : public Operator<CPUBackend> {
   int counter = 0;
 };
 
+constexpr char kSinkOpName[] = "Exec2Sink";
+
+/** A non-prunable operator without outputs.
+ *
+ * This accumulates the sum of input values in a member variable.
+ */
+class SinkOp : public Operator<CPUBackend> {
+ public:
+  explicit SinkOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
+    outs.clear();
+    return true;
+  }
+
+  void RunImpl(Workspace &ws) override {
+    for (int ii = 0; ii < ws.NumInput(); ii++) {
+      auto &input = ws.Input<CPUBackend>(ii);
+      int N = input.num_samples();
+      for (int i = 0; i < N; i++) {
+        const auto &sample = input[i];
+        const int *data = sample.data<int>();
+        int64_t vol = sample.shape().num_elements();
+        for (int64_t j = 0; j < vol; j++) {
+          acc += data[j];
+        }
+      }
+    }
+  }
+
+  bool CanInferOutputs() const override { return true; }
+
+  int64_t acc = 0;
+};
+
 }  // namespace test
 }  // namespace exec2
 }  // namespace dali
