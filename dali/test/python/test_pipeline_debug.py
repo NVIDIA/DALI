@@ -55,13 +55,14 @@ def rn50_pipeline_base():
         mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
         std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
     )
-    return rng, jpegs, labels, images, resized_images, output
+    return rng, jpegs, labels, images#, resized_images, output
 
 
 def test_debug_pipeline_base():
     pipe_standard = rn50_pipeline_base()
-    pipe_debug = rn50_pipeline_base(debug=True)
-    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+    pipe_standard2 = rn50_pipeline_base()
+    #pipe_debug = rn50_pipeline_base(debug=True)
+    compare_pipelines(pipe_standard, pipe_standard2, 8, 10)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)

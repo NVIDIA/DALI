@@ -441,12 +441,77 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
 }
 
 template <typename Backend>
-py::capsule ToDLPack(Tensor<Backend> &backend,
-                     std::optional<uintptr_t> stream,
-                     std::optional<std::pair<int, int>> max_version,
-                     std::optional<std::pair<int, int>> dl_device,
-                     std::optional<bool> copy) {
+DLDevice GetDLDevice(const Tensor<Backend> &tensor) {
+  if constexpr (std::is_same_v<Backend, GPUBackend>)
+    return { kDLCUDA, tensor.device_id() };
+  else
+    return { tensor.is_pinned() ? kDLCUDAHost : kDLCPU };
+}
 
+template <typename Backend>
+DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
+                         std::optional<uintptr_t> stream_handle_value,
+                         std::optional<std::pair<DLDeviceType, int>> dl_device) {
+  DLDevice dev;
+
+  if (dl_device.has_value())
+    dev = { dl_device->first, dl_device->second };
+  else
+    dev = GetDLDevice(tensor);
+
+  if (dev.device_type == kDLCUDA) {
+    cudaStream_t stream = cudaStreamLegacy;
+    if (stream_handle_value.has_value()) {
+      stream = cudaStream_t(*stream_handle_value);
+      if (stream == 0)
+        throw std::invalid_argument("Stream 0 is explicitly forbidden by DLPack protocol");
+    }
+
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      throw std::runtime_error(
+          "The tensor is in CPU memory and a CUDA DLPack tensor was requested");
+    }
+    if (dev.device_id != tensor.device_id())
+      throw std::runtime_error(make_string("Requested a DLPack tensor for GPU_", dev.device_id,
+        "while the tensor resides in GPU_", tensor.device_id(), " memory."));
+
+    if (tensor.ready_event()) {
+      AccessOrder(stream, dev.device_id).wait(tensor.ready_event());
+    } else {
+      AccessOrder(stream, dev.device_id).wait(tensor.order());
+    }
+    return GetSharedDLTensor(tensor);
+  } else if (dev.device_type == kDLCPU || dev.device_id == kDLCUDAHost) {
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      throw std::runtime_error(
+          "The tensor is in CUDA GPU memory and a CPU DLPack tensor was requested");
+    }
+
+    if (dev.device_type == kDLCUDAHost && !tensor.is_pinned())
+      throw std::runtime_error(
+          "A CUDA host (pinned) DLPack was requested, but the tensor buffer is not pinned.");
+
+    if (tensor.is_pinned() && tensor.ready_event()) {
+      // DLPack doesn't support stream-ordered CUDA host tensors
+      AccessOrder::host().wait(tensor.ready_event());
+    }
+
+    DLMTensorPtr dlm_tensor = GetSharedDLTensor(tensor);
+    // Set the device type to the desired one - if the original tensor was pinned, we can
+    // downgrade it to regular host memory.
+    dlm_tensor->dl_tensor.device = dev;
+    return dlm_tensor;
+  } else {
+    throw std::runtime_error(make_string(
+      "An unsupported DLPack device was requested: ", static_cast<int>(dev.device_type)));
+  }
+}
+
+template <typename Backend>
+py::capsule ToDLPack(Tensor<Backend> &tensor,
+                     std::optional<uintptr_t> stream,
+                     std::optional<std::pair<DLDeviceType, int>> dl_device) {
+  return DLTensorToCapsule(ToDLMTensor(tensor, stream, dl_device));
 }
 
 /**
@@ -502,11 +567,14 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
+      "__dlpack_device__", [](const Tensor<CPUBackend> &tensor) {
+        auto dev = GetDLDevice(tensor);
+        return std::make_tuple(dev.device_type, dev.device_id);
+      })
+    .def(
       "__dlpack__", ToDLPack<CPUBackend>,
       "stream"_a = py::none(),
-      "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
-      "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
@@ -704,11 +772,16 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
+      "__dlpack_device__", [](const Tensor<GPUBackend> &tensor) {
+        auto dev = GetDLDevice(tensor);
+        return std::make_tuple(dev.device_type, dev.device_id);
+      })
+    .def(
       "__dlpack__", ToDLPack<GPUBackend>,
       "stream"_a = py::none(),
-      "max_version"_a = py::none(),
+      // "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
-      "copy"_a = py::none(),
+      // "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
