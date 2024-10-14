@@ -67,7 +67,7 @@ The resulting type is calculated in accordance to the table below.
 
 ``T`` stands for any one of the supported numerical types:
 ``bool``, ``int8``, ``int16``, ``int32``, ``int64``, ``uint8``, ``uint16``,
-``uint32``, ``uint64``, ``float32``, and ``float64``.
+``uint32``, ``uint64``, ``float16``, ``float32``, and ``float64``.
 
 ``bool`` type is considered the smallest unsigned integer type and is treated as ``uint1``
 with respect to the table above.

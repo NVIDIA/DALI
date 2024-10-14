@@ -92,8 +92,7 @@ integer_types = [
     np.uint64,
 ]
 
-# float16 is marked as TODO in backend for gpu
-float_types = [np.float32, np.float64]
+float_types = [np.float16, np.float32, np.float64]
 
 input_types = integer_types + float_types
 
@@ -712,8 +711,10 @@ def check_comparsion_op(kinds, types, op, shape, _):
     )
     pipe.build()
     pipe_out = pipe.run()
+    np.set_printoptions(formatter={'float':lambda x:float(x).hex()})
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
+        print(f"L {l_np.dtype}={l_np},\n\nR {r_np.dtype}={r_np},\n\nOut {out.dtype}={out},\n\nnp_out={op(l_np, r_np)},\n\nOP:{_}")
         assert_equals(out.dtype, np.bool_)
         np.testing.assert_array_equal(out, op(l_np, r_np), err_msg=f"{l_np} op\n{r_np} =\n{out}")
 
