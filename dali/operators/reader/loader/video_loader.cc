@@ -564,6 +564,8 @@ void VideoLoader::read_file() {
 
   bool is_first_frame = true;
   int last_key_frame = -1;
+  int previous_last_key_frame = -1;
+  bool previous_last_key_frame_updated = false;
   bool key = false;
   bool seek_must_succeed = false;
   // how many key frames following the last requested frames we saw so far
@@ -607,11 +609,19 @@ void VideoLoader::read_file() {
                     "already 0");
         }
 
+      if (previous_last_key_frame < 0) {
+        previous_last_key_frame = last_key_frame - 1;
+        previous_last_key_frame_updated = true;
+      }
+      if (previous_last_key_frame_updated == false) {
+        --previous_last_key_frame;
+      }
       LOG_LINE << "Decoding not started, seek to preceding key frame, "
-                << "current frame " << frame
-                << ", last key frame " << last_key_frame
-                << ", is_key " << key << std::endl;
-      seek(file, last_key_frame - 1);
+               << "current frame " << frame
+               << ", look for a key frame before " << previous_last_key_frame
+               << ", is_key " << key << std::endl;
+      seek(file, previous_last_key_frame);
+      previous_last_key_frame_updated = false;
       frames_send = 0;
       last_key_frame = -1;
       continue;
@@ -619,6 +629,10 @@ void VideoLoader::read_file() {
 
     if (key) {
       last_key_frame = frame;
+      if (frame < previous_last_key_frame) {
+        previous_last_key_frame = frame;
+        previous_last_key_frame_updated = true;
+      }
     }
 
     int pkt_frames = 1;
