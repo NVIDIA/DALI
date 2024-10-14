@@ -284,8 +284,10 @@ void OpTask::SetWorkspaceInputs() {
     if (!is_meta && inp.event() && inp.order != order)
       events.insert(inp.event());
 
-    // metadata-only inputs don't need a proper stream
-    if (inp.order == order || is_meta) {  // use the input directly
+    bool is_plain_host = std::is_same_v<Backend, CPUBackend> && !inp.data->is_pinned();
+
+    // metadata-only inputs && non-pinned host inputs don't need a proper stream
+    if (inp.order == order || is_meta || is_plain_host) {  // use the input directly
       ws_->SetInput(i, inp.data);
     } else {  // create another TL and set its order (and layout, while we're at it)
       auto tl = std::make_shared<TensorList<Backend>>();
@@ -367,12 +369,14 @@ OpTask::OpTaskOutputs OpTask::GetWorkspaceOutputs() {
       // The consumer stream will be properly synchronized in SetWorkspaceInputs.
       // This is done to facilitate freeing of memory - if we're able to transfer the
       // object to the consumption stream, it'll be freed in consumption order.
-      if (!ptr->shares_data()) {
-        if (AccessOrder consumer_order = OutputConsumerStream(o))
-          ptr->set_order(consumer_order, false);
-      }
-      if (ptr->is_pinned())
+      if (ptr->is_pinned()) {
+        if (!ptr->shares_data()) {
+          if (AccessOrder consumer_order = OutputConsumerStream(o)) {
+            ptr->set_order(consumer_order, false);
+          }
+        }
         ptr->set_ready_event(event_);
+      }
       ret.push_back(OperatorIO<CPUBackend>{std::move(ptr), order});
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
