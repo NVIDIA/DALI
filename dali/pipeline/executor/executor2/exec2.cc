@@ -136,7 +136,7 @@ class Executor2::Impl {
     }
   }
 
-  Workspace PopOutputs(AccessOrder output_order) {
+  Workspace PopOutputs(AccessOrder output_order, bool set_output_order) {
     if (pending_outputs_.empty())
       throw std::out_of_range("All pending outputs were already popped.");
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
@@ -160,7 +160,8 @@ class Executor2::Impl {
         } else {
           assert(ws.OutputIsType<CPUBackend>(i));
           auto &out = ws.Output<CPUBackend>(i);
-          if (out.order().is_device())
+          if (set_output_order && output_order.has_value() &&
+            out.order().is_device() && out.is_pinned())
             out.set_order(output_order, false);
         }
       }
@@ -433,7 +434,7 @@ void Executor2::Prefetch() {
 
 
 void Executor2::Outputs(Workspace *ws) {
-  *ws = impl_->PopOutputs(ws->output_order());
+  *ws = impl_->PopOutputs(ws->output_order(), false);
 }
 
 void Executor2::ShareOutputs(Workspace *ws) {
