@@ -31,6 +31,11 @@ class StreamAssignmentDummyOp : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
   void RunImpl(Workspace &ws) override {}
+
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

@@ -79,7 +79,6 @@ class MFCC : public StatelessOperator<Backend> {
       : StatelessOperator<Backend>(spec) {}
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

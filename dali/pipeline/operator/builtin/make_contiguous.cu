@@ -39,7 +39,7 @@ void MakeContiguousMixed::RunImpl(Workspace &ws) {
   if (ws.OutputIsType<CPUBackend>(0)) {
     auto &output = ws.Output<CPUBackend>(0);
     DomainTimeRange tr("[DALI][MakeContiguousMixed] H2H non coalesced", DomainTimeRange::kGreen);
-    if (IsPassThrough()) {
+    if (pass_through_) {
       AccessOrder out_order = output.order();
       // A call to ShareData may synchronize the orders and we don't want that.
       // TODO(michalz): Find a less hacky solution.
@@ -70,7 +70,7 @@ void MakeContiguousGPU::RunImpl(Workspace &ws) {
   const auto& input = ws.Input<GPUBackend>(0);
   auto& output = ws.Output<GPUBackend>(0);
   DomainTimeRange tr("[DALI][MakeContiguousGPU] D2D", DomainTimeRange::kGreen);
-  if (IsPassThrough()) {
+  if (pass_through_) {
     output.ShareData(input);
   } else {
     output.Copy(input);

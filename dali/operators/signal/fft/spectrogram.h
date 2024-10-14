@@ -32,8 +32,6 @@ class DLL_PUBLIC Spectrogram : public StatelessOperator<Backend> {
   DLL_PUBLIC ~Spectrogram() override = default;
 
  protected:
-  bool CanInferOutputs() const override { return true; }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     assert(impl_ != nullptr);
     return impl_->SetupImpl(output_desc, ws);

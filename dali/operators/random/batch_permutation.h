@@ -34,7 +34,6 @@ class BatchPermutation : public rng::OperatorWithRng<CPUBackend, false> {
     return true;
   }
   void RunImpl(Workspace &ws) override;
-  bool CanInferOutputs() const override { return true; }
  private:
   void NoRepetitions(int N);
   void WithRepetitions(int N);

@@ -495,10 +495,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
       DALI_ENFORCE(
           static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
           "Operator::Setup returned shape and type information for mismatched number of outputs");
-      DALI_ENFORCE(op.CanInferOutputs(),
-                    "Operator::Setup returned true indicating that it successfully calculated "
-                    "shape and type information for Operator outputs. In that case "
-                    "CanInferOutputs should always return true.");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
         if (ws.OutputIsType<CPUBackend>(i)) {
@@ -507,11 +503,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
           ws.Output<GPUBackend>(i).Resize(desc.shape, desc.type);
         }
       }
-    } else {
-      DALI_ENFORCE(!op.CanInferOutputs(),
-                    "Operator::Setup returned false indicating that it cannot calculate shape and "
-                    "type information for Operator outputs. In that case CanInferOutputs should "
-                    "always return false.");
     }
   }
 

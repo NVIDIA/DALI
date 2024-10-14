@@ -36,7 +36,7 @@ class Merge : public StatelessOperator<Backend> {
 
   ~Merge() override = default;
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return false;
   }
 

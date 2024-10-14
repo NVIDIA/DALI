@@ -46,11 +46,6 @@ class Remap : public SequenceOperator<Backend, StatelessOperator> {
   DISABLE_COPY_MOVE_ASSIGN(Remap);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.template Input<Backend>(0);
 

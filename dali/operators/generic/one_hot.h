@@ -76,10 +76,6 @@ class OneHot : public StatelessOperator<Backend> {
   USE_OPERATOR_MEMBERS();
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     int input_sample_dim = input.shape().sample_dim();

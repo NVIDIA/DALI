@@ -149,6 +149,10 @@ class JaxFunction : public StatelessOperator<Backend> {
     python_function_.release();
   }
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

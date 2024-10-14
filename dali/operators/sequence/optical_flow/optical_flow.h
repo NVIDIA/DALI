@@ -133,10 +133,6 @@ class OpticalFlow : public StatelessOperator<Backend> {
 
   void RunImpl(Workspace &ws) override;
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
  private:
   /**
    * Optical flow lazy initialization

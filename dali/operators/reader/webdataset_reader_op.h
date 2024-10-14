@@ -32,7 +32,7 @@ class DLL_PUBLIC WebdatasetReader
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace&) override;
   void RunImpl(Workspace &ws) override;
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return true;
   }
 

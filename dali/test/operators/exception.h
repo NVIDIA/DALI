@@ -38,6 +38,10 @@ class ThrowExceptionOp : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

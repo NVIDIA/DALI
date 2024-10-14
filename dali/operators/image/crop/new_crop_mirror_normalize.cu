@@ -325,10 +325,6 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
     RunSliceHwc2HwcChwNormalize(ws);
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
 
   /**
    * @brief Compute the 2D ROI for given sample_idx, crop_attr_ must be update first.

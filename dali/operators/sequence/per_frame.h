@@ -33,9 +33,8 @@ class PerFrame : public StatelessOperator<Backend> {
       : StatelessOperator<Backend>(spec), replace_(spec.GetArgument<bool>("replace")) {}
 
  protected:
-  bool CanInferOutputs() const override {
-    // Return false to prevent executor from allocating memory for the output,
-    // even though the output shape could be inferred, as it is same as input
+  bool HasContiguousOutputs() const override {
+    // This operator creates more samples by replicating existing ones.
     return false;
   }
 

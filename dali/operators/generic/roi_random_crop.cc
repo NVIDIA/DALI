@@ -71,7 +71,6 @@ bounds of the input.
 class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
  public:
   explicit ROIRandomCropCPU(const OpSpec &spec);
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

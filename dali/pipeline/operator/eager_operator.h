@@ -307,7 +307,7 @@ EagerOperator<Backend>::RunImpl(
   ws_.SetBatchSizes(batch_size);
 
   // Setup outputs.
-  if (op_->Setup(output_desc, ws_) && op_->CanInferOutputs()) {
+  if (op_->Setup(output_desc, ws_)) {
     for (size_t i = 0; i < num_outputs_; ++i) {
       ws_.Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type,
                                                 BatchContiguity::Contiguous);

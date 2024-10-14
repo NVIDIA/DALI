@@ -143,10 +143,6 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     }
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
     output_desc.resize(1);

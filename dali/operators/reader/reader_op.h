@@ -174,6 +174,10 @@ class DataReader : public Operator<Backend> {
     }
   }
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();

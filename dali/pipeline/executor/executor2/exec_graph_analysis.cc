@@ -20,6 +20,7 @@
 #include <vector>
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/operator/builtin/make_contiguous.h"
 
 namespace dali {
 namespace exec2 {
@@ -44,6 +45,13 @@ class ExecGraph::Analyzer {
       if (n.is_pipeline_output)
         continue;
       SetPinnedInputs(&n);
+    }
+  }
+
+  void SetMakeContiguousMode(ExecGraph &g) {
+    for (auto &node : g.Nodes()) {
+      if (node.op)
+        dali::SetMakeContiguousMode(*node.op, MakeContiguousMode::Opportunistic);
     }
   }
 
@@ -191,6 +199,7 @@ void ExecGraph::Analyze() {
   if (analyzed_)
     return;
   Analyzer a;
+  a.SetMakeContiguousMode(*this);
   a.MarkPinnedBuffers(*this);
   a.MarkOutputsWithParallelConsumers(*this);
   analyzed_ = true;

@@ -37,10 +37,6 @@ class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
       }
     }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   void ValidateInput(const dali::Workspace &ws) {
     const auto &input = ws.Input<dali::CPUBackend>(0);
     DALI_ENFORCE(input.type() == dali::DALI_UINT8,

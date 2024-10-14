@@ -50,10 +50,6 @@ class GaussianBlur : public SequenceOperator<Backend, StatelessOperator> {
   DISABLE_COPY_MOVE_ASSIGN(GaussianBlur);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool ShouldExpandChannels(int input_idx) const override {
     (void)input_idx;
     return true;

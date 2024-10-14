@@ -481,7 +481,7 @@ bool OpGraph::IsAlwaysContiguous(TensorNodeId tensor_id) const {
 
   // If the input is inferred, the allocation is done by executor in contiguous fashion
   // this means we can just pass through the data instead of copying them.
-  bool is_input_always_contiguous = producer_op_node.op->CanInferOutputs();
+  bool is_input_always_contiguous = producer_op_node.op->HasContiguousOutputs();
   if (is_input_always_contiguous) {
     return true;
   }

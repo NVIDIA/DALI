@@ -40,10 +40,6 @@ class Flip: public StatelessOperator<Backend> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   void RunImpl(legacy_workspace_t<Backend> &ws) override;
 
   int GetHorizontal(const ArgumentWorkspace &ws, int idx) {

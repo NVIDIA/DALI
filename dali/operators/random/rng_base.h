@@ -154,10 +154,6 @@ class RNGBase : public OperatorWithRng<Backend> {
 
   /** @} */  // end of RngCRTP
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   int GetBatchSize(const Workspace &ws) const {
     if (spec_.NumRegularInput() == 1)
       return ws.Input<Backend>(0).shape().size();

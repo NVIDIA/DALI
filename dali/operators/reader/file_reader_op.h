@@ -35,7 +35,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     this->SetInitialSnapshot();
   }
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return true;
   }
 

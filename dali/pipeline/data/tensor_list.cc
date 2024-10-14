@@ -1047,7 +1047,26 @@ void TensorList<Backend>::resize_tensors(int new_size) {
 
 template <typename Backend>
 void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
+  if (contiguous) {
+    bool is_really_contiguous = true;
+
+    const uint8_t *base_ptr = static_cast<const uint8_t *>(contiguous_buffer_.raw_data());
+    size_t size = type_info().size();
+
+    for (int i = 0; i < num_samples(); ++i) {
+      if (tensors_[i].raw_data() == nullptr)
+        if (shape_[i].num_elements() > 0)
+          throw std::logic_error("Internal error: non-empty sample has a null data pointer.");
+      if (base_ptr != tensors_[i].raw_data()) {
+        is_really_contiguous = false;
+        break;
+      }
+      base_ptr += shape_[i].num_elements() * size;
+    }
+    DALI_ENFORCE(is_really_contiguous, "The tensor list isn't really contiguous as claimed.");
+  }
   state_.Update(contiguous ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous);
+
   // assume that the curr_num_tensors_ is valid
   DALI_ENFORCE(curr_num_tensors_ > 0,
                "Unexpected empty output of per-sample operator. Internal DALI error.");

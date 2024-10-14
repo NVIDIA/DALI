@@ -34,6 +34,10 @@ class DummyOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

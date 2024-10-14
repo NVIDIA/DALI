@@ -36,6 +36,10 @@ class BBoxPaste : public StatelessOperator<Backend> {
  protected:
   bool use_ltrb_ = false;
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

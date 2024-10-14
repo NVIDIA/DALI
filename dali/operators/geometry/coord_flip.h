@@ -35,10 +35,6 @@ class CoordFlip : public StatelessOperator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(CoordFlip);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALI_ENFORCE(input.type() == DALI_FLOAT, "Input is expected to be float");

@@ -38,10 +38,6 @@ class BbFlip : public StatelessOperator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(BbFlip);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALI_ENFORCE(input.type() == DALI_FLOAT, "Bounding box in wrong format");

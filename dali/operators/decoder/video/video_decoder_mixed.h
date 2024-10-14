@@ -38,10 +38,6 @@ class VideoDecoderMixed
                  "mixed video decoder") {}
 
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
 
   void RunImpl(Workspace &ws) override;
 

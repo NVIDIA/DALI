@@ -99,9 +99,12 @@ class DLL_PUBLIC OperatorBase {
   /**
    * @brief Setup of the operator - to be implemented by derived op.
    *
+   * In the setup stage, the operator can determine the shapes and types of the outputs.
+   * If it does, it can request that the executor allocates the output buffers for it.
+   *
    * @param output_desc describe the shape and type of the outputs (for the whole batch)
    * @param ws
-   * @return true iff the operator specified the output shape and type
+   * @return Whtether the caller should provide buffers for the outputs.
    */
   virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 
@@ -112,11 +115,10 @@ class DLL_PUBLIC OperatorBase {
   virtual void RunImpl(Workspace &ws) = 0;
 
   /**
-   * @brief If Operator can infer the output shapes it means that its output would use a single
-   * underlying allocation, especially for CPU TensorList will use contiguous mode.
+   * @brief If true (default), the operator's output will be stored
    */
-  virtual bool CanInferOutputs() const {
-    return false;
+  virtual bool HasContiguousOutputs() const {
+    return true;
   }
 
   /**
@@ -298,7 +300,7 @@ class DLL_PUBLIC Operator<CPUBackend> : public OperatorBase {
     thread_pool.RunAll();
     // Propagate metadata from individual samples to the whole batch as working with SampleWorkspace
     // breaks metadata consistency - it sets it only to samples
-    FixBatchPropertiesConsistency(ws, CanInferOutputs());
+    FixBatchPropertiesConsistency(ws, HasContiguousOutputs());
   }
 };
 

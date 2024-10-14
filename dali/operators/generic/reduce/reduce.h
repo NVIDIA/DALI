@@ -44,7 +44,6 @@ class Reduce : public StatelessOperator<Backend>, AxesHelper {
     spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   inline ~Reduce() override = default;
 

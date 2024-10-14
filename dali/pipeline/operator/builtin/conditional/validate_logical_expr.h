@@ -38,7 +38,7 @@ class LogicalValidate : public StatelessOperator<CPUBackend> {
 
   ~LogicalValidate() override = default;
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return false;
   }
 
@@ -65,6 +65,10 @@ class LogicalFailForGpu : public StatelessOperator<GPUBackend> {
         name_(spec.GetArgument<std::string>("expression_name")),
         side_(spec.GetArgument<std::string>("expression_side")) {
     ReportGpuInputError(name_, side_, true);
+  }
+
+  bool HasContiguousOutputs() const override {
+    return false;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

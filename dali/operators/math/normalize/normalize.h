@@ -76,7 +76,6 @@ class NormalizeBase : public StatelessOperator<Backend> {
   const Normalize<Backend> &This() const noexcept
   { return static_cast<const Normalize<Backend>&>(*this); }
 
-  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);

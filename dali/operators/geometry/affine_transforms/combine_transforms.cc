@@ -58,7 +58,6 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend, StatelessOperat
       reverse_order_(spec.GetArgument<bool>("reverse_order")) {
   }
 
-  bool CanInferOutputs() const override { return true; }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_descs,

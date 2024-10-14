@@ -82,10 +82,6 @@ class SliceBase : public StatelessOperator<Backend> {
    */
   virtual void ProcessCroppingAttrs(const OpSpec &spec, const Workspace &ws) = 0;
   virtual const CropWindowGenerator &GetCropWindowGenerator(std::size_t data_idx) const = 0;
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

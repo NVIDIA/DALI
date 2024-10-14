@@ -182,10 +182,6 @@ class Filter : public SequenceOperator<Backend, StatelessOperator> {
   DISABLE_COPY_MOVE_ASSIGN(Filter);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool ShouldExpand(const Workspace& ws) override {
     const auto& input_layout = ws.GetInputLayout(0);
     int frame_idx = VideoLayoutInfo::FrameDimIndex(input_layout);

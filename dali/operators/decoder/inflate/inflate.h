@@ -76,10 +76,6 @@ class Inflate : public StatelessOperator<Backend> {
       : StatelessOperator<Backend>(spec),
         alg_{inflate::parse_inflate_alg(spec.GetArgument<std::string>(inflate::algArgName))} {}
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
  protected:
   void SetupOpImpl();
 

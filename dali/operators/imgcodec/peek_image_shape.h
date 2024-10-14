@@ -33,8 +33,6 @@ class ImgcodecPeekImageShape : public StatelessOperator<CPUBackend> {
 
   explicit ImgcodecPeekImageShape(const OpSpec &spec);
 
-  bool CanInferOutputs() const override;
-
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

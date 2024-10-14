@@ -83,10 +83,6 @@ class ElementExtract : public StatelessOperator<Backend> {
   }
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     output_desc.resize(element_map_.size());

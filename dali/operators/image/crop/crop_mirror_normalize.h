@@ -118,10 +118,6 @@ class CropMirrorNormalize : public StatelessOperator<Backend> {
 
   void RunImpl(Workspace &ws) override;
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   void ProcessNormArgs(int sample_idx) {
     span<const float> mean_arg(mean_arg_[sample_idx].data, mean_arg_[sample_idx].num_elements());
     span<const float> std_arg(std_arg_[sample_idx].data, std_arg_[sample_idx].num_elements());

@@ -41,7 +41,6 @@ class TensorResize : public StatelessOperator<Backend>
   int NumSpatialDims() const { return spatial_ndim_; }
   int FirstSpatialDim() const { return first_spatial_dim_; }
 
-  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

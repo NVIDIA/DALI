@@ -55,6 +55,10 @@ class SSDRandomCrop : public rng::OperatorWithRng<Backend> {
   using Operator<Backend>::RunImpl;
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

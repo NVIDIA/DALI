@@ -40,10 +40,6 @@ class StringMsgHelper : public Operator<CPUBackend> {
  protected:
   virtual std::string GetMessage(const OpSpec &spec, const Workspace &ws) = 0;
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     returned_message_ = GetMessage(spec_, ws);
     output_desc.resize(1);

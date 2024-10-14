@@ -72,7 +72,6 @@ class DummyOpCPU : public Operator<CPUBackend> {
       *ws.Output<CPUBackend>(0)[s].mutable_data<int>() = sample_sums_[s];
   }
 
-  bool CanInferOutputs() const override { return true; }
   ArgValue<int> addend_{"addend", spec_};
   double delay_ms_ = 0;
 
@@ -100,7 +99,6 @@ class DummyOpGPU : public Operator<GPUBackend> {
 
   void RunImpl(Workspace &ws) override;
 
-  bool CanInferOutputs() const override { return true; }
 
  private:
   ArgValue<int> addend_{"addend", spec_};
@@ -136,7 +134,6 @@ class CounterOp : public Operator<CPUBackend> {
     }
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   int counter = 0;
 };
@@ -172,7 +169,6 @@ class SinkOp : public Operator<CPUBackend> {
     }
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   int64_t acc = 0;
 };

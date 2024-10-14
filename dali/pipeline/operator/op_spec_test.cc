@@ -314,10 +314,6 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
  public:
   explicit TestArgumentInput_Producer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(3);
     output_desc[0] = {TensorListShape<0>(ws.GetRequestedBatchSize(0)),         DALI_INT32};
@@ -358,10 +354,6 @@ DALI_SCHEMA(TestArgumentInput_Producer)
 class TestArgumentInput_Consumer : public Operator<CPUBackend> {
  public:
   explicit TestArgumentInput_Consumer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);

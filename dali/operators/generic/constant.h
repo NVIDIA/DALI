@@ -72,9 +72,8 @@ class Constant : public StatelessOperator<Backend> {
     }
   }
 
-  bool CanInferOutputs() const override {
-    // Return false, because we specifically don't want the executor to allocate
-    // the storage for the output - even though we can infer the shape.
+  bool HasContiguousOutputs() const override {
+    // The output is not contiguous, because we repeat one sample.
     return false;
   }
 
@@ -87,7 +86,7 @@ class Constant : public StatelessOperator<Backend> {
     output_shape_ = max_output_shape_;
     output_shape_.resize(ws.GetRequestedBatchSize(0));
     output_desc[0] = {output_shape_, output_type_};
-    return false;
+    return false;  // do not allocate outputs
   }
 
   void RunImpl(Workspace &ws) override;

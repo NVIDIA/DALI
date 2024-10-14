@@ -50,10 +50,6 @@ class ResampleBase : public StatelessOperator<Backend> {
     }
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
     outputs.resize(1);
     if (dtype_ == DALI_NO_TYPE)

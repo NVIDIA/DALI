@@ -47,10 +47,6 @@ class Equalize : public SequenceOperator<Backend, StatelessOperator> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool ShouldExpandChannels(int input_idx) const override {
     (void)input_idx;
     return true;

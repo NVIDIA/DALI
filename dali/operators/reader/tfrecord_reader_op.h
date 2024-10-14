@@ -63,7 +63,7 @@ class TFRecordReader
     thread_pool.RunAll();
     // Propagate metadata from individual samples to the whole batch as working with SampleWorkspace
     // breaks metadata consistency - it sets it only to samples
-    FixBatchPropertiesConsistency(ws, CanInferOutputs());
+    FixBatchPropertiesConsistency(ws, HasContiguousOutputs());
   }
 
   ~TFRecordReader() override {
