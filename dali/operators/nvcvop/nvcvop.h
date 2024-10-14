@@ -18,6 +18,7 @@
 #include <nvcv/DataType.h>
 #include <nvcv/BorderType.h>
 #include <cvcuda/Types.h>
+#include <nvcv/alloc/Allocator.hpp>
 #include <cvcuda/Workspace.hpp>
 #include <nvcv/Tensor.hpp>
 #include <nvcv/TensorBatch.hpp>
@@ -33,6 +34,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 #include "dali/core/cuda_event_pool.h"
+
 
 namespace dali::nvcvop {
 
@@ -112,7 +114,7 @@ nvcv::Tensor AsTensor(SampleView<GPUBackend> sample, TensorLayout layout = "",
 nvcv::Tensor AsTensor(ConstSampleView<GPUBackend> sample, TensorLayout layout = "",
                       const std::optional<TensorShape<>> &reshape = std::nullopt);
 
-nvcv::Tensor AsTensor(void *data, const TensorShape<> shape, DALIDataType dtype,
+nvcv::Tensor AsTensor(void *data, const TensorShape<> &shape, DALIDataType dtype,
                       TensorLayout layout);
 
 /**
@@ -132,9 +134,12 @@ void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBa
  */
 void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list);
 
-
+/**
+ * @brief Push samples from a given tensor list to a given TensorBatch.
+ * [start, start+count) determines the range of samples in the TensorList that will be used.
+ */
 void PushTensorsToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
-                        TensorLayout layout);
+                        int64_t start, int64_t count, const TensorLayout &layout);
 
 class NVCVOpWorkspace {
  public:
@@ -165,17 +170,10 @@ class NVCVOpWorkspace {
   int device_id_{};
 };
 
-inline cvcuda::WorkspaceRequirements MaxWorkspaceRequirements(
-    const cvcuda::WorkspaceRequirements &a, const cvcuda::WorkspaceRequirements &b) {
-  cvcuda::WorkspaceRequirements max;
-  max.hostMem.size = std::max(a.hostMem.size, b.hostMem.size);
-  max.hostMem.alignment = std::max(a.hostMem.alignment, b.hostMem.alignment);
-  max.pinnedMem.size = std::max(a.pinnedMem.size, b.pinnedMem.size);
-  max.pinnedMem.alignment = std::max(a.pinnedMem.alignment, b.pinnedMem.alignment);
-  max.cudaMem.size = std::max(a.cudaMem.size, b.cudaMem.size);
-  max.cudaMem.alignment = std::max(a.cudaMem.alignment, b.cudaMem.alignment);
-  return max;
-}
+/**
+ * @brief Create an NVCV allocator using the given scratchpad.
+ */
+nvcv::Allocator GetScratchpadAllocator(kernels::Scratchpad &scratchpad);
 
 /**
  * @brief A base class for the CVCUDA operators.

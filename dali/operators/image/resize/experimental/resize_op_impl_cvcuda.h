@@ -77,9 +77,9 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
   }
 
   void SetupKernel() {
-    kernels::KernelContext ctx;
     rois_.resize(total_frames_);
-    workspace_reqs_ = {};
+    workspace_reqs_[0] = {};
+    workspace_reqs_[1] = {};
     std::vector<HQResizeTensorShapeI> mb_input_shapes(minibatch_size_);
     std::vector<HQResizeTensorShapeI> mb_output_shapes(minibatch_size_);
     auto *rois_ptr = rois_.data();
@@ -111,7 +111,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
       auto ws_req = resize_op_.getWorkspaceRequirements(mb.count, mb_input_shape, mb_output_shape,
                                                         mb.min_interpolation, mb.mag_interpolation,
                                                         mb.antialias, mb.rois);
-      workspace_reqs_ = nvcvop::MaxWorkspaceRequirements(workspace_reqs_, ws_req);
+      workspace_reqs_[mb_idx % 2] = cvcuda::MaxWorkspaceReq(workspace_reqs_[mb_idx % 2], ws_req);
     }
   }
 
@@ -146,26 +146,36 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
   void RunResize(Workspace &ws, TensorList<GPUBackend> &output,
                  const TensorList<GPUBackend> &input) override {
-    TensorList<GPUBackend> in_frames;
-    in_frames.ShareData(input);
-    in_frames.Resize(in_shape_);
-    PrepareInput(in_frames);
-
-    TensorList<GPUBackend> out_frames;
-    out_frames.ShareData(output);
-    out_frames.Resize(out_shape_);
-    PrepareOutput(out_frames);
-
-
     kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+    auto allocator = nvcvop::GetScratchpadAllocator(scratchpad);
 
-    auto workspace_mem = op_workspace_.Allocate(workspace_reqs_, scratchpad);
+    in_frames_.ShareData(input);
+    in_frames_.Resize(in_shape_);
+
+    out_frames_.ShareData(output);
+    out_frames_.Resize(out_shape_);
+
+    auto workspace_mem = AllocateWorkspaces(scratchpad);
 
     for (size_t b = 0; b < minibatches_.size(); b++) {
       MiniBatch &mb = minibatches_[b];
-      resize_op_(ws.stream(), workspace_mem, mb.input, mb.output, mb.min_interpolation,
+      auto reqs = nvcv::TensorBatch::CalcRequirements(mb.count);
+      auto mb_output = nvcv::TensorBatch(reqs, allocator);
+      auto mb_input = nvcv::TensorBatch(reqs, allocator);
+      nvcvop::PushTensorsToBatch(mb_input, in_frames_, mb.start, mb.count, sample_layout_);
+      nvcvop::PushTensorsToBatch(mb_output, out_frames_, mb.start, mb.count, sample_layout_);
+      resize_op_(ws.stream(), workspace_mem[b % 2], mb_input, mb_output, mb.min_interpolation,
                  mb.mag_interpolation, mb.antialias, mb.rois);
     }
+  }
+
+  std::array<cvcuda::Workspace, 2> AllocateWorkspaces(kernels::Scratchpad &scratchpad) {
+    std::array<cvcuda::Workspace, 2> result;
+    result[0] = op_workspace_.Allocate(workspace_reqs_[0], scratchpad);
+    if (minibatches_.size() > 1) {
+      result[1] = op_workspace_.Allocate(workspace_reqs_[1], scratchpad);
+    }
+    return result;
   }
 
   void CalculateMinibatchPartition(int minibatch_size) {
@@ -210,14 +220,15 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
   cvcuda::HQResize resize_op_{};
   nvcvop::NVCVOpWorkspace op_workspace_;
-  cvcuda::WorkspaceRequirements workspace_reqs_{};
+  std::array<cvcuda::WorkspaceRequirements, 2> workspace_reqs_{};
   std::vector<HQResizeRoiF> rois_;
   const TensorLayout sample_layout_ = (spatial_ndim == 2) ? "HWC" : "DHWC";
 
+  TensorList<GPUBackend> in_frames_;
+  TensorList<GPUBackend> out_frames_;
+
   struct MiniBatch {
     int start, count;
-    nvcv::TensorBatch input;
-    nvcv::TensorBatch output;
     NVCVInterpolationType min_interpolation;
     NVCVInterpolationType mag_interpolation;
     bool antialias;
@@ -225,39 +236,6 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
   };
 
   std::vector<MiniBatch> minibatches_;
-
-  void PrepareInput(const TensorList<GPUBackend> &input) {
-    for (auto &mb : minibatches_) {
-      int curr_capacity = mb.input ? mb.input.capacity() : 0;
-      if (mb.count > curr_capacity) {
-        int new_capacity = std::max(mb.count, curr_capacity * 2);
-        auto reqs = nvcv::TensorBatch::CalcRequirements(new_capacity);
-        mb.input = nvcv::TensorBatch(reqs);
-      } else {
-        mb.input.clear();
-      }
-      for (int i = mb.start; i < mb.start + mb.count; ++i) {
-        mb.input.pushBack(nvcvop::AsTensor(input[frame_idx(i)], sample_layout_));
-      }
-    }
-  }
-
-  void PrepareOutput(const TensorList<GPUBackend> &out) {
-    for (auto &mb : minibatches_) {
-      int curr_capacity = mb.output ? mb.output.capacity() : 0;
-      if (mb.count > curr_capacity) {
-        int new_capacity = std::max(mb.count, curr_capacity * 2);
-        auto reqs = nvcv::TensorBatch::CalcRequirements(new_capacity);
-        mb.output = nvcv::TensorBatch(reqs);
-      } else {
-        mb.output.clear();
-      }
-      for (int i = mb.start; i < mb.start + mb.count; ++i) {
-        mb.output.pushBack(nvcvop::AsTensor(out[frame_idx(i)], sample_layout_));
-      }
-    }
-  }
-
   int minibatch_size_;
 };
 
