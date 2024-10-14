@@ -24,10 +24,11 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/util.h"
+#include "dali/core/cuda_shared_event.h"
 #include "dali/core/span.h"
 #include "dali/core/traits.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
@@ -208,6 +209,7 @@ class Tensor : public Buffer<Backend> {
     // Copy the tensor's meta-data
     shape_ = t.shape_;
     meta_ = t.meta_;
+    ready_ = t.ready_;
   }
 
   /**
@@ -227,7 +229,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                         const TensorShape<> &shape, DALIDataType type, int device_id,
-                        AccessOrder order = {}) {
+                        AccessOrder order = {}, CUDASharedEvent ready = {}) {
     Index new_size = volume(shape);
     DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
       "Only empty tensors can be shared without specifying a type.");
@@ -246,6 +248,7 @@ class Tensor : public Buffer<Backend> {
     size_ = new_size;
     num_bytes_ = bytes;
     device_ = device_id;
+    ready_ = std::move(ready);
 
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
@@ -276,8 +279,10 @@ class Tensor : public Buffer<Backend> {
    * the dependency on the work that is happening on another device.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
-                        DALIDataType type, int device_id, AccessOrder order = {}) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, device_id, order);
+                        DALIDataType type, int device_id, AccessOrder order = {},
+                        CUDASharedEvent ready = {}) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type,
+                               device_id, order, std::move(ready));
   }
 
   /**
@@ -302,8 +307,8 @@ class Tensor : public Buffer<Backend> {
    * the dependency on the work that is happening on another device.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, DALIDataType type, int device_id,
-                        AccessOrder order = {}) {
-    ShareData(ptr, bytes, pinned, { 0 }, type, device_id, order);
+                        AccessOrder order = {}, CUDASharedEvent ready = {}) {
+    ShareData(ptr, bytes, pinned, { 0 }, type, device_id, order, std::move(ready));
   }
 
   inline void Reset(AccessOrder order = {}) {
@@ -449,9 +454,24 @@ class Tensor : public Buffer<Backend> {
     return meta_.ShouldSkipSample();
   }
 
+  /** Returns an optional, shared handle to CUDA event that marks the readiness of the tensor data.
+   *
+   * This ready event may be shared by multiple tensor lists or tensors. It may also be null.
+   * Typical DALI operators don't need to record or wait for this event.
+   */
+  const CUDASharedEvent &ready_event() const {
+    return ready_;
+  }
+
+  /** Sets the shared event handle that marks the readiness of the tensor data. */
+  void set_ready_event(CUDASharedEvent ready) {
+    ready_ = std::move(ready);
+  }
+
  protected:
   TensorShape<> shape_ = { 0 };
   DALIMeta meta_;
+  CUDASharedEvent ready_;
   USE_BUFFER_MEMBERS();
 
   // So TensorList can access data_ of the tensor directly

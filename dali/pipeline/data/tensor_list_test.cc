@@ -1994,12 +1994,18 @@ TEST_F(TensorListVariableBatchSizeTest, UpdatePropertiesFromSamples) {
 }
 
 TEST(TensorList, ResizeOverheadPerf) {
-  cudaFree(0);
+  (void)cudaFree(0);
+#ifdef DALI_DEBUG
+  int niter = 2000;
+  int warmup = 500;
+#else
   int niter = 20000;
+  int warmup = 5000;
+#endif
   int total_size = 256 << 10;
   int nsamples = 1024;
   auto shape = uniform_list_shape(nsamples, {total_size / nsamples});
-  for (int i = 0; i < 5000; i++) {
+  for (int i = 0; i < warmup; i++) {
     TensorList<CPUBackend> tl;
     tl.set_pinned(false);
     tl.Resize(shape, DALI_UINT8);

@@ -485,7 +485,8 @@ class DLL_PUBLIC TensorList {
    */
   DLL_PUBLIC void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                             const TensorListShape<> &shape, DALIDataType type, int device_id,
-                            AccessOrder order = {}, const TensorLayout &layout = "");
+                            AccessOrder order = {}, const TensorLayout &layout = "",
+                            CUDASharedEvent ready = {});
 
   /**
    * @brief Set other batch as backing memory for this one. Preserves the contiguity status.
@@ -586,6 +587,22 @@ class DLL_PUBLIC TensorList {
    * @note Keep in mind, that the memory can be fragmented.
    */
   size_t capacity() const noexcept;
+
+  /** Returns an optional, shared handle to CUDA event that marks the readiness of the data.
+   *
+   * This ready event may be shared by multiple tensor lists or tensors. It may also be null.
+   * Typical DALI operators don't need to record or wait for this event.
+   */
+  const CUDASharedEvent &ready_event() const {
+    return ready_;
+  }
+
+  /** Sets the shared event handle that marks the readiness of the data. */
+  void set_ready_event(CUDASharedEvent ready) {
+    ready_ = std::move(ready);
+  }
+
+
 
   /**
    * @brief Returns the size in bytes of the underlying data chunks
@@ -765,7 +782,6 @@ class DLL_PUBLIC TensorList {
 
   // Memory backing
   Buffer<Backend> contiguous_buffer_;
-  std::weak_ptr<void> buffer_bkp_;
   // Memory, sample aliases and metadata
   // TODO(klecki): Remove SampleWorkspace (only place where we actually need those Tensor objects)
   // and swap to plain Buffer instead of using actual Tensors.
@@ -774,15 +790,16 @@ class DLL_PUBLIC TensorList {
   // State and metadata that should be uniform regardless of the contiguity state.
   // Sample aliases should match the information stored below.
   State state_;
-  int curr_num_tensors_;
-  TypeInfo type_{};
+  bool pinned_ = true;
+  int curr_num_tensors_ = 0;
   int sample_dim_ = -1;
+  int device_ = CPU_ONLY_DEVICE_ID;
+  TypeInfo type_{};
   TensorListShape<> shape_;
   TensorLayout layout_;
 
-  bool pinned_ = true;
-  int device_ = CPU_ONLY_DEVICE_ID;
   AccessOrder order_ = AccessOrder::host();
+  CUDASharedEvent ready_;
 
   // So we can access the members of other TensorLists
   // with different template types

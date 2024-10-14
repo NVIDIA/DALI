@@ -25,7 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "dali/pipeline/executor/executor2/shared_event_lease.h"
+#include "dali/core/cuda_shared_event.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -62,13 +62,13 @@ struct PipelineOutput {
   PipelineOutput(const PipelineOutput &) {
     throw std::logic_error("This object is not copyable, but std::any needs it at compile time.");
   }
-  PipelineOutput(const Workspace &ws, SharedEventLease event, std::optional<int> device)
+  PipelineOutput(const Workspace &ws, CUDASharedEvent event, std::optional<int> device)
   : workspace(ws), event(std::move(event)), device(device) {}
 
   /** The payload */
   Workspace workspace;
   /** Owns the event used by the workspace */
-  SharedEventLease event;
+  CUDASharedEvent event;
   /** The ordinal of the device used by the workspace */
   std::optional<int> device;
 };
@@ -179,7 +179,7 @@ class DLL_PUBLIC ExecNode {
    * Requesting multiple workspaces is a coding error.
    * The workspace is updated with the WorkspaceParams supplied to this function.
    */
-  std::pair<std::unique_ptr<Workspace>, SharedEventLease> GetWorkspace(WorkspaceParams params);
+  std::pair<std::unique_ptr<Workspace>, CUDASharedEvent> GetWorkspace(WorkspaceParams params);
 
   /** Puts the workspace back into the node for later reuse.
    *
@@ -244,7 +244,7 @@ class DLL_PUBLIC ExecNode {
   bool has_workspace_ = false;
 
   /** The event associated with the workspace */
-  SharedEventLease ws_event_;
+  CUDASharedEvent ws_event_;
 
   /** Moves to a new iteration. */
   void NextIter() {

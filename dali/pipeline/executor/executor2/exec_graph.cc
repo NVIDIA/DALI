@@ -143,7 +143,7 @@ std::unique_ptr<Workspace> ExecNode::CreateOpWorkspace() {
   return ws;
 }
 
-std::pair<std::unique_ptr<Workspace>, SharedEventLease>
+std::pair<std::unique_ptr<Workspace>, CUDASharedEvent>
 ExecNode::GetWorkspace(WorkspaceParams params) {
   if (!ws_) {
     assert(!has_workspace_);
@@ -160,7 +160,7 @@ ExecNode::GetWorkspace(WorkspaceParams params) {
   ApplyWorkspaceParams(*ws_, params);
 
   if (ws_->output_order().is_device())
-    ws_event_ = SharedEventLease::Get();
+    ws_event_ = CUDASharedEvent::GetFromPool();
   else
     ws_event_.reset();
   ws_->set_event(ws_event_);
