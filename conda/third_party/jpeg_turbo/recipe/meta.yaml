@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "3.0.3" %}
+{% set build_version = "3.0.90" %}
 
   package:
     name: jpeg-turbo

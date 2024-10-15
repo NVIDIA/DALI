@@ -133,7 +133,6 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libaws-c-http.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-auth.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-checksums.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-cpp-sdk-s3.so"
     "${DEPS_PATH}/lib/libaws-c-s3.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-s3.so.0unstable"
     "${DEPS_PATH}/lib/libs2n.so.1"
