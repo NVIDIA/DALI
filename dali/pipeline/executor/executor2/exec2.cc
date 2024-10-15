@@ -156,13 +156,23 @@ class Executor2::Impl {
       // is necessary, the stream has been properly synchronized a few lines above.
       for (int i = 0; i < ws.NumOutput(); i++) {
         if (ws.OutputIsType<GPUBackend>(i)) {
-          ws.Output<GPUBackend>(i).set_order(output_order, false);
+          auto &output = ws.Output<GPUBackend>(i);
+          assert(output.ready_event() == pipe_out.event.get());
+          if (set_output_order)
+            output.set_order(output_order, false);
+          if (output_order.is_host())
+            output.set_ready_event({});
         } else {
           assert(ws.OutputIsType<CPUBackend>(i));
           auto &out = ws.Output<CPUBackend>(i);
+          if (out.is_pinned() && out.order().is_device())
+            assert(out.ready_event() == pipe_out.event.get());
+
           if (set_output_order && output_order.has_value() &&
             out.order().is_device() && out.is_pinned())
             out.set_order(output_order, false);
+          if (output_order.is_host())
+            out.set_ready_event({});
         }
       }
 

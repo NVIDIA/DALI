@@ -103,6 +103,12 @@ struct SharedTensorPayload : TensorViewPayload {
   SharedTensorPayload(TensorShape<> shape, TensorShape<> strides, std::shared_ptr<void> data)
   : TensorViewPayload{ std::move(shape), std::move(strides) }
   , data(std::move(data)) {}
+
+  /*~SharedTensorPayload() {
+    std::thread([d = data]() {
+      CUDA_DTOR_CALL(cudaDeviceSynchronize());
+    }).detach();
+  }*/
 };
 
 
