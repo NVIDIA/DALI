@@ -847,14 +847,8 @@ class DLL_PUBLIC TensorList {
    * with.
    * Sample 0 is aliased with the whole buffer, if it is contiguous.
    */
-  friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &batch, int sample_idx) {
-    // create new aliasing pointer to current data allocation, so we share the use count
-    // and the deleter correctly.
-    if (batch.IsContiguous()) {
-      return {batch.contiguous_buffer_.get_data_ptr(), batch.raw_mutable_tensor(sample_idx)};
-    } else {
-      return batch.tensors_[sample_idx].get_data_ptr();
-    }
+  friend const shared_ptr<void> &unsafe_sample_owner(TensorList<Backend> &batch, int sample_idx) {
+    return batch.tensors_[sample_idx].get_data_ptr();
   }
 
   /**
