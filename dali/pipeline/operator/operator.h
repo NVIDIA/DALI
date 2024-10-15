@@ -104,7 +104,7 @@ class DLL_PUBLIC OperatorBase {
    *
    * @param output_desc describe the shape and type of the outputs (for the whole batch)
    * @param ws
-   * @return Whtether the caller should provide buffers for the outputs.
+   * @return Whether the caller should provide buffers for the outputs.
    */
   virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 

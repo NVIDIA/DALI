@@ -32,7 +32,7 @@ namespace dali {
 enum class MakeContiguousMode {
   AlwaysCopy,    //! Always perform a copy.
   PassThrough,   //! Never copy.
-  Opportunistic  //! If allready contiguous, pass through; otherwise copy.
+  Opportunistic  //! If already contiguous, pass through; otherwise copy.
 };
 
 template<typename Backend>
