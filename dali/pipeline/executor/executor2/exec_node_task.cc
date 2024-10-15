@@ -265,6 +265,18 @@ void OpTask::RunOp() {
   }
   if (ws_->has_stream()) {
     assert(ws_->has_event());
+    assert(event_ == ws_->event());
+    for (int o = 0; o < ws_->NumOutput(); o++) {
+      if (ws_->OutputIsType<GPUBackend>(o)) {
+        auto &out = ws_->Output<GPUBackend>(o);
+        out.set_ready_event(event_);
+      } else if (ws_->OutputIsType<CPUBackend>(o)) {
+        auto &out = ws_->Output<CPUBackend>(o);
+        if (out.is_pinned() && out.order().is_device()) {
+          out.set_ready_event(event_);
+        }
+      }
+    }
     CUDA_CALL(cudaEventRecord(ws_->event(), ws_->stream()));
   }
 }

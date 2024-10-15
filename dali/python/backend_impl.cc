@@ -782,6 +782,8 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
+      "device_id", &Tensor<GPUBackend>::device_id)
+    .def(
       "__dlpack_device__", [](const Tensor<GPUBackend> &tensor) {
         auto dev = GetDLDevice(tensor);
         return std::make_tuple(dev.device_type, dev.device_id);
@@ -1424,6 +1426,8 @@ void ExposeTensorList(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def(
+      "device_id", &TensorList<GPUBackend>::device_id)
     .def("shape", &py_shape_list<GPUBackend>,
       R"code(
       Shape of the tensor list.
