@@ -816,19 +816,31 @@ class DLL_PUBLIC TensorList {
    * @brief Return an un-typed pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend void *unsafe_raw_mutable_data(TensorList<Backend> &batch) {
-    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
-    return batch.contiguous_buffer_.raw_mutable_data();
+  friend void *contiguous_raw_mutable_data(TensorList<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguousInMemory(),
+                 "Data pointer can be obtained only for contiguous batch.");
+    if (batch.IsContiguous()) {
+      return batch.contiguous_buffer_.raw_mutable_data();
+    } else {
+      for (int i = 0; i < batch.num_samples(); i++) {
+        if (void *sample_data = batch.tensors_[i].raw_mutable_data()) {
+          return sample_data;
+        } else {
+          assert(batch.shape_[i].num_elements() == 0);
+        }
+      }
+      return nullptr;  // there are 0 elements
+    }
   }
 
   /**
    * @brief Return an un-typed const pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend const void *unsafe_raw_data(const TensorList<Backend> &batch) {
-    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
-    return batch.contiguous_buffer_.raw_data();
+  friend const void *contiguous_raw_data(const TensorList<Backend> &batch) {
+    return contiguous_raw_mutable_data(const_cast<TensorList<Backend> &>(batch));
   }
+
 
   /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample

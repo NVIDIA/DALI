@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,8 @@ inline void CopyToExternalImpl(void* dst,
   }
 
   if (src.IsContiguous()) {
-    type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src._num_elements(),
+    type_info.template Copy<DstBackend, SrcBackend>(dst, contiguous_raw_data(src),
+                                                    src._num_elements(),
                                                     order.stream(), use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
@@ -114,7 +115,7 @@ inline void CopyToExternalImpl(void** dsts,
   int samples_to_copy = sizes.size();
 
   if (src.IsContiguous() && samples_to_copy == num_samples) {
-    type_info.template Copy<DstBackend, SrcBackend>(dsts, unsafe_raw_data(src), sizes.data(),
+    type_info.template Copy<DstBackend, SrcBackend>(dsts, contiguous_raw_data(src), sizes.data(),
                                                     num_samples, order.stream(), use_copy_kernel);
 
   } else {

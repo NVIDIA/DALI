@@ -148,14 +148,15 @@ template <typename DstBackend, typename SrcBackend, template <typename> typename
 void CopyImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
               AccessOrder copy_order, bool use_copy_kernel = false) {
   if (dst.IsContiguous() && src.IsContiguous()) {
-    type_info.Copy<DstBackend, SrcBackend>(unsafe_raw_mutable_data(dst), unsafe_raw_data(src),
+    type_info.Copy<DstBackend, SrcBackend>(contiguous_raw_mutable_data(dst),
+                                           contiguous_raw_data(src),
                                            dst.shape().num_elements(), copy_order.stream(),
                                            use_copy_kernel);
   } else if (dst.IsContiguous() && !src.IsContiguous()) {
-    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(unsafe_raw_mutable_data(dst), src,
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(contiguous_raw_mutable_data(dst), src,
                                                           type_info, copy_order, use_copy_kernel);
   } else if (!dst.IsContiguous() && src.IsContiguous()) {
-    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), type_info,
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, contiguous_raw_data(src), type_info,
                                                           copy_order, use_copy_kernel);
   } else {
     copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, src, type_info, copy_order,
@@ -1146,7 +1147,6 @@ bool TensorList<Backend>::shares_data() const {
   }
   return false;
 }
-
 
 template class DLL_PUBLIC TensorList<CPUBackend>;
 template class DLL_PUBLIC TensorList<GPUBackend>;
