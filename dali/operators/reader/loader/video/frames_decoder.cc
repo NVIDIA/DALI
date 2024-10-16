@@ -527,7 +527,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
 
   // Seeking clears av buffers, so reset flush state info
   if (flush_state_) {
-    while (ReadFlushFrame(nullptr, false)) {};
+    while (ReadFlushFrame(nullptr, false)) {}
     flush_state_ = false;
   }
 
