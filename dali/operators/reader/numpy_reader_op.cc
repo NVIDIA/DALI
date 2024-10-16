@@ -314,6 +314,7 @@ void NumpyReaderCPU::Prefetch() {
       }
       target->data.ShareData(tmp_mem, target->nbytes, false, target->shape, target->type, -1);
     } else {
+      if (!target->data.has_data()) target->data.set_pinned(false);
       target->data.Resize(target->shape, target->type);
       auto data_ptr = static_cast<uint8_t*>(target->data.raw_mutable_data());
       Index ret = target->current_file->Read(data_ptr, target->nbytes);
