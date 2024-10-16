@@ -392,6 +392,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   }
 }
 
+inline void AssertOutputsContiguous(const Workspace &ws) {
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    if (ws.OutputIsType<CPUBackend>(i))
+      assert(ws.Output<CPUBackend>(i).IsContiguousInMemory());
+    else if (ws.OutputIsType<GPUBackend>(i))
+      assert(ws.Output<GPUBackend>(i).IsContiguousInMemory());
+  }
+}
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws,
@@ -512,6 +520,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     DomainTimeRange tr("[DALI][Executor] Run");
     op.Run(ws);
   }
+
+  if (op.HasContiguousOutputs())
+    AssertOutputsContiguous(ws);
 
   PropagateSourceInfo(ws);
 

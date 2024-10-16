@@ -1056,15 +1056,16 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
 
     for (int i = 0; i < num_samples(); ++i) {
       if (tensors_[i].raw_data() == nullptr)
-        if (shape_[i].num_elements() > 0)
-          throw std::logic_error("Internal error: non-empty sample has a null data pointer.");
+        DALI_ENFORCE(shape_[i].num_elements() == 0,
+                     "Internal error: a non-empty sample has a null data pointer.");
       if (base_ptr != tensors_[i].raw_data()) {
         is_really_contiguous = false;
         break;
       }
       base_ptr += shape_[i].num_elements() * size;
     }
-    DALI_ENFORCE(is_really_contiguous, "The tensor list isn't really contiguous as claimed.");
+    DALI_ENFORCE(is_really_contiguous,
+                 "Internal error: The tensor list isn't really contiguous as claimed.");
   }
   state_.Update(contiguous ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous);
 

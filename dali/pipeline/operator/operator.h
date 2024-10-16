@@ -115,7 +115,15 @@ class DLL_PUBLIC OperatorBase {
   virtual void RunImpl(Workspace &ws) = 0;
 
   /**
-   * @brief If true (default), the operator's output will be stored
+   * @brief If true (default), the operator's output will be stored as a contiguous buffer.
+   *
+   * The operator should return `true` when:
+   * - it requests the allocation of the outputs (by returning `true` from `SetupImpl`)
+   * - it internally guarantees that the output is contiguous (e.g. `MakeContiguous`)
+   * The operator should return `false` when:
+   * - it allocates the output on a per-sample bases (e.g. readers)
+   * - it shuffles or repeats samples in the batch (e.g. `Constant`, `PermuteBatch`, `PerSample`)
+   * - it forwards the input regardless of its contiguity (e.g. `Reshape`)
    */
   virtual bool HasContiguousOutputs() const {
     return true;
