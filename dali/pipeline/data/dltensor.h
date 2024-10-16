@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_DATA_DLTENSOR_H_
 #define DALI_PIPELINE_DATA_DLTENSOR_H_
 
+#include <cuda_runtime_api.h>
 #include <cassert>
 #include <memory>
 #include <optional>
@@ -95,6 +96,8 @@ struct TensorViewPayload {
   TensorShape<> shape, strides;
 };
 
+DLL_PUBLIC void EnqueueForDeletion(std::shared_ptr<void> data, int device_id);
+
 /** Default ownership-sharing payload for DLPack tensors. */
 struct SharedTensorPayload : TensorViewPayload {
   std::shared_ptr<void> data;
@@ -103,12 +106,6 @@ struct SharedTensorPayload : TensorViewPayload {
   SharedTensorPayload(TensorShape<> shape, TensorShape<> strides, std::shared_ptr<void> data)
   : TensorViewPayload{ std::move(shape), std::move(strides) }
   , data(std::move(data)) {}
-
-  /*~SharedTensorPayload() {
-    std::thread([d = data]() {
-      CUDA_DTOR_CALL(cudaDeviceSynchronize());
-    }).detach();
-  }*/
 };
 
 
@@ -150,6 +147,8 @@ struct DLTensorResource {
   : dlm_tensor{{}, this, dlm_deleter}
   , payload{std::forward<PayloadArgs>(args)...} {}
 
+  ~DLTensorResource() {}
+
 
   DLManagedTensor dlm_tensor{};
   Payload payload;
@@ -167,6 +166,18 @@ struct DLTensorResource {
     delete This;
   }
 };
+
+template <>
+inline DLTensorResource<SharedTensorPayload>::~DLTensorResource() {
+  if (dlm_tensor.dl_tensor.device.device_type == kDLCUDAHost ||
+      dlm_tensor.dl_tensor.device.device_type == kDLCUDAManaged) {
+    int current_dev = 0;
+    CUDA_DTOR_CALL(cudaGetDevice(&current_dev));
+    EnqueueForDeletion(std::move(payload.data), current_dev);
+  } else if (dlm_tensor.dl_tensor.device.device_type == kDLCUDA) {
+    EnqueueForDeletion(std::move(payload.data), dlm_tensor.dl_tensor.device.device_id);
+  }
+}
 
 /** Type-erases the DLTensorResource and returns a smart pointer to the contained DLManagedTensor.
  */

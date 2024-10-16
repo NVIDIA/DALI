@@ -12,12 +12,100 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
+#include <condition_variable>
+#include <mutex>
 #include <string>
+#include <thread>
 #include "dali/pipeline/data/dltensor.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/mm/detail/aux_alloc.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {
+
+class DLTensorGraveyard {
+ public:
+  ~DLTensorGraveyard() {
+    shutdown();
+  }
+
+  void enqueue(std::shared_ptr<void> mem) {
+    {
+      std::lock_guard g(mtx_);
+      if (exit_requested_)
+        return;  // we don't prolong the life of memory on shutdown
+      if (!started_)
+        start();
+      pending_.push_back(std::move(mem));
+    }
+    cv_.notify_one();
+  }
+
+  static DLTensorGraveyard &instance(int dev) {
+    static std::vector<DLTensorGraveyard> inst = []() {
+      int ndev = 0;
+      CUDA_CALL(cudaGetDeviceCount(&ndev));
+      std::vector<DLTensorGraveyard> ret(ndev);
+      for (int i = 0; i < ndev; i++)
+        ret[i].device_id_ = i;
+      return ret;
+    }();
+    return inst[dev];
+  }
+
+ private:
+  void start() {
+    assert(!exit_requested_);
+    assert(!started_);
+    worker_ = std::thread([this]() { run(); });
+    started_ = true;
+  }
+
+  void shutdown() {
+    {
+      std::lock_guard g(mtx_);
+      exit_requested_ = true;
+    }
+    cv_.notify_one();
+    if (worker_.joinable())
+      worker_.join();
+  }
+
+  void run() {
+    CUDA_CALL(cudaSetDevice(device_id_));
+    std::unique_lock lock(mtx_);
+    for (;;) {
+      cv_.wait(lock, [&]() {
+        return !pending_.empty() || exit_requested_;
+      });
+      if (exit_requested_)
+        break;
+      list_t tmp = std::move(pending_);
+      lock.unlock();
+      auto ret = cudaDeviceSynchronize();
+      if (ret == cudaErrorCudartUnloading)
+        break;
+      CUDA_CALL(ret);
+      tmp.clear();
+      lock.lock();
+    }
+  }
+
+  std::mutex mtx_;
+  std::condition_variable cv_;
+  std::thread worker_;
+  using list_alloc_t = mm::detail::object_pool_allocator<std::shared_ptr<void>>;
+  using list_t = std::list<std::shared_ptr<void>, list_alloc_t>;
+  list_t pending_;
+  int device_id_ = -1;
+  bool started_ = false;
+  bool exit_requested_ = false;
+};
+
+void EnqueueForDeletion(std::shared_ptr<void> data, int device_id) {
+  DLTensorGraveyard::instance(device_id).enqueue(std::move(data));
+}
 
 DLDataType ToDLType(DALIDataType type) {
   DLDataType dl_type{};
