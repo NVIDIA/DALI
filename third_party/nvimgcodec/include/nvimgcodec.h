@@ -566,6 +566,18 @@ extern "C"
         NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY = 4,    /**< Decoding/encoding is executed on GPU dedicated hardware engine. */
     } nvimgcodecBackendKind_t;
 
+    /**
+     * @brief Defines how to interpret the load hint parameter.
+     */
+    typedef enum
+    {
+        NVIMGCODEC_LOAD_HINT_POLICY_IGNORE = 1, /**< Load hint is not taken into account. */
+        NVIMGCODEC_LOAD_HINT_POLICY_FIXED = 2,  /**< Load hint is used to calculate the backend batch size once */
+        NVIMGCODEC_LOAD_HINT_POLICY_ADAPTIVE_MINIMIZE_IDLE_TIME =
+            3, /**< Load hint is used as an initial hint, and it is recalculated on every iteration to reduce the idle time of threads */
+    } nvimgcodecLoadHintPolicy_t;
+
+
     /** 
      * @brief Defines decoding/encoding backend parameters.
     */
@@ -576,15 +588,16 @@ extern "C"
         void* struct_next;                     /**< Is NULL or a pointer to an extension structure type. */
 
         /** 
-         * Fraction of the batch items that will be picked by this backend.
-         * The remaining items will be marked as "saturated" status and will be picked by the next backend.
-         * This is just a hint and a particular implementation can choose to ignore it. */
+         * Hint to calculate the fraction of the batch items that will be picked by this backend.
+         * This is just a hint and a particular implementation can choose to ignore it.
+         * Different policies can be selected, see `nvimgcodecLoadHintPolicy_t`
+         */
         float load_hint;
 
         /**
          * If true, the backend load will be adapted on every iteration to minize idle time of the threads.
          */
-        bool adaptive_load;
+        nvimgcodecLoadHintPolicy_t load_hint_policy;
     } nvimgcodecBackendParams_t;
 
     /** 
@@ -1152,11 +1165,11 @@ extern "C"
         nvimgcodecStatus_t (*destroy)(nvimgcodecEncoder_t encoder);
 
         /**
-         * @brief Checks whether decoder can encode given image to code stream with provided parameters.
+         * @brief Checks whether encoder can encode given image to code stream with provided parameters.
          * 
          * @param encoder [in] Encoder handle.
          * @param code_stream [in] Encoded stream.
-         * @param info [in] Image information, including requested format.
+         * @param image [in] Image descriptor.
          * @param params [in] Encode parameters which will be used with check.
          * @param thread_idx [in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)
          * @return nvimgcodecProcessingStatus_t - Processing status
@@ -1164,7 +1177,7 @@ extern "C"
         nvimgcodecProcessingStatus_t (*canEncode)(
             nvimgcodecEncoder_t encoder,
             const nvimgcodecCodeStreamDesc_t* code_stream,
-            const nvimgcodecImageInfo_t* info,
+            const nvimgcodecImageDesc_t* image,
             const nvimgcodecEncodeParams_t* params,
             int thread_idx);
 
@@ -1172,16 +1185,16 @@ extern "C"
          * @brief Encode given image to code stream with provided parameters.
          * 
          * @param encoder [in] Encoder handle.
-         * @param info [in] Image information, including requested format and output buffer.
+         ** @param image [in] Image descriptor.
          * @param code_stream [in] Encoded stream.
          * @param params [in] Encode parameters.
          * @param thread_idx [in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)
          * @return nvimgcodecProcessingStatus_t - Processing status
          */
-        nvimgcodecProcessingStatus_t (*encodeSample)(
+        nvimgcodecStatus_t (*encode)(
             nvimgcodecEncoder_t encoder,
             const nvimgcodecCodeStreamDesc_t* code_stream,
-            const nvimgcodecImageInfo_t* info,
+            const nvimgcodecImageDesc_t* image,
             const nvimgcodecEncodeParams_t* params,
             int thread_idx);
     } nvimgcodecEncoderDesc_t;
@@ -1229,11 +1242,11 @@ extern "C"
          * @param code_stream [in] Encoded stream.
          * @param params [in] Decode parameters which will be used with check.
          * @param thread_idx [in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)
-         * @return nvimgcodecProcessingStatus_t - Processing status
+         * @return nvimgcodecStatus_t
          */
         nvimgcodecProcessingStatus_t (*canDecode)(
             nvimgcodecDecoder_t decoder,
-            const nvimgcodecImageInfo_t* info,
+            const nvimgcodecImageDesc_t* image,
             const nvimgcodecCodeStreamDesc_t* code_stream,
             const nvimgcodecDecodeParams_t* params,
             int thread_idx);
@@ -1242,24 +1255,23 @@ extern "C"
          * @brief Decode given code stream to image with provided parameters.
          * 
          * @param decoder [in] Decoder handle to use for decoding.
-         * @param info [in] Image information, including requested format and output buffer.
+         * @param image [in/out] Image descriptor.
          * @param code_stream [in] Encoded stream.
          * @param params [in] Decode parameters.
          * @param thread_idx [in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)
-         * @return nvimgcodecProcessingStatus_t - Processing status
+         * @return nvimgcodecStatus_t
          */
-        nvimgcodecProcessingStatus_t (*decodeSample)(
+        nvimgcodecStatus_t (*decode)(
             nvimgcodecDecoder_t decoder,
-            const nvimgcodecImageInfo_t* info,
+            const nvimgcodecImageDesc_t* image,
             const nvimgcodecCodeStreamDesc_t* code_stream,
             const nvimgcodecDecodeParams_t* params,
             int thread_idx);
 
         /**
          * @brief Decode given batch of code streams to images with provided parameters.
-         * @param processing_status Pointer to array of batch size of processing statuses.
          * @param decoder [in] Decoder handle to use for decoding.
-         * @param infos [in/out] Pointer to array of batch size of pointers with output image info.
+         * @param images [in/out] Pointer to array of pointers of batch size with image descriptors.
          * @param code_streams [in] Pointer to array of batch size of pointers to encoded stream instances.
          * @param batch_size [in] Number of items in batch to decode.
          * @param params [in] Decode parameters.
@@ -1268,8 +1280,7 @@ extern "C"
          */
         nvimgcodecStatus_t (*decodeBatch)(
             nvimgcodecDecoder_t decoder,
-            nvimgcodecProcessingStatus_t* processing_status,
-            const nvimgcodecImageInfo_t** infos,
+            const nvimgcodecImageDesc_t** images,
             const nvimgcodecCodeStreamDesc_t** code_streams,
             int batch_size,
             const nvimgcodecDecodeParams_t* params,
