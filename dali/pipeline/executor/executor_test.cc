@@ -166,6 +166,15 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
   vector<string> outputs = {"data3_gpu"};
   exe->Build(&graph, outputs);
 
+#pragma GCC diagnostic push
+// most recent gcc seems to be incorrectly report this as being null in this test
+#if defined(__has_warning)
+  #if __has_warning("-Wnonnull")
+    #pragma GCC diagnostic ignored "-Wnonnull"
+  #endif
+#else
+  #pragma GCC diagnostic ignored "-Wnonnull"
+#endif
   // Verify the data has been setup correctly
   for (int i = 0; i < 2; ++i) {
     auto host_workspaces = this->CPUData(exe.get(), i);
@@ -193,6 +202,7 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
     ASSERT_EQ(dws.NumOutput(), 1);
     ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
   }
+#pragma GCC diagnostic pop
 }
 
 TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
