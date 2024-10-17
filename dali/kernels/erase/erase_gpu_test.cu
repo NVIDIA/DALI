@@ -17,6 +17,7 @@
 #include <complex>
 #include <tuple>
 #include <vector>
+#include <iomanip>
 
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/erase/erase_gpu.h"
