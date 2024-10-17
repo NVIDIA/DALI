@@ -363,35 +363,35 @@ class ImageDecoder : public StatelessOperator<Backend> {
     backends_.clear();
     backends_.reserve(4);
     if (nvimgcodec_device_id != NVIMGCODEC_DEVICE_CPU_ONLY) {
-      backends_.push_back(
-          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                              sizeof(nvimgcodecBackend_t),
-                              nullptr,
-                              NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
-                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, hw_load, false}});
-      backends_.push_back(
-          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                              sizeof(nvimgcodecBackend_t),
-                              nullptr,
-                              NVIMGCODEC_BACKEND_KIND_GPU_ONLY,
-                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f, false}});
-      backends_.push_back(
-          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                              sizeof(nvimgcodecBackend_t),
-                              nullptr,
-                              NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU,
-                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f, false}});
+      backends_.push_back(nvimgcodecBackend_t{
+          NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+          sizeof(nvimgcodecBackend_t),
+          nullptr,
+          NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
+          {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS, sizeof(nvimgcodecBackendParams_t), nullptr,
+           hw_load, NVIMGCODEC_LOAD_HINT_POLICY_FIXED}});
+      backends_.push_back(nvimgcodecBackend_t{
+          NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+          sizeof(nvimgcodecBackend_t),
+          nullptr,
+          NVIMGCODEC_BACKEND_KIND_GPU_ONLY,
+          {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS, sizeof(nvimgcodecBackendParams_t), nullptr,
+           1.0f, NVIMGCODEC_LOAD_HINT_POLICY_FIXED}});
+      backends_.push_back(nvimgcodecBackend_t{
+          NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+          sizeof(nvimgcodecBackend_t),
+          nullptr,
+          NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU,
+          {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS, sizeof(nvimgcodecBackendParams_t), nullptr,
+           1.0f, NVIMGCODEC_LOAD_HINT_POLICY_FIXED}});
     }
-    backends_.push_back(
-        nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                            sizeof(nvimgcodecBackend_t),
-                            nullptr,
-                            NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
-                            {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                             sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f, false}});
+    backends_.push_back(nvimgcodecBackend_t{
+        NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+        sizeof(nvimgcodecBackend_t),
+        nullptr,
+        NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
+        {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS, sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f,
+         NVIMGCODEC_LOAD_HINT_POLICY_FIXED}});
 
     exec_params_.backends = backends_.data();
     exec_params_.num_backends = backends_.size();
@@ -804,7 +804,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
       }
       if (decode_status_size != nsamples_decode)
-        throw std::runtime_error("Failed to run hardware decoder");
+        throw std::runtime_error("Failed to run decoder");
       for (size_t idx = 0; idx < nsamples_decode; idx++) {
         size_t orig_idx = decode_sample_idxs_[idx];
         auto st_ptr = state_[orig_idx].get();
@@ -813,7 +813,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                                input.GetMeta(orig_idx).GetSourceInfo()));
         }
       }
-
       if (any_need_processing) {
         for (size_t idx = 0; idx < nsamples_decode; idx++) {
           size_t orig_idx = decode_sample_idxs_[idx];
