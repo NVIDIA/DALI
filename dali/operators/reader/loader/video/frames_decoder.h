@@ -219,6 +219,9 @@ class DLL_PUBLIC FramesDecoder {
 
   std::optional<bool> zero_latency_ = {};
 
+  // False when the file doesn't have any correct content or doesn't have valid video stream
+  bool is_valid_ = false;
+
  private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns
@@ -275,8 +278,6 @@ class DLL_PUBLIC FramesDecoder {
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
-  // False when the file doesn't have any correct content or doesn't have valid video stream
-  bool is_valid_ = false;
 
   const std::string filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
