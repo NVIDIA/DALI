@@ -1001,6 +1001,7 @@ def test_box_encoder_cpu():
 def test_numpy_reader_cpu():
     with setup_test_numpy_reader_cpu() as test_data_root:
         check_no_input(fn.readers.numpy, file_root=test_data_root)
+        check_no_input(fn.readers.numpy, file_root=test_data_root, dont_use_mmap=True)
 
 
 @attr("pytorch")
