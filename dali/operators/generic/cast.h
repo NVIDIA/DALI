@@ -48,10 +48,6 @@ class Cast : public StatelessOperator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Cast);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALIDataType out_type = is_cast_like_ ?  ws.GetInputDataType(1) : dtype_arg_;

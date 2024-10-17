@@ -142,10 +142,6 @@ class NonsilenceOperator : public StatelessOperator<Backend> {
           StatelessOperator<Backend>(spec) {}
 
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     AcquireArgs(spec_, ws);
     TensorShape<> scalar_shape = {};

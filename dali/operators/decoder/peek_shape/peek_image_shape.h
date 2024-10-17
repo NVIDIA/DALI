@@ -50,9 +50,6 @@ class PeekImageShape : public StatelessOperator<CPUBackend> {
       }
     }
   }
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

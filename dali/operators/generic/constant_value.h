@@ -47,7 +47,6 @@ class ConstantValue : public StatelessOperator<Backend> {
       return ws.GetRequestedBatchSize(0);
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   bool CanBroadcastShapes(span<int64_t> shape1, span<int64_t> shape2) {
     size_t len1 = shape1.size();

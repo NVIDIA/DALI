@@ -98,10 +98,6 @@ class LookupTable : public StatelessOperator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(LookupTable);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     if (std::is_same<Backend, GPUBackend>::value && !lut_.shape().num_elements()) {
       TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (

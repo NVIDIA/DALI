@@ -55,10 +55,6 @@ class MedianBlur : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     auto sh = input.shape();

@@ -283,6 +283,10 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec) {
   }
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
@@ -308,6 +312,10 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
       : Operator<GPUBackend>(spec) {
   }
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
@@ -331,6 +339,10 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
  public:
   explicit DummyPresizeOpMixed(const OpSpec &spec)
       : Operator<MixedBackend>(spec) {
+  }
+
+  bool HasContiguousOutputs() const override {
+    return false;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -622,6 +634,10 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
@@ -640,6 +656,10 @@ DALI_SCHEMA(DummyOpToAdd)
 class DummyOpNoSync : public Operator<CPUBackend> {
  public:
   explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
+
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;

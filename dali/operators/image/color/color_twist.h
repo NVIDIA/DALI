@@ -100,10 +100,6 @@ class ColorTwistBase : public SequenceOperator<Backend, StatelessOperator> {
     spec.TryGetArgument(output_type_arg_, color::kOutputType);
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
   // the number of samples and parameters unnecessarily for FHWC when there are no
   // per-frame parameters provided.

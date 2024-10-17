@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -440,7 +440,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     bool copied_shared_data = false;
 
     if (batch.IsContiguous()) {
-      auto batch_owner = unsafe_sample_owner(const_cast<TensorList<SrcBackend> &>(batch), 0);
+      auto &batch_owner = unsafe_sample_owner(const_cast<TensorList<SrcBackend> &>(batch), 0);
       tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
                                 batch.type(), batch.device_id(), batch.order());
       zero_copy_noncontiguous_gpu_input_ = true;

@@ -111,10 +111,6 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     }
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool Intersects(ivec2 anchors1, ivec2 shapes1,
                   ivec2 anchors2, ivec2 shapes2) const {
     for (int i = 0; i < 2; i++) {

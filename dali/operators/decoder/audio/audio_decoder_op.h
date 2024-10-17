@@ -59,10 +59,6 @@ class AudioDecoderCpu : public StatelessOperator<CPUBackend> {
   void RunImpl(Workspace &ws) override;
 
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
 
  private:
   template<typename OutputType>

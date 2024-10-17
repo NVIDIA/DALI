@@ -62,10 +62,6 @@ class PreemphasisFilter : public StatelessOperator<Backend> {
   ~PreemphasisFilter() override = default;
   DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilter);
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);

@@ -33,10 +33,6 @@ class Dummy : public ::dali::Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Dummy);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const ::dali::Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);

@@ -101,10 +101,6 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   float4 GetFillValue(int channels) const {
     if (fill_value_arg_.size() > 1) {
       if (channels > 0) {

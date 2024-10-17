@@ -56,7 +56,6 @@ class ResizeCropMirror : public StatelessOperator<Backend>
   int NumSpatialDims() const { return resize_attr_.spatial_ndim_; }
   int FirstSpatialDim() const { return resize_attr_.first_spatial_dim_; }
 
-  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

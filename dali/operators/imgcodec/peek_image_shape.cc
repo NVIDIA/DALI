@@ -69,10 +69,6 @@ ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
   instance_ = NvImageCodecInstance::Create(&instance_create_info);
 }
 
-bool ImgcodecPeekImageShape::CanInferOutputs() const {
-  return true;
-}
-
 bool ImgcodecPeekImageShape::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const Workspace &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);

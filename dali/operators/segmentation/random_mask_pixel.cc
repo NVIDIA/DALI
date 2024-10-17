@@ -56,7 +56,6 @@ If 0, the pixel position is sampled uniformly from all available pixels.)code",
 class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
  public:
   explicit RandomMaskPixelCPU(const OpSpec &spec);
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

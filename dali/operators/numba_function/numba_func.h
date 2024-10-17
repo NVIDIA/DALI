@@ -69,8 +69,6 @@ class NumbaFuncImpl : public StatelessOperator<Backend> {
   explicit NumbaFuncImpl(const OpSpec &spec_);
 
  protected:
-  bool CanInferOutputs() const override { return true; }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   /**

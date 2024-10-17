@@ -51,7 +51,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
   ~FalseGPUOperator() override = default;
 
  protected:
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     // To run Setup we need to first copy from device to host.
     // To avoid delaying the Setup stage, we will do Setup and Run in one go (during Run)
     return false;

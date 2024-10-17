@@ -41,10 +41,6 @@ class Morphology : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
       DALI_ENFORCE(iteration_ >= 1, "iterations must be >= 1");
     }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   bool ShouldExpandChannels(int input_idx) const override {

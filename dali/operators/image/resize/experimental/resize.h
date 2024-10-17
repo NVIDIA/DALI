@@ -59,10 +59,6 @@ class CvCudaResize : public StatelessOperator<GPUBackend>, protected ResizeBase<
     return resize_attr_.first_spatial_dim_;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;

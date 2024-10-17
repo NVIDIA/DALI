@@ -41,10 +41,6 @@ class Erase : public StatelessOperator<Backend> {
   void RunImpl(Workspace &ws) override;
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   USE_OPERATOR_MEMBERS();
 
   std::unique_ptr<OpImplBase<Backend>> impl_;

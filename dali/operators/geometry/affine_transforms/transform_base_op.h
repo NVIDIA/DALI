@@ -55,7 +55,6 @@ class TransformBaseOp : public SequenceOperator<Backend, StatelessOperator, true
     matrix_data_.set_type(dtype_);
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   TransformImpl &This() noexcept { return static_cast<TransformImpl&>(*this); }
   const TransformImpl &This() const noexcept { return static_cast<const TransformImpl&>(*this); }

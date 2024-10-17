@@ -159,10 +159,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
 
   int NextBatchSize() override {
     return batch_size_;

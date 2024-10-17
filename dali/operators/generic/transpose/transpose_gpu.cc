@@ -32,10 +32,6 @@ class TransposeGPU : public Transpose<GPUBackend> {
     kmgr_.Resize<Kernel>(1);
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
  protected:
   bool SetupImpl(vector<OutputDesc> &descs, const Workspace &ws) override {
     Transpose<GPUBackend>::SetupImpl(descs, ws);

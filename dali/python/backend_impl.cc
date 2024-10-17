@@ -832,7 +832,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   }
   auto ptr = std::make_unique<Tensor<Backend>>();
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
-  auto sample_shared_ptr = unsafe_sample_owner(t, id);
+  auto &sample_shared_ptr = unsafe_sample_owner(t, id);
   ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type(),
                  t.device_id(), t.order());
   ptr->SetMeta(t.GetMeta(id));
@@ -1126,7 +1126,7 @@ void ExposeTensorList(py::module &m) {
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
                         "Tensors in the list must have the same shape");
-            raw_mutable_data = unsafe_raw_mutable_data(tl);
+            raw_mutable_data = contiguous_raw_mutable_data(tl);
           }
 
           if (IsValidType(tl.type())) {
@@ -1207,7 +1207,7 @@ void ExposeTensorList(py::module &m) {
     .def("data_ptr",
         [](TensorList<CPUBackend> &tl) {
           return py::reinterpret_borrow<py::object>(
-              PyLong_FromVoidPtr(unsafe_raw_mutable_data(tl)));
+              PyLong_FromVoidPtr(contiguous_raw_mutable_data(tl)));
         },
       R"code(
       Returns the address of the first element of TensorList.
@@ -1413,7 +1413,7 @@ void ExposeTensorList(py::module &m) {
     .def("data_ptr",
         [](TensorList<GPUBackend> &tl) {
           return py::reinterpret_borrow<py::object>(
-              PyLong_FromVoidPtr(unsafe_raw_mutable_data(tl)));
+              PyLong_FromVoidPtr(contiguous_raw_mutable_data(tl)));
         },
       R"code(
       Returns the address of the first element of TensorList.

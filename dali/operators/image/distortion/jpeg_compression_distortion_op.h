@@ -34,10 +34,6 @@ class JpegCompressionDistortion : public StatelessOperator<Backend> {
         quality_arg_("quality", spec) {
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     output_desc.resize(1);

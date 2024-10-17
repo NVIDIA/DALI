@@ -29,7 +29,6 @@ class GridMask : public StatelessOperator<Backend> {
   explicit GridMask(const OpSpec &spec) : StatelessOperator<Backend>(spec) { }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   void GetArguments(const Workspace &ws) {
     int batch_size = ws.GetInputBatchSize(0);
     this->GetPerSampleArgument(tile_, "tile", ws, batch_size);

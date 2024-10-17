@@ -110,9 +110,7 @@ class ExternalSource : public InputOperator<Backend> {
   }
 
 
-  bool CanInferOutputs() const override {
-    // shape inference during setup is disabled because it can be calculated during the runtime
-    // depending on the input and output
+  bool HasContiguousOutputs() const override {
     return false;
   }
 

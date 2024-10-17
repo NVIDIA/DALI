@@ -87,10 +87,6 @@ class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
       "Possible values: \"anchor_shape\", \"start_end\" and \"box\"."));
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(vector<OutputDesc> &out_descs, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

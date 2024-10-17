@@ -104,10 +104,6 @@ class Transpose : public StatelessOperator<Backend> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
  protected:
   bool transpose_layout_;
   TensorLayout output_layout_arg_;

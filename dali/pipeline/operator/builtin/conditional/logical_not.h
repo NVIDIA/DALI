@@ -34,10 +34,6 @@ class LogicalNot : public StatelessOperator<CPUBackend> {
 
   ~LogicalNot() override = default;
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 
@@ -57,6 +53,10 @@ class LogicalNotFailForGpu : public Operator<GPUBackend> {
  public:
   explicit LogicalNotFailForGpu(const OpSpec &spec) : Operator<GPUBackend>(spec) {
     ReportGpuInputError("not", "", true);
+  }
+
+  bool HasContiguousOutputs() const override {
+    return false;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

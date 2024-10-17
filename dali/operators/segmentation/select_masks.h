@@ -36,10 +36,6 @@ class SelectMasksCPU : public StatelessOperator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(SelectMasksCPU);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

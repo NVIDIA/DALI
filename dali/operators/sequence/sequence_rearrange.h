@@ -62,10 +62,6 @@ class SequenceRearrange : public StatelessOperator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(SequenceRearrange);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
     const auto& input = ws.Input<Backend>(0);
     const auto& in_shape = input.shape();  // temporary in some cases

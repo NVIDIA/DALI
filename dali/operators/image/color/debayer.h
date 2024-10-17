@@ -127,10 +127,6 @@ class Debayer : public SequenceOperator<Backend, StatelessOperator> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   void AcquirePatternArgument(const Workspace &ws, int batch_size) {
     if (!spec_.HasTensorArgument(debayer::kBluePosArgName)) {
       pattern_.resize(batch_size, static_pattern_);

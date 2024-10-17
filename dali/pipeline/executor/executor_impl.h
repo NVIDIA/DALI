@@ -716,7 +716,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
   };
 
   auto reserve_batch = [](auto &storage, Index hint, int batch_size) {
-    // If the batch was marked as contiguous (for example due to op.CanInferOutputs being true)
+    // If the batch was marked as contiguous (for example due to op.HasContiguousOutputs being true)
     // reserve a contiguous batch.
     if (storage->IsContiguous()) {
       storage->reserve(hint * batch_size);
@@ -748,7 +748,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
             if (op_type_static == OpType::MIXED) {
               storage->SetContiguity(BatchContiguity::Contiguous);
             }
-            if (node.op->CanInferOutputs()) {
+            if (node.op->HasContiguousOutputs()) {
               storage->SetContiguity(BatchContiguity::Contiguous);
             }
             if (should_reserve(storage, hint, dev_static)) {

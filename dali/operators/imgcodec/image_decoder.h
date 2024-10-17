@@ -468,10 +468,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
       decoder_params_["jpeg_fancy_upsampling"] = false;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   void ParseSample(ParsedSample &parsed_sample, span<const uint8_t> encoded) {
     parsed_sample.encoded_stream =
         NvImageCodecCodeStream::FromHostMem(instance_, encoded.data(), encoded.size());

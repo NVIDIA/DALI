@@ -51,10 +51,6 @@ class Pad : public StatelessOperator<Backend> {
   using Operator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override;
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
  private:
   void ReadArguments(const OpSpec &spec, const Workspace &ws) {
     const auto &input = ws.Input<Backend>(0);

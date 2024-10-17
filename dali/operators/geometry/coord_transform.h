@@ -39,7 +39,6 @@ class CoordTransform : public SequenceOperator<Backend, StatelessOperator, true>
     dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
   }
 
-  bool CanInferOutputs() const override { return true; }
 
  protected:
   using Base::spec_;

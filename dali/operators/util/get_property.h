@@ -35,7 +35,7 @@ class GetProperty : public StatelessOperator<Backend> {
         property_reader_(GetPropertyReader(property_key_)) {}
 
  protected:
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return false;  // we may broadcast a common value to all samples
   }
 

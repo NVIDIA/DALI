@@ -38,6 +38,10 @@ class DumpImage : public StatelessOperator<Backend> {
   inline ~DumpImage() override = default;
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

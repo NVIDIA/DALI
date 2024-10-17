@@ -330,7 +330,6 @@ class TensorSubscript : public StatelessOperator<Backend> {
     return out_layout;
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   using StatelessOperator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override {

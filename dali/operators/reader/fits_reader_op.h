@@ -31,7 +31,7 @@ class FitsReader : public DataReader<Backend, Target, Target, true> {
  public:
   explicit FitsReader(const OpSpec& spec) : DataReader<Backend, Target, Target, true>(spec) {}
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return true;
   }
 

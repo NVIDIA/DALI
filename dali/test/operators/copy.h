@@ -34,6 +34,10 @@ class CopyArgumentOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(CopyArgumentOp);
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

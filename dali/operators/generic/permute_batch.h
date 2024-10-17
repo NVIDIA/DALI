@@ -64,10 +64,6 @@ class PermuteBatchBase : public StatelessOperator<Backend> {
     return true;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
 
  protected:
   vector<int> indices_;

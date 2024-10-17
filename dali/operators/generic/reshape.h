@@ -32,9 +32,8 @@ class Reshape : public StatelessOperator<Backend> {
 
   explicit Reshape(const OpSpec &spec_);
 
-  bool CanInferOutputs() const override {
-    // Return false, because we specifically don't want the executor to allocate
-    // the storage for the output - even though we can infer the shape.
+  bool HasContiguousOutputs() const override {
+    // The contiguity depends on the source operator's output
     return false;
   }
 

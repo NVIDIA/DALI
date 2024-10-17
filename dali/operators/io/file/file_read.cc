@@ -26,7 +26,6 @@ class FileRead : public StatelessOperator<CPUBackend> {
         dont_use_mmap_(spec.GetArgument<bool>("dont_use_mmap")),
         use_o_direct_(spec.GetArgument<bool>("use_o_direct")) {}
 
-  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
     const auto &filepaths = ws.Input<CPUBackend>(0);

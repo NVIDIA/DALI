@@ -45,7 +45,6 @@ class ReduceWithMeanInput : public StatelessOperator<Backend>, AxesHelper {
     ddof_(spec.GetArgument<int>("ddof")) {
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   inline ~ReduceWithMeanInput() override = default;
 

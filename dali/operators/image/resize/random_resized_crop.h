@@ -50,7 +50,6 @@ class RandomResizedCrop : public Operator<Backend>
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
-  bool CanInferOutputs() const override { return true; }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

@@ -44,7 +44,7 @@ class NumpyReader : public DataReader<Backend, Target, Target, true> {
     }
   }
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return true;
   }
 

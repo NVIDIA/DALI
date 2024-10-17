@@ -34,10 +34,6 @@ class Copy : public StatelessOperator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     output_desc[0].type = ws.GetInputDataType(0);
