@@ -83,6 +83,7 @@ For more details please check the
           # Currently supported range of versions.
           'astunparse >= 1.6.0',
           'gast >= 0.3.3',
+          "setuptools>=69.0; python_version>='3.12'",
           # the latest astunparse (1.6.3) doesn't work with any other six than
           # 1.16 on python 3.12 due to import six.moves
           'six >= 1.16',
