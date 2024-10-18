@@ -217,10 +217,10 @@ class DLL_PUBLIC FramesDecoder {
 
   bool is_full_range_ = false;
 
-  std::optional<bool> zero_latency_ = {};
-
-  // False when the file doesn't have any correct content or doesn't have valid video stream
+  // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
+
+  std::optional<bool> zero_latency_ = {};
 
  private:
    /**
