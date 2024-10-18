@@ -331,7 +331,8 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   }
 
   DALI_ENFORCE(
-    avcodec_parameters_copy(bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0,
+    avcodec_parameters_copy(bsfc_->par_in,
+                            av_state_->ctx_->streams[av_state_->stream_id_]->codecpar) >= 0,
     "Unable to copy bit stream filter parameters");
   DALI_ENFORCE(
     av_bsf_init(bsfc_) >= 0,
@@ -364,7 +365,11 @@ void FramesDecoderGpu::InitGpuParser() {
   InitBitStreamFilter();
 
   filtered_packet_ = av_packet_alloc();
-  DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
+  if (!filtered_packet_) {
+    DALI_WARN(make_string("Could not allocate av packet for \"", Filename(), "\""));
+    is_valid_ = false;
+    return;
+  }
 
   auto codec_type = GetCodecType();
 
@@ -380,8 +385,8 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
   parser_info.pfnDisplayPicture = nullptr;
 
-  auto extradata = av_state_->ctx_->streams[0]->codecpar->extradata;
-  auto extradata_size = av_state_->ctx_->streams[0]->codecpar->extradata_size;
+  auto extradata = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar->extradata;
+  auto extradata_size = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar->extradata_size;
 
   memset(&parser_extinfo, 0, sizeof(parser_extinfo));
   parser_info.pExtVideoInfo = &parser_extinfo;
