@@ -115,7 +115,7 @@ class RecordIOLoader : public IndexedFileLoader {
 
     shared_ptr<void> p = nullptr;
     int64_t n_read = 0;
-    bool use_read = copy_read_data_ || !current_file_->CanMemoryMap();
+    bool use_read = copy_read_data_;
     if (use_read) {
       sample.tensor.Resize({size});
     }
