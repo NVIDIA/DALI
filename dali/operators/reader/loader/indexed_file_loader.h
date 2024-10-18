@@ -112,7 +112,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
     }
     next_seek_pos_ = seek_pos + size;
 
-    if (opts.use_mmap && current_file_->CanMemoryMap()) {
+    if (!copy_read_data_) {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + paths_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
