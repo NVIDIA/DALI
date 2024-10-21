@@ -36,11 +36,10 @@ def test_dlpack():
                 means[flat_idx] = torch.mean(t)
                 flat_idx += 1
         # those are meant to overwrite the results if synchronization fails
-        (out,) = pipe.run(s)
-        (out,) = pipe.run(s)
-        (out,) = pipe.run(s)
-        (out,) = pipe.run(s)
-        del out
+        pipe.run(s)
+        pipe.run(s)
+        pipe.run(s)
+        pipe.run(s)
         means_cpu = means.cpu()
         for i in range(means_cpu.shape[0]):
             expected = 42 + 12 + pipe.max_batch_size + i
