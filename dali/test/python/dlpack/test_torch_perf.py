@@ -21,7 +21,6 @@ def bench_dlpack(verbose=False):
     pipe.build()
     pipe.run()
 
-    results = []
     s = torch.cuda.Stream(0)
     with torch.cuda.stream(s):
         sum = torch.zeros((), dtype=torch.float32).cuda()
@@ -59,7 +58,6 @@ def bench_copy(new_exec, verbose=False):
         dali_pyt.feed_ndarray(dali_tensor, t, stream)
         return t
 
-    results = []
     s = torch.cuda.Stream(0)
     with torch.cuda.stream(s):
         sum = torch.zeros((), dtype=torch.float32).cuda()
