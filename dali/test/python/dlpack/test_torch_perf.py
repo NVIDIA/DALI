@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import time
 
+
 @dali.pipeline_def(batch_size=32, num_threads=8, device_id=0)
 def test_pipe():
     row = dali.types.Constant(np.full((1, 1000), 42, dtype=np.float32), device="gpu")
@@ -12,8 +13,9 @@ def test_pipe():
     return ext + row + col
 
 
-def test_dlpack():
-    print("Testing dlpack")
+def bench_dlpack(verbose=False):
+    if verbose:
+        print("Testing dlpack")
     pipe = test_pipe(experimental_exec_dynamic=True)
     pipe.build()
     pipe.run()
@@ -25,24 +27,27 @@ def test_dlpack():
         sum -= 318
         start = time.time_ns()
         for i in range(10):
-            out, = pipe.run(s)
+            (out,) = pipe.run(s)
             batch = [torch.from_dlpack(t) for t in out]
             sum += torch.mean(torch.stack(batch))
         sum_cpu = sum.cpu()
+        assert sum_cpu == 2137, sum_cpu
         end = time.time_ns()
-        print((end-start)*1e-6)
-        print(sum_cpu)
-    return (end-start)*1e-6
+        if verbose:
+            print((end - start) * 1e-6)
+    return (end - start) * 1e-6
 
 
-def test_copy(new_exec):
-    print(f"Testing output copy with {'new' if new_exec else 'old'} executor")
+def bench_copy(new_exec, verbose=False):
+    if verbose:
+        print(f"Testing output copy with {'new' if new_exec else 'old'} executor")
     pipe = test_pipe(experimental_exec_dynamic=new_exec)
     pipe.build()
     pipe.run()
 
     def to_torch(dali_tensor):
         import nvidia.dali.plugin.pytorch as dali_pyt
+
         device = None
         stream = None
         if type(dali_tensor) is dali.backend.TensorGPU:
@@ -60,31 +65,46 @@ def test_copy(new_exec):
         sum -= 318
         start = time.time_ns()
         for i in range(10):
-            out, = pipe.run()
+            (out,) = pipe.run()
             batch = [to_torch(t) for t in out]
             sum += torch.mean(torch.stack(batch))
         sum_cpu = sum.cpu()
         end = time.time_ns()
-        print(sum_cpu)
-        print((end-start)*1e-6)
+        assert sum_cpu == 2137, sum_cpu
+        if verbose:
+            print((end - start) * 1e-6)
     pipe._shutdown()
     del pipe
     del sum
     del sum_cpu
-    return (end-start)*1e-6
+    return (end - start) * 1e-6
 
-dlpack_times = []
-copy_new_times = []
-copy_old_times = []
 
-for i in range(30):
-    dlpack_times.append(test_dlpack())
-    copy_new_times.append(test_copy(True))
-    copy_old_times.append(test_copy(False))
+def test_perf():
+    """Test that DLPack zero-copy output is faster than copying."""
+    dlpack_times = []
+    copy_new_times = []
+    copy_old_times = []
 
-print("Times")
-print("\tBest\tMedian\tMean\tMax")
-print(f"DLPack\t{np.min(dlpack_times)}\t{np.median(dlpack_times)}\t{np.mean(dlpack_times)}\t{np.max(dlpack_times)}")
-print(f"Copy (new)\t{np.min(copy_new_times)}\t{np.median(copy_new_times)}\t{np.mean(copy_new_times)}\t{np.max(copy_new_times)}")
-print(f"Copy (old)\t{np.min(copy_old_times)}\t{np.median(copy_old_times)}\t{np.mean(copy_old_times)}\t{np.max(copy_old_times)}")
+    runs = 20
+    for i in range(runs):
+        print(f"Run {i+1}/{runs}")
+        dlpack_times.append(bench_dlpack())
+        copy_old_times.append(bench_copy(False))
+        copy_new_times.append(bench_copy(True))
 
+    print("Times")
+    print("\tBest\tMedian\tMean\tMax")
+    print(
+        f"DLPack\t{np.min(dlpack_times)}\t{np.median(dlpack_times)}\t{np.mean(dlpack_times)}\t{np.max(dlpack_times)}"
+    )
+    print(
+        f"Copy (new)\t{np.min(copy_new_times)}\t{np.median(copy_new_times)}\t{np.mean(copy_new_times)}\t{np.max(copy_new_times)}"
+    )
+    print(
+        f"Copy (old)\t{np.min(copy_old_times)}\t{np.median(copy_old_times)}\t{np.mean(copy_old_times)}\t{np.max(copy_old_times)}"
+    )
+    assert np.min(dlpack_times) < np.min(copy_new_times)
+    assert np.min(dlpack_times) < np.min(copy_old_times)
+    assert np.median(dlpack_times) < np.median(copy_new_times)
+    assert np.median(dlpack_times) < np.median(copy_old_times)

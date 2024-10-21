@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <condition_variable>
+#include <list>
 #include <mutex>
 #include <string>
 #include <thread>
