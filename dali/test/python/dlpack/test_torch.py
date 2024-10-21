@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import time
 
+
 @dali.pipeline_def(batch_size=4, num_threads=1, device_id=0, prefetch_queue_depth=2)
 def _test_pipe():
     """This pipeline produces a lot of data in a very short time."""
@@ -28,19 +29,19 @@ def test_dlpack():
         means = torch.zeros((niter * pipe.max_batch_size,), dtype=torch.float32).cuda()
         flat_idx = 0
         for i in range(niter):
-            out, = pipe.run(s)
+            (out,) = pipe.run(s)
             # convert the tensors in the batch to DLPack
             batch = [torch.from_dlpack(t) for t in out]
             for t in batch:
                 means[flat_idx] = torch.mean(t)
                 flat_idx += 1
         # those are meant to overwrite the results if synchronization fails
-        out, = pipe.run(s)
-        out, = pipe.run(s)
-        out, = pipe.run(s)
-        out, = pipe.run(s)
+        (out,) = pipe.run(s)
+        (out,) = pipe.run(s)
+        (out,) = pipe.run(s)
+        (out,) = pipe.run(s)
+        del out
         means_cpu = means.cpu()
-        print(means_cpu)
         for i in range(means_cpu.shape[0]):
-            expected = 42 + 12 + pipe.max_batch_size  + i
+            expected = 42 + 12 + pipe.max_batch_size + i
             assert means_cpu[i] == expected, f"{means_cpu[i]} != {expected}"

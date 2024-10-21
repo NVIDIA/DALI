@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -380,11 +380,10 @@ def test_tensor_from_tensor_list_gpu():
         np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4,), i // 3))
 
 
-def test_tensor_expose_dlpack_capsule():
+def test_tensor_dlpack_export():
     arr = cp.arange(20)
     tensor = TensorGPU(arr, "NHWC")
 
-    capsule = tensor._expose_dlpack_capsule()
-    arr_from_dlpack = cp.from_dlpack(capsule)
+    arr_from_dlpack = cp.from_dlpack(tensor)
 
     assert cp.array_equal(arr, arr_from_dlpack)
