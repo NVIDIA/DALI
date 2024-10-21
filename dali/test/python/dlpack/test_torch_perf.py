@@ -3,6 +3,7 @@ import nvidia.dali.fn as fn
 import torch
 import numpy as np
 import time
+from nose.plugins.attrib import attr
 
 
 @dali.pipeline_def(batch_size=32, num_threads=8, device_id=0)
@@ -80,6 +81,7 @@ def bench_copy(new_exec, verbose=False):
     return (end - start) * 1e-6
 
 
+@attr("pytorch")
 def test_perf():
     """Test that DLPack zero-copy output is faster than copying."""
     dlpack_times = []

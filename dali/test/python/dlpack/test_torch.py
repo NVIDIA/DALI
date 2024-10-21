@@ -2,7 +2,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import torch
 import numpy as np
-import time
+from nose.plugins.attrib import attr
 
 
 @dali.pipeline_def(batch_size=4, num_threads=1, device_id=0, prefetch_queue_depth=2)
@@ -14,6 +14,7 @@ def _test_pipe():
     return ext + row + col
 
 
+@attr("pytorch")
 def test_dlpack():
     print("Testing dlpack")
     # get a DALI pipeline that produces batches of very large tensors
@@ -21,7 +22,6 @@ def test_dlpack():
     pipe.build()
     pipe.run()
 
-    results = []
     s = torch.cuda.Stream(0)
     with torch.cuda.stream(s):
         sum = torch.zeros((), dtype=torch.float32).cuda()
