@@ -24,7 +24,6 @@ def test_dlpack():
 
     s = torch.cuda.Stream(0)
     with torch.cuda.stream(s):
-        sum = torch.zeros((), dtype=torch.float32).cuda()
         niter = 5
         means = torch.zeros((niter * pipe.max_batch_size,), dtype=torch.float32).cuda()
         flat_idx = 0

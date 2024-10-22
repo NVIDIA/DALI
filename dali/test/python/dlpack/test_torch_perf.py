@@ -96,13 +96,16 @@ def test_perf():
     print("Times")
     print("\tBest\tMedian\tMean\tMax")
     print(
-        f"DLPack\t{np.min(dlpack_times)}\t{np.median(dlpack_times)}\t{np.mean(dlpack_times)}\t{np.max(dlpack_times)}"
+        f"DLPack\t{np.min(dlpack_times)}\t{np.median(dlpack_times)}"
+        f"\t{np.mean(dlpack_times)}\t{np.max(dlpack_times)}"
     )
     print(
-        f"Copy (new)\t{np.min(copy_new_times)}\t{np.median(copy_new_times)}\t{np.mean(copy_new_times)}\t{np.max(copy_new_times)}"
+        f"Copy (new)\t{np.min(copy_new_times)}\t{np.median(copy_new_times)}"
+        f"\t{np.mean(copy_new_times)}\t{np.max(copy_new_times)}"
     )
     print(
-        f"Copy (old)\t{np.min(copy_old_times)}\t{np.median(copy_old_times)}\t{np.mean(copy_old_times)}\t{np.max(copy_old_times)}"
+        f"Copy (old)\t{np.min(copy_old_times)}\t{np.median(copy_old_times)}"
+        f"\t{np.mean(copy_old_times)}\t{np.max(copy_old_times)}"
     )
     assert np.min(dlpack_times) < np.min(copy_new_times)
     assert np.min(dlpack_times) < np.min(copy_old_times)
