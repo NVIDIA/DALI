@@ -67,10 +67,9 @@ add_custom_target(lint-python-flake
         COMMENT
           "Performing Python linter check"
 )
-add_dependencies(lint-python-flake lint-python-black)
 
 add_custom_target(lint-python)
-add_dependencies(lint-python lint-python-flake lint-python-bandit)
+add_dependencies(lint-python lint-python-black lint-python-flake lint-python-bandit)
 
 add_custom_target(lint)
 add_dependencies(lint lint-cpp lint-python)
