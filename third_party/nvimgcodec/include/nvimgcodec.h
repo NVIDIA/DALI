@@ -892,7 +892,11 @@ extern "C"
         int device_id;                                 /**< Device id to process decoding on. It can be also specified 
                                                            using defines NVIMGCODEC_DEVICE_CURRENT or NVIMGCODEC_DEVICE_CPU_ONLY. */
         int pre_init;                                  /**< If true, all relevant resources are initialized at creation of the instance */
-        int num_backends;                              /**< Number of allowed backends passed (if any) 
+        int skip_pre_sync;                             /**< If true, synchronization between user stream and per-thread streams is skipped before
+                                                           decoding (we only synchronize after decoding). This can be useful when we are sure that
+                                                           there are no actions that need synchronization (e.g. a CUDA async allocation on
+                                                           the user stream) */
+        int num_backends;                              /**< Number of allowed backends passed (if any)
                                                            in backends parameter. For 0, all backends are allowed.*/
         const nvimgcodecBackend_t* backends;           /**< Points a nvimgcodecBackend_t array with defined allowed backends.
                                                            For nullptr, all backends are allowed. */
