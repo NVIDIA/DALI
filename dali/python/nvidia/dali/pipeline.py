@@ -27,7 +27,6 @@ from threading import local as tls
 from . import data_node as _data_node
 import atexit
 import copy
-import ctypes
 import functools
 import inspect
 import pickle  # nosec B403
