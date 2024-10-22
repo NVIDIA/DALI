@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,6 +70,7 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
     int num_threads;
     int device_id;
     bool exec_separated;
+    bool exec_dynamic;
     int prefetch_queue_depth;
     int cpu_prefetch_queue_depth;
     int gpu_prefetch_queue_depth;
@@ -99,6 +100,7 @@ class DALIDatasetOp : public tensorflow::data::DatasetOpKernel {
   static constexpr const char* const kNumThreads = "num_threads";
   static constexpr const char* const kDeviceId = "device_id";
   static constexpr const char* const kExecSeparated = "exec_separated";
+  static constexpr const char* const kExecDynamic = "exec_dynamic";
   static constexpr const char* const kPrefetchQueueDepth = "prefetch_queue_depth";
   static constexpr const char* const kCpuPrefetchQueueDepth = "cpu_prefetch_queue_depth";
   static constexpr const char* const kGpuPrefetchQueueDepth = "gpu_prefetch_queue_depth";

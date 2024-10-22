@@ -45,6 +45,9 @@ test_body() {
         ${python_invoke_test} test_dali_tf_dataset_eager.py
         ${python_invoke_test} test_dali_tf_dataset_graph.py
     fi
+
+    # DALI TF + dynamic executor
+    ${python_invoke_test} test_dali_tf_exec2.py
 }
 
 pushd ../..
