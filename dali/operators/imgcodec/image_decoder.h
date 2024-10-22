@@ -400,6 +400,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     exec_params_.executor = &executor_;
     exec_params_.max_num_cpu_threads = num_threads_;
     exec_params_.pre_init = 1;
+    exec_params_.skip_pre_sync = 1;  // we are not doing stream allocations before decoding.
     decoder_ = NvImageCodecDecoder::Create(instance_, &exec_params_, opts_.to_string());
   }
 
