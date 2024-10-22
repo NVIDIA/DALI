@@ -105,7 +105,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   target.nbytes = nbytes;
   target.filename = std::move(path);
 
-  if (copy_read_data_) {
+  if (!opts.use_mmap || !current_file->CanMemoryMap()) {
     target.current_file = std::move(current_file);
   } else {
     auto p = current_file->Get(nbytes);

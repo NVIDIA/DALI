@@ -145,7 +145,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
   auto frame = FileStream::Open(frame_filename, opts);
   Index frame_size = frame->Size();
   // Release and unmap memory previously obtained by Get call
-  if (copy_read_data_) {
+  if (copy_read_data_ || !frame->CanMemoryMap()) {
     if (target->shares_data()) {
       target->Reset();
     }

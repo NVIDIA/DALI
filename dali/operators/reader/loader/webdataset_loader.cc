@@ -316,7 +316,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       continue;
     }
     // Reading Data
-    if (copy_read_data_) {
+    if (copy_read_data_ || !current_wds_shard->CanMemoryMap()) {
       uint8_t* shared_tensor_data = nullptr;
       bool shared_tensor_is_pinned = false;
       int device_id = CPU_ONLY_DEVICE_ID;

@@ -69,7 +69,7 @@ void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper 
   });
   Index file_size = current_file->Size();
 
-  if (copy_read_data_) {
+  if (copy_read_data_ || !current_file->CanMemoryMap()) {
     if (image_label.image.shares_data()) {
       image_label.image.Reset();
     }
