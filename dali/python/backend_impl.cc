@@ -2245,6 +2245,14 @@ PYBIND11_MODULE(backend_impl, m) {
               device_id = sample0.device_id();
             }
             AccessOrder order(stream, device_id);
+            if (order.is_device()) {
+              CUcontext ctx = nullptr;
+              CUDA_CALL(cuStreamGetCtx(order.stream(), &ctx));
+              CUDA_CALL(cuCtxPushCurrent(ctx));
+              CUdevice device;
+              CUDA_CALL(cuCtxGetDevice(&device));
+              CUDA_CALL(cuCtxPopCurrent(&ctx));
+            }
             FeedPipeline<GPUBackend>(p, name, list, order, cuda_stream.is_none(), use_copy_kernel);
           }
         },
