@@ -382,14 +382,14 @@ void WebdatasetLoader::PrepareMetadataImpl() {
 
   FileStream::Options opts;
   opts.read_ahead = read_ahead_;
-  opts.use_mmap = copy_read_data_;
+  opts.use_mmap = !copy_read_data_;
   opts.use_odirect = false;
 
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
   for (auto& path : paths_) {
     // If an actual URI, disable mmap
-    opts.use_mmap = copy_read_data_;
+    opts.use_mmap = !copy_read_data_;
     wds_shards_.emplace_back(FileStream::Open(path, opts));
   }
 
