@@ -1,5 +1,5 @@
 import tensorflow as tf
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 BASE_LEARNING_RATE = 0.1
 
@@ -18,7 +18,7 @@ def create_piecewise_constant_decay_with_warmup(batch_size, epoch_size,
   rescaled_lr = BASE_LEARNING_RATE * batch_size / base_lr_batch_size
   step_boundaries = [float(steps_per_epoch) * x for x in boundaries]
   lr_values = [rescaled_lr * m for m in multipliers]
-  if StrictVersion(tf.__version__) >= StrictVersion("2.13"):
+  if Version(tf.__version__) >= Version("2.13"):
     warmup_steps = int(warmup_epochs * steps_per_epoch)
   else:
     warmup_steps = warmup_epochs * steps_per_epoch
@@ -38,7 +38,7 @@ class PiecewiseConstantDecayWithWarmup(
     super(PiecewiseConstantDecayWithWarmup, self).__init__()
 
     self.rescaled_lr = rescaled_lr
-    if StrictVersion(tf.__version__) >= StrictVersion("2.13"):
+    if Version(tf.__version__) >= Version("2.13"):
       self.step_boundaries = [int(b) for b in step_boundaries]
     else:
       self.step_boundaries = step_boundaries

@@ -18,13 +18,13 @@
 import functools
 import gast
 
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 
 def get_gast_version():
     """Gast exports `__version__` from 0.5.3 onwards, we need to look it up in a different way."""
     if hasattr(gast, "__version__"):
-        return gast.__version__
+        return Version(gast.__version__)
     try:
         import pkg_resources
 
@@ -32,15 +32,15 @@ def get_gast_version():
     except pkg_resources.DistributionNotFound:
         # Older gast had 'Str', check for the oldest supported version
         if hasattr(gast, "Str"):
-            return "0.2"
+            return Version("0.2")
         else:
             try:
                 # Try to call it with 3 arguments, to differentiate between 0.5+ and earlier.
                 gast.Assign(None, None, None)
             except AssertionError as e:
                 if "Bad argument number for Assign: 3, expecting 2" in str(e):
-                    return "0.4"
-            return "0.5"
+                    return Version("0.4")
+            return Version("0.5")
 
 
 def is_constant(node):
@@ -76,7 +76,7 @@ def _compat_assign_gast_5(targets, value, type_comment):
     return gast.Assign(targets=targets, value=value, type_comment=type_comment)
 
 
-if get_gast_version() < LooseVersion("0.5"):
+if get_gast_version() < Version("0.5"):
     compat_assign = _compat_assign_gast_4
 else:
     compat_assign = _compat_assign_gast_5

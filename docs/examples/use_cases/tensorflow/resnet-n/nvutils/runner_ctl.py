@@ -17,7 +17,7 @@
 from builtins import range
 from nvutils import image_processing
 from nvutils import common
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 import tensorflow as tf
 from tensorflow import keras
@@ -27,8 +27,8 @@ import re
 
 from keras import backend
 print(tf.__version__)
-if StrictVersion(tf.__version__) > StrictVersion("2.1.0"):
-  if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
+if Version(tf.__version__) > Version("2.1.0"):
+  if Version(tf.__version__) >= Version("2.4.0"):
     from tensorflow.python.keras.mixed_precision import device_compatibility_check
   else:
     from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
@@ -105,7 +105,7 @@ def train_ctl(model_func, params):
     summary_writer = None
 
   if precision == 'fp16':
-    if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
+    if Version(tf.__version__) >= Version("2.4.0"):
       policy = keras.mixed_precision.Policy('mixed_float16')
       keras.mixed_precision.set_global_policy(policy)
     else:
