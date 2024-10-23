@@ -21,10 +21,19 @@ import gast
 from packaging.version import Version
 
 
+def convert_to_version(function):
+    """Makes sure that returned function value is a Version object"""
+    def wrap_function(*args, **kwargs):
+        return Version(function(*args, **kwargs))
+
+    return wrap_function
+
+
+@convert_to_version
 def get_gast_version():
     """Gast exports `__version__` from 0.5.3 onwards, we need to look it up in a different way."""
     if hasattr(gast, "__version__"):
-        return Version(gast.__version__)
+        return gast.__version__
     try:
         import pkg_resources
 
@@ -32,15 +41,15 @@ def get_gast_version():
     except pkg_resources.DistributionNotFound:
         # Older gast had 'Str', check for the oldest supported version
         if hasattr(gast, "Str"):
-            return Version("0.2")
+            return "0.2"
         else:
             try:
                 # Try to call it with 3 arguments, to differentiate between 0.5+ and earlier.
                 gast.Assign(None, None, None)
             except AssertionError as e:
                 if "Bad argument number for Assign: 3, expecting 2" in str(e):
-                    return Version("0.4")
-            return Version("0.5")
+                    return "0.4"
+            return "0.5"
 
 
 def is_constant(node):
