@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 import copy
 import argparse
 import logging
@@ -23,6 +24,8 @@ from utils.save_load import _PDOPT_SUFFIX, _PDPARAMS_SUFFIX
 
 _AUTO_LAST_EPOCH = "auto"
 
+_true_set = {'yes', 'true', 't', 'y', '1'}
+_false_set = {'no', 'false', 'f', 'n', '0'}
 
 # based on https://github.com/symonsoft/str2bool/tree/master
 # BSD3 license
