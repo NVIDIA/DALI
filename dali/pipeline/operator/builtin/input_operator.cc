@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,28 +51,27 @@ template<>
 void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
                                                    std::optional<std::string> &target_data_id,
                                                    ThreadPool &thread_pool) {
-  std::list<uptr_tl_type> tensor_list_elm;
+  queue_item_t tensor_list_elm;
   {
-    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
-    state_.pop_front();
   }
-  target_data_id = std::move(tensor_list_elm.front().data_id);
-  tensor_list_elm.front().data_id = std::nullopt;
+  target_data_id = std::move(tensor_list_elm->data_id);
+  tensor_list_elm->data_id = std::nullopt;
   // if the output is pinned and input not it needs to be copied
-  if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
-    const auto &shapes = tensor_list_elm.front()->shape();
+  if (target.is_pinned() && !tensor_list_elm->data.is_pinned()) {
+    const auto &shapes = tensor_list_elm->data.shape();
     auto curr_batch_size = shapes.num_samples();
-    target.Resize(shapes, tensor_list_elm.front()->type());
+    target.Resize(shapes, tensor_list_elm->data.type());
 
     // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
-    target.SetLayout(tensor_list_elm.front()->GetLayout());
+    target.SetLayout(tensor_list_elm->data.GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
               [&target, sample_id, &tensor_list_elm](int tid) {
-                  target.CopySample(sample_id, *tensor_list_elm.front(), sample_id,
+                  target.CopySample(sample_id, tensor_list_elm->data, sample_id,
                                     AccessOrder::host());
               },
               shapes.tensor_size(sample_id));
@@ -80,9 +79,9 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
     thread_pool.RunAll();
   } else {
     // swap output with tensor_list_elm content
-    std::swap(target, *tensor_list_elm.front());
+    std::swap(target, tensor_list_elm->data);
   }
-  RecycleBuffer(tensor_list_elm);
+  RecycleBuffer(std::move(tensor_list_elm));
 }
 
 
@@ -90,36 +89,24 @@ template<>
 void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
                                                    std::optional<std::string> &target_data_id,
                                                    cudaStream_t stream) {
-  std::list<uptr_tl_type> tensor_list_elm;
-  std::list<uptr_cuda_event_type> internal_copy_to_storage;
-  InputSourceState state_info;
+  queue_item_t tensor_list_elm;
   {
-    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
-    state_info = state_.front();
-    state_.pop_front();
-    // even with no_copy we may have copied from TensorList to TensorList and we
-    // need to sync with that
-    if (!state_info.no_copy || state_info.copied_shared_data) {
-      internal_copy_to_storage = copy_to_storage_events_.PopFront();
-    }
   }
 
-  if (!state_info.no_copy || state_info.copied_shared_data) {
-    CUDA_CALL(cudaStreamWaitEvent(stream, *internal_copy_to_storage.front(), 0));
+  if (tensor_list_elm->copy_complete) {
+    CUDA_CALL(cudaStreamWaitEvent(stream, tensor_list_elm->copy_complete));
   }
-  target_data_id = std::move(tensor_list_elm.front().data_id);
-  tensor_list_elm.front().data_id = std::nullopt;
 
-  std::swap(target, *tensor_list_elm.front());
+  target_data_id = std::move(tensor_list_elm->data_id);
+  tensor_list_elm->data_id = std::nullopt;
+
+  std::swap(target, tensor_list_elm->data);
   target.set_order(stream, false);
-  tensor_list_elm.front()->set_order(internal_copy_order_);
+  tensor_list_elm->data.set_order(internal_copy_order_);
 
-  if (!state_info.no_copy || state_info.copied_shared_data) {
-    RecycleBuffer(tensor_list_elm, &internal_copy_to_storage);
-  } else {
-    RecycleBuffer(tensor_list_elm);
-  }
+  RecycleBuffer(std::move(tensor_list_elm));
 }
 
 
@@ -127,22 +114,19 @@ template<>
 void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
                                                      std::optional<std::string> &target_data_id,
                                                      cudaStream_t stream) {
-  std::list<uptr_tl_type> tensor_list_elm;
-  InputSourceState state_info;
+  queue_item_t tensor_list_elm;
   {
-    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
-    state_info = state_.front();
-    state_.pop_front();
   }
-  target_data_id = std::move(tensor_list_elm.front().data_id);
-  tensor_list_elm.front().data_id = std::nullopt;
+  target_data_id = std::move(tensor_list_elm->data_id);
+  tensor_list_elm->data_id = std::nullopt;
 
-  target.Copy(*tensor_list_elm.front(), stream);
+  target.Copy(tensor_list_elm->data, stream);
 
-  tensor_list_elm.front()->set_order(internal_copy_order_);
+  tensor_list_elm->data.set_order(internal_copy_order_);
 
-  RecycleBuffer(tensor_list_elm);
+  RecycleBuffer(std::move(tensor_list_elm));
 }
 
 
@@ -150,28 +134,27 @@ template<>
 void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
                                                      std::optional<std::string> &target_data_id,
                                                      ThreadPool &thread_pool) {
-  std::list<uptr_tl_type> tensor_list_elm;
+  queue_item_t tensor_list_elm;
   {
-    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
-    state_.pop_front();
   }
-  target_data_id = std::move(tensor_list_elm.front().data_id);
-  tensor_list_elm.front().data_id = std::nullopt;
+  target_data_id = std::move(tensor_list_elm->data_id);
+  tensor_list_elm->data_id = std::nullopt;
   // if the output is pinned and input not it needs to be copied
-  if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
-    const auto &shapes = tensor_list_elm.front()->shape();
+  if (target.is_pinned() && !tensor_list_elm->data.is_pinned()) {
+    const auto &shapes = tensor_list_elm->data.shape();
     auto curr_batch_size = shapes.num_samples();
-    target.Resize(shapes, tensor_list_elm.front()->type());
+    target.Resize(shapes, tensor_list_elm->data.type());
 
     // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
-    target.SetLayout(tensor_list_elm.front()->GetLayout());
+    target.SetLayout(tensor_list_elm->data.GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
               [&target, sample_id, &tensor_list_elm](int tid) {
-                  target.CopySample(sample_id, *tensor_list_elm.front(), sample_id,
+                  target.CopySample(sample_id, tensor_list_elm->data, sample_id,
                                     AccessOrder::host());
               },
               shapes.tensor_size(sample_id));
@@ -179,9 +162,9 @@ void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &tar
     thread_pool.RunAll();
   } else {
     // swap output with tensor_list_elm content
-    std::swap(target, *tensor_list_elm.front());
+    std::swap(target, tensor_list_elm->data);
   }
-  RecycleBuffer(tensor_list_elm);
+  RecycleBuffer(std::move(tensor_list_elm));
 }
 
 
