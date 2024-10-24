@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,22 +93,23 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
 
     iter = 0
 
-    def get_data():
-        nonlocal iter
-        with cp.cuda.Device(src):
-            data = cp.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=cp.float32) + iter
-            iter += 1
-        if use_dali_tensor:
-            return TensorGPU(data.toDlpack())
-        return data
+    with cp.cuda.Device(src):
+        with cp.cuda.Stream(src):
+            def get_data():
+                nonlocal iter
+                data = cp.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=cp.float32) + iter
+                iter += 1
+                if use_dali_tensor:
+                    return TensorGPU(data.toDlpack())
+                return data
 
-    with pipe:
-        pipe.set_outputs(fn.external_source(get_data, batch=False, device="gpu"))
+            with pipe:
+                pipe.set_outputs(fn.external_source(get_data, batch=False, device="gpu"))
 
-    pipe.build()
-    for i in range(10):
-        (out,) = pipe.run()
-        assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i)
+            pipe.build()
+            for i in range(10):
+                (out,) = pipe.run()
+                assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i)
 
 
 @attr("multigpu")
