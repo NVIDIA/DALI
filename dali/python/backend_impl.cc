@@ -890,6 +890,12 @@ void ExposeTensor(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
+    .def_property_readonly("stream", [](const Tensor<GPUBackend> &t)->py::object {
+      if (t.order().is_device())
+        return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
+      else
+        return py::none();
+    })
     .def("data_ptr",
         [](Tensor<GPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
@@ -1531,6 +1537,12 @@ void ExposeTensorList(py::module &m) {
     })
     .def("__repr__", [](TensorList<GPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t, false);
+    })
+    .def_property_readonly("stream", [](const Tensor<GPUBackend> &t)->py::object {
+      if (t.order().is_device())
+        return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
+      else
+        return py::none();
     })
     .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
           return tl.type();

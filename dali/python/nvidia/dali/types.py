@@ -16,6 +16,7 @@
 from enum import Enum, unique
 import ctypes
 import re
+from nvidia.dali import backend_impl
 
 from nvidia.dali._backend_enums import (
     DALIDataType as DALIDataType,
@@ -397,6 +398,8 @@ def _raw_cuda_stream(stream_obj):
 def _get_default_stream_for_array(array):
     if isinstance(array, list) and len(array):
         array = array[0]
+    if isinstance(array, (backend_impl.TensorListGPU, backend_impl.TensorGPU)):
+        return array.stream
     if _is_torch_tensor(array):
         import torch
 
