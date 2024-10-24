@@ -67,6 +67,7 @@ REGISTER_OP("Dali")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
   .Attr("exec_separated: bool = false")
+  .Attr("exec_dynamic: bool = false")
   .Attr("gpu_prefetch_queue_depth: int = 2")
   .Attr("cpu_prefetch_queue_depth: int = 2")
   .Attr("sparse: list(bool) = []")
@@ -111,6 +112,7 @@ class DaliOp : public tf::OpKernel {
     int device_id;
     int max_batch_size;
     bool exec_separated;
+    bool exec_dynamic;
     int cpu_prefetch_queue_depth;
 
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
@@ -118,6 +120,7 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
     OP_REQUIRES_OK(context, context->GetAttr("exec_separated", &exec_separated));
+    OP_REQUIRES_OK(context, context->GetAttr("exec_dynamic", &exec_dynamic));
     // In exec_separated==false case, gpu_prefetch_queue_depth is the global prefetch_queue_depth_
     OP_REQUIRES_OK(context, context->GetAttr("gpu_prefetch_queue_depth", &prefetch_queue_depth_));
     OP_REQUIRES_OK(context, context->GetAttr("sparse", &sparse_));
@@ -142,13 +145,19 @@ class DaliOp : public tf::OpKernel {
       max_batch_size = shapes_[0].dim_size(0);
     }
 
-    TF_DALI_CALL(daliCreatePipeline(&pipe_handle_,
+    dali_exec_flags_t flags = DALI_EXEC_ASYNC_PIPELINED;
+    if (exec_dynamic)
+      flags = flags | DALI_EXEC_IS_DYNAMIC;
+    if (exec_separated)
+      flags = flags | DALI_EXEC_IS_SEPARATED;
+
+    TF_DALI_CALL(daliCreatePipeline3(&pipe_handle_,
                    serialized_pipeline.c_str(),
                    serialized_pipeline.length(),
                    max_batch_size,
                    num_threads,
                    device_id,
-                   exec_separated,
+                   flags,
                    prefetch_queue_depth_,
                    cpu_prefetch_queue_depth,
                    prefetch_queue_depth_,
@@ -165,28 +174,30 @@ class DaliOp : public tf::OpKernel {
   }
 
   ~DaliOp() override {
-    if (enable_memory_stats_) {
-      size_t N;
-      daliExecutorMetadata *meta;
-      daliGetExecutorMetadata(&pipe_handle_, &meta, &N);
-      std::cout << "DALI operator memory statistics: "  << std::endl;
-      for (size_t i = 0; i < N; ++i) {
-        std::cout << "Operator " << meta[i].operator_name;
-        for (size_t j = 0; j < meta[i].out_num; ++j) {
-          std::cout << "   output [ " << j << " ] : "
-                    << meta[i].real_size[j] << "B allocated "
-                    << meta[i].max_real_size[j] << "B max allocated "
-                    << meta[i].reserved[j] << "B reserved"
-                    << meta[i].max_reserved[j] << "B max reserved";
-          if (j != meta[i].out_num - 1) {
-            std::cout << ",";
+    if (pipe_handle_) {
+      if (enable_memory_stats_) {
+        size_t N;
+        daliExecutorMetadata *meta;
+        daliGetExecutorMetadata(&pipe_handle_, &meta, &N);
+        std::cout << "DALI operator memory statistics: "  << std::endl;
+        for (size_t i = 0; i < N; ++i) {
+          std::cout << "Operator " << meta[i].operator_name;
+          for (size_t j = 0; j < meta[i].out_num; ++j) {
+            std::cout << "   output [ " << j << " ] : "
+                      << meta[i].real_size[j] << "B allocated "
+                      << meta[i].max_real_size[j] << "B max allocated "
+                      << meta[i].reserved[j] << "B reserved"
+                      << meta[i].max_reserved[j] << "B max reserved";
+            if (j != meta[i].out_num - 1) {
+              std::cout << ",";
+            }
           }
+          std::cout << std::endl;
         }
-        std::cout << std::endl;
+        daliFreeExecutorMetadata(meta, N);
       }
-      daliFreeExecutorMetadata(meta, N);
+      daliDeletePipeline(&pipe_handle_);
     }
-    daliDeletePipeline(&pipe_handle_);
   }
 
   void Compute(tf::OpKernelContext* context) override {
@@ -389,15 +400,15 @@ class DaliOp : public tf::OpKernel {
   }
 
  private:
-  daliPipelineHandle pipe_handle_;
+  daliPipelineHandle pipe_handle_ = nullptr;
   std::vector<tf::TensorShape> shapes_;
   tf::DataTypeVector types_;
-  int device_id_;
-  int batch_size_;
-  int prefetch_queue_depth_;
-  device_type_t device_type_;
+  int device_id_ = -1;
+  int batch_size_ = 0;
+  int prefetch_queue_depth_ = -1;
+  device_type_t device_type_ = CPU;
   std::vector<bool> sparse_;
-  bool enable_memory_stats_;
+  bool enable_memory_stats_ = false;
 };
 
 using tf::int64;

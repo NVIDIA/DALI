@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -214,6 +214,7 @@ def DALIIteratorWrapper(
     dtypes=[],
     batch_size=-1,
     prefetch_queue_depth=2,
+    exec_dynamic=False,
     **kwargs,
 ):
     """
@@ -231,6 +232,9 @@ def DALIIteratorWrapper(
         exec_separated = False
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used
         gpu_prefetch_queue_depth = prefetch_queue_depth
+
+    if pipeline is not None and pipeline._exec_dynamic:
+        exec_dynamic = True
 
     if serialized_pipeline is None:
         serialized_pipeline = serialize_pipeline(pipeline)
@@ -281,6 +285,7 @@ def DALIIteratorWrapper(
         exec_separated=exec_separated,
         gpu_prefetch_queue_depth=gpu_prefetch_queue_depth,
         cpu_prefetch_queue_depth=cpu_prefetch_queue_depth,
+        exec_dynamic=exec_dynamic,
         **kwargs,
     )
     new_out = []
@@ -436,6 +441,7 @@ if dataset_compatible_tensorflow():
             num_threads=4,
             device_id=0,
             exec_separated=False,
+            exec_dynamic=False,
             prefetch_queue_depth=2,
             cpu_prefetch_queue_depth=2,
             gpu_prefetch_queue_depth=2,
@@ -444,6 +450,9 @@ if dataset_compatible_tensorflow():
         ):
             output_shapes = self._handle_deprecation(output_shapes, shapes, "shapes")
             output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
+
+            if pipeline._exec_dynamic:
+                exec_dynamic = True
 
             if not self._check_dtypes(output_dtypes, tf.DType):
                 raise TypeError(
@@ -475,6 +484,7 @@ if dataset_compatible_tensorflow():
                 device_id = types.CPU_ONLY_DEVICE_ID
             self._device_id = device_id
             self._exec_separated = exec_separated
+            self._exec_dynamic = exec_dynamic
             self._prefetch_queue_depth = prefetch_queue_depth
             self._cpu_prefetch_queue_depth = cpu_prefetch_queue_depth
             self._gpu_prefetch_queue_depth = gpu_prefetch_queue_depth
@@ -805,6 +815,7 @@ if dataset_compatible_tensorflow():
                 num_threads=self._num_threads,
                 device_id=self._device_id,
                 exec_separated=self._exec_separated,
+                exec_dynamic=self._exec_dynamic,
                 prefetch_queue_depth=self._prefetch_queue_depth,
                 cpu_prefetch_queue_depth=self._cpu_prefetch_queue_depth,
                 gpu_prefetch_queue_depth=self._gpu_prefetch_queue_depth,
@@ -865,6 +876,7 @@ else:
             num_threads=4,
             device_id=0,
             exec_separated=False,
+            exec_dynamic=False,
             prefetch_queue_depth=2,
             cpu_prefetch_queue_depth=2,
             gpu_prefetch_queue_depth=2,
@@ -984,6 +996,11 @@ DALIDataset.__doc__ = """Creates a ``DALIDataset`` compatible with
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
+        This flag is incompatible with ``exec_dymamic``.
+    exec_dynamic : bool, optional, default = False
+        Whether to execute the pipeline with the dynamic executor, which allows flexible mixing
+        of CPU and GPU operators and enables aggressive memory reuse.
+        This flag is incompatible with ``exec_separated``.
     prefetch_queue_depth : int, optional, default = 2
         depth of the executor queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
