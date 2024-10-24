@@ -33,78 +33,46 @@ namespace dali {
 
 namespace detail {
 
-struct CudaEventWrapper : CUDAEvent {
-  CudaEventWrapper() : CUDAEvent(CUDAEvent::Create()) {}
-};
-
-
-/**
- * Custom structure to hold the input data inside the CachingList.
- * Apart from holding a pointer to the data, it can also contain other data associated with the
- * input data, e.g. name, flavour, colour, etc.
- * @tparam Backend
- */
 template<typename Backend>
-struct named_pointer_to_tensor_list_t {
-  using element_type = TensorList<Backend>;
-  std::unique_ptr<element_type> data = nullptr;
+struct InputQueueItem {
+  class EventLease {
+    int device_id_ = -1;
+    CUDAEvent event_;
+   public:
+    int device_id() const noexcept { return device_id_; }
+
+    operator cudaEvent_t() const noexcept { return event_; }
+    explicit operator bool() const noexcept { return event_; }
+
+    void Get(int device_id) {
+      if (device_id != device_id_)
+        Put();
+      if (!event_) {
+        event_ = CUDAEventPool::instance().Get(device_id_);
+        device_id_ = device_id;
+      }
+    }
+
+    void Put() {
+      if (event_)
+        CUDAEventPool::instance().Put(std::move(event_), device_id_);
+      device_id_ = -1;
+    }
+  };
+
+  TensorList<Backend> data;
   std::optional<std::string> data_id = std::nullopt;
+  EventLease copy_complete;
+  bool copy_performed = false;
+  bool copy_requested = false;
 
-
-  named_pointer_to_tensor_list_t(std::unique_ptr<element_type> data) :  // NOLINT
-          data(std::move(data)) {}
-
-  ~named_pointer_to_tensor_list_t() = default;
-
-  named_pointer_to_tensor_list_t(const named_pointer_to_tensor_list_t &) = delete;
-
-  named_pointer_to_tensor_list_t &operator=(const named_pointer_to_tensor_list_t &) = delete;
-
-
-  named_pointer_to_tensor_list_t &operator=(named_pointer_to_tensor_list_t &&other) noexcept {
-    data = std::move(other.data);
-    data_id = std::move(other.data_id);
-    other.data = nullptr;
-    other.data_id = std::nullopt;
-  }
-
-
-  named_pointer_to_tensor_list_t(named_pointer_to_tensor_list_t &&other) noexcept {
-    *this = std::move(other);
-  }
-
-
-  auto &operator*() const noexcept {
-    return *data;
-  }
-
-
-  auto &operator->() const noexcept {
-    return data;
-  }
-
-
-  void set_id(std::string id) noexcept {
-    data_id = std::move(id);
+  cudaEvent_t GetCompletionEvent(int device_id) {
+    copy_complete.Get(device_id);
+    return copy_complete;
   }
 };
 
 }  // namespace detail
-
-
-struct InputSourceState {
-  /**
-   * True if the data that was shared as no_copy required copy regardless.
-   * Happens for non-contiguous TensorList with GPU memory.
-   */
-  bool copied_shared_data = false;
-
-  /**
-   * @brief Actual value of no_copy option used in this call. Always false for CopyUserData(...)
-   * and always true for ShareUserData(...)
-   */
-  bool no_copy = false;
-};
 
 
 /**
@@ -170,8 +138,8 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
           std::is_same_v<Backend, CPUBackend>,
           CPUBackend /* CPUBackend */,
           GPUBackend /* GPUBackend and MixedBackend */>;
-  using uptr_tl_type = detail::named_pointer_to_tensor_list_t<InBackend>;
-  using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
+  using InputQueue = CachingList<detail::InputQueueItem<InBackend>>;
+  using queue_item_t = typename InputQueue::Item;
 
  public:
   explicit InputOperator(const OpSpec &spec) :
@@ -274,7 +242,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * Checks if there is more data in queue to be loaded.
    */
   bool HasDataInQueue() const {
-    return !state_.empty();
+    return !tl_data_.IsEmpty();
   }
 
 
@@ -288,9 +256,9 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   void HandleDataAvailability() {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     if (blocking_) {
-      cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
+      cv_.wait(busy_lock, [&] { return HasDataInQueue(); });
     } else {
-      if (state_.empty()) {
+      if (!HasDataInQueue()) {
         DALI_FAIL("No data was provided to the InputOperator. Make sure to feed it properly.");
       }
     }
@@ -324,7 +292,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * Peeks the data that is next in line.
    */
   const TensorList<InBackend> &PeekCurrentData() {
-    return *tl_data_.PeekFront();
+    return tl_data_.PeekFront().data;
   }
 
 
@@ -335,7 +303,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
                              return !running || data.CanProphetAdvance();
                            });
     }
-    return tl_data_.PeekProphet()->num_samples();
+    return tl_data_.PeekProphet().data.num_samples();
   }
 
 
@@ -370,18 +338,10 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
  private:
-  // pass cuda_event by pointer to allow default, nullptr value, with the
-  // reference it is not that easy
-  template<typename DataType>
-  void RecycleBuffer(DataType &data,
-                     std::list<uptr_cuda_event_type> *cuda_event = nullptr,
-                     std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
-    // No need to synchronize on copy_to_gpu - it was already synchronized before
+  void RecycleBuffer(queue_item_t &&data) {
+    data->copy_complete.Put();
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tl_data_.Recycle(data);
-    if (copy_to_gpu) {
-      copy_to_storage_events_.Recycle(*copy_to_gpu);
-    }
+    tl_data_.Recycle(std::move(data));
   }
 
 
@@ -404,15 +364,16 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   ShareUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
                 AccessOrder /* order = {}*/, bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    state_.push_back({false, true});
     auto tl_elm = GetEmptyOutputBatch(std::move(data_id));
+    tl_elm->copy_requested = false;
+    tl_elm->copy_performed = true;
     // set pinned if needed
-    if (batch.is_pinned() != tl_elm.front()->is_pinned()) {
-      tl_elm.front()->Reset();
-      tl_elm.front()->set_pinned(batch.is_pinned());
+    if (batch.is_pinned() != tl_elm->data.is_pinned()) {
+      tl_elm->data.Reset();
+      tl_elm->data.set_pinned(batch.is_pinned());
     }
-    tl_elm.front()->ShareData(const_cast<TensorList<CPUBackend> &>(batch));
-    tl_data_.PushBack(tl_elm);
+    tl_elm->data.ShareData(const_cast<TensorList<CPUBackend> &>(batch));
+    tl_data_.PushBack(std::move(tl_elm));
   }
 
 
@@ -439,18 +400,20 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     auto tl_elm = GetEmptyOutputBatch(std::move(data_id));
     bool copied_shared_data = false;
 
-    if (batch.IsContiguous()) {
+    // We can share only contiguous tensor lists that are stored on the same device.
+    if (batch.IsContiguousInMemory() && batch.device_id() == device_id_) {
       auto &batch_owner = unsafe_sample_owner(const_cast<TensorList<SrcBackend> &>(batch), 0);
-      tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
+      tl_elm->data.ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
                                 batch.type(), batch.device_id(), batch.order());
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {
-      // it is not contiguous so we need to copy
-      tl_elm.front()->Copy(batch, order, use_copy_kernel);
-      std::list<uptr_cuda_event_type> copy_to_storage_event;
-      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
-      copy_to_storage_events_.PushBack(copy_to_storage_event);
+      // Do not overwrite the buffer it if shares data.
+      if (tl_elm->data.shares_data())
+        tl_elm->data.Reset();
+      tl_elm->data.Copy(batch, order, use_copy_kernel);
+      int device_id = order.is_device() ? order.device_id() : tl_elm->data.device_id();
+      cudaEvent_t event = tl_elm->GetCompletionEvent(order.device_id());
+      CUDA_CALL(cudaEventRecord(event, order.stream()));
 
       if (zero_copy_noncontiguous_gpu_input_) {
         DALI_WARN("ExternalSource operator should not mix contiguous and noncontiguous inputs. "
@@ -459,8 +422,9 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       }
       copied_shared_data = true;
     }
-    state_.push_back({copied_shared_data, true});
-    tl_data_.PushBack(tl_elm);
+    tl_elm->copy_performed = copied_shared_data;
+    tl_elm->copy_requested = false;
+    tl_data_.PushBack(std::move(tl_elm));
   }
 
 
@@ -468,26 +432,27 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   std::enable_if_t<std::is_same<B, CPUBackend>::value>
   CopyUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
                AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
-    std::list<uptr_tl_type> tl_elm;
+    queue_item_t tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_elm = GetEmptyOutputBatch(std::move(data_id));
     }
     // set pinned if needed
-    tl_elm.front()->set_order(AccessOrder::host());
-    if (batch.is_pinned() != tl_elm.front()->is_pinned()) {
-      tl_elm.front()->Reset();
-      tl_elm.front()->set_pinned(batch.is_pinned());
+    tl_elm->data.set_order(AccessOrder::host());
+    if (batch.is_pinned() != tl_elm->data.is_pinned()) {
+      tl_elm->data.Reset();
+      tl_elm->data.set_pinned(batch.is_pinned());
     }
     AccessOrder copy_order =
             std::is_same<SrcBackend, CPUBackend>::value
             ? AccessOrder::host()  // do not use a device order for a host to host copy
             : order;
-    tl_elm.front()->Copy(batch, copy_order);
+    tl_elm->data.Copy(batch, copy_order);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_data_.PushBack(tl_elm);
-      state_.push_back({false, false});
+      tl_elm->copy_requested = true;
+      tl_elm->copy_performed = true;
+      tl_data_.PushBack(std::move(tl_elm));
     }
   }
 
@@ -496,12 +461,10 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   std::enable_if_t<std::is_same<B, GPUBackend>::value>
   CopyUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
                AccessOrder order, bool sync, bool use_copy_kernel) {
-    std::list<uptr_cuda_event_type> copy_to_storage_event;
-    std::list<uptr_tl_type> tl_elm;
+    queue_item_t tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_elm = GetEmptyOutputBatch(std::move(data_id));
-      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
     // If we got a host order we most probably got it via FeedPipeline and we are trying to pass the
     // data from CPU to GPU. As we keep the order in tl_data_ as internal_copy_stream_, we will use
@@ -509,19 +472,21 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     // asynchronous if it comes from pinned memory or happens on a device with integrated memory
     // (like Xavier) where CPU and GPU share the same memory.
     if (!order.is_device()) {
-      order = tl_elm.front()->order();
+      order = tl_elm->data.order();
     }
-    tl_elm.front()->Copy(batch, order, use_copy_kernel);
-    CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
+    tl_elm->data.Copy(batch, order, use_copy_kernel);
+    int copy_device = order.is_device() ? order.device_id() : tl_elm->data.device_id();
+    auto event = tl_elm->GetCompletionEvent(copy_device);
+    CUDA_CALL(cudaEventRecord(event, order.stream()));
     if (sync) {
-      CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
+      CUDA_CALL(cudaEventSynchronize(event));
     }
 
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_data_.PushBack(tl_elm);
-      copy_to_storage_events_.PushBack(copy_to_storage_event);
-      state_.push_back({false, false});
+      tl_elm->copy_requested = true;
+      tl_elm->copy_performed = true;
+      tl_data_.PushBack(std::move(tl_elm));
     }
   }
 
@@ -562,23 +527,18 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    *
    * @param data_id Arbitrary ID of the data. Can be any string.
    */
-  std::list<uptr_tl_type> GetEmptyOutputBatch(std::optional<std::string> data_id) {
+  queue_item_t GetEmptyOutputBatch(std::optional<std::string> data_id) {
     auto result = tl_data_.GetEmpty();
-    result.front()->set_order(internal_copy_order_);
-    if (data_id.has_value()) {
-      result.front().set_id(std::move(data_id.value()));
-    }
+    result->data.set_order(internal_copy_order_);
+    result->data_id = (std::move(data_id));
     return result;
   }
 
 
-  CachingList<uptr_tl_type> tl_data_;
-  CachingList<uptr_cuda_event_type> copy_to_storage_events_;
+  InputQueue tl_data_;
 
   std::mutex busy_m_;
   std::condition_variable cv_;
-
-  std::list<InputSourceState> state_;
 
   /*
    * indicates that user provide noncontiguous GPU input with zero copy option so DALI needs
