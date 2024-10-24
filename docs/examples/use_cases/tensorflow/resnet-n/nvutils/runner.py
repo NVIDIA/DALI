@@ -16,7 +16,7 @@
 
 from nvutils import image_processing
 from nvutils import common
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 import tensorflow as tf
 from tensorflow import keras
@@ -27,8 +27,8 @@ import horovod.tensorflow.keras as hvd
 
 from keras import backend
 print(tf.__version__)
-if StrictVersion(tf.__version__) > StrictVersion("2.1.0"):
-  if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
+if Version(tf.__version__) > Version("2.1.0"):
+  if Version(tf.__version__) >= Version("2.4.0"):
     from tensorflow.python.keras.mixed_precision import device_compatibility_check
   else:
     from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
@@ -142,7 +142,7 @@ def train(model_func, params):
     tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
 
   if precision == 'fp16':
-    if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
+    if Version(tf.__version__) >= Version("2.4.0"):
       policy = keras.mixed_precision.Policy('mixed_float16')
       keras.mixed_precision.set_global_policy(policy)
     else:
@@ -160,7 +160,7 @@ def train(model_func, params):
   # Horovod: add Horovod DistributedOptimizer. We use a modified version to
   # support the custom learning rate schedule.
   opt = hvd.DistributedOptimizer(opt)
-  if StrictVersion(tf.__version__) >= StrictVersion("2.4.0") and precision == 'fp16':
+  if Version(tf.__version__) >= Version("2.4.0") and precision == 'fp16':
     opt = keras.mixed_precision.LossScaleOptimizer(opt, dynamic=False,
                                                    initial_scale=loss_scale)
 

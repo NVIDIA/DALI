@@ -25,8 +25,8 @@ test_body() {
         pushd ../../../docs/examples/frameworks/tensorflow/
         # TF 2.16 removed usage of tf.estimator the test uses
         is_below_2_16=$(python -c 'import tensorflow as tf; \
-                                   from distutils.version import StrictVersion; \
-                                   print(StrictVersion(tf.__version__) < StrictVersion("2.16"))')
+                                   from packaging.version import Version; \
+                                   print(Version(tf.__version__) < Version("2.16"))')
 
         if [ $is_below_2_16 = 'True' ]; then
             jupyter nbconvert tensorflow-dataset.ipynb \
@@ -39,9 +39,9 @@ test_body() {
         # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
         is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; \
                                                import tensorflow as tf; \
-                                               from distutils.version import LooseVersion; \
+                                               from packaging.version import Version; \
                                                print(dali_tf.dataset_distributed_compatible_tensorflow() \
-                                               and LooseVersion(tf.__version__) < LooseVersion("2.12.0"))')
+                                               and Version(tf.__version__) < Version("2.12.0"))')
         if [ $is_compatible_distributed = 'True' ]; then
             jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
                     --to notebook --inplace --execute \

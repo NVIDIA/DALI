@@ -16,35 +16,35 @@ import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
 from nose_utils import with_setup, SkipTest, raises
 import test_dali_tf_dataset_mnist as mnist
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 mnist.tf.compat.v1.disable_eager_execution()
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_gpu():
-    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+    if Version(tf.__version__) >= Version("2.16"):
         raise SkipTest("TF < 2.16 is required for this test")
     mnist.run_keras_single_device("gpu", 0)
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_other_gpu():
-    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+    if Version(tf.__version__) >= Version("2.16"):
         raise SkipTest("TF < 2.16 is required for this test")
     mnist.run_keras_single_device("gpu", 1)
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_cpu():
-    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+    if Version(tf.__version__) >= Version("2.16"):
         raise SkipTest("TF < 2.16 is required for this test")
     mnist.run_keras_single_device("cpu", 0)
 
 
 @raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
 def test_keras_wrong_placement_gpu():
-    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+    if Version(tf.__version__) >= Version("2.16"):
         raise SkipTest("TF < 2.16 is required for this test")
     with tf.device("cpu:0"):
         model = mnist.keras_model()
@@ -55,7 +55,7 @@ def test_keras_wrong_placement_gpu():
 
 @raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output")
 def test_keras_wrong_placement_cpu():
-    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+    if Version(tf.__version__) >= Version("2.16"):
         raise SkipTest("TF < 2.16 is required for this test")
     with tf.device("gpu:0"):
         model = mnist.keras_model()

@@ -18,9 +18,19 @@
 import functools
 import gast
 
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 
+def convert_to_version(function):
+    """Makes sure that returned function value is a Version object"""
+
+    def wrap_function(*args, **kwargs):
+        return Version(function(*args, **kwargs))
+
+    return wrap_function
+
+
+@convert_to_version
 def get_gast_version():
     """Gast exports `__version__` from 0.5.3 onwards, we need to look it up in a different way."""
     if hasattr(gast, "__version__"):
@@ -76,7 +86,7 @@ def _compat_assign_gast_5(targets, value, type_comment):
     return gast.Assign(targets=targets, value=value, type_comment=type_comment)
 
 
-if get_gast_version() < LooseVersion("0.5"):
+if get_gast_version() < Version("0.5"):
     compat_assign = _compat_assign_gast_4
 else:
     compat_assign = _compat_assign_gast_5

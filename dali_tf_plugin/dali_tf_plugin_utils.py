@@ -17,7 +17,7 @@ import os
 import re
 import sys
 import fnmatch
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 # Find file matching `pattern` in `path`
 
@@ -66,7 +66,7 @@ def get_tf_compiler_version():
         res = re.search(r"GCC:\s*\(.*\)\s*(\d+.\d+).\d+", line)
         if res:
             ver = res.group(1)
-            if not ret_ver or StrictVersion(ret_ver) < StrictVersion(ver):
+            if not ret_ver or Version(ret_ver) < Version(ver):
                 ret_ver = ver
     return ret_ver
 

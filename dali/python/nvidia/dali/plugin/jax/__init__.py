@@ -16,7 +16,7 @@ import jax
 
 from . import fn  # noqa: F401
 
-from distutils.version import LooseVersion
+from packaging.version import Version
 from .iterator import DALIGenericIterator, data_iterator
 
 assert (
@@ -24,7 +24,7 @@ assert (
 ), "DALI JAX support requires Python 3.8 or above"
 
 
-assert LooseVersion(jax.__version__) >= LooseVersion(
+assert Version(jax.__version__) >= Version(
     "0.4.11"
 ), "DALI JAX support requires JAX 0.4.11 or above"
 

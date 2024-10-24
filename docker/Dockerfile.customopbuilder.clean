@@ -100,6 +100,7 @@ RUN rm -f /usr/bin/python && \
         rm get-pip.py; \
     fi && \
     pip install --upgrade pip && \
+    pip install packaging && \
     python --version && \
     pip --version
 

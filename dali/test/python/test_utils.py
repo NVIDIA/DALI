@@ -26,7 +26,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from distutils.version import LooseVersion
+from packaging.version import Version
 from nose_utils import SkipTest
 
 
@@ -945,8 +945,8 @@ def check_numba_compatibility_cpu(if_skip=True):
     # Numba bug:
     # https://github.com/numba/numba/issues/8567
     if platform.processor().lower() in ("arm64", "aarch64", "armv8") and (
-        LooseVersion(numba.__version__) >= LooseVersion("0.57.0")
-        and LooseVersion(numba.__version__) < LooseVersion("0.59.0")
+        Version(numba.__version__) >= Version("0.57.0")
+        and Version(numba.__version__) < Version("0.59.0")
     ):
         if if_skip:
             raise SkipTest()

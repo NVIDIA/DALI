@@ -87,6 +87,7 @@ For more details please check the
           # 1.16 on python 3.12 due to import six.moves
           'six >= 1.16',
           'dm-tree',
+          'packaging',
           @DALI_INSTALL_REQUIRES_NVIMGCODEC@
           ],
      )

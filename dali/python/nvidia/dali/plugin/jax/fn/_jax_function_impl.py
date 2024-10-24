@@ -14,7 +14,7 @@
 
 from typing import Optional, Protocol, Tuple, Union
 
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 import jax
 import jax.dlpack
@@ -170,7 +170,7 @@ def jax_function(
         The transformed function that processes DALI-traced batches (DataNodes).
     """
 
-    if LooseVersion(jax.__version__) < LooseVersion("0.4.16"):
+    if Version(jax.__version__) < Version("0.4.16"):
         raise RuntimeError("DALI `jax_function` requires JAX 0.4.16 or above.")
 
     def decorator(function):

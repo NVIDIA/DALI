@@ -28,7 +28,7 @@ from dali_tf_plugin_utils import (
     get_tf_build_flags,
 )
 import os
-from distutils.version import StrictVersion, LooseVersion
+from packaging.version import Version
 from pathlib import Path
 import tempfile
 from stubgen import stubgen
@@ -129,7 +129,7 @@ class InstallerHelper:
         self.can_install_prebuilt = (
             not self.always_build
             and bool(self.tf_compiler)
-            and StrictVersion(self.tf_compiler) >= StrictVersion("5.0")
+            and Version(self.tf_compiler) >= Version("5.0")
             and self.is_compatible_with_prebuilt_bin
             and self.prebuilt_dali_stub is not None
         )
@@ -162,8 +162,8 @@ class InstallerHelper:
             or self.default_cpp_version == self.tf_compiler
             or not bool(self.tf_compiler)
             or (
-                StrictVersion(self.default_cpp_version) >= StrictVersion("5.0")
-                and StrictVersion(self.tf_compiler) >= StrictVersion("5.0")
+                Version(self.default_cpp_version) >= Version("5.0")
+                and Version(self.tf_compiler) >= Version("5.0")
             )
         )
 
@@ -366,7 +366,7 @@ class InstallerHelper:
             lib_path = os.path.join(self.plugin_dest_dir, lib_filename)
 
             # for a newer TF we need to compiler with C++17
-            cpp_ver = "--std=c++14" if self.tf_version < LooseVersion("2.10") else "--std=c++17"
+            cpp_ver = "--std=c++14" if Version(self.tf_version) < Version("2.10") else "--std=c++17"
             # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.

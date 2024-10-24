@@ -8,10 +8,10 @@ from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 import horovod.tensorflow as hvd
 import tensorflow as tf
 from nvutils import common
-from distutils.version import LooseVersion
+from packaging.version import Version
 from horovod.tensorflow import Average, Compression, Sum
 
-_PRE_TF_2_4_0 = LooseVersion(tf.__version__) < LooseVersion('2.4.0')
+_PRE_TF_2_4_0 = Version(tf.__version__) < Version('2.4.0')
 
 def create_distributed_optimizer(
         keras, optimizer, name, device_dense, device_sparse, compression,
