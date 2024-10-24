@@ -23,6 +23,7 @@ from packaging.version import Version
 
 def convert_to_version(function):
     """Makes sure that returned function value is a Version object"""
+
     def wrap_function(*args, **kwargs):
         return Version(function(*args, **kwargs))
 
