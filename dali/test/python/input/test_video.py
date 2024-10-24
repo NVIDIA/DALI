@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import glob
+import os
 import itertools
 import numpy as np
 import nvidia.dali.fn as fn
@@ -22,7 +23,8 @@ from nose_utils import assert_raises
 from nvidia.dali import pipeline_def
 from test_utils import get_dali_extra_path, to_array
 
-filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
+test_data_root = get_dali_extra_path()
+filenames = glob.glob(f"{test_data_root}/db/video/[cv]fr/*.mp4")
 # filter out HEVC because some GPUs do not support it
 filenames = filter(lambda filename: "hevc" not in filename, filenames)
 # mpeg4 is not yet supported in the CPU operator
@@ -254,3 +256,26 @@ def test_video_input_input_queue(device, n_test_files):
         glob="No data was provided to the InputOperator. Make sure to feed it properly.",
     ):
         input_pipe.run()
+
+
+@params(*device_values)
+def test_video_input_audio_stream(device):
+    """
+    Checks if video decoding when audio stream is present
+    """
+    input_name = "VIDEO_INPUT"
+
+    input_pipe = video_input_pipeline(
+        input_name=input_name,
+        batch_size=3,
+        sequence_length=4,
+        device=device,
+        **common_pipeline_params,
+    )
+
+    filename = os.path.join(test_data_root, "db", "video", "sintel", "sintel_trailer-720p.mp4")
+    test_file = np.fromfile(filename, dtype=np.uint8)
+    input_pipe.build()
+    input_pipe.feed_input(input_name, np.array([[test_file]]))
+
+    input_pipe.run()
