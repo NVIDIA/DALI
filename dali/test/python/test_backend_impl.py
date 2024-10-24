@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -392,7 +392,7 @@ def test_tensor_str_sample():
     _test_str(t, params, _expected_tensor_str)
 
 
-def test_tensor_expose_dlpack_capsule():
+def test_tensor_dlpack_export():
     # TODO(awolant): Numpy versions for Python 3.6 and 3.7 do not
     # support from_dlpack. When we upgrade DLPack support for DALI
     # this test needs to be changed.
@@ -402,18 +402,6 @@ def test_tensor_expose_dlpack_capsule():
     arr = np.arange(20)
     tensor = TensorCPU(arr, "NHWC")
 
-    capsule = tensor._expose_dlpack_capsule()
-
-    # TODO(awolant): This adapter is required due to various implementations
-    # for DLPack interface. When we extend DLPack export support this should
-    # be removed.
-    class dlpack_interface_adapter:
-        def __init__(self, capsule):
-            self.capsule = capsule
-
-        def __dlpack__(self):
-            return self.capsule
-
-    arr_from_dlapck = np.from_dlpack(dlpack_interface_adapter(capsule))
+    arr_from_dlapck = np.from_dlpack(tensor)
 
     assert np.array_equal(arr, arr_from_dlapck)

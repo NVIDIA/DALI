@@ -23,7 +23,7 @@
 #include "third_party/dlpack/include/dlpack/dlpack.h"
 
 #include "dali/core/common.h"
-#include "dali/core/cuda_event_pool.h"
+#include "dali/core/cuda_shared_event.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/dltensor.h"
 
@@ -44,15 +44,29 @@ class DLL_PUBLIC DLTensorObj {
     DALI_ENFORCE(dlm_ptr_, "Expected non-null pointer for managed DLTensor");
     device_id_ = dlm_ptr_->dl_tensor.device.device_id;
     device_type_ = dlm_ptr_->dl_tensor.device.device_type;
-    DALI_ENFORCE(device_type_ == kDLCPU || device_type_ == kDLCUDA,
+    DALI_ENFORCE(device_type_ == kDLCPU || device_type_ == kDLCUDAHost || device_type_ == kDLCUDA,
                  "Currently only DLCPU and DLGPU device types are supported");
     if (producer_stream) {
-      DALI_ENFORCE(device_type_ == kDLCUDA,
-                   "Stream-aware DLTensorObj supports only DLGPU device type.");
+      DALI_ENFORCE(device_type_ == kDLCUDA || device_type_ == kDLCUDAHost,
+                   "Stream-aware DLTensorObj supports only CUDA and CUDA host device type.");
       auto &pool = CUDAEventPool::instance();
-      data_ready_ = pool.Get(device_id_);
+      data_ready_ = CUDASharedEvent::GetFromPool(device_id_);
       CUDA_CALL(cudaEventRecord(data_ready_, *producer_stream));
     }
+  }
+
+  DLL_PUBLIC DLTensorObj(DLMTensorPtr ptr, CUDASharedEvent event)
+      : dlm_ptr_{std::move(ptr)} {
+    DALI_ENFORCE(dlm_ptr_, "Expected non-null pointer for managed DLTensor");
+    device_id_ = dlm_ptr_->dl_tensor.device.device_id;
+    device_type_ = dlm_ptr_->dl_tensor.device.device_type;
+    DALI_ENFORCE(device_type_ == kDLCPU || device_type_ == kDLCUDAHost || device_type_ == kDLCUDA,
+                 "Currently only DLCPU and DLGPU device types are supported");
+    if (event) {
+      DALI_ENFORCE(device_type_ == kDLCUDA || device_type_ == kDLCUDAHost,
+                   "Stream-aware DLTensorObj supports only CUDA and CUDA host device type.");
+    }
+    data_ready_ = std::move(event);
   }
 
   DLTensorObj(DLTensorObj &) = delete;
@@ -74,7 +88,7 @@ class DLL_PUBLIC DLTensorObj {
   DLMTensorPtr dlm_ptr_;
   int device_id_;
   DLDeviceType device_type_;
-  CUDAEvent data_ready_;
+  CUDASharedEvent data_ready_;
 };
 
 

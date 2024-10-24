@@ -261,6 +261,9 @@ PYBIND11_MODULE(python_function_plugin, m) {
             std::optional<cudaStream_t> cuda_stream{};
             if (stream.has_value()) {
               cuda_stream = reinterpret_cast<cudaStream_t>(*stream);
+            } else {
+              if (std::get<0>(self.dlpack_device()) == kDLCUDA)
+                cuda_stream = cudaStream_t(cudaStreamDefault);
             }
             DLManagedTensor *data_ptr = self.dlpack(cuda_stream);
             return py::capsule(data_ptr, DLTENSOR_NAME, &DLTensorCapsuleDestructor);

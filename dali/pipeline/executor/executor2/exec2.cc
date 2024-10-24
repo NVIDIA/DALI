@@ -136,7 +136,7 @@ class Executor2::Impl {
     }
   }
 
-  Workspace PopOutputs() {
+  Workspace PopOutputs(AccessOrder output_order, bool set_output_order) {
     if (pending_outputs_.empty())
       throw std::out_of_range("All pending outputs were already popped.");
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
@@ -145,9 +145,39 @@ class Executor2::Impl {
     auto &pipe_out = fut.Value<const PipelineOutput &>();
     auto ws = pipe_out.workspace;
     last_iter_data_ = ws.GetIterationData();
-    if (ws.has_event())
-      CUDA_CALL(cudaEventSynchronize(ws.event()));
-    ws.set_event(nullptr);
+    if (ws.has_event()) {
+      if (output_order.has_value() && output_order != ws.output_order())
+        output_order.wait(ws.event());
+      ws.set_event(nullptr);
+    }
+
+    if (output_order.has_value() && output_order != ws.output_order()) {
+      // Set the order of the outputs to the requested output_order - no synchronization
+      // is necessary, the stream has been properly synchronized a few lines above.
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        if (ws.OutputIsType<GPUBackend>(i)) {
+          auto &output = ws.Output<GPUBackend>(i);
+          assert(output.ready_event() == pipe_out.event.get());
+          if (set_output_order)
+            output.set_order(output_order, false);
+          if (output_order.is_host())
+            output.set_ready_event({});
+        } else {
+          assert(ws.OutputIsType<CPUBackend>(i));
+          auto &out = ws.Output<CPUBackend>(i);
+          if (out.is_pinned() && out.order().is_device())
+            assert(out.ready_event() == pipe_out.event.get());
+
+          if (set_output_order && output_order.has_value() &&
+            out.order().is_device() && out.is_pinned())
+            out.set_order(output_order, false);
+          if (output_order.is_host())
+            out.set_ready_event({});
+        }
+      }
+
+      ws.set_output_order(output_order);
+    }
     return ws;
   }
 
@@ -414,7 +444,7 @@ void Executor2::Prefetch() {
 
 
 void Executor2::Outputs(Workspace *ws) {
-  *ws = impl_->PopOutputs();
+  *ws = impl_->PopOutputs(ws->output_order(), false);
 }
 
 void Executor2::ShareOutputs(Workspace *ws) {

@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
         jax.Array: JAX array with the same values and backing device as
         input DALI tensor.
     """
-    jax_array = jax.dlpack.from_dlpack(dali_tensor._expose_dlpack_capsule())
+    jax_array = jax.dlpack.from_dlpack(dali_tensor)
 
     # For now we need this copy to make sure that underlying memory is available.
     # One solution is to implement full DLPack contract in DALI.
