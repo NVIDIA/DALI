@@ -26,7 +26,7 @@ from nvidia.dali.external_source import _is_external_source_with_callback
 from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc
 from nvidia.dali._utils.external_source_impl import _cycle_enabled
 
-from distutils.version import LooseVersion
+from packaging.version import Version
 import warnings
 
 from nvidia.dali_tf_plugin import dali_tf_plugin
@@ -307,29 +307,29 @@ def DALIRawIterator():
 
 
 def _get_tf_version():
-    return LooseVersion(tf.__version__)
+    return Version(tf.__version__)
 
 
-MIN_TENSORFLOW_VERSION = LooseVersion("1.15")
+MIN_TENSORFLOW_VERSION = Version("1.15")
 
 
 def dataset_compatible_tensorflow():
     """Returns ``True`` if current TensorFlow version is compatible with DALIDataset."""
-    return LooseVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
+    return Version(tf.__version__) >= MIN_TENSORFLOW_VERSION
 
 
 def dataset_inputs_compatible_tensorflow():
     """Returns ``True`` if the current TensorFlow version is compatible with
     experimental.DALIDatasetWithInputs and input Datasets can be used with DALI.
     """
-    return LooseVersion(tf.__version__) >= LooseVersion("2.4.1")
+    return Version(tf.__version__) >= Version("2.4.1")
 
 
 def dataset_distributed_compatible_tensorflow():
     """Returns ``True`` if the tf.distribute APIs for current TensorFlow version are compatible
     with DALIDataset.
     """
-    return LooseVersion(tf.__version__) >= LooseVersion("2.5.0")
+    return Version(tf.__version__) >= Version("2.5.0")
 
 
 def _get_experimental():
@@ -813,7 +813,7 @@ if dataset_compatible_tensorflow():
                 fail_on_device_mismatch=self._fail_on_device_mismatch,
             )
 
-    if _get_tf_version() < LooseVersion("2.0"):
+    if _get_tf_version() < Version("2.0"):
 
         class _DALIDatasetImpl(dataset_ops.DatasetV1Adapter):
             @functools.wraps(_DALIDatasetV2.__init__)

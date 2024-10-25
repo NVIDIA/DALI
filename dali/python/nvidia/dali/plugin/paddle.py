@@ -18,7 +18,7 @@ import math
 
 import numpy as np
 import paddle
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
@@ -26,11 +26,9 @@ from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 if isinstance(paddle.__version__, str):
-    assert LooseVersion(paddle.__version__) == LooseVersion("0.0.0") or LooseVersion(
+    assert Version(paddle.__version__) == Version("0.0.0") or Version(
         paddle.__version__
-    ) >= LooseVersion(
-        "2.0.0"
-    ), "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
+    ) >= Version("2.0.0"), "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
 
 
 dtype_map = {

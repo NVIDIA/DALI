@@ -27,7 +27,7 @@ DALI_LFLAGS="-L${DALI_STUB_DIR} -ldali"
 TF_CFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
 TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
 
-CPP_VER=( $($PYTHON -c "import tensorflow as tf; from distutils.version import LooseVersion; print('--std=c++14' if tf.__version__ < LooseVersion('2.10') else '--std=c++17')") )
+CPP_VER=( $($PYTHON -c "import tensorflow as tf; from packaging.version import Version; print('--std=c++14' if Version(tf.__version__) < Version('2.10') else '--std=c++17')") )
 
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316

@@ -21,7 +21,7 @@ from test_utils_tensorflow import num_available_gpus
 from shutil import rmtree as remove_directory
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
-from distutils.version import StrictVersion
+from packaging.version import Version
 from nose import SkipTest
 
 
@@ -116,7 +116,7 @@ def run_keras_single_device(device="cpu", device_id=0):
 
 
 def graph_model(images, reuse, is_training):
-    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+    if Version(tf.__version__) >= Version("2.16"):
         raise SkipTest("TF < 2.16 is required for this test")
     with tf_v1.variable_scope("mnist_net", reuse=reuse):
         images = tf_v1.layers.flatten(images)
@@ -196,7 +196,7 @@ def _run_config(device="cpu", device_id=0):
 
 
 def run_estimators_single_device(device="cpu", device_id=0):
-    if StrictVersion(tf.__version__) < StrictVersion("2.16"):
+    if Version(tf.__version__) < Version("2.16"):
         with tf.device("/{0}:{1}".format(device, device_id)):
             model = keras_model()
         model = tf.keras.estimator.model_to_estimator(

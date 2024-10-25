@@ -21,7 +21,7 @@ import textwrap
 import unittest
 
 import gast
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 from nvidia.dali._autograph.pyct import ast_util
 from nvidia.dali._autograph.pyct import gast_util
@@ -79,7 +79,7 @@ class LoaderTest(unittest.TestCase):
             decorator_list=[],
             returns=None,
             type_comment=None,
-            **{"type_params": []} if gast_util.get_gast_version() >= LooseVersion("0.5.5") else {},
+            **{"type_params": []} if gast_util.get_gast_version() >= Version("0.5.5") else {},
         )
 
         module, source, _ = loader.load_ast(node)
