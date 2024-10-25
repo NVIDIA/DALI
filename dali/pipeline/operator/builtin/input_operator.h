@@ -48,7 +48,7 @@ struct InputQueueItem {
       if (device_id != device_id_)
         Put();
       if (!event_) {
-        event_ = CUDAEventPool::instance().Get(device_id_);
+        event_ = CUDAEventPool::instance().Get(device_id);
         device_id_ = device_id;
       }
     }
@@ -413,7 +413,17 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       tl_elm->data.Copy(batch, order, use_copy_kernel);
       int device_id = order.is_device() ? order.device_id() : tl_elm->data.device_id();
       cudaEvent_t event = tl_elm->GetCompletionEvent(order.device_id());
-      CUDA_CALL(cudaEventRecord(event, order.stream()));
+
+      if (order.device_id() != device_id_ &&
+          (order.stream() == 0 ||
+          order.stream() == cudaStreamPerThread ||
+          order.stream() == cudaStreamLegacy)) {
+        // In case of ambiguous stream handles, we need to swithch to the proper device
+        DeviceGuard dg;
+        CUDA_CALL(cudaEventRecord(event, order.stream()));
+      } else {
+        CUDA_CALL(cudaEventRecord(event, order.stream()));
+      }
 
       if (zero_copy_noncontiguous_gpu_input_) {
         DALI_WARN("ExternalSource operator should not mix contiguous and noncontiguous inputs. "
@@ -476,10 +486,14 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     }
     tl_elm->data.Copy(batch, order, use_copy_kernel);
     int copy_device = order.is_device() ? order.device_id() : tl_elm->data.device_id();
-    auto event = tl_elm->GetCompletionEvent(copy_device);
-    CUDA_CALL(cudaEventRecord(event, order.stream()));
-    if (sync) {
-      CUDA_CALL(cudaEventSynchronize(event));
+
+    {
+      DeviceGuard dg(copy_device);
+      auto event = tl_elm->GetCompletionEvent(copy_device);
+      CUDA_CALL(cudaEventRecord(event, order.stream()));
+      if (sync) {
+        CUDA_CALL(cudaEventSynchronize(event));
+      }
     }
 
     {
