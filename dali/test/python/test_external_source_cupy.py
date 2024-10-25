@@ -95,6 +95,7 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
 
     with cp.cuda.Device(src):
         with cp.cuda.Stream(src):
+
             def get_data():
                 nonlocal iter
                 data = cp.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=cp.float32) + iter
@@ -109,7 +110,9 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
             pipe.build()
             for i in range(10):
                 (out,) = pipe.run()
-                assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i)
+                assert np.array_equal(
+                    np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i
+                )
 
 
 @attr("multigpu")
