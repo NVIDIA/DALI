@@ -220,6 +220,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     SerializeField(attrs, b, kNumThreads, pipeline_def_.num_threads);
     SerializeField(attrs, b, kDeviceId, pipeline_def_.device_id);
     SerializeField(attrs, b, kExecSeparated, pipeline_def_.exec_separated);
+    SerializeField(attrs, b, kExecDynamic, pipeline_def_.exec_dynamic);
     SerializeField(attrs, b, kPrefetchQueueDepth, pipeline_def_.prefetch_queue_depth);
     SerializeField(attrs, b, kCpuPrefetchQueueDepth, pipeline_def_.cpu_prefetch_queue_depth);
     SerializeField(attrs, b, kGpuPrefetchQueueDepth, pipeline_def_.gpu_prefetch_queue_depth);
@@ -248,10 +249,15 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   }
 
   Status InitPipeline(daliPipelineHandle *pipeline_handle) const {
-    TF_DALI_CALL(daliCreatePipeline(
+    dali_exec_flags_t flags = DALI_EXEC_ASYNC_PIPELINED;
+    if (pipeline_def_.exec_dynamic)
+      flags = flags | DALI_EXEC_IS_DYNAMIC;
+    if (pipeline_def_.exec_separated)
+      flags = flags | DALI_EXEC_IS_SEPARATED;
+    TF_DALI_CALL(daliCreatePipeline3(
         pipeline_handle, pipeline_def_.pipeline.c_str(), pipeline_def_.pipeline.length(),
         pipeline_def_.batch_size, pipeline_def_.num_threads, pipeline_def_.device_id,
-        pipeline_def_.exec_separated, pipeline_def_.prefetch_queue_depth,
+        flags, pipeline_def_.prefetch_queue_depth,
         pipeline_def_.cpu_prefetch_queue_depth, pipeline_def_.gpu_prefetch_queue_depth,
         pipeline_def_.enable_memory_stats));
     return Status();
@@ -380,26 +386,28 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   }
 
   ~Iterator() {
-    if (enable_memory_stats_) {
-      size_t N;
-      daliExecutorMetadata *meta;
-      daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
-      std::cout << "DALI operator memory statistics: " << std::endl;
-      for (size_t i = 0; i < N; ++i) {
-        std::cout << "Operator " << meta[i].operator_name;
-        for (size_t j = 0; j < meta[i].out_num; ++j) {
-          std::cout << "   output [ " << j << " ] : " << meta[i].real_size[j] << "B allocated "
-                    << meta[i].max_real_size[j] << "B max allocated " << meta[i].reserved[j]
-                    << "B reserved" << meta[i].max_reserved[j] << "B max reserved";
-          if (j != meta[i].out_num - 1) {
-            std::cout << ",";
+    if (pipeline_handle_) {
+      if (enable_memory_stats_) {
+        size_t N;
+        daliExecutorMetadata *meta;
+        daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
+        std::cout << "DALI operator memory statistics: " << std::endl;
+        for (size_t i = 0; i < N; ++i) {
+          std::cout << "Operator " << meta[i].operator_name;
+          for (size_t j = 0; j < meta[i].out_num; ++j) {
+            std::cout << "   output [ " << j << " ] : " << meta[i].real_size[j] << "B allocated "
+                      << meta[i].max_real_size[j] << "B max allocated " << meta[i].reserved[j]
+                      << "B reserved" << meta[i].max_reserved[j] << "B max reserved";
+            if (j != meta[i].out_num - 1) {
+              std::cout << ",";
+            }
           }
+          std::cout << std::endl;
         }
-        std::cout << std::endl;
+        daliFreeExecutorMetadata(meta, N);
       }
-      daliFreeExecutorMetadata(meta, N);
+      daliDeletePipeline(&pipeline_handle_);
     }
-    daliDeletePipeline(&pipeline_handle_);
   }
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
@@ -941,8 +949,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   std::vector<dali_backend_t> input_ext_src_devices_;
   std::queue<ListOfBatches> alive_batches_;
   InputState iterator_state_ = InputState::in_progress;
-  daliPipelineHandle pipeline_handle_;
-  bool enable_memory_stats_;
+  daliPipelineHandle pipeline_handle_ = nullptr;
+  bool enable_memory_stats_ = false;
 };
 
 void DALIDatasetOp::MakeDataset(OpKernelContext *context, DatasetBase **output) {
@@ -959,6 +967,7 @@ void DALIDatasetOp::FillPipelineDef(OpKernelConstruction *context, PipelineDef &
   OP_REQUIRES_OK(context, context->GetAttr(kNumThreads, &def.num_threads));
   OP_REQUIRES_OK(context, context->GetAttr(kDeviceId, &def.device_id));
   OP_REQUIRES_OK(context, context->GetAttr(kExecSeparated, &def.exec_separated));
+  OP_REQUIRES_OK(context, context->GetAttr(kExecDynamic, &def.exec_dynamic));
   OP_REQUIRES_OK(context, context->GetAttr(kPrefetchQueueDepth, &def.prefetch_queue_depth));
   OP_REQUIRES_OK(context, context->GetAttr(kCpuPrefetchQueueDepth, &def.cpu_prefetch_queue_depth));
   OP_REQUIRES_OK(context, context->GetAttr(kGpuPrefetchQueueDepth, &def.gpu_prefetch_queue_depth));
@@ -1079,6 +1088,7 @@ REGISTER_OP("DALIDataset")
     .Attr("num_threads: int")
     .Attr("device_id: int")
     .Attr("exec_separated: bool")
+    .Attr("exec_dynamic: bool")
     .Attr("prefetch_queue_depth: int")
     .Attr("cpu_prefetch_queue_depth: int")
     .Attr("gpu_prefetch_queue_depth: int")
