@@ -15,7 +15,25 @@ def _test_pipe():
 
 
 @attr("pytorch")
-def test_dlpack():
+def test_dlpack_is_zero_copy():
+    print("Testing dlpack")
+    # get a DALI pipeline that produces batches of very large tensors
+    pipe = _test_pipe(batch_size=1, experimental_exec_dynamic=True)
+    pipe.build()
+
+    s = torch.cuda.Stream(0)
+    with torch.cuda.stream(s):
+        (out,) = pipe.run(s)
+        t0 = torch.from_dlpack(out[0])
+        t1 = torch.from_dlpack(out[0])
+        assert t0[0, 0] == 54
+        assert t1[0, 0] == 54
+        t0[0, 0] = 12345
+        assert t1[0, 0] == 12345, "t1 and t0 should point to the same memory"
+
+
+@attr("pytorch")
+def test_dlpack_no_corruption():
     print("Testing dlpack")
     # get a DALI pipeline that produces batches of very large tensors
     pipe = _test_pipe(experimental_exec_dynamic=True)
