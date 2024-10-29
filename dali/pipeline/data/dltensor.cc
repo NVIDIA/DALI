@@ -25,12 +25,29 @@
 
 namespace dali {
 
+/** A temporary storage for destroyed DLPack buffers
+ *
+ * DLPack doesn't define any stream semantics at the end of exchange. Some libraries
+ * (most, actually) call the deleter while the tensor is still in use on device.
+ *
+ * Here we store the shared pointers that were managed by DLTensors issued by DALI.
+ * A thread collects those shared pointers, calls `cudaDeviceSynchronize` and only then
+ * decrements the reference counter, effectively guaranteeing that whatever work was scheduled
+ * before the deleter was called, is complete. While the thread waits for the GPU, new
+ * buffers may be accumulated. Under high load, there can be much fewer calls to
+ * `cudaDeviceSynchronize` than DLPack deleters.
+ */
 class DLTensorGraveyard {
  public:
   ~DLTensorGraveyard() {
     shutdown();
   }
 
+  /** Places a device memory pointer in the deletion queue.
+   *
+   * The pointer `mem` is kept referenced at least until all GPU work scheduled prior to
+   * the call to `enqueue` is complete.
+   */
   void enqueue(std::shared_ptr<void> mem) {
     {
       std::lock_guard g(mtx_);
@@ -82,14 +99,14 @@ class DLTensorGraveyard {
       });
       if (exit_requested_)
         break;
-      list_t tmp = std::move(pending_);
-      lock.unlock();
+      list_t tmp = std::move(pending_);  // get some pointers
+      lock.unlock();  // and let new ones accumulate while we wait for the GPU
       auto ret = cudaDeviceSynchronize();
-      if (ret == cudaErrorCudartUnloading)
+      if (ret == cudaErrorCudartUnloading)  // the process is shutting down - exit
         break;
       CUDA_CALL(ret);
-      tmp.clear();
-      lock.lock();
+      tmp.clear();  // this actually clears the references, still outside the lock
+      lock.lock();  // OK, regain the lock and start over
     }
   }
 
