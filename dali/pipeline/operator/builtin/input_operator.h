@@ -412,10 +412,9 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       if (tl_elm->data.shares_data())
         tl_elm->data.Reset();
       tl_elm->data.Copy(batch, order, use_copy_kernel);
-      int device_id = order.is_device() ? order.device_id() : tl_elm->data.device_id();
-      cudaEvent_t event = tl_elm->GetCompletionEvent(device_id);
 
-      {
+      if (order.is_device()) {
+        cudaEvent_t event = tl_elm->GetCompletionEvent(order.device_id());
         DeviceGuard dg(order.device_id());
         CUDA_CALL(cudaEventRecord(event, order.stream()));
       }
@@ -447,6 +446,8 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     if (batch.is_pinned() != tl_elm->data.is_pinned()) {
       tl_elm->data.Reset();
       tl_elm->data.set_pinned(batch.is_pinned());
+      if constexpr (std::is_same_v<Backend, CPUBackend>)
+        tl_elm->data.set_device_id(tl_elm->data.is_pinned() ? device_id_ : CPU_ONLY_DEVICE_ID);
     }
     AccessOrder copy_order =
             std::is_same<SrcBackend, CPUBackend>::value
@@ -538,7 +539,9 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    */
   queue_item_t GetEmptyOutputBatch(std::optional<std::string> data_id) {
     auto result = tl_data_.GetEmpty();
-    result->data.set_device_id(device_id_);
+    int data_device_id = std::is_same_v<Backend, GPUBackend> || result->data.is_pinned()
+      ? device_id_ : CPU_ONLY_DEVICE_ID;
+    result->data.set_device_id(data_device_id);
     result->data.set_order(internal_copy_order_);
     result->data_id = (std::move(data_id));
     return result;
