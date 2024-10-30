@@ -440,6 +440,90 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
   }
 }
 
+template <typename Backend>
+DLDevice GetDLDevice(const Tensor<Backend> &tensor) {
+  if constexpr (std::is_same_v<Backend, GPUBackend>)
+    return { kDLCUDA, tensor.device_id() };
+  else
+    return { tensor.is_pinned() ? kDLCUDAHost : kDLCPU };
+}
+
+template <typename Backend>
+DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
+                         std::optional<intptr_t> stream_handle_value,
+                         std::optional<std::pair<DLDeviceType, int>> dl_device) {
+  DLDevice dev;
+
+  if (dl_device.has_value())
+    dev = { dl_device->first, dl_device->second };
+  else
+    dev = GetDLDevice(tensor);
+
+  if (dev.device_type == kDLCUDA) {
+    AccessOrder target_order = cudaStreamLegacy;
+    if (stream_handle_value.has_value()) {
+      if (*stream_handle_value == -1) {
+        target_order = AccessOrder{};
+      } else {
+        cudaStream_t stream = cudaStream_t(*stream_handle_value);
+        if (stream == 0)
+          throw std::invalid_argument("Stream 0 is explicitly forbidden by DLPack protocol");
+        target_order = AccessOrder(stream, dev.device_id);
+      }
+    }
+
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      throw std::runtime_error(
+          "The tensor is in CPU memory and a CUDA DLPack tensor was requested");
+    }
+    if (dev.device_id != tensor.device_id())
+      throw std::runtime_error(make_string("Requested a DLPack tensor for GPU_", dev.device_id,
+        "while the tensor resides in GPU_", tensor.device_id(), " memory."));
+
+    if (target_order) {
+      if (tensor.ready_event()) {
+        target_order.wait(tensor.ready_event());
+      } else {
+        target_order.wait(tensor.order());
+      }
+    }
+    return GetSharedDLTensor(tensor);
+  } else if (dev.device_type == kDLCPU || dev.device_id == kDLCUDAHost) {
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      throw std::runtime_error(
+          "The tensor is in CUDA GPU memory and a CPU DLPack tensor was requested");
+    }
+
+    if (dev.device_type == kDLCUDAHost && !tensor.is_pinned())
+      throw std::runtime_error(
+          "A CUDA host (pinned) DLPack was requested, but the tensor buffer is not pinned.");
+
+    if (tensor.is_pinned() && tensor.ready_event()) {
+      // DLPack doesn't support stream-ordered CUDA host tensors
+      AccessOrder::host().wait(tensor.ready_event());
+    }
+
+    DLMTensorPtr dlm_tensor = GetSharedDLTensor(tensor);
+    // Set the device type to the desired one - if the original tensor was pinned, we can
+    // downgrade it to regular host memory.
+    dlm_tensor->dl_tensor.device = dev;
+    return dlm_tensor;
+  } else {
+    throw std::runtime_error(make_string(
+      "An unsupported DLPack device was requested: ", static_cast<int>(dev.device_type)));
+  }
+}
+
+template <typename Backend>
+py::capsule ToDLPack(Tensor<Backend> &tensor,
+                     std::optional<intptr_t> stream,
+                     std::optional<std::pair<DLDeviceType, int>> dl_device) {
+  return DLTensorToCapsule([&]() {
+    py::gil_scoped_release interpreter_unlock{};
+    return ToDLMTensor(tensor, stream, dl_device);
+  }());
+}
+
 /**
  * Pipeline output descriptor.
  */
@@ -493,24 +577,34 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
-      "_expose_dlpack_capsule",
-      [](Tensor<CPUBackend> &t) -> py::capsule {
-        SampleView<CPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
-
-        return TensorToDLPackView(sv, t.is_pinned(), t.device_id());
-      },
+      "__dlpack_device__", [](const Tensor<CPUBackend> &tensor) {
+        auto dev = GetDLDevice(tensor);
+        return std::make_tuple(dev.device_type, dev.device_id);
+      })
+    .def(
+      "__dlpack__", ToDLPack<CPUBackend>,
+      "stream"_a = py::none(),
+      "dl_device"_a = py::none(),
       R"code(
-      Exposes tensor data as DLPack compatible capsule.
+      Exposes the tensor as a DLPack capsule.
 
       Note:
-        This function does not implement full DLPack contract and
-      should not be used to export DALI CPU tensors to DLPack compatible
-      endpoints.
+        When NOT using the dynamic execution (i.e. the pipeline parameter
+        `experimental_exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        outputs may be reused and overwritten by DALI after `release_outputs` has been called.
+        Use `experimental_exec_dynamic=True` if you want to keep the outputs indefinitely.
 
-      Warning:
-        As private this API may change without notice.
-      )code"
-    )
+      stream : int, None
+          The CUDA stream the the caller is going to use to access the buffer.
+          A synchronization event might be inserted, if necessary, into that stream.
+          Special values:
+          None - any stream; wait on host
+          -1   - do not synchronize at all
+          1    - legacy default stream
+          2    - legacy per-thread stream
+          >2   - a CUDA stream handle converted to an integer
+          0    - forbidden value
+      )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
             "buffer info for tensor w/ invalid type.");
@@ -688,24 +782,36 @@ void ExposeTensor(py::module &m) {
             Layout of the data
       )code")
     .def(
-      "_expose_dlpack_capsule",
-      [](Tensor<GPUBackend> &t) -> py::capsule {
-        SampleView<GPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
-
-        return TensorToDLPackView(sv, t.is_pinned(), t.device_id());
-      },
+      "device_id", &Tensor<GPUBackend>::device_id)
+    .def(
+      "__dlpack_device__", [](const Tensor<GPUBackend> &tensor) {
+        auto dev = GetDLDevice(tensor);
+        return std::make_tuple(dev.device_type, dev.device_id);
+      })
+    .def(
+      "__dlpack__", ToDLPack<GPUBackend>,
+      "stream"_a = py::none(),
+      "dl_device"_a = py::none(),
       R"code(
-      Exposes tensor data as DLPack compatible capsule.
+      Exposes the tensor as a DLPack capsule.
 
       Note:
-        This function does not implement full DLPack contract and
-      should not be used to export DALI GPU tensors to DLPack compatible
-      endpoints.
+        When NOT using the dynamic execution (i.e. the pipeline parameter
+        `experimental_exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        outputs may be reused and overwritten by DALI after `release_outputs` has been called.
+        Use `experimental_exec_dynamic=True` if you want to keep the outputs indefinitely.
 
-      Warning:
-        As private this API may change without notice.
-      )code"
-    )
+      stream : int, None
+          The CUDA stream the the caller is going to use to access the buffer.
+          A synchronization event might be inserted, if necessary, into that stream.
+          Special values:
+          None - any stream; wait on host
+          -1   - do not synchronize at all
+          1    - legacy default stream
+          2    - legacy per-thread stream
+          >2   - a CUDA stream handle converted to an integer
+          0    - forbidden value
+      )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
@@ -784,6 +890,12 @@ void ExposeTensor(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
+    .def_property_readonly("stream", [](const Tensor<GPUBackend> &t)->py::object {
+      if (t.order().is_device())
+        return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
+      else
+        return py::none();
+    })
     .def("data_ptr",
         [](Tensor<GPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
@@ -834,7 +946,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto &sample_shared_ptr = unsafe_sample_owner(t, id);
   ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type(),
-                 t.device_id(), t.order());
+                 t.device_id(), t.order(), t.ready_event());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
 }
@@ -1320,6 +1432,8 @@ void ExposeTensorList(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def(
+      "device_id", &TensorList<GPUBackend>::device_id)
     .def("shape", &py_shape_list<GPUBackend>,
       R"code(
       Shape of the tensor list.
@@ -1423,6 +1537,12 @@ void ExposeTensorList(py::module &m) {
     })
     .def("__repr__", [](TensorList<GPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t, false);
+    })
+    .def_property_readonly("stream", [](const TensorList<GPUBackend> &t)->py::object {
+      if (t.order().is_device())
+        return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
+      else
+        return py::none();
     })
     .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
           return tl.type();
@@ -1776,6 +1896,27 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.doc() = "Datatypes and options used by DALI";
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
+  py::enum_<DLDeviceType> dl_device_type(
+    m, "DLDeviceType", "DLPack device type");
+
+  #define DL_DEVICE_TYPE(x) dl_device_type.value(#x, x)
+
+  DL_DEVICE_TYPE(kDLCPU);
+  DL_DEVICE_TYPE(kDLCUDA);
+  DL_DEVICE_TYPE(kDLCUDAHost);
+  DL_DEVICE_TYPE(kDLOpenCL);
+  DL_DEVICE_TYPE(kDLVulkan);
+  DL_DEVICE_TYPE(kDLMetal);
+  DL_DEVICE_TYPE(kDLVPI);
+  DL_DEVICE_TYPE(kDLROCM);
+  DL_DEVICE_TYPE(kDLROCMHost);
+  DL_DEVICE_TYPE(kDLExtDev);
+  DL_DEVICE_TYPE(kDLCUDAManaged);
+  DL_DEVICE_TYPE(kDLOneAPI);
+  DL_DEVICE_TYPE(kDLWebGPU);
+  DL_DEVICE_TYPE(kDLHexagon);
+  DL_DEVICE_TYPE(kDLMAIA);
+
   // DALIDataType
   py::enum_<DALIDataType> dali_data_type(
       types_m, "DALIDataType", "Object representing the data type of a Tensor.\n<SPHINX_IGNORE>");
@@ -1994,8 +2135,12 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
     .def("Prefetch", &Pipeline::Prefetch, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
-        [](Pipeline *p) {
+        [](Pipeline *p, py::object cuda_stream) {
           Workspace ws;
+
+          if (!cuda_stream.is_none())
+            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
+
           {
             py::gil_scoped_release interpreter_unlock{};
             p->Outputs(&ws);
@@ -2009,10 +2154,16 @@ PYBIND11_MODULE(backend_impl, m) {
             }
           }
           return outs;
-        }, py::return_value_policy::take_ownership)
+        },
+        "cuda_stream"_a = py::none(),
+        py::return_value_policy::take_ownership)
     .def("ShareOutputs",
-        [](Pipeline *p) {
+        [](Pipeline *p, py::object cuda_stream) {
           Workspace ws;
+
+          if (!cuda_stream.is_none())
+            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
+
           {
             py::gil_scoped_release interpreter_unlock{};
             p->ShareOutputs(&ws);
@@ -2027,7 +2178,9 @@ PYBIND11_MODULE(backend_impl, m) {
             }
           }
           return outs;
-        }, py::return_value_policy::take_ownership)
+        },
+        "cuda_stream"_a = py::none(),
+        py::return_value_policy::take_ownership)
     .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
@@ -2104,6 +2257,14 @@ PYBIND11_MODULE(backend_impl, m) {
               device_id = sample0.device_id();
             }
             AccessOrder order(stream, device_id);
+            if (order.is_device()) {
+              CUcontext ctx = nullptr;
+              CUDA_CALL(cuStreamGetCtx(order.stream(), &ctx));
+              CUDA_CALL(cuCtxPushCurrent(ctx));
+              CUdevice device;
+              CUDA_CALL(cuCtxGetDevice(&device));
+              CUDA_CALL(cuCtxPopCurrent(&ctx));
+            }
             FeedPipeline<GPUBackend>(p, name, list, order, cuda_stream.is_none(), use_copy_kernel);
           }
         },

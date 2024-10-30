@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,9 @@
 
 # pylint: disable=no-name-in-module,unused-import
 from enum import Enum, unique
+import ctypes
 import re
+from nvidia.dali import backend_impl
 
 from nvidia.dali._backend_enums import (
     DALIDataType as DALIDataType,
@@ -396,6 +398,8 @@ def _raw_cuda_stream(stream_obj):
 def _get_default_stream_for_array(array):
     if isinstance(array, list) and len(array):
         array = array[0]
+    if isinstance(array, (backend_impl.TensorListGPU, backend_impl.TensorGPU)):
+        return array.stream
     if _is_torch_tensor(array):
         import torch
 
@@ -406,6 +410,11 @@ def _get_default_stream_for_array(array):
         return _raw_cuda_stream(cupy.cuda.get_current_stream())
     else:
         return None
+
+
+def _raw_cuda_stream_ptr(stream_obj):
+    raw_stream = _raw_cuda_stream(stream_obj)
+    return None if raw_stream is None else ctypes.c_void_p(raw_stream)
 
 
 def _get_device_id_for_array(array):
