@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC_GRAPH_H_
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC_GRAPH_H_
 
+#include <any>
 #include <cassert>
 #include <functional>
 #include <list>
@@ -202,6 +203,14 @@ class DLL_PUBLIC ExecNode {
   /** Visit marker for graph algorithms. */
   mutable bool visited = false;
 
+  template <typename T>
+  inline std::pair<T *, bool> ExecutorCustomData() {
+    if (T *custom = std::any_cast<T>(&executor_custom_data_))
+      return std::make_pair(custom, false);
+    executor_custom_data_ = T();
+    return std::make_pair(std::any_cast<T>(&executor_custom_data_), true);
+  }
+
  private:
   /** The task from the previous iteration - kept in order to maintain execution order */
   tasking::SharedTask prev_task_;
@@ -245,6 +254,13 @@ class DLL_PUBLIC ExecNode {
 
   /** The event associated with the workspace */
   CUDASharedEvent ws_event_;
+
+  /** Custom data stored alongside the node.
+   *
+   * The executor may want to cache some per-node data across iterations. This data can be stored
+   * here, in this opaque field.
+   */
+  std::any executor_custom_data_;
 
   /** Moves to a new iteration. */
   void NextIter() {

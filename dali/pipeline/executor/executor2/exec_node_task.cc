@@ -15,6 +15,7 @@
 #include <memory>
 #include <unordered_set>
 #include <utility>
+#include <string>
 #include <vector>
 #include "dali/pipeline/executor/executor2/exec_node_task.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
@@ -98,14 +99,61 @@ class OpTask : public ExecNodeTask {
   /** If true, the operator's Setup and Run are skipped. */
   bool skip_ = false;
 
+  struct Meta {
+    struct {
+      std::string init_ws_range_name, setup_range_name, run_range_name;
+      uint32_t range_color;
+    } nvtx;
+  };
+  Meta *meta_ = nullptr;
+
+  void InitMeta() {
+    auto [meta, is_new] = node_->ExecutorCustomData<Meta>();
+    meta_ = meta;
+    if (is_new) {
+      auto op_name = node_->op->GetSpec().SchemaName();
+      std::string device;
+      switch (node_->backend) {
+      case OpType::CPU:
+        device = "CPU";
+        meta->nvtx.range_color = RangeBase::kBlue1;
+        break;
+      case OpType::GPU:
+        device = "GPU";
+        meta->nvtx.range_color = RangeBase::knvGreen;
+        break;
+      case OpType::MIXED:
+        device = "Mixed";
+        meta->nvtx.range_color = RangeBase::kOrange;
+        break;
+      default:
+        throw std::logic_error("Internal error: Encountered a node with invalid backend.");
+      }
+
+      meta->nvtx.init_ws_range_name = make_string("[DALI][Executor] InitWorkspace ", op_name);
+      meta->nvtx.setup_range_name   = make_string("[DALI][", device, " op] Setup ", op_name);
+      meta->nvtx.run_range_name     = make_string("[DALI][", device, " op] Run ", op_name);
+    }
+  }
+
   SmallVector<int, 4> reset_input_layouts_;
 };
 
 OpTask::OpTaskOutputs OpTask::Run() {
+  InitMeta();
+
+  // We cannot use DomainTimeRange, because it would outlive workspace_scope - we can use `optional`
+  // to shorten the life of the range.
+  std::optional<DomainTimeRange> ws_init_tr;
+  ws_init_tr.emplace(meta_->nvtx.init_ws_range_name);
   auto workspace_scope = GetWorkspace();
+
   // SetWorkspaceInputs must not go into the try/catch because it rethrows errors
   // from the inputs and we don't want them to be wrapped again as this operator's error.
   SetWorkspaceInputs();
+
+  ws_init_tr.reset();  // the range ends here
+
   try {
     SetupOp();
     RunOp();
@@ -231,7 +279,7 @@ void OpTask::SetupOp() {
   }
 
   if (!skip_) {
-    DomainTimeRange tr("[DALI][OpTask] Setup " + GetOpDisplayName(node_->op->GetSpec()));
+    DomainTimeRange tr(meta_->nvtx.setup_range_name, meta_->nvtx.range_color);
     ApplyDefaultLayouts();
     std::vector<OutputDesc> output_descs;
     output_descs.reserve(nout);
@@ -254,7 +302,7 @@ void OpTask::SetupOp() {
 
 void OpTask::RunOp() {
   if (!skip_) {
-    DomainTimeRange tr("[DALI][Executor] Run");
+    DomainTimeRange tr(meta_->nvtx.run_range_name, meta_->nvtx.range_color);
     node_->op->Run(*ws_);
     ResetInputLayouts();
     PropagateSourceInfo(*ws_);
@@ -434,6 +482,10 @@ class OutputTask : public ExecNodeTask {
 };
 
 PipelineOutput OutputTask::Run() {
+  DomainTimeRange time_range(
+    "[DALI][Executor] OutputTask",
+    node_->backend == OpType::GPU ? TimeRange::knvGreen : TimeRange::kBlue1);
+
   auto workspace_scope = GetWorkspace();
   assert(ws_->NumInput() == 0);
   assert(ws_->NumArgumentInput() == 0);
