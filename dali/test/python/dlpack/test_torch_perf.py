@@ -9,7 +9,7 @@ from nose.plugins.attrib import attr
 @dali.pipeline_def(batch_size=32, num_threads=8, device_id=0)
 def test_pipe():
     row = dali.types.Constant(np.full((1, 1000), 42, dtype=np.float32), device="gpu")
-    col = dali.types.Constant(np.full((10000, 1), 12, dtype=np.float32), device="gpu")
+    col = dali.types.Constant(np.full((1000, 1), 12, dtype=np.float32), device="gpu")
     ext = fn.external_source(lambda si: np.float32(si.idx_in_epoch), batch=False, device="gpu")
     return ext + row + col
 

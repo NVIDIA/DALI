@@ -1538,7 +1538,7 @@ void ExposeTensorList(py::module &m) {
     .def("__repr__", [](TensorList<GPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t, false);
     })
-    .def_property_readonly("stream", [](const Tensor<GPUBackend> &t)->py::object {
+    .def_property_readonly("stream", [](const TensorList<GPUBackend> &t)->py::object {
       if (t.order().is_device())
         return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
       else
