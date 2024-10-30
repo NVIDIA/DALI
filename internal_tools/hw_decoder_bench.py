@@ -20,7 +20,8 @@ from nvidia.dali.pipeline import pipeline_def
 import random
 import numpy as np
 import os
-from nvidia.dali.auto_aug import auto_augment
+from nvidia.dali.auto_aug import auto_augment, trivial_augment
+
 
 parser = argparse.ArgumentParser(description="DALI HW decoder benchmark")
 parser.add_argument("-b", dest="batch_size", help="batch size", default=1, type=int)
@@ -47,9 +48,16 @@ input_files_arg.add_argument(
 parser.add_argument(
     "-p",
     dest="pipeline",
-    choices=["decoder", "rn50", "efficientnet_inference", "vit"],
+    choices=["decoder", "rn50", "efficientnet_inference", "vit", "efficientnet_training"],
     help="pipeline to test",
     default="decoder",
+    type=str,
+)
+parser.add_argument(
+    "--aug-strategy",
+    dest="aug_strategy",
+    choices=["autoaugment", "trivialaugment", "none"],
+    default="autoaugment",
     type=str,
 )
 parser.add_argument("--width_hint", dest="width_hint", default=0, type=int)
@@ -57,7 +65,7 @@ parser.add_argument("--height_hint", dest="height_hint", default=0, type=int)
 parser.add_argument(
     "--hw_load",
     dest="hw_load",
-    help="HW decoder workload (e.g. 0.66 means 66% of the batch)",
+    help="HW decoder workload (e.g. 0.66 means 66%% of the batch)",
     default=0.75,
     type=float,
 )
@@ -112,6 +120,81 @@ def RN50Pipeline(minibatch_size):
         mirror=coin_flip,
     )
     return images
+
+
+@pipeline_def(
+    batch_size=args.batch_size,
+    num_threads=args.num_threads,
+    device_id=args.device_id,
+    seed=0,
+    enable_conditionals=True,
+)
+def EfficientnetTrainingPipeline(
+    minibatch_size,
+    automatic_augmentation="autoaugment",
+):
+    dali_device = args.device
+    output_layout = types.NCHW
+    rng = fn.random.coin_flip(probability=0.5)
+
+    jpegs, _ = fn.readers.file(
+        name="Reader",
+        file_root=args.images_dir,
+    )
+
+    if dali_device == "gpu":
+        decoder_device = "mixed"
+        resize_device = "gpu"
+    else:
+        decoder_device = "cpu"
+        resize_device = "cpu"
+
+    images = fn.decoders.image_random_crop(
+        jpegs,
+        device=decoder_device,
+        output_type=types.RGB,
+        random_aspect_ratio=[0.75, 4.0 / 3.0],
+        random_area=[0.08, 1.0],
+        hw_decoder_load=args.hw_load,
+        preallocate_width_hint=args.width_hint,
+        preallocate_height_hint=args.height_hint,
+    )
+
+    images = fn.resize(
+        images,
+        device=resize_device,
+        size=[224, 224],
+        antialias=False,
+        minibatch_size=minibatch_size,
+    )
+
+    # Make sure that from this point we are processing on GPU regardless of dali_device parameter
+    images = images.gpu()
+
+    images = fn.flip(images, horizontal=rng)
+
+    # Based on the specification, apply the automatic augmentation policy. Note, that from the point
+    # of Pipeline definition, this `if` statement relies on static scalar parameter, so it is
+    # evaluated exactly once during build - we either include automatic augmentations or not.
+    # We pass the shape of the image after the resize so the translate operations are done
+    # relative to the image size.
+    if automatic_augmentation == "autoaugment":
+        output = auto_augment.auto_augment_image_net(images, shape=[224, 224])
+    elif automatic_augmentation == "trivialaugment":
+        output = trivial_augment.trivial_augment_wide(images, shape=[224, 224])
+    else:
+        output = images
+
+    output = fn.crop_mirror_normalize(
+        output,
+        dtype=types.FLOAT,
+        output_layout=output_layout,
+        crop=(224, 224),
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+    )
+
+    return output
 
 
 @pipeline_def(
@@ -256,6 +339,15 @@ elif args.pipeline == "efficientnet_inference":
 elif args.pipeline == "vit":
     for i in range(args.gpu_num):
         pipes.append(vit_pipeline(device_id=i + args.device_id))
+elif args.pipeline == "efficientnet_training":
+    for i in range(args.gpu_num):
+        pipes.append(
+            EfficientnetTrainingPipeline(
+                device_id=i + args.device_id,
+                minibatch_size=args.minibatch_size,
+                automatic_augmentation=args.aug_strategy,
+            )
+        )
 else:
     raise RuntimeError("Unsupported pipeline")
 for p in pipes:
