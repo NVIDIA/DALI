@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <utility>
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/nvtx.h"
 #include "dali/pipeline/executor/executor2/exec2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
@@ -91,6 +92,7 @@ class Executor2::Impl {
   };
 
   void Build(const graph::OpGraph &graph) {
+    DomainTimeRange tr("[DALI][Executor] Build");
     if (state_ != State::New)
       throw std::logic_error("Already built.");
 
@@ -126,6 +128,7 @@ class Executor2::Impl {
     if (state_ != State::Running)
       throw std::runtime_error("The executor is not initialized.");
     InitIteration();
+    DomainTimeRange tr("[DALI][Executor] Launch");
     pending_outputs_.push(graph_.Launch(*exec_));
   }
 
@@ -137,6 +140,7 @@ class Executor2::Impl {
   }
 
   Workspace PopOutputs(AccessOrder output_order, bool set_output_order) {
+    DomainTimeRange tr("[DALI][Executor] PopOutputs");
     if (pending_outputs_.empty())
       throw std::out_of_range("All pending outputs were already popped.");
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
@@ -182,6 +186,7 @@ class Executor2::Impl {
   }
 
   void InitIteration() {
+    DomainTimeRange tr("[DALI][Executor] InitIteration");
     WorkspaceParams params{};
     params.max_batch_size = config_.max_batch_size;
     params.iter_data = InitIterationData(iter_index_++);
@@ -214,6 +219,7 @@ class Executor2::Impl {
   }
 
   void RestoreFromCheckpoint(const Checkpoint &cpt) {
+    DomainTimeRange tr("[DALI][Executor] RestoreFromCheckpoint");
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
     int restored = 0;
     for (auto &n : graph_.Nodes()) {
@@ -345,6 +351,7 @@ class Executor2::Impl {
       throw std::logic_error("Incorrect state transition.");
     exec_ = std::make_unique<tasking::Executor>(config_.operator_threads);
     exec_->Start([this](){
+      SetThreadName("[DALI] Executor");
       if (config_.device)
         CUDA_CALL(cudaSetDevice(*config_.device));
     });
