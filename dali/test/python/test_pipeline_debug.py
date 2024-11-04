@@ -14,15 +14,12 @@
 
 import numpy as np
 import os
-from nose_utils import attr
-
 from nvidia.dali import fn
 from nvidia.dali import tensors
 from nvidia.dali import types
 from nvidia.dali.pipeline.experimental import pipeline_def
-from nose_utils import raises
+from nose_utils import attr, raises, assert_raises
 from test_utils import compare_pipelines, get_dali_extra_path
-from nose_utils import assert_raises
 
 from conditionals.test_pipeline_conditionals import (
     pred_gens,

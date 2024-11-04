@@ -24,13 +24,12 @@ from checkpointing.test_dali_checkpointing import (
     make_external_source_test_pipeline_factory,
     images_dir,
 )
-from nose_utils import assert_raises
+from nose_utils import assert_raises, SkipTest
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
 import numpy as np
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-from nose_utils import SkipTest
 
 
 class FwTestBase:

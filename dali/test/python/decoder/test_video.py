@@ -23,9 +23,7 @@ from itertools import cycle
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
-from nose_utils import SkipTest
-from nose_utils import attr
-from nose_utils import assert_raises
+from nose_utils import SkipTest, attr, assert_raises
 
 
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")

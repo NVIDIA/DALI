@@ -22,14 +22,13 @@ import os
 import random
 from nvidia.dali import pipeline_def
 
-from nose_utils import assert_raises
+from nose_utils import assert_raises, SkipTest
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
 from test_utils import get_arch
 from test_utils import dump_as_core_artifacts
 from nose2.tools import params
-from nose_utils import SkipTest
 
 
 def get_img_files(data_path, subdir="*", ext=None):

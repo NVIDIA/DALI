@@ -21,8 +21,7 @@ import numpy as np
 import cv2
 from scipy.ndimage import convolve1d
 import os
-from nose_utils import assert_raises, raises
-from nose_utils import attr
+from nose_utils import assert_raises, raises, attr
 
 from sequences_test_utils import video_suite_helper, ArgCb
 from test_utils import (

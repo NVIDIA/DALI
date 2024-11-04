@@ -22,12 +22,11 @@ import nvidia.dali.types as types
 import os
 import re
 from collections.abc import Iterable
-from nose_utils import attr, nottest
+from nose_utils import attr, nottest, assert_raises
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
-from nose_utils import assert_raises
 from segmentation_test_utils import make_batch_select_masks
 from test_dali_cpu_only_utils import (
     pipeline_arithm_ops_cpu,

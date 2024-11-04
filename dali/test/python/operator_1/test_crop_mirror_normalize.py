@@ -23,8 +23,7 @@ from nvidia.dali import pipeline_def
 from nvidia.dali.pipeline import Pipeline
 
 from nose2.tools import params
-from nose_utils import assert_raises
-from nose_utils import raises
+from nose_utils import raises, assert_raises
 from test_slice import check_slice_output, abs_slice_start_and_end
 from test_utils import RandomDataIterator
 from test_utils import as_array

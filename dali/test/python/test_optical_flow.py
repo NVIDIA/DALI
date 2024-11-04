@@ -20,8 +20,7 @@ import cv2
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import fn, types
 from test_utils import get_dali_extra_path, get_arch
-from nose_utils import raises, assert_raises
-from nose_utils import SkipTest
+from nose_utils import raises, assert_raises, SkipTest
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "imgproc")

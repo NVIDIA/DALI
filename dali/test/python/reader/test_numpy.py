@@ -22,8 +22,7 @@ import os
 import platform
 import random
 import tempfile
-from nose_utils import assert_raises
-from nose_utils import SkipTest
+from nose_utils import assert_raises, SkipTest
 from nose2.tools import params, cartesian_params
 from test_utils import compare_pipelines, to_array
 

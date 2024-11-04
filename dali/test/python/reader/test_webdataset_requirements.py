@@ -17,8 +17,7 @@ from glob import glob
 import math
 import nvidia.dali as dali
 from test_utils import compare_pipelines, get_dali_extra_path
-from nose_utils import assert_raises
-from nose_utils import assert_equals
+from nose_utils import assert_raises, assert_equals
 from webdataset_base import (
     generate_temp_extract,
     generate_temp_index_file,

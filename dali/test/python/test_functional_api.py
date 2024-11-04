@@ -17,10 +17,9 @@ import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import numpy as np
-from nose_utils import assert_raises
+from nose_utils import assert_raises, attr
 import sys
 import inspect
-from nose_utils import attr
 import nose
 
 

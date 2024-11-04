@@ -14,12 +14,11 @@
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
-from nose_utils import nottest
+from nose_utils import nottest, assert_raises
 
 import numpy as np
 
 from test_utils import np_type_to_dali
-from nose_utils import assert_raises
 
 
 class Batch:

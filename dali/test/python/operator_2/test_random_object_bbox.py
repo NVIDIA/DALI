@@ -14,7 +14,7 @@
 
 
 # nose_utils goes first to deal with Python 3.10 incompatibility
-from nose_utils import assert_raises
+from nose_utils import attr, nottest, assert_raises
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
@@ -23,7 +23,6 @@ import scipy.ndimage
 import scipy.ndimage.measurements
 import random
 from test_utils import check_batch, np_type_to_dali
-from nose_utils import attr, nottest
 
 
 np.random.seed(1234)

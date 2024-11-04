@@ -22,8 +22,7 @@ from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU
 from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
-from nose_utils import assert_raises
-from nose_utils import SkipTest
+from nose_utils import assert_raises, SkipTest
 from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
 
 

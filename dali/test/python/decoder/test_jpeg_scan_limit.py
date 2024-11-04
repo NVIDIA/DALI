@@ -18,8 +18,7 @@ import tempfile
 import unittest
 from nvidia.dali import pipeline_def
 
-from nose_utils import assert_raises
-from nose_utils import attr
+from nose_utils import assert_raises, attr
 from nose2.tools import cartesian_params
 
 
