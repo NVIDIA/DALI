@@ -240,6 +240,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
+            is_exec_dynamic = self._pipes[i]._exec_dynamic
             # initialize dict for all output categories
             category_outputs = dict()
             # segregate outputs into categories
@@ -268,23 +269,36 @@ class DALIGenericIterator(_DaliBaseIterator):
                     category_device[category] = torch_cpu_device
 
             pyt_tensors = dict()
-            for category in self._output_categories:
-                pyt_tensors[category] = torch.empty(
-                    category_shapes[category],
-                    dtype=category_torch_type[category],
-                    device=category_device[category],
-                )
+
+            copy = not is_exec_dynamic
+            if copy:
+                # Copy data from DALI Tensors to torch tensors
+                for category, tensor in category_tensors.items():
+                    pyt_tensor = torch.empty(
+                        category_shapes[category],
+                        dtype=category_torch_type[category],
+                        device=category_device[category],
+                    )
+                    pyt_tensors[category] = pyt_tensor
+
+                    if isinstance(tensor, TensorGPU):
+                        # Using same cuda_stream used by torch.zeros to set the memory
+                        stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+                        feed_ndarray(tensor, pyt_tensor, cuda_stream=stream)
+                    elif isinstance(tensor, TensorCPU):
+                        feed_ndarray(tensor, pyt_tensor)
+                    else:
+                        raise RuntimeError(
+                            f"Internal error: unexpected type {type(tensor)}.\n"
+                            f"Expected TensorCPU or TensorGPU"
+                        )
+            else:
+                for category, tensor in category_tensors.items():
+                    with torch.device(category_device[category]):
+                        pyt_tensor = torch.from_dlpack(tensor)
+                        pyt_tensors[category] = pyt_tensor
 
             data_batches[i] = pyt_tensors
-
-            # Copy data from DALI Tensors to torch tensors
-            for category, tensor in category_tensors.items():
-                if isinstance(tensor, (TensorGPU, TensorListGPU)):
-                    # Using same cuda_stream used by torch.zeros to set the memory
-                    stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                    feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
-                else:
-                    feed_ndarray(tensor, pyt_tensors[category])
 
         self._schedule_runs()
 
