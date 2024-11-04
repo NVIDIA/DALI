@@ -18,7 +18,7 @@ from nose_utils import with_setup
 import test_dali_tf_dataset_mnist as mnist
 from test_utils_tensorflow import skip_for_incompatible_tf, available_gpus
 from nose_utils import raises
-from nose import SkipTest
+from nose_utils import SkipTest
 from packaging.version import Version
 
 tf.compat.v1.enable_eager_execution()

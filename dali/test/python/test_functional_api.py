@@ -20,7 +20,7 @@ import numpy as np
 from nose_utils import assert_raises
 import sys
 import inspect
-from nose.plugins.attrib import attr
+from nose_utils import attr
 import nose
 
 

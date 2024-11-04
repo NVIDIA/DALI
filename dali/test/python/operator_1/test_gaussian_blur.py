@@ -22,7 +22,7 @@ import cv2
 from scipy.ndimage import convolve1d
 import os
 from nose_utils import assert_raises, raises
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 from sequences_test_utils import video_suite_helper, ArgCb
 from test_utils import (

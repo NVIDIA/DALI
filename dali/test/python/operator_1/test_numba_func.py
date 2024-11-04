@@ -28,7 +28,7 @@ from test_utils import (
 )
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from numba import cuda
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, "db", "lmdb")

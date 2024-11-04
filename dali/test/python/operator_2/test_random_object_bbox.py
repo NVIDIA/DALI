@@ -23,8 +23,7 @@ import scipy.ndimage
 import scipy.ndimage.measurements
 import random
 from test_utils import check_batch, np_type_to_dali
-from nose.tools import nottest
-from nose.plugins.attrib import attr
+from nose_utils import attr, nottest
 
 
 np.random.seed(1234)

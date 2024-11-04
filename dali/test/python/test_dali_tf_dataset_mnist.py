@@ -22,7 +22,7 @@ from shutil import rmtree as remove_directory
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
 from packaging.version import Version
-from nose import SkipTest
+from nose_utils import SkipTest
 
 
 TARGET = 0.8

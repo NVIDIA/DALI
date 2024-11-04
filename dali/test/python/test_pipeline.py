@@ -36,9 +36,7 @@ from test_utils import (
     get_dali_extra_path,
     RandomDataIterator,
 )
-from nose_utils import raises
-from nose_utils import assert_raises
-from nose.plugins.skip import SkipTest
+from nose_utils import raises, assert_raises, SkipTest
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")

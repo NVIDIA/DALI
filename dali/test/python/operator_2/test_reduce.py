@@ -14,7 +14,7 @@
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
-from nose.tools import nottest
+from nose_utils import nottest
 
 import numpy as np
 

@@ -23,7 +23,7 @@ import numpy as np
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises, raises
 from nose2.tools import cartesian_params
-from nose import SkipTest
+from nose_utils import SkipTest
 
 
 def skip_second(src, dst):

@@ -14,8 +14,7 @@
 
 from nvidia.dali import Pipeline, pipeline_def
 from nvidia.dali.pipeline import do_not_convert
-from nose.tools import nottest
-from nose_utils import raises, assert_raises
+from nose_utils import raises, assert_raises, nottest
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
 import os

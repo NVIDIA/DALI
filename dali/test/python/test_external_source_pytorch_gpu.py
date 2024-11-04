@@ -18,7 +18,7 @@
 # so it is better to store everything in one file and just call `use_cupy`
 # to switch between the default numpy and cupy
 
-from nose.plugins.attrib import attr
+from nose_utils import attr
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 from test_utils import check_output

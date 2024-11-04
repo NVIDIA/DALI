@@ -24,7 +24,7 @@ from nvidia.dali.data_node import DataNode
 from nvidia.dali.pipeline import pipeline_def, Pipeline
 
 from test_utils import get_dali_extra_path, check_numba_compatibility_cpu
-from nose.plugins.attrib import attr  # type: ignore
+from nose_utils import attr  # type: ignore
 
 _test_root = Path(get_dali_extra_path())
 

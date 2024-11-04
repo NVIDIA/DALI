@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 # it is enough to just import all functions from test_internals_operator_external_source
 # nose will query for the methods available and will run them

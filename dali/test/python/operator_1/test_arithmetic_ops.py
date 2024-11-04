@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import nvidia.dali.math as math
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
-from nose.plugins.attrib import attr
+from nose_utils import attr
 from nose2.tools import params
 import itertools
 

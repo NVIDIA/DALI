@@ -22,8 +22,7 @@ import nvidia.dali.types as types
 import os
 import re
 from collections.abc import Iterable
-from nose.plugins.attrib import attr
-from nose.tools import nottest
+from nose_utils import attr, nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function

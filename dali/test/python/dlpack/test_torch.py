@@ -2,7 +2,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import torch
 import numpy as np
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 
 @dali.pipeline_def(batch_size=4, num_threads=1, device_id=0, prefetch_queue_depth=2)

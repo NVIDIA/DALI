@@ -15,7 +15,7 @@
 
 import numpy as np
 import nvidia.dali.fn as fn
-from nose.plugins.attrib import attr
+from nose_utils import attr
 from nose2.tools import params
 from numpy.random import default_rng
 from nvidia.dali import pipeline_def

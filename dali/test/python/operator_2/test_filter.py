@@ -20,7 +20,7 @@ import numpy as np
 from nvidia.dali import pipeline_def, fn, types
 from test_utils import get_dali_extra_path, np_type_to_dali, check_batch
 from nose2.tools import params
-from nose.plugins.attrib import attr
+from nose_utils import attr
 from filter_test_utils import filter_baseline, filter_baseline_layout
 
 data_root = get_dali_extra_path()

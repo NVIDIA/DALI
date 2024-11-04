@@ -14,7 +14,7 @@
 
 import numpy as np
 import os
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 from nvidia.dali import fn
 from nvidia.dali import tensors
