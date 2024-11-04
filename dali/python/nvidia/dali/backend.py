@@ -55,6 +55,9 @@ if not initialized:
             "Please update your environment to use Python 3.8, "
             "3.9, 3.10, or (experimentally) 3.11."
         )
+    # py3.13 warning
+    if sys.version_info[0] == 3 and sys.version_info[1] == 13:
+        deprecation_warning("Python 3.13 support is experimental and not officially tested.")
 
     if int(str(__cuda_version__)[:2]) < 11:
         deprecation_warning(
