@@ -16,7 +16,6 @@ def _test_pipe():
 
 @attr("pytorch")
 def test_dlpack_is_zero_copy():
-    print("Testing dlpack")
     # get a DALI pipeline that produces batches of very large tensors
     pipe = _test_pipe(batch_size=1, experimental_exec_dynamic=True)
     pipe.build()
@@ -34,7 +33,6 @@ def test_dlpack_is_zero_copy():
 
 @attr("pytorch")
 def test_dlpack_no_corruption():
-    print("Testing dlpack")
     # get a DALI pipeline that produces batches of very large tensors
     pipe = _test_pipe(experimental_exec_dynamic=True)
     pipe.build()
