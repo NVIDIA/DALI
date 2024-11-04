@@ -280,9 +280,8 @@ def check_fancy_upsampling_body(batch_size, img_type, device):
 @params(1, 8)
 def test_fancy_upsampling(batch_size):
     if nvidia.dali.backend.GetNvjpegVersion() < 12001:
-        from nose_utils import SkipTest
-
         raise SkipTest("nvJPEG doesn't support fancy upsampling in this version")
+
     data_path = os.path.join(test_data_root, good_path, "jpeg")
     compare_pipelines(
         decoder_pipe(
