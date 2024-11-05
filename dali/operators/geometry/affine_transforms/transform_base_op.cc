@@ -27,6 +27,7 @@ If set to True, the input transform will be applied to the operator's transform.
 
 If there's no input, this argument is ignored.
 )code",
-    false);
+    false)
+  .AddParent("ImplicitScopeAttr");;
 
 }  // namespace dali

@@ -187,31 +187,29 @@ def apply_auto_augment(
     """
     if len(policy.sub_policies) == 0:
         raise Exception(f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call.")
-    max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
-    should_run = fn.random.uniform(
-        range=[0, 1], shape=(max_policy_len,), dtype=types.FLOAT, seed=seed
-    )
-    sub_policy_id = fn.random.uniform(
-        values=list(range(len(policy.sub_policies))), seed=seed, dtype=types.INT32
-    )
-    run_probabilities = _sub_policy_to_probability_map(policy)[sub_policy_id]
-    magnitude_bins = _sub_policy_to_magnitude_bin_map(policy)[sub_policy_id]
+    run_probabilities = _sub_policy_to_probability_map(policy)
+    magnitude_bins = _sub_policy_to_magnitude_bin_map(policy)
     aug_ids, augmentations = _sub_policy_to_augmentation_map(policy)
-    aug_ids = aug_ids[sub_policy_id]
-    if any(aug.randomly_negate for aug in policy.augmentations.values()):
-        magnitude_bins = signed_bin(magnitude_bins, seed=seed, shape=(max_policy_len,))
     _forbid_unused_kwargs(policy.augmentations.values(), kwargs, "apply_auto_augment")
+    max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
+    sub_policy_id = fn.random.choice(len(policy.sub_policies))
     for stage_id in range(max_policy_len):
-        if should_run[stage_id] < run_probabilities[stage_id]:
+        should_run = fn.random.coin_flip(
+            probability=run_probabilities[stage_id][sub_policy_id], seed=seed
+        )
+        if should_run:
+            magnitude_bin = magnitude_bins[stage_id][sub_policy_id]
+            if any(aug.randomly_negate for aug in policy.augmentations.values()):
+                magnitude_bin = signed_bin(magnitude_bin, seed=seed)
             op_kwargs = dict(
                 data=data,
-                magnitude_bin=magnitude_bins[stage_id],
+                magnitude_bin=magnitude_bin,
                 num_magnitude_bins=policy.num_magnitude_bins,
                 **kwargs,
             )
             data = _pretty_select(
                 augmentations[stage_id],
-                aug_ids[stage_id],
+                aug_ids[stage_id][sub_policy_id],
                 op_kwargs,
                 auto_aug_name="apply_auto_augment",
                 ref_suite_name="get_image_net_policy",
@@ -499,35 +497,35 @@ def get_reduced_image_net_policy() -> Policy:
     )
 
 
-def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:
+def _sub_policy_to_probability_map(policy: Policy) -> Tuple[_DataNode, ...]:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    prob = np.array(
-        [[0.0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))], dtype=np.float32
-    )
+    probs = tuple(np.array(
+        [0.0 for _ in range(len(sub_policies))], dtype=np.float32
+    ) for _ in range(max_policy_len))
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
-            prob[sub_policy_id, stage_idx] = p
-    return types.Constant(prob)
+            probs[stage_idx][sub_policy_id] = p
+    return tuple(types.Constant(prob) for prob in probs)
 
 
-def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
+def _sub_policy_to_magnitude_bin_map(policy: Policy) -> Tuple[_DataNode, ...]:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    magnitude_bin = np.array(
-        [[0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))], dtype=np.int32
-    )
+    magnitude_bins = tuple(np.array(
+        [0 for _ in range(len(sub_policies))], dtype=np.int32
+    ) for _ in range(max_policy_len))
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
             # use dummy value instead of None, it will be ignored anyway
             val = mag if mag is not None else -999
-            magnitude_bin[sub_policy_id, stage_idx] = val
-    return types.Constant(magnitude_bin)
+            magnitude_bins[stage_idx][sub_policy_id] = val
+    return tuple(types.Constant(magnitude_bin) for magnitude_bin in magnitude_bins)
 
 
 def _sub_policy_to_augmentation_matrix_map(
     policy: Policy,
-) -> Tuple[np.ndarray, List[List[_Augmentation]]]:
+) -> Tuple[Tuple[np.ndarray, ...], List[List[_Augmentation]]]:
     """
     Creates a matrix of operators to be called for given sub policy at given stage.
     The output is a tuple `(m, augments)`, where `augments` is a list of augmentations per stage
@@ -555,19 +553,15 @@ def _sub_policy_to_augmentation_matrix_map(
         {augmentation: i for i, augmentation in enumerate(stage_augments)}
         for stage_augments in augmentations
     ]
-    augments_by_id = np.array(
-        [
-            [identity_id[stage_idx] for stage_idx in range(max_policy_len)]
-            for _ in range(len(sub_policies))
-        ],
-        dtype=np.int32,
-    )
+    augments_by_id = tuple(np.array(
+        [identity_id[stage_idx] for _ in range(len(sub_policies))], dtype=np.int32,
+    ) for stage_idx in range(max_policy_len))
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
-            augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][augment]
+            augments_by_id[stage_idx][sub_policy_id] = augment_to_id[stage_idx][augment]
     return augments_by_id, augmentations
 
 
-def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
-    matrix, augments = _sub_policy_to_augmentation_matrix_map(policy)
-    return types.Constant(matrix), augments
+def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[Tuple[_DataNode, ...], List[List[_Augmentation]]]:
+    matrices, augments = _sub_policy_to_augmentation_matrix_map(policy)
+    return tuple(types.Constant(matrix) for matrix in matrices), augments
