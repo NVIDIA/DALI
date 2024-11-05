@@ -13,12 +13,10 @@
 # limitations under the License.
 
 import tensorflow as tf
-from nose_utils import with_setup
+from nose_utils import with_setup, raises, SkipTest
 
 import test_dali_tf_dataset_mnist as mnist
 from test_utils_tensorflow import skip_for_incompatible_tf, available_gpus
-from nose_utils import raises
-from nose import SkipTest
 from packaging.version import Version
 
 tf.compat.v1.enable_eager_execution()

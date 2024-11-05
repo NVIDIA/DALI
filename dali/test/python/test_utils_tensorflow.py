@@ -20,7 +20,7 @@ import nvidia.dali.types as types
 import os
 import tensorflow as tf
 from contextlib import contextmanager
-from nose import SkipTest
+from nose_utils import SkipTest
 from nvidia.dali.pipeline import Pipeline
 from tensorflow.python.client import device_lib
 

@@ -20,10 +20,8 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
-from nose.tools import nottest
-from nose_utils import raises, assert_raises
+from nose_utils import raises, assert_raises, nottest, attr
 from nose2.tools import params
-from nose.plugins.attrib import attr
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 import random
 

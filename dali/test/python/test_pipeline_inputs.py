@@ -15,13 +15,12 @@
 
 import numpy as np
 import nvidia.dali.fn as fn
-from nose.plugins.attrib import attr
+from nose_utils import attr, raises
 from nose2.tools import params
 from numpy.random import default_rng
 from nvidia.dali import pipeline_def
 from nvidia.dali.tensors import TensorCPU, TensorGPU
 
-from nose_utils import raises
 from test_utils import to_array
 
 max_batch_size = 256

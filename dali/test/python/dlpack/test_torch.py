@@ -2,7 +2,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import torch
 import numpy as np
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 
 @dali.pipeline_def(batch_size=4, num_threads=1, device_id=0, prefetch_queue_depth=2)
@@ -16,7 +16,6 @@ def _test_pipe():
 
 @attr("pytorch")
 def test_dlpack_is_zero_copy():
-    print("Testing dlpack")
     # get a DALI pipeline that produces batches of very large tensors
     pipe = _test_pipe(batch_size=1, experimental_exec_dynamic=True)
     pipe.build()
@@ -34,7 +33,6 @@ def test_dlpack_is_zero_copy():
 
 @attr("pytorch")
 def test_dlpack_no_corruption():
-    print("Testing dlpack")
     # get a DALI pipeline that produces batches of very large tensors
     pipe = _test_pipe(experimental_exec_dynamic=True)
     pipe.build()

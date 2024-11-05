@@ -15,7 +15,7 @@
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nose.tools import nottest
+from nose_utils import nottest
 from nvidia.dali import pipeline_def
 from test_utils import np_type_to_dali
 import itertools

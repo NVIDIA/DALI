@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nose_utils  # noqa:F401  - for Python 3.10
+from nose_utils import nottest
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
@@ -23,7 +23,6 @@ import torch
 import math
 import random
 import os
-from nose.tools import nottest
 
 # Filtering librispeech samples
 audio_files = get_files("db/audio/wav", "wav")

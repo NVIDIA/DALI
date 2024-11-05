@@ -3,7 +3,7 @@ import nvidia.dali.fn as fn
 import torch
 import numpy as np
 import time
-from nose.plugins.attrib import attr
+from nose_utils import attr
 
 
 @dali.pipeline_def(batch_size=32, num_threads=8, device_id=0)

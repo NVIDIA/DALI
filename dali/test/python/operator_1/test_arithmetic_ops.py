@@ -19,12 +19,11 @@ import nvidia.dali.types as types
 import nvidia.dali.math as math
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
-from nose.plugins.attrib import attr
+from nose_utils import attr, raises, assert_raises, assert_equals
 from nose2.tools import params
 import itertools
 
 from test_utils import np_type_to_dali
-from nose_utils import raises, assert_raises, assert_equals
 
 
 def list_product(*args):

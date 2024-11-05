@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -101,6 +101,8 @@ import nose.loader
 import nose.suite
 import nose.plugins.attrib
 from nose import SkipTest, with_setup  # noqa: F401
+from nose.plugins.attrib import attr  # noqa: F401
+from nose.tools import nottest  # noqa: F401
 
 if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
     nose.case.collections = collections.abc
