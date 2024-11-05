@@ -1232,7 +1232,8 @@ def test_pytorch_iterator_feed_ndarray_types():
         yield check_pytorch_iterator_feed_ndarray_types, data_type
 
 
-def test_ragged_iterator_sparse_coo_batch():
+@params((False,), (True,))
+def test_ragged_iterator_sparse_coo_batch(exec_dynamic):
     from nvidia.dali.plugin.pytorch import DALIRaggedIterator as RaggedIterator
 
     num_gpus = 1
@@ -1250,6 +1251,7 @@ def test_ragged_iterator_sparse_coo_batch():
             shuffle_after_epoch=False,
             pad_last_batch=True,
             return_labels=True,
+            exec_dynamic=exec_dynamic,
         ),
         batch_size,
         num_gpus,
@@ -1272,7 +1274,8 @@ def test_ragged_iterator_sparse_coo_batch():
         assert ids.is_sparse is False
 
 
-def test_ragged_iterator_sparse_list_batch():
+@params((False,), (True,))
+def test_ragged_iterator_sparse_list_batch(exec_dynamic):
     from nvidia.dali.plugin.pytorch import DALIRaggedIterator as RaggedIterator
 
     num_gpus = 1
@@ -1290,6 +1293,7 @@ def test_ragged_iterator_sparse_list_batch():
             shuffle_after_epoch=False,
             pad_last_batch=True,
             return_labels=True,
+            exec_dynamic=exec_dynamic,
         ),
         batch_size,
         num_gpus,
