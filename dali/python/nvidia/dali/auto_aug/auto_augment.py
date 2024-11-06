@@ -500,9 +500,10 @@ def get_reduced_image_net_policy() -> Policy:
 def _sub_policy_to_probability_map(policy: Policy) -> Tuple[_DataNode, ...]:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    probs = tuple(np.array(
-        [0.0 for _ in range(len(sub_policies))], dtype=np.float32
-    ) for _ in range(max_policy_len))
+    probs = tuple(
+        np.array([0.0 for _ in range(len(sub_policies))], dtype=np.float32)
+        for _ in range(max_policy_len)
+    )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
             probs[stage_idx][sub_policy_id] = p
@@ -512,9 +513,10 @@ def _sub_policy_to_probability_map(policy: Policy) -> Tuple[_DataNode, ...]:
 def _sub_policy_to_magnitude_bin_map(policy: Policy) -> Tuple[_DataNode, ...]:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    magnitude_bins = tuple(np.array(
-        [0 for _ in range(len(sub_policies))], dtype=np.int32
-    ) for _ in range(max_policy_len))
+    magnitude_bins = tuple(
+        np.array([0 for _ in range(len(sub_policies))], dtype=np.int32)
+        for _ in range(max_policy_len)
+    )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
             # use dummy value instead of None, it will be ignored anyway
@@ -553,15 +555,21 @@ def _sub_policy_to_augmentation_matrix_map(
         {augmentation: i for i, augmentation in enumerate(stage_augments)}
         for stage_augments in augmentations
     ]
-    augments_by_id = tuple(np.array(
-        [identity_id[stage_idx] for _ in range(len(sub_policies))], dtype=np.int32,
-    ) for stage_idx in range(max_policy_len))
+    augments_by_id = tuple(
+        np.array(
+            [identity_id[stage_idx] for _ in range(len(sub_policies))],
+            dtype=np.int32,
+        )
+        for stage_idx in range(max_policy_len)
+    )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
             augments_by_id[stage_idx][sub_policy_id] = augment_to_id[stage_idx][augment]
     return augments_by_id, augmentations
 
 
-def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[Tuple[_DataNode, ...], List[List[_Augmentation]]]:
+def _sub_policy_to_augmentation_map(
+    policy: Policy,
+) -> Tuple[Tuple[_DataNode, ...], List[List[_Augmentation]]]:
     matrices, augments = _sub_policy_to_augmentation_matrix_map(policy)
     return tuple(types.Constant(matrix) for matrix in matrices), augments
