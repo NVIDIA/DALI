@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ def run_distributed_sharing_test(sharding, process_id):
     dali_local_shards = []
     for id, device in enumerate(jax.local_devices()):
         current_shard = dax.integration._to_jax_array(
-            get_dali_tensor_gpu(process_id, (1), np.int32, id)
+            get_dali_tensor_gpu(process_id, (1), np.int32, id), False
         )
 
         assert current_shard.device() == device

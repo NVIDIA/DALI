@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ def print_devices_details(devices_list, process_id):
 
 
 def test_lax_workflow(process_id):
-    array_from_dali = dax.integration._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32))
+    array_from_dali = dax.integration._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32), False)
 
     assert (
         array_from_dali.device() == jax.local_devices()[0]
@@ -64,7 +64,7 @@ def test_lax_workflow(process_id):
 
 def run_distributed_sharing_test(sharding, process_id):
     dali_local_shard = dax.integration._to_jax_array(
-        get_dali_tensor_gpu(process_id, (1), np.int32, 0)
+        get_dali_tensor_gpu(process_id, (1), np.int32, 0), False
     )
 
     # Note: we pass only one local shard but the array virtually

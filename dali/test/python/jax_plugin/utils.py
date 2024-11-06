@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
         with provided value.
     """
 
-    @pipeline_def(num_threads=1, batch_size=1)
+    @pipeline_def(num_threads=1, batch_size=1, exec_dynamic=True)
     def dali_pipeline():
         values = types.Constant(value=np.full(shape, value, dtype), device="gpu")
 

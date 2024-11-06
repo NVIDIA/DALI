@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     dali_tensor_gpu = get_dali_tensor_gpu(value=value, shape=shape, dtype=dtype)
 
     # when
-    jax_array = dax.integration._to_jax_array(dali_tensor_gpu)
+    jax_array = dax.integration._to_jax_array(dali_tensor_gpu, False)
 
     # then
     assert jax.numpy.array_equal(jax_array, jax.numpy.full(shape, value, dtype))
@@ -56,7 +56,7 @@ def test_dali_sequential_tensors_to_jax_array():
         dali_tensor_gpu = pipe.run()[0].as_tensor()
 
         # when
-        jax_array = dax.integration._to_jax_array(dali_tensor_gpu)
+        jax_array = dax.integration._to_jax_array(dali_tensor_gpu, False)
 
         # then
         assert jax_array.device() == jax.devices()[0]

@@ -193,7 +193,10 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         for pipeline_id in range(self._num_gpus):
             category_outputs.append(
-                _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor())
+                _to_jax_array(
+                    pipelines_outputs[pipeline_id][category_id].as_tensor(),
+                    not self._pipes[pipeline_id].exec_dynamic,
+                )
             )
 
         return category_outputs
