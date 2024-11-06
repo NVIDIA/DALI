@@ -233,7 +233,7 @@ def DALIIteratorWrapper(
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used
         gpu_prefetch_queue_depth = prefetch_queue_depth
 
-    if pipeline is not None and pipeline._exec_dynamic:
+    if pipeline is not None and pipeline.exec_dynamic:
         exec_dynamic = True
 
     if serialized_pipeline is None:
@@ -451,7 +451,7 @@ if dataset_compatible_tensorflow():
             output_shapes = self._handle_deprecation(output_shapes, shapes, "shapes")
             output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
 
-            if pipeline._exec_dynamic:
+            if pipeline.exec_dynamic:
                 exec_dynamic = True
 
             if not self._check_dtypes(output_dtypes, tf.DType):

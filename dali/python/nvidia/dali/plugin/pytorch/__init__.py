@@ -240,7 +240,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
-            is_exec_dynamic = self._pipes[i]._exec_dynamic
+            is_exec_dynamic = self._pipes[i].exec_dynamic
             # initialize dict for all output categories
             category_outputs = dict()
             # segregate outputs into categories
@@ -630,7 +630,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
         data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
-            is_exec_dynamic = self._pipes[i]._exec_dynamic
+            is_exec_dynamic = self._pipes[i].exec_dynamic
             # initialize dict for all output categories
             category_outputs = dict()
             # segregate outputs into categories

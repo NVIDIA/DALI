@@ -314,7 +314,7 @@ class DataNode(object):
         the check is deferred until `Pipeline.build`.
         """
         if self.device == "gpu" and self.source and self.source.pipeline:
-            if not self.source.pipeline._exec_dynamic:
+            if not self.source.pipeline.exec_dynamic:
                 raise RuntimeError(
                     "This pipeline doesn't support transition from GPU to CPU.\n"
                     'To enable GPU->CPU transitions, use the experimental "dynamic" executor.\n'
