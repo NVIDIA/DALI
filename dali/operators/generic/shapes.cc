@@ -17,7 +17,10 @@
 namespace dali {
 
 DALI_SCHEMA(Shapes)
-    .DocStr(R"code(Returns the shapes of inputs.)code")
+    .DocStr(R"(Returns the shapes of tensors in the input batch.
+
+NOT RECOMMENDED FOR NEW CODE. Use `DataNode.shape()` instead.
+)")
     .NumInput(1)
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)

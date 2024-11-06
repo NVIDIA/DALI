@@ -17,7 +17,7 @@ def _test_pipe():
 @attr("pytorch")
 def test_dlpack_is_zero_copy():
     # get a DALI pipeline that produces batches of very large tensors
-    pipe = _test_pipe(batch_size=1, experimental_exec_dynamic=True)
+    pipe = _test_pipe(batch_size=1, exec_dynamic=True)
     pipe.build()
 
     s = torch.cuda.Stream(0)
@@ -34,7 +34,7 @@ def test_dlpack_is_zero_copy():
 @attr("pytorch")
 def test_dlpack_no_corruption():
     # get a DALI pipeline that produces batches of very large tensors
-    pipe = _test_pipe(experimental_exec_dynamic=True)
+    pipe = _test_pipe(exec_dynamic=True)
     pipe.build()
     pipe.run()
 

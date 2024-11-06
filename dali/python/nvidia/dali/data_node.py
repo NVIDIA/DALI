@@ -318,7 +318,7 @@ class DataNode(object):
                 raise RuntimeError(
                     "This pipeline doesn't support transition from GPU to CPU.\n"
                     'To enable GPU->CPU transitions, use the experimental "dynamic" executor.\n'
-                    "Specify experimental_exec_dynamic=True in your Pipeline constructor or "
+                    "Specify exec_dynamic=True in your Pipeline constructor or "
                     "@pipeline_def."
                 )
 

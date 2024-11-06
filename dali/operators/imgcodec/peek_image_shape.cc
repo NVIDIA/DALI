@@ -20,7 +20,14 @@ namespace dali {
 namespace imgcodec {
 
 DALI_SCHEMA(experimental__PeekImageShape)
-  .DocStr(R"code(Obtains the shape of the encoded image.)code")
+  .DocStr(R"(Obtains the shape of the encoded image.
+
+This operator returns the shape that an image would have after decoding.
+
+.. note::
+    This operator is not recommended for use with the dynamic executor (`exec_dynamic=True` in the
+    Pipeline). Use `images.shape()` instead on the decoded images.
+)")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalTypeArg("dtype",

@@ -98,12 +98,21 @@ class Pipeline(object):
         Executor will buffer cpu and gpu stages separatelly,
         and will fill the buffer queues when the first :meth:`run`
         is issued.
+        Separated execution is requires that `exec_async=True`, `exec_pipelined=True` and
+        `exec_dynamic=False`.
     `exec_async` : bool, optional, default = True
         Whether to execute the pipeline asynchronously.
         This makes :meth:`run` method
         run asynchronously with respect to the calling Python thread.
         In order to synchronize with the pipeline one needs to call
         :meth:`outputs` method.
+    `exec_dynamic` : bool, optional, default = False
+        Whether to use the dynamic executor.
+        Dynamic executor allows to interleave CPU and GPU operators and to perform GPU to CPU
+        copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
+        buffers, which reduces memory consumption in complex pipelines.
+        When `exec_dynamic` is `True`, `exec_async` and `exec_pipelined` must be left at their
+        default (`True`) values.
     `bytes_per_sample` : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
     `set_affinity` : bool, optional, default = False
@@ -119,6 +128,7 @@ class Pipeline(object):
     `enable_memory_stats`: bool, optional, default = False
         If DALI should print operator output buffer statistics.
         Useful for `bytes_per_sample_hint` operator parameter.
+        This flag has no effect when `exec_dynamic` is `True`.
     `enable_checkpointing`: bool, optional, default = False
         If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
         method returns serialized state of the pipeline. The same pipeline can be later rebuilt
@@ -227,8 +237,12 @@ class Pipeline(object):
         py_callback_pickler=None,
         output_dtype=None,
         output_ndim=None,
-        experimental_exec_dynamic=False,
+        exec_dynamic=False,
+        experimental_exec_dynamic=None,
     ):
+        if experimental_exec_dynamic is not None:
+            _show_deprecation_warning("experimental_exec_dynamic", "exec_dynamic")
+            exec_dynamic = experimental_exec_dynamic
         self._pipe = None
         self._sinks = []
         self._max_batch_size = batch_size
@@ -256,7 +270,7 @@ class Pipeline(object):
         self._batches_to_consume = 0
         self._names_and_devices = None
         self._exec_async = exec_async
-        self._exec_dynamic = experimental_exec_dynamic
+        self._exec_dynamic = exec_dynamic
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
@@ -398,6 +412,11 @@ class Pipeline(object):
         return self._exec_async
 
     @property
+    def exec_dynamic(self):
+        """If true, the dynamic executor is used."""
+        return self._exec_dynamic
+
+    @property
     def set_affinity(self):
         """If True, worker threads are bound to CPU cores."""
         return self._set_affinity
@@ -502,7 +521,7 @@ class Pipeline(object):
               the output index.
 
         .. note::
-            Executor statistics are not available when using `experimental_exec_dynamic=True`.
+            Executor statistics are not available when using `exec_dynamic=True`.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -1152,7 +1171,7 @@ class Pipeline(object):
         if not self._exec_dynamic:
             raise ValueError(
                 error_message_prefix + " dynamic execution, enabled by passing "
-                "`experimental_exec_dynamic=True` to the Pipeline's constructor."
+                "`exec_dynamic=True` to the Pipeline's constructor."
             )
 
     def outputs(self, cuda_stream=None):
@@ -1168,7 +1187,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with `experimental_exec_dynamic=True`.
+            Works only with pipelines constructed with `exec_dynamic=True`.
 
         :return:
             A list of `TensorList` objects for respective pipeline outputs
@@ -1232,7 +1251,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with `experimental_exec_dynamic=True`.
+            Works only with pipelines constructed with `exec_dynamic=True`.
 
         :return:
             A list of `TensorList` objects for respective pipeline outputs
