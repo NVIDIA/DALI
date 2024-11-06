@@ -240,6 +240,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
+            is_exec_dynamic = self._pipes[i]._exec_dynamic
             # initialize dict for all output categories
             category_outputs = dict()
             # segregate outputs into categories
@@ -268,23 +269,36 @@ class DALIGenericIterator(_DaliBaseIterator):
                     category_device[category] = torch_cpu_device
 
             pyt_tensors = dict()
-            for category in self._output_categories:
-                pyt_tensors[category] = torch.empty(
-                    category_shapes[category],
-                    dtype=category_torch_type[category],
-                    device=category_device[category],
-                )
+
+            copy = not is_exec_dynamic
+            if copy:
+                # Copy data from DALI Tensors to torch tensors
+                for category, tensor in category_tensors.items():
+                    pyt_tensor = torch.empty(
+                        category_shapes[category],
+                        dtype=category_torch_type[category],
+                        device=category_device[category],
+                    )
+                    pyt_tensors[category] = pyt_tensor
+
+                    if isinstance(tensor, TensorGPU):
+                        # Using same cuda_stream used by torch.zeros to set the memory
+                        stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+                        feed_ndarray(tensor, pyt_tensor, cuda_stream=stream)
+                    elif isinstance(tensor, TensorCPU):
+                        feed_ndarray(tensor, pyt_tensor)
+                    else:
+                        raise RuntimeError(
+                            f"Internal error: unexpected type {type(tensor)}.\n"
+                            f"Expected TensorCPU or TensorGPU"
+                        )
+            else:
+                for category, tensor in category_tensors.items():
+                    with category_device[category]:
+                        pyt_tensor = torch.from_dlpack(tensor)
+                        pyt_tensors[category] = pyt_tensor
 
             data_batches[i] = pyt_tensors
-
-            # Copy data from DALI Tensors to torch tensors
-            for category, tensor in category_tensors.items():
-                if isinstance(tensor, (TensorGPU, TensorListGPU)):
-                    # Using same cuda_stream used by torch.zeros to set the memory
-                    stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                    feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
-                else:
-                    feed_ndarray(tensor, pyt_tensors[category])
 
         self._schedule_runs()
 
@@ -616,6 +630,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
         data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
+            is_exec_dynamic = self._pipes[i]._exec_dynamic
             # initialize dict for all output categories
             category_outputs = dict()
             # segregate outputs into categories
@@ -652,65 +667,87 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 else:
                     category_device[category] = torch_cpu_device
 
+            copy = not is_exec_dynamic
+
             pyt_tensors = dict()
-            for j, category in enumerate(self.output_map):
-                if (
-                    self._outputs_types is None
-                    or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
-                ):
-                    pyt_tensors[category] = torch.empty(
-                        category_shapes[category],
-                        dtype=category_torch_type[category],
-                        device=category_device[category],
-                    )
-                else:
-                    pyt_tensors[category] = [
-                        torch.empty(
-                            shape,
+            if copy:
+                for j, category in enumerate(self.output_map):
+                    if (
+                        self._outputs_types is None
+                        or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
+                    ):
+                        pyt_tensors[category] = torch.empty(
+                            category_shapes[category],
                             dtype=category_torch_type[category],
                             device=category_device[category],
                         )
-                        for shape in category_shapes[category]
-                    ]
-
-            data_batches[i] = pyt_tensors
-
-            # Copy data from DALI Tensors to torch tensors
-            for j, (category, tensor) in enumerate(category_tensors.items()):
-                if (
-                    self._outputs_types is None
-                    or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
-                ):
-                    if isinstance(tensor, (TensorGPU, TensorListGPU)):
-                        # Using same cuda_stream used by torch.zeros to set the memory
-                        stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                        feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
                     else:
-                        feed_ndarray(tensor, pyt_tensors[category])
-                else:
-                    for k, single_tensor in enumerate(tensor):
+                        pyt_tensors[category] = [
+                            torch.empty(
+                                shape,
+                                dtype=category_torch_type[category],
+                                device=category_device[category],
+                            )
+                            for shape in category_shapes[category]
+                        ]
+
+                # Copy data from DALI Tensors to torch tensors
+                for j, (category, tensor) in enumerate(category_tensors.items()):
+                    if (
+                        self._outputs_types is None
+                        or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
+                    ):
                         if isinstance(tensor, (TensorGPU, TensorListGPU)):
                             # Using same cuda_stream used by torch.zeros to set the memory
-                            stream = torch.cuda.current_stream(
-                                device=pyt_tensors[category][k].device
-                            )
-                            feed_ndarray(
-                                single_tensor, pyt_tensors[category][k], cuda_stream=stream
-                            )
+                            stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+                            feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
                         else:
-                            feed_ndarray(single_tensor, pyt_tensors[category][k])
+                            feed_ndarray(tensor, pyt_tensors[category])
+                    else:
+                        for k, single_tensor in enumerate(tensor):
+                            if isinstance(tensor, (TensorGPU, TensorListGPU)):
+                                # Using same cuda_stream used by torch.zeros to set the memory
+                                stream = torch.cuda.current_stream(
+                                    device=pyt_tensors[category][k].device
+                                )
+                                feed_ndarray(
+                                    single_tensor, pyt_tensors[category][k], cuda_stream=stream
+                                )
+                            else:
+                                feed_ndarray(single_tensor, pyt_tensors[category][k])
 
-                    if self._outputs_types[j] == DALIRaggedIterator.SPARSE_COO_TAG:
-                        values = torch.hstack(pyt_tensors[category])
+                        if self._outputs_types[j] == DALIRaggedIterator.SPARSE_COO_TAG:
+                            values = torch.hstack(pyt_tensors[category])
 
-                        indices = [
-                            [(i, j) for j in range(shape[0])]
-                            for i, shape in enumerate(category_shapes[category])
-                        ]
-                        indices = [indice for el_indices in indices for indice in el_indices]
-                        indices = torch.LongTensor(indices, device=values.device)
+                            indices = [
+                                [(i, j) for j in range(shape[0])]
+                                for i, shape in enumerate(category_shapes[category])
+                            ]
+                            indices = [index for el_indices in indices for index in el_indices]
+                            indices = torch.LongTensor(indices, device=values.device)
 
-                        pyt_tensors[category] = torch.sparse_coo_tensor(indices.T, values)
+                            pyt_tensors[category] = torch.sparse_coo_tensor(indices.T, values)
+            else:
+                for j, (category, tensor_or_tl) in enumerate(category_tensors.items()):
+                    with category_device[category]:
+                        if isinstance(tensor_or_tl, list):
+                            pyt_tl = [torch.from_dlpack(t) for t in tensor_or_tl]
+                            if self._outputs_types[j] == DALIRaggedIterator.SPARSE_COO_TAG:
+                                values = torch.hstack(pyt_tl)
+                                indices = [
+                                    [(i, j) for j in range(shape[0])]
+                                    for i, shape in enumerate(category_shapes[category])
+                                ]
+                                indices = [index for el_indices in indices for index in el_indices]
+                                indices = torch.LongTensor(indices, device=values.device)
+
+                                pyt_tl = torch.sparse_coo_tensor(indices.T, values)
+
+                            pyt_tensors[category] = pyt_tl
+                        else:
+                            pyt_tensors[category] = torch.from_dlpack(tensor_or_tl)
+
+            data_batches[i] = pyt_tensors
 
         self._schedule_runs()
 

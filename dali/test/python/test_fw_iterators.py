@@ -38,9 +38,14 @@ def create_coco_pipeline(
     pad_last_batch,
     initial_fill=1024,
     return_labels=False,
+    exec_dynamic=False,
 ):
     pipe = Pipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=0, prefetch_queue_depth=1
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=0,
+        prefetch_queue_depth=1,
+        experimental_exec_dynamic=exec_dynamic,
     )
     with pipe:
         _, _, labels, ids = fn.readers.coco(
@@ -1225,7 +1230,8 @@ def test_pytorch_iterator_feed_ndarray_types():
         yield check_pytorch_iterator_feed_ndarray_types, data_type
 
 
-def test_ragged_iterator_sparse_coo_batch():
+@params((False,), (True,))
+def test_ragged_iterator_sparse_coo_batch(exec_dynamic):
     from nvidia.dali.plugin.pytorch import DALIRaggedIterator as RaggedIterator
 
     num_gpus = 1
@@ -1243,6 +1249,7 @@ def test_ragged_iterator_sparse_coo_batch():
             shuffle_after_epoch=False,
             pad_last_batch=True,
             return_labels=True,
+            exec_dynamic=exec_dynamic,
         ),
         batch_size,
         num_gpus,
@@ -1265,7 +1272,8 @@ def test_ragged_iterator_sparse_coo_batch():
         assert ids.is_sparse is False
 
 
-def test_ragged_iterator_sparse_list_batch():
+@params((False,), (True,))
+def test_ragged_iterator_sparse_list_batch(exec_dynamic):
     from nvidia.dali.plugin.pytorch import DALIRaggedIterator as RaggedIterator
 
     num_gpus = 1
@@ -1283,6 +1291,7 @@ def test_ragged_iterator_sparse_list_batch():
             shuffle_after_epoch=False,
             pad_last_batch=True,
             return_labels=True,
+            exec_dynamic=exec_dynamic,
         ),
         batch_size,
         num_gpus,
@@ -1470,6 +1479,7 @@ def check_pytorch_iterator_pass_reader_name(
     batch_size,
     stick_to_shard,
     pad,
+    exec_dynamic,
     iters,
     last_batch_policy,
     auto_reset=False,
@@ -1487,6 +1497,7 @@ def check_pytorch_iterator_pass_reader_name(
             stick_to_shard=stick_to_shard,
             shuffle_after_epoch=False,
             pad_last_batch=pad,
+            exec_dynamic=exec_dynamic,
         )
         for id in range(pipes_number)
     ]
@@ -1573,7 +1584,7 @@ def test_pytorch_iterator_pass_reader_name():
                         LastBatchPolicy.FILL,
                         LastBatchPolicy.DROP,
                     ]:
-                        for iters in [1, 2, 3, 2 * shards_num]:
+                        for exec_dynamic in [False, True]:
                             for pipes_number in [1, shards_num]:
                                 yield (
                                     check_pytorch_iterator_pass_reader_name,
@@ -1582,7 +1593,8 @@ def test_pytorch_iterator_pass_reader_name():
                                     batch_size,
                                     stick_to_shard,
                                     pad,
-                                    iters,
+                                    exec_dynamic,
+                                    3 * shards_num,
                                     last_batch_policy,
                                     False,
                                 )
@@ -1598,6 +1610,7 @@ def test_pytorch_iterator_pass_reader_name_autoreset():
             3,
             False,
             True,
+            False,
             3,
             LastBatchPolicy.DROP,
             auto_reset,
