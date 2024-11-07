@@ -18,6 +18,20 @@ import jax.dlpack
 from nvidia.dali.backend import TensorGPU
 
 
+_jax_version_pre_0_4_16 = None
+
+
+def _jax_has_old_dlpack():
+    global _jax_version_pre_0_4_16
+    if _jax_version_pre_0_4_16 is not None:
+        return _jax_version_pre_0_4_16
+
+    from packaging.version import Version
+
+    _jax_version_pre_0_4_16 = Version(jax.__version__) < Version("0.4.16")
+    return _jax_version_pre_0_4_16
+
+
 def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
     """Converts input DALI tensor to JAX array.
 
@@ -35,7 +49,10 @@ def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
         jax.Array: JAX array with the same values and backing device as
         input DALI tensor.
     """
-    jax_array = jax.dlpack.from_dlpack(dali_tensor)
+    if _jax_has_old_dlpack():
+        jax_array = jax.dlpack.from_dlpack(dali_tensor.__dlpack__(stream=None))
+    else:
+        jax_array = jax.dlpack.from_dlpack(dali_tensor)
 
     # For now we need this copy to make sure that underlying memory is available.
     # One solution is to implement full DLPack contract in DALI.
