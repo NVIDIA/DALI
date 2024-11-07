@@ -370,7 +370,7 @@ def build_pipes(
         if use_roi:
             # Calculate absolute RoI
             in_size = fn.slice(
-                fn.shapes(images_cpu),
+                images_cpu.shape(),
                 types.Constant(0, dtype=types.FLOAT, device="cpu"),
                 types.Constant(dim, dtype=types.FLOAT, device="cpu"),
                 axes=[0],

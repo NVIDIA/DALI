@@ -274,7 +274,7 @@ class DataNode(object):
 
         if device == "cpu":
             self._check_gpu2cpu()
-        return fn.shapes(self, dtype=dtype, device=device)
+        return fn._shape(self, dtype=dtype, device=device)
 
     def property(self, key, *, device="cpu"):
         """Returns a metadata property associated with a DataNode

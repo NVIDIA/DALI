@@ -90,16 +90,17 @@ class Pipeline(object):
         more resistant to uneven execution time of each batch, but it
         also consumes more memory for internal buffers.
         Specifying a dict:
+
         ``{ "cpu_size": x, "gpu_size": y }``
+
         instead of an integer will cause the pipeline to use separated
         queues executor, with buffer queue size `x` for cpu stage
-        and `y` for mixed and gpu stages. It is not supported when both `exec_async`
-        and `exec_pipelined` are set to `False`.
-        Executor will buffer cpu and gpu stages separatelly,
+        and `y` for mixed and gpu stages.
+        Executor will buffer cpu and gpu stages separately,
         and will fill the buffer queues when the first :meth:`run`
         is issued.
-        Separated execution is requires that `exec_async=True`, `exec_pipelined=True` and
-        `exec_dynamic=False`.
+        Separated execution requires that ``exec_async=True``, ``exec_pipelined=True`` and
+        ``exec_dynamic=False``.
     `exec_async` : bool, optional, default = True
         Whether to execute the pipeline asynchronously.
         This makes :meth:`run` method

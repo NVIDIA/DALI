@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ def check_coin_flip(
                     lambda: np.zeros(shape_gen_f()), device=device, batch=False
                 )
                 inputs += [shape_like_in]
-                shape_out = dali.fn.shapes(shape_like_in)
+                shape_out = shape_like_in.shape()
             else:
                 shape_arg = dali.fn.external_source(shape_gen_f, batch=False)
                 shape_out = shape_arg

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ def check_roi_random_crop(
             return batch_gen(max_batch_size, shape_gen_fn)
 
         shape_like_in = dali.fn.external_source(data_gen_f, device="cpu")
-        in_shape = dali.fn.shapes(shape_like_in, dtype=types.INT32)
+        in_shape = shape_like_in.shape(dtype=types.INT32)
 
         if random.choice([True, False]):
             crop_shape = [(crop_min_extent + crop_max_extent) // 2] * ndim

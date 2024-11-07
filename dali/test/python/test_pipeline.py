@@ -2255,8 +2255,8 @@ def test_shapes_gpu():
         enc, _ = fn.readers.file(file_root=jpeg_folder)
         img = fn.decoders.image(enc, device="mixed")
         peek = fn.peek_image_shape(enc)
-        shapes_of_gpu = fn.shapes(img, device="cpu")
-        shapes_of_cpu = fn.shapes(img.cpu())
+        shapes_of_gpu = fn._shape(img, device="cpu")
+        shapes_of_cpu = fn._shape(img.cpu())
         return peek, shapes_of_gpu, shapes_of_cpu, img.shape(), img.cpu().shape()
 
     pipe = pdef()

@@ -65,9 +65,7 @@ def test_random_crop_generator_subcrop():
 
         # Second: Crop twice
         images_crop0_B = fn.decoders.image_random_crop(encoded, seed=seed0)
-        crop_anchor1_B, crop_shape1_B = fn.random_crop_generator(
-            fn.shapes(images_crop0_B), seed=seed1
-        )
+        crop_anchor1_B, crop_shape1_B = fn.random_crop_generator(images_crop0_B.shape(), seed=seed1)
         images_crop1_B = fn.slice(
             images_crop0_B, start=crop_anchor1_B, shape=crop_shape1_B, axes=[0, 1]
         )

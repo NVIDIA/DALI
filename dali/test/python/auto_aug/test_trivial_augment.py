@@ -140,7 +140,7 @@ class VideoTest(unittest.TestCase):
                 batch=True,
                 layout="FHWC",
             )
-            extra = {} if not use_shape else {"shape": fn.shapes(video)[1:]}
+            extra = {} if not use_shape else {"shape": video.shape()[1:]}
             if num_magnitude_bins is not None:
                 extra["num_magnitude_bins"] = num_magnitude_bins
             if device == "gpu":

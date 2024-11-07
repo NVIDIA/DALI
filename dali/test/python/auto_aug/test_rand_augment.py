@@ -209,7 +209,7 @@ class VideoTest(unittest.TestCase):
                 batch=True,
                 layout="FHWC",
             )
-            extra = {} if not use_shape else {"shape": fn.shapes(video)[1:]}
+            extra = {} if not use_shape else {"shape": fn.video.shape()[1:]}
             extra["monotonic_mag"] = monotonic_mag
             if device == "gpu":
                 video = video.gpu()

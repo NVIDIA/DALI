@@ -26,7 +26,8 @@ This operator returns the shape that an image would have after decoding.
 
 .. note::
     This operator is not recommended for use with the dynamic executor (`exec_dynamic=True` in the
-    Pipeline). Use `images.shape()` instead on the decoded images.
+    pipeline constructor).
+    Use :meth:`nvidia.dali.pipeline.DataNode.shape()` instead on the decoded images.
 )")
   .NumInput(1)
   .NumOutput(1)
