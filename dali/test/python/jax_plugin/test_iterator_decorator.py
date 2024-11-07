@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ from utils import iterator_function_def
 
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from test_iterator import run_and_assert_sequential_iterator
+from nose2.tools import params
 
 import inspect
 
@@ -46,25 +47,29 @@ def test_dali_iterator_decorator_declarative():
     run_and_assert_sequential_iterator(iter)
 
 
-def test_dali_iterator_decorator_declarative_with_default_args():
+@params((False,), (True,))
+def test_dali_iterator_decorator_declarative_with_default_args(exec_dynamic):
     # given
     @data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function():
         return iterator_function_def()
 
-    iter = iterator_function(batch_size=batch_size)
+    iter = iterator_function(batch_size=batch_size, exec_dynamic=exec_dynamic)
 
     # then
     run_and_assert_sequential_iterator(iter)
 
 
-def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
+@params((False,), (True,))
+def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument(exec_dynamic):
     # given
     @data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function(num_shards):
         return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(num_shards=2, num_threads=4, device_id=0, batch_size=batch_size)
+    iter = iterator_function(
+        num_shards=2, num_threads=4, device_id=0, batch_size=batch_size, exec_dynamic=exec_dynamic
+    )
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -91,9 +96,10 @@ def test_iterator_decorator_api_match_iterator_init():
     iterator_decorator_args.remove("devices")
 
     # then
-    assert (
-        iterator_decorator_args == iterator_init_args
-    ), "Arguments for the iterator decorator and the iterator __init__ method do not match"
+    assert iterator_decorator_args == iterator_init_args, (
+        f"Arguments for the iterator decorator and the iterator __init__ method do not match:"
+        f"\n------\n{iterator_decorator_args}\n-- vs --\n{iterator_init_args}\n------"
+    )
 
     # Get docs for the decorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
@@ -107,6 +113,7 @@ def test_iterator_decorator_api_match_iterator_init():
     iterator_init_docs = iterator_init_docs.split("output_map")[1]
     iterator_init_docs = iterator_init_docs.split("sharding")[0]
 
-    assert (
-        iterator_decorator_docs == iterator_init_docs
-    ), "Documentation for the iterator decorator and the iterator __init__ method does not match"
+    assert iterator_decorator_docs == iterator_init_docs, (
+        "Documentation for the iterator decorator and the iterator __init__ method does not match:"
+        f"\n------\n{iterator_decorator_docs}\n-- vs --\n{iterator_init_docs}\n------"
+    )

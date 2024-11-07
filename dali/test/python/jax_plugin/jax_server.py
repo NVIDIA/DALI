@@ -50,7 +50,7 @@ def test_lax_workflow(process_id):
     array_from_dali = dax.integration._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32), False)
 
     assert (
-        array_from_dali.device() == jax.local_devices()[0]
+        dax.integration._jax_device(array_from_dali) == jax.local_devices()[0]
     ), "Array should be backed by the device local to current process."
 
     sum_across_devices = jax.pmap(lambda x: jax.lax.psum(x, "i"), axis_name="i")(array_from_dali)
@@ -77,8 +77,10 @@ def run_distributed_sharing_test(sharding, process_id):
     # local part of the data. This buffer should be on the local device.
     assert len(dali_sharded_array.device_buffers) == 1
     assert dali_sharded_array.device_buffer == jnp.array([process_id])
-    assert dali_sharded_array.device_buffer.device() == jax.local_devices()[0]
-    assert dali_sharded_array.device_buffer.device() == jax.devices()[process_id]
+    assert dax.integration._jax_device(dali_sharded_array.device_buffer) == jax.local_devices()[0]
+    assert (
+        dax.integration._jax_device(dali_sharded_array.device_buffer) == jax.devices()[process_id]
+    )
 
 
 def test_positional_sharding_workflow(process_id):
