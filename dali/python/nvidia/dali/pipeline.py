@@ -1190,7 +1190,8 @@ class Pipeline(object):
             Defaults to None, which means that the outputs are synchronized with the host.
             Works only with pipelines constructed with `exec_dynamic=True`.
 
-        :return:
+        Returns
+        -------
             A list of `TensorList` objects for respective pipeline outputs
         """
         if cuda_stream is not None:
@@ -1254,8 +1255,11 @@ class Pipeline(object):
             Defaults to None, which means that the outputs are synchronized with the host.
             Works only with pipelines constructed with `exec_dynamic=True`.
 
-        :return:
-            A list of `TensorList` objects for respective pipeline outputs
+        Returns
+        -------
+            A list of ``TensorList`` objects for respective pipeline outputs.
+            Unless using the dynamic executor, the returned buffers are valid only until
+            :meth:`release_outputs` is called.
         """
         if cuda_stream is not None:
             self._require_exec_dynamic("Asynchronous outputs require")
@@ -1283,7 +1287,11 @@ class Pipeline(object):
         results have been consumed.
         Needs to be used together with :meth:`schedule_run`
         and :meth:`share_outputs`
-        Should not be mixed with :meth:`run` in the same pipeline"""
+        Should not be mixed with :meth:`run` in the same pipeline.
+
+        .. note::
+            When using dynamic executor (``exec_dynamic=True``), the buffers are not invalidated.
+        """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
