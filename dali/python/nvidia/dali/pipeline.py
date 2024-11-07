@@ -112,8 +112,8 @@ class Pipeline(object):
         Dynamic executor allows to interleave CPU and GPU operators and to perform GPU to CPU
         copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
         buffers, which reduces memory consumption in complex pipelines.
-        When `exec_dynamic` is `True`, `exec_async` and `exec_pipelined` must be left at their
-        default (`True`) values.
+        When ``exec_dynamic`` is ``True``, ``exec_async`` and ``exec_pipelined`` must be left at
+        their default (``True``) values.
     `bytes_per_sample` : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
     `set_affinity` : bool, optional, default = False
@@ -129,7 +129,7 @@ class Pipeline(object):
     `enable_memory_stats`: bool, optional, default = False
         If DALI should print operator output buffer statistics.
         Useful for `bytes_per_sample_hint` operator parameter.
-        This flag has no effect when `exec_dynamic` is `True`.
+        This flag has no effect when ``exec_dynamic`` is ``True``.
     `enable_checkpointing`: bool, optional, default = False
         If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
         method returns serialized state of the pipeline. The same pipeline can be later rebuilt
@@ -522,7 +522,7 @@ class Pipeline(object):
               the output index.
 
         .. note::
-            Executor statistics are not available when using `exec_dynamic=True`.
+            Executor statistics are not available when using ``exec_dynamic=True``.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -1188,7 +1188,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with `exec_dynamic=True`.
+            Works only with pipelines constructed with ``exec_dynamic=True``.
 
         Returns
         -------
@@ -1253,7 +1253,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with `exec_dynamic=True`.
+            Works only with pipelines constructed with ``exec_dynamic=True``.
 
         Returns
         -------
