@@ -43,7 +43,7 @@ def check_coin_flip(
                     lambda: np.zeros(shape_gen_f()), device=device, batch=False
                 )
                 inputs += [shape_like_in]
-                shape_out = shape_like_in.shape()
+                shape_out = shape_like_in.shape(device=device)
             else:
                 shape_arg = dali.fn.external_source(shape_gen_f, batch=False)
                 shape_out = shape_arg

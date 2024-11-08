@@ -69,7 +69,7 @@ def check_normal_distribution(
                 shape_like_in = fn.external_source(
                     lambda: np.zeros(shape_gen_f()), device=device, batch=False
                 )
-                shape_out = shape_like_in.shape()
+                shape_out = shape_like_in.shape(device=device)
             else:
                 shape_arg = fn.external_source(shape_gen_f, batch=False)
                 shape_out = shape_arg
