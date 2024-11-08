@@ -19,6 +19,7 @@ import math
 import numpy as np
 import paddle
 from packaging.version import Version
+import paddle.utils
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
@@ -281,6 +282,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
+            copy = not self._pipes[i].exec_dynamic
             # Initialize dict for all output categories
             category_outputs = dict()
             # Segregate outputs into categories
@@ -321,19 +323,24 @@ class DALIGenericIterator(_DaliBaseIterator):
                     category_place[cat] = pd_cpu_place
 
             pd_tensors = {}
-            for cat, tensor in category_tensors.items():
-                lod_tensor = paddle.framework.core.LoDTensor()
-                pd_tensors[cat] = lod_tensor
-                lod_tensor._set_dims(category_shapes[cat])
-                seq_len = category_lengths[cat]
-                lod_tensor.set_recursive_sequence_lengths(seq_len)
-                lod_tensor._mutable_data(category_place[cat], category_pd_type[cat])
-            data_batches[i] = pd_tensors
-
             stream = paddle.device.cuda.current_stream(dev_id).cuda_stream
-            for cat, tensor in category_tensors.items():
-                ptr = pd_tensors[cat]._mutable_data(category_place[cat], category_pd_type[cat])
-                feed_ndarray(tensor, ptr, stream)
+            if copy:
+                for cat, tensor in category_tensors.items():
+                    lod_tensor = paddle.framework.core.LoDTensor()
+                    pd_tensors[cat] = lod_tensor
+                    lod_tensor._set_dims(category_shapes[cat])
+                    seq_len = category_lengths[cat]
+                    lod_tensor.set_recursive_sequence_lengths(seq_len)
+                    lod_tensor._mutable_data(category_place[cat], category_pd_type[cat])
+
+                for cat, tensor in category_tensors.items():
+                    ptr = pd_tensors[cat]._mutable_data(category_place[cat], category_pd_type[cat])
+                    feed_ndarray(tensor, ptr, stream)
+            else:
+                for cat, tensor in category_tensors.items():
+                    capsule = tensor.__dlpack__(stream=stream)
+                    pd_tensor = paddle.utils.dlpack.from_dlpack(capsule)
+                    pd_tensors[cat] = pd_tensor
 
         self._schedule_runs()
 
