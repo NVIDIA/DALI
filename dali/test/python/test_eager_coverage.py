@@ -449,8 +449,8 @@ def test_saturation():
     check_single_input("saturation")
 
 
-def test_shapes():
-    check_single_input("shapes")
+def test__shape():
+    check_single_input("_shape")
 
 
 def test_crop():

@@ -590,9 +590,9 @@ void ExposeTensor(py::module &m) {
 
       Note:
         When NOT using the dynamic execution (i.e. the pipeline parameter
-        `experimental_exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        `exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
         outputs may be reused and overwritten by DALI after `release_outputs` has been called.
-        Use `experimental_exec_dynamic=True` if you want to keep the outputs indefinitely.
+        Use `exec_dynamic=True` if you want to keep the outputs indefinitely.
 
       stream : int, None
           The CUDA stream the the caller is going to use to access the buffer.
@@ -797,9 +797,9 @@ void ExposeTensor(py::module &m) {
 
       Note:
         When NOT using the dynamic execution (i.e. the pipeline parameter
-        `experimental_exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        `exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
         outputs may be reused and overwritten by DALI after `release_outputs` has been called.
-        Use `experimental_exec_dynamic=True` if you want to keep the outputs indefinitely.
+        Use `exec_dynamic=True` if you want to keep the outputs indefinitely.
 
       stream : int, None
           The CUDA stream the the caller is going to use to access the buffer.

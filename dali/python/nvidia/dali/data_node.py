@@ -274,7 +274,7 @@ class DataNode(object):
 
         if device == "cpu":
             self._check_gpu2cpu()
-        return fn.shapes(self, dtype=dtype, device=device)
+        return fn._shape(self, dtype=dtype, device=device)
 
     def property(self, key, *, device="cpu"):
         """Returns a metadata property associated with a DataNode
@@ -314,11 +314,11 @@ class DataNode(object):
         the check is deferred until `Pipeline.build`.
         """
         if self.device == "gpu" and self.source and self.source.pipeline:
-            if not self.source.pipeline._exec_dynamic:
+            if not self.source.pipeline.exec_dynamic:
                 raise RuntimeError(
                     "This pipeline doesn't support transition from GPU to CPU.\n"
                     'To enable GPU->CPU transitions, use the experimental "dynamic" executor.\n'
-                    "Specify experimental_exec_dynamic=True in your Pipeline constructor or "
+                    "Specify exec_dynamic=True in your Pipeline constructor or "
                     "@pipeline_def."
                 )
 

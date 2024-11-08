@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ def check_normal_distribution(
                 shape_like_in = fn.external_source(
                     lambda: np.zeros(shape_gen_f()), device=device, batch=False
                 )
-                shape_out = fn.shapes(shape_like_in)
+                shape_out = shape_like_in.shape(device=device)
             else:
                 shape_arg = fn.external_source(shape_gen_f, batch=False)
                 shape_out = shape_arg

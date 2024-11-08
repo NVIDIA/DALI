@@ -33,7 +33,7 @@ lmdb_folder = os.path.join(test_data_root, "db", "lmdb")
     batch_size=5,
     num_threads=4,
     device_id=0,
-    experimental_exec_dynamic=True,
+    exec_dynamic=True,
 )
 def dali_exec2_pipeline():
     iter_id = fn.external_source(source=lambda x: np.array(x.iteration), batch=False)
@@ -74,7 +74,7 @@ def test_tf_dataset_exec2():
         assert neg == 2
 
 
-@pipeline_def(num_threads=4, experimental_exec_dynamic=True)
+@pipeline_def(num_threads=4, exec_dynamic=True)
 def daliop_pipe():
     jpegs, labels = fn.readers.caffe(path=lmdb_folder, random_shuffle=False)
     imgs = fn.decoders.image(jpegs, device="mixed")

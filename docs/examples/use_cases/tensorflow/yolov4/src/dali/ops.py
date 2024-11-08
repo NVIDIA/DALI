@@ -55,8 +55,8 @@ def bbox_adjust_ltrb(bboxes, shape_x, shape_y, pos_x, pos_y):
 # Note: this function is a workaround and should be replaced
 # with the dedicated operator once available
 def select(predicate, if_true, if_false):
-    true_shape = dali.fn.shapes(if_true, dtype=dali.types.DALIDataType.INT32)
-    false_shape = dali.fn.shapes(if_false, dtype=dali.types.DALIDataType.INT32)
+    true_shape = if_true.shape(dtype=dali.types.DALIDataType.INT32)
+    false_shape = if_false.shape(dtype=dali.types.DALIDataType.INT32)
 
     joined = dali.fn.cat(if_true, if_false)
     sh = predicate * true_shape + (1 - predicate) * false_shape

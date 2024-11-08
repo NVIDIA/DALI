@@ -53,7 +53,7 @@ def test_file_properties():
         yield _test_file_properties, dev
 
 
-@pipeline_def(experimental_exec_dynamic=True)
+@pipeline_def(exec_dynamic=True)
 def wds_source_info(root_path, device, idx_paths):
     read = fn.readers.webdataset(paths=[root_path], index_paths=idx_paths, ext=["jpg"])
     if device == "gpu":
@@ -194,7 +194,7 @@ def test_improper_property():
 
 
 def test_get_property_gpu2cpu():
-    @pipeline_def(batch_size=2, device_id=0, num_threads=1, experimental_exec_dynamic=True)
+    @pipeline_def(batch_size=2, device_id=0, num_threads=1, exec_dynamic=True)
     def test_pipe():
         data = dali.types.Constant(np.array([[[42]]]), device="gpu", layout="abc")
         return fn.get_property(data, key="layout", device="cpu")

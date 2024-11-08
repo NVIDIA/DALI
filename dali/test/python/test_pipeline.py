@@ -2232,7 +2232,7 @@ def test_subgraph_stealing():
 def test_gpu2cpu():
     bs = 8
 
-    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=True)
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, exec_dynamic=True)
     def pdef():
         enc, _ = fn.readers.file(file_root=jpeg_folder)
         img = fn.decoders.image(enc, device="mixed")
@@ -2250,13 +2250,13 @@ def test_gpu2cpu():
 def test_shapes_gpu():
     bs = 8
 
-    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, experimental_exec_dynamic=True)
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, exec_dynamic=True)
     def pdef():
         enc, _ = fn.readers.file(file_root=jpeg_folder)
         img = fn.decoders.image(enc, device="mixed")
         peek = fn.peek_image_shape(enc)
-        shapes_of_gpu = fn.shapes(img, device="cpu")
-        shapes_of_cpu = fn.shapes(img.cpu())
+        shapes_of_gpu = fn._shape(img, device="cpu")
+        shapes_of_cpu = fn._shape(img.cpu())
         return peek, shapes_of_gpu, shapes_of_cpu, img.shape(), img.cpu().shape()
 
     pipe = pdef()
@@ -2284,7 +2284,7 @@ def test_gpu2cpu_old_exec_error():
         device_id=0,
         exec_async=False,
         exec_pipelined=False,
-        experimental_exec_dynamic=False,
+        exec_dynamic=False,
     )
     def pdef(to_cpu):
         gpu = fn.external_source("input", device="gpu")
@@ -2306,7 +2306,7 @@ def test_gpu2cpu_conditionals():
         batch_size=bs,
         num_threads=4,
         device_id=0,
-        experimental_exec_dynamic=True,  # use new executor
+        exec_dynamic=True,  # use new executor
         enable_conditionals=True,
     )
     def def_test():

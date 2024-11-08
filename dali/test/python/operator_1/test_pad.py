@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -256,7 +256,7 @@ def check_pad_to_square(device="cpu", batch_size=3, ndim=2, num_iter=3):
     with pipe:
         in_shape = fn.cast(fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
         in_data = fn.reshape(fn.random.uniform(range=(0.0, 1.0), shape=in_shape), layout="HW")
-        shape = fn.shapes(in_data, dtype=types.INT32)
+        shape = in_data.shape(dtype=types.INT32)
         h = fn.slice(shape, 0, 1, axes=[0])
         w = fn.slice(shape, 1, 1, axes=[0])
         side = math.max(h, w)

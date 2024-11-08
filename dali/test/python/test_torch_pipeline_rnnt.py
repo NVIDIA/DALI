@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -374,7 +374,7 @@ def rnnt_train_pipe(
         begin, length = fn.nonsilent_region(audio, cutoff_db=-80)
         audio = audio[begin : begin + length]
 
-    audio_shape = fn.shapes(audio, dtype=types.INT32)
+    audio_shape = audio.shape(dtype=types.INT32)
     orig_audio_len = audio_shape[0]
 
     # If we couldn't move to GPU earlier, do it now

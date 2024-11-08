@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -132,7 +132,7 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
         dali_resized_gpu, size_gpu = resize_gpu_out
         # extract just HW part from the input shape
         ext_size = fn.slice(
-            fn.cast(fn.shapes(ext), dtype=types.INT32), 2 if channel_first else 1, 2, axes=[0]
+            fn.cast(ext.shape(), dtype=types.INT32), 2 if channel_first else 1, 2, axes=[0]
         )
         pipe.set_outputs(dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu)
     return pipe

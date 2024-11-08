@@ -17,7 +17,7 @@ def test_pipe():
 def bench_dlpack(verbose=False):
     if verbose:
         print("Testing dlpack")
-    pipe = test_pipe(experimental_exec_dynamic=True)
+    pipe = test_pipe(exec_dynamic=True)
     pipe.build()
     pipe.run()
 
@@ -41,7 +41,7 @@ def bench_dlpack(verbose=False):
 def bench_copy(new_exec, verbose=False):
     if verbose:
         print(f"Testing output copy with {'new' if new_exec else 'old'} executor")
-    pipe = test_pipe(experimental_exec_dynamic=new_exec)
+    pipe = test_pipe(exec_dynamic=new_exec)
     pipe.build()
     pipe.run()
 

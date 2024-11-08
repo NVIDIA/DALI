@@ -108,7 +108,7 @@ def to_python_float(t):
         return t[0]
 
 
-@pipeline_def(experimental_exec_dynamic=True)
+@pipeline_def(exec_dynamic=True)
 def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
     images, labels = fn.readers.file(file_root=data_dir,
                                      shard_id=shard_id,

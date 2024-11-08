@@ -189,7 +189,7 @@ class VideoTest(unittest.TestCase):
                 batch=True,
                 layout="FHWC",
             )
-            extra = {} if not use_shape else {"shape": fn.shapes(video)[1:]}
+            extra = {} if not use_shape else {"shape": video.shape()[1:]}
             if device == "gpu":
                 video = video.gpu()
             video = auto_augment.auto_augment(video, policy_name, **extra)

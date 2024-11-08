@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ def audio_decoder_pipe(device):
         audio0 = audio0.gpu()
     audio2 = fn.audio_resample(audio0, in_rate=sr0, out_rate=out_sr)
     audio3 = fn.audio_resample(audio0, scale=out_sr / sr0)
-    audio4 = fn.audio_resample(audio0, out_length=fn.shapes(audio1)[0])
+    audio4 = fn.audio_resample(audio0, out_length=audio1.shape()[0])
     return audio1, audio2, audio3, audio4
 
 
