@@ -1,0 +1,15 @@
+[package]
+name = "dali-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Dali bindings for Rust"
+
+[lib]
+name = "dali"
+path = "rust_bindings/lib.rs"
+
+
+
+[build-dependencies]
+bindgen = "0.70.1"
+cmake = "0.1.51"
