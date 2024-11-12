@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ def _numpydoc_formatter(name, type, doc, optional=False):
     indent = "\n" + " " * 4
     if optional:
         type += ", optional"
-    return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
+    return "{} : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
 
 def _get_inputs_doc(schema):

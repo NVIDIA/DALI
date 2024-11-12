@@ -26,6 +26,8 @@ from datetime import date
 import json
 from packaging.version import Version
 import httplib2
+import inspect
+import warnings
 
 # -- Project information -----------------------------------------------------
 
@@ -126,6 +128,7 @@ extensions = [
     "nbsphinx",
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
+    "sphinx_paramlinks",
 ]
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
@@ -563,6 +566,72 @@ class EnumAttributeDocumenter(AttributeDocumenter):
         super(AttributeDocumenter, self).add_directive_header(sig)
 
 
+def replace_params_with_paramrefs(app, what, name, obj, options, lines):
+
+    def map_line(line, params):
+        result = ""
+        while line:
+
+            # Search for untagged identifier in single backticks
+            # [^\d\W]\w* - regex for mostly valid identifiers
+            m = re.search(r"`[^\d\W]\w*`", line)
+            if m is None:
+                result += line
+                break
+
+            # Skip any already valid reference of different kind, for example :func:`foo`
+            match_ref = re.search(r"(:\w+:)(`[^\d\W]\w*`)", line)
+            if (
+                match_ref
+                and m.start() == match_ref.start(2)
+                and m.end() == match_ref.end(2)
+            ):
+                print(f"Skipping in {name}: {line[: m.end()]=}")
+                result += line[: m.end()]
+                line = line[m.end() :]
+                continue
+
+            start = m.start()
+            end = m.end()
+            candidate = line[start + 1 : end - 1]
+            # Check if we may be in double backticks and report warning, skip
+            match_double = re.search(r"`(`[^\d\W]\w*`)`", line)
+            if (
+                match_double
+                and start == match_double.start(1)
+                and end == match_double.end(1)
+            ):
+                if candidate in params:
+                    warnings.warn(
+                        f"Found param candidate `{candidate}` "
+                        f"surrounded by double backtick in the docstring for {name} in {line=}."
+                    )
+                result += line[: match_double.end()]
+                line = line[match_double.end() :]
+                continue
+
+            # If we are indeed a parameter, add the :paramref: that sphinx_paramlinks will handle
+            if candidate in params:
+                print(
+                    f"Injecting :paramref: in {name} for {candidate} in {result}{line}"
+                )
+                result += f"{line[:start]}:paramref:{line[start:end]}"
+            else:
+                result += line[:end]
+            line = line[end:]
+        return result
+
+    if what not in {"class", "function", "method"}:
+        return
+    try:
+        s = inspect.signature(obj)
+    except Exception as e:
+        warnings.warn(f"Couldn't obtain object's {name} signature: {e}")
+        return
+
+    lines[:] = [map_line(line, s.parameters) for line in lines]
+
+
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
@@ -572,6 +641,9 @@ def setup(app):
     app.connect(
         "autodoc-process-docstring",
         between("^.*<SPHINX_IGNORE>.*$", exclude=True),
+    )
+    app.connect(
+        "autodoc-process-docstring", replace_params_with_paramrefs, priority=450
     )
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
