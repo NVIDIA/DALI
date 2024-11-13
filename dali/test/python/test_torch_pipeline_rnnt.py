@@ -331,7 +331,7 @@ def dali_reflect_pad_graph(x, pad_amount):
     return x
 
 
-@pipeline_def(batch_size=1, device_id=0, num_threads=3)
+@pipeline_def(batch_size=1, device_id=0, num_threads=4, exec_dynamic=True)
 def rnnt_train_pipe(
     files,
     sample_rate,
@@ -361,7 +361,7 @@ def rnnt_train_pipe(
     audio, _ = fn.decoders.audio(data, dtype=types.FLOAT, downmix=True)
 
     # splicing with subsampling doesn't work if audio_len is a GPU data node
-    if device == "gpu" and frame_splicing_subsample == 1:
+    if device == "gpu":
         audio = audio.gpu()
 
     # Speed perturbation 0.85x - 1.15x
@@ -377,10 +377,6 @@ def rnnt_train_pipe(
     audio_shape = audio.shape(dtype=types.INT32)
     orig_audio_len = audio_shape[0]
 
-    # If we couldn't move to GPU earlier, do it now
-    if device == "gpu" and frame_splicing_subsample > 1:
-        audio = audio.gpu()
-
     if pad_amount > 0:
         audio_len = orig_audio_len + 2 * pad_amount
         padded_audio = dali_reflect_pad_graph(audio, pad_amount)
@@ -392,7 +388,6 @@ def rnnt_train_pipe(
     preemph_audio = fn.preemphasis_filter(padded_audio, preemph_coeff=preemph_coeff, border="zero")
 
     # Spectrogram
-    spec_len = audio_len // win_hop + 1
     spec = fn.spectrogram(
         preemph_audio,
         nfft=nfft,
@@ -414,6 +409,7 @@ def rnnt_train_pipe(
 
     # Frame splicing
     if frame_splicing_stack > 1 or frame_splicing_subsample > 1:
+        spec_len = audio_len // win_hop + 1
         log_features_spliced = dali_frame_splicing_graph(
             log_features,
             nfeatures,
