@@ -274,7 +274,8 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_REQ_VERSION "0.3.0")
+  set(NVIMGCODEC_MIN_VERSION "0.3.0")
+  set(NVIMGCODEC_MAX_VERSION "0.4.0")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
 
@@ -303,7 +304,7 @@ if(BUILD_NVIMAGECODEC)
     message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
     add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 
-    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR} >= ${NVIMGCODEC_REQ_VERSION}',")
+    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
   else()
     message(STATUS "nvImageCodec - static link")
 
@@ -320,7 +321,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.2.0
+      GIT_TAG           v0.3.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
