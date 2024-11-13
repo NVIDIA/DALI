@@ -26,15 +26,15 @@ class PckgVer:
 
     Parameters
     ----------
-    `ver`: str
+    ver : str
         Version that is housed by object of this class
-    `python_max_ver` : str, optional, default = None
+    python_max_ver : str, optional, default = None
         Maximum python version supported by this package. If empty there is no upper bound
-    `python_min_ver`: str, optional, default = None
+    python_min_ver : str, optional, default = None
         Mimimum python version supported by this package. If empty there is no lower bound
     'alias': std, optional, default = None
         Alternative name that should be used during installation instead of general package name
-    `dependencies` : list of str, optional, default = None
+    dependencies : list of str, optional, default = None
         List of packages in ["name==version", ] format that should be installed together with
         a given package
     """
@@ -73,11 +73,11 @@ class BasePackage:
 
     Parameters
     ----------
-    `key`: str
+    key : str
         Name this package should be queried for
-    `versions`: str or PckgVer class object
+    versions : str or PckgVer class object
         List of versions this package is available for
-    `name`: str, optional, default = None
+    name : str, optional, default = None
         Name of this package used during installation. If empty it is the same as the key
     """
 
@@ -93,9 +93,9 @@ class BasePackage:
 
         Parameters
         ----------
-        `key`: idx: int
+        key : idx: int
             Index to clamp
-        `cuda_version`: str, optional, default = None
+        cuda_version : str, optional, default = None
             Cuda version used for a given index
         """
         if idx < 0 or idx >= self.get_num_of_version(cuda_version):
@@ -108,7 +108,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `version`: str or PckgVer
+        version : str or PckgVer
             Package version
         """
         return getattr(version, "alias", None)
@@ -118,7 +118,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `version`: str or PckgVer
+        version : str or PckgVer
             Package version
         """
         version = self.get_version(idx, cuda_version)
@@ -129,9 +129,9 @@ class BasePackage:
 
         Parameters
         ----------
-        `cuda_version`: str, optional, default = None
+        cuda_version : str, optional, default = None
             Cuda version used for this query
-        `idx`: int
+        idx : int
             Index of name to retrive in case of specific version has different alias
         """
         name = BasePackage.get_alias(self.get_version(idx, cuda_version))
@@ -144,7 +144,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `cuda_version`: str, optional, default = None
+        cuda_version : str, optional, default = None
             Cuda version used for this query
         """
         version = self.get_all_versions(cuda_version)
@@ -161,7 +161,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `versions`: list
+        versions : list
             List of versions to be checked. All versions that evaluate to True are returned
         """
         # no need to convert PckgVer to string, it is done by get_install_string when printed
@@ -172,10 +172,10 @@ class BasePackage:
 
         Parameters
         ----------
-        `idx`: int
+        idx : int
             Index of version to retrive. If index is beyond 0-num_of_versions-1 range
             it is clamped to it
-        `cuda_version`: str, optional, default = None
+        cuda_version : str, optional, default = None
             Cuda version used for this query
         """
         if idx is None:
@@ -188,7 +188,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `cuda_version`: str, optional, default = None
+        cuda_version : str, optional, default = None
             Cuda version used for this query
         """
         raise NotImplementedError
@@ -198,7 +198,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `cuda_version`: str, optional, default = None
+        cuda_version : str, optional, default = None
             Cuda version used for this query
         """
         return len(self.get_all_versions(cuda_version))
@@ -209,10 +209,10 @@ class BasePackage:
 
             Parameters
             ----------
-            `idx`: int
+            idx : int
                 Index of version to retrive. If index is beyond 0-num_ov_versions-1 range
                 it is clamped to it
-            `cuda_version`: str, optional, default = None
+            cuda_version : str, optional, default = None
                 Cuda version used for this query
         """
         version = self.get_version(idx, cuda_version)
@@ -230,7 +230,7 @@ class BasePackage:
 
             Parameters
             ----------
-            `cuda_version`: str, optional, default = None
+            cuda_version : str, optional, default = None
                 Cuda version used for this query
         """
         ret = []
@@ -243,7 +243,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `cuda_version`: str
+        cuda_version : str
             Cuda version used for this query
         """
         return ""
@@ -253,7 +253,7 @@ class BasePackage:
 
         Parameters
         ----------
-        `cuda_version`: str
+        cuda_version : str
             Cuda version used for this query
         """
         return ""
@@ -265,11 +265,11 @@ class PlainPackage(BasePackage):
 
     Parameters
     ----------
-    `key`: str
+    key : str
         Name this package should be queried for
-    `versions`: str or PckgVer class object
+    versions : str or PckgVer class object
         List of versions this package is available for
-    `name`: str, , optional, default = None
+    name : str, , optional, default = None
         Name of this package used during installation. If empty it is the same as the key
     """
 
@@ -286,11 +286,11 @@ class CudaPackage(BasePackage):
 
     Parameters
     ----------
-    `key`: str
+    key : str
         Name this package should be queried for
-    `versions`: dict or PckgVer class object
+    versions : dict or PckgVer class object
         Dictionary, where the key is a cuda version and vale, is the list of versions supported
-    `name`: str, , optional, default = None
+    name : str, , optional, default = None
         Name of this package used during installation. If empty it is the same as the key.
         If it includes `{cuda_v}` it is replaced by the cuda_version when queried
     """
@@ -318,7 +318,7 @@ class CudaPackage(BasePackage):
 
         Parameters
         ----------
-        `cuda_version`: str
+        cuda_version : str
             Cuda version used for this query
         """
         max_cuda = None
@@ -334,16 +334,16 @@ class CudaPackageExtraIndex(CudaPackage):
 
     Parameters
     ----------
-    `key`: str
+    key : str
         Name this package should be queried for
-    `versions`: dict or PckgVer class object
+    versions : dict or PckgVer class object
         Dictionary, where the key is a cuda version and vale, is the list of versions supported
-    `name`: str, optional, default = None
+    name : str, optional, default = None
         Name of this package used during installation. If empty it is the same as the key.
         If it includes `{cuda_v}` it is replaced by the cuda_version when queried
-    `extra_index`: str, optional, default = ""
+    extra_index : str, optional, default = ""
         Extra url used as pep 503 compatible repository to obtain listed packages
-    `links_index`: str, optional, default = ""
+    links_index : str, optional, default = ""
         A URL or path to an html file with direct links to archives
     """
 
@@ -361,7 +361,7 @@ class CudaPackageExtraIndex(CudaPackage):
 
         Parameters
         ----------
-        `cuda_version`: str
+        cuda_version : str
             Cuda version used for this query
         """
         cuda_version = self.max_cuda_version(cuda_version)
@@ -372,7 +372,7 @@ class CudaPackageExtraIndex(CudaPackage):
 
         Parameters
         ----------
-        `cuda_version`: str
+        cuda_version : str
             Cuda version used for this query
         """
         cuda_version = self.max_cuda_version(cuda_version)
@@ -388,13 +388,13 @@ class CudaHttpPackage(CudaPackage):
 
     Parameters
     ----------
-    `key`: str
+    key : str
         Name this package should be queried for
-    `versions`: str or PckgVer class object
+    versions : str or PckgVer class object
         Dictionary, where the key is a cuda version and vale, is the list
         of directly accessible http links. `{platform}` inside the link is replaced by the
         compatible platform tag provided by pip
-    `name`: str, , optional, default = None
+    name : str, , optional, default = None
         Name of this package used during installation. If empty it is the same as the key.
         If it includes `{cuda_v}` it is replaced by the cuda_version when queried
     """
@@ -419,7 +419,7 @@ class CudaHttpPackage(CudaPackage):
 
         Parameters
         ----------
-        `url`: str
+        url : str
             Package url to be tested.
         """
         url = url.split("://")
@@ -448,10 +448,10 @@ class CudaHttpPackage(CudaPackage):
 
         Parameters
         ----------
-        `url`: str
+        url : str
             Package url to be tested. `{cuda_v}` is replaced by cuda_version and  `{platform}`
             by the platform tag
-        `cuda_version`: str
+        cuda_version : str
             Cuda version used for this query
         """
         if isinstance(p.get_supported()[0], tuple):

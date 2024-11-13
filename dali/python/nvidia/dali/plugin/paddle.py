@@ -62,11 +62,11 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
 
     Parameters
     ----------
-    `dali_tensor` : dali.backend.TensorCPU or dali.backend.TensorGPU
+    dali_tensor : dali.backend.TensorCPU or dali.backend.TensorGPU
                     Tensor from which to copy
-    `ptr` : LoDTensor data pointer
+    ptr : LoDTensor data pointer
             Destination of the copy
-    `cuda_stream` : cudaStream_t handle or any value that can be cast to cudaStream_t
+    cuda_stream : cudaStream_t handle or any value that can be cast to cudaStream_t
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
     """

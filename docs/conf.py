@@ -603,8 +603,8 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
             ):
                 if candidate in params:
                     warnings.warn(
-                        f"Found param candidate `{candidate}` "
-                        f"surrounded by double backtick in the docstring for {name} in {line=}."
+                        f"Found param candidate `{candidate}`"
+                        f" surrounded by double backtick in the docstring for {name} in {line=}."
                     )
                 result += line[: match_double.end()]
                 line = line[match_double.end() :]

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@ class SharedMem:
 
     Parameters
     ----------
-    `handle` : int
+    handle : int
         Handle identifying related shared memory object. Pass None to allocate new memory chunk.
-    `size` : int
+    size : int
         When handle=None it is the size of shared memory to allocate in bytes, otherwise it must be
         the size of shared memory objects that provided handle represents.
     """
@@ -59,7 +59,7 @@ class SharedMem:
 
         Parameters
         ----------
-        `size` : int
+        size : int
             Number of bytes to allocate.
         """
         return cls(None, size)
@@ -71,9 +71,9 @@ class SharedMem:
 
         Parameters
         ----------
-        `handle`: int
+        handle : int
             Handle pointing to already existing shared memory chunk.
-        `size` : int
+        size : int
             Size of the existing shared memory chunk.
         """
         instance = cls(handle, size)

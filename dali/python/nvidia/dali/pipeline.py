@@ -58,7 +58,7 @@ class Pipeline(object):
 
     Parameters
     ----------
-    `batch_size` : int, optional, default = -1
+    batch_size : int, optional, default = -1
         Maximum batch size of the pipeline. Negative values for this parameter
         are invalid - the default value may only be used with
         serialized pipeline (the value stored in serialized pipeline
@@ -68,24 +68,24 @@ class Pipeline(object):
 
         Please note, that DALI might perform memory preallocations according to this
         parameter. Setting it too high might result in out-of-memory failure.
-    `num_threads` : int, optional, default = -1
+    num_threads : int, optional, default = -1
         Number of CPU threads used by the pipeline.
         Negative values for this parameter are invalid - the default
         value may only be used with serialized pipeline (the value
         stored in serialized pipeline is used instead).
-    `device_id` : int, optional, default = -1
+    device_id : int, optional, default = -1
         Id of GPU used by the pipeline.
         A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
         This limits the pipeline to only CPU operators but allows it to run on any CPU capable
         machine.
-    `seed` : int, optional, default = -1
+    seed : int, optional, default = -1
         Seed used for random number generation. Leaving the default value
         for this parameter results in random seed.
-    `exec_pipelined` : bool, optional, default = True
+    exec_pipelined : bool, optional, default = True
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
+    prefetch_queue_depth : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
         Depth of the executor pipeline. Deeper pipeline makes DALI
         more resistant to uneven execution time of each batch, but it
         also consumes more memory for internal buffers.
@@ -101,36 +101,36 @@ class Pipeline(object):
         is issued.
         Separated execution requires that ``exec_async=True``, ``exec_pipelined=True`` and
         ``exec_dynamic=False``.
-    `exec_async` : bool, optional, default = True
+    exec_async : bool, optional, default = True
         Whether to execute the pipeline asynchronously.
         This makes :meth:`run` method
         run asynchronously with respect to the calling Python thread.
         In order to synchronize with the pipeline one needs to call
         :meth:`outputs` method.
-    `exec_dynamic` : bool, optional, default = False
+    exec_dynamic : bool, optional, default = False
         Whether to use the dynamic executor.
         Dynamic executor allows to interleave CPU and GPU operators and to perform GPU to CPU
         copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
         buffers, which reduces memory consumption in complex pipelines.
         When ``exec_dynamic`` is ``True``, ``exec_async`` and ``exec_pipelined`` must be left at
         their default (``True``) values.
-    `bytes_per_sample` : int, optional, default = 0
+    bytes_per_sample : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
-    `set_affinity` : bool, optional, default = False
+    set_affinity : bool, optional, default = False
         Whether to set CPU core affinity to the one closest to the
         GPU being used.
-    `max_streams` : int, optional, default = -1
+    max_streams : int, optional, default = -1
         Limit the number of CUDA streams used by the executor.
         Value of -1 does not impose a limit.
         This parameter is currently unused (and behavior of
         unrestricted number of streams is assumed).
-    `default_cuda_stream_priority` : int, optional, default = 0
+    default_cuda_stream_priority : int, optional, default = 0
         CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-    `enable_memory_stats`: bool, optional, default = False
+    enable_memory_stats : bool, optional, default = False
         If DALI should print operator output buffer statistics.
         Useful for `bytes_per_sample_hint` operator parameter.
         This flag has no effect when ``exec_dynamic`` is ``True``.
-    `enable_checkpointing`: bool, optional, default = False
+    enable_checkpointing : bool, optional, default = False
         If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
         method returns serialized state of the pipeline. The same pipeline can be later rebuilt
         with the serialized state passed as the `checkpoint` parameter to resume running
@@ -138,19 +138,19 @@ class Pipeline(object):
 
         More details can be found in
         `this documentation section <advanced_topics_checkpointing.html>`_.
-    `checkpoint`: str, optional, default = None
+    checkpoint : str, optional, default = None
         Serialized checkpoint, received from ``checkpoint`` method.
         When pipeline is built, its state is restored from the `checkpoint` and the pipeline
         resumes execution from the saved iteration.
 
         More details can be found in
         `this documentation section <advanced_topics_checkpointing.html>`_.
-    `py_num_workers`: int, optional, default = 1
+    py_num_workers : int, optional, default = 1
         The number of Python workers that will process ``ExternalSource`` callbacks.
         The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
         Setting it to 0 disables the pool and all ExternalSource operators fall back to non-parallel
         mode even if ``parallel`` is set to True.
-    `py_start_method` : str, default = "fork"
+    py_start_method : str, default = "fork"
         Determines how Python workers are started. Supported methods:
 
           * ``"fork"`` - start by forking the process
@@ -162,7 +162,7 @@ class Pipeline(object):
         workers, you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
         of the pipelines. You can find more details and caveats of both methods in Python's
         ``multiprocessing`` module documentation.
-    `py_callback_pickler` : module or tuple, default = None
+    py_callback_pickler : module or tuple, default = None
         If `py_start_method` is set to *spawn*, callback passed to parallel
         ExternalSource must be picklable.
         If run in Python3.8 or newer with `py_callback_pickler` set to None, DALI uses customized
@@ -195,7 +195,7 @@ class Pipeline(object):
         by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
         working with Jupyter notebook to work around the issue of worker process being unable to
         import the callback defined as a global function inside the notebook.
-    `output_dtype` : ``nvidia.dali.types.DALIDataType`` or list of those, default = None
+    output_dtype : ``nvidia.dali.types.DALIDataType`` or list of those, default = None
         With this argument, you may declare, what data type you expect in the given output. You
         shall pass a list of mod:`types.DALIDataType`, each element in the list corresponding to
         one output from the pipeline. Additionally, you can pass ``None`` as a wildcard.
@@ -204,7 +204,7 @@ class Pipeline(object):
 
         If the ``output_dtype`` value is a single value (not a list), it will be broadcast to the
         number of outputs from the pipeline.
-    `output_ndim` : int or list of ints, default = None
+    output_ndim : int or list of ints, default = None
         With this argument, you may declare, how many dimensions you expect in the given output.
         You shall pass a list of integers, each element in the list corresponding to one output
         from the pipeline.
@@ -1725,7 +1725,7 @@ class Pipeline(object):
 
         Args
         ----
-        `*output_data_nodes` : unpacked list of :class:`DataNode` objects
+        *output_data_nodes : unpacked list of :class:`DataNode` objects
             The outputs of the pipeline
         """
         self._graph_out = output_data_nodes

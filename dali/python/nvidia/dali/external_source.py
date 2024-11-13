@@ -319,7 +319,7 @@ class ExternalSource:
     Args
     ----
 
-    `source` : callable or iterable
+    source : callable or iterable
         The source of the data.
 
         The source is polled for data (via a call ``source()`` or ``next(source)``)
@@ -369,7 +369,7 @@ class ExternalSource:
             (accepting :class:`nvidia.dali.types.SampleInfo`, :class:`nvidia.dali.types.BatchInfo`
             or batch index) will be resumed from the epoch and iteration saved in the checkpoint.
 
-    `num_outputs` : int, optional
+    num_outputs : int, optional
         If specified, denotes the number of TensorLists that are produced by the source function.
 
         If set, the operator returns a list of ``DataNode`` objects, otherwise a single ``DataNode``
@@ -378,7 +378,7 @@ class ExternalSource:
     Keyword Args
     ------------
 
-    `cycle`: string or bool, optional
+    cycle : string or bool, optional
         Specifies if and how to cycle through the source.
         It can be one of the following values:
 
@@ -395,20 +395,20 @@ class ExternalSource:
 
         Specifying ``"raise"`` can be used with DALI iterators to create a notion of epoch.
 
-    `name` : str, optional
+    name : str, optional
         The name of the data node.
 
         Used when feeding the data with a call to  ``feed_input`` and can be omitted if
         the data is provided by ``source``.
 
-    `layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
+    layout : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
         If provided, sets the layout of the data.
 
         When ``num_outputs > 1``, the layout can be a list that contains a distinct layout
         for each output. If the list has fewer than ``num_outputs`` elements, only
         the first outputs have the layout set, the rest of the outputs don't have a layout set.
 
-    `dtype` : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
+    dtype : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
         Input data type.
 
         When ``num_outputs > 1``, the ``dtype`` can be a list that contains a distinct
@@ -420,7 +420,7 @@ class ExternalSource:
 
         This argument will be required starting from DALI 2.0.
 
-    `ndim` : int or list/tuple thereof, optional
+    ndim : int or list/tuple thereof, optional
         Number of dimensions in the input data.
 
         When ``num_outputs > 1``, the ``ndim`` can be a list that contains a distinct value for each
@@ -434,7 +434,7 @@ class ExternalSource:
 
         Specifying the input dimensionality will be required starting from DALI 2.0
 
-    `cuda_stream` : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
+    cuda_stream : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
         such as ``cupy.cuda.Stream`` or ``torch.cuda.Stream``
         The CUDA stream is used to copy data to the GPU or from a GPU source.
 
@@ -453,19 +453,19 @@ class ExternalSource:
         buffer is complete, since there's no way to synchronize with this stream to prevent
         overwriting the array with new data in another stream.
 
-    `use_copy_kernel` : bool, optional
+    use_copy_kernel : bool, optional
         If set to True, DALI will use a CUDA kernel to feed the data
         instead of cudaMemcpyAsync (default).
 
         .. note::
             This is applicable only when copying data to and from GPU memory.
 
-    `blocking`: bool, optional
+    blocking : bool, optional
         **Advanced** If True, this operator will block until the data is available
         (e.g. by calling ``feed_input``).  If False, the operator will raise an error,
         if the data is not available.
 
-    `no_copy` : bool, optional
+    no_copy : bool, optional
         Determines whether DALI should copy the buffer when feed_input is called.
 
         If set to True, DALI passes the user memory directly to the pipeline, instead of copying it.
@@ -485,20 +485,20 @@ class ExternalSource:
 
         Automatically set to ``True`` when ``parallel=True``
 
-    `batch` : bool, optional
+    batch : bool, optional
         If set to True or None, the ``source`` is expected to produce an entire batch at once.
         If set to False, the ``source`` is called per-sample.
 
         Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
 
-    `batch_info` : bool, optional, default = False
+    batch_info : bool, optional, default = False
         Controls if a callable ``source`` that accepts an argument and returns batches
         should receive class:`~nvidia.dali.types.BatchInfo` instance or just an
         integer representing the iteration number.
         If set to False (the default), only the integer is passed. If ``source`` is not callable,
         does not accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
-    `parallel` : bool, optional, default = False
+    parallel : bool, optional, default = False
         If set to True, the corresponding pipeline will start a pool of Python workers to run the
         callback in parallel. You can specify the number of workers by passing ``py_num_workers``
         into pipeline's constructor.
@@ -566,7 +566,7 @@ class ExternalSource:
             Python process, but due to their state it is not possible to calculate more
             than one batch at a time.
 
-    `repeat_last` : bool, optional, default = False
+    repeat_last : bool, optional, default = False
         .. note::
             This is an advanced setting that is usable mainly with Triton Inference Server
             with decoupled models.
@@ -581,11 +581,11 @@ class ExternalSource:
         is incompatible with specifying the ``source``, which makes the ``external_source``
         operate in "pull" mode.
 
-    `prefetch_queue_depth` : int, optional, default = 1
+    prefetch_queue_depth : int, optional, default = 1
         When run in ``parallel=True`` mode, specifies the number of batches to be computed in
         advance and stored in the internal buffer, otherwise parameter is ignored.
 
-    `bytes_per_sample_hint`: int, optional, default = None
+    bytes_per_sample_hint : int, optional, default = None
         If specified in ``parallel=True`` mode, the value serves as a hint when
         calculating initial capacity of shared memory slots used by the worker
         processes to pass parallel external source outputs to the pipeline. The argument
