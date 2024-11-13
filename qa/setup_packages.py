@@ -32,7 +32,7 @@ class PckgVer:
         Maximum python version supported by this package. If empty there is no upper bound
     python_min_ver : str, optional, default = None
         Mimimum python version supported by this package. If empty there is no lower bound
-    'alias': std, optional, default = None
+    alias : std, optional, default = None
         Alternative name that should be used during installation instead of general package name
     dependencies : list of str, optional, default = None
         List of packages in ["name==version", ] format that should be installed together with
@@ -269,7 +269,7 @@ class PlainPackage(BasePackage):
         Name this package should be queried for
     versions : str or PckgVer class object
         List of versions this package is available for
-    name : str, , optional, default = None
+    name : str, optional, default = None
         Name of this package used during installation. If empty it is the same as the key
     """
 
@@ -290,7 +290,7 @@ class CudaPackage(BasePackage):
         Name this package should be queried for
     versions : dict or PckgVer class object
         Dictionary, where the key is a cuda version and vale, is the list of versions supported
-    name : str, , optional, default = None
+    name : str, optional, default = None
         Name of this package used during installation. If empty it is the same as the key.
         If it includes `{cuda_v}` it is replaced by the cuda_version when queried
     """
@@ -394,7 +394,7 @@ class CudaHttpPackage(CudaPackage):
         Dictionary, where the key is a cuda version and vale, is the list
         of directly accessible http links. `{platform}` inside the link is replaced by the
         compatible platform tag provided by pip
-    name : str, , optional, default = None
+    name : str, optional, default = None
         Name of this package used during installation. If empty it is the same as the key.
         If it includes `{cuda_v}` it is replaced by the cuda_version when queried
     """
