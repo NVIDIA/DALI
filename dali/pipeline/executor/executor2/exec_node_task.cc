@@ -248,6 +248,9 @@ void OpTask::SetupOp() {
   int nout = node_->outputs.size();
   assert(ws.NumOutput() == nout);
 
+  assert(ws.has_stream() || node_->backend == OpType::CPU);
+  assert(ws.has_event() || node_->backend == OpType::CPU);
+
   skip_ = ShouldSkip();
 
   int device = -1;
