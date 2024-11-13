@@ -73,13 +73,19 @@ def run_distributed_sharing_test(sharding, process_id):
         shape=(2,), sharding=sharding, arrays=[dali_local_shard]
     )
 
-    # This array should be backed only by one device buffer that holds
-    # local part of the data. This buffer should be on the local device.
-    assert len(dali_sharded_array.device_buffers) == 1
-    assert dali_sharded_array.device_buffer == jnp.array([process_id])
-    assert dax.integration._jax_device(dali_sharded_array.device_buffer) == jax.local_devices()[0]
+    # device_buffers has been removed
+    if hasattr(dali_sharded_array, "device_buffers"):
+        # This array should be backed only by one device buffer that holds
+        # local part of the data. This buffer should be on the local device.
+        assert len(dali_sharded_array.device_buffers) == 1
+    assert dali_sharded_array.addressable_data(0) == jnp.array([process_id])
     assert (
-        dax.integration._jax_device(dali_sharded_array.device_buffer) == jax.devices()[process_id]
+        dax.integration._jax_device(dali_sharded_array.addressable_data(0))
+        == jax.local_devices()[0]
+    )
+    assert (
+        dax.integration._jax_device(dali_sharded_array.addressable_data(0))
+        == jax.devices()[process_id]
     )
 
 
