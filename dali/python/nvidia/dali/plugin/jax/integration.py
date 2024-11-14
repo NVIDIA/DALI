@@ -22,10 +22,19 @@ from packaging.version import Version
 _jax_has_old_dlpack = Version(jax.__version__) < Version("0.4.16")
 
 
-if Version(jax.__version__) >= Version("0.4.26"):
+if Version(jax.__version__) >= Version("0.4.31"):
 
     def _jax_device(jax_array):
         return jax_array.device
+
+elif Version(jax.__version__) >= Version("0.4.27"):
+
+    def _jax_device(jax_array):
+        devs = jax_array.devices()
+        if len(devs) != 1:
+            raise RuntimeError("The must be associated with exactly one device")
+        for d in devs:
+            return d
 
 else:
 
