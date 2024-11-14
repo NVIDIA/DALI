@@ -79,7 +79,7 @@ DLL_PUBLIC void EnforceMinimumNvimgcodecVersion() {
 
   if (version < NVIMGCODEC_VER) {
     std::stringstream ss;
-    ss << "DALI requires nvImageCodec at minimum version" << NVIMGCODEC_VER_MAJOR << "."
+    ss << "DALI requires nvImageCodec at minimum version " << NVIMGCODEC_VER_MAJOR << "."
        << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH << ", but got " << major << "."
        << minor << "." << patch
        << ". Please upgrade: See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
