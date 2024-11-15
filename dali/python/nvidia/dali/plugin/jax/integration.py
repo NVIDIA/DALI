@@ -32,7 +32,7 @@ elif Version(jax.__version__) >= Version("0.4.27"):
     def _jax_device(jax_array):
         devs = jax_array.devices()
         if len(devs) != 1:
-            raise RuntimeError("The must be associated with exactly one device")
+            raise RuntimeError("The array must be associated with exactly one device")
         for d in devs:
             return d
 
