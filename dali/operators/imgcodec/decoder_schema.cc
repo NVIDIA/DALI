@@ -140,7 +140,6 @@ Values will be converted to the dynamic range of the requested type.)code",
   .AddOptionalArg("memory_stats", "", false)
   .DeprecateArg("memory_stats", false);  // deprecated since in Nov 2022
 
-
 DALI_SCHEMA(experimental__decoders__Image)
   .DocStr(R"code(Decodes images.
 
@@ -149,9 +148,6 @@ Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 The output of the decoder is in *HWC* layout.
 
 The implementation uses NVIDIA nvImageCodec to decode images.
-You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
-or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
-CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
 
 .. note::
   GPU accelerated decoding is only available for a subset of the image formats (JPEG, and JPEG2000).
@@ -176,9 +172,6 @@ Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 The output of the decoder is in *HWC* layout.
 
 The implementation uses NVIDIA nvImageCodec to decode images.
-You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
-or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
-CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
 
 When possible, the operator uses the ROI decoding, reducing the decoding time and memory consumption.
 
@@ -207,9 +200,6 @@ Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 The output of the decoder is in *HWC* layout.
 
 The implementation uses NVIDIA nvImageCodec to decode images.
-You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
-or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
-CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
 
 The slice can be specified by proving the start and end coordinates, or start coordinates
 and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
@@ -280,9 +270,6 @@ Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 The output of the decoder is in *HWC* layout.
 
 The implementation uses NVIDIA nvImageCodec to decode images.
-You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
-or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
-CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
 
 The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
 a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
