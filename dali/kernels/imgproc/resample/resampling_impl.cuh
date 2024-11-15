@@ -68,7 +68,7 @@ __device__ void ResampleHorz_Channels(
   ptrdiff_t in_stride = in_strides.x;
   int in_w = in_shape.x;
 
-  src_x0 += 0.5f * scale - 0.5f - filter.anchor;
+  src_x0 += __fmaf_rn(scale, 0.5f, -0.5f) - filter.anchor;
 
   const float filter_step = filter.scale;
 
@@ -80,18 +80,18 @@ __device__ void ResampleHorz_Channels(
 
   for (int j = lo.x; j < hi.x; j += blockDim.x) {
     int dx = j + threadIdx.x;
-    const float sx0f = dx * scale + src_x0;
+    const float sx0f = __fmaf_rn(dx, scale, src_x0);
     const int sx0 = huge_kernel ? __float2int_rn(sx0f) : __float2int_ru(sx0f);
     float f = (sx0 - sx0f) * filter_step;
     __syncthreads();
     if (huge_kernel) {
       for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[k] = flt;
       }
     } else {
       for (int k = threadIdx.y; k < support; k += blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[coeff_base + coeff_stride*k] = flt;
       }
     }
@@ -119,7 +119,7 @@ __device__ void ResampleHorz_Channels(
             int xsample = x < 0 ? 0 : x >= in_w-1 ? in_w-1 : x;
             float flt = coeffs[coeff_idx];
             Src px = __ldg(in_row + channels * xsample + c);
-            tmp = fmaf(px, flt, tmp);
+            tmp = __fmaf_rn(px, flt, tmp);
           }
 
           out_row[channels * dx + c] = ConvertSat<Dst>(tmp * norm);
@@ -136,7 +136,7 @@ __device__ void ResampleHorz_Channels(
           float flt = coeffs[coeff_idx];
           for (int c = 0; c < channels; c++) {
             Src px = __ldg(in_row + channels * xsample + c);
-            tmp[c] = fmaf(px, flt, tmp[c]);
+            tmp[c] = __fmaf_rn(px, flt, tmp[c]);
           }
         }
 
@@ -186,7 +186,7 @@ __device__ void ResampleHorz_Channels(
   ptrdiff_t in_stride_z = in_strides.y;
   int in_w = in_shape.x;
 
-  src_x0 += 0.5f * scale - 0.5f - filter.anchor;
+  src_x0 += __fmaf_rn(scale, 0.5f, -0.5f) - filter.anchor;
 
   const float filter_step = filter.scale;
 
@@ -198,18 +198,18 @@ __device__ void ResampleHorz_Channels(
 
   for (int j = lo.x; j < hi.x; j += blockDim.x) {
     int dx = j + threadIdx.x;
-    const float sx0f = dx * scale + src_x0;
+    const float sx0f = __fmaf_rn(dx, scale, src_x0);
     const int sx0 = huge_kernel ? __float2int_rn(sx0f) : __float2int_ru(sx0f);
     float f = (sx0 - sx0f) * filter_step;
     __syncthreads();
     if (huge_kernel) {
       for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[k] = flt;
       }
     } else {
       for (int k = threadIdx.y; k < support; k += blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[coeff_base + coeff_stride*k] = flt;
       }
     }
@@ -241,7 +241,7 @@ __device__ void ResampleHorz_Channels(
               int xsample = x < 0 ? 0 : x >= in_w-1 ? in_w-1 : x;
               float flt = coeffs[coeff_idx];
               Src px = __ldg(in_row + channels * xsample + c);
-              tmp = fmaf(px, flt, tmp);
+              tmp = __fmaf_rn(px, flt, tmp);
             }
 
             out_row[channels * dx + c] = ConvertSat<Dst>(tmp * norm);
@@ -258,7 +258,7 @@ __device__ void ResampleHorz_Channels(
             float flt = coeffs[coeff_idx];
             for (int c = 0; c < channels; c++) {
               Src px = __ldg(in_row + channels * xsample + c);
-              tmp[c] = fmaf(px, flt, tmp[c]);
+              tmp[c] = __fmaf_rn(px, flt, tmp[c]);
             }
           }
 
@@ -297,7 +297,7 @@ __device__ void ResampleVert_Channels(
   ptrdiff_t in_stride = in_strides.x;
   int in_h = in_shape.y;
 
-  src_y0 += 0.5f * scale - 0.5f - filter.anchor;
+  src_y0 += __fmaf_rn(scale, 0.5f, -0.5f) - filter.anchor;
 
   const float filter_step = filter.scale;
 
@@ -307,18 +307,18 @@ __device__ void ResampleVert_Channels(
 
   for (int i = lo.y; i < hi.y; i+=blockDim.y) {
     int dy = i + threadIdx.y;
-    const float sy0f = dy * scale + src_y0;
+    const float sy0f = __fmaf_rn(dy, scale, src_y0);
     const int sy0 = huge_kernel ? __float2int_rn(sy0f) : __float2int_ru(sy0f);
     float f = (sy0 - sy0f) * filter_step;
     __syncthreads();
     if (huge_kernel) {
       for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[k] = flt;
       }
     } else {
       for (int k = threadIdx.x; k < support; k += blockDim.x) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[coeff_base + k] = flt;
       }
     }
@@ -348,7 +348,7 @@ __device__ void ResampleVert_Channels(
             int ysample = y < 0 ? 0 : y >= in_h-1 ? in_h-1 : y;
             float flt = coeffs[coeff_base + k];
             Src px = __ldg(in_col + in_stride * ysample + c);
-            tmp = fmaf(px, flt, tmp);
+            tmp = __fmaf_rn(px, flt, tmp);
           }
 
           out_col[c] = ConvertSat<Dst>(tmp * norm);
@@ -364,7 +364,7 @@ __device__ void ResampleVert_Channels(
           float flt = coeffs[coeff_base + k];
           for (int c = 0; c < channels; c++) {
             Src px = __ldg(in_col + in_stride * ysample + c);
-            tmp[c] = fmaf(px, flt, tmp[c]);
+            tmp[c] = __fmaf_rn(px, flt, tmp[c]);
           }
         }
 
@@ -403,7 +403,7 @@ __device__ void ResampleVert_Channels(
   ptrdiff_t in_stride_z = in_strides.y;
   int in_h = in_shape.y;
 
-  src_y0 += 0.5f * scale - 0.5f - filter.anchor;
+  src_y0 += __fmaf_rn(scale, 0.5f, -0.5f) - filter.anchor;
 
   const float filter_step = filter.scale;
 
@@ -413,18 +413,18 @@ __device__ void ResampleVert_Channels(
 
   for (int i = lo.y; i < hi.y; i+=blockDim.y) {
     int dy = i + threadIdx.y;
-    const float sy0f = dy * scale + src_y0;
+    const float sy0f = __fmaf_rn(dy, scale, src_y0);
     const int sy0 = huge_kernel ? __float2int_rn(sy0f) : __float2int_ru(sy0f);
     float f = (sy0 - sy0f) * filter_step;
     __syncthreads();
     if (huge_kernel) {
       for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[k] = flt;
       }
     } else {
       for (int k = threadIdx.x; k < support; k += blockDim.x) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[coeff_base + k] = flt;
       }
     }
@@ -457,7 +457,7 @@ __device__ void ResampleVert_Channels(
               int ysample = y < 0 ? 0 : y >= in_h-1 ? in_h-1 : y;
               float flt = coeffs[coeff_base + k];
               Src px = __ldg(in_col + in_stride_y * ysample + c);
-              tmp = fmaf(px, flt, tmp);
+              tmp = __fmaf_rn(px, flt, tmp);
             }
 
             out_col[c] = ConvertSat<Dst>(tmp * norm);
@@ -473,7 +473,7 @@ __device__ void ResampleVert_Channels(
             float flt = coeffs[coeff_base + k];
             for (int c = 0; c < channels; c++) {
               Src px = __ldg(in_col + in_stride_y * ysample + c);
-              tmp[c] = fmaf(px, flt, tmp[c]);
+              tmp[c] = __fmaf_rn(px, flt, tmp[c]);
             }
           }
 
@@ -520,7 +520,7 @@ __device__ void ResampleDepth_Channels(
   ptrdiff_t in_stride_z = in_strides[1];
   int in_d = in_shape.z;
 
-  src_z0 += 0.5f * scale - 0.5f - filter.anchor;
+  src_z0 += __fmaf_rn(scale, 0.5f, -0.5f) - filter.anchor;
 
   const float filter_step = filter.scale;
 
@@ -531,18 +531,18 @@ __device__ void ResampleDepth_Channels(
   // threadIdx.y is used to traverse Z axis
   for (int i = lo.z; i < hi.z; i+=blockDim.y) {
     int dz = i + threadIdx.y;
-    const float sz0f = dz * scale + src_z0;
+    const float sz0f = __fmaf_rn(dz, scale, src_z0);
     const int sz0 = huge_kernel ? __float2int_rn(sz0f) : __float2int_ru(sz0f);
     float f = (sz0 - sz0f) * filter_step;
     __syncthreads();
     if (huge_kernel) {
       for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[k] = flt;
       }
     } else {
       for (int k = threadIdx.x; k < support; k += blockDim.x) {
-        float flt = filter(f + k*filter_step);
+        float flt = filter(__fmaf_rn(k, filter_step, f));
         coeffs[coeff_base + k] = flt;
       }
     }
@@ -576,7 +576,7 @@ __device__ void ResampleDepth_Channels(
               int zsample = z < 0 ? 0 : z >= in_d-1 ? in_d-1 : z;
               float flt = coeffs[coeff_base + l];
               Src px = __ldg(in_col + in_stride_z * zsample + c);
-              tmp = fmaf(px, flt, tmp);
+              tmp = __fmaf_rn(px, flt, tmp);
             }
 
             out_col[c] = ConvertSat<Dst>(tmp * norm);
@@ -592,7 +592,7 @@ __device__ void ResampleDepth_Channels(
             float flt = coeffs[coeff_base + l];
             for (int c = 0; c < channels; c++) {
               Src px = __ldg(in_col + in_stride_z * zsample + c);
-              tmp[c] = fmaf(px, flt, tmp[c]);
+              tmp[c] = __fmaf_rn(px, flt, tmp[c]);
             }
           }
 
