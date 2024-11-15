@@ -82,7 +82,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                 is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
-                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 JAX iterator does not support LastBatchPolicy.PARTIAL
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample

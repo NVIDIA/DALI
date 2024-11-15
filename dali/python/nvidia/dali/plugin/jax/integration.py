@@ -16,31 +16,46 @@ import jax
 import jax.dlpack
 
 from nvidia.dali.backend import TensorGPU
+from packaging.version import Version
 
 
-_jax_version_pre_0_4_16 = None
+_jax_has_old_dlpack = Version(jax.__version__) < Version("0.4.16")
 
 
-def _jax_has_old_dlpack():
-    global _jax_version_pre_0_4_16
-    if _jax_version_pre_0_4_16 is not None:
-        return _jax_version_pre_0_4_16
+if Version(jax.__version__) >= Version("0.4.31"):
 
-    from packaging.version import Version
+    def _jax_device(jax_array):
+        return jax_array.device
 
-    _jax_version_pre_0_4_16 = Version(jax.__version__) < Version("0.4.16")
-    return _jax_version_pre_0_4_16
+elif Version(jax.__version__) >= Version("0.4.27"):
+
+    def _jax_device(jax_array):
+        devs = jax_array.devices()
+        if len(devs) != 1:
+            raise RuntimeError("The array must be associated with exactly one device")
+        for d in devs:
+            return d
+
+else:
+
+    def _jax_device(jax_array):
+        return jax_array.device()
 
 
-def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
+def _to_jax_array(dali_tensor: TensorGPU, copy: bool) -> jax.Array:
     """Converts input DALI tensor to JAX array.
 
     Args:
-        dali_tensor (TensorGPU): DALI GPU tensor to be converted to JAX array.
+        dali_tensor (TensorGPU):
+            DALI GPU tensor to be converted to JAX array.
+
+        copy (bool):
+            If True, the output is copied;
+            if False, the output may wrap DLPack capsule obtained from `dali_tensor`.
 
     Note:
-        This function performs deep copy of the underlying data. That will change in
-        future releases.
+        This function may perform a copy of the data even if `copy==False` when JAX version is
+        insufficient (<0.4.16)
 
     Warning:
         As private this API may change without notice.
@@ -49,12 +64,12 @@ def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
         jax.Array: JAX array with the same values and backing device as
         input DALI tensor.
     """
-    if _jax_has_old_dlpack():
+    if _jax_has_old_dlpack:
+        copy = True
         jax_array = jax.dlpack.from_dlpack(dali_tensor.__dlpack__(stream=None))
     else:
         jax_array = jax.dlpack.from_dlpack(dali_tensor)
 
-    # For now we need this copy to make sure that underlying memory is available.
-    # One solution is to implement full DLPack contract in DALI.
-    # TODO(awolant): Remove this copy.
-    return jax_array.copy()
+    if copy:
+        jax_array = jax_array.copy()
+    return jax_array

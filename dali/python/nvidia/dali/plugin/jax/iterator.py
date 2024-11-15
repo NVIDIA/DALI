@@ -66,7 +66,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
-                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 JAX iterator does not support LastBatchPolicy.PARTIAL
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
@@ -193,7 +193,10 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         for pipeline_id in range(self._num_gpus):
             category_outputs.append(
-                _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor())
+                _to_jax_array(
+                    pipelines_outputs[pipeline_id][category_id].as_tensor(),
+                    not self._pipes[pipeline_id].exec_dynamic,
+                )
             )
 
         return category_outputs
