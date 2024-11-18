@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/c_api.h"  // NOLINT [build/include]
-
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -33,6 +31,8 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/copy_to_external.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+
+#include "dali/c_api.h"  // NOLINT [build/include]
 
 using dali::AccessOrder;
 using dali::CPUBackend;
