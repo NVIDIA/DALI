@@ -323,6 +323,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                     category_place[cat] = pd_cpu_place
 
             pd_tensors = {}
+            data_batches[i] = pd_tensors
             stream = paddle.device.cuda.current_stream(dev_id).cuda_stream
             if copy:
                 for cat, tensor in category_tensors.items():
@@ -339,7 +340,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             else:
                 for cat, tensor in category_tensors.items():
                     capsule = tensor.__dlpack__(stream=stream)
-                    pd_tensor = paddle.utils.dlpack.from_dlpack(capsule)
+                    pd_tensor = paddle.framework.core.from_dlpack(capsule)
+                    seq_len = category_lengths[cat]
+                    pd_tensor.set_recursive_sequence_lengths(seq_len)
                     pd_tensors[cat] = pd_tensor
 
         self._schedule_runs()
