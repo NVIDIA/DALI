@@ -586,7 +586,6 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
                 and m.start() == match_ref.start(2)
                 and m.end() == match_ref.end(2)
             ):
-                print(f"Skipping in {name}: {line[: m.end()]=}")
                 result += line[: m.end()]
                 line = line[m.end() :]
                 continue
@@ -612,9 +611,6 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
 
             # If we are indeed a parameter, add the :paramref: that sphinx_paramlinks will handle
             if candidate in params:
-                print(
-                    f"Injecting :paramref: in {name} for {candidate} in {result}{line}"
-                )
                 result += f"{line[:start]}:paramref:{line[start:end]}"
             else:
                 result += line[:end]
