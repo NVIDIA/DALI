@@ -55,11 +55,14 @@ NVIMGCODECDRIVER loadNvimgcodecLibrary() {
     if (ret)
       break;
   }
-  if (!ret)
+
+  if (!ret) {
+    int cuda_version_major = CUDA_VERSION / 1000;  // 11020 -> 11, 12000 -> 12
     throw std::runtime_error(
         "dlopen libnvimgcodec.so failed!. Please install nvimagecodec: See "
         "https://developer.nvidia.com/nvimgcodec-downloads or simply do `pip install "
-        "nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}`.");
+        "nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "`.");
+  }
   return ret;
 }
 

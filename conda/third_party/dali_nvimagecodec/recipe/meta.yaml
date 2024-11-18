@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-{% set build_version = "0.2.0" %}
+{% set build_version = "0.3.0" %}
 
 package:
   name: nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
