@@ -84,7 +84,7 @@ DLL_PUBLIC void EnforceMinimumNvimgcodecVersion() {
        << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH << ", but got " << major << "."
        << minor << "." << patch
        << ". Please upgrade: See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
-          "`pip install nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "=="
+          "`pip install nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "~="
        << NVIMGCODEC_VER_MAJOR << "." << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH
        << "`.";
     throw std::runtime_error(ss.str());
