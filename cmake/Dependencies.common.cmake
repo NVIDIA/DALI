@@ -305,7 +305,18 @@ if(BUILD_NVIMAGECODEC)
     message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
     add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 
-    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
+    # Find the position of the substring
+    string(FIND "aarch64-linux-gnu" "${CMAKE_PREFIX_PATH}" SUBSTRING_POSITION)
+    if(NOT SUBSTRING_POSITION EQUAL -1)
+      # Substring found
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
+    else()
+      # Substring not found
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
+    endif()
+
+    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
+    message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
   else()
     message(STATUS "nvImageCodec - static link")
 
@@ -337,6 +348,8 @@ if(BUILD_NVIMAGECODEC)
                         "-DWITH_DYNAMIC_NVJPEG2K=OFF"
                         "-DBUILD_NVJPEG_EXT=${BUILD_NVJPEG}"
                         "-DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG}"
+                        "-DBUILD_NVTIFF_EXT=OFF"
+                        "-DWITH_DYNAMIC_NVTIFF=OFF"
                         "-DBUILD_NVBMP_EXT=OFF"
                         "-DBUILD_NVPNM_EXT=OFF"
                         "-DBUILD_LIBJPEG_TURBO_EXT=${BUILD_LIBJPEG_TURBO}"
