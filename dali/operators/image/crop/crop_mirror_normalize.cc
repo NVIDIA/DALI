@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
   .AddOptionalArg("pad_output",
     R"code(Determines whether to pad the output so that the number of channels is a power of 2.
 
-The value used for padding is determined by the ``fill_values`` argument.)code", false)
+The value used for padding is determined by the `fill_values` argument.)code", false)
   .AddOptionalArg("mirror",
     R"code(If nonzero, the image will be flipped (mirrored) horizontally.)code",
     0, true)

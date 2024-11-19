@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ Not providing any axis results in reduction of all elements.)code",
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Name(s) of the axis or axes along which the reduction is performed.
 
 The input layout is used to translate the axis names to axis indices, for example ``axis_names="HW"`` with input
-layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot be used together with ``axes``.)code",
+layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot be used together with `axes`.)code",
     nullptr)
   .AddOptionalArg(
     "keep_dims",

@@ -112,7 +112,7 @@ class Pipeline(object):
         Dynamic executor allows to interleave CPU and GPU operators and to perform GPU to CPU
         copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
         buffers, which reduces memory consumption in complex pipelines.
-        When ``exec_dynamic`` is ``True``, ``exec_async`` and ``exec_pipelined`` must be left at
+        When `exec_dynamic` is ``True``, `exec_async` and `exec_pipelined` must be left at
         their default (``True``) values.
     bytes_per_sample : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
@@ -129,9 +129,9 @@ class Pipeline(object):
     enable_memory_stats : bool, optional, default = False
         If DALI should print operator output buffer statistics.
         Useful for `bytes_per_sample_hint` operator parameter.
-        This flag has no effect when ``exec_dynamic`` is ``True``.
+        This flag has no effect when `exec_dynamic` is ``True``.
     enable_checkpointing : bool, optional, default = False
-        If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
+        If True, DALI will trace states of the operators. In that case, calling the `checkpoint`
         method returns serialized state of the pipeline. The same pipeline can be later rebuilt
         with the serialized state passed as the `checkpoint` parameter to resume running
         from the saved iteration.
@@ -139,7 +139,7 @@ class Pipeline(object):
         More details can be found in
         `this documentation section <advanced_topics_checkpointing.html>`_.
     checkpoint : str, optional, default = None
-        Serialized checkpoint, received from ``checkpoint`` method.
+        Serialized checkpoint, received from `checkpoint` method.
         When pipeline is built, its state is restored from the `checkpoint` and the pipeline
         resumes execution from the saved iteration.
 
@@ -172,7 +172,7 @@ class Pipeline(object):
         older version of Python you can provide external serialization package such as dill or
         cloudpickle that implements two methods: `dumps` and `loads` to make DALI use them to
         serialize external source callbacks. You can pass a module directly as
-        ``py_callback_pickler``::
+        `py_callback_pickler`::
 
             import dill
             @pipeline_def(py_callback_pickler=dill, ...)
@@ -202,7 +202,7 @@ class Pipeline(object):
         The outputs, after each iteration, will be validated against the types you passed to this
         argument. If any output does not match the provided type, RuntimeError will be raised.
 
-        If the ``output_dtype`` value is a single value (not a list), it will be broadcast to the
+        If the `output_dtype` value is a single value (not a list), it will be broadcast to the
         number of outputs from the pipeline.
     output_ndim : int or list of ints, default = None
         With this argument, you may declare, how many dimensions you expect in the given output.
@@ -213,7 +213,7 @@ class Pipeline(object):
         dimensionality of any output does not match the provided ``ndim``, RuntimeError will be
         raised.
 
-        If the ``output_ndim`` value is a single value (not a list), it will be broadcast to the
+        If the `output_ndim` value is a single value (not a list), it will be broadcast to the
         number of outputs from the pipeline."""
 
     def __init__(
@@ -1085,7 +1085,7 @@ class Pipeline(object):
         (i.e. everything in ``fn.inputs`` module) and the :meth:`fn.external_source`.
 
         In the case of the GPU input, the data must be modified on the same stream as the one
-        used by ``feed_input``. See ``cuda_stream`` parameter for details.
+        used by ``feed_input``. See `cuda_stream` parameter for details.
 
         In order to avoid stalls, the data should be provided ahead of time `prefetch_queue_depth`
         times.
@@ -1106,15 +1106,15 @@ class Pipeline(object):
               * objects implementing ``__cuda_array_interface__``
               * DALI ``TensorList`` or list of DALI ``Tensor`` objects
 
-            The data to be used as the output of the operator referred to by ``data_node``.
+            The data to be used as the output of the operator referred to by `data_node`.
 
         layout : string or ``None``
             The description of the data layout (or empty string, if not specified).
             It should be a string of the length that matches the dimensionality of the data, batch
             dimension excluded. For a batch of channel-first images, this should be ``"CHW"``, for
             channel-last video it's ``"FHWC"`` and so on.
-            If ``data`` is a DALI ``TensorList`` or a list of DALI ``Tensor`` objects and ``layout``
-            is ``None``, the layout is taken from ``data``.
+            If `data` is a DALI ``TensorList`` or a list of DALI ``Tensor`` objects and `layout`
+            is ``None``, the layout is taken from `data`.
             The layout of the data must be the same in each iteration.
 
         cuda_stream : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
@@ -1555,7 +1555,7 @@ class Pipeline(object):
         the pipeline. Refer to Pipeline constructor for full list of arguments. By default,
         the pipeline will be instantiated with the arguments from serialized pipeline.
 
-        Note, that ``serialized_pipeline`` and ``filename`` parameters are mutually exclusive
+        Note, that `serialized_pipeline` and `filename` parameters are mutually exclusive
 
         Parameters
         ----------

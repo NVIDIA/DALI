@@ -98,7 +98,7 @@ DALI_SCHEMA(CachedDecoderAttr)
       R"code(Applies **only** to the ``mixed`` backend type.
 
 Total size of the decoder cache in megabytes. When provided, the decoded images
-that are larger than ``cache_threshold`` will be cached in GPU memory.
+that are larger than `cache_threshold` will be cached in GPU memory.
 )code",
       0)
   .AddOptionalArg("cache_threshold",
@@ -125,7 +125,7 @@ copied with ``cudaMemcpy``.)code",
 
 Here is a list of the available cache types:
 
-* | ``threshold``: caches every image with a size that is larger than ``cache_threshold`` until
+* | ``threshold``: caches every image with a size that is larger than `cache_threshold` until
   | the cache is full.
 
   The warm-up time for threshold policy is 1 epoch.

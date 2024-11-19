@@ -938,13 +938,13 @@ std::string OpSchema::DefaultDeprecatedArgMsg(const std::string &arg_name,
                                               const std::string &renamed_to, bool removed) const {
   std::stringstream ss;
   if (removed) {
-    ss << "The argument ``" << arg_name
-       << "`` is no longer used and will be removed in a future release.";
+    ss << "The argument `" << arg_name
+       << "` is no longer used and will be removed in a future release.";
   } else if (!renamed_to.empty()) {
-    ss << "The argument ``" << arg_name << "`` is a deprecated alias for ``" << renamed_to
-       << "``. Use ``" << renamed_to << "`` instead.";
+    ss << "The argument `" << arg_name << "` is a deprecated alias for `" << renamed_to
+       << "`. Use `" << renamed_to << "` instead.";
   } else {
-    ss << "The argument ``" << arg_name << "`` is now deprecated and its usage is discouraged.";
+    ss << "The argument `" << arg_name << "` is now deprecated and its usage is discouraged.";
   }
   return ss.str();
 }

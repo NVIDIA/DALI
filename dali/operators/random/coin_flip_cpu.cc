@@ -21,10 +21,10 @@ namespace dali {
 DALI_SCHEMA(random__CoinFlip)
     .DocStr(R"code(Generates random boolean values following a bernoulli distribution.
 
-The probability of generating a value 1 (true) is determined by the ``probability`` argument.
+The probability of generating a value 1 (true) is determined by the `probability` argument.
 
-The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
+The shape of the generated data can be either specified explicitly with a `shape` argument,
+or chosen to match the shape of the `__shape_like` input, if provided. If none are present,
 a single value per sample is generated.
 )code")
     .NumInput(0, 1)
@@ -43,9 +43,9 @@ DALI_REGISTER_OPERATOR(random__CoinFlip, CoinFlip<CPUBackend>, CPU);
 DALI_SCHEMA(CoinFlip)
     .DocStr(R"code(Generates random boolean values following a bernoulli distribution.
 
-The probability of generating a value 1 (true) is determined by the ``probability`` argument.
+The probability of generating a value 1 (true) is determined by the `probability` argument.
 
-The shape of the generated data can be either specified explicitly with a ``shape`` argument,
+The shape of the generated data can be either specified explicitly with a `shape` argument,
 or chosen to match the shape of the input, if provided. If none are present, a single value per
 sample is generated.
 )code")

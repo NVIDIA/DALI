@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ DALI_SCHEMA(AudioResample)
   .DocStr(R"(Resamples an audio signal.
 
 The resampling is achieved by applying a sinc filter with Hann window with an extent
-controlled by the ``quality`` argument.
+controlled by the `quality` argument.
 
 The resampling ratio can be specified directly or as a ratio of target to source sampling rate,
 or calculated from the ratio of the requested output length to the input length.
@@ -35,33 +35,33 @@ or calculated from the ratio of the requested output length to the input length.
   .NumOutput(1)
   .AddOptionalArg<float>("in_rate", R"(Input sampling rate.
 
-The sampling rate of the input sample. This parameter must be specified together with ``out_rate``.
-The value is relative to ``out_rate`` and doesn't need to use any specific unit as long as the
+The sampling rate of the input sample. This parameter must be specified together with `out_rate`.
+The value is relative to `out_rate` and doesn't need to use any specific unit as long as the
 units of input and output rates match.
 
-The ``in_rate`` and ``out_rate`` parameters cannot be specified together with ``scale`` or
-``out_length``.)",
+The `in_rate` and `out_rate` parameters cannot be specified together with `scale` or
+`out_length`.)",
     nullptr, true)
   .AddOptionalArg<float>("out_rate", R"(Output sampling rate.
 
-The requested output sampling rate. This parameter must be specified together with ``in_rate``.
-The value is relative to ``in_rate`` and doesn't need to use any specific unit as long as the
+The requested output sampling rate. This parameter must be specified together with `in_rate`.
+The value is relative to `in_rate` and doesn't need to use any specific unit as long as the
 units of input and output rates match.
 
-The ``in_rate`` and ``out_rate`` parameters cannot be specified together with ``scale`` or
-``out_length``.)",
+The `in_rate` and `out_rate` parameters cannot be specified together with `scale` or
+`out_length`.)",
     nullptr, true)
   .AddOptionalArg<float>("scale", R"(The scaling factor.
 
 The scaling factor is the ratio of the target sampling rate to source sampling rate. For example,
 a ``scale=2`` will produce an output with twice as many samples as the input.
 
-This parameter cannot be specified together with ``in_rate`` and ``out_rate`` or ``out_length``.)",
+This parameter cannot be specified together with `in_rate` and `out_rate` or `out_length`.)",
     nullptr, true)
   .AddOptionalArg<int64_t>("out_length", R"(The requested output length, in samples.
 
 The scaling factor is the ratio of this output length to the input length. This parameter
-cannot be specified together with ``in_rate``, ``out_rate`` or ``scale``.)",
+cannot be specified together with `in_rate`, `out_rate` or `scale`.)",
     nullptr, true)
   .AddOptionalArg("quality", R"(Resampling quality, where 0 is the lowest, and 100 is
 the highest.

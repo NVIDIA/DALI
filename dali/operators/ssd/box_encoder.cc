@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ The value needs to be between 0 and 1.)code",
     .AddOptionalArg(
         "offset",
         R"code(Returns normalized offsets ``((encoded_bboxes*scale - anchors*scale) - mean) / stds``
-in EncodedBBoxes that use ``std`` and the ``mean`` and ``scale`` arguments.)code",
+in EncodedBBoxes that use ``std`` and the ``mean`` and `scale` arguments.)code",
         false)
     .AddOptionalArg("scale",
             R"code(Rescales the box and anchor values before the offset is calculated

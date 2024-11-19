@@ -86,7 +86,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                 JAX iterator does not support LastBatchPolicy.PARTIAL
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
-                or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
+                or it just wraps up. In the conjunction with `last_batch_policy` it tells
                 if the iterator returning last batch with data only partially filled with
                 data from the current epoch is dropping padding samples or samples from
                 the next epoch. If set to ``False`` next
@@ -340,7 +340,7 @@ def peekable_data_iterator(
                 JAX iterator does not support LastBatchPolicy.PARTIAL
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
-                or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
+                or it just wraps up. In the conjunction with `last_batch_policy` it tells
                 if the iterator returning last batch with data only partially filled with
                 data from the current epoch is dropping padding samples or samples from
                 the next epoch. If set to ``False`` next

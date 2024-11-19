@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ DALI_SCHEMA(readers__Sequence)
     .DocStr(
         R"code(Reads [Frame] sequences from a directory representing a collection of streams.
 
-This operator expects ``file_root`` to contain a set of directories, where each directory represents
+This operator expects `file_root` to contain a set of directories, where each directory represents
 an extracted video stream. This stream is represented by one file for each frame,
 sorted lexicographically. Sequences do not cross the stream boundary and only complete sequences
 are considered, so there is no padding.

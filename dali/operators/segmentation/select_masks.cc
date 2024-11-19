@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ Let us assume the following input mask, where symbolic coordinates are used for 
 
 Example 1: Selecting a single mask with id ``1``, maintaining the original id::
 
-    mask_ids = [1], ``reindex_masks`` = False
+    mask_ids = [1], `reindex_masks` = False
     out_polygons = [[1, 0, 4]]
     out_vertices = [[x3, y3], [x4, y4], [x5, y5], [x6, y6]]
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,15 +31,15 @@ If another transform matrix is passed as an input, the operator applies the shea
     "shear",
     R"code(The shear factors.
 
-For 2D, ``shear`` contains two elements: shear_x, shear_y.
+For 2D, `shear` contains two elements: shear_x, shear_y.
 
-For 3D, ``shear`` contains six elements: shear_xy, shear_xz, shear_yx, shear_yz, shear_zx, shear_zy.
+For 3D, `shear` contains six elements: shear_xy, shear_xz, shear_yx, shear_yz, shear_zx, shear_zy.
 
 A shear factor value can be interpreted as the offset to be applied in the first axis when moving in the
 direction of the second axis.
 
 .. note::
-    This argument is mutually exclusive with ``angles``.
+    This argument is mutually exclusive with `angles`.
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
     nullptr, true, true)
@@ -47,11 +47,11 @@ direction of the second axis.
     "angles",
     R"code(The shear angles, in degrees.
 
-This argument is mutually exclusive with ``shear``.
+This argument is mutually exclusive with `shear`.
 
-For 2D, ``angles`` contains two elements: angle_x, angle_y.
+For 2D, `angles` contains two elements: angle_x, angle_y.
 
-For 3D, ``angles`` contains six elements: angle_xy, angle_xz, angle_yx, angle_yz, angle_zx, angle_zy.
+For 3D, `angles` contains six elements: angle_xy, angle_xz, angle_yx, angle_yz, angle_zx, angle_zy.
 
 A shear angle is translated to a shear factor as follows::
 
@@ -59,7 +59,7 @@ A shear angle is translated to a shear factor as follows::
 
 .. note::
     The valid range of values is between -90 and 90 degrees.
-    This argument is mutually exclusive with ``shear``.
+    This argument is mutually exclusive with `shear`.
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
     nullptr, true, true)

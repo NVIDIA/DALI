@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ This filter, in simple form, can be expressed by the formula::
 
 with ``X`` and ``Y`` being the input and output signal, respectively.
 
-The value of ``X_border`` depends on the ``border`` argument::
+The value of ``X_border`` depends on the `border` argument::
 
   X_border = 0                    if border_type == 'zero'
   X_border = X[0]                 if border_type == 'clamp'

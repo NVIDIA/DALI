@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ batches of sequences. Every output batch will have the ``max_batch_size`` sample
 the Pipeline creation. When the number of frames in the video file does not allow to split
 the frames uniformly across batches, the last batch returned by this operator for a given video
 will be partial and the last sequence in this batch will be determined using
-``last_sequence_policy`` parameter. For example::
+`last_sequence_policy` parameter. For example::
 
 
     This is a video that consists of 67 frames (every '-' is a frame):

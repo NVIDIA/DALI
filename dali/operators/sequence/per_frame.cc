@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ to find out if it supports per-frame input.
 
 If the input passed to ``per-frame`` operator has no layout,
 a new layout is set, that starts with ``F`` and is padded with ``*`` to match
-dimensionality of the input. Otherwise, depending on the ``replace`` flag,
+dimensionality of the input. Otherwise, depending on the `replace` flag,
 the operator either checks if the first character of the layout is equal to ``F``
 or replaces the character with ``F``.
 )code")

@@ -56,7 +56,7 @@ specify ``(480,640)``, not ``(480,640,3)``.
   If `inverse_map` argument is set to false, the matrix is interpreted
   as a source to destination coordinates mapping.
 
-It is equivalent to OpenCV's ``warpPerspective`` operation with the ``inverse_map`` argument being
+It is equivalent to OpenCV's ``warpPerspective`` operation with the `inverse_map` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
 
 .. note::

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ namespace dali {
 DALI_SCHEMA(transforms__Crop)
   .DocStr(R"code(Produces an affine transform matrix that maps a reference coordinate space to another one.
 
-This transform can be used to adjust coordinates after a crop operation so that a ``from_start`` point will
-be mapped to ``to_start`` and ``from_end`` will be mapped to ``to_end``.
+This transform can be used to adjust coordinates after a crop operation so that a `from_start` point will
+be mapped to `to_start` and `from_end` will be mapped to `to_end`.
 
 If another transform matrix is passed as an input, the operator applies the transformation to the matrix provided.
 

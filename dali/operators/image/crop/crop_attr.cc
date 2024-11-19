@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ DALI_SCHEMA(CropAttr)
         "crop", R"code(Shape of the cropped image, specified as a list of values (for example,
 ``(crop_H, crop_W)`` for the 2D crop and ``(crop_D, crop_H, crop_W)`` for the volumetric crop).
 
-Providing crop argument is incompatible with providing separate arguments such as ``crop_d``,
-``crop_h``, and ``crop_w``.)code",
+Providing crop argument is incompatible with providing separate arguments such as `crop_d`,
+`crop_h`, and `crop_w`.)code",
         nullptr, true)
     .AddOptionalArg(
         "crop_pos_x", R"code(Normalized (0.0 - 1.0) horizontal position of the cropping window
@@ -35,7 +35,7 @@ The actual position is calculated as ``crop_x = crop_x_norm * (W - crop_W)``, wh
 is the normalized position, ``W`` is the width of the image, and ``crop_W`` is the width of the
 cropping window.
 
-See ``rounding`` argument for more details on how ``crop_x`` is converted to an integral value.)code",
+See `rounding` argument for more details on how ``crop_x`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
          "crop_pos_y", R"code(Normalized (0.0 - 1.0) vertical position of the start of
@@ -45,7 +45,7 @@ The actual position is calculated as ``crop_y = crop_y_norm * (H - crop_H)``, wh
 is the normalized position, `H` is the height of the image, and ``crop_H`` is the height of the
 cropping window.
 
-See ``rounding`` argument for more details on how ``crop_y`` is converted to an integral value.)code",
+See `rounding` argument for more details on how ``crop_y`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
         "crop_pos_z", R"code(Applies **only** to volumetric inputs.
@@ -55,30 +55,30 @@ The actual position is calculated as ``crop_z = crop_z_norm * (D - crop_D)``, wh
 is the normalized position, ``D`` is the depth of the image and ``crop_D`` is the depth of the
 cropping window.
 
-See ``rounding`` argument for more details on how ``crop_z`` is converted to an integral value.)code",
+See `rounding` argument for more details on how ``crop_z`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
         "crop_w", R"code(Cropping window width (in pixels).
 
-Providing values for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop window
-dimensions (argument ``crop``).)code",
+Providing values for `crop_w` and `crop_h` is incompatible with providing fixed crop window
+dimensions (argument `crop`).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_h", R"code(Cropping the window height (in pixels).
 
-Providing values for ``crop_w`` and ``crop_h`` is incompatible with providing fixed crop
-window dimensions (argument ``crop``).)code",
+Providing values for `crop_w` and `crop_h` is incompatible with providing fixed crop
+window dimensions (argument `crop`).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_d", R"code(Applies **only** to volumetric inputs; cropping window depth (in voxels).
 
-``crop_w``, ``crop_h``, and ``crop_d`` must be specified together. Providing values
-for ``crop_w``, ``crop_h``, and ``crop_d`` is incompatible with providing the fixed crop
+`crop_w`, `crop_h`, and `crop_d` must be specified together. Providing values
+for `crop_w`, `crop_h`, and `crop_d` is incompatible with providing the fixed crop
 window dimensions (argument `crop`).)code",
         0.0f, true)
     .AddOptionalArg(
         "rounding", R"code(Determines the rounding function used to convert the starting coordinate
-of the window to an integral value (see ``crop_pos_x``, ``crop_pos_y``, ``crop_pos_z``).
+of the window to an integral value (see `crop_pos_x`, `crop_pos_y`, `crop_pos_z`).
 
 Possible values are:
 

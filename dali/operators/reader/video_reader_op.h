@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
 
     DALI_ENFORCE(!(has_labels_arg && filenames_.empty()),
                  "The argument ``labels`` is valid only when file paths "
-                 "are provided with ``filenames`` argument.");
+                 "are provided with `filenames` argument.");
 
     if (!filenames_.empty() && has_labels_arg) {
       DALI_ENFORCE(filenames_.size() == labels_.size() || labels_.empty(), make_string("Provided ",

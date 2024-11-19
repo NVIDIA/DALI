@@ -103,7 +103,7 @@ Supported values are: ``"reflect_101"``, ``"reflect_1001"``, ``"wrap"``,
     .AddOptionalArg("mode",
                     R"code(Supported values are: ``"same"`` and ``"valid"``.
 
-- ``"same"`` (default): The input and output sizes are the same and ``border`` is used
+- ``"same"`` (default): The input and output sizes are the same and `border` is used
   to handle out-of-bound filter positions.
 - ``"valid"``: the output sample is cropped (by ``filter_extent - 1``) so that all
   filter positions lie fully within the input sample.

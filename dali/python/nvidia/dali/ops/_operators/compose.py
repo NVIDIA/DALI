@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ def Compose(op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]])
         files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
         pipe.set_outputs(decode_and_resize(files), labels)
 
-    If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
+    If there's a transition from CPU to GPU in the middle of the `op_list`, as is the case in this
     example, ``Compose`` automatically arranges copying the data to GPU memory.
 
 

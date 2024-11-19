@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ The number of dimensions of the transform is inferred from this argument.)code",
     "center",
     R"code(The center of the scale operation.
 
-If provided, the number of elements should match the one of ``scale`` argument.)code",
+If provided, the number of elements should match the one of `scale` argument.)code",
     nullptr, true, true)
   .AddOptionalArg<int>(
     "ndim",

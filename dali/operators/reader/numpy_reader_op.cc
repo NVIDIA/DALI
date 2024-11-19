@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,9 +100,9 @@ DALI_SCHEMA(readers__Numpy)
 
 This operator can be used in the following modes:
 
-1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
-2. Read file names from a text file indicated in ``file_list`` argument.
-3. Read files listed in ``files`` argument.
+1. Read all files from a directory indicated by `file_root` that match given `file_filter`.
+2. Read file names from a text file indicated in `file_list` argument.
+3. Read files listed in `files` argument.
 
 .. note::
   The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). which is
@@ -119,29 +119,29 @@ This operator can be used in the following modes:
   .AddOptionalArg<string>("file_root",
       R"(Path to a directory that contains the data files.
 
-If not using ``file_list`` or ``files``, this directory is traversed to discover the files.
-``file_root`` is required in this mode of operation.)",
+If not using `file_list` or `files`. this directory is traversed to discover the files.
+`file_root` is required in this mode of operation.)",
       nullptr)
   .AddOptionalArg("file_filter",
       R"(If a value is specified, the string is interpreted as glob string to filter the
-list of files in the sub-directories of the ``file_root``.
+list of files in the sub-directories of the `file_root`.
 
-This argument is ignored when file paths are taken from ``file_list`` or ``files``.)", "*.npy")
+This argument is ignored when file paths are taken from `file_list` or `files`.)", "*.npy")
   .AddOptionalArg<string>("file_list",
       R"(Path to a text file that contains filenames (one per line)
-where the filenames are relative to the location of that file or to ``file_root``, if specified.
+where the filenames are relative to the location of that file or to `file_root`, if specified.
 
-This argument is mutually exclusive with ``files``.)", nullptr)
+This argument is mutually exclusive with `files`.)", nullptr)
 .AddOptionalArg("shuffle_after_epoch",
       R"(If set to True, the reader shuffles the entire dataset after each epoch.
 
-``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)",
+`stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)",
       false)
   .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
 
-If ``file_root`` is provided, the paths are treated as being relative to it.
+If `file_root` is provided, the paths are treated as being relative to it.
 
-This argument is mutually exclusive with ``file_list``.)", nullptr)
+This argument is mutually exclusive with `file_list`.)", nullptr)
   .AddOptionalArg("register_buffers",
       R"code(Applies **only** to the ``gpu`` backend type.
 
@@ -204,11 +204,11 @@ Here is a list of the supported values:
 
 - ``"error"`` (default): Attempting to read outside of the bounds of the image will produce an error.
 - ``"pad"``: The array will be padded as needed with zeros or any other value that is specified
-  with the ``fill_value`` argument.
+  with the `fill_value` argument.
 - ``"trim_to_shape"``: The ROI will be cut to the bounds of the array.)code",
         "error")
     .AddOptionalArg("fill_value",
-        R"code(Determines the padding value when ``out_of_bounds_policy`` is set to “pad”.)code",
+        R"code(Determines the padding value when `out_of_bounds_policy` is set to “pad”.)code",
         0.f)
     .AddOptionalArg("use_o_direct",
       R"code(If set to True, the data will be read directly from the storage bypassing system

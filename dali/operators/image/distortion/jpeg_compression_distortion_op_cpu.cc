@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ is applied independently to 8x8 pixel blocks, which introduces additional artifa
 at block boundaries.
 
 This operation produces images by subjecting the input to a transformation that
-mimics JPEG compression with given ``quality`` factor followed by decompression.
+mimics JPEG compression with given `quality` factor followed by decompression.
 )code")
     .NumInput(1)
     .InputLayout({"HWC", "FHWC"})

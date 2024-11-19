@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ This argument will be required starting from DALI 2.0.)code")
 The dimensionality of the data provided to the operator will be verified against this value.
 Number of dimensions can be also inferred from the ``layout`` argument if provided.
 
-If the ``layout`` argument is provided, the ``ndim`` must match the number
+If the ``layout`` argument is provided, the `ndim` must match the number
 of dimensions in the layout.
 
 Specifying the input dimensionality will be required starting from DALI 2.0)code", nullptr)

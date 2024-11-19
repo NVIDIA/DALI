@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ Supported values:
 DALI_SCHEMA(ResizeCropMirror)
   .DocStr(R"(Performs a fused resize, crop, mirror operation.
 
-The result of the operation is equivalent to applying ``resize``, followed by ``crop`` and ``flip``.
+The result of the operation is equivalent to applying ``resize``, followed by `crop` and ``flip``.
 Internally, the operator calculates the relevant region of interest and performs a single
 resizing operation on that region.
 .)")

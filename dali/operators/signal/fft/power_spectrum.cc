@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ DALI_SCHEMA(PowerSpectrum)
     .AddOptionalArg<int>("nfft",
       R"code(Size of the FFT.
 
-By default, the ``nfft`` is selected to match the length of the data in the transformation axis.
+By default, the `nfft` is selected to match the length of the data in the transformation axis.
 
 The number of bins that are created in the output is calculated with the following formula::
 

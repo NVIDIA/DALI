@@ -67,7 +67,7 @@ def jax_function(
     preserve: bool = True,
 ) -> DaliCallback:
     """
-    Transforms the Python function ``function`` that processes ``jax.Array`` objects into
+    Transforms the Python function `function` that processes ``jax.Array`` objects into
     DALI operator that can be used inside DALI pipeline definition
     or JAX plugin iterator definition.
     The transformed function accepts and returns the same number of inputs and outputs as the
@@ -92,7 +92,7 @@ def jax_function(
             flipped = flip_horizontal(image)
             return image, flipped
 
-    The ``function`` can be transformed with usual JAX transformations, for example
+    The `function` can be transformed with usual JAX transformations, for example
     we can utilize JAX's just-in-time compilation and vectorization adding
     the appropriate decorators in the above example::
 
@@ -106,8 +106,8 @@ def jax_function(
     streams will be synchronized. The JAX operations do not need to be further
     synchronized by the user.
 
-    The ``jax.Arrays`` passed to the ``function`` must not be accessed after the
-    ``function`` completes (for example, they should not be stored in some non-local scope).
+    The ``jax.Arrays`` passed to the `function` must not be accessed after the
+    `function` completes (for example, they should not be stored in some non-local scope).
 
     .. note::
 
@@ -127,26 +127,26 @@ def jax_function(
         For this reason, the transformed function can only receive DALI batches that
         contain samples of uniform shape.
     num_outputs : int, default=1
-        The number of outputs returned by the ``function``.
+        The number of outputs returned by the `function`.
 
         Function can return no output, in that case the `num_outputs` must be set to 0.
-        If the ``num_outputs`` is 1 (the default), callback should return a single JAX array,
-        for ``num_outputs`` > 1, callback should return a tuple of JAX arrays.
+        If the `num_outputs` is 1 (the default), callback should return a single JAX array,
+        for `num_outputs` > 1, callback should return a tuple of JAX arrays.
     output_layouts: Union[str, Tuple[str]], optional
         The layouts of returned tensors.
 
-        It can be either a list of strings for all of ``num_outputs`` respective outputs
+        It can be either a list of strings for all of `num_outputs` respective outputs
         or a single string to be set to all of the outputs.
 
         Please note, in DALI, the outermost batch extent is implicit, the layout should
         take into account only the sample dimensions.
 
-        If the argument is not specified and the ``function``'s i-th output has the same
+        If the argument is not specified and the `function`'s i-th output has the same
         dimensionality as the i-th input, the layout will be propagated from the input to
         the corresponding output.
     sharding: jax.sharding.Sharding, optional
         The JAX sharding object (either ``PositionalSharding`` or ``NamedSharding``).
-        If specified, the ``jax.Arrays`` passed to the ``function`` will be a global
+        If specified, the ``jax.Arrays`` passed to the `function` will be a global
         ``jax.Array`` aware of the sharding.
 
         .. note::

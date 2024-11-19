@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ namespace dali {
 DALI_SCHEMA(OneHot)
   .DocStr(R"code(Produces a one-hot encoding of the input.
 
-Adds a new axis or converts scalar input into an axis of ``num_classes`` elements.
+Adds a new axis or converts scalar input into an axis of `num_classes` elements.
 
 For given input coordinate ``(x0, x1, ..., xn)``, and ``axis = k``, the output sample is specified as::
 
@@ -31,14 +31,14 @@ For given input coordinate ``(x0, x1, ..., xn)``, and ``axis = k``, the output s
 
 for all ``i`` in range ``[0, num_classes)``.
 
-For scalars, the output is set to ``on_value`` at the index taken from ``input`` and
-``off_value`` elsewhere::
+For scalars, the output is set to `on_value` at the index taken from ``input`` and
+`off_value` elsewhere::
 
   output[i] = on_value if i == input else off_value
 
 For backward compatibility, any input in which all tensors have only one element
 (regardless of the number of dimensions) is considered scalar. Legacy interpretation of tensors
-as scalars is not supported if ``axis`` argument is specified.)code")
+as scalars is not supported if `axis` argument is specified.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("num_classes", R"code(Number of all classes in the data.)code", 0)
@@ -50,12 +50,12 @@ it becomes the only dimension.)code", -1)
                   R"code(Value that will be used to fill the output to indicate given class
 in the corresponding input coordinate.
 
-This value will be cast to the ``dtype`` type.)code", 1.f)
+This value will be cast to the `dtype` type.)code", 1.f)
   .AddOptionalArg("off_value",
                   R"code(Value that will be used to fill the output to indicate the lack of given
 class in the corresponding input coordinate.
 
-This value will be cast to the ``dtype`` type.)code", 0.f)
+This value will be cast to the `dtype` type.)code", 0.f)
   .AddOptionalArg<std::string>("axis_name",
                   R"code(Single character that will be used as a name for the newly added
 dimension in the output layout. If no character is provided, the output layout will be

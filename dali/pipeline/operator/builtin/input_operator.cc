@@ -39,7 +39,7 @@ have been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
 ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
 the ``feed_input`` call.
 
-The memory location must match the specified ``device`` parameter of the operator.
+The memory location must match the specified `device` parameter of the operator.
 For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
 For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
 of separate Tensors, there will be an additional copy made internally, consuming both memory

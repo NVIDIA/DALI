@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,21 +29,21 @@ namespace dali {
 DALI_SCHEMA(segmentation__RandomMaskPixel)
     .DocStr(R"(Selects random pixel coordinates in a mask, sampled from a uniform distribution.
 
-Based on run-time argument ``foreground``, it returns either only foreground pixels or any pixels.
+Based on run-time argument `foreground`, it returns either only foreground pixels or any pixels.
 
-Pixels are classified as foreground either when their value exceeds a given ``threshold`` or when
-it's equal to a specific ``value``.
+Pixels are classified as foreground either when their value exceeds a given `threshold` or when
+it's equal to a specific `value`.
 )")
     .AddOptionalArg<int>("value",
       R"code(All pixels equal to this value are interpreted as foreground.
 
-This argument is mutually exclusive with ``threshold`` argument and is meant to be used only
+This argument is mutually exclusive with `threshold` argument and is meant to be used only
 with integer inputs.
 )code", nullptr, true)
     .AddOptionalArg<float>("threshold",
       R"code(All pixels with a value above this threshold are interpreted as foreground.
 
-This argument is mutually exclusive with ``value`` argument.
+This argument is mutually exclusive with `value` argument.
 )code", 0.0f, true)
     .AddOptionalArg("foreground",
       R"code(If different than 0, the pixel position is sampled uniformly from all foreground pixels.

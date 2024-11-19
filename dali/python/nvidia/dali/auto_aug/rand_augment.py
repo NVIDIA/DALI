@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -150,9 +150,9 @@ def apply_rand_augment(
     **kwargs,
 ) -> _DataNode:
     """
-    Applies the list of ``augmentations`` in RandAugment (https://arxiv.org/abs/1909.13719) fashion.
-    Each sample is transformed with ``n`` operations in a sequence randomly selected from the
-    ``augmentations`` list. Each operation uses ``m`` as the magnitude bin.
+    Applies the list of `augmentations` in RandAugment (https://arxiv.org/abs/1909.13719) fashion.
+    Each sample is transformed with `n` operations in a sequence randomly selected from the
+    `augmentations` list. Each operation uses `m` as the magnitude bin.
 
     Args
     ----

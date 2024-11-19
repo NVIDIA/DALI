@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,9 +66,9 @@ DALI_REGISTER_OPERATOR(LookupTable, LookupTable<CPUBackend>, CPU);
 
 DALI_SCHEMA(LookupTable)
   .DocStr(R"code(Maps the input to output by using a lookup table that is specified by
-``keys`` and ``values``, and a ``default_value`` for unspecified keys.
+`keys` and `values`, and a `default_value` for unspecified keys.
 
-For example when ``keys`` and ``values`` are used to define the lookup table in the following way::
+For example when `keys` and `values` are used to define the lookup table in the following way::
 
   keys[] =   {0,     2,   3,   4,   5,    3}
   values[] = {0.2, 0.4, 0.5, 0.6, 0.7, 0.10}
@@ -109,13 +109,13 @@ Here is a practical example, considering the table defined above::
   .AddOptionalArg("keys",
     R"code(A list of input values (keys) in the lookup table.
 
-The length of ``keys`` and ``values`` argument must match. The values in ``keys`` should be in the
+The length of `keys` and `values` argument must match. The values in `keys` should be in the
 [0, )code" + std::to_string(LookupTable<CPUBackend>::kMaxKey) + " ] range.",
     std::vector<int>{})
   .AddOptionalArg("values",
-    R"code(A list of mapped output ``values`` for each ``keys`` entry.
+    R"code(A list of mapped output `values` for each `keys` entry.
 
-The length of the ``keys`` and the ``values`` argument must match.
+The length of the `keys` and the `values` argument must match.
 )code",
     std::vector<float>{});
 
