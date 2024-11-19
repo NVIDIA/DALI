@@ -27,22 +27,22 @@ typedef struct _DALITensor *daliTensor_h;
 typedef struct _DALITensorList *daliTensorList_h;
 
 typedef enum {
-  daliSuccess = 0,
-  daliNotReady,
-  daliErrorInvalidHandle,
-  daliErrorInvalidArgument,
-  daliErrorInvalidType,
-  daliErrorInvalidOperation,
-  daliErrorOutOfRange,
+  DALI_SUCCESS = 0,
+  DALI_NOT_READY,
+  DALI_ERROR_INVALID_HANDLE,
+  DALI_ERROR_INVALID_ARGUMENT,
+  DALI_ERROR_INVALID_TYPE,
+  DALI_ERROR_INVALID_OPERATION,
+  DALI_ERROR_OUT_OF_RANGE,
 
-  daliErrorFileNotFound,
-  daliErrorIOError,
+  DALI_ERROR_FILE_NOT_FOUND,
+  DALI_ERROR_I_O_ERROR,
 
-  daliErrorInternal,
-  daliErrorUnloading,
+  DALI_ERROR_INTERNAL,
+  DALI_ERROR_UNLOADING,
 
-  daliErrorOutOfMemory = 0x100,
-  daliErrorCUDAError = 0x1000,
+  DALI_ERROR_OUT_OF_MEMORY = 0X100,
+  DALI_ERROR_CUDA_ERROR = 0X1000,
 
   DALI_ERROR_FORCE_INT32 = 0x7fffffff
 } daliError_t;
@@ -90,9 +90,62 @@ daliError_t daliShutdown();
 
 /*** PIPELINE API ***********************************************************/
 
-typedef _DALIPipelineParams {
+typedef enum _DALIExecType {
+  /** The exeuctor processes data ahead, overlapping CPU/Mixed/GPU operators */
+  DALI_EXEC_IS_PIPELINED    = 1,
+  /** The executor operates in thread(s) other than the one that calls the pipeline Run */
+  DALI_EXEC_IS_ASYNC        = 2,
+  /** Deprecated: The executor uses separate CPU/GPU queues */
+  DALI_EXEC_IS_SEPARATED    = 4,
+  /** Use dynamic executor, with unrestricted operator order and aggressive memory reuse */
+  DALI_EXEC_IS_DYNAMIC      = 8,
 
-  int prefetch_queue_depth;
+  /** Use a synchronous, non-pipelined executor; useful for debugging. */
+  DALI_EXEC_SIMPLE          = 0,
+  /** Use an asynchronous pipelined executor, the default one. */
+  DALI_EXEC_ASYNC_PIPELINED = DALI_EXEC_IS_PIPELINED | DALI_EXEC_IS_ASYNC,
+  /** Use the dynamic executor.
+   *
+   * The dynamic executor offers more flexibility, better memory efficiency and unrestricted
+   * lifetime of the pipeline outputs at the expense of more overhead in simple pipelines. */
+  DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
+} daliExecFlags_t;
+
+typedef _DALIPipelineParams {
+  size_t size;  /* must be sizeof(daliPipelineParams_t) */
+  struct {
+    uint64_t has_max_batch_size : 1;
+    uint64_t has_num_threads : 1;
+    uint64_t has_max_batch_size : 1;
+    uint64_t has_seed : 1;
+    uint64_t has_prefetch_queue_depth : 1;
+    uint64_t has_enable_memory_stats : 1;
+    uint64_t
+  };
+  int max_batch_size;
+  int num_threads;
+
+        batch_size=-1,
+        num_threads=-1,
+        device_id=-1,
+        seed=-1,
+        exec_pipelined=True,
+        prefetch_queue_depth=2,
+        exec_async=True,
+        bytes_per_sample_hint=0,
+        set_affinity=False,
+        default_cuda_stream_priority=0,
+        *,
+        enable_memory_stats=False,
+        enable_checkpointing=False,
+        checkpoint=None,
+        py_num_workers=1,
+        py_start_method="fork",
+        py_callback_pickler=None,
+        output_dtype=None,
+        output_ndim=None,
+
+
 } daliPipelineParams_t;
 
 daliError_t daliPipelineCreate(daliPipeline_h *out_pipe_handle, const daliPipelineParams_t *params);
