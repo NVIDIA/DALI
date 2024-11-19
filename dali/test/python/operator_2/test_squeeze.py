@@ -116,7 +116,7 @@ def test_squeeze_throw_error():
         "Requested a shape with 100 elements but the original shape has 1000 elements.",
         "Axis 'C' is not present in the input layout",
         "Requested a shape with 1 elements but the original shape has 10 elements.",
-        "Provided both ``axes`` and `axis_names` arguments",
+        "Provided both ``axes`` and ``axis_names`` arguments",
         "Requested a shape with 100 elements but the original shape has 0 elements.",
         "Specified at least twice same dimension to remove.",
     ]

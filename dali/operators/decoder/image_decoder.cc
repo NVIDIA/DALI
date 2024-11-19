@@ -265,7 +265,7 @@ The slice can be configured by providing start and end coordinates or start and 
 Relative and absolute arguments can be mixed (for example, `rel_start` can be used with `shape`)
 as long as start and shape or end are uniquely defined.
 
-Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and `shape`.
+Alternatively, two extra positional inputs can be provided, specifying `__anchor` and `__shape`.
 When using positional inputs, two extra boolean arguments `normalized_anchor`/`normalized_shape`
 can be used to specify the nature of the arguments provided. Using positional inputs for anchor
 and shape is incompatible with the named arguments specified above.

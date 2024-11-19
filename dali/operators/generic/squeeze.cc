@@ -50,8 +50,8 @@ Squeeze<Backend>::Squeeze(const OpSpec &spec)
   axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
 
     DALI_ENFORCE(spec.HasArgument("axes") + spec.HasArgument("axis_names") == 1,
-      spec.HasArgument("axes") ? "Provided both `axes` and `axis_names` arguments"
-                               : "Missing argument `axes` or `axis_names`.");
+      spec.HasArgument("axes") ? "Provided both ``axes`` and ``axis_names`` arguments"
+                               : "Missing argument ``axes`` or ``axis_names``.");
 
   this->use_src_dims_ = true;
 }

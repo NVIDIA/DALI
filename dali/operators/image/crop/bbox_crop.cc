@@ -158,17 +158,17 @@ the bounding boxes.
 
 **Outputs: 0**: anchor, 1: shape, 2: bboxes (, 3: labels, 4: bboxes_indices)
 
-The resulting crop parameters are provided as two separate outputs, ``anchor`` and `shape`.
+The resulting crop parameters are provided as two separate outputs, `anchor` and `shape`
 that can be fed directly to the :meth:`nvidia.dali.fn.slice` operator to complete the cropping
-of the original image. ``anchor`` and `shape`.contain the starting coordinates and dimensions
+of the original image. `anchor` and `shape` contain the starting coordinates and dimensions
 for the crop in the ``[x, y, (z)]`` and ``[w, h, (d)]`` formats, respectively. The coordinates can
 be represented in absolute or relative terms, and the representation depends on whether
 the fixed `crop_shape` was used.
 
 .. note::
-  Both ``anchor`` and `shape`.are returned as a ``float``, even if they represent absolute
+  Both `anchor` and `shape` are returned as a ``float``, even if they represent absolute
   coordinates due to providing `crop_shape` argument. In order for them to be interpreted
-  correctly by :meth:`nvidia.dali.fn.slice`, ``normalized_anchor`` and ``normalized_shape``
+  correctly by :meth:`nvidia.dali.fn.slice`, `normalized_anchor` and `normalized_shape`
   should be set to False.
 
 

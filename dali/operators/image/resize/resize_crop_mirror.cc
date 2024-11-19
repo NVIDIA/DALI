@@ -33,7 +33,7 @@ Supported values:
 DALI_SCHEMA(ResizeCropMirror)
   .DocStr(R"(Performs a fused resize, crop, mirror operation.
 
-The result of the operation is equivalent to applying ``resize``, followed by `crop` and ``flip``.
+The result of the operation is equivalent to applying ``resize``, followed by ``crop`` and ``flip``.
 Internally, the operator calculates the relevant region of interest and performs a single
 resizing operation on that region.
 .)")

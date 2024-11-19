@@ -44,7 +44,7 @@ For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
 results in the output shape ``[240, 3840]``.
 
 .. note::
-  `rel_shape` and `shape`.are mutually exclusive.
+  `rel_shape` and `shape` are mutually exclusive.
 )code",
                   std::vector<int>(), true)
   .AddOptionalArg<float>("rel_shape", R"code(The relative shape of the output.
@@ -71,7 +71,7 @@ The number of dimensions is subject to the following restrictions:
   the end will be added
 
 .. note::
-  `rel_shape` and `shape`.are mutually exclusive.
+  `rel_shape` and `shape` are mutually exclusive.
 )code",
                   std::vector<float>(), true)
   .AddOptionalArg("layout", R"code(New layout for the data.

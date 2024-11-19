@@ -32,9 +32,9 @@ DALI_SCHEMA(Erase)
 The region is specified by an `anchor` (starting point) and a `shape` (dimensions).
 Only the relevant dimensions are specified.
 Not specified dimensions are treated as if the entire range of the axis was provided.
-To specify multiple regions, `anchor` and `shape`.represent multiple points consecutively
-(for example, `anchor` = (y0, x0, y1, x1, ...) and `shape`.= (h0, w0, h1, w1, ...)).
-The `anchor` and `shape`.arguments are interpreted based on the value of the `axis_names`
+To specify multiple regions, `anchor` and `shape` represent multiple points consecutively
+(for example, `anchor` = (y0, x0, y1, x1, ...) and `shape` = (h0, w0, h1, w1, ...)).
+The `anchor` and `shape` arguments are interpreted based on the value of the `axis_names`
 argument, or, alternatively, the value of the `axes` argument. If no `axis_names` or
 `axes` arguments are provided, all dimensions except ``C`` (channels) must be specified.
 

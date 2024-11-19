@@ -25,12 +25,12 @@ DALI_SCHEMA(BbFlip)
     .DocStr(R"code(Flips bounding boxes horizontally or vertically (mirror).
 
 The bounding box coordinates for the  input are in the [x, y, width, height] - ``xywh`` or
-[left, top, right, bottom] - `ltrb` format. All coordinates are in the image coordinate
+[left, top, right, bottom] - ``ltrb`` format. All coordinates are in the image coordinate
 system, that is 0.0-1.0)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("ltrb",
-                    R"code(True for `ltrb` or False for ``xywh``.)code",
+                    R"code(True for ``ltrb`` or False for ``xywh``.)code",
                     false, false)
     .AddOptionalArg("horizontal",
                     R"code(Flip horizontal dimension.)code",

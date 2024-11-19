@@ -45,7 +45,7 @@ canvas and ``(1,1)`` aligns it to bottom-right.
       R"code(Ratio of the canvas size to the input size; the value must be at least 1.)code",
       DALI_FLOAT, true)
   .AddOptionalArg("ltrb",
-              R"code(True for `ltrb` or False for ``xywh``.)code",
+              R"code(True for ``ltrb`` or False for ``xywh``.)code",
               false, false)
   .AddOptionalArg("paste_x",
       R"code(Horizontal position of the paste in image coordinates (0.0 - 1.0).)code",
