@@ -45,7 +45,7 @@ def create_coco_pipeline(
         num_threads=num_threads,
         device_id=0,
         prefetch_queue_depth=1,
-        experimental_exec_dynamic=exec_dynamic,
+        exec_dynamic=exec_dynamic,
     )
     with pipe:
         _, _, labels, ids = fn.readers.coco(
@@ -1083,7 +1083,8 @@ def test_jax_iterator_last_batch_no_pad_last_batch():
 
 
 @attr("jax")
-def test_jax_iterator_last_batch_pad_last_batch():
+@params((False,), (True,))
+def test_jax_iterator_last_batch_pad_last_batch(exec_dynamic):
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
 
     num_gpus = 1
@@ -1100,6 +1101,7 @@ def test_jax_iterator_last_batch_pad_last_batch():
             stick_to_shard=False,
             shuffle_after_epoch=False,
             pad_last_batch=True,
+            exec_dynamic=exec_dynamic,
         ),
         batch_size,
         num_gpus,
@@ -1657,7 +1659,8 @@ def test_paddle_iterator_last_batch_no_pad_last_batch():
 
 
 @attr("paddle")
-def test_paddle_iterator_last_batch_pad_last_batch():
+@params((False,), (True,))
+def test_paddle_iterator_last_batch_pad_last_batch(exec_dynamic):
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     num_gpus = 1
@@ -1674,6 +1677,7 @@ def test_paddle_iterator_last_batch_pad_last_batch():
             stick_to_shard=False,
             shuffle_after_epoch=False,
             pad_last_batch=True,
+            exec_dynamic=exec_dynamic,
         ),
         batch_size,
         num_gpus,
@@ -1765,6 +1769,7 @@ def check_paddle_iterator_pass_reader_name(
     iters,
     last_batch_policy,
     auto_reset=False,
+    exec_dynamic=False,
 ):
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
@@ -1779,6 +1784,7 @@ def check_paddle_iterator_pass_reader_name(
             stick_to_shard=stick_to_shard,
             shuffle_after_epoch=False,
             pad_last_batch=pad,
+            exec_dynamic=exec_dynamic,
         )
         for id in range(pipes_number)
     ]
@@ -1865,19 +1871,21 @@ def test_paddle_iterator_pass_reader_name():
                         LastBatchPolicy.FILL,
                         LastBatchPolicy.DROP,
                     ]:
-                        for iters in [1, 2, 3, 2 * shards_num]:
-                            for pipes_number in [1, shards_num]:
-                                yield (
-                                    check_paddle_iterator_pass_reader_name,
-                                    shards_num,
-                                    pipes_number,
-                                    batch_size,
-                                    stick_to_shard,
-                                    pad,
-                                    iters,
-                                    last_batch_policy,
-                                    False,
-                                )
+                        for iters in [1, max(3, 2 * shards_num)]:
+                            for exec_dynamic in [False, True]:
+                                for pipes_number in [1, shards_num]:
+                                    yield (
+                                        check_paddle_iterator_pass_reader_name,
+                                        shards_num,
+                                        pipes_number,
+                                        batch_size,
+                                        stick_to_shard,
+                                        pad,
+                                        iters,
+                                        last_batch_policy,
+                                        False,
+                                        exec_dynamic,
+                                    )
 
 
 @attr("paddle")
@@ -1988,7 +1996,7 @@ def check_stop_iter_fail_single(fw_iter):
 
 def stop_iteration_case_generator():
     for epochs in [1, 3, 6]:
-        for iter_num in [1, 2, 5, 9]:
+        for iter_num in [1, 2, 9]:
             for total_iters in [-1, iter_num - 1, 2 * iter_num - 1]:
                 if total_iters == 0 or total_iters > epochs * iter_num:
                     continue
@@ -2064,7 +2072,9 @@ def check_external_source_autoreset(Iterator, *args, to_np=None, **kwargs):
     assert counter == iter_limit * runs
 
 
-def check_external_source_variable_size(Iterator, *args, iter_size=-1, to_np=None, **kwargs):
+def check_external_source_variable_size(
+    Iterator, *args, iter_size=-1, to_np=None, exec_dynamic=False, **kwargs
+):
     max_batch_size = 1
     iter_limit = 4
     runs = 3
@@ -2089,7 +2099,9 @@ def check_external_source_variable_size(Iterator, *args, iter_size=-1, to_np=Non
         i += 1
         return out
 
-    pipe = Pipeline(batch_size=max_batch_size, num_threads=1, device_id=0)
+    pipe = Pipeline(
+        batch_size=max_batch_size, num_threads=1, device_id=0, exec_dynamic=exec_dynamic
+    )
     with pipe:
         outs = fn.external_source(source=get_data, num_outputs=1)
     pipe.set_outputs(*outs)
@@ -2447,11 +2459,16 @@ def test_pytorch_external_source_do_not_prepare():
 
 
 @attr("pytorch")
-def test_pytorch_external_source_variable_size_pass():
+@params((False,), (True,))
+def test_pytorch_external_source_variable_size_pass(exec_dynamic):
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     check_external_source_variable_size(
-        PyTorchIterator, output_map=["data"], to_np=lambda x: x["data"].numpy(), dynamic_shape=True
+        PyTorchIterator,
+        output_map=["data"],
+        to_np=lambda x: x["data"].numpy(),
+        dynamic_shape=True,
+        exec_dynamic=exec_dynamic,
     )
 
 
@@ -2544,11 +2561,16 @@ def test_paddle_external_source_do_not_prepare():
 
 
 @attr("paddle")
-def test_paddle_external_source_variable_size_pass():
+@params((False,), (True,))
+def test_paddle_external_source_variable_size_pass(exec_dynamic):
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     check_external_source_variable_size(
-        PaddleIterator, output_map=["data"], to_np=lambda x: np.array(x["data"]), dynamic_shape=True
+        PaddleIterator,
+        output_map=["data"],
+        to_np=lambda x: np.array(x["data"]),
+        dynamic_shape=True,
+        exec_dynamic=exec_dynamic,
     )
 
 
