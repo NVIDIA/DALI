@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -539,13 +539,13 @@ class Observer:
     Closes the whole pool of worker processes if any of the processes exits. The processes can also
     be closed from the main process by calling observer `close` method.
     ----------
-    `mp` : Python's multiprocessing context (depending on start method used: `spawn` or `fork`)
-    `processes` : List of multiprocessing Process instances
-    `task_queues` : List[ShmQueue]
+    mp : Python's multiprocessing context (depending on start method used: `spawn` or `fork`)
+    processes : List of multiprocessing Process instances
+    task_queues : List[ShmQueue]
         Queues that worker processes take tasks from. If `close` method is called and none of
         the processes exited abruptly so far, the queues will be used to notify the workers about
         closing to let the workers gracefully exit.
-    `result_queue` : ShmQueue
+    result_queue : ShmQueue
         Queue where worker processes report completed tasks. It gets closed along with the worker
         processes, to prevent the main process blocking on waiting for results from the workers.
     """
@@ -627,9 +627,9 @@ class WorkerPool:
         """
         Parameters
         ----------
-        `contexts` : List[CallbackContext]
+        contexts : List[CallbackContext]
             List of callbacks' contexts to be handled by the Worker.
-        `pool` : ProcPool
+        pool : ProcPool
             ProcPool instance enabling basic communication with worker processes, it should be
             initialized with `contexts`.
         """
@@ -659,21 +659,21 @@ class WorkerPool:
 
         Parameters
         ----------
-        `groups` : _ExternalSourceGroup list
+        groups : _ExternalSourceGroup list
             List of external source groups.
-        `keep_alive_queue_size` : int
+        keep_alive_queue_size : int
             Number of the most recently produced batches whose underlying shared memory should
             remain untouched (because they might still be referenced further in the pipeline).
             Note that the actual number of simultaneously kept batches will be greater by the length
             of parallel external source prefetching queue which is at least one.
-        `batch_size` : int, optional
+        batch_size : int, optional
             Maximal batch size. For now, used only to estimate initial capacity of virtual
             memory slots.
-        `start_method` : str
+        start_method : str
             Method of starting worker processes, either fork or spawn.
-        `num_workers` : int
+        num_workers : int
             Number of workers to be created in ProcPool.
-        `min_initial_chunk_size` : int
+        min_initial_chunk_size : int
             Minimal initial size of each shared memory chunk.
             NOTE it must be enough to accommodate serialized `ScheduledTask` instance.
         """
@@ -764,10 +764,10 @@ class WorkerPool:
 
         Parameters
         ----------
-        `context_i` : int
+        context_i : int
             Specifies which callback will be used to run the task, it must be the index
             corresponding to the order of callbacks passed when constructing WorkerPool.
-        `work_batch` : TaskArgs
+        work_batch : TaskArgs
             Wrapper around parameters produced by the ExternalSource describing the next batch.
         """
         context = self.contexts[context_i]
@@ -834,7 +834,7 @@ class WorkerPool:
 
         Parameters
         ----------
-        `context_i` : int
+        context_i : int
             Specifies which callback you want the results from, ordering corresponds to the order of
             callbacks passed when constructing the pool.
         """

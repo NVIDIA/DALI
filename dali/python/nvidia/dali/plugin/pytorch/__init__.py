@@ -63,11 +63,11 @@ def feed_ndarray(
 
     Parameters
     ----------
-    `dali_tensor` : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
+    dali_tensor : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
                     Tensor from which to copy
-    `arr` : torch.Tensor
+    arr : torch.Tensor
             Destination of the copy
-    `cuda_stream` : torch.cuda.Stream, cudaStream_t or any value that can be cast to cudaStream_t.
+    cuda_stream : torch.cuda.Stream, cudaStream_t or any value that can be cast to cudaStream_t.
                     CUDA stream to be used for the copy
                     (if not provided, an internal user stream will be selected)
                     In most cases, using pytorch's current stream is expected (for example,

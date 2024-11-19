@@ -140,7 +140,7 @@ class DLL_PUBLIC OpSchema {
    * only the first `min` inputs are considered mandatory, the rest are optional
    *
    * Will generate entry in `Args` section using numpydoc style:
-   * `name`: type_doc
+   * name : type_doc
    *     doc
    */
   DLL_PUBLIC OpSchema &InputDox(int index, const string &name, const string &type_doc,
@@ -158,11 +158,11 @@ class DLL_PUBLIC OpSchema {
    * """
    * Args
    * ----
-   * `input0`: Type of input
+   * input0 : Type of input
    *     This is the first input
-   * `input1`: TensorList of some kind
+   * input1 : TensorList of some kind
    *     This is second input
-   * `optional_input`: TensorList, optional
+   * optional_input : TensorList, optional
    *     This is optional input
    *
    * If the `append_kwargs_section` is true, the docstring generator will append the Keyword args

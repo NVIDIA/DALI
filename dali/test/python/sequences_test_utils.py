@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,17 +63,17 @@ class ArgCb:
     """
     Describes a callback to be used as a per-sample/per-frame argument to the operator.
     ----------
-    `name` : Union[str, int]
+    name : Union[str, int]
         String with the name of a named argument of the operator or an int if the data
              should be passed as a positional input.
-    `cb` : Callable[[SampleDesc], np.ndarray]
+    cb : Callable[[SampleDesc], np.ndarray]
         Callback that based on the SampleDesc instance produces a single parameter for
              specific sample/frame.
-    `is_per_frame` : bool
+    is_per_frame : bool
         Flag if the cb should be run for every sample (sequence) or for every frame.
              In the latter case, the argument is passed wrapped
              in per-frame call to the operator.
-    `dest_device` : str
+    dest_device : str
         Controls whether the produced data should be passed to the operator in cpu or gpu memory.
         If set to "gpu", the copy to gpu is added in the pipeline.
              Applicable only to positional inputs.
@@ -372,13 +372,13 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
     fn.op([frame for sequence in batch for frame in sequence])
         == [frame for sequence in fn.op(batch) for frame in sequence]
     ----------
-    `input_cases`: List[ArgData].
+    input_cases : List[ArgData].
         Each ArgData instance describes a single parameter (positional or named) that will be
         passed to the pipeline and serve as a source of truth (regarding the number of expandable
         dimensions and sequence shape). Based on it, all other inputs defined through ArgCb
         in `ops_test_cases` will be computed.
         Note the `.desc.device` argument is ignored in favour of `ops_test_case` devices list.
-    `ops_test_cases` : List[Tuple[
+    ops_test_cases : List[Tuple[
             Operator,
             Dict[str, Any],
             ParamProviderBase|List[ArgCb]]
@@ -498,10 +498,10 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
     For testing operator with different input than the video,
     consider using `sequence_suite_helper` directly.
     ----------
-    `ops_test_cases` : (see `sequence_suite_helper`).
-    `test_channel_first` : bool
+    ops_test_cases : (see `sequence_suite_helper`).
+    test_channel_first : bool
         If True, the "FCHW" layout is tested.
-    `expand_channels` : bool
+    expand_channels : bool
         If True, for the "FCHW" layout the first two (and not just one) dims are expanded,
         and "CFHW" layout is tested. Requires `test_channel_first` to be True.
     """
