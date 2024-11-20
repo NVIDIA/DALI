@@ -109,41 +109,65 @@ typedef enum _DALIExecType {
    * The dynamic executor offers more flexibility, better memory efficiency and unrestricted
    * lifetime of the pipeline outputs at the expense of more overhead in simple pipelines. */
   DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
-} daliExecFlags_t;
+} daliExecType_t;
+
+typedef uint8_t daliBool;
+
+/*#define DALI_DEFINE_OPTIONAL_TYPE(value_type, ...) \
+  typedef struct {                                 \
+    daliBool has_value;                            \
+    value_type value;                              \
+  } __VA_ARGS__;
+
+
+DALI_DEFINE_OPTIONAL_TYPE(daliBool, daliOptionalBool_t);
+DALI_DEFINE_OPTIONAL_TYPE(int32_t, daliOptionalInt_t, daliOptionalInt32_t);
+DALI_DEFINE_OPTIONAL_TYPE(uint32_t, daliOptionalInt_t, daliOptionalInt32_t);
+DALI_DEFINE_OPTIONAL_TYPE(int64_t, daliOptionalInt64_t);
+DALI_DEFINE_OPTIONAL_TYPE(uint64_t, daliOptionalInt64_t);
+DALI_DEFINE_OPTIONAL_TYPE(float, daliOptionalFloat_t);
+DALI_DEFINE_OPTIONAL_TYPE(double, daliOptionalDouble_t);*/
 
 typedef _DALIPipelineParams {
   size_t size;  /* must be sizeof(daliPipelineParams_t) */
   struct {
-    uint64_t has_max_batch_size : 1;
-    uint64_t has_num_threads : 1;
-    uint64_t has_max_batch_size : 1;
-    uint64_t has_seed : 1;
-    uint64_t has_prefetch_queue_depth : 1;
-    uint64_t has_enable_memory_stats : 1;
-    uint64_t
+    uint64_t max_batch_size_present : 1;
+    uint64_t num_threads_present    : 1;
+    uint64_t device_id_present      : 1;
+    uint64_t seed_present           : 1;
+    uint64_t exec_flags_present     : 1;
+    uint64_t exec_type_present      : 1;
+    uint64_t enable_checkpointing_present : 1;
+    uint64_t enable_memory_stats_present  : 1;
   };
-  int max_batch_size;
+  int batch_size;
   int num_threads;
+  int device_id;
+  int64_t seed;
+  daliExecType_t exec_type;
+  int enable_checkpointing;
+  int enable_memory_stats;
 
-        batch_size=-1,
-        num_threads=-1,
-        device_id=-1,
-        seed=-1,
-        exec_pipelined=True,
-        prefetch_queue_depth=2,
-        exec_async=True,
-        bytes_per_sample_hint=0,
-        set_affinity=False,
-        default_cuda_stream_priority=0,
-        *,
-        enable_memory_stats=False,
-        enable_checkpointing=False,
-        checkpoint=None,
-        py_num_workers=1,
-        py_start_method="fork",
-        py_callback_pickler=None,
-        output_dtype=None,
-        output_ndim=None,
+
+    batch_size=-1,
+    num_threads=-1,
+    device_id=-1,
+    seed=-1,
+    exec_pipelined=True,
+    prefetch_queue_depth=2,
+    exec_async=True,
+    bytes_per_sample_hint=0,
+    set_affinity=False,
+    default_cuda_stream_priority=0,
+    *,
+    enable_memory_stats=False,
+    enable_checkpointing=False,
+    checkpoint=None,
+    py_num_workers=1,
+    py_start_method="fork",
+    py_callback_pickler=None,
+    output_dtype=None,
+    output_ndim=None,
 
 
 } daliPipelineParams_t;
