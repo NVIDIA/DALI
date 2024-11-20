@@ -597,6 +597,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     int precision = st.image_info.plane_info[0].precision;
     if (precision == 0)
       precision = PositiveBits(st.parsed_sample.orig_dtype);
+    if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8)
+      precision = 8;  // nvimgcodec produces at minimum uint8 dynamic range (0..255)
     bool need_dynamic_range_scaling =
         NeedDynamicRangeScaling(precision, st.parsed_sample.orig_dtype);
     st.dyn_range_multiplier = need_dynamic_range_scaling ?
