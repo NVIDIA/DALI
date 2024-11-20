@@ -102,11 +102,9 @@ def create_decoder_slice_pipeline(data_path, device):
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
-    # images_sliced_1 = fn.experimental.decoders.image_slice(
-    #     jpegs, anchor, shape, axes=(0, 1), device=device, hw_decoder_load=0.7
-    # )
-    images1 = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
-    images_sliced_1 = fn.slice(images1, anchor, shape, axes=(0, 1))
+    images_sliced_1 = fn.experimental.decoders.image_slice(
+        jpegs, anchor, shape, axes=(0, 1), device=device, hw_decoder_load=0.7
+    )
 
     images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
     images_sliced_2 = fn.slice(images, anchor, shape, axes=(0, 1))
@@ -179,7 +177,10 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
                 dump_as_core_artifacts(
                     img_1.source_info(), arr_1, arr_2, iter=it, sample_idx=sample_idx
                 )
-            assert is_ok, f"{validation_fun.__name__}\nimage: {img_1.source_info()} iter: {it} sample_idx: {sample_idx}"
+            assert is_ok, (
+                f"{validation_fun.__name__}\n"
+                + "image: {img_1.source_info()} iter: {it} sample_idx: {sample_idx}"
+            )
 
 
 def test_image_decoder_fused():
@@ -204,23 +205,8 @@ def test_image_decoder_fused():
 
             validation_fun = mean_close
         else:
-            def mean_close(x, y):
-                import cv2
-                cv2.imwrite(
-                    f"./x.bmp", cv2.cvtColor(x, cv2.COLOR_BGR2RGB)
-                )
-                cv2.imwrite(
-                    f"./y.bmp", cv2.cvtColor(y, cv2.COLOR_BGR2RGB)
-                )
-                # if not np.allclose(x, y):
-                #     import cv2
-                #     cv2.imwrite(
-                #         f"./x.bmp", cv2.cvtColor(x, cv2.COLOR_BGR2RGB)
-                #     )
-                #     cv2.imwrite(
-                #         f"./y.bmp", cv2.cvtColor(y, cv2.COLOR_BGR2RGB)
-                #     )
 
+            def mean_close(x, y):
                 return np.allclose(x, y)
 
             validation_fun = mean_close
