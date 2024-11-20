@@ -47,11 +47,11 @@ can be used to specify the nature of the arguments provided. Using positional in
 and shape is incompatible with the named arguments specified above.
 
 .. note::
-    For GPU backend and positional inputs `__anchor` and `shape`, both CPU and GPU data nodes
+    For GPU backend and positional inputs `__anchor` and `__shape`, both CPU and GPU data nodes
     are accepted, though CPU inputs are preferred.
     Providing those arguments as GPU inputs will result in an additional device-to-host copy with
     its associated synchronization point.
-    When possible, provide `__anchor` and `shape` as CPU inputs.
+    When possible, provide `__anchor` and `__shape` as CPU inputs.
 
 The slice arguments should provide as many dimensions as specified by the `axis_names` or `axes`
 arguments.
