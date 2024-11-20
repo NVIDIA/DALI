@@ -29,7 +29,6 @@ namespace {
 auto MakeExec2Config(int batch_size, int num_thread, int device_id,
                      size_t bytes_per_sample_hint, bool set_affinity,
                      int max_num_stream,
-                     int default_cuda_stream_priority,
                      QueueSizes prefetch_queue_depth) {
   exec2::Executor2::Config cfg{};
   cfg.async_output = false;
@@ -92,12 +91,11 @@ std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool a
                                           int batch_size, int num_thread, int device_id,
                                           size_t bytes_per_sample_hint, bool set_affinity,
                                           int max_num_stream,
-                                          int default_cuda_stream_priority,
                                           QueueSizes prefetch_queue_depth) {
   return GetExecutorImpl(
     pipelined, separated, async, dynamic,
     batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
-    max_num_stream, default_cuda_stream_priority, prefetch_queue_depth);
+    max_num_stream, prefetch_queue_depth);
 }
 
 }  // namespace dali

@@ -2024,13 +2024,12 @@ PYBIND11_MODULE(backend_impl, m) {
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, bool dynamic_execution = false,
                 size_t bytes_per_sample_hint = 0,
-                bool set_affinity = false, int max_num_stream = -1,
-                int default_cuda_stream_priority = 0) {
+                bool set_affinity = false, int max_num_stream = -1) {
               return std::make_unique<PyPipeline>(
                     batch_size, num_threads, device_id, seed,
                     pipelined_execution, prefetch_queue_depth, async_execution, dynamic_execution,
                     bytes_per_sample_hint, set_affinity,
-                    max_num_stream, default_cuda_stream_priority);
+                    max_num_stream);
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -2042,8 +2041,7 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_dynamic"_a = false,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1,
-        "default_cuda_stream_priority"_a = 0
+        "max_num_stream"_a = -1
         )
     // initialize from serialized pipeline
     .def(py::init(
@@ -2051,14 +2049,13 @@ PYBIND11_MODULE(backend_impl, m) {
              int batch_size = -1, int num_threads = -1, int device_id = -1,
              bool pipelined_execution = true,  int prefetch_queue_depth = 2,
              bool async_execution = true, bool dynamic_execution = false,
-             size_t bytes_per_sample_hint = 0, bool set_affinity = false, int max_num_stream = -1,
-             int default_cuda_stream_priority = 0) {
+             size_t bytes_per_sample_hint = 0, bool set_affinity = false, int max_num_stream = -1) {
               return std::make_unique<PyPipeline>(
                                serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, dynamic_execution,
                                bytes_per_sample_hint, set_affinity,
-                               max_num_stream, default_cuda_stream_priority);
+                               max_num_stream);
             }),
         "serialized_pipe"_a,
         "batch_size"_a = -1,
@@ -2070,8 +2067,7 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_dynamic"_a = true,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1,
-        "default_cuda_stream_priority"_a = 0
+        "max_num_stream"_a = -1
         )
     .def("AddOperator",
          static_cast<int (Pipeline::*)(const OpSpec &, const std::string &)>

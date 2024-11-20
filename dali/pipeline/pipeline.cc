@@ -97,11 +97,11 @@ void InitializeMemoryResources() {
 Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed,
                    bool pipelined_execution, int prefetch_queue_depth,
                    bool async_execution, bool dynamic_execution, size_t bytes_per_sample_hint,
-                   bool set_affinity, int max_num_stream, int default_cuda_stream_priority) {
+                   bool set_affinity, int max_num_stream) {
   InitializeMemoryResources();
   Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
        async_execution, dynamic_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
-       default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
+       QueueSizes{prefetch_queue_depth});
 }
 
 Pipeline::Pipeline(const string &serialized_pipe,
@@ -109,7 +109,7 @@ Pipeline::Pipeline(const string &serialized_pipe,
                    bool pipelined_execution, int prefetch_queue_depth,
                    bool async_execution, bool dynamic_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-                   int default_cuda_stream_priority, int64_t seed) {
+                   int64_t seed) {
   InitializeMemoryResources();
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
@@ -142,7 +142,6 @@ Pipeline::Pipeline(const string &serialized_pipe,
          bytes_per_sample_hint,
          set_affinity,
          max_num_stream,
-         default_cuda_stream_priority,
          QueueSizes{prefetch_queue_depth});
 
     // from serialized pipeline, construct new pipeline
@@ -181,7 +180,7 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
                     bool pipelined_execution, bool separated_execution,
                     bool async_execution, bool dynamic_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-                    int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
+                    QueueSizes prefetch_queue_depth) {
     DALI_ENFORCE(device_id == CPU_ONLY_DEVICE_ID || cuInitChecked(),
                 "You are trying to create a GPU DALI pipeline, while CUDA is not available. "
                 "Please install CUDA or set `device_id = None` in Pipeline constructor. "
@@ -200,7 +199,6 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
-    this->default_cuda_stream_priority_ = default_cuda_stream_priority;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
     this->separated_execution_ = (prefetch_queue_depth.cpu_size != prefetch_queue_depth.gpu_size);
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");
@@ -215,14 +213,6 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
         std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
     const auto max_priority_value =
         std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
-    DALI_ENFORCE(
-        default_cuda_stream_priority >= min_priority_value &&
-        default_cuda_stream_priority <= max_priority_value,
-        "Provided default cuda stream priority `" + std::to_string(default_cuda_stream_priority) +
-        "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
-        std::to_string(max_priority_value) + "], with lowest priority being `" +
-        std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
-        std::to_string(highest_cuda_stream_priority) + "`");
 
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
@@ -473,7 +463,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   executor_ =
       GetExecutor(pipelined_execution_, separated_execution_, async_execution_, dynamic_execution_,
                   max_batch_size_, num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
-                  max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
+                  max_num_stream_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
   executor_->EnableCheckpointing(checkpointing_);
   executor_->Init();

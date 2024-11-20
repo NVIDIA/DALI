@@ -45,7 +45,6 @@
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
-#include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/workspace/iteration_data.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
@@ -75,7 +74,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  public:
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
-                             int max_num_stream = -1, int default_cuda_stream_priority = 0,
+                             int max_num_stream = -1,
                              QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : max_batch_size_(max_batch_size),
         device_id_(device_id),

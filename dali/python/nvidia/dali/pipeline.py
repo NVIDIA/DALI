@@ -52,6 +52,10 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         )
 
 
+def _show_warning(message):
+    warnings.warn(message, Warning, stacklevel=2)
+
+
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
     encapsulates the data processing graph and the execution engine.
@@ -124,8 +128,8 @@ class Pipeline(object):
         Value of -1 does not impose a limit.
         This parameter is currently unused (and behavior of
         unrestricted number of streams is assumed).
-    default_cuda_stream_priority : int, optional, default = 0
-        CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
+    default_cuda_stream_priority : int, optional, default = None
+        Deprecated, this parameter has no effect.
     enable_memory_stats : bool, optional, default = False
         If DALI should print operator output buffer statistics.
         Useful for `bytes_per_sample_hint` operator parameter.
@@ -228,7 +232,7 @@ class Pipeline(object):
         bytes_per_sample=0,
         set_affinity=False,
         max_streams=-1,
-        default_cuda_stream_priority=0,
+        default_cuda_stream_priority=None,
         *,
         enable_memory_stats=False,
         enable_checkpointing=False,
@@ -244,6 +248,8 @@ class Pipeline(object):
         if experimental_exec_dynamic is not None:
             _show_deprecation_warning("experimental_exec_dynamic", "exec_dynamic")
             exec_dynamic = experimental_exec_dynamic
+        if default_cuda_stream_priority is not None:
+            _show_warning("The `default_cuda_stream_priority` is deprecated and has no effect.")
         self._pipe = None
         self._sinks = []
         self._max_batch_size = batch_size
@@ -275,7 +281,6 @@ class Pipeline(object):
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
-        self._default_cuda_stream_priority = default_cuda_stream_priority
         self._py_num_workers = py_num_workers
         self._py_start_method = py_start_method
         if py_callback_pickler is not None and py_start_method == "fork":
@@ -434,8 +439,8 @@ class Pipeline(object):
 
     @property
     def default_cuda_stream_priority(self):
-        """Default priority of the CUDA streams used by this pipeline."""
-        return self._default_cuda_stream_priority
+        """Deprecated; always 0."""
+        return 0
 
     @property
     def enable_memory_stats(self):
@@ -894,7 +899,6 @@ class Pipeline(object):
             self._bytes_per_sample,
             self._set_affinity,
             self._max_streams,
-            self._default_cuda_stream_priority,
         )
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
@@ -1592,7 +1596,6 @@ class Pipeline(object):
             kw.get("bytes_per_sample", 0),
             kw.get("set_affinity", False),
             kw.get("max_streams", -1),
-            kw.get("default_cuda_stream_priority", 0),
         )
         if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
             b.check_cuda_runtime()
@@ -1616,7 +1619,6 @@ class Pipeline(object):
         pipeline._bytes_per_sample = kw.get("bytes_per_sample", 0)
         pipeline._set_affinity = kw.get("set_affinity", False)
         pipeline._max_streams = kw.get("max_streams", -1)
-        pipeline._default_cuda_stream_priority = kw.get("default_cuda_stream_priority", 0)
 
         return pipeline
 
@@ -1640,7 +1642,6 @@ class Pipeline(object):
             self._bytes_per_sample,
             self._set_affinity,
             self._max_streams,
-            self._default_cuda_stream_priority,
         )
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
@@ -2014,7 +2015,6 @@ def pipeline_def(
     bytes_per_sample: int = 0,
     set_affinity: bool = False,
     max_streams: int = -1,
-    default_cuda_stream_priority: int = 0,
     enable_memory_stats: bool = False,
     enable_checkpointing: bool = False,
     checkpoint: Optional[Any] = None,
