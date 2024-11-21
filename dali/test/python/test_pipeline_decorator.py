@@ -107,12 +107,12 @@ def test_duplicated_argument():
         return data + val
 
     @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
-    def pipeline_duplicated_arg(max_streams):
+    def pipeline_duplicated_arg(num_threads):
         data, _ = fn.readers.file(file_root=images_dir)
-        return data + max_streams
+        return data + num_threads
 
-    pipe = pipeline_duplicated_arg(max_streams=42)
-    assert pipe._max_streams == -1
+    pipe = pipeline_duplicated_arg(num_threads=42)
+    assert pipe._num_threads == num_threads
     ref = ref_pipeline(42)
     compare_pipelines(pipe, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 

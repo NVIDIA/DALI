@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,7 +122,6 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoder_GPU)(benchmark::State& st) {
     OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
-      .AddArg("max_streams", num_thread)
       .AddArg("hybrid_huffman_threshold", std::numeric_limits<unsigned int>::max())
       .AddArg("use_batched_decode", false)
       .AddInput("raw_jpegs", "cpu")
@@ -145,7 +144,6 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedThreshold_GPU)(benchmark::Sta
     OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
-      .AddArg("max_streams", num_thread)
       .AddArg("use_batched_decode", false)
       .AddArg("cache_size", 1000)  // megabytes
       .AddArg("cache_threshold", 250*250*3)
@@ -170,7 +168,6 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedLargest_GPU)(benchmark::State
     OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
-      .AddArg("max_streams", num_thread)
       .AddArg("use_batched_decode", false)
       .AddArg("cache_size", 1000)  // megabytes
       .AddArg("cache_type", "largest")
@@ -194,7 +191,6 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderBatched_GPU)(benchmark::State& st) 
     OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
-      .AddArg("max_streams", num_thread)
       .AddArg("use_batched_decode", true)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "gpu"));
