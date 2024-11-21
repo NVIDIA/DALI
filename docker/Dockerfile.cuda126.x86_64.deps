@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.6.2/local_installers/cuda_12.6.2_560.35.03_linux.run && \
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.6.3/local_installers/cuda_12.6.3_560.35.05_linux.run && \
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
