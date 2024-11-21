@@ -74,7 +74,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  public:
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
-                             int max_num_stream = -1,
                              QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : max_batch_size_(max_batch_size),
         device_id_(device_id),

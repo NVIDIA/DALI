@@ -1908,7 +1908,6 @@ def test_properties():
         assert pipe.exec_pipelined is True
         assert pipe.exec_async is True
         assert pipe.set_affinity is True
-        assert pipe.max_streams == -1
         assert pipe.prefetch_queue_depth == {"cpu_size": 3, "gpu_size": 2}
         assert pipe.cpu_queue_size == 3
         assert pipe.gpu_queue_size == 2

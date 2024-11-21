@@ -123,11 +123,8 @@ class Pipeline(object):
     set_affinity : bool, optional, default = False
         Whether to set CPU core affinity to the one closest to the
         GPU being used.
-    max_streams : int, optional, default = -1
-        Limit the number of CUDA streams used by the executor.
-        Value of -1 does not impose a limit.
-        This parameter is currently unused (and behavior of
-        unrestricted number of streams is assumed).
+    max_streams : int, deprecated, default = None
+        Deprecated, this parameter has no effect.
     default_cuda_stream_priority : int, optional, default = None
         Deprecated, this parameter has no effect.
     enable_memory_stats : bool, optional, default = False
@@ -231,7 +228,7 @@ class Pipeline(object):
         exec_async=True,
         bytes_per_sample=0,
         set_affinity=False,
-        max_streams=-1,
+        max_streams=None,
         default_cuda_stream_priority=None,
         *,
         enable_memory_stats=False,
@@ -250,6 +247,8 @@ class Pipeline(object):
             exec_dynamic = experimental_exec_dynamic
         if default_cuda_stream_priority is not None:
             _show_warning("The `default_cuda_stream_priority` is deprecated and has no effect.")
+        if max_streams is not None:
+            _show_warning("The `max_streams` is deprecated and has no effect.")
         self._pipe = None
         self._sinks = []
         self._max_batch_size = batch_size
@@ -280,7 +279,6 @@ class Pipeline(object):
         self._exec_dynamic = exec_dynamic
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
-        self._max_streams = max_streams
         self._py_num_workers = py_num_workers
         self._py_start_method = py_start_method
         if py_callback_pickler is not None and py_start_method == "fork":
@@ -429,8 +427,8 @@ class Pipeline(object):
 
     @property
     def max_streams(self):
-        """Reserved for future use."""
-        return self._max_streams
+        """Deprecated, unused; returns -1."""
+        return -1
 
     @property
     def prefetch_queue_depth(self):
@@ -898,7 +896,6 @@ class Pipeline(object):
             self._exec_dynamic,
             self._bytes_per_sample,
             self._set_affinity,
-            self._max_streams,
         )
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
@@ -1595,7 +1592,6 @@ class Pipeline(object):
             kw.get("exec_dynamic", False),
             kw.get("bytes_per_sample", 0),
             kw.get("set_affinity", False),
-            kw.get("max_streams", -1),
         )
         if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
             b.check_cuda_runtime()
@@ -1618,7 +1614,6 @@ class Pipeline(object):
         pipeline._exec_async = kw.get("exec_async", True)
         pipeline._bytes_per_sample = kw.get("bytes_per_sample", 0)
         pipeline._set_affinity = kw.get("set_affinity", False)
-        pipeline._max_streams = kw.get("max_streams", -1)
 
         return pipeline
 
@@ -1641,7 +1636,6 @@ class Pipeline(object):
             self._exec_dynamic,
             self._bytes_per_sample,
             self._set_affinity,
-            self._max_streams,
         )
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
@@ -2014,7 +2008,6 @@ def pipeline_def(
     exec_async: bool = True,
     bytes_per_sample: int = 0,
     set_affinity: bool = False,
-    max_streams: int = -1,
     enable_memory_stats: bool = False,
     enable_checkpointing: bool = False,
     checkpoint: Optional[Any] = None,

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
     OpSpec("ImageDecoder")
     .AddArg("device", "mixed")
     .AddArg("output_type", img_type)
-    .AddArg("max_streams", num_thread)
     .AddArg("use_batched_decode", false)
     .AddInput("raw_jpegs", "cpu")
     .AddOutput("images", "gpu"));
