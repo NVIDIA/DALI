@@ -83,21 +83,17 @@ class DLL_PUBLIC Pipeline {
    * Defaults to 0. Ignored when dynamic_execution is true.
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'false'.
-   * @param max_num_stream set an upper limit on the number of cudaStreams
-   * that can be allocated by the pipeline.
    */
   DLL_PUBLIC Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
                       bool async_execution = true, bool dynamic_execution = false,
-                      size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-                      int max_num_stream = -1);
+                      size_t bytes_per_sample_hint = 0, bool set_affinity = false);
 
   DLL_PUBLIC Pipeline(const string &serialized_pipe,
                       int max_batch_size = -1, int num_threads = -1, int device_id = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
                       bool async_execution = true, bool dynamic_execution = false,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-                      int max_num_stream = -1,
                       int64_t seed = -1);
 
   virtual DLL_PUBLIC ~Pipeline();
@@ -584,8 +580,7 @@ class DLL_PUBLIC Pipeline {
    */
   void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
             bool separated_execution, bool async_execution, bool dynamic_execution,
-            size_t bytes_per_sample_hint,
-            bool set_affinity, int max_num_stream,
+            size_t bytes_per_sample_hint, bool set_affinity,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
   struct EdgeMeta {
@@ -713,7 +708,6 @@ class DLL_PUBLIC Pipeline {
   bool dynamic_execution_ = false;
   size_t bytes_per_sample_hint_ = 0;
   int set_affinity_ = 0;
-  int max_num_stream_ = 0;
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_{};
