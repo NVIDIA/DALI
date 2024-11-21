@@ -17,6 +17,8 @@
 
 #include <cuda_runtime_api.h>
 #include <stdint.h>
+#include "dali/core/api_helper.h"
+#include "dali/core/dali_data_type.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +28,7 @@ typedef struct _DALIPipeline *daliPipeline_h;
 typedef struct _DALITensor *daliTensor_h;
 typedef struct _DALITensorList *daliTensorList_h;
 
+/** Error codes returned by DALI functions */
 typedef enum {
   DALI_SUCCESS = 0,
   DALI_NOT_READY,
@@ -46,6 +49,7 @@ typedef enum {
 
   DALI_ERROR_FORCE_INT32 = 0x7fffffff
 } daliError_t;
+
 
 /** Returns the last error code.
  *
@@ -111,8 +115,6 @@ typedef enum _DALIExecType {
   DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
 } daliExecType_t;
 
-typedef uint8_t daliBool;
-
 /*#define DALI_DEFINE_OPTIONAL_TYPE(value_type, ...) \
   typedef struct {                                 \
     daliBool has_value;                            \
@@ -128,7 +130,7 @@ DALI_DEFINE_OPTIONAL_TYPE(uint64_t, daliOptionalInt64_t);
 DALI_DEFINE_OPTIONAL_TYPE(float, daliOptionalFloat_t);
 DALI_DEFINE_OPTIONAL_TYPE(double, daliOptionalDouble_t);*/
 
-typedef _DALIPipelineParams {
+typedef struct _DALIPipelineParams {
   size_t size;  /* must be sizeof(daliPipelineParams_t) */
   struct {
     uint64_t max_batch_size_present : 1;
@@ -145,34 +147,32 @@ typedef _DALIPipelineParams {
   int device_id;
   int64_t seed;
   daliExecType_t exec_type;
-  int enable_checkpointing;
-  int enable_memory_stats;
-
-
-    batch_size=-1,
-    num_threads=-1,
-    device_id=-1,
-    seed=-1,
-    exec_pipelined=True,
-    prefetch_queue_depth=2,
-    exec_async=True,
-    bytes_per_sample_hint=0,
-    set_affinity=False,
-    default_cuda_stream_priority=0,
-    *,
-    enable_memory_stats=False,
-    enable_checkpointing=False,
-    checkpoint=None,
-    py_num_workers=1,
-    py_start_method="fork",
-    py_callback_pickler=None,
-    output_dtype=None,
-    output_ndim=None,
-
-
+  daliBool enable_checkpointing;
+  daliBool enable_memory_stats;
 } daliPipelineParams_t;
 
+/** Creates an empty pipeline. */
 daliError_t daliPipelineCreate(daliPipeline_h *out_pipe_handle, const daliPipelineParams_t *params);
+
+/** Creates a DALI pipeline from a serialized one.
+ *
+ * This function creates and deserializes a pipeline. The parameters are used to override
+ * the serialized ones.
+ *
+ * @param out_pipe_handle [out] points to a value which will receive the handle to the newly
+ *                              created pipeline
+ * @param serialized_pipeline [in] a raw memory buffer containing the pipeline as protobuf
+ * @param serialized_pipeline_length the length, in bytes, of the `serialized_pipeline` buffer
+ * @param param_overrides [in] contains (partial) pipeline construction parameters;
+ *                             the parameters specified in this structure override the corresponding
+ *                             parameters deserialized from the buffer.
+ */
+daliError_t daliPipelineDeserialize(
+  daliPipeline_h *out_pipe_handle,
+  const void *serialized_pipeline,
+  size_t serialized_pipeline_size,
+  const daliPipelineParams_t *param_overrides);
+
 
 #ifdef __cplusplus
 }  // extern "C"
