@@ -248,7 +248,7 @@ class Pipeline(object):
         if default_cuda_stream_priority is not None:
             _show_warning("The `default_cuda_stream_priority` is deprecated and has no effect.")
         if max_streams is not None:
-            _show_warning("The `default_cuda_stream_priority` is deprecated and has no effect.")
+            _show_warning("The `max_streams` is deprecated and has no effect.")
         self._pipe = None
         self._sinks = []
         self._max_batch_size = batch_size
