@@ -67,7 +67,7 @@ OpSchema::OpSchema(const std::string &name) : name_(name) {
   AddInternalArg("max_batch_size", "Max batch size", -1);
   AddInternalArg("device", "Device on which the Op is run", std::string("cpu"));
   AddInternalArg("inplace", "Whether Op can be run in place", false);
-  AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);
+  AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
   AddOptionalArg("seed", R"code(Random seed.

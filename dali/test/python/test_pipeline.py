@@ -880,44 +880,6 @@ def test_iter_setup():
     assert iter_num == i
 
 
-def test_pipeline_default_cuda_stream_priority():
-    batch_size = 16
-    n_iters = 12
-
-    class HybridPipe(Pipeline):
-        def __init__(self, batch_size, default_cuda_stream_priority=0):
-            super(HybridPipe, self).__init__(
-                batch_size,
-                num_threads=1,
-                device_id=0,
-                prefetch_queue_depth=1,
-                exec_async=False,
-                exec_pipelined=False,
-                default_cuda_stream_priority=default_cuda_stream_priority,
-            )
-            self.input = ops.readers.Caffe(path=caffe_db_folder)
-            self.decode = ops.decoders.Image(device="mixed", output_type=types.RGB)
-
-        def define_graph(self):
-            inputs, labels = self.input(name="Reader")
-            images = self.decode(inputs)
-            return images
-
-    HIGH_PRIORITY = -1
-    LOW_PRIORITY = 0
-    pipe1 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=HIGH_PRIORITY)
-    pipe2 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=LOW_PRIORITY)
-    pipe1.build()
-    pipe2.build()
-    for _ in range(n_iters):
-        out1 = pipe1.run()
-        out2 = pipe2.run()
-        for i in range(batch_size):
-            out1_data = out1[0].as_cpu()
-            out2_data = out2[0].as_cpu()
-            assert np.sum(np.abs(out1_data.at(i) - out2_data.at(i))) == 0
-
-
 class CachedPipeline(Pipeline):
     def __init__(
         self,
