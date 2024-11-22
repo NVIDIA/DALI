@@ -259,7 +259,7 @@ Operator call to be used in graph definition. This operator doesn't have any inp
 """
     elif schema.MaxNumInput() == 1:
         input_name = _names._get_input_name(schema, 0)
-        ret = f"""
+        ret = """
 Operator call to be used in graph definition.
 
 Args
