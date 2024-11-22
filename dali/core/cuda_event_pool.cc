@@ -17,7 +17,6 @@
 #include <utility>
 #include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_error.h"
-#include "dali/core/math_util.h"
 
 namespace dali {
 
@@ -30,16 +29,6 @@ CUDAEventPool::CUDAEventPool(unsigned event_flags) {
   int num_devices = 0;
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   dev_events_.resize(num_devices);
-  // Avoid creation of events during pipeline run
-  int evt_pool_init_sz = 2000;
-  if (const char *evt_pool_init_sz_env = std::getenv("DALI_EVENT_POOL_INITIAL_SIZE")) {
-    evt_pool_init_sz = clamp(atoi(evt_pool_init_sz_env), 0, 10000);
-  }
-  for (int device_id = 0; device_id < num_devices; device_id++) {
-    for (int i = 0; i < evt_pool_init_sz; i++) {
-      Put(CUDAEvent::CreateWithFlags(cudaEventDisableTiming), device_id);
-    }
-  }
 }
 
 CUDAEvent CUDAEventPool::Get(int device_id) {
