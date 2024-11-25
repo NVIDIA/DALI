@@ -566,6 +566,21 @@ class EnumAttributeDocumenter(AttributeDocumenter):
         super(AttributeDocumenter, self).add_directive_header(sig)
 
 
+def get_absolute_param_ref(what, name, param):
+    # DALI ops special case:
+    if name.startswith("nvidia.dali.ops"):
+        if name.endswith((".__init__", ".__call__")):
+            name = name[: -len(".__init__")]
+        # TODO(klecki): we may want to check within the signature at some point,
+        # but for now we know inputs are __positional_only, and kwargs are the rest.
+        # Inputs are documented within the __call__, and the rest within the class body.
+        if param.startswith("__"):
+            return f"{name}.__call__.{param}"
+        return f"{name}.{param}"
+    # Everything else we just link directly
+    return f"{name}.{param}"
+
+
 def replace_params_with_paramrefs(app, what, name, obj, options, lines):
 
     def map_line(line, params):
@@ -610,8 +625,12 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
                 continue
 
             # If we are indeed a parameter, add the :paramref: that sphinx_paramlinks will handle
+            # Use absolute addressing so resolving the name is easier.
             if candidate in params:
-                result += f"{line[:start]}:paramref:{line[start:end]}"
+                paramref = get_absolute_param_ref(
+                    what, name, line[start + 1 : end - 1]
+                )
+                result += f"{line[:start]}:paramref:`~{paramref}`"
             else:
                 result += line[:end]
             line = line[end:]
@@ -620,11 +639,28 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
     if what not in {"class", "function", "method"}:
         return
     try:
-        s = inspect.signature(obj)
+        s = None
+        # Special case for DALI ops API - get the `__call__` as the signature there contains
+        # all the arguments.
+        if name.startswith("nvidia.dali.ops"):
+            import nvidia.dali.ops as ops
+            from nvidia.dali.ops import _signatures
+
+            # Extract the name of the operator skipping the `nvidia.dali.ops` module
+            op_name = name.split(".")[3:]
+            if what == "method" and name.endswith(("__call__", "__init__")):
+                op_name = op_name[:-1]
+            op = _signatures._get_op(ops, op_name)
+            if op:
+                s = inspect.signature(op.__call__)
+
+        else:
+            s = inspect.signature(obj)
     except Exception as e:
         warnings.warn(f"Couldn't obtain object's {name} signature: {e}")
         return
-
+    if s is None:
+        return
     lines[:] = [map_line(line, s.parameters) for line in lines]
 
 
