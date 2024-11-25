@@ -273,7 +273,15 @@ endif()
 # nvimagecodec
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
+set(DALI_INSTALL_REQUIRES_NVJPEG2K "")
+set(DALI_INSTALL_REQUIRES_NVTIFF "")
 if(BUILD_NVIMAGECODEC)
+  set(NVJPEG2K_MIN_VERSION "0.8.0")
+  set(NVJPEG2K_MAX_VERSION "0.9.0")
+
+  set(NVTIFF_MIN_VERSION "0.4.0")
+  set(NVTIFF_MAX_VERSION "0.5.0")
+
   set(NVIMGCODEC_MIN_VERSION "0.4.0")
   set(NVIMGCODEC_MAX_VERSION "0.5.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
@@ -310,11 +318,20 @@ if(BUILD_NVIMAGECODEC)
     if(NOT SUBSTRING_POSITION EQUAL -1)
       # Substring found
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
+      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-cu${CUDA_VERSION_MAJOR}")
+      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-cu${CUDA_VERSION_MAJOR}")
     else()
       # Substring not found
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
+      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-tegra-cu${CUDA_VERSION_MAJOR}")
+      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-tegra-cu${CUDA_VERSION_MAJOR}")
     endif()
 
+    # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
+    set(DALI_INSTALL_REQUIRES_NVJPEG2K "\'${NVJPEG2K_PACKAGE_NAME} >= ${NVJPEG2K_MIN_VERSION}, < ${NVJPEG2K_MAX_VERSION}',")
+    message(STATUS "Adding nvjpeg2k requirement as: ${DALI_INSTALL_REQUIRES_NVJPEG2K}")
+    set(DALI_INSTALL_REQUIRES_NVTIFF "\'${NVTIFF_PACKAGE_NAME} >= ${NVTIFF_MIN_VERSION}, < ${NVTIFF_MAX_VERSION}',")
+    message(STATUS "Adding nvtiff requirement as: ${DALI_INSTALL_REQUIRES_NVTIFF}")
     set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
     message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
   else()

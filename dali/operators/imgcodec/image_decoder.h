@@ -642,10 +642,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   void RunImplImpl(Workspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
+    int nsamples = input.num_samples();
     auto &output = ws.template Output<typename OutBackend<Backend>::type>(0);
     output.SetLayout("HWC");
-    int nsamples = input.num_samples();
-    assert(output.num_samples() == nsamples);
+    output.SetSize(nsamples);
 
     tp_ = GetThreadPool(ws);
     assert(tp_ != nullptr);
