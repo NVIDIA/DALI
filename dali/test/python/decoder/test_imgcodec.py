@@ -179,7 +179,7 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
                 )
             assert is_ok, (
                 f"{validation_fun.__name__}\n"
-                + "image: {img_1.source_info()} iter: {it} sample_idx: {sample_idx}"
+                + f"image: {img_1.source_info()} iter: {it} sample_idx: {sample_idx}"
             )
 
 

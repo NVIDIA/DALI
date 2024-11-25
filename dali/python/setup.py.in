@@ -89,6 +89,8 @@ For more details please check the
           'six >= 1.16, <= 1.16',
           'dm-tree <= 0.1.8',
           'packaging <= 24.2',
+          @DALI_INSTALL_REQUIRES_NVJPEG2K@
+          @DALI_INSTALL_REQUIRES_NVTIFF@
           @DALI_INSTALL_REQUIRES_NVIMGCODEC@
           ],
      )
