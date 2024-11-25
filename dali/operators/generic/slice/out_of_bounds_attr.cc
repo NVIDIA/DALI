@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@ Here is a list of the supported values:
 
 - ``"error"`` (default): Attempting to slice outside of the bounds of the input will produce an error.
 - ``"pad"``: The input will be padded as needed with zeros or any other value that is specified
-  with the ``fill_values`` argument.
+  with the `fill_values` argument.
 - ``"trim_to_shape"``: The slice window will be cut to the bounds of the input.)code", "error")
     .AddOptionalArg("fill_values",
-        R"code(Determines padding values and is only relevant if ``out_of_bounds_policy``
+        R"code(Determines padding values and is only relevant if `out_of_bounds_policy`
 is set to “pad”.
 
 If a scalar value is provided, it will be used for all the channels. If multiple values are

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ DALI_SCHEMA(Paste)
   .AddArg("fill_value",
       R"code(Tuple of the values of the color that is used to fill the canvas.
 
-The length of the tuple must be equal to ``n_channels``.)code",
+The length of the tuple must be equal to `n_channels`.)code",
       DALI_INT_VEC)
   .AddOptionalArg("paste_x",
       R"code(Horizontal position of the paste in (0.0 - 1.0) image coordinates.)code",

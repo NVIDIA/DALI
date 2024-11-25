@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ DALI_REGISTER_OPERATOR(Transpose, TransposeCPU, CPU);
 
 DALI_SCHEMA(Transpose)
     .DocStr(R"code(Transposes the tensors by reordering the dimensions based on
-the ``perm`` parameter.
+the `perm` parameter.
 
 Destination dimension ``i`` is obtained from source dimension ``perm[i]``.
 
@@ -89,15 +89,15 @@ If not given, the dimensions are reversed.)code",
     .AddOptionalArg(
         "transpose_layout",
         R"code(When set to True, the axis names in the output data layout are permuted according
-to ``perm``, Otherwise, the input layout is copied to the output.
+to `perm`, Otherwise, the input layout is copied to the output.
 
-If ``output_layout`` is set, this argument is ignored.)code",
+If `output_layout` is set, this argument is ignored.)code",
         true)
     .AddOptionalArg(
         "output_layout",
         R"code(Explicitly sets the output data layout.
 
-If this argument is specified, ``transpose_layout`` is ignored.)code",
+If this argument is specified, `transpose_layout` is ignored.)code",
         TensorLayout(""));
 
 }  // namespace dali

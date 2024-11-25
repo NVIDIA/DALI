@@ -23,7 +23,7 @@ DALI_SCHEMA(WarpAffine)
   .NumInput(1, 2)
   .InputDox(0, "data", "TensorList", "The image or volume to be warped")
   .InputDox(1, "mtx", "TensorList of float",
-            "Like ``matrix`` argument, but can be placed in GPU memory")
+            "Like `matrix` argument, but can be placed in GPU memory")
   .NumOutput(1)
   .InputLayout(0, { "HWC", "FHWC", "DHWC", "FDHWC" })
   .InputDevice(1, InputDevice::MatchBackendOrCPU)
@@ -31,7 +31,7 @@ DALI_SCHEMA(WarpAffine)
   .AddOptionalArg<float>("matrix",
       R"code(Transform matrix.
 
-When the ``inverse_map`` option is set to true (default), the matrix represents a destination to source mapping.
+When the `inverse_map` option is set to true (default), the matrix represents a destination to source mapping.
 With a list of values ``(M11, M12, M13, M21, M22, M23)``, this operation produces a new image
 by using the following formula::
 
@@ -39,10 +39,10 @@ by using the following formula::
 
 Where ``[0, 0]`` coordinate means the corner of the first pixel.
 
-If the ``inverse_map`` option is set to false, the matrix represents a source to destination
+If the `inverse_map` option is set to false, the matrix represents a source to destination
 transform and it is inverted before applying the formula above.
 
-It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
+It is equivalent to OpenCV's ``warpAffine`` operation with the `inverse_map` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
 
 .. note::

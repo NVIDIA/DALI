@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ DALI_SCHEMA(Normalize)
   .DocStr(R"code(Normalizes the input by removing the mean and dividing by the standard deviation.
 
 The mean and standard deviation can be calculated internally for the specified subset
-of axes or can be externally provided as the ``mean`` and ``stddev`` arguments.
+of axes or can be externally provided as the `mean` and `stddev` arguments.
 
 The normalization is done following the formula::
 
@@ -37,9 +37,9 @@ be either tensors of same shape, scalars, or a mix of these.
 .. note::
   The expression follows the *numpy* broadcasting rules.
 
-Sizes of the non-scalar ``mean`` and ``stddev`` must have an extent of 1, if given axis
+Sizes of the non-scalar `mean` and `stddev` must have an extent of 1, if given axis
 is reduced, or match the corresponding extent of the input. A dimension is considered reduced
-if it is listed in ``axes`` or ``axis_names``. If neither the ``axes`` nor the ``axis_names``
+if it is listed in `axes` or `axis_names`. If neither the `axes` nor the `axis_names`
 argument is present, the set of reduced axes is inferred by comparing the input
 shape to the shape of the mean/stddev arguments, but the set of reduced axes must
 be the same for all tensors in the batch.
@@ -86,17 +86,17 @@ is set to True.)code",
     nullptr, true)
   .AddOptionalArg<float>("stddev", R"code(Standard deviation value to scale the data.
 
-See ``mean`` argument for more information about shape constraints. If a value is not specified,
-the standard deviation is calculated from the input. A non-scalar ``stddev`` cannot be used when
-``batch`` argument is set to True.)code",
+See `mean` argument for more information about shape constraints. If a value is not specified,
+the standard deviation is calculated from the input. A non-scalar `stddev` cannot be used when
+`batch` argument is set to True.)code",
     nullptr, true)
   .AddOptionalArg("axes", R"code(Indices of dimensions along which the input is normalized.
 
 By default, all axes are used, and the axes can also be specified by name.
-See ``axis_names`` for more information.)code", std::vector<int>{}, false)
+See `axis_names` for more information.)code", std::vector<int>{}, false)
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Names of the axes in the input.
 
-Axis indices are taken from the input layout, and this argument cannot be used with ``axes``.)code",
+Axis indices are taken from the input layout, and this argument cannot be used with `axes`.)code",
     "")
   .AddOptionalArg("shift", R"code(The value to which the mean will map in the output.
 
@@ -115,8 +115,8 @@ The variance is estimated by using the following formula::
 This argument is ignored when an externally supplied standard deviation is used.)code", 0, false)
   .AddOptionalTypeArg("dtype", R"code(Output data type.
 
-When using integral types, use ``shift`` and ``scale`` to improve the usage of the output
-type's dynamic range. If ``dtype`` is an integral type, out of range values are clamped,
+When using integral types, use `shift` and `scale` to improve the usage of the output
+type's dynamic range. If `dtype` is an integral type, out of range values are clamped,
 and non-integer values are rounded to nearest integer.)code", DALI_FLOAT);
 
 template <>

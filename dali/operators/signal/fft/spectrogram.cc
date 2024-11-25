@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ The number of bins that are created in the output is ``nfft // 2 + 1``.
     R"(Samples of the window function that will be multiplied to each extracted window when
 calculating the STFT.
 
-If a value is provided, it should be a list of floating point numbers of size ``window_length``.
+If a value is provided, it should be a list of floating point numbers of size `window_length`.
 If a value is not provided, a Hann window will be used.)",
     std::vector<float>{})
   .AddOptionalArg("power",
@@ -66,7 +66,7 @@ Supported values:
     2)
   .AddOptionalArg("center_windows",
     R"(Indicates whether extracted windows should be padded so that the window function is
-centered at multiples of ``window_step``.
+centered at multiples of `window_step`.
 
 If set to False, the signal will not be padded, that is, only windows within the input range
 will be extracted.)",
@@ -78,7 +78,7 @@ If set to True, the signal is mirrored with respect to the boundary, otherwise t
 is padded with zeros.
 
 .. note::
-  When ``center_windows`` is set to False, this option is ignored.
+  When `center_windows` is set to False, this option is ignored.
 )",
     true)
   .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).)",

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ provided region of interest (ROI) is contained in it.
 If the ROI is bigger than the cropping window, the cropping window will be a subwindow of the ROI.
 If the ROI is smaller than the cropping window, the whole ROI shall be contained in the cropping window.
 
-If an input shape (``in_shape``) is given, the resulting cropping window is selected to be within the
+If an input shape (`in_shape`) is given, the resulting cropping window is selected to be within the
 bounds of that input shape. Alternatively, the input data subject to cropping can be passed to the operator,
 in the operator. When providing an input shape, the region of interest should be within the bounds of the
 input and the cropping window shape should not be larger than the input shape.
@@ -35,8 +35,8 @@ input and the cropping window shape should not be larger than the input shape.
 If no input shape is provided, the resulting cropping window is unbounded, potentially resulting in out
 of bounds cropping.
 
-The cropping window dimensions should be explicitly provided (``crop_shape``), and the ROI should be
-either specified with ``roi_start``/``roi_end`` or ``roi_start``/``roi_shape``.
+The cropping window dimensions should be explicitly provided (`crop_shape`), and the ROI should be
+either specified with `roi_start`/`roi_end` or `roi_start`/`roi_shape`.
 
 The operator produces an output representing the cropping window start coordinates.
 )code")
@@ -48,13 +48,13 @@ The operator produces an output representing the cropping window start coordinat
       R"code(ROI end coordinates.
 
 .. note::
-  Using ``roi_end`` is mutually exclusive with ``roi_shape``.
+  Using `roi_end` is mutually exclusive with `roi_shape`.
 )code", nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_shape",
       R"code(ROI shape.
 
 .. note::
-  Using ``roi_shape`` is mutually exclusive with ``roi_end``.
+  Using `roi_shape` is mutually exclusive with `roi_end`.
 )code", nullptr, true)
     .AddOptionalArg<std::vector<int>>("in_shape",
       R"code(Shape of the input data.
@@ -63,7 +63,7 @@ If provided, the cropping window start will be selected so that the cropping win
 bounds of the input.
 
 .. note::
-  Providing ``in_shape`` is incompatible with feeding the input data directly as a positional input.
+  Providing `in_shape` is incompatible with feeding the input data directly as a positional input.
 )code", nullptr, true)
     .NumInput(0, 1)
     .NumOutput(1);

@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,10 +63,10 @@ class DLTensorPythonFunction:
 
     For the GPU operator, it is the user's responsibility to synchronize the device code with DALI.
     To synchronize the device code with DALI, synchronize DALI's work before the operator call
-    with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
+    with the `synchronize_stream` flag (enabled by default) and ensure that the scheduled device
     tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
     by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
-    the ``synchronize_stream`` flag can be set to False.
+    the `synchronize_stream` flag can be set to False.
     """
 
     def __init__(
@@ -165,10 +165,10 @@ def dl_tensor_python_function(
 
     For the GPU operator, it is the user's responsibility to synchronize the device code with DALI.
     To synchronize the device code with DALI, synchronize DALI's work before the operator call
-    with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
+    with the `synchronize_stream` flag (enabled by default) and ensure that the scheduled device
     tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
     by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
-    the ``synchronize_stream`` flag can be set to False.
+    the `synchronize_stream` flag can be set to False.
     """
     # This is just a stub of the documentation, for details use help() or visit the html docs.
     ...
@@ -194,10 +194,10 @@ def dl_tensor_python_function(
 
     For the GPU operator, it is the user's responsibility to synchronize the device code with DALI.
     To synchronize the device code with DALI, synchronize DALI's work before the operator call
-    with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
+    with the `synchronize_stream` flag (enabled by default) and ensure that the scheduled device
     tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
     by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
-    the ``synchronize_stream`` flag can be set to False.
+    the `synchronize_stream` flag can be set to False.
     """
     # This is just a stub of the documentation, for details use help() or visit the html docs.
     ...

@@ -75,7 +75,7 @@ DALI_SCHEMA(readers__Video)
 the hardware-accelerated video decoding feature in the NVIDIA(R) GPU.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
-containers and returns a batch of sequences of ``sequence_length`` frames with shape
+containers and returns a batch of sequences of `sequence_length` frames with shape
 ``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
 This class only supports constant frame rate videos.
 
@@ -87,32 +87,32 @@ This class only supports constant frame rate videos.
   .AddOptionalArg("filenames",
       R"code(File names of the video files to load.
 
-This option is mutually exclusive with ``file_list`` and ``file_root``.)code",
+This option is mutually exclusive with `file_list` and `file_root`.)code",
       std::vector<std::string>{})
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-``filenames`` argument.
+`filenames` argument.
 
 If an empty list is provided, sequential 0-based indices are used as labels. If not provided,
 no labels will be yielded.)", nullptr)
   .AddOptionalArg("file_root",
       R"code(Path to a directory that contains the data files.
 
-This option is mutually exclusive with ``filenames`` and ``file_list``.)code",
+This option is mutually exclusive with `filenames` and `file_list`.)code",
       std::string())
   .AddOptionalArg("file_list",
       R"code(Path to the file with a list of ``file label [start_frame [end_frame]]`` values.
 
 Positive value means the exact frame, negative counts as a Nth frame from the end (it follows
 python array indexing schema), equal values for the start and end frame would yield an empty
-sequence and a warning. This option is mutually exclusive with ``filenames``
-and ``file_root``.)code",
+sequence and a warning. This option is mutually exclusive with `filenames`
+and `file_root`.)code",
       std::string())
   .AddOptionalArg("enable_frame_num",
-      R"code(If the ``file_list`` or ``filenames`` argument is passed, returns the frame number
+      R"code(If the `file_list` or `filenames` argument is passed, returns the frame number
 output.)code",
       false)
   .AddOptionalArg("enable_timestamps",
-      R"code(If the ``file_list`` or ``filenames`` argument is passed, returns the timestamps
+      R"code(If the `file_list` or `filenames` argument is passed, returns the timestamps
 output. )code",
       false)
   .AddArg("sequence_length",
@@ -121,7 +121,7 @@ output. )code",
   .AddOptionalArg("step",
       R"code(Frame interval between each sequence.
 
-When the value is less than 0, ``step`` is set to ``sequence_length``.)code",
+When the value is less than 0, `step` is set to `sequence_length`.)code",
       -1)
   .AddOptionalArg("channels",
       R"code(Number of channels.)code",
@@ -169,7 +169,7 @@ the end frame number will be rounded down.
 
 Frame numbers start from 0.)code", false)
   .AddOptionalArg("file_list_include_preceding_frame",
-      R"code(Changes the behavior how ``file_list`` start and end frame timestamps are translated
+      R"code(Changes the behavior how `file_list` start and end frame timestamps are translated
 to a frame number.
 
 If the start/end timestamps are provided in file_list as timestamps, the start frame is
@@ -181,7 +181,7 @@ timestamps are correlated with displayed video frames.
 
 .. note::
 
-  When ``file_list_frame_num`` is set to True, this option does not take any effect.
+  When `file_list_frame_num` is set to True, this option does not take any effect.
 
 .. warning::
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 namespace dali {
 
 DALI_SCHEMA(Pad)
-  .DocStr(R"code(Pads all samples with the ``fill_value`` in the specified axes to match
+  .DocStr(R"code(Pads all samples with the `fill_value` in the specified axes to match
 the biggest extent in the batch for those axes or to match the minimum shape specified.
 
 Here are a few examples:
@@ -154,28 +154,28 @@ axis to match the largest sample in the batch and an alignment of 2.
 Negative values are interpreted as counting dimensions from the back.
 Valid range: ``[-ndim, ndim-1]``, where ndim is the number of dimensions in the input data.
 
-The ``axis_names`` and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names``
+The `axis_names` and `axes` arguments are mutually exclusive. If `axes` and `axis_names`
 are empty, or have not been provided, the output will be padded on all of the axes.)code",
     std::vector<int>(), true)
   .AddOptionalArg<TensorLayout>("axis_names",
     R"code(Names of the axes on which the batch samples will be padded.
 
-The ``axis_names`` and ``axes`` arguments are mutually exclusive. If ``axes`` and ``axis_names``
+The `axis_names` and `axes` arguments are mutually exclusive. If `axes` and `axis_names`
 are empty, or have not been provided, the output will be padded on all of the axes.)code",
     "")
   .AddOptionalArg<int>("align",
     R"code(If specified, this argument determines the alignment on the dimensions specified
-by ``axes`` or ``axis_names``.
+by `axes` or `axis_names`.
 
 The extent on ``axis = axes[i]`` will be adjusted to be a multiple of ``align[i]``.
 
 If an integer value is provided, the alignment restrictions are applied to all the padded axes.
 
 To use alignment only, that is without any default or explicit padding behavior,
-set the minimum ``shape`` to 1 for the specified axis.)code",
+set the minimum `shape` to 1 for the specified axis.)code",
     std::vector<int>(), true)
   .AddOptionalArg<int>("shape",
-    R"code(The extents of the output shape in the axes specified by the ``axes`` or ``axis_names``.
+    R"code(The extents of the output shape in the axes specified by the `axes` or `axis_names`.
 
 Specifying -1 for an axis restores the default behavior of extending the axis to accommodate
 the aligned size of the largest sample in the batch.

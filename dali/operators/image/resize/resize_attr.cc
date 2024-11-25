@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,34 +24,34 @@ namespace dali {
 DALI_SCHEMA(ResizeAttr)
   .AddOptionalArg("resize_x", R"code(The length of the X dimension of the resized image.
 
-This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
-If the ``resize_y`` is unspecified or 0, the operator keeps the aspect ratio of the original image.
+This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
+If the `resize_y` is unspecified or 0, the operator keeps the aspect ratio of the original image.
 A negative value flips the image.)code", 0.f, true)
   .AddOptionalArg("resize_y", R"code(The length of the Y dimension of the resized image.
 
-This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
-If the ``resize_x`` is unspecified or 0, the operator keeps the aspect ratio of the original image.
+This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
+If the `resize_x` is unspecified or 0, the operator keeps the aspect ratio of the original image.
 A negative value flips the image.)code", 0.f, true)
   .AddOptionalArg("resize_z", R"code(The length of the Z dimension of the resized volume.
 
-This option is mutually exclusive with ``resize_shorter``, ``resize_longer`` and ``size``.
-If the ``resize_x`` and ``resize_y`` are left unspecified or 0, then the op will keep
+This option is mutually exclusive with `resize_shorter`, `resize_longer` and `size`.
+If the `resize_x` and `resize_y` are left unspecified or 0, then the op will keep
 the aspect ratio of the original volume. Negative value flips the volume.)code", 0.f, true)
   .AddOptionalArg<vector<float>>("size", R"code(The desired output size.
 
 Must be a list/tuple with one entry per spatial dimension, excluding video frames and channels.
 Dimensions with a 0 extent are treated as absent, and the output size will be calculated based on
-other extents and ``mode`` argument.)code", {}, true)
+other extents and `mode` argument.)code", {}, true)
   .AddOptionalArg("resize_shorter", R"code(The length of the shorter dimension of the resized image.
 
-This option is mutually exclusive with ``resize_longer`` and explicit size arguments, and
+This option is mutually exclusive with `resize_longer` and explicit size arguments, and
 the operator keeps the aspect ratio of the original image.
 This option is equivalent to specifying the same size for all dimensions and ``mode="not_smaller"``.
-The longer dimension can be bounded by setting the ``max_size`` argument.
-See ``max_size`` argument doc for more info.)code", 0.f, true)
+The longer dimension can be bounded by setting the `max_size` argument.
+See `max_size` argument doc for more info.)code", 0.f, true)
   .AddOptionalArg("resize_longer", R"code(The length of the longer dimension of the resized image.
 
-This option is mutually exclusive with ``resize_shorter`` and explicit size arguments, and
+This option is mutually exclusive with `resize_shorter` and explicit size arguments, and
 the operator keeps the aspect ratio of the original image.
 This option is equivalent to specifying the same size for all dimensions and ``mode="not_larger"``.
 )code", 0.f, true)

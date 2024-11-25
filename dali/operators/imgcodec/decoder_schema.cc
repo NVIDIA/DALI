@@ -111,7 +111,7 @@ If set to True, each thread in the internal thread pool will be tied to a specif
 Otherwise, the threads can be reassigned to any CPU core by the operating system.)code",
       true)
   .AddOptionalArg("use_fast_idct",
-      R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when ``device`` is set
+      R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when `device` is set
 to "cpu" or when the it is set to "mixed" but the particular image can not be handled by
 the GPU implementation.
 
@@ -206,23 +206,23 @@ and shape of the slice. Both coordinates and shapes can be provided in absolute 
 
 The slice arguments can be specified by the following named arguments:
 
-#. ``start``: Slice start coordinates (absolute)
-#. ``rel_start``: Slice start coordinates (relative)
-#. ``end``: Slice end coordinates (absolute)
-#. ``rel_end``: Slice end coordinates (relative)
-#. ``shape``: Slice shape (absolute)
-#. ``rel_shape``: Slice shape (relative)
+#. `start`: Slice start coordinates (absolute)
+#. `rel_start`: Slice start coordinates (relative)
+#. `end`: Slice end coordinates (absolute)
+#. `rel_end`: Slice end coordinates (relative)
+#. `shape`: Slice shape (absolute)
+#. `rel_shape`: Slice shape (relative)
 
 The slice can be configured by providing start and end coordinates or start and shape.
-Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+Relative and absolute arguments can be mixed (for example, `rel_start` can be used with `shape`)
 as long as start and shape or end are uniquely defined.
 
-Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
-When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+Alternatively, two extra positional inputs can be provided, specifying `__anchor` and `__shape`.
+When using positional inputs, two extra boolean arguments `normalized_anchor`/`normalized_shape`
 can be used to specify the nature of the arguments provided. Using positional inputs for anchor
 and shape is incompatible with the named arguments specified above.
 
-The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+The slice arguments should provide as many dimensions as specified by the `axis_names` or `axes`
 arguments.
 
 By default, the :meth:`nvidia.dali.fn.decoders.image_slice` operator uses normalized coordinates
@@ -252,14 +252,14 @@ point of the slice (x0, x1, x2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-``normalized_anchor``.)code")
+`normalized_anchor`.)code")
   .InputDox(2, "shape", "1D TensorList of float or int",
             R"code(Input that contains normalized or absolute coordinates for the dimensions
 of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-``normalized_shape``.)code");
+`normalized_shape`.)code");
 
 
 DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
@@ -272,7 +272,7 @@ The output of the decoder is in *HWC* layout.
 The implementation uses NVIDIA nvImageCodec to decode images.
 
 The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
-a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
+a range of values specified by ``area`` and `aspect_ratio` arguments. respectively.
 
 When possible, the operator uses the ROI decoding, reducing the decoding time and memory consumption.
 

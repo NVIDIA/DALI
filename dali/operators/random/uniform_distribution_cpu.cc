@@ -21,12 +21,12 @@ namespace dali {
 DALI_SCHEMA(random__Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
-It can be configured to produce a continuous uniform distribution in the ``range`` [min, max),
-or a discrete uniform distribution where any of the specified ``values`` [v0, v1, ..., vn] occur
+It can be configured to produce a continuous uniform distribution in the `range` [min, max),
+or a discrete uniform distribution where any of the specified `values` [v0, v1, ..., vn] occur
 with equal probability.
 
-The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
+The shape of the generated data can be either specified explicitly with a `shape` argument,
+or chosen to match the shape of the `__shape_like` input, if provided. If none are present,
 a single value per sample is generated.
 )code")
     .NumInput(0, 1)
@@ -37,17 +37,17 @@ a single value per sample is generated.
     .AddOptionalArg("range",
       R"code(Range ``[min, max)`` of a continuous uniform distribution.
 
-This argument is mutually exclusive with ``values``.
+This argument is mutually exclusive with `values`.
 
 .. warning::
-  When specifying an integer type as ``dtype``, the generated numbers can go outside
+  When specifying an integer type as `dtype`, the generated numbers can go outside
   the specified range, due to rounding.
 )code",
       std::vector<float>{-1.0f, 1.0f}, true)
     .AddOptionalArg<std::vector<float>>("values",
       R"code(The discrete values [v0, v1, ..., vn] produced by a discrete uniform distribution.
 
-This argument is mutually exclusive with ``range``.)code",
+This argument is mutually exclusive with `range`.)code",
       nullptr, true)
     .AddParent("RNGAttr");
 
@@ -57,12 +57,12 @@ DALI_REGISTER_OPERATOR(random__Uniform, UniformDistribution<CPUBackend>, CPU);
 DALI_SCHEMA(Uniform)
     .DocStr(R"code(Generates random numbers following a uniform distribution.
 
-It can be configured to produce a continuous uniform distribution in the ``range`` [min, max),
-or a discrete uniform distribution where any of the specified ``values`` [v0, v1, ..., vn] occur
+It can be configured to produce a continuous uniform distribution in the `range` [min, max),
+or a discrete uniform distribution where any of the specified `values` [v0, v1, ..., vn] occur
 with equal probability.
 
-The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
+The shape of the generated data can be either specified explicitly with a `shape` argument,
+or chosen to match the shape of the `__shape_like` input, if provided. If none are present,
 a single value per sample is generated.
 )code")
     .NumInput(0, 1)
@@ -73,17 +73,17 @@ a single value per sample is generated.
     .AddOptionalArg("range",
       R"code(Range ``[min, max)`` of a continuous uniform distribution.
 
-This argument is mutually exclusive with ``values``.
+This argument is mutually exclusive with `values`.
 
 .. warning::
-  When specifying an integer type as ``dtype``, the generated numbers can go outside
+  When specifying an integer type as `dtype`, the generated numbers can go outside
   the specified range, due to rounding.
 )code",
       std::vector<float>{-1.0f, 1.0f}, true)
     .AddOptionalArg<std::vector<float>>("values",
       R"code(The discrete values [v0, v1, ..., vn] produced by a discrete uniform distribution.
 
-This argument is mutually exclusive with ``range``.)code",
+This argument is mutually exclusive with `range`.)code",
       nullptr, true)
     .AddParent("RNGAttr")
     .Deprecate("random__Uniform");  // Deprecated in 0.30

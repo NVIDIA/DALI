@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,17 +26,17 @@ namespace dali {
 DALI_SCHEMA(TensorResizeAttr)
     .AddOptionalArg<vector<float>>("sizes", R"code(Output sizes.
 
-When ``axes`` is provided, the size values refer to the axes specified.
-Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code",
+When `axes` is provided, the size values refer to the axes specified.
+Note: Arguments `sizes` and `scales` are mutually exclusive.)code",
                                    {}, true)
     .AddOptionalArg<vector<float>>("scales", R"code(Scale factors.
 
 The resulting output size is calculated as
 ``out_size = size_rounding(scale_factor * original_size)``.
-See ``size_rounding`` for a list of supported rounding policies.
+See `size_rounding` for a list of supported rounding policies.
 
-When ``axes`` is provided, the scale factor values refer to the axes specified.
-Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code",
+When `axes` is provided, the scale factor values refer to the axes specified.
+Note: Arguments `sizes` and `scales` are mutually exclusive.)code",
                                    {}, true)
     .AddOptionalArg<float>("alignment", R"code(Determines the position of the ROI
 when using scales (provided or calculated).
@@ -62,13 +62,13 @@ sizes/scales. If only one value is provided, it is applied to all dimensions.)co
 
 Accepted range is [-ndim, ndim-1]. Negative indices are counted from the back.
 
-By default, all dimensions are assumed. The ``axis_names`` and ``axes`` arguments are mutually exclusive.)code",
+By default, all dimensions are assumed. The `axis_names` and `axes` arguments are mutually exclusive.)code",
         nullptr)
     .AddOptionalArg<TensorLayout>(
         "axis_names",
         R"code(Names of the axes that `sizes`, `scales`, `max_size`, `roi_start`, `roi_end` refer to.
 
-By default, all dimensions are assumed. The ``axis_names`` and ``axes`` arguments are mutually exclusive.)code",
+By default, all dimensions are assumed. The `axis_names` and `axes` arguments are mutually exclusive.)code",
         nullptr)
     .AddOptionalArg<std::string>("size_rounding",
                                  R"code(Determines the rounding policy when using scales.

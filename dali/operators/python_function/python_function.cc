@@ -49,7 +49,7 @@ The function should not modify input tensors.
 
 .. warning::
     When the pipeline has conditional execution enabled, additional steps must be taken to
-    prevent the ``function`` from being rewritten by AutoGraph.
+    prevent the `function` from being rewritten by AutoGraph.
     There are two ways to achieve this:
 
         1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).

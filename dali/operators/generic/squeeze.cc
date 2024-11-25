@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 namespace dali {
 
 DALI_SCHEMA(Squeeze)
-  .DocStr(R"code(Removes the dimensions given as ``axes`` or ``axis_names``.
+  .DocStr(R"code(Removes the dimensions given as `axes` or `axis_names`.
 
 It's an error to remove a dimension that would cause the total volume to change.)code")
   .NumInput(1)

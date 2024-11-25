@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ DALI_SCHEMA(experimental__readers__Video)
   .DocStr(R"code(Loads and decodes video files using FFmpeg.
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
-containers and returns a batch of sequences of ``sequence_length`` frames with shape
+containers and returns a batch of sequences of `sequence_length` frames with shape
 ``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
 
 .. note::
@@ -75,7 +75,7 @@ even in the variable frame rate scenario.)code")
       R"code(Absolute paths to the video files to load.)code",
       std::vector<std::string>{})
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-``filenames`` argument. If not provided, no labels will be yielded.)", nullptr)
+`filenames` argument. If not provided, no labels will be yielded.)", nullptr)
   .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
       DALI_INT32)
@@ -86,7 +86,7 @@ as an additional output.)code",
   .AddOptionalArg("step",
       R"code(Frame interval between each sequence.
 
-When the value is less than 0, ``step`` is set to ``sequence_length``.)code",
+When the value is less than 0, `step` is set to `sequence_length`.)code",
       -1)
   .AddOptionalArg("stride",
       R"code(Distance between consecutive frames in the sequence.)code", 1u, false)

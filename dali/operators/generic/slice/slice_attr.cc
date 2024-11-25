@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,42 +33,42 @@ Valid range: ``[-ndim, ndim-1]``, where ndim is the number of dimensions in the 
         R"code(Order of the dimensions used for the anchor and shape slice inputs,
 as described in layout.
 
-If a value is provided, ``axis_names`` will have a higher priority than ``axes``.)code",
+If a value is provided, `axis_names` will have a higher priority than `axes`.)code",
         TensorLayout("WH"))
     .AddOptionalArg<std::vector<int>>("start",
         R"code(Start coordinates of the slice.
 
-Note: Providing named arguments ``start``/``end`` or ``start``/``shape`` is incompatible with
+Note: Providing named arguments `start`/`end` or `start`/`shape` is incompatible with
 providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_start",
         R"code(Start relative coordinates of the slice (range [0.0 - 1.0]).
 
-Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+Note: Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("end",
         R"code(End coordinates of the slice.
 
-Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+Note: Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_end",
         R"code(End relative coordinates of the slice (range [0.0 - 1.0].
 
-Note: Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+Note: Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("shape",
         R"code(Shape of the slice.
 
-Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<float>>("rel_shape",
         R"code(Relative shape of the slice (range [0.0 - 1.0]).
 
-Providing named arguments ``start``, ``end``, ``shape``, ``rel_start``, ``rel_end``, ``rel_shape``
+Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg("normalized_anchor",

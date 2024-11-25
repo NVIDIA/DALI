@@ -21,7 +21,7 @@ DALI_SCHEMA(GetProperty)
     .DocStr(
         R"code(Returns a property of the tensor passed as an input.
 
-The type of the output will depend on the ``key`` of the requested property.)code")
+The type of the output will depend on the `key` of the requested property.)code")
     .NumInput(1)
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)

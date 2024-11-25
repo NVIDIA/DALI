@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ augmentation code remains unchanged.
 The dataset consists of one or more tar archives, each of which is further split into samples.
 A sample contains one or more components that correspond to the actual files contained within
 the archive. The components that belong to a specific sample are aggregated by filename without
-extension (for the specifics about the extensions please read the description of the ``ext`` parameter
+extension (for the specifics about the extensions please read the description of the `ext` parameter
 below). Note that samples with their filename starting with a dot will not be loaded, as well as
 entries that are not regular files.
 
@@ -112,7 +112,7 @@ Based on https://github.com/webdataset/webdataset)code")
     })
     .AddArg("paths", R"code(The list of (one or more) paths to the webdataset archives.
 
-Has to be the same length as the ``index_paths`` argument.)code",
+Has to be the same length as the `index_paths` argument.)code",
             DALI_STRING_VEC)
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.
 
@@ -135,7 +135,7 @@ is undefined.
     .AddOptionalArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
 
-Has to be the same length as the ``paths`` argument. In case it is not provided,
+Has to be the same length as the `paths` argument. In case it is not provided,
 it will be inferred automatically from the webdataset archive.)code",
             std::vector<std::string>())
     .AddOptionalArg(

@@ -24,11 +24,11 @@ DALI_SCHEMA(ResamplingFilterAttr)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation to be used.
 
-Use ``min_filter`` and ``mag_filter`` to specify different filtering for downscaling and upscaling.
+Use `min_filter` and `mag_filter` to specify different filtering for downscaling and upscaling.
 
 .. note::
   Usage of INTERP_TRIANGULAR is now deprecated and it should be replaced by a combination of
-INTERP_LINEAR with ``antialias`` enabled.
+INTERP_LINEAR with `antialias` enabled.
 )code",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("mag_filter", "Filter used when scaling up.",

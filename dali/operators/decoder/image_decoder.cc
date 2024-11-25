@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ reallocated to decode the image.
 If a value greater than 0 is provided, the operator preallocates one device buffer of the
 requested size per thread. If the value is correctly selected, no additional allocations
 will occur during the pipeline execution. One way to find the ideal value is to do a complete
-run over the dataset with the ``memory_stats`` argument set to True and then copy the largest
+run over the dataset with the `memory_stats` argument set to True and then copy the largest
 allocation value that was printed in the statistics.)code",
       16*1024*1024)
   .AddOptionalArg("device_memory_padding_jpeg2k",
@@ -63,7 +63,7 @@ reallocated to decode the image.
 If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
 according to the hint provided. If the value is correctly selected, no additional allocations
 will occur during the pipeline execution. One way to find the ideal value is to do a complete
-run over the dataset with the ``memory_stats`` argument set to True and then copy the largest
+run over the dataset with the `memory_stats` argument set to True and then copy the largest
 allocation value that was printed in the statistics.)code",
       0)
   .AddOptionalArg("host_memory_padding",
@@ -76,7 +76,7 @@ to be reallocated to decode the image.
 If a value greater than 0 is provided, the operator preallocates two (because of double-buffering)
 host-pinned buffers of the requested size per thread. If selected correctly, no additional
 allocations will occur during the pipeline execution. One way to find the ideal value is to
-do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
+do a complete run over the dataset with the `memory_stats` argument set to True, and then copy
 the largest allocation value that is printed in the statistics.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("host_memory_padding_jpeg2k",
@@ -89,7 +89,7 @@ to be reallocated to decode the image.
 If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
 according to the hint provided. If the value is correctly selected, no additional
 allocations will occur during the pipeline execution. One way to find the ideal value is to
-do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
+do a complete run over the dataset with the `memory_stats` argument set to True, and then copy
 the largest allocation value that is printed in the statistics.)code",
       0)
   .AddOptionalArg("hw_decoder_load",
@@ -137,7 +137,7 @@ them at runtime.)code",
       false)
   .DeprecateArg("use_chunk_allocator")  // deprecated in DALI 1.0
   .AddOptionalArg("use_fast_idct",
-      R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when ``device`` is set
+      R"code(Enables fast IDCT in the libjpeg-turbo based CPU decoder, used when `device` is set
 to "cpu" or when the it is set to "mixed" but the particular image can not be handled by
 the GPU implementation.
 
@@ -154,8 +154,8 @@ ImageMagick.)code",
       R"code(Applies **only** to the ``mixed`` backend type.
 
 Prints debug information about nvJPEG allocations. The information about the largest
-allocation might be useful to determine suitable values for ``device_memory_padding`` and
-``host_memory_padding`` for a dataset.
+allocation might be useful to determine suitable values for `device_memory_padding` and
+`host_memory_padding` for a dataset.
 
 .. note::
   The statistics are global for the entire process, not per operator instance, and include
@@ -210,7 +210,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 .. note::
   JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
   a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``decoders.image`` and ``crop`` operators.
+  consider using separate ``decoders.image`` and `crop` operators.
 
 .. note::
   EXIF orientation metadata is disregarded.)code")
@@ -223,7 +223,7 @@ DALI_SCHEMA(decoders__ImageRandomCrop)
   .DocStr(R"code(Decodes images and randomly crops them.
 
 The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
-a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
+a range of values specified by ``area`` and `aspect_ratio` arguments. respectively.
 
 When possible, the operator uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
 to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
@@ -254,23 +254,23 @@ and shape of the slice. Both coordinates and shapes can be provided in absolute 
 
 The slice arguments can be specified by the following named arguments:
 
-#. ``start``: Slice start coordinates (absolute)
-#. ``rel_start``: Slice start coordinates (relative)
-#. ``end``: Slice end coordinates (absolute)
-#. ``rel_end``: Slice end coordinates (relative)
-#. ``shape``: Slice shape (absolute)
-#. ``rel_shape``: Slice shape (relative)
+#. `start`: Slice start coordinates (absolute)
+#. `rel_start`: Slice start coordinates (relative)
+#. `end`: Slice end coordinates (absolute)
+#. `rel_end`: Slice end coordinates (relative)
+#. `shape`: Slice shape (absolute)
+#. `rel_shape`: Slice shape (relative)
 
 The slice can be configured by providing start and end coordinates or start and shape.
-Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+Relative and absolute arguments can be mixed (for example, `rel_start` can be used with `shape`)
 as long as start and shape or end are uniquely defined.
 
-Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
-When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+Alternatively, two extra positional inputs can be provided, specifying `__anchor` and `__shape`.
+When using positional inputs, two extra boolean arguments `normalized_anchor`/`normalized_shape`
 can be used to specify the nature of the arguments provided. Using positional inputs for anchor
 and shape is incompatible with the named arguments specified above.
 
-The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+The slice arguments should provide as many dimensions as specified by the `axis_names` or `axes`
 arguments.
 
 By default, the :meth:`nvidia.dali.fn.decoders.image_slice` operator uses normalized coordinates
@@ -302,14 +302,14 @@ point of the slice (x0, x1, x2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-``normalized_anchor``.)code")
+`normalized_anchor`.)code")
   .InputDox(2, "shape", "1D TensorList of float or int",
             R"code(Input that contains normalized or absolute coordinates for the dimensions
 of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-``normalized_shape``.)code");
+`normalized_shape`.)code");
 
 
 // Deprecated aliases

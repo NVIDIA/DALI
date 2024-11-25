@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,13 +39,13 @@ that uses a derivative window in the direction of the partial derivative and smo
 in the remaining axes.
 
 By default, each partial derivative is approximated by convolving along all spatial axes: the axis
-in partial derivative direction uses derivative window of ``window_size`` and the remaining
-axes are convolved with smoothing windows of the same size. If ``smoothing_size`` is specified,
+in partial derivative direction uses derivative window of `window_size` and the remaining
+axes are convolved with smoothing windows of the same size. If `smoothing_size` is specified,
 the smoothing windows applied to a given axis can have different size than the derivative window.
 Specifying ``smoothing_size = 1`` implies no smoothing in axes perpendicular
 to the derivative direction.
 
-Both ``window_size`` and ``smoothing_size`` can be specified as a single value or per axis.
+Both `window_size` and `smoothing_size` can be specified as a single value or per axis.
 For example, for volumetric input, if ``window_size=[dz, dy, dx]``
 and ``smoothing_size=[sz, sy, sx]`` are specified, the following windows will be used:
 
@@ -62,7 +62,7 @@ Smoothing window can be of size 1, which implies no smoothing along correspondin
 To normalize partial derivatives, ``normalized_kernel=True`` can be used. Each partial derivative
 is scaled by ``2^(-s + n + 2)``, where ``s`` is the sum of the window sizes used to calculate
 a given partial derivative (including the smoothing windows) and ``n`` is the number of data
-dimensions/axes. Alternatively, you can specify ``scale`` argument to customize scaling factors.
+dimensions/axes. Alternatively, you can specify `scale` argument to customize scaling factors.
 Scale can be either a single value or ``n`` values, one for every partial derivative.
 
 Operator uses 32-bit floats as an intermediate type.
@@ -92,7 +92,7 @@ Smoothing size must be odd and between 1 and 23.)code",
     .AddOptionalArg<bool>(
         laplacian::normalizeArgName,
         "If set to True, automatically scales partial derivatives kernels. Must be False "
-        "if ``scale`` is specified.",
+        "if `scale` is specified.",
         laplacian::normalizeArgDefault)
     .AddOptionalTypeArg("dtype", R"code(Output data type.
 

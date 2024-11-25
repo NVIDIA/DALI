@@ -32,7 +32,7 @@ The buffer contents are not copied.)code")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
+  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as `shape` keyword argument")
   .InputDevice(1, InputDevice::CPU)
   .PassThrough({{0, 0}})
   .AllowSequences()
@@ -44,16 +44,16 @@ For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
 results in the output shape ``[240, 3840]``.
 
 .. note::
-  ``rel_shape`` and ``shape`` are mutually exclusive.
+  `rel_shape` and `shape` are mutually exclusive.
 )code",
                   std::vector<int>(), true)
   .AddOptionalArg<float>("rel_shape", R"code(The relative shape of the output.
 
-The output shape is calculated by multiplying the input shape by ``rel_shape``::
+The output shape is calculated by multiplying the input shape by `rel_shape`::
 
   out_shape[i] = in_shape[i] * rel_shape[i]
 
-An additional argument ``src_dims`` may be used to alter which source dimension is used
+An additional argument `src_dims` may be used to alter which source dimension is used
 for calculating the output shape::
 
   out_shape[i] = in_shape[src_dims[i]] * rel_shape[i]
@@ -64,14 +64,14 @@ the output shape ``[240, 3840]``.
 
 The number of dimensions is subject to the following restrictions:
 
-- if ``src_dims`` argument is used, the number of elements in ``src_dims``
-  and ``rel_shape`` must match
-- otherwise, the length of ``rel_shape`` must not exceed the number of dimensions in the input
-  except when the last element in ``rel_shape`` is negative, in which case an extra dimension at
+- if `src_dims` argument is used, the number of elements in `src_dims`
+  and `rel_shape` must match
+- otherwise, the length of `rel_shape` must not exceed the number of dimensions in the input
+  except when the last element in `rel_shape` is negative, in which case an extra dimension at
   the end will be added
 
 .. note::
-  ``rel_shape`` and ``shape`` are mutually exclusive.
+  `rel_shape` and `shape` are mutually exclusive.
 )code",
                   std::vector<float>(), true)
   .AddOptionalArg("layout", R"code(New layout for the data.
@@ -86,12 +86,12 @@ of the output.)code",
 This argument can be used to manipulate the order of existing dimensions or to remove or
 add dimension. A special index value -1 can be used to insert new dimensions.
 
-For example, reshaping a sample with shape ``[300, 200, 1]`` and a ``src_dims``
+For example, reshaping a sample with shape ``[300, 200, 1]`` and a `src_dims`
 argument ``[-1, 1, 0]`` produces an output shape ``[1, 200, 300]``. A leading dimension with
 extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
 order. The last dimension is removed.
 
-The ``src_dims`` argument can be used together with `rel_shape`, in which case the relative
+The `src_dims` argument can be used together with `rel_shape`, in which case the relative
 extents in `rel_shape` describe to the target dimensions. In the example above, specifying
 ``rel_shape = [-1, 0.5, 2]`` would result in the output shape ``[1, 100, 600]``.
 
@@ -105,7 +105,7 @@ The buffer contents are not copied.)")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
+  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as `shape` keyword argument")
   .InputDevice(1, InputDevice::CPU)
   .PassThrough({{0, 0}})
   .AllowSequences()

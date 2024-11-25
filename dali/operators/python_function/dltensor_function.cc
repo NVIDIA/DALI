@@ -47,10 +47,10 @@ The function should not modify input tensors.
 
 For the GPU operator, it is the user's responsibility to synchronize the device code with DALI.
 To synchronize the device code with DALI, synchronize DALI's work before the operator call
-with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
+with the `synchronize_stream` flag (enabled by default) and ensure that the scheduled device
 tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
 by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
-the ``synchronize_stream`` flag can be set to False.
+the `synchronize_stream` flag can be set to False.
 
 .. warning::
   This operator is not compatible with TensorFlow integration.

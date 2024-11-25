@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ The number of dimensions is assumed to be 3 if a rotation axis is provided or 2 
 
 The vector does not need to be normalized, but it must have a non-zero length.
 
-Reversing the vector is equivalent to changing the sign of ``angle``.)code",
+Reversing the vector is equivalent to changing the sign of `angle`.)code",
     nullptr, true, true)
   .AddOptionalArg<std::vector<float>>(
     "center",

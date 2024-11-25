@@ -83,7 +83,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
 
     DALI_ENFORCE(has_files_arg_ || !has_labels_arg_,
       "The argument ``labels`` is valid only when file paths "
-      "are provided as ``files`` argument.");
+      "are provided as `files` argument.");
 
     DALI_ENFORCE(!has_file_filters_arg || file_discovery_opts_.file_filters.size() > 0,
                  "``file_filters`` list cannot be empty.");

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,10 +39,10 @@ DALI_SCHEMA(experimental__readers__Fits)
 
 This operator can be used in the following modes:
 
-1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
-2. Read file names from a text file indicated in ``file_list`` argument.
-3. Read files listed in ``files`` argument.
-4. Number of outputs per sample corresponds to the length of ``hdu_indices`` argument. By default,
+1. Read all files from a directory indicated by `file_root` that match given `file_filter`.
+2. Read file names from a text file indicated in `file_list` argument.
+3. Read files listed in `files` argument.
+4. Number of outputs per sample corresponds to the length of `hdu_indices` argument. By default,
 first HDU with data is read from each file, so the number of outputs defaults to 1. 
 )")
     .NumInput(0)
@@ -50,32 +50,32 @@ first HDU with data is read from each file, so the number of outputs defaults to
     .AddOptionalArg<string>("file_root",
                             R"(Path to a directory that contains the data files.
 
-If not using ``file_list`` or ``files``, this directory is traversed to discover the files.
-``file_root`` is required in this mode of operation.)",
+If not using `file_list` or `files`. this directory is traversed to discover the files.
+`file_root` is required in this mode of operation.)",
                             nullptr)
     .AddOptionalArg(
         "file_filter",
         R"(If a value is specified, the string is interpreted as glob string to filter the
-list of files in the sub-directories of the ``file_root``.
+list of files in the sub-directories of the `file_root`.
 
-This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
+This argument is ignored when file paths are taken from `file_list` or `files`.)",
         "*.fits")
     .AddOptionalArg<string>("file_list",
                             R"(Path to a text file that contains filenames (one per line).
-The filenames are relative to the location of the text file or to ``file_root``, if specified.
+The filenames are relative to the location of the text file or to `file_root`, if specified.
 
-This argument is mutually exclusive with ``files``.)",
+This argument is mutually exclusive with `files`.)",
                             nullptr)
     .AddOptionalArg("shuffle_after_epoch",
                     R"(If set to True, the reader shuffles the entire dataset after each epoch.
 
-``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)",
+`stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)",
                     false)
     .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
 
-If ``file_root`` is provided, the paths are treated as being relative to it.
+If `file_root` is provided, the paths are treated as being relative to it.
 
-This argument is mutually exclusive with ``file_list``.)",
+This argument is mutually exclusive with `file_list`.)",
                                     nullptr)
     .AddOptionalArg("hdu_indices",
                     R"(HDU indices to read. If not provided, the first HDU after the primary 

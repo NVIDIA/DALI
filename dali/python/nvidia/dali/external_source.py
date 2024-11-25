@@ -304,7 +304,7 @@ class ExternalSource:
     """ExternalSource is a special operator that can provide data to a DALI pipeline
     from Python by several methods.
 
-    The simplest and preferred way is to specify a ``source``, which can be a callable or iterable.
+    The simplest and preferred way is to specify a `source`, which can be a callable or iterable.
 
     .. note::
         :meth:`nvidia.dali.fn.external_source` operator is partially compatible with TensorFlow
@@ -324,9 +324,9 @@ class ExternalSource:
 
         The source is polled for data (via a call ``source()`` or ``next(source)``)
         when the pipeline needs input for the next iteration. Depending on the value of
-        ``num_outputs``, the source can supply one or more data items. The data item can be
-        a whole batch (default) or a single batch entry (when ``batch==False``). If ``num_outputs``
-        is not set, the ``source`` is expected to return one item (a batch or a sample).
+        `num_outputs`, the source can supply one or more data items. The data item can be
+        a whole batch (default) or a single batch entry (when ``batch==False``). If `num_outputs`
+        is not set, the `source` is expected to return one item (a batch or a sample).
         If this value is specified (even if its value is 1), the data is expected to a be tuple,
         or list, where each element corresponds to respective return value of the external_source.
 
@@ -356,13 +356,13 @@ class ExternalSource:
         in current epoch and in the batch, as well as current iteration number.
 
         If the source is a generator function, the function is invoked and treated as an iterable.
-        However, unlike a generator, the function can be used with ``cycle``. In this case,
+        However, unlike a generator, the function can be used with `cycle`. In this case,
         the function will be called again when the generator reaches the end of iteration.
 
         For GPU inputs, it is a user's responsibility to modify the provided GPU memory content
         only in the provided stream. DALI schedules a copy on this stream, and all work is properly
         queued. If no stream is provided, DALI will use a default, with a best-effort approach at
-        correctness. See the ``cuda_stream`` argument documentation for more information.
+        correctness. See the `cuda_stream` argument documentation for more information.
 
         .. note::
             After restoring from checkpoint, queries to sources that are single-argument callables
@@ -388,7 +388,7 @@ class ExternalSource:
             * ``"raise"`` - when the end of data is reached, ``StopIteration`` is raised, but
             the iteration is restarted on subsequent call.
 
-        This flag requires that the ``source`` is a collection, for example, an iterable
+        This flag requires that the `source` is a collection, for example, an iterable
         object where ``iter(source)`` returns a fresh iterator on each call, or
         a generator function. In the latter case, the generator function is called
         again when more data than was yielded by the function is requested.
@@ -399,19 +399,19 @@ class ExternalSource:
         The name of the data node.
 
         Used when feeding the data with a call to  ``feed_input`` and can be omitted if
-        the data is provided by ``source``.
+        the data is provided by `source`.
 
     layout : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
         If provided, sets the layout of the data.
 
         When ``num_outputs > 1``, the layout can be a list that contains a distinct layout
-        for each output. If the list has fewer than ``num_outputs`` elements, only
+        for each output. If the list has fewer than `num_outputs` elements, only
         the first outputs have the layout set, the rest of the outputs don't have a layout set.
 
     dtype : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
         Input data type.
 
-        When ``num_outputs > 1``, the ``dtype`` can be a list that contains a distinct
+        When ``num_outputs > 1``, the `dtype` can be a list that contains a distinct
         value for each output.
 
         The operator will validate that the fetched data is of the provided type.
@@ -423,13 +423,13 @@ class ExternalSource:
     ndim : int or list/tuple thereof, optional
         Number of dimensions in the input data.
 
-        When ``num_outputs > 1``, the ``ndim`` can be a list that contains a distinct value for each
+        When ``num_outputs > 1``, the `ndim` can be a list that contains a distinct value for each
         output.
 
         The dimensionality of the data provided to the operator will be verified against this value.
-        Number of dimensions can be also inferred from the ``layout`` argument if provided.
+        Number of dimensions can be also inferred from the `layout` argument if provided.
 
-        If the ``layout`` argument is provided, the ``ndim`` must match
+        If the `layout` argument is provided, the `ndim` must match
         the number of dimensions in the layout.
 
         Specifying the input dimensionality will be required starting from DALI 2.0
@@ -473,11 +473,11 @@ class ExternalSource:
         consumed by the pipeline.
 
         The buffer can be modified or freed again after the output of the relevant iterations
-        has been consumed. Effectively, it happens after Pipeline's ``prefetch_queue_depth`` or
+        has been consumed. Effectively, it happens after Pipeline's `prefetch_queue_depth` or
         ``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
         the ``feed_input`` call.
 
-        The memory location must match the specified ``device`` parameter of the operator.
+        The memory location must match the specified `device` parameter of the operator.
         For the CPU, the provided memory can be one contiguous buffer or a list of
         contiguous Tensors. For the GPU, to avoid extra copy, the provided buffer must
         be contiguous. If you provide a list of separate Tensors, there will be an additional
@@ -486,50 +486,50 @@ class ExternalSource:
         Automatically set to ``True`` when ``parallel=True``
 
     batch : bool, optional
-        If set to True or None, the ``source`` is expected to produce an entire batch at once.
-        If set to False, the ``source`` is called per-sample.
+        If set to True or None, the `source` is expected to produce an entire batch at once.
+        If set to False, the `source` is called per-sample.
 
-        Setting ``parallel`` to True automatically sets ``batch`` to False if it was not provided.
+        Setting `parallel` to True automatically sets `batch` to False if it was not provided.
 
     batch_info : bool, optional, default = False
-        Controls if a callable ``source`` that accepts an argument and returns batches
+        Controls if a callable `source` that accepts an argument and returns batches
         should receive class:`~nvidia.dali.types.BatchInfo` instance or just an
         integer representing the iteration number.
-        If set to False (the default), only the integer is passed. If ``source`` is not callable,
-        does not accept arguments or ``batch`` is set to False, setting this flag has no effect.
+        If set to False (the default), only the integer is passed. If `source` is not callable,
+        does not accept arguments or `batch` is set to False, setting this flag has no effect.
 
     parallel : bool, optional, default = False
         If set to True, the corresponding pipeline will start a pool of Python workers to run the
         callback in parallel. You can specify the number of workers by passing ``py_num_workers``
         into pipeline's constructor.
 
-        When ``parallel`` is set to True, samples returned by ``source`` must be
+        When `parallel` is set to True, samples returned by `source` must be
         NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
 
         |
-        Acceptable sources depend on the value specified for ``batch`` parameter.
+        Acceptable sources depend on the value specified for `batch` parameter.
 
-        If ``batch`` is set to ``False``, the ``source`` must be:
+        If `batch` is set to ``False``, the `source` must be:
 
         * a callable (a function or an object with ``__call__`` method) that accepts
             exactly one argument (:class:`~nvidia.dali.types.SampleInfo` instance
             that represents the index of the requested sample).
 
-        If ``batch`` is set to ``True``, the ``source`` can be either:
+        If `batch` is set to ``True``, the `source` can be either:
 
         * a callable that accepts exactly one argument (either :class:`~nvidia.dali.types.BatchInfo`
-            instance or an integer - see ``batch_info`` for details)
+            instance or an integer - see `batch_info` for details)
         * an iterable,
         * a generator function.
 
         |
         .. warning::
-            Irrespective of ``batch`` value, callables should be stateless - they should produce
+            Irrespective of `batch` value, callables should be stateless - they should produce
             requested sample or batch solely based on the
             :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
             instance or index in batch, so that they can be run in parallel in a number of workers.
 
-            The ``source`` callback must raise a ``StopIteration`` when the end of
+            The `source` callback must raise a ``StopIteration`` when the end of
             the data is reached. Note, that due to prefetching, the callback may be
             invoked with a few iterations past the end of dataset - make sure it
             consistently raises a ``StopIteration`` in that case.
@@ -537,7 +537,7 @@ class ExternalSource:
         |
         .. warning::
             When the pipeline has conditional execution enabled, additional steps must
-            be taken to prevent the ``source`` from being rewritten by AutoGraph.
+            be taken to prevent the `source` from being rewritten by AutoGraph.
             There are two ways to achieve this:
 
                 1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).
@@ -552,12 +552,12 @@ class ExternalSource:
 
         |
         .. note::
-            Callable ``source`` can be run in parallel by multiple workers.
+            Callable `source` can be run in parallel by multiple workers.
             For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
             it is possible to parallelize computation within the batch.
 
             When ``batch=True``, callables performance might especially benefit from increasing
-            ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
+            `prefetch_queue_depth` so that a few next batches can be computed in parallel.
 
         |
         .. note::
@@ -576,9 +576,9 @@ class ExternalSource:
         ``external_source`` will detect that no new data was fed between the previous pipeline
         run and the current one and will self-refeed with the most recent data.
 
-        Setting ``repeat_last`` to `True` only makes sense in "push" mode, i.e. when the data is
+        Setting `repeat_last` to `True` only makes sense in "push" mode, i.e. when the data is
         actively provided by the user via a call to ``feed_input``. Enabling this option
-        is incompatible with specifying the ``source``, which makes the ``external_source``
+        is incompatible with specifying the `source`, which makes the ``external_source``
         operate in "pull" mode.
 
     prefetch_queue_depth : int, optional, default = 1
@@ -1015,7 +1015,7 @@ def external_source(
     """
     Creates a data node which is populated with data from a Python source.
 
-    The data can be provided by the ``source`` function or iterable, or it can be provided by
+    The data can be provided by the `source` function or iterable, or it can be provided by
     ``pipeline.feed_input(name, data, layout, cuda_stream)``.
 
     In the case of the GPU input, it is the user responsibility to modify the

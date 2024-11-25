@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ namespace dali {
 
 DALI_SCHEMA(PermuteBatch)
   .DocStr(R"(Returns a batch of tensors constructed by selecting tensors from the input based
-on indices given in ``indices`` argument::
+on indices given in `indices` argument::
 
   out_tensor[i] = in_tensor[indices[i]]
 

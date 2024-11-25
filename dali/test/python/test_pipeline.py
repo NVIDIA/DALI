@@ -1768,8 +1768,7 @@ def test_output_dtype_deprecation():
         assert len(w) == 1
         assert issubclass(w[-1].category, DeprecationWarning)
         expected_msg = (
-            "The argument ``output_dtype`` is a deprecated alias for ``dtype``. "
-            "Use ``dtype`` instead."
+            "The argument `output_dtype` is a deprecated alias for `dtype`. Use `dtype` instead."
         )
         assert expected_msg == str(w[-1].message)
 
@@ -1784,7 +1783,7 @@ def test_image_type_deprecation():
         assert len(w) == 1
         assert issubclass(w[-1].category, DeprecationWarning)
         expected_msg = (
-            "The argument ``image_type`` is no longer used and will be removed "
+            "The argument `image_type` is no longer used and will be removed "
             "in a future release."
         )
         assert expected_msg == str(w[-1].message)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ DALI_SCHEMA(ElementExtract)
     .DocStr(R"code(Extracts one or more elements from input sequence.
 
 The outputs are slices in the first (outermost) dimension of the input.
-There are as many outputs as the elements provided in the ``element_map``.
+There are as many outputs as the elements provided in the `element_map`.
 
 For example, for ``element_map = [2, 0, 3]`` there will be three outputs, containing
 2nd, 0th and 3rd element of the input sequences respectively.
