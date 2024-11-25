@@ -29,6 +29,9 @@ import httplib2
 import inspect
 import warnings
 
+# Get this from inside the module
+from sphinx_paramlinks.sphinx_paramlinks import lookup_params
+
 # -- Project information -----------------------------------------------------
 
 # remove sphinx footer
@@ -628,6 +631,20 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
     lines[:] = [map_line(line, s.parameters) for line in lines]
 
 
+def fixup_sphinx_paramlinks_lookup(app, env, node, contnode):
+    # sphinx_paramlinks assumes that every node will have `source` that matches
+    # "/path/to/file.py:docstring of module.clsname.methname"
+    # Sadly, if the documented object is from module that is runtime-generated,
+    # the "path/to/file.py:"" part is skipped. Add a dummy `:` so the regex works.
+    if node["reftype"] != "paramref":
+        return None
+    if node.source.startswith("docstring of"):
+        newnode = node.deepcopy()
+        newnode.source = ":" + node.source
+        return lookup_params(app, env, newnode, contnode)
+    return None
+
+
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
@@ -640,6 +657,9 @@ def setup(app):
     )
     app.connect(
         "autodoc-process-docstring", replace_params_with_paramrefs, priority=450
+    )
+    app.connect(
+        "missing-reference", fixup_sphinx_paramlinks_lookup, priority=450
     )
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
