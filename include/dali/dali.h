@@ -24,9 +24,18 @@
 extern "C" {
 #endif
 
+#define DALI_API DLL_PUBLIC
+
 typedef struct _DALIPipeline *daliPipeline_h;
+typedef struct _DALIPipelineOutputs *daliPipelineOutputs_h;
 typedef struct _DALITensor *daliTensor_h;
 typedef struct _DALITensorList *daliTensorList_h;
+
+typedef enum {
+  DALI_STORAGE_CPU = 0,
+  DALI_STORAGE_GPU = 1,
+  DALI_STORAGE_FORCE_INT32 = 0x7fffffff
+} daliStorageDevice_t;
 
 /** Error codes returned by DALI functions */
 typedef enum {
@@ -56,7 +65,7 @@ typedef enum {
  * Returns the error code associate with the recent unsuccessful call in the calling thread.
  * Succesful calls do not overwrite the value.
  */
-daliError_t daliGetLastError();
+DALI_API daliError_t daliGetLastError();
 
 /** Returns the last error message.
  *
@@ -65,32 +74,32 @@ daliError_t daliGetLastError();
  * Succesful calls do not overwrite the value.
  * The pointer is invalidated by intervening DALI calls in the same thread.
  */
-const char *daliGetLastErrorMessage();
+DALI_API const char *daliGetLastErrorMessage();
 
 /** Clears the last error for the calling thread. */
-void daliClearLastError();
+DALI_API void daliClearLastError();
 
 /** Returns a human-readable name of a given error
  *
  * The value is a pointer to a string literal. It's not invalidated other than by unloading DALI.
  */
-const char *daliGetErrorName(daliError_t error);
+DALI_API const char *daliGetErrorName(daliError_t error);
 
 /** Returns a human-readable description of a given error.
  *
  * The value is a pointer to a string literal. It's not invalidated other than by unloading DALI.
  */
-const char *daliGetErrorDescription(daliError_t error);
+DALI_API const char *daliGetErrorDescription(daliError_t error);
 
 
 /** Initializes DALI or increments initialization count. */
-daliError_t daliInit();
+DALI_API daliError_t daliInit();
 
 /** Decrements initialization counts and shuts down the library when the count reaches 0.
  *
  * Calling this function is optional. DALI will be shut down automatically when the program exits.
  */
-daliError_t daliShutdown();
+DALI_API daliError_t daliShutdown();
 
 /*** PIPELINE API ***********************************************************/
 
@@ -115,21 +124,8 @@ typedef enum _DALIExecType {
   DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
 } daliExecType_t;
 
-/*#define DALI_DEFINE_OPTIONAL_TYPE(value_type, ...) \
-  typedef struct {                                 \
-    daliBool has_value;                            \
-    value_type value;                              \
-  } __VA_ARGS__;
 
-
-DALI_DEFINE_OPTIONAL_TYPE(daliBool, daliOptionalBool_t);
-DALI_DEFINE_OPTIONAL_TYPE(int32_t, daliOptionalInt_t, daliOptionalInt32_t);
-DALI_DEFINE_OPTIONAL_TYPE(uint32_t, daliOptionalInt_t, daliOptionalInt32_t);
-DALI_DEFINE_OPTIONAL_TYPE(int64_t, daliOptionalInt64_t);
-DALI_DEFINE_OPTIONAL_TYPE(uint64_t, daliOptionalInt64_t);
-DALI_DEFINE_OPTIONAL_TYPE(float, daliOptionalFloat_t);
-DALI_DEFINE_OPTIONAL_TYPE(double, daliOptionalDouble_t);*/
-
+/** DALI Pipeline construction parameters */
 typedef struct _DALIPipelineParams {
   size_t size;  /* must be sizeof(daliPipelineParams_t) */
   struct {
@@ -151,8 +147,22 @@ typedef struct _DALIPipelineParams {
   daliBool enable_memory_stats;
 } daliPipelineParams_t;
 
+/** Describes an output of a DALI Pipeline */
+typedef struct _DALIPipelineOutputDesc {
+  const char *name;
+  daliStorageDevice_t device;
+  struct {
+    unsigned dtype_present : 1;
+    unsigned ndim_present : 1;
+  };
+  daliDataType_t dtype;
+  int ndim;
+} daliPipelineOutputDesc_t;
+
 /** Creates an empty pipeline. */
-daliError_t daliPipelineCreate(daliPipeline_h *out_pipe_handle, const daliPipelineParams_t *params);
+DALI_API daliError_t daliPipelineCreate(
+  daliPipeline_h *out_pipe_handle,
+  const daliPipelineParams_t *params);
 
 /** Creates a DALI pipeline from a serialized one.
  *
@@ -167,12 +177,103 @@ daliError_t daliPipelineCreate(daliPipeline_h *out_pipe_handle, const daliPipeli
  *                             the parameters specified in this structure override the corresponding
  *                             parameters deserialized from the buffer.
  */
-daliError_t daliPipelineDeserialize(
+DALI_API daliError_t daliPipelineDeserialize(
   daliPipeline_h *out_pipe_handle,
   const void *serialized_pipeline,
   size_t serialized_pipeline_size,
   const daliPipelineParams_t *param_overrides);
 
+
+/** Prepares the pipeline for execution */
+DALI_API daliError_t daliPipelineBuild(daliPipeline_h pipeline);
+
+/** Runs the pipeline to fill the queues.
+ *
+ * DALI Pipeline can process several iterations ahead. This function pre-fills the queues.
+ * If the pipeline has ExternalSource operators (or other external inputs), they need to be
+ * supplied with enough data.
+ * @see daliPipelineFeedInput
+ * @see daliPipelineGetInputFeedCount
+ */
+DALI_API daliError_t daliPipelinePrefetch(daliPipeline_h pipeline);
+
+/** Schedules one iteration.
+ *
+ * If the executor doesn't have DALI_EXEC_IS_ASYNC flag, the function will block until the
+ * operation is complete on host.
+ *
+ * NOTE: The relevant device code may still be running after this function returns.
+ */
+DALI_API daliError_t daliPipelineRun(daliPipeline_h pipeline);
+
+/** Pops the pipeline outputs from the pipeline's output queue.
+ *
+ * The outputs are ready for use on any stream.
+ * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
+ */
+DALI_API daliError_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutput_h *out);
+
+/** Gets the number of pipeline outputs */
+DALI_API daliError_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count);
+
+/** Gets the number of pipeline outputs */
+DALI_API daliError_t daliPipelineGetOutputDesc(
+  daliPipeline_h pipeline,
+  daliPipelineOutputDesc_t *out_desc,
+  int index);
+
+
+/** Pops the pipeline outputs from the pipeline's output queue.
+ *
+ * The outputs are ready for use on the provided stream.
+ * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
+ *
+ * This function works only with DALI_EXEC_IS_DYNAMIC.
+ */
+DALI_API daliError_t daliPipelinePopOutputsAsync(
+  daliPipeline_h pipeline,
+  daliPipelineOutputs_h *out,
+  cudaStream_t stream);
+
+/** Releases the pipeline outputs.
+ *
+ * This function destroys the daliPipelineOutputObject. The availability of the outputs differs
+ * between different executors.
+ * If DALI_EXEC_IS_DYNAMIC is used, the outputs may be used until their handles are destroyed.
+ * Otherwise, the outputs must not be used after this call has been made.
+ */
+DALI_API daliError_t daliPipelineOutputsDestroy(daliPipelineOutputs_h out);
+
+/** Gets index-th output.
+ *
+ * The handle returned by this function must be released with a call to daliTensorListDecRef
+ */
+DALI_API daliError_t daliPipelineOutputsGet(
+  daliPipelineOutputs_h outputs,
+  daliTensorList_h *out,
+  int index);
+
+/*** TensorList API **********************************************************/
+
+DALI_API daliError_t daliTensorListCreate(
+  daliTensorList_h *out,
+  daliStorageDevice_t device_type,
+  int device_id,
+  int num_samples,
+  int ndim,
+  daliDataType_t dtype,
+  const int **shape);
+
+DALI_API daliError_t daliTensorListCreateFromContiguousBuffer(
+  daliTensorList_h *out,
+  daliStorageDevice_t device_type,
+  int device_id,
+  int num_samples,
+  int ndim,
+  daliDataType_t dtype,
+  const int **shape,
+  void *raw_data,
+  daliRawDataDeleter_t deleter);
 
 #ifdef __cplusplus
 }  // extern "C"
