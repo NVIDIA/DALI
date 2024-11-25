@@ -681,6 +681,25 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
     Operator._internal_schema_name = internal_schema_name
     Operator._generated = generated
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
+    if _b.TryGetSchema(schema_name) is not None:
+        schema = _b.GetSchema(schema_name)
+        from nvidia.dali.ops import _signatures
+
+        Operator.__init__.__signature__ = _signatures._call_signature(
+            schema,
+            include_inputs=False,
+            include_kwargs=True,
+            include_self=True,
+            data_node_return=False,
+            all_args_optional=True,
+        )
+        Operator.__call__.__signature__ = _signatures._call_signature(
+            schema,
+            include_inputs=True,
+            include_kwargs=True,
+            include_self=True,
+            all_args_optional=True,
+        )
     return Operator
 
 

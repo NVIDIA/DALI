@@ -237,13 +237,11 @@ def _docstring_prefix_from_inputs(op_name):
     Generate start of the docstring for `__call__` of Operator `op_name`
     assuming the docstrings were provided for all inputs separately
 
-    Returns the signature of `__call__` and list of `Args` in appropriate section
+    Returns list of `Args` in appropriate section
     """
     schema = _b.GetSchema(op_name)
-    # Signature
-    ret = "__call__(" + schema.GetCallSignatureInputs() + ", **kwargs)\n"
     # __call__ docstring
-    ret += "\nOperator call to be used in graph definition.\n"
+    ret = "\nOperator call to be used in graph definition.\n"
     # Args section
     ret += _get_inputs_doc(schema)
     return ret
@@ -256,14 +254,12 @@ def _docstring_prefix_auto(op_name):
     """
     schema = _b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
-        return """__call__(**kwargs)
-
+        return """
 Operator call to be used in graph definition. This operator doesn't have any inputs.
 """
     elif schema.MaxNumInput() == 1:
         input_name = _names._get_input_name(schema, 0)
-        ret = f"""__call__({input_name}, **kwargs)
-
+        ret = """
 Operator call to be used in graph definition.
 
 Args
