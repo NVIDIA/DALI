@@ -394,14 +394,18 @@ for iteration in range(test_iterations):
     iter_duration = iter_end_time - iter_start_time
     execution_times.append(iter_duration)
 
-    if args.print_every_n_iterations > 0 and iteration % args.print_every_n_iterations == 0:
+    if args.print_every_n_iterations > 0 and (
+        (iteration + 1) % args.print_every_n_iterations == 0 or iteration == test_iterations - 1
+    ):
         elapsed_time = time.perf_counter() - start_time
         throughput = (iteration + 1) * args.batch_size * args.gpu_num / elapsed_time
         mean_t = statistics.mean(execution_times)
         median_t = statistics.median(execution_times)
         min_t = min(execution_times)
         max_t = max(execution_times)
-        print(f"Iteration {iteration + 1}/{test_iterations} - Throughput: {throughput:.2f} frames/sec (mean={mean_t:.6f}sec, median={median_t:.6f}sec, min={min_t:.6f}sec, max={max_t:.6f}sec)")
+        print(
+            f"Iteration {iteration + 1}/{test_iterations} - Throughput: {throughput:.2f} frames/sec (mean={mean_t:.6f}sec, median={median_t:.6f}sec, min={min_t:.6f}sec, max={max_t:.6f}sec)"
+        )
 
 end_time = time.perf_counter()
 total_time = end_time - start_time
@@ -413,10 +417,10 @@ min_t = min(execution_times)
 max_t = max(execution_times)
 
 print("\nFinal Results:")
-print(f"Total Execution Time: {total_time:.6f} seconds")
+print(f"Total Execution Time: {total_time:.6f} sec")
 print(f"Total Throughput: {total_throughput:.2f} frames/sec")
-print(f"Average time per iteration: {avg_t:.6f} frames/sec")
-print(f"Median time per iteration: {median_t:.6f} frames/sec")
-print(f"Stddev time per iteration: {stdev_t:.6f} frames/sec")
-print(f"Min time per iteration: {min_t:.6f} frames/sec")
-print(f"Max time per iteration: {max_t:.6f} frames/sec")
+print(f"Average time per iteration: {avg_t:.6f} sec")
+print(f"Median time per iteration: {median_t:.6f} sec")
+print(f"Stddev time per iteration: {stdev_t:.6f} sec")
+print(f"Min time per iteration: {min_t:.6f} sec")
+print(f"Max time per iteration: {max_t:.6f} sec")
