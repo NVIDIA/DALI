@@ -147,7 +147,7 @@ class Pipeline(object):
         More details can be found in
         `this documentation section <advanced_topics_checkpointing.html>`_.
     py_num_workers : int, optional, default = 1
-        The number of Python workers that will process :meth:`~nvidia.dali.fn.external_source`
+        The number of Python workers that will process parallel :meth:`~nvidia.dali.fn.external_source`
         callbacks.
         The pool starts only if there is at least one ExternalSource with
         :paramref:`~nvidia.dali.fn.external_source.parallel` set to True.
