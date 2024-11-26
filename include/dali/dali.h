@@ -15,6 +15,11 @@
 #ifndef DALI_DALI_H_
 #define DALI_DALI_H_
 
+#ifdef DALI_C_API_H_
+#error The new DALI C API is incompatible with the old one. \
+       Please do not include both headers in one translation unit.
+#endif
+
 #include <cuda_runtime_api.h>
 #include <stdint.h>
 #include "dali/core/api_helper.h"
@@ -39,26 +44,73 @@ typedef enum {
 
 /** Error codes returned by DALI functions */
 typedef enum {
+  /** The call succeeded */
   DALI_SUCCESS = 0,
-  DALI_NOT_READY,
+  /** The call succeeded, but didn't return a value */
+  DALI_NO_DATA = 1,
+  /** The call succeeded, but the queried object is not ready */
+  DALI_NOT_READY = 2,
+
+  DALI_ERROR = (int32_t)0x80000000,  // NOLINT
+  /** The handle is not valid. */
   DALI_ERROR_INVALID_HANDLE,
+  /** The argument is invalid. Check error message for details. */
   DALI_ERROR_INVALID_ARGUMENT,
+  /** An invalid type was specified. */
   DALI_ERROR_INVALID_TYPE,
+  /** A generaic user error */
   DALI_ERROR_INVALID_OPERATION,
+  /** The index is out of valid range */
   DALI_ERROR_OUT_OF_RANGE,
 
-  DALI_ERROR_FILE_NOT_FOUND,
-  DALI_ERROR_I_O_ERROR,
+  /** A path to a file or other OS resource is invalid */
+  DALI_ERROR_PATH_NOT_FOUND,
+  /** An I/O operation failed */
+  DALI_ERROR_IO_ERROR,
 
-  DALI_ERROR_INTERNAL,
+  /** A memory allocation failed */
+  DALI_ERROR_OUT_OF_MEMORY = DALI_ERROR + 0x100,
+
+  /** Internal error - logic error in DALI code */
+  DALI_ERROR_INTERNAL = DALI_ERROR + 0x200,
+  /** The library was not properly initialized */
+  DALI_ERROR_NOT_INITIALIZED,
+  /** The library is shutting down or has shut down */
   DALI_ERROR_UNLOADING,
 
-  DALI_ERROR_OUT_OF_MEMORY = 0X100,
-  DALI_ERROR_CUDA_ERROR = 0X1000,
+  /** A CUDA API call has failed */
+  DALI_ERROR_CUDA_ERROR = DALI_ERROR + 0x10000,
 
   DALI_ERROR_FORCE_INT32 = 0x7fffffff
 } daliError_t;
 
+
+/** A custom deleter
+ *
+ * This object aggregates a custom memory deleter, a context and a destructor.
+ *
+ * NOTE: This structure is typically passed by value for convenience.
+ */
+typedef struct _DALIDeleter {
+  /** A custom user-provided context. */
+  void *deleter_ctx;
+
+  /** Destroys the user-provided context.
+   *
+   * This function is called by DALI when the deleter is no longer necessary.
+   * The call is omitted if either `deleter_ctx` or `destroy_context` is NULL.
+   *
+   * @param deleter_ctx a custom user-provided context for the deleter
+   */
+  void (*destroy_context)(void *deleter_ctx);
+
+  /** Deletes a memory buffer `data`.
+   *
+   * @param data        the buffer to delete
+   * @param deleter_ctx a custom user-provided context for the deleter
+   */
+  void (*delete_buffer)(void *deleter_ctx, void *data);
+} daliDeleter_t;
 
 /** Returns the last error code.
  *
@@ -101,7 +153,45 @@ DALI_API daliError_t daliInit();
  */
 DALI_API daliError_t daliShutdown();
 
+DALI_API daliError_t daliPreallocateDeviceMemory2(size_t bytes, int device_id);
+
+/** Allocates `bytes` bytes of device memory on device `device_id`.
+ *
+ * The function works by allocating and immediately freeing the specified amount of device
+ * memory. This will typically release the memory back to DALI's memory pool, speeding up
+ * subsequent allocations.
+ */
+inline daliError_t daliPreallocateDeviceMemory(size_t bytes, int device_id) {
+  return daliPreallocateDeviceMemory2(bytes, device_id);
+}
+
+DALI_API daliError_t daliPreallocatePinnedMemory2(size_t bytes, int Pinned_id);
+
+/** Allocates `bytes` bytes of Pinned memory on Pinned `Pinned_id`.
+ *
+ * The function works by allocating and immediately freeing the specified amount of Pinned
+ * memory. This will typically release the memory back to DALI's memory pool, speeding up
+ * subsequent allocations.
+ */
+inline daliError_t daliPreallocatePinnedMemory(size_t bytes) {
+  return daliPreallocatePinnedMemory2(bytes);
+}
+
+DALI_API daliError_t daliReleaseUnusedMemory2();
+
+/** Releases unused memory from DALI memory pools to the operating system.
+ *
+ * NOTE: Some of the memory pool implementations allocate memory from the OS in large chunks.
+ *       If the chunk is occupied by even a tiny allocation, it will not be freed by this function.
+ */
+inline daliError_t daliReleaseUnusedMemory() {
+  return daliReleaseUnusedMemory2();
+}
+
+
+/****************************************************************************/
 /*** PIPELINE API ***********************************************************/
+/****************************************************************************/
 
 typedef enum _DALIExecType {
   /** The exeuctor processes data ahead, overlapping CPU/Mixed/GPU operators */
@@ -206,13 +296,6 @@ DALI_API daliError_t daliPipelinePrefetch(daliPipeline_h pipeline);
  */
 DALI_API daliError_t daliPipelineRun(daliPipeline_h pipeline);
 
-/** Pops the pipeline outputs from the pipeline's output queue.
- *
- * The outputs are ready for use on any stream.
- * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
- */
-DALI_API daliError_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutput_h *out);
-
 /** Gets the number of pipeline outputs */
 DALI_API daliError_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count);
 
@@ -222,6 +305,13 @@ DALI_API daliError_t daliPipelineGetOutputDesc(
   daliPipelineOutputDesc_t *out_desc,
   int index);
 
+
+/** Pops the pipeline outputs from the pipeline's output queue.
+ *
+ * The outputs are ready for use on any stream.
+ * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
+ */
+DALI_API daliError_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutputs_h *out);
 
 /** Pops the pipeline outputs from the pipeline's output queue.
  *
@@ -253,27 +343,153 @@ DALI_API daliError_t daliPipelineOutputsGet(
   daliTensorList_h *out,
   int index);
 
-/*** TensorList API **********************************************************/
+/****************************************************************************/
+/*** TENSOR LIST API ********************************************************/
+/****************************************************************************/
 
+/** Creates a TensorList on the specified device */
 DALI_API daliError_t daliTensorListCreate(
   daliTensorList_h *out,
   daliStorageDevice_t device_type,
   int device_id,
-  int num_samples,
-  int ndim,
-  daliDataType_t dtype,
-  const int **shape);
+  daliBool pinned);
 
-DALI_API daliError_t daliTensorListCreateFromContiguousBuffer(
-  daliTensorList_h *out,
-  daliStorageDevice_t device_type,
-  int device_id,
+/** Changes the size of the tensor, allocating more data if necessary.
+ *
+ * @param num_samples   the number of samples in the batch
+ * @param ndim          the number of dimensions of a sample
+ * @param dtype         the element type
+ * @param shapes        the concatenated shapes of the samples;
+ *                      must contain num_samples*ndim extents
+ */
+DALI_API daliError_t daliTensorListResize(
+  daliTensorList_h tensor_list,
   int num_samples,
   int ndim,
   daliDataType_t dtype,
-  const int **shape,
-  void *raw_data,
-  daliRawDataDeleter_t deleter);
+  const int64_t *shapes);
+
+/** Associates a stream with the TensorList.
+ *
+ * @param stream      an optional CUDA stream handle; if the handle poitner is NULL,
+ *                    host-synchronous behavior is prescribed.
+ * @param synchronize if true,
+ */
+DALI_API daliError_t daliTensorListSetStream(
+  daliTensorList_h tensor_list,
+  const cudaStream_t *stream,
+  daliBool synchronize
+);
+
+/** Gets the stream associated with the TensorList.
+ *
+ * @return DALI_SUCCESS if the stream handle was stored in *out_stream
+ *         DALI_NO_DATA if the tensor list is not associated with any stream
+ *         error code otherwise
+ */
+DALI_API daliError_t daliTensorListGetStream(
+  daliTensorList_h tensor_list,
+  cudaStream_t *out_stream
+);
+
+/** Gets the readiness event associated with the TensorList.
+ *
+ * @param tensor_list [in]  the tenosr list whose ready event is to be obtained
+ * @param out_event   [out] the pointer to the return value
+ *
+ * @return DALI_SUCCESS if the ready event handle was stored in *out_event
+ *         DALI_NO_DATA if the tensor list is not associated with a readiness event
+ *         error code otherwise
+ */
+DALI_API daliError_t daliTensorListGetReadyEvent(
+  daliTensorList_h tensor_list,
+  cudaEvent_t *out_event);
+
+/** Gets the readiness event associated with the TensorList or creates a new one.
+ *
+ * @param tensor_list   [in]  the tensor list to associate an even twith
+ * @param out_event     [out] optional, the event handle
+ *
+ * The function ensures that a readiness event is associated with the tensor list.
+ * It can also get the event handle, if the output parameter pointer is not NULL.
+ */
+DALI_API daliError_t daliTensorListGetOrCreateReadyEvent(
+  daliTensorList_h tensor_list,
+  cudaEvent_t *out_event);
+
+/** Attaches an externally allocated buffer to a TensorList.
+ *
+ * Attaches an externally allocated buffer and a deleter to a TensorList.
+ * The deleter is called when the TensorList object is destroyed.
+ *
+ * The shape and sample offsets are used only during this function call and may be safely
+ * disposed of after the function returns.
+ *
+ * @param tensor_list     the TensorList to attach the data to
+ * @param num_samples     the number of samples in the list
+ * @param ndim            the number of dimensions in the sample
+ * @param dtype           the element type
+ * @param shapes          the concatenated shapes of the samples;
+ *                        must contain num_samples*ndim extents
+ * @param data            the pointer to the data buffer
+ * @param sample_offsets  optional; the offsets, in bytes, of the samples in the batch from the
+ *                        base pointer `data`; if NULL, the samples are assumed to be densely
+ *                        packed, with the 0-th sample starting at the address `data`.
+ */
+DALI_API daliError_t daliTensorListAttachBuffer(
+  daliTensorList_h tensor_list,
+  int num_samples,
+  int ndim,
+  daliDataType_t dtype,
+  const int64_t *shapes,
+  void *data,
+  const ptrdiff_t *sample_offsets,
+  daliDeleter_t deleter);
+
+/** Gets the shape of the tensor list
+ *
+ * @param tensor_list     [in]  the tensor list whose shape obtain
+ * @param out_num_samples [out] the number of samples in the batch
+ * @param out_ndim        [out] the number of dimensions in a sample
+ * @param out_shape       [out] the pointer to the concatenated array of sample shapes;
+ *                              contains (*out_num_samples) * (*out_ndim) elements
+ *
+ * The pointer returned in `out_shape` remains valid until the TensorList is destroyed or modified.
+ */
+DALI_API daliError_t daliTensorListGetShape(
+  daliTensorList_h tensor_list,
+  int *out_num_samples,
+  int *out_ndim,
+  const int64_t **out_shape);
+
+/** Gets a layout string describing the samples in the TensorList.
+ *
+ * The layout string describes the samples and doesn't contain the leading "sample" dimension
+ * (typically denoted as `N`).
+ * If there's no layout set, the returned pointer is NULL.
+ */
+DALI_API daliError_t daliTensorListGetLayout(
+  daliTensorList_h tensor_list,
+  const char **out_layout);
+
+/** Sets the layout of the samples in the TensorList.
+ *
+ * Sets the description of the dimensions of the data in the TensorList. The layout must not
+ * contain the leading sample dimension (typically `N`). For example, a batch of images would
+ * have a layout `HWC`.
+ * If the layout string is NULL or empty, the layout is cleared; otherwise it must contain exactly
+ * sample_ndim nonzero characters. The axis labels may be repeated.
+ */
+DALI_API daliError_t daliTensorListSetLayout(
+  daliTensorList_h tensor_list,
+  const char *layout
+);
+
+/** Gets the "source info" metadata of a sample */
+DALI_API daliError_t daliTensorListGetSourceInfo(
+  daliTensorList_h tensor_list,
+  const char **out_source_info,
+  int sample_idx);
 
 #ifdef __cplusplus
 }  // extern "C"
