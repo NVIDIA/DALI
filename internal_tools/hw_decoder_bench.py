@@ -404,7 +404,10 @@ for iteration in range(test_iterations):
         min_t = min(execution_times)
         max_t = max(execution_times)
         print(
-            f"Iteration {iteration + 1}/{test_iterations} - Throughput: {throughput:.2f} frames/sec (mean={mean_t:.6f}sec, median={median_t:.6f}sec, min={min_t:.6f}sec, max={max_t:.6f}sec)"
+            f"Iteration {iteration + 1}/{test_iterations} - "
+            + f"Throughput: {throughput:.2f} frames/sec "
+            + f"(mean={mean_t:.6f}sec, median={median_t:.6f}sec, "
+            + f"min={min_t:.6f}sec, max={max_t:.6f}sec)"
         )
 
 end_time = time.perf_counter()
