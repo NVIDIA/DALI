@@ -1130,28 +1130,28 @@ def test_image_decoders():
     def image_decoder_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
-        decoded = module.image(encoded, device=device, hw_decoder_load=0.0)
+        decoded = module.image(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
     def image_decoder_crop_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
-        decoded = module.image_crop(encoded, device=device, hw_decoder_load=0.0)
+        decoded = module.image_crop(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
     def image_decoder_slice_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
-        decoded = module.image_slice(encoded, 0.1, 0.4, axes=0, device=device, hw_decoder_load=0.0)
+        decoded = module.image_slice(encoded, 0.1, 0.4, axes=0, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
     def image_decoder_rcrop_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
-        decoded = module.image_random_crop(encoded, device=device, hw_decoder_load=0.0)
+        decoded = module.image_random_crop(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
