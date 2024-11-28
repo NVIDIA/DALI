@@ -15,6 +15,7 @@
 import argparse
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+import statistics
 import time
 from nvidia.dali.pipeline import pipeline_def
 import random
@@ -69,6 +70,15 @@ parser.add_argument(
     default=0.75,
     type=float,
 )
+
+parser.add_argument(
+    "--print_every_n_iterations",
+    dest="print_every_n_iterations",
+    help="If > 0, print statistics every N iterations.",
+    default=-1,
+    type=int,
+)
+
 args = parser.parse_args()
 
 DALI_INPUT_NAME = "DALI_INPUT_0"
@@ -369,7 +379,10 @@ start = time.time()
 test_iterations = args.total_images // args.batch_size
 
 print("Test iterations: ", test_iterations)
+start_time = time.perf_counter()
+execution_times = []
 for iteration in range(test_iterations):
+    iter_start_time = time.perf_counter()
     for p in pipes:
         feed_input(p, input_tensor)
         p.schedule_run()
@@ -377,7 +390,40 @@ for iteration in range(test_iterations):
         _ = p.share_outputs()
     for p in pipes:
         p.release_outputs()
-end = time.time()
-total_time = end - start
+    iter_end_time = time.perf_counter()
+    iter_duration = iter_end_time - iter_start_time
+    execution_times.append(iter_duration)
 
-print(test_iterations * args.batch_size * args.gpu_num / total_time, "fps")
+    if args.print_every_n_iterations > 0 and (
+        (iteration + 1) % args.print_every_n_iterations == 0 or iteration == test_iterations - 1
+    ):
+        elapsed_time = time.perf_counter() - start_time
+        throughput = (iteration + 1) * args.batch_size * args.gpu_num / elapsed_time
+        mean_t = statistics.mean(execution_times)
+        median_t = statistics.median(execution_times)
+        min_t = min(execution_times)
+        max_t = max(execution_times)
+        print(
+            f"Iteration {iteration + 1}/{test_iterations} - "
+            + f"Throughput: {throughput:.2f} frames/sec "
+            + f"(mean={mean_t:.6f}sec, median={median_t:.6f}sec, "
+            + f"min={min_t:.6f}sec, max={max_t:.6f}sec)"
+        )
+
+end_time = time.perf_counter()
+total_time = end_time - start_time
+total_throughput = test_iterations * args.batch_size * args.gpu_num / total_time
+avg_t = statistics.mean(execution_times)
+stdev_t = statistics.stdev(execution_times)
+median_t = statistics.median(execution_times)
+min_t = min(execution_times)
+max_t = max(execution_times)
+
+print("\nFinal Results:")
+print(f"Total Execution Time: {total_time:.6f} sec")
+print(f"Total Throughput: {total_throughput:.2f} frames/sec")
+print(f"Average time per iteration: {avg_t:.6f} sec")
+print(f"Median time per iteration: {median_t:.6f} sec")
+print(f"Stddev time per iteration: {stdev_t:.6f} sec")
+print(f"Min time per iteration: {min_t:.6f} sec")
+print(f"Max time per iteration: {max_t:.6f} sec")
