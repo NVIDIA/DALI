@@ -26,7 +26,7 @@ test_body() {
   # \K: Resets the start of the match, so anything before \K is not included in the output.
   # [0-9]+(\.[0-9]+)?: Matches the number, with an optional decimal part.
   # (?= frames/sec): ensures " frames/sec" follows the number, but doesn't include it.
-  PERF=$(grep -oP 'Total Throughput: \K[0-9]+(\.[0-9]+)?(?= frames/sec)')
+  PERF=$(grep -oP 'Total Throughput: \K[0-9]+(\.[0-9]+)?(?= frames/sec)' ${LOG})
 
   PERF_RESULT=$(echo "$PERF $MIN_PERF" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
   if [[ "$PERF_RESULT" == "OK" ]]; then
