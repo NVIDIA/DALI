@@ -16,8 +16,7 @@
 #define DALI_DALI_H_
 
 #ifdef DALI_C_API_H_
-#error The new DALI C API is incompatible with the old one. \
-       Please do not include both headers in one translation unit.
+#error The new DALI C API is incompatible with the old one. Please do not include both headers in one translation unit.  // NOLINT
 #endif
 
 #if (defined(__cplusplus) && __cplusplus < 201402L) || \
@@ -228,8 +227,8 @@ typedef enum _DALIExecType {
 } daliExecType_t;
 
 typedef struct _DALIVersion {
-  short major, minor;
-  int patch;
+  int16_t major, minor;
+  int32_t patch;
 } daliVersion_t;
 
 
@@ -451,12 +450,25 @@ typedef struct _DALITensorDesc {
   void           *data;
 } daliTensorDesc_t;
 
+/** The specification of the buffer storage location */
+typedef struct _DALIBufferPlacement {
+  /** The type of the storage device (CPU or GPU). */
+  daliStorageDevice_t device_type;
+
+  /** CUDA device ordinal, as returned by CUDA runtime API.
+   *
+   * WARNING: The device_id returned by NVML (and thus, nvidia-smi) may be different.
+   */
+  int                 device_id;
+
+  /** Whether the CPU storage is "pinned" - e.g. allocated with cudaMallocHost */
+  daliBool            pinned;
+} daliBufferPlacement_t;
+
 /** Creates a TensorList on the specified device */
 DALI_API daliResult_t daliTensorListCreate(
   daliTensorList_h *out,
-  daliStorageDevice_t device_type,
-  int device_id,
-  daliBool pinned);
+  daliBufferPlacement_t placement);
 
 /** Changes the size of the tensor, allocating more data if necessary.
  *
@@ -472,54 +484,6 @@ DALI_API daliResult_t daliTensorListResize(
   int ndim,
   daliDataType_t dtype,
   const int64_t *shapes);
-
-/** Associates a stream with the TensorList.
- *
- * @param stream      an optional CUDA stream handle; if the handle poitner is NULL,
- *                    host-synchronous behavior is prescribed.
- * @param synchronize if true,
- */
-DALI_API daliResult_t daliTensorListSetStream(
-  daliTensorList_h tensor_list,
-  const cudaStream_t *stream,
-  daliBool synchronize
-);
-
-/** Gets the stream associated with the TensorList.
- *
- * @return DALI_SUCCESS if the stream handle was stored in *out_stream
- *         DALI_NO_DATA if the tensor list is not associated with any stream
- *         error code otherwise
- */
-DALI_API daliResult_t daliTensorListGetStream(
-  daliTensorList_h tensor_list,
-  cudaStream_t *out_stream
-);
-
-/** Gets the readiness event associated with the TensorList.
- *
- * @param tensor_list [in]  the tenosr list whose ready event is to be obtained
- * @param out_event   [out] the pointer to the return value
- *
- * @return DALI_SUCCESS if the ready event handle was stored in *out_event
- *         DALI_NO_DATA if the tensor list is not associated with a readiness event
- *         error code otherwise
- */
-DALI_API daliResult_t daliTensorListGetReadyEvent(
-  daliTensorList_h tensor_list,
-  cudaEvent_t *out_event);
-
-/** Gets the readiness event associated with the TensorList or creates a new one.
- *
- * @param tensor_list   [in]  the tensor list to associate an even twith
- * @param out_event     [out] optional, the event handle
- *
- * The function ensures that a readiness event is associated with the tensor list.
- * It can also get the event handle, if the output parameter pointer is not NULL.
- */
-DALI_API daliResult_t daliTensorListGetOrCreateReadyEvent(
-  daliTensorList_h tensor_list,
-  cudaEvent_t *out_event);
 
 /** Attaches an externally allocated buffer to a TensorList.
  *
@@ -581,6 +545,66 @@ DALI_API daliResult_t daliTensorListAttachSamples(
   daliDataType_t dtype,
   const daliTensorDesc_t *samples,
   const daliDeleter_t *sample_deleters);
+
+
+/** Associates a stream with the TensorList.
+ *
+ * @param tensor_list   [in]  the TensorList whose buffer placement is queried
+ * @param out_placement [out] a pointer to a place where the return value is stored.
+ */
+DALI_API daliResult_t daliTensorListGetBufferPlacement(
+  daliTensorList_h tensor_list,
+  daliBufferPlacement_t *out_placement);
+
+/** Associates a stream with the TensorList.
+ *
+ * @param stream      an optional CUDA stream handle; if the handle poitner is NULL,
+ *                    host-synchronous behavior is prescribed.
+ * @param synchronize if true, the new stream (or host, if NULL), will be synchronized with the
+ *                    currently associated stream
+ */
+DALI_API daliResult_t daliTensorListSetStream(
+  daliTensorList_h tensor_list,
+  const cudaStream_t *stream,
+  daliBool synchronize
+);
+
+/** Gets the stream associated with the TensorList.
+ *
+ * @return DALI_SUCCESS if the stream handle was stored in *out_stream
+ *         DALI_NO_DATA if the tensor list is not associated with any stream
+ *         error code otherwise
+ */
+DALI_API daliResult_t daliTensorListGetStream(
+  daliTensorList_h tensor_list,
+  cudaStream_t *out_stream
+);
+
+/** Gets the readiness event associated with the TensorList.
+ *
+ * @param tensor_list [in]  the tenosr list whose ready event is to be obtained
+ * @param out_event   [out] the pointer to the return value
+ *
+ * @return DALI_SUCCESS if the ready event handle was stored in *out_event
+ *         DALI_NO_DATA if the tensor list is not associated with a readiness event
+ *         error code otherwise
+ */
+DALI_API daliResult_t daliTensorListGetReadyEvent(
+  daliTensorList_h tensor_list,
+  cudaEvent_t *out_event);
+
+/** Gets the readiness event associated with the TensorList or creates a new one.
+ *
+ * @param tensor_list   [in]  the tensor list to associate an even twith
+ * @param out_event     [out] optional, the event handle
+ *
+ * The function ensures that a readiness event is associated with the tensor list.
+ * It can also get the event handle, if the output parameter pointer is not NULL.
+ */
+DALI_API daliResult_t daliTensorListGetOrCreateReadyEvent(
+  daliTensorList_h tensor_list,
+  cudaEvent_t *out_event);
+
 
 /** Gets the shape of the tensor list
  *
