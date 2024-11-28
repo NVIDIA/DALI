@@ -301,8 +301,14 @@ DALI_API daliResult_t daliPipelineBuild(daliPipeline_h pipeline);
  * DALI Pipeline can process several iterations ahead. This function pre-fills the queues.
  * If the pipeline has ExternalSource operators (or other external inputs), they need to be
  * supplied with enough data.
+ *
  * @see daliPipelineFeedInput
  * @see daliPipelineGetInputFeedCount
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION
+ * @retval DALI_ERROR_OUT_OF_MEMORY
+ *
  */
 DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
 
@@ -312,6 +318,10 @@ DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
  * operation is complete on host.
  *
  * NOTE: The relevant device code may still be running after this function returns.
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION
+ * @retval DALI_ERROR_OUT_OF_MEMORY
  */
 DALI_API daliResult_t daliPipelineRun(daliPipeline_h pipeline);
 
@@ -320,6 +330,10 @@ DALI_API daliResult_t daliPipelineRun(daliPipeline_h pipeline);
  * NOTE: ExternalSource operators will need to be fet an appropriate number of times before this
  *       function can succeeed. Please check the required feed count by calling
  *       `daliPipelineFeedCount`.
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_OUT_OF_RANGE        if `input_name` is not a valid name of an input of the
+ *                                        pipeline
  */
 DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
 
@@ -330,10 +344,9 @@ DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
  *                              `daliPipelinePrefetch` can be called.
  * @param input_name      [in]  The name of the input.
  *
- * @return DALI_SUCCESS                   on success
- *         DALI_ERROR_OUT_OF_RANGE        if `input_name` is not a valid name of an input of the
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_OUT_OF_RANGE        if `input_name` is not a valid name of an input of the
  *                                        pipeline
- *         DALI_ERROR_INVALID_OPERATION   if the pipeline is not in a valid state (e.g. not built)
  */
 DALI_API daliResult_t daliPipelineGetFeedCount(
   daliPipeline_h pipeline,
@@ -378,6 +391,10 @@ DALI_API daliResult_t daliPipelineGetOutputDesc(
  *
  * The outputs are ready for use on any stream.
  * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
+ *
+ * @return This function will report errors that occurred asynchronously when preparing the
+ *         relevant data batch.
+ *
  */
 DALI_API daliResult_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutputs_h *out);
 
@@ -387,6 +404,9 @@ DALI_API daliResult_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipeli
  * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
  *
  * This function works only with DALI_EXEC_IS_DYNAMIC.
+ *
+ * @return This function will report errors that occurred asynchronously when preparing the
+ *         relevant data batch.
  */
 DALI_API daliResult_t daliPipelinePopOutputsAsync(
   daliPipeline_h pipeline,
@@ -571,8 +591,8 @@ DALI_API daliResult_t daliTensorListSetStream(
 
 /** Gets the stream associated with the TensorList.
  *
- * @return DALI_SUCCESS if the stream handle was stored in *out_stream
- *         DALI_NO_DATA if the tensor list is not associated with any stream
+ * @retval DALI_SUCCESS if the stream handle was stored in *out_stream
+ * @retval DALI_NO_DATA if the tensor list is not associated with any stream
  *         error code otherwise
  */
 DALI_API daliResult_t daliTensorListGetStream(
@@ -585,8 +605,8 @@ DALI_API daliResult_t daliTensorListGetStream(
  * @param tensor_list [in]  the tenosr list whose ready event is to be obtained
  * @param out_event   [out] the pointer to the return value
  *
- * @return DALI_SUCCESS if the ready event handle was stored in *out_event
- *         DALI_NO_DATA if the tensor list is not associated with a readiness event
+ * @retval DALI_SUCCESS if the ready event handle was stored in *out_event
+ * @retval DALI_NO_DATA if the tensor list is not associated with a readiness event
  *         error code otherwise
  */
 DALI_API daliResult_t daliTensorListGetReadyEvent(
@@ -609,12 +629,15 @@ DALI_API daliResult_t daliTensorListGetOrCreateReadyEvent(
 /** Gets the shape of the tensor list
  *
  * @param tensor_list     [in]  the tensor list whose shape obtain
- * @param out_num_samples [out] the number of samples in the batch
- * @param out_ndim        [out] the number of dimensions in a sample
- * @param out_shape       [out] the pointer to the concatenated array of sample shapes;
+ * @param out_num_samples [out] optional; the number of samples in the batch
+ * @param out_ndim        [out] optional; the number of dimensions in a sample
+ * @param out_shape       [out] optional; the pointer to the concatenated array of sample shapes;
  *                              contains (*out_num_samples) * (*out_ndim) elements
  *
+ * @retval DALI_SUCCESS T
+ *
  * The pointer returned in `out_shape` remains valid until the TensorList is destroyed or modified.
+ * If the caller is not intersted in some of the values, the pointers can be NULL.
  */
 DALI_API daliResult_t daliTensorListGetShape(
   daliTensorList_h tensor_list,
