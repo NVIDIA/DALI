@@ -39,7 +39,7 @@ class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
 
   void ValidateInput(const dali::Workspace &ws) {
     const auto &input = ws.Input<dali::CPUBackend>(0);
-    DALI_ENFORCE(input.type() == dali::DALI_UINT8,
+    DALI_ENFORCE(input.type() == DALI_UINT8,
                  "Type of the input buffer must be uint8.");
     DALI_ENFORCE(input.sample_dim() == 1,
                  "Input buffer must be 1-dimensional.");
