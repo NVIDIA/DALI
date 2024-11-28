@@ -63,7 +63,7 @@ bool VideoDecoderMixed::SetupImpl(std::vector<dali::OutputDesc> &output_desc,
   }
   output_desc.resize(1);
   output_desc[0].shape = sh;
-  output_desc[0].type = dali::DALI_UINT8;
+  output_desc[0].type = DALI_UINT8;
   return true;
 }
 

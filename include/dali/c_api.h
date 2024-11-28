@@ -18,6 +18,7 @@
 #include <cuda_runtime_api.h>
 #include <inttypes.h>
 #include "dali/core/api_helper.h"
+#include "dali/core/dali_data_type.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
 #ifdef __cplusplus
@@ -43,21 +44,7 @@ typedef enum {
   DALI_BACKEND_MIXED = 2
 } dali_backend_t;
 
-typedef enum {
-  DALI_NO_TYPE  = -1,
-  DALI_UINT8    =  0,
-  DALI_UINT16   =  1,
-  DALI_UINT32   =  2,
-  DALI_UINT64   =  3,
-  DALI_INT8     =  4,
-  DALI_INT16    =  5,
-  DALI_INT32    =  6,
-  DALI_INT64    =  7,
-  DALI_FLOAT16  =  8,
-  DALI_FLOAT    =  9,
-  DALI_FLOAT64  =  10,
-  DALI_BOOL     =  11,
-} dali_data_type_t;
+typedef daliDataType_t dali_data_type_t;
 
 typedef enum {
   DALI_EXEC_IS_PIPELINED    = 1,
