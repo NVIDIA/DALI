@@ -20,7 +20,8 @@
        Please do not include both headers in one translation unit.
 #endif
 
-#if __cplusplus < 201402L || (!defined(__cplusplus) && __STDC_VERSION__ < 199901L)
+#if (defined(__cplusplus) && __cplusplus < 201402L) || \
+    (!defined(__cplusplus) && __STDC_VERSION__ < 199901L)
 #error The DALI C API requires a C99 or a C++14 compiler.
 #endif
 
@@ -177,11 +178,11 @@ inline daliResult_t daliPreallocateDeviceMemory(size_t bytes, int device_id) {
   return daliPreallocateDeviceMemory2(bytes, device_id);
 }
 
-DALI_API daliResult_t daliPreallocatePinnedMemory2(size_t bytes, int Pinned_id);
+DALI_API daliResult_t daliPreallocatePinnedMemory2(size_t bytes);
 
-/** Allocates `bytes` bytes of Pinned memory on Pinned `Pinned_id`.
+/** Allocates `bytes` bytes of device-accessible host memory.
  *
- * The function works by allocating and immediately freeing the specified amount of Pinned
+ * The function works by allocating and immediately freeing the specified amount of pinned
  * memory. This will typically release the memory back to DALI's memory pool, speeding up
  * subsequent allocations.
  */
@@ -314,6 +315,55 @@ DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
  * NOTE: The relevant device code may still be running after this function returns.
  */
 DALI_API daliResult_t daliPipelineRun(daliPipeline_h pipeline);
+
+/** Executes the pipeline several times, to fill the buffer queues.
+ *
+ * NOTE: ExternalSource operators will need to be fet an appropriate number of times before this
+ *       function can succeeed. Please check the required feed count by calling
+ *       `daliPipelineFeedCount`.
+ */
+DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
+
+/** Gets the required feed count for the specified input of the pipeline.
+ *
+ * @param pipeline        [in]  The pipeline
+ * @param out_feed_count  [out] The number of batches to feed into the specified input before
+ *                              `daliPipelinePrefetch` can be called.
+ * @param input_name      [in]  The name of the input.
+ *
+ * @return DALI_SUCCESS                   on success
+ *         DALI_ERROR_OUT_OF_RANGE        if `input_name` is not a valid name of an input of the
+ *                                        pipeline
+ *         DALI_ERROR_INVALID_OPERATION   if the pipeline is not in a valid state (e.g. not built)
+ */
+DALI_API daliResult_t daliPipelineGetFeedCount(
+  daliPipeline_h pipeline,
+  int *out_feed_count,
+  const char *input_name);
+
+typedef enum _DALIFeedInputFlags {
+  /** Do not make a copy of the input, use it directly instead.
+   *
+   * When daliTensorList_h is passed to daliFeedInput, a reference count is incremented
+   */
+  DALI_FEED_INPUT_NO_COPY = 1,
+} daliFeedInputFlags_t;
+
+/** Feeds the input `input_name` with data from `input_data`.
+ *
+ * @param pipeline      the pipeline
+ * @param input_name    the name of the input
+ * @param input_data    the tensor list containing the data
+ * @param data_id       an identifier of this data batch
+ * @param options
+ */
+DALI_API daliResult_t daliPipelineFeedInput(
+  daliPipeline_h pipeline,
+  const char *input_name,
+  daliTensorList_h input_data,
+  const char *data_id,
+  daliFeedInputFlags_t options,
+  const cudaStream_t *stream);
 
 /** Gets the number of pipeline outputs */
 DALI_API daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count);
@@ -578,6 +628,20 @@ DALI_API daliResult_t daliTensorListSetLayout(
 DALI_API daliResult_t daliTensorListGetSourceInfo(
   daliTensorList_h tensor_list,
   const char **out_source_info,
+  int sample_idx);
+
+/** Gets the tensor descriptor of the specified sample.
+ *
+ * @param tensor_list [in] The tensor list
+ * @param out_desc    [out] A poitner to a decriptor filled by this funciton.
+ * @param sample_idx  [in] The index of the sample, whose descriptor to get.
+ *
+ * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
+ * clearing or resizing the TensorList or re-attaching new data to it.
+ */
+DALI_API daliResult_t daliTensorListGetTensor(
+  daliTensorList_h tensor_list,
+  daliTensorDesc_t *out_desc,
   int sample_idx);
 
 #ifdef __cplusplus
