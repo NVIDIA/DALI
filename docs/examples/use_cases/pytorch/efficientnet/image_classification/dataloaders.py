@@ -42,7 +42,11 @@ try:
 
     from image_classification.dali import training_pipe, validation_pipe
 
+    from nvidia.dali.plugin.pytorch import DALIProxy, DALIDataLoader
+
     DATA_BACKEND_CHOICES.append("dali")
+    DATA_BACKEND_CHOICES.append("dali_proxy")
+
 except ImportError as e:
     print(
         "Please install DALI from https://www.github.com/NVIDIA/DALI to run this example."
@@ -154,6 +158,7 @@ def get_dali_train_loader(dali_device="gpu"):
         pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
                              output_layout=output_layout, automatic_augmentation=augmentation,
                              dali_device=dali_device, rank=rank, world_size=world_size,
+                             prefetch_queue_depth=8,
                              **pipeline_kwargs)
 
         train_loader = DALIClassificationIterator(
@@ -168,7 +173,7 @@ def get_dali_train_loader(dali_device="gpu"):
     return gdtl
 
 
-def get_dali_val_loader():
+def get_dali_val_loader(dali_device="gpu"):
     def gdvl(
         data_path,
         image_size,
@@ -208,6 +213,7 @@ def get_dali_val_loader():
 
         pipe = validation_pipe(data_dir=valdir, interpolation=interpolation,
                                image_size=image_size + crop_padding, image_crop=image_size,
+                               dali_device=dali_device,
                                output_layout=output_layout, **pipeline_kwargs)
 
         val_loader = DALIClassificationIterator(
@@ -250,17 +256,18 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
-    def prefetched_loader(loader, num_classes, one_hot):
-        mean = (
-            torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
-            .cuda()
-            .view(1, 3, 1, 1)
-        )
-        std = (
-            torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255])
-            .cuda()
-            .view(1, 3, 1, 1)
-        )
+    def prefetched_loader(loader, num_classes, one_hot, normalize):
+        if normalize:
+            mean = (
+                torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
+                .cuda()
+                .view(1, 3, 1, 1)
+            )
+            std = (
+                torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255])
+                .cuda()
+                .view(1, 3, 1, 1)
+            )
 
         stream = torch.cuda.Stream()
         first = True
@@ -269,11 +276,12 @@ class PrefetchedWrapper(object):
             with torch.cuda.stream(stream):
                 next_input = next_input.cuda(non_blocking=True)
                 next_target = next_target.cuda(non_blocking=True)
-                next_input = next_input.float()
                 if one_hot:
                     next_target = expand(num_classes, torch.float, next_target)
 
-                next_input = next_input.sub_(mean).div_(std)
+                if normalize:
+                    next_input = next_input.float()
+                    next_input = next_input.sub_(mean).div_(std)
 
             if not first:
                 yield input, target
@@ -286,11 +294,12 @@ class PrefetchedWrapper(object):
 
         yield input, target
 
-    def __init__(self, dataloader, start_epoch, num_classes, one_hot):
+    def __init__(self, dataloader, start_epoch, num_classes, one_hot, normalize=True):
         self.dataloader = dataloader
         self.epoch = start_epoch
         self.one_hot = one_hot
         self.num_classes = num_classes
+        self.normalize = normalize
 
     def __iter__(self):
         if self.dataloader.sampler is not None and isinstance(
@@ -300,8 +309,16 @@ class PrefetchedWrapper(object):
             self.dataloader.sampler.set_epoch(self.epoch)
         self.epoch += 1
         return PrefetchedWrapper.prefetched_loader(
-            self.dataloader, self.num_classes, self.one_hot
+            self.dataloader, self.num_classes, self.one_hot, self.normalize
         )
+
+    def __enter__(self):
+        if hasattr(self.dataloader, "__enter__"):
+            self.dataloader.__enter__()
+
+    def __exit__(self, exc_type, exc_value, tb):
+        if hasattr(self.dataloader, "__exit__"):
+            self.dataloader.__exit__(exc_type, exc_value, tb)
 
     def __len__(self):
         return len(self.dataloader)
@@ -416,6 +433,161 @@ def get_pytorch_val_loader(
     )
 
     return PrefetchedWrapper(val_loader, 0, num_classes, one_hot), len(val_loader)
+
+def read_file(path):
+    return np.fromfile(path, dtype=np.uint8)
+
+def read_filepath(path):
+    return np.frombuffer(path.encode(), dtype=np.int8)
+
+def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
+    def get_impl(data_path,
+                 image_size,
+                 batch_size,
+                 num_classes,
+                 one_hot,
+                 interpolation="bilinear",
+                 augmentation=None,
+                 start_epoch=0,
+                 workers=5,
+                 _worker_init_fn=None,
+                 prefetch_factor=2,
+                 memory_format=torch.contiguous_format):
+        traindir = os.path.join(data_path, "train")
+
+        interpolation = {
+            "bicubic": types.INTERP_CUBIC,
+            "bilinear": types.INTERP_LINEAR,
+            "triangular": types.INTERP_TRIANGULAR,
+        }[interpolation]
+
+        output_layout = 'CHW' #"HWC" if memory_format == torch.channels_last else "CHW"
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+
+        pipeline_kwargs = {
+            "batch_size" : batch_size,
+            "num_threads" : workers,
+            "device_id" : rank % torch.cuda.device_count(),
+            "seed": 12 + rank % torch.cuda.device_count(),
+        }
+
+        pipe = training_pipe(data_dir=None, interpolation=interpolation, image_size=image_size,
+                             output_layout=output_layout, automatic_augmentation=augmentation,
+                             dali_device=dali_device, prefetch_queue_depth=8, send_filepaths=send_filepaths,
+                             **pipeline_kwargs)
+        pipe.build()
+
+        dali_proxy = DALIProxy(input_names=["images"])
+
+        train_dataset = datasets.ImageFolder(
+            traindir,
+            transform=dali_proxy.transform,
+            loader=read_filepath if send_filepaths else read_file
+        )
+
+        if torch.distributed.is_initialized():
+            train_sampler = torch.utils.data.distributed.DistributedSampler(
+                train_dataset, shuffle=True
+            )
+        else:
+            train_sampler = None
+
+        train_loader = DALIDataLoader(
+            pipe,
+            dali_proxy,
+            train_dataset,
+            sampler=train_sampler,
+            batch_size=batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=workers,
+            worker_init_fn=_worker_init_fn,
+            pin_memory=True,
+            collate_fn=None,
+            drop_last=True,
+            persistent_workers=True,
+            prefetch_factor=prefetch_factor,
+        )
+
+        return (
+            PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, normalize=False),
+            len(train_loader),
+        )
+    return get_impl
+
+def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
+    def get_impl(data_path,
+                 image_size,
+                 batch_size,
+                 num_classes,
+                 one_hot,
+                 interpolation="bilinear",
+                 workers=5,
+                 _worker_init_fn=None,
+                 crop_padding=32,
+                 memory_format=torch.contiguous_format,
+                 prefetch_factor=2):
+        interpolation = {
+            "bicubic": types.INTERP_CUBIC,
+            "bilinear": types.INTERP_LINEAR,
+            "triangular": types.INTERP_TRIANGULAR,
+        }[interpolation]
+
+        output_layout = 'CHW' #"HWC" if memory_format == torch.channels_last else "CHW"
+
+        valdir = os.path.join(data_path, "val")
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+
+        pipeline_kwargs = {
+            "batch_size" : batch_size,
+            "num_threads" : workers,
+            "device_id" : rank % torch.cuda.device_count(),
+            "seed": 12 + rank % torch.cuda.device_count(),
+        }
+
+        pipe = validation_pipe(data_dir=None, interpolation=interpolation,
+                               image_size=image_size + crop_padding, image_crop=image_size,
+                               output_layout=output_layout,
+                               send_filepaths=send_filepaths,
+                               **pipeline_kwargs)
+
+        pipe.build()
+
+        dali_proxy = DALIProxy(input_names=["images"])
+        val_dataset = datasets.ImageFolder(
+            valdir,
+            transform=dali_proxy.transform,
+            loader=read_filepath if send_filepaths else read_file
+        )
+
+
+        if torch.distributed.is_initialized():
+            val_sampler = torch.utils.data.distributed.DistributedSampler(
+                val_dataset, shuffle=False
+            )
+        else:
+            val_sampler = None
+
+        val_loader = DALIDataLoader(
+            pipe,
+            dali_proxy,
+            val_dataset,
+            sampler=val_sampler,
+            batch_size=batch_size,
+            shuffle=(val_sampler is None),
+            num_workers=workers,
+            worker_init_fn=_worker_init_fn,
+            pin_memory=True,
+            collate_fn=None,
+            drop_last=True,
+            persistent_workers=True,
+            prefetch_factor=prefetch_factor,
+        )
+
+        return (
+            PrefetchedWrapper(val_loader, 0, num_classes, one_hot, normalize=False),
+            len(val_loader),
+        )
+    return get_impl
 
 
 class SynteticDataLoader(object):

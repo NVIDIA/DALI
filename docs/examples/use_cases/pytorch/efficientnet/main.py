@@ -36,6 +36,7 @@ os.environ[
 import argparse
 import random
 from copy import deepcopy
+from contextlib import nullcontext
 
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -344,6 +345,18 @@ def add_parser_arguments(parser, skip_arch=False):
         required=False,
     )
 
+    parser.add_argument(
+        "--data_loader_only",
+        action="store_true",
+        help="run only dataloader (no model), useful for benchmarking",
+    )
+
+    parser.add_argument(
+        '--send_filepaths',
+        default=False, action='store_true',
+        help='Send filepaths to DALI instead of read file contents'
+    )
+
 
 def prepare_for_training(args, model_args, model_arch):
     args.distributed = False
@@ -489,7 +502,10 @@ def prepare_for_training(args, model_args, model_arch):
         get_val_loader = get_pytorch_val_loader
     elif args.data_backend == "dali":
         get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
-        get_val_loader = get_dali_val_loader()
+        get_val_loader = get_dali_val_loader(dali_device=args.dali_device)
+    elif args.data_backend == "dali_proxy":
+        get_train_loader = get_dali_proxy_train_loader(dali_device=args.dali_device, send_filepaths=args.send_filepaths)
+        get_val_loader = get_dali_proxy_val_loader(dali_device=args.dali_device, send_filepaths=args.send_filepaths)
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
         get_train_loader = get_synthetic_loader
@@ -595,6 +611,12 @@ def prepare_for_training(args, model_args, model_arch):
     )
 
 
+def conditional_with(resource):
+    if hasattr(resource, '__enter__') and hasattr(resource, '__exit__'):
+        return resource
+    return nullcontext(resource)
+
+
 def main(args, model_args, model_arch):
     exp_start_time = time.time()
 
@@ -609,28 +631,30 @@ def main(args, model_args, model_arch):
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    train_loop(
-        trainer,
-        lr_policy,
-        train_loader,
-        train_loader_len,
-        val_loader,
-        logger,
-        start_epoch=start_epoch,
-        end_epoch=min((start_epoch + args.run_epochs), args.epochs)
-        if args.run_epochs != -1
-        else args.epochs,
-        early_stopping_patience=args.early_stopping_patience,
-        best_prec1=best_prec1,
-        prof=args.prof,
-        skip_training=args.evaluate,
-        skip_validation=args.training_only,
-        save_checkpoints=args.save_checkpoints and not args.evaluate,
-        checkpoint_dir=args.workspace,
-        checkpoint_filename=args.checkpoint_filename,
-        keep_last_n_checkpoints=args.gather_checkpoints,
-        topk=args.topk,
-    )
+    with conditional_with(train_loader), conditional_with(val_loader):
+        train_loop(
+            trainer,
+            lr_policy,
+            train_loader,
+            train_loader_len,
+            val_loader,
+            logger,
+            start_epoch=start_epoch,
+            end_epoch=min((start_epoch + args.run_epochs), args.epochs)
+            if args.run_epochs != -1
+            else args.epochs,
+            early_stopping_patience=args.early_stopping_patience,
+            best_prec1=best_prec1,
+            prof=args.prof,
+            skip_training=args.evaluate,
+            skip_validation=args.training_only,
+            save_checkpoints=args.save_checkpoints and not args.evaluate,
+            checkpoint_dir=args.workspace,
+            checkpoint_filename=args.checkpoint_filename,
+            keep_last_n_checkpoints=args.gather_checkpoints,
+            topk=args.topk,
+            data_loader_only=args.data_loader_only,
+        )
     exp_duration = time.time() - exp_start_time
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
         logger.end()

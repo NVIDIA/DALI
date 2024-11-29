@@ -22,11 +22,18 @@ from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
 @pipeline_def(enable_conditionals=True)
 def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_augmentation,
-                  dali_device="gpu", rank=0, world_size=1):
+                  dali_device="gpu", rank=0, world_size=1, send_filepaths=False):
     rng = fn.random.coin_flip(probability=0.5)
 
-    jpegs, labels = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
-                                    num_shards=world_size, random_shuffle=True, pad_last_batch=True)
+    if data_dir is None:
+        if send_filepaths:
+            filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+            jpegs = fn.io.file.read(filepaths)
+        else:
+            jpegs = fn.external_source(name="images", no_copy=True, blocking=True)
+    else:
+        jpegs, labels = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
+                                        num_shards=world_size, random_shuffle=True, pad_last_batch=True)
 
     if dali_device == "gpu":
         decoder_device = "mixed"
@@ -64,22 +71,45 @@ def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
 
-    return output, labels
+    if data_dir is None:
+        return output
+    else:
+        return output, labels
 
 
 @pipeline_def
-def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layout, rank=0,
-                    world_size=1):
-    jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
-                                   num_shards=world_size, random_shuffle=False, pad_last_batch=True)
+def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layout,
+                    dali_device="gpu", rank=0, world_size=1, send_filepaths=False):
+    if data_dir is None:
+        if send_filepaths:
+            filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+            jpegs = fn.io.file.read(filepaths)
+        else:
+            jpegs = fn.external_source(name="images", no_copy=True, blocking=True)
+    else:
+        jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
+                                       num_shards=world_size, random_shuffle=False, pad_last_batch=True)
 
-    images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
+    if dali_device == "gpu":
+        decoder_device = "mixed"
+        resize_device = "gpu"
+    else:
+        decoder_device = "cpu"
+        resize_device = "cpu"
 
-    images = fn.resize(images, resize_shorter=image_size, interp_type=interpolation,
-                       antialias=False)
+    images = fn.decoders.image(jpegs, device=decoder_device, output_type=types.RGB)
+
+    images = fn.resize(images, device=resize_device, resize_shorter=image_size,
+                       interp_type=interpolation, antialias=False)
+
+    images = images.gpu()
 
     output = fn.crop_mirror_normalize(images, dtype=types.FLOAT, output_layout=output_layout,
                                       crop=(image_crop, image_crop),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return output, label
+
+    if data_dir is None:
+        return output
+    else:
+        return output, label
