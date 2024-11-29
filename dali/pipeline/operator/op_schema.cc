@@ -70,10 +70,11 @@ OpSchema::OpSchema(const std::string &name) : name_(name) {
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
-  AddOptionalArg("seed", R"code(Random seed.
-
-If not provided, it will be populated based on the global seed of the pipeline.)code",
-                 -1);
+  AddInternalArg("seed", "Deprecated. Only operators which use RNG have a `seed` argument",
+                 -1_i64);
+  DeprecateArg(
+    "seed", true,
+    "Specifying `seed` for operators which do not use random number generators is deprecated.");
 
   AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
@@ -430,6 +431,17 @@ OpSchema &OpSchema::AddOptionalArg(const std::string &s, const std::string &doc,
   return AddOptionalArg(s, doc, std::string(default_value), false);
 }
 
+OpSchema &OpSchema::AddRandomSeedArg() {
+  internal_arguments_.erase("seed");
+  deprecated_arguments_.erase("seed");
+  AddOptionalArg<int64_t>("seed", R"code(Random seed.
+
+  If not provided, it will be populated based on the global seed of the pipeline.)code",
+    nullptr);
+
+  return *this;
+}
+
 
 OpSchema &OpSchema::DeprecateArgInFavorOf(const std::string &arg_name, std::string renamed_to,
                                           std::string msg) {
@@ -442,7 +454,7 @@ OpSchema &OpSchema::DeprecateArgInFavorOf(const std::string &arg_name, std::stri
 
 OpSchema &OpSchema::DeprecateArg(const std::string &arg_name, bool removed, std::string msg) {
   DALI_ENFORCE(
-      HasArgument(arg_name),
+      HasArgument(arg_name, true),
       make_string("Argument \"", arg_name,
                   "\" has been marked for deprecation but it is not present in the schema."));
   if (msg.empty())
