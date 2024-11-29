@@ -438,6 +438,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     return *this;
   }
 
+  DLL_PUBLIC OpSchema &AddRandomSeedArg();
+
   /**
    * @brief Marks an argument as deprecated in favor of a new argument
    *
