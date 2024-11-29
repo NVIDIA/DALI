@@ -723,6 +723,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
                               bool local_only = false) const;
 
   /**
+   * @brief Returns true if the operator has a "seed" argument.
+   */
+  DLL_PUBLIC bool HasRandomSeedArg() const;
+
+  /**
    * @brief Get docstring for operator argument of given name (Python Operator Kwargs).
    */
   DLL_PUBLIC std::string GetArgumentDox(const std::string &name) const;

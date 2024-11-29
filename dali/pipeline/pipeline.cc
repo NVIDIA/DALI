@@ -659,8 +659,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
   if (dev == "gpu" || dev == "mixed")
     spec->AddArg("gpu_prefetch_queue_depth", prefetch_queue_depth_.gpu_size);
 
-  if (spec->GetSchemaOrDefault().HasArgument("seed", false)) {
-
+  if (spec->GetSchemaOrDefault().HasRandomSeedArg()) {
     if (spec->ArgumentDefined("seed")) {
       logical_id_to_seed_[logical_id] = spec->GetArgument<int64_t>("seed");
     } else {
