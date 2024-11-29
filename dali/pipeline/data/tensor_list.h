@@ -547,7 +547,7 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the layout of the sample in the batch.
    */
-  TensorLayout GetLayout() const {
+  inline const TensorLayout &GetLayout() const & {
     return layout_;
   }
 

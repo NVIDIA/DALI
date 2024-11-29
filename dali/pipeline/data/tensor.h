@@ -320,7 +320,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline const TensorShape<> &shape() const {
+  inline const TensorShape<> &shape() const & {
     return shape_;
   }
 
@@ -430,7 +430,7 @@ class Tensor : public Buffer<Backend> {
     meta_ = meta;
   }
 
-  inline TensorLayout GetLayout() const {
+  inline const TensorLayout &GetLayout() const & {
     return meta_.GetLayout();
   }
 
