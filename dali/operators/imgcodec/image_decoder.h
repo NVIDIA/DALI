@@ -678,6 +678,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     batch_images_.reserve(nsamples);
     decode_sample_idxs_.clear();
     decode_sample_idxs_.reserve(nsamples);
+    decode_status_.clear();
 
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
     auto get_setup_task = [&](int block_idx, int nblocks) {
@@ -736,8 +737,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       };
     };
 
-    const int minimum_block_nsamples = 16;
-    const int max_num_blocks = std::max(1, nsamples / minimum_block_nsamples);
+    const int max_num_blocks = 16;
     int nblocks = std::min(tp_->NumThreads() + 1, max_num_blocks);
     if (nblocks == 1) {
       get_setup_task(0, 1)(-1);  // run all in current thread
@@ -746,9 +746,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
       for (; block_idx < nblocks - 1; block_idx++) {
         tp_->AddWork(get_setup_task(block_idx, nblocks), -block_idx);
       }
-      tp_->RunAll(false);                // start work but not wait
+      tp_->RunAll(false);  // start work but not wait
       get_setup_task(block_idx, nblocks)(-1);  // run last block in current thread
-      tp_->WaitForWork();                // wait for the other threads
+      tp_->WaitForWork();  // wait for the other threads
     }
 
     bool any_need_processing = false;
@@ -782,7 +782,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     if (nsamples_decode > 0) {
       nvimgcodecFuture_t future;
-      std::vector<nvimgcodecProcessingStatus_t> decode_status(nsamples_decode);
+      decode_status_.resize(nsamples_decode);
       size_t decode_status_size = 0;
       nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
                                                 sizeof(nvimgcodecDecodeParams_t), nullptr};
@@ -795,8 +795,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                                  batch_images_.data(), nsamples_decode,
                                                  &decode_params, &future));
         CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
-        CHECK_NVIMGCODEC(
-            nvimgcodecFutureGetProcessingStatus(future, decode_status.data(), &decode_status_size));
+        CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, decode_status_.data(),
+                                                             &decode_status_size));
         CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
       }
       if (decode_status_size != nsamples_decode)
@@ -804,7 +804,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       for (size_t idx = 0; idx < nsamples_decode; idx++) {
         size_t orig_idx = decode_sample_idxs_[idx];
         auto st_ptr = state_[orig_idx].get();
-        if (decode_status[idx] != NVIMGCODEC_PROCESSING_STATUS_SUCCESS) {
+        if (decode_status_[idx] != NVIMGCODEC_PROCESSING_STATUS_SUCCESS) {
           throw std::runtime_error(make_string("Failed to decode sample #", orig_idx, " : ",
                                                input.GetMeta(orig_idx).GetSourceInfo()));
         }
