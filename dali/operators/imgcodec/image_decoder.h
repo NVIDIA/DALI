@@ -549,7 +549,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     return !version_at_least(0, 3, 0);
   }
 
-  void PrepareOutput(SampleState &st, const ROI &roi, const Workspace &ws) {
+  void PrepareOutput(SampleState &st, void *out_ptr, const ROI &roi, const Workspace &ws) {
     // Make a copy of the parsed img info. We might modify it
     // (for example, request planar vs. interleaved, etc)
     st.image_info = st.parsed_sample.nvimgcodec_img_info;
@@ -631,6 +631,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
         st.image_info.buffer = st.host_buf.get();
         st.decode_out_cpu = {st.image_info.buffer, decode_shape, st.parsed_sample.orig_dtype};
       }
+    } else {
+      st.image_info.buffer = out_ptr;
     }
 
     st.image_info.num_planes = 1;
@@ -640,6 +642,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.image_info.plane_info[0].height = decode_shape[0];
     st.image_info.plane_info[0].width = decode_shape[1];
     st.image_info.plane_info[0].num_channels = decode_shape[2];
+    st.image = NvImageCodecImage::Create(instance_, &st.image_info);
   }
 
   bool HasContiguousOutputs() const override {
@@ -727,11 +730,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
             st->out_shape[1] = roi_sh[1];
           }
           output.ResizeSample(i, st->out_shape);
-          PrepareOutput(*state_[i], rois_[i], ws);
-          if (!st->need_processing)
-            st->image_info.buffer = output.raw_mutable_tensor(i);
+          PrepareOutput(*state_[i], output.raw_mutable_tensor(i), rois_[i], ws);
           assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);
-          st->image = NvImageCodecImage::Create(instance_, &(st->image_info));
         }
       };
     };
