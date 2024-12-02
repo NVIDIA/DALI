@@ -175,6 +175,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     DALIImageType orig_img_type;
     DALIImageType req_img_type;
     float dyn_range_multiplier = 1.0f;
+    bool load_from_cache = false;
 
     mm::uptr<uint8_t> host_buf;
     mm::async_uptr<uint8_t> device_buf;
@@ -414,6 +415,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
   nvimgcodecStatus_t run(int device_id) {
     assert(tp_);
     tp_->RunAll(false);
+    task_count_ = 0;
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
@@ -640,12 +642,18 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.image_info.plane_info[0].num_channels = decode_shape[2];
   }
 
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   void RunImplImpl(Workspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
     int nsamples = input.num_samples();
     auto &output = ws.template Output<typename OutBackend<Backend>::type>(0);
+    output.SetContiguity(BatchContiguity::Noncontiguous);
     output.SetLayout("HWC");
-    output.SetSize(nsamples);
+    // Samples to be resized independently
+    output.Resize(TensorListShape(nsamples, 3), dtype_, BatchContiguity::Noncontiguous);
 
     tp_ = GetThreadPool(ws);
     assert(tp_ != nullptr);
@@ -667,13 +675,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
     batch_images_.reserve(nsamples);
     decode_sample_idxs_.clear();
     decode_sample_idxs_.reserve(nsamples);
-    load_from_cache_.resize(nsamples);
 
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
-    auto get_task = [&](int block_idx, int nblocks) {
+    auto get_setup_task = [&](int block_idx, int nblocks) {
       return [&, block_idx, nblocks](int tid) {
         int i_start = nsamples * block_idx / nblocks;
         int i_end = nsamples * (block_idx + 1) / nblocks;
+        DomainTimeRange tr("Setup " + std::to_string(i_start) + ".." + std::to_string(i_end),
+                           DomainTimeRange::kOrange);
         for (int i = i_start; i < i_end; i++) {
           auto *st = state_[i].get();
           assert(st != nullptr);
@@ -684,14 +693,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
             auto cached_shape = cache_->CacheImageShape(src_info);
             auto roi = GetRoi(spec_, ws, i, cached_shape);
             if (!roi.use_roi()) {
-              load_from_cache_[i] = true;
-              shapes.set_tensor_shape(i, cached_shape);
+              st->load_from_cache = true;
+              output.ResizeSample(i, st->out_shape);
+              st->image_info.buffer = output.raw_mutable_tensor(i);
               continue;
             }
           }
-
-          load_from_cache_[i] = false;
-
+          st->load_from_cache = false;
           ParseSample(st->parsed_sample,
                       span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
                                           volume(input_sample.shape())});
@@ -718,77 +726,62 @@ class ImageDecoder : public StatelessOperator<Backend> {
             st->out_shape[0] = roi_sh[0];
             st->out_shape[1] = roi_sh[1];
           }
-          shapes.set_tensor_shape(i, st->out_shape);
+          output.ResizeSample(i, st->out_shape);
           PrepareOutput(*state_[i], rois_[i], ws);
+          if (!st->need_processing)
+            st->image_info.buffer = output.raw_mutable_tensor(i);
+          assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);  // assuming it is true
+          st->image = NvImageCodecImage::Create(instance_, &(st->image_info));
         }
       };
     };
 
-    {
-      DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
-      const int minimum_block_nsamples = 16;
-      const int max_num_blocks = std::max(1, nsamples / minimum_block_nsamples);
-      int nblocks = std::min(tp_->NumThreads() + 1, max_num_blocks);
-      if (nblocks == 1) {
-        get_task(0, 1)(-1);  // run all in current thread
-      } else {
-        int block_idx = 0;
-        for (; block_idx < nblocks - 1; block_idx++) {
-          tp_->AddWork(get_task(block_idx, nblocks), -block_idx);
-        }
-        tp_->RunAll(false);                // start work but not wait
-        get_task(block_idx, nblocks)(-1);  // run last block in current thread
-        tp_->WaitForWork();                // wait for the other threads
+    const int minimum_block_nsamples = 16;
+    const int max_num_blocks = std::max(1, nsamples / minimum_block_nsamples);
+    int nblocks = std::min(tp_->NumThreads() + 1, max_num_blocks);
+    if (nblocks == 1) {
+      get_setup_task(0, 1)(-1);  // run all in current thread
+    } else {
+      int block_idx = 0;
+      for (; block_idx < nblocks - 1; block_idx++) {
+        tp_->AddWork(get_setup_task(block_idx, nblocks), -block_idx);
       }
+      tp_->RunAll(false);                // start work but not wait
+      get_setup_task(block_idx, nblocks)(-1);  // run last block in current thread
+      tp_->WaitForWork();                // wait for the other threads
     }
 
-    {
-      DomainTimeRange tr("output resize", DomainTimeRange::kOrange);
-      output.Resize(shapes, dtype_);
-    }
-
-    int samples_to_load = 0;
     bool any_need_processing = false;
+    bool has_any_roi = false;
     for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
       auto &st = *state_[orig_idx];
-      auto *data_ptr = output.raw_mutable_tensor(orig_idx);
-      if (load_from_cache_[orig_idx]) {
+      any_need_processing |= state_[orig_idx]->need_processing;
+      if (use_cache && st.load_from_cache) {
+        auto *data_ptr = output.raw_mutable_tensor(orig_idx);
         auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
         cache_->DeferCacheLoad(src_info, static_cast<uint8_t *>(data_ptr));
-        samples_to_load++;
       } else {
+        has_any_roi |= rois_[orig_idx].use_roi();
+        batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
+        batch_images_.push_back(st.image);
         decode_sample_idxs_.push_back(orig_idx);
-        any_need_processing |= st.need_processing;
-        if (!st.need_processing)
-          st.image_info.buffer = data_ptr;
-        assert(!ws.has_stream() ||
-               ws.stream() == st.image_info.cuda_stream);  // assuming this is true
-        st.image = NvImageCodecImage::Create(instance_, &st.image_info);
       }
     }
+    size_t nsamples_decode = batch_images_.size();
+    size_t nsamples_cache = nsamples - nsamples_decode;
 
     if (ws.has_stream() && need_host_sync_alloc() && any_need_processing) {
       DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     }
 
-    if (samples_to_load > 0) {
+    if (nsamples_cache > 0) {
       DomainTimeRange tr("LoadDeferred", DomainTimeRange::kOrange);
       cache_->LoadDeferred(ws.stream());
     }
 
-    size_t nsamples_decode = decode_sample_idxs_.size();
     if (nsamples_decode > 0) {
       nvimgcodecFuture_t future;
-
-      bool has_any_roi = false;
-      for (size_t idx = 0; idx < nsamples_decode; idx++) {
-        size_t orig_idx = decode_sample_idxs_[idx];
-        auto &st = *state_[orig_idx];
-        has_any_roi |= rois_[orig_idx].use_roi();
-        batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
-        batch_images_.push_back(st.image);
-      }
       std::vector<nvimgcodecProcessingStatus_t> decode_status(nsamples_decode);
       size_t decode_status_size = 0;
       nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
@@ -904,8 +897,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
   // In case of cache, the batch we send to the decoder might have fewer samples than the full batch
   // This vector is used to get the original index of the decoded samples
   std::vector<size_t> decode_sample_idxs_;
-  // True if the sample is loaded from cache, false otherwise
-  std::vector<bool> load_from_cache_;
 
   // Manually loaded extensions
   std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
