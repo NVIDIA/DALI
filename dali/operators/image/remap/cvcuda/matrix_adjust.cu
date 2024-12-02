@@ -16,7 +16,7 @@
 
 #include <dali/core/util.h>
 #include <dali/core/geom/mat.h>
-#include <nvcv/cuda/TensorWrap.hpp>
+#include <cvcuda/cuda_tools/TensorWrap.hpp>
 
 namespace dali {
 namespace warp_perspective {
