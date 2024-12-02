@@ -730,7 +730,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
           PrepareOutput(*state_[i], rois_[i], ws);
           if (!st->need_processing)
             st->image_info.buffer = output.raw_mutable_tensor(i);
-          assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);  // assuming it is true
+          assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);
           st->image = NvImageCodecImage::Create(instance_, &(st->image_info));
         }
       };
