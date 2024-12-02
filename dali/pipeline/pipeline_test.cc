@@ -489,7 +489,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
 TYPED_TEST(PipelineTest, TestSeedSet) {
   int num_thread = TypeParam::nt;
   int batch_size = this->jpegs_.nImages();
-  constexpr int seed_set = 567;
+  constexpr int64_t seed_set = 567;
 
   Pipeline pipe(batch_size, num_thread, 0);
 
@@ -500,7 +500,7 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(
-      OpSpec("Copy")
+      OpSpec("DummyOpToAdd")
       .AddArg("device", "cpu")
       .AddArg("seed", seed_set)
       .AddInput("data", "cpu")
@@ -523,8 +523,9 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
   // Check if seed can be manually set
   EXPECT_EQ(original_graph.GetOp("copy1")->spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_EQ(original_graph.GetOp("copy2")->spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_NE(original_graph.GetOp("data")->spec.GetArgument<int64_t>("seed"), seed_set);
+  // The "seed" by default is deprecated and _removed_, so it's not set with AddArg!
+  EXPECT_FALSE(original_graph.GetOp("copy2")->spec.HasArgument("seed"));
+  EXPECT_FALSE(original_graph.GetOp("data")->spec.HasArgument("seed"));
 }
 
 
@@ -650,7 +651,8 @@ DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
 DALI_SCHEMA(DummyOpToAdd)
   .DocStr("DummyOpToAdd")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddRandomSeedArg();
 
 
 class DummyOpNoSync : public Operator<CPUBackend> {

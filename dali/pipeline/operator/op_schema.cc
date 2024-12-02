@@ -70,12 +70,6 @@ OpSchema::OpSchema(const std::string &name) : name_(name) {
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
-  AddOptionalArg<int64_t>("seed", "Deprecated. Only operators which use RNG have a `seed` argument",
-                          nullptr);
-  DeprecateArg(
-    "seed", true,
-    "Specifying `seed` for operators which do not use random number generators is deprecated.");
-
   AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
 If specified, the operator's outputs residing in GPU or page-locked host memory will be preallocated
@@ -437,7 +431,7 @@ OpSchema &OpSchema::AddRandomSeedArg() {
 }
 
 bool OpSchema::HasRandomSeedArg() const {
-  return arguments_.count("seed") && !deprecated_arguments_.count("seed");
+  return optional_arguments_.count("seed") && !deprecated_arguments_.count("seed");
 }
 
 OpSchema &OpSchema::DeprecateArgInFavorOf(const std::string &arg_name, std::string renamed_to,
