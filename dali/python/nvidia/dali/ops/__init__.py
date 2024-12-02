@@ -21,6 +21,7 @@ import weakref
 from itertools import count
 
 import nvidia.dali.python_function_plugin
+import nvidia.dali.types
 from nvidia.dali import backend as _b
 from nvidia.dali import fn as _functional
 from nvidia.dali import internal as _internal
@@ -328,7 +329,19 @@ def _add_spec_args(schema, spec, kwargs):
             # as if the argument was not supplied at all
             continue
 
-        dtype = schema.GetArgumentType(key)
+        try:
+            dtype = schema.GetArgumentType(key)
+        except:
+            if key == "seed" and not schema.HasArgument("seed"):
+                raise ValueError('The argument "seed" is deprecated in operators which '
+                                 "don't use random number generators.")
+            dtype = nvidia.dali.types.INT64
+
+        if isinstance(value, (list, tuple)):
+            if len(value) == 0:
+                spec.AddArgEmptyList(key, _vector_element_type(dtype))
+                continue
+
         if isinstance(value, (list, tuple)):
             if len(value) == 0:
                 spec.AddArgEmptyList(key, _vector_element_type(dtype))
