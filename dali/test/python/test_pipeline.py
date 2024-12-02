@@ -2207,6 +2207,19 @@ def test_gpu2cpu():
         check_batch(cpu, gpu, bs, 0, 0, "HWC")
 
 
+def test_gpu2cpu_arg_input():
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0, exec_dynamic=True)
+    def pdef():
+        data = dali.types.Constant([42], device="gpu")
+        resized = fn.zeros(shape=data.cpu(), dtype=types.INT32)
+        return resized
+
+    pipe = pdef()
+    pipe.build()
+    (o,) = pipe.run()
+    assert o[0].shape() == [42]
+
+
 def test_shapes_gpu():
     bs = 8
 

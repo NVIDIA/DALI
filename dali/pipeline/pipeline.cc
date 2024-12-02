@@ -324,6 +324,12 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     std::string input_name = spec.InputName(input_idx);
     auto it = edge_names_.find(input_name);
 
+    // TODO(michalz): This is a bit ugly, but it provides a nice and generic error message.
+    //                In the long run, we should probably allow GPU named inputs and then
+    //                the check should be done based on the schema, without a universal ToCPU.
+    if (dynamic_execution_)
+      ToCPU(it);
+
     DALI_ENFORCE(
         it != edge_names_.end(),
         make_string("Data node \"", input_name, "\" requested as ", FormatArgument(spec, arg_name),
@@ -335,8 +341,6 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                             ". Named argument inputs to operators must be CPU data nodes. "
                             "However, a GPU data node was provided."));
     }
-
-    ToCPU(it);
   }
 
   // Verify and record the outputs of the op
