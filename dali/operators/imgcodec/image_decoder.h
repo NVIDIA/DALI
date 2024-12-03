@@ -665,8 +665,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     });
 
     SetupRoiGenerator(spec_, ws);
-    TensorListShape<> shapes;
-    shapes.resize(nsamples, 3);
     while (static_cast<int>(state_.size()) < nsamples)
       state_.push_back(std::make_unique<SampleState>());
     rois_.resize(nsamples);
@@ -685,7 +683,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       return [&, block_idx, nblocks](int tid) {
         int i_start = nsamples * block_idx / nblocks;
         int i_end = nsamples * (block_idx + 1) / nblocks;
-        DomainTimeRange tr("Setup " + std::to_string(i_start) + ".." + std::to_string(i_end),
+        DomainTimeRange tr("Setup #" + std::to_string(block_idx) + "/" + std::to_string(nblocks),
                            DomainTimeRange::kOrange);
         for (int i = i_start; i < i_end; i++) {
           auto *st = state_[i].get();
