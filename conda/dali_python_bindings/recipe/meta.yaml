@@ -90,7 +90,7 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - libprotobuf =5.29.0
+    - libprotobuf =5.28.3
     - future
     - astunparse >=1.6.0
     - gast >=0.3.3
