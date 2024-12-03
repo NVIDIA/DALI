@@ -737,8 +737,16 @@ class ImageDecoder : public StatelessOperator<Backend> {
       };
     };
 
-    const int max_num_blocks = 16;
+    // At most max_num_blocks blocks, or `number of threads + 1` blocks if smaller than
+    // `max_num_blocks`
+    int max_num_blocks = 16;
+    // At minimum `min_nsamples_per_block` samples per block
+    int min_nsamples_per_block = 16;
     int nblocks = std::min(tp_->NumThreads() + 1, max_num_blocks);
+    // Ensure at least 1 block, and at least `min_nsamples_per_block` samples per block
+    if (nsamples < nblocks * min_nsamples_per_block) {
+      nblocks = std::max(1, nsamples / min_nsamples_per_block);
+    }
     if (nblocks == 1) {
       get_setup_task(0, 1)(-1);  // run all in current thread
     } else {
