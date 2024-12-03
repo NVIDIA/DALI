@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the BSD 3-Clause License  (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,14 +37,6 @@ class MixUpWrapper(object):
         for input, target in loader:
             i, t = mixup(self.alpha, input, target)
             yield i, t
-
-    def __enter__(self):
-        if hasattr(self.dataloader, '__enter__'):
-            self.dataloader.__enter__()
-
-    def __exit__(self, exc_type, exc_value, tb):
-        if hasattr(self.dataloader, '__exit__'):
-            self.dataloader.__exit__(exc_type, exc_value, tb)
 
     def __iter__(self):
         return self.mixup_loader(self.dataloader)
