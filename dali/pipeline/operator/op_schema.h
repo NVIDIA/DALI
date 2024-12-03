@@ -37,31 +37,6 @@ namespace dali {
 
 class OpSpec;
 
-struct RequiredArgumentDef {
-  std::string doc;
-  DALIDataType dtype;
-};
-
-struct DefaultedArgumentDef {
-  std::string doc;
-  DALIDataType dtype;
-  Value *default_value;
-  // As opposed to purely internal argument, the hidden argument
-  // can be specified as any other argument on per-operator basis, through Python API, etc.
-  // It is just hidden from the docs.
-  bool hidden;
-};
-
-struct DeprecatedArgDef {
-  std::string renamed_to = {};
-  std::string msg = {};
-  bool removed = false;
-};
-
-struct TensorArgDesc {
-  bool supports_per_frame = false;
-};
-
 enum class InputDevice : uint8_t {
   /** CPU for CPU and Mixed operators; GPU for GPU operators. */
   MatchBackend = 0,
@@ -92,6 +67,26 @@ enum class InputDevice : uint8_t {
    */
   Metadata,
 };
+
+struct ArgumentDeprecation {
+  std::string renamed_to = {};
+  std::string msg = {};
+  bool removed = false;
+};
+
+struct ArgumentDef {
+  std::string doc;
+  DALIDataType dtype;
+  std::unique_ptr<Value> default_value;
+  bool required   : 1 = false;
+  bool tensor     : 1 = false;
+  bool per_frame  : 1 = false;
+  bool internal   : 1 = false;
+  bool hidden     : 1 = false;
+
+  std::unique_ptr<ArgumentDeprecation> deprecated;
+};
+
 
 class DLL_PUBLIC OpSchema {
  public:
@@ -789,6 +784,12 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * @brief Initialize the module_path_ and operator_name_ fields based on the schema name.
    */
   void InitNames();
+
+  /**
+   * @brief
+   *
+   */
+  void InitDefaultSchema();
 
   std::string dox_;
   /** @brief The name of the schema */
