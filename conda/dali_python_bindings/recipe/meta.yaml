@@ -73,7 +73,7 @@ requirements:
     - black-jupyter =24.8.0
     - bandit
   host:
-    - libprotobuf-static =5.27.4
+    - libprotobuf-static =5.28.3
     - dali-opencv
     - dali-ffmpeg
     - python
