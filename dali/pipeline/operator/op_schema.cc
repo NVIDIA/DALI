@@ -124,6 +124,10 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                  "Operator name as presented in the API it was instantiated in (without the module "
                  "path), for example: cast_like or CastLike.",
                  OperatorName());
+
+  AddOptionalArg("seed",
+                 "Random seed; if not set, one will be assigned automatically, if needed.",
+                 -1_u64);
 }
 
 

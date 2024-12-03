@@ -523,9 +523,39 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
   // Check if seed can be manually set
   EXPECT_EQ(original_graph.GetOp("copy1")->spec.GetArgument<int64_t>("seed"), seed_set);
-  // The "seed" by default is deprecated and _removed_, so it's not set with AddArg!
-  EXPECT_FALSE(original_graph.GetOp("copy2")->spec.HasArgument("seed"));
+  EXPECT_TRUE(original_graph.GetOp("copy2")->spec.HasArgument("seed"));
   EXPECT_FALSE(original_graph.GetOp("data")->spec.HasArgument("seed"));
+}
+
+
+TYPED_TEST(PipelineTest, TestSeedAuto) {
+  int num_thread = TypeParam::nt;
+  int batch_size = this->jpegs_.nImages();
+
+  Pipeline pipe(batch_size, num_thread, 0);
+
+
+  TensorList<CPUBackend> batch;
+  test::MakeRandomBatch(batch, batch_size);
+
+  pipe.AddExternalInput("data");
+
+  pipe.AddOperator(
+      OpSpec("DummyOpToAdd")
+      .AddArg("device", "cpu")
+      .AddInput("data", "cpu")
+      .AddOutput("out0", "cpu"), "dummy");
+
+  pipe.Build({{"out0", "gpu"}});
+
+  pipe.SetExternalInput("data", batch);
+
+  graph::OpGraph &original_graph = this->GetGraph(&pipe);
+
+  // ExternalSource doesn't have a seed...
+  EXPECT_FALSE(original_graph.GetOp("data")->spec.HasArgument("seed"));
+  // ...but DumyOpToAdd does - check if it was set by the Pipeline
+  EXPECT_TRUE(original_graph.GetOp("dummy")->spec.HasArgument("seed"));
 }
 
 
