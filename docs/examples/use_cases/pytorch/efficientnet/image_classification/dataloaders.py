@@ -38,11 +38,10 @@ from image_classification.autoaugment import AutoaugmentImageNetPolicy
 DATA_BACKEND_CHOICES = ["pytorch", "synthetic"]
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
+    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
     import nvidia.dali.types as types
 
     from image_classification.dali import training_pipe, validation_pipe
-
-    from nvidia.dali.plugin.pytorch import DALIProxy, DALIDataLoader
 
     DATA_BACKEND_CHOICES.append("dali")
     DATA_BACKEND_CHOICES.append("dali_proxy")
@@ -312,14 +311,6 @@ class PrefetchedWrapper(object):
             self.dataloader, self.num_classes, self.one_hot, self.normalize
         )
 
-    def __enter__(self):
-        if hasattr(self.dataloader, "__enter__"):
-            self.dataloader.__enter__()
-
-    def __exit__(self, exc_type, exc_value, tb):
-        if hasattr(self.dataloader, "__exit__"):
-            self.dataloader.__exit__(exc_type, exc_value, tb)
-
     def __len__(self):
         return len(self.dataloader)
 
@@ -461,7 +452,7 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
             "triangular": types.INTERP_TRIANGULAR,
         }[interpolation]
 
-        output_layout = 'CHW' #"HWC" if memory_format == torch.channels_last else "CHW"
+        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
 
         pipeline_kwargs = {
@@ -477,11 +468,11 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
                              **pipeline_kwargs)
         pipe.build()
 
-        dali_proxy = DALIProxy(input_names=["images"])
+        dali_server = dali_proxy.DALIServer(pipe)
 
         train_dataset = datasets.ImageFolder(
             traindir,
-            transform=dali_proxy.transform,
+            transform=dali_server.proxy,
             loader=read_filepath if send_filepaths else read_file
         )
 
@@ -492,9 +483,8 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
         else:
             train_sampler = None
 
-        train_loader = DALIDataLoader(
-            pipe,
-            dali_proxy,
+        train_loader = dali_proxy.DataLoader(
+            dali_server,
             train_dataset,
             sampler=train_sampler,
             batch_size=batch_size,
@@ -532,7 +522,7 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
             "triangular": types.INTERP_TRIANGULAR,
         }[interpolation]
 
-        output_layout = 'CHW' #"HWC" if memory_format == torch.channels_last else "CHW"
+        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
 
         valdir = os.path.join(data_path, "val")
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
@@ -552,10 +542,10 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
 
         pipe.build()
 
-        dali_proxy = DALIProxy(input_names=["images"])
+        dali_server = dali_proxy.DALIServer(pipe)
         val_dataset = datasets.ImageFolder(
             valdir,
-            transform=dali_proxy.transform,
+            transform=dali_server.proxy,
             loader=read_filepath if send_filepaths else read_file
         )
 
@@ -567,9 +557,8 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
         else:
             val_sampler = None
 
-        val_loader = DALIDataLoader(
-            pipe,
-            dali_proxy,
+        val_loader = dali_proxy.DataLoader(
+            dali_server,
             val_dataset,
             sampler=val_sampler,
             batch_size=batch_size,
