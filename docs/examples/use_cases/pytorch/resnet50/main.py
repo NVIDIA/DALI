@@ -19,7 +19,8 @@ import numpy as np
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 try:
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPolicy, DALIProxy, DALIDataLoader
+    from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPolicy
+    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
     from nvidia.dali.pipeline import pipeline_def
     import nvidia.dali.types as types
     import nvidia.dali.fn as fn
@@ -334,7 +335,7 @@ def main():
     elif args.dali_proxy:
         assert train_pipe is not None
         assert val_pipe is not None
-        dali_proxy_train = DALIProxy(input_names=["images"])
+        dali_server_train = dali_proxy.DALIServer(train_pipe)
 
         def read_file(path):
             return np.fromfile(path, dtype=np.uint8)
@@ -344,14 +345,14 @@ def main():
 
         train_dataset = datasets.ImageFolder(
             traindir,
-            transform=dali_proxy_train.transform,
+            transform=dali_server_train.proxy,
             loader=read_filepath if args.send_filepaths else read_file
         )
 
-        dali_proxy_val = DALIProxy(input_names=["images"])
+        dali_server_val = dali_proxy.DALIServer(val_pipe)
         val_dataset = datasets.ImageFolder(
             valdir,
-            transform=dali_proxy_val.transform,
+            transform=dali_server_val.proxy,
             loader=read_filepath if args.send_filepaths else read_file
         )
 
@@ -361,9 +362,8 @@ def main():
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
             val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
 
-        train_loader = DALIDataLoader(
-            train_pipe,
-            dali_proxy_train,
+        train_loader = dali_proxy.DataLoader(
+            dali_server_train,
             train_dataset,
             batch_size=args.batch_size,
             shuffle=(train_sampler is None),
@@ -373,9 +373,8 @@ def main():
             collate_fn=None
         )
 
-        val_loader = DALIDataLoader(
-            val_pipe,
-            dali_proxy_val,
+        val_loader = dali_proxy.DataLoader(
+            dali_server_val,
             val_dataset,
             batch_size=args.batch_size,
             shuffle=False,
@@ -428,7 +427,7 @@ def main():
                                        enabled=args.fp16_mode)
     total_time = AverageMeter()
 
-    with conditional_with(train_loader), conditional_with(val_loader):
+    with conditional_with(dali_server_train), conditional_with(dali_server_val):
         for epoch in range(args.start_epoch, args.epochs):
             # train for one epoch
             avg_train_time = train(train_loader, model, criterion, scaler, optimizer, epoch)

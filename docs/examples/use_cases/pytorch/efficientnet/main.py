@@ -631,7 +631,10 @@ def main(args, model_args, model_arch):
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    with conditional_with(train_loader), conditional_with(val_loader):
+    dali_server_train = train_loader.dali_server if hasattr(train_loader, "dali_server") else None
+    dali_server_val = val_loader.dali_server if hasattr(val_loader, "dali_server") else None
+
+    with conditional_with(dali_server_train), conditional_with(dali_server_val):
         train_loop(
             trainer,
             lr_policy,
