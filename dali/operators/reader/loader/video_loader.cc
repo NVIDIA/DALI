@@ -639,6 +639,8 @@ void VideoLoader::read_file() {
       continue;
     }
 
+    DALI_ENFORCE(pkt, "Failed to read frames.");
+
     if (key) {
       last_key_frame = frame;
       if (frame < previous_last_key_frame) {
