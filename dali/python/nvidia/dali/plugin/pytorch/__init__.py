@@ -34,24 +34,12 @@ import numpy as np
 from . import fn  # noqa: F401
 from . import proxy  # noqa: F401
 
+from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type
 from nvidia.dali.plugin.pytorch._torch_function import TorchPythonFunction as TorchPythonFunction
 
 _internal._adjust_operator_module(TorchPythonFunction, sys.modules[__name__], [])
 
 ops._wrap_op(TorchPythonFunction, "fn", __name__)
-
-
-to_torch_type = {
-    types.DALIDataType.FLOAT: torch.float32,
-    types.DALIDataType.FLOAT64: torch.float64,
-    types.DALIDataType.FLOAT16: torch.float16,
-    types.DALIDataType.UINT8: torch.uint8,
-    types.DALIDataType.INT8: torch.int8,
-    types.DALIDataType.BOOL: torch.bool,
-    types.DALIDataType.INT16: torch.int16,
-    types.DALIDataType.INT32: torch.int32,
-    types.DALIDataType.INT64: torch.int64,
-}
 
 
 def feed_ndarray(
