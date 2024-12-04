@@ -22,7 +22,6 @@ from nvidia.dali.external_source import ExternalSource
 import ctypes
 import threading
 from queue import Empty
-from nvtx import nvtx
 from .. import to_torch_type
 
 
@@ -126,8 +125,9 @@ class DALIProxy:
     def schedule_batch(self, inputs):
         # Identifier of this request
         info = (self.worker_id(), self.data_idx)
-        with nvtx.annotate(f"dali_proxy.send_q.put {info}", color="blue"):
-            self.send_q.put((info, inputs))
+        torch.cuda.nvtx.range_push(f"dali_proxy.send_q.put {info}")
+        self.send_q.put((info, inputs))
+        torch.cuda.nvtx.range_pop()
         self.data_idx = self.data_idx + 1
         # Returns a placeholder, which is replaced with the actual data once the iteration completes
         return DALIPipelineOutputRef(self.info)
