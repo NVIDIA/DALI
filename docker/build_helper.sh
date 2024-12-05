@@ -145,8 +145,7 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         --verbose \
         --compression=stored \
         --python-tag=py3 \
-        --plat-name=${WHL_PLATFORM_NAME} \
-        --build-number=${NVIDIA_BUILD_ID}
+        --plat-name=${WHL_PLATFORM_NAME}
     popd
     mv dali/python/dist/*.whl ./
 
