@@ -19,7 +19,6 @@ from torch.utils.data._utils.collate import collate
 from nvidia.dali.backend import TensorGPU, TensorListCPU, TensorListGPU
 from nvidia.dali import types, Pipeline
 from nvidia.dali.external_source import ExternalSource
-import ctypes
 import threading
 from queue import Empty
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
@@ -60,8 +59,7 @@ class PipelineRunRef:
                 f"Unexpected number of inputs. Expected: {self.input_names}, got: {inputs}"
             )
 
-
-class DALIProxy:
+class _DALIProxy:
     def __init__(self, input_names, send_q):
         self.input_names = input_names
         # Shared queue with the server
@@ -75,7 +73,8 @@ class DALIProxy:
     def worker_id(self):
         """Getter for 'worker_id'"""
         if self._worker_id is None:
-            self._worker_id = torchdata.get_worker_info().id
+            worker_info = torchdata.get_worker_info()
+            self._worker_id = worker_info.id if worker_info else threading.get_ident()
         return self._worker_id
 
     def schedule_batch(self, inputs):
@@ -98,8 +97,8 @@ class DALIProxy:
             )
         return PipelineRunRef(self, inputs)
 
-
 class DALIServer:
+
     def __init__(self, pipeline, input_names=None):
         """
         Initializes a new DALI proxy instance.
@@ -110,6 +109,7 @@ class DALIServer:
         """
         assert isinstance(pipeline, Pipeline), f"Expected an NVIDIA DALI pipeline, got: {pipeline}"
         self.pipe = pipeline
+
         self.pipe_input_names = _external_source_node_names(self.pipe)
         if len(self.pipe_input_names) == 0:
             raise RuntimeError("The provided pipeline doesn't have any inputs")
@@ -133,11 +133,10 @@ class DALIServer:
         self.thread = None
         # Cache
         self.cache_outputs = dict()
-        self.cache_inputs = dict()
 
     @property
     def proxy(self):
-        return DALIProxy(self.input_names, self.send_q)
+        return _DALIProxy(self.input_names, self.send_q)
 
     def next_outputs(self):
         # Get the information about the order of execution, so that we know which one is
@@ -163,7 +162,7 @@ class DALIServer:
         if req_info in self.cache_outputs:
             req_outputs = self.cache_outputs[req_info]
             del self.cache_outputs[req_info]
-            del self.cache_inputs[req_info]
+
         else:
             info = None
             # If not the data we are looking for, store it and keep processing until we find it
@@ -171,7 +170,6 @@ class DALIServer:
                 info, processed_outputs = self.next_outputs()
                 if info == req_info:
                     req_outputs = processed_outputs
-                    del self.cache_inputs[req_info]
                 else:
                     self.cache_outputs[info] = processed_outputs
         # Unpack single element tuples
@@ -184,19 +182,17 @@ class DALIServer:
         Asynchronous DALI thread that gets iteration data from the queue and schedules it
         for execution
         """
+        self.pipe.build() # just in case
+
         while not self.thread_stop_event.is_set():
             try:
                 torch.cuda.nvtx.range_push("send_q.get")
                 info, inputs = self.send_q.get(timeout=5)
                 torch.cuda.nvtx.range_pop()
-                self.cache_inputs[info] = inputs
             except mp.TimeoutError:
                 continue
             except Empty:
                 continue
-            torch.cuda.nvtx.range_push(f"order_q.put {info}")
-            self.order_q.put(info)
-            torch.cuda.nvtx.range_pop()
 
             torch.cuda.nvtx.range_push(f"feed_input {info}")
             for idx, input_name in enumerate(self.input_names):
@@ -205,6 +201,10 @@ class DALIServer:
 
             torch.cuda.nvtx.range_push(f"schedule_run {info}")
             self.pipe.schedule_run()
+            torch.cuda.nvtx.range_pop()
+
+            torch.cuda.nvtx.range_push(f"order_q.put {info}")
+            self.order_q.put(info)
             torch.cuda.nvtx.range_pop()
 
     def start_thread(self):
@@ -230,9 +230,13 @@ class DALIServer:
 
     def __enter__(self):
         self.start_thread()
+        return self
 
     def __exit__(self, exc_type, exc_value, tb):
         self.stop_thread()
+        if exc_type is not None:
+            print(f"An exception occurred: {exc_value}")
+        return False  # Return False to propagate exceptions
 
 
 def _collate_pipeline_run_ref_fn(pipe_out, *, collate_fn_map=None):
