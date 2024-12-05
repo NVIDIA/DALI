@@ -1684,7 +1684,7 @@ pools as well as from the host pinned memory pool.
 This function is safe to use while DALI pipelines are running.)");
 }
 
-py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
+py::dict DeprecatedArgInfoToDict(const DeprecatedArgDef & meta) {
   py::dict d;
   d["msg"] = meta.msg;
   d["removed"] = meta.removed;
@@ -2396,8 +2396,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
     .def("GetArgumentNames", &OpSchema::GetArgumentNames)
     .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,
-        "arg_name"_a,
-        "local_only"_a = false)
+        "arg_name"_a)
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("ArgSupportsPerFrameInput", &OpSchema::ArgSupportsPerFrameInput)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
@@ -2411,10 +2410,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
     .def("DeprecationMessage", &OpSchema::DeprecationMessage)
     .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
-    .def("DeprecatedArgMeta",
+    .def("DeprecatedArgInfo",
         [](OpSchema *schema, const std::string &arg_name) {
-          auto meta = schema->DeprecatedArgMeta(arg_name);
-          return DeprecatedArgMetaToDict(meta);
+          auto meta = schema->DeprecatedArgInfo(arg_name);
+          return DeprecatedArgInfoToDict(meta);
         })
     .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts)
     .def("HasArgument",

@@ -535,9 +535,9 @@ inline bool OpSpec::TryGetArgumentImpl(
     }
   } else if (schema.HasArgument(name, true) && schema.HasArgumentDefaultValue(name)) {
     // Argument wasn't present locally, get the default from the associated schema if any
-    auto schema_val = schema.FindDefaultValue(name);
+    auto *val = schema.FindDefaultValue(name);
     using VT = const ValueInst<S>;
-    if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
+    if (VT *vt = dynamic_cast<VT *>(val)) {
       result = static_cast<T>(vt->Get());
       return true;
     }
@@ -577,9 +577,9 @@ inline bool OpSpec::TryGetRepeatedArgumentImpl(C &result, const string &name) co
     }
   } else if (schema.HasArgument(name, true) && schema.HasArgumentDefaultValue(name)) {
     // Argument wasn't present locally, get the default from the associated schema if any
-    auto schema_val = schema.FindDefaultValue(name);
+    auto *val = schema.FindDefaultValue(name);
     using VT = const ValueInst<V>;
-    if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
+    if (VT *vt = dynamic_cast<VT *>(val)) {
       detail::copy_vector(result, vt->Get());
       return true;
     }

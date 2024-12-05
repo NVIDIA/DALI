@@ -189,7 +189,7 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
     for arg_name in arg_names:
         if not schema.IsDeprecatedArg(arg_name):
             continue
-        meta = schema.DeprecatedArgMeta(arg_name)
+        meta = schema.DeprecatedArgInfo(arg_name)
         new_name = meta["renamed_to"]
         removed = meta["removed"]
         msg = meta["msg"]
