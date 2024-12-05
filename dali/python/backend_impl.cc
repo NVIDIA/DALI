@@ -29,7 +29,7 @@
 #include "dali/core/mm/default_resources.h"
 #include "dali/operators.h"
 #include "dali/kernels/kernel.h"
-#include "dali/operators/reader/parser/tfrecord_parser.h"
+#include "dali/operators/reader/parser/tf_feature.h"
 #include "dali/pipeline/data/copy_to_external.h"
 #include "dali/pipeline/data/dltensor.h"
 #include "dali/pipeline/data/tensor.h"
@@ -1582,9 +1582,9 @@ static constexpr int GetCxx11AbiFlag() {
 }
 
 #ifdef DALI_BUILD_PROTO3
-typedef dali::TFRecordParser::FeatureType TFFeatureType;
-typedef dali::TFRecordParser::Feature TFFeature;
-typedef TFFeature::Value TFValue;
+using TFFeatureType = TFUtil::FeatureType;
+using TFFeature = TFUtil::Feature;
+using TFValue = TFFeature::Value;
 
 TFValue ConvertTFRecordDefaultValue(TFFeatureType type, py::object val) {
   PyObject *ptr = val.ptr();

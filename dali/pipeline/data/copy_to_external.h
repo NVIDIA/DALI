@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include "dali/core/static_switch.h"
-#include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/core/mm/memory_kind.h"
 
