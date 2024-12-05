@@ -523,7 +523,8 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
   // Check if seed can be manually set
   EXPECT_EQ(original_graph.GetOp("copy1")->spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_TRUE(original_graph.GetOp("copy2")->spec.HasArgument("seed"));
+  // The "seed" argument is deprecated as removed - so the argument is not added to the OpSpec
+  EXPECT_FALSE(original_graph.GetOp("copy2")->spec.HasArgument("seed"));
   EXPECT_FALSE(original_graph.GetOp("data")->spec.HasArgument("seed"));
 }
 

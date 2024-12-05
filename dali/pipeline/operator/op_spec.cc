@@ -124,7 +124,7 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
 
 OpSpec& OpSpec::SetInitializedArg(const string& arg_name, std::shared_ptr<Argument> arg) {
   if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
-    const auto& deprecation_meta = schema_->DeprecatedArgMeta(arg_name);
+    const auto& deprecation_meta = schema_->DeprecatedArgInfo(arg_name);
     // Argument was removed, and we can discard it
     if (deprecation_meta.removed) {
       return *this;

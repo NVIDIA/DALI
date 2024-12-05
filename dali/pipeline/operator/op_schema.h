@@ -76,16 +76,21 @@ struct ArgumentDeprecation {
   bool removed = false;
 };
 
+class OpSchema;
+
 struct ArgumentDef {
+  const OpSchema *defined_in;
   std::string name;
   std::string doc;
-  DALIDataType dtype;
   std::unique_ptr<Value> default_value;
-  bool required   : 1 = false;
-  bool tensor     : 1 = false;
-  bool per_frame  : 1 = false;
-  bool internal   : 1 = false;
-  bool hidden     : 1 = false;
+  DALIDataType dtype;
+
+  // TODO(michalz): Convert to bit fields in C++20 (before C++20 bit fields can't have initializers)
+  bool required   = false;
+  bool tensor     = false;
+  bool per_frame  = false;
+  bool internal   = false;
+  bool hidden     = false;
 
   std::unique_ptr<ArgumentDeprecation> deprecated;
 };
@@ -97,10 +102,35 @@ struct InputInfo {
   struct InputDoc {
     std::string type_doc;
     std::string doc;
-  };
+  } doc;
 
   std::vector<TensorLayout> layouts;
 };
+
+namespace detail {
+
+template <typename T>
+struct CachedValue {
+  // Copy and move constructor and assignment do nothing
+  CachedValue(const CachedValue &) {}
+  CachedValue(CachedValue &&) {}
+  CachedValue &operator=(const CachedValue &) { return *this; }
+  CachedValue &operator=(CachedValue &&) { return *this; }
+
+  template <typename PopulateFn>
+  T &Get(PopulateFn &&fn) {
+    if (data)
+      return *data;
+    std::lock_guard g(lock);
+    if (data)
+      return *data;
+    data = std::make_unique<T>(PopulateFn());
+    return *data;
+  }
+  std::unique_ptr<T> data;
+  std::mutex lock;
+};
+}  // namespace detail
 
 
 class DLL_PUBLIC OpSchema {
@@ -129,7 +159,7 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC std::string_view OperatorName() const;
 
   /** Sets the doc string for this operator. */
-  DLL_PUBLIC OpSchema &DocStr(std::string_view dox);
+  DLL_PUBLIC OpSchema &DocStr(std::string dox);
 
   /** Sets the docstring for input.
    *
@@ -142,8 +172,8 @@ class DLL_PUBLIC OpSchema {
    * name : type_doc
    *     doc
    */
-  DLL_PUBLIC OpSchema &InputDox(int index, std::string_view name, std::string_view type_doc,
-                                std::string_view doc);
+  DLL_PUBLIC OpSchema &InputDox(int index, std::string_view name, std::string type_doc,
+                                std::string doc);
 
   /** Allows to set a docstring for __call__ method of Operator.
    *
@@ -169,7 +199,7 @@ class DLL_PUBLIC OpSchema {
    * @param doc
    * @param append_kwargs_section
    */
-  DLL_PUBLIC OpSchema &CallDocStr(std::string_view doc, bool append_kwargs_section = false);
+  DLL_PUBLIC OpSchema &CallDocStr(std::string doc, bool append_kwargs_section = false);
 
   /** Sets a function that infers the number of outputs this op will produce from OpSpec.
    *
@@ -253,13 +283,13 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC OpSchema &Unserializable();
 
   /** Adds a required argument to op with its type */
-  DLL_PUBLIC OpSchema &AddArg(std::string_view s, std::string_view doc,
+  DLL_PUBLIC OpSchema &AddArg(std::string_view s, std::string doc,
                               const DALIDataType dtype, bool enable_tensor_input = false,
                               bool support_per_frame_input = false);
 
 
   /** Adds a required argument of type DALIDataType */
-  DLL_PUBLIC OpSchema &AddTypeArg(std::string_view s, std::string_view doc);
+  DLL_PUBLIC OpSchema &AddTypeArg(std::string_view s, std::string doc);
 
   /** Sets input layout constraints and default for given input.
    *
@@ -311,7 +341,7 @@ class DLL_PUBLIC OpSchema {
    *        If the arg name starts is with an underscore, it will be marked hidden, which
    *        makes it not listed in the docs.
    */
-  DLL_PUBLIC OpSchema &AddOptionalArg(std::string_view s, std::string_view doc,
+  DLL_PUBLIC OpSchema &AddOptionalArg(std::string_view s, std::string doc,
                                       DALIDataType dtype, std::nullptr_t,
                                       bool enable_tensor_input = false,
                                       bool support_per_frame_input = false);
@@ -322,10 +352,10 @@ class DLL_PUBLIC OpSchema {
    *        makes it not listed in the docs.
    */
   template <typename T>
-  DLL_PUBLIC inline OpSchema &AddOptionalArg(std::string_view s, std::string_view doc,
+  DLL_PUBLIC inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
                                              std::nullptr_t, bool enable_tensor_input = false,
                                              bool support_per_frame_input = false) {
-    AddOptionalArg(s, doc, type2id<T>::value, nullptr, enable_tensor_input,
+    AddOptionalArg(name, doc, type2id<T>::value, nullptr, enable_tensor_input,
                    support_per_frame_input);
     return *this;
   }
@@ -338,19 +368,17 @@ class DLL_PUBLIC OpSchema {
    */
   template <typename T>
   DLL_PUBLIC inline std::enable_if_t<!is_vector<T>::value && !is_std_array<T>::value, OpSchema &>
-  AddOptionalArg(std::string_view s, std::string_view doc, T default_value,
+  AddOptionalArg(std::string_view name, std::string doc, T default_value,
                  bool enable_tensor_input = false, bool support_per_frame_input = false) {
     static_assert(
         !std::is_same<T, DALIDataType>::value,
         R"(Use `AddOptionalTypeArg` instead. `AddOptionalArg` with a default value should not be
 used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc, nullptr)`)");
-    CheckArgument(s);
-    auto to_store = Value::construct(default_value);
-    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get(), ShouldHideArgument(s)};
-    optional_arguments_unq_.push_back(std::move(to_store));
-    if (enable_tensor_input) {
-      tensor_arguments_[s] = {support_per_frame_input};
-    }
+    auto &arg = AddArgumentImpl(name, type2id<T>::value,
+                                Value::construct(default_value),
+                                std::move(doc));
+    arg.tensor = enable_tensor_input;
+    arg.per_frame = support_per_frame_input;
     return *this;
   }
 
@@ -359,7 +387,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * If the arg name starts is with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
-  DLL_PUBLIC OpSchema &AddOptionalTypeArg(std::string_view s, std::string_view doc,
+  DLL_PUBLIC OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc,
                                           DALIDataType default_value);
 
   /**  Adds an optional argument of type DALIDataType without a default value
@@ -367,9 +395,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * If the arg name starts is with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
-  DLL_PUBLIC OpSchema &AddOptionalTypeArg(std::string_view s, std::string_view doc);
+  DLL_PUBLIC OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc);
 
-  DLL_PUBLIC OpSchema &AddOptionalArg(std::string_view s, std::string_view doc,
+  DLL_PUBLIC OpSchema &AddOptionalArg(std::string_view name, std::string doc,
                                       const char *default_value);
 
   /**  Adds an optional vector argument to op
@@ -378,19 +406,18 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * makes it not listed in the docs.
    */
   template <typename T>
-  DLL_PUBLIC inline OpSchema &AddOptionalArg(std::string_view s, std::string_view doc,
+  DLL_PUBLIC inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
                                              std::vector<T> default_value,
                                              bool enable_tensor_input = false,
                                              bool support_per_frame_input = false) {
-    CheckArgument(s);
     using S = argument_storage_t<T>;
-    auto to_store = Value::construct(detail::convert_vector<S>(default_value));
-    bool hide_argument = ShouldHideArgument(s);
-    optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get(), hide_argument};
-    optional_arguments_unq_.push_back(std::move(to_store));
-    if (enable_tensor_input) {
-      tensor_arguments_[s] = {support_per_frame_input};
-    }
+    auto value = Value::construct(detail::convert_vector<S>(default_value));
+    auto &arg = AddArgumentImpl(name,
+                                type2id<std::vector<T>>::value,
+                                std::move(value),
+                                std::move(doc));
+    arg.tensor = enable_tensor_input;
+    arg.per_frame = support_per_frame_input;
     return *this;
   }
 
@@ -593,27 +620,20 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   template <typename T>
   DLL_PUBLIC inline T GetDefaultValueForArgument(std::string_view s) const;
 
-  DLL_PUBLIC bool HasRequiredArgument(std::string_view name, bool local_only = false) const;
-
-  DLL_PUBLIC bool HasOptionalArgument(std::string_view name, bool local_only = false) const;
-
-  DLL_PUBLIC bool HasInternalArgument(std::string_view name, bool local_only = false) const;
+  DLL_PUBLIC bool HasOptionalArgument(std::string_view name) const;
 
   /** Finds default value for a given argument
    *
    * @return A pair of the defining schema and the value
    */
-  DLL_PUBLIC std::pair<const OpSchema *, const Value *> FindDefaultValue(
-      std::string_view arg_name, bool local_only = false, bool include_internal = true) const;
+  DLL_PUBLIC const Value *FindDefaultValue(std::string_view arg_name) const;
 
   /** Checks whether the schema defines an argument with the given name
    *
    * @param include_internal - returns `true` also for internal/implicit arugments
    * @param local_only       - doesn't look in parent schemas
    */
-  DLL_PUBLIC bool HasArgument(std::string_view name,
-                              bool include_internal = false,
-                              bool local_only = false) const;
+  DLL_PUBLIC bool HasArgument(std::string_view name, bool include_internal = false) const;
 
   /** Returns true if the operator has a "seed" argument. */
   DLL_PUBLIC bool HasRandomSeedArg() const;
@@ -623,6 +643,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /** Get enum representing type of argument of given name. */
   DLL_PUBLIC DALIDataType GetArgumentType(std::string_view name) const;
+
+  DLL_PUBLIC const ArgumentDef &GetArgument(std::string_view name) const;
 
   /** Check if the argument has a default value.
    *
@@ -650,20 +672,20 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   const ArgumentDef *FindTensorArgument(std::string_view name) const;
 
   template <typename Pred>
-  const ArgumentDef *FindArgument(std::string_view name, Pred &&pred) {
-      auto it = arguments_.find(name);
-    if (it != tensor_arguments_.end()) {
-      return pred(it->second) ? &it->second : nullptr;
-    }
-    for (const OpSchema *parent : GetParents()) {
-      auto desc = parent->FindTensorArgument(name);
-      if (desc) {
-        return desc;
-      }
-    }
-    return nullptr;
+  const ArgumentDef *FindArgument(std::string_view name, Pred &&pred) const {
+    if (auto *arg = FindArgument(name))
+      return pred(*arg) ? arg : nullptr;
+    else
+      return nullptr;
   }
 
+  const ArgumentDef *FindArgument(std::string_view name) const {
+    auto &args = GetFlattenedArguments();
+    auto it = args.find(name);
+    if (it == args.end())
+      return nullptr;
+    return it->second;
+  }
 
   void CheckArgument(std::string_view s);
 
@@ -674,8 +696,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /** Add internal argument to schema. It always has a value. */
   template <typename T>
-  void AddInternalArg(std::string_view name, std::string_view doc, T value) {
-    auto &arg = AddArgumentImpl(name, type2id<T>::value, Value::construct(value), doc);
+  void AddInternalArg(std::string_view name, std::string doc, T value) {
+    auto &arg = AddArgumentImpl(name, type2id<T>::value, Value::construct(value), std::move(doc));
     arg.hidden = true;
     arg.internal = true;
   }
@@ -702,8 +724,13 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   ////////////////////////////////////////////////////////////////////////////
   // Inputs, outputs and arguments
 
-  /// All arguments
+  /// All locally defined arguments
   std::map<std::string, ArgumentDef, std::less<>> arguments_;
+
+  mutable
+  detail::CachedValue<std::map<std::string, const ArgumentDef *, std::less<>>> flattened_arguments_;
+
+  std::map<std::string, const ArgumentDef *, std::less<>> &GetFlattenedArguments() const;
 
   /// The properties of the inputs
   std::vector<InputInfo> input_info_;
@@ -721,8 +748,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /// Names of the parent schemas
   vector<string> parent_names_;
   /// Cached pointers to parent schemas, to avoid repeated lookups
-  mutable std::vector<const OpSchema *> parents_;
-  mutable std::mutex parents_lock_;
+  mutable detail::CachedValue<std::vector<const OpSchema *>> parents_;
 
   ////////////////////////////////////////////////////////////////////////////
   // Documentation-related
@@ -772,16 +798,17 @@ class SchemaRegistry {
 };
 
 template <typename T>
-inline T OpSchema::GetDefaultValueForArgument(std::string_view s) const {
-  const Value *v = FindDefaultValue(s, false, true).second;
+inline T OpSchema::GetDefaultValueForArgument(std::string_view name) const {
+  const Value *v = FindDefaultValue(name);
   DALI_ENFORCE(v != nullptr,
-               make_string("The argument \"", s, "\" doesn't have a default value in schema \"",
-                           name(), "\"."));
+               make_string("The argument \"", name, "\" doesn't have a default value in schema \"",
+                           this->name(), "\"."));
 
   using S = argument_storage_t<T>;
   const ValueInst<S> *vS = dynamic_cast<const ValueInst<S> *>(v);
-  DALI_ENFORCE(vS != nullptr, "Unexpected type of the default value for argument \"" + s +
-                                  "\" of schema \"" + this->name() + "\"");
+  DALI_ENFORCE(vS != nullptr, make_string(
+    "Unexpected type of the default value for argument \"", name, "\" of schema \"",
+    this->name(), "\""));
   return static_cast<T>(vS->Get());
 }
 
