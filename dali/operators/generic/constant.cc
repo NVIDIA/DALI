@@ -67,7 +67,8 @@ int if idata is used.)code")
                   R"code(Layout info.
 
 If set and not empty, the layout must match the dimensionality of the output.)code",
-                  TensorLayout());
+                  TensorLayout())
+.AddParent("ImplicitScopeAttr");
 
 namespace {
 template <typename Dst, typename Src>
