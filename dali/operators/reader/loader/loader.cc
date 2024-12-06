@@ -18,6 +18,7 @@
 namespace dali {
 
 DALI_SCHEMA(LoaderBase)
+  .AddRandomSeedArg()
   .AddOptionalArg("random_shuffle",
       R"code(Determines whether to randomly shuffle data.
 
