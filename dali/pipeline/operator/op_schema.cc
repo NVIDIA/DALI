@@ -833,7 +833,7 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
   auto args_in_spec = spec.ListArgumentNames();
   for (const auto &name : args_in_spec) {
     auto *arg = FindArgument(name);
-    if (!arg || arg->internal)
+    if (!arg)
       throw std::invalid_argument(make_string("Got an unexpected argument \"", name, "\""));
   }
   std::vector<std::string_view> missing_args;
