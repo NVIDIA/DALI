@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -193,7 +193,7 @@ def test_operator_coco_reader_same_images():
 
 @raises(
     RuntimeError,
-    glob='Argument "preprocessed_annotations_dir" is not supported by operator *readers*COCO',
+    glob='Argument "preprocessed_annotations_dir" is not defined for operator *readers*COCO',
 )
 def test_invalid_args():
     pipeline = Pipeline(batch_size=2, num_threads=4, device_id=0)

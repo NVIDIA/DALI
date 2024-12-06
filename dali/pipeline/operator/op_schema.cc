@@ -31,12 +31,11 @@ std::map<string, OpSchema, std::less<>> &SchemaRegistry::registry() {
 
 OpSchema &SchemaRegistry::RegisterSchema(std::string_view name) {
   auto &schema_map = registry();
-  DALI_ENFORCE(schema_map.count(name) == 0,
-               "OpSchema already "
-               "registered for operator '" +
-                   std::string(name) +
-                   "'. DALI_SCHEMA(op) "
-                   "should only be called once per op.");
+
+  if (schema_map.count(name))
+    throw std::logic_error(make_string(
+      "OpSchema already registered for operator '", name, "'.\n"
+      "DALI_SCHEMA(op) should only be called once per op."));
 
   // Insert the op schema and return a reference to it
   auto [it, inserted] = schema_map.emplace(name, name);
@@ -59,13 +58,16 @@ const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name) {
 }
 
 const OpSchema &OpSchema::Default() {
-  static OpSchema default_schema("");
+  static OpSchema default_schema(DefaultSchemaTag{});
   return default_schema;
 }
 
 OpSchema::OpSchema(std::string_view name) : name_(name) {
   // Process the module path and operator name
   InitNames();
+}
+
+OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
   // Fill internal arguments
   AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1);
   AddInternalArg("max_batch_size", "Max batch size", -1);
@@ -168,8 +170,10 @@ OpSchema &OpSchema::DocStr(std::string dox) {
 OpSchema &OpSchema::InputDox(int index, std::string_view name, std::string type_doc,
                              std::string doc) {
   CheckInputIndex(index);
-  DALI_ENFORCE(!name.empty(), "Name of the argument should not be empty");
-  DALI_ENFORCE(call_dox_.empty(),
+  if (name.empty())
+    throw std::invalid_argument("Name of the argument should not be empty");
+  if (!call_dox_.empty())
+    throw std::logic_error(
                "Providing docstrings for inputs is not supported when the CallDocStr was used.");
   input_dox_set_ = true;
   input_info_[index].name = name;
@@ -179,11 +183,15 @@ OpSchema &OpSchema::InputDox(int index, std::string_view name, std::string type_
 
 
 OpSchema &OpSchema::CallDocStr(std::string doc, bool append_kwargs_section) {
-  DALI_ENFORCE(!doc.empty(), "The custom docstring for __call__ should not be empty.");
+  if (doc.empty())
+    throw std::logic_error("The custom docstring for __call__ should not be empty.");
 
-  DALI_ENFORCE(!input_dox_set_,
+  if (input_dox_set_) {
+    throw std::logic_error(
                "Providing docstring for `__call__` is not supported when docstrings for separate "
                "inputs were set using InputDox.");
+  }
+
   call_dox_ = std::move(doc);
   append_kwargs_section_ = append_kwargs_section;
   return *this;
@@ -203,7 +211,8 @@ OpSchema &OpSchema::AdditionalOutputsFn(SpecFunc f) {
 
 
 OpSchema &OpSchema::NumInput(int n) {
-  DALI_ENFORCE(n >= 0);
+  if (n < 0)
+    throw std::out_of_range("The number of inputs must not be negative");
   max_num_input_ = n;
   min_num_input_ = n;
   input_info_.resize(n);
@@ -212,9 +221,10 @@ OpSchema &OpSchema::NumInput(int n) {
 
 
 OpSchema &OpSchema::NumInput(int min, int max) {
-  DALI_ENFORCE(min <= max);
-  DALI_ENFORCE(min >= 0);
-  DALI_ENFORCE(max >= 0);
+  if (min < 0 || max < 0)
+    throw std::out_of_range("The number of inputs must not be negative");
+  if (min > max)
+    throw std::out_of_range("The min. number of inputs must not be greater than max.");
   min_num_input_ = min;
   max_num_input_ = max;
   input_info_.resize(max);
@@ -241,7 +251,8 @@ DLL_PUBLIC dali::InputDevice OpSchema::GetInputDevice(int index) const {
 
 
 OpSchema &OpSchema::NumOutput(int n) {
-  DALI_ENFORCE(n >= 0);
+  if (n < 0)
+    throw std::out_of_range("The number of outputs must not be negative");
   num_output_ = n;
   return *this;
 }
@@ -363,10 +374,15 @@ OpSchema &OpSchema::InputLayout(int index, TensorLayout layout) {
 
 OpSchema &OpSchema::InputLayout(int index, std::initializer_list<TensorLayout> layouts) {
   CheckInputIndex(index);
-  DALI_ENFORCE(input_info_[index].layouts.empty(),
-               "Layouts for input " + std::to_string(index) + " already specified");
+  if (!input_info_[index].layouts.empty())
+    throw std::logic_error(make_string("Layouts for input ", index, " already specified"));
+
+  std::set<TensorLayout> unique_layouts;
   for (auto &l : layouts) {
-    DALI_ENFORCE(!l.empty(), "Cannot specify an empty layout for an input");
+    auto [it, inserted] = unique_layouts.insert(l);
+    if (!inserted)
+      throw std::logic_error(make_string(
+        "The layout \"", l, "\" for input ", index, " specified more than once."));
   }
   input_info_[index].layouts = layouts;
   return *this;
@@ -388,9 +404,9 @@ OpSchema &OpSchema::InputLayout(std::initializer_list<TensorLayout> layouts) {
 const TensorLayout &OpSchema::GetInputLayout(int index, int sample_ndim,
                                              const TensorLayout &layout) const {
   CheckInputIndex(index);
-  DALI_ENFORCE(layout.empty() || layout.ndim() == sample_ndim,
-               make_string("The layout '", layout, "' is not valid for ", sample_ndim,
-                           "-dimensional tensor"));
+  if (!layout.empty() && layout.ndim() != sample_ndim)
+    throw std::invalid_argument(make_string(
+      "The layout '", layout, "' is not valid for ", sample_ndim, "-dimensional tensor"));
 
   if (input_info_[index].layouts.empty()) {
     return layout;
@@ -407,7 +423,7 @@ const TensorLayout &OpSchema::GetInputLayout(int index, int sample_ndim,
        << index << ". Valid layouts are:\n";
     for (auto &l : input_info_[index].layouts)
       ss << l.c_str() << "\n";
-    DALI_FAIL(ss.str());
+    throw std::invalid_argument(ss.str());
   } else {
     for (auto &l : input_info_[index].layouts)
       if (l == layout)
@@ -419,7 +435,7 @@ const TensorLayout &OpSchema::GetInputLayout(int index, int sample_ndim,
        << index << ". Valid layouts are:\n";
     for (auto &l : input_info_[index].layouts)
       ss << l.c_str() << "\n";
-    DALI_FAIL(ss.str());
+    throw std::invalid_argument(ss.str());
   }
 }
 
@@ -468,47 +484,23 @@ OpSchema &OpSchema::DeprecateArgInFavorOf(std::string_view arg_name, std::string
   if (msg.empty())
     msg = DefaultDeprecatedArgMsg(arg_name, renamed_to, false);
 
-  auto *target_arg = FindArgument(renamed_to);
-  if (!target_arg)
-    throw std::invalid_argument(make_string(
-      "The argument \"", renamed_to, "\" was is not defined the schema \"", name(), "\"."));
-
   auto &alias = AddArgumentImpl(arg_name);
-  alias = *target_arg;
   alias.defined_in = this;
   alias.deprecated = std::make_unique<ArgumentDeprecation>(renamed_to, std::move(msg), false);
-  // A deprecated argument cannot be required - either it's removed or has a replacement
-  alias.required = false;
 
   return *this;
 }
 
 OpSchema &OpSchema::DeprecateArg(std::string_view arg_name, bool removed, std::string msg) {
-  if (!HasArgument(arg_name))
-    throw std::out_of_range(make_string(
-      "Argument \"", arg_name,
-      "\" has been marked for deprecation but it is not present in the schema."));
-
   if (msg.empty())
     msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
 
-  auto it = arguments_.find(arg_name);
-  // Was the argument defined in a parent schema? If so, we should copy it and deprecate here
-  if (it == arguments_.end()) {
-    auto &arg = GetArgument(arg_name);
-    if (arg.deprecated)
-      throw std::logic_error(make_string("The argument \"", arg_name, "\" is already deprecated"));
-    assert(arg.defined_in != this);
-    auto [new_it, inserted] = arguments_.emplace(arg_name, arg);
-    assert(inserted);
-    new_it->second.defined_in = this;
-    it = new_it;
-  }
+  auto &arg = arguments_[std::string(arg_name)];
 
-  if (it->second.deprecated)
+  if (arg.deprecated)
     throw std::logic_error(make_string("The argument \"", arg_name, "\" is already deprecated"));
 
-  it->second.deprecated = std::make_unique<ArgumentDeprecation>("", std::move(msg), removed);
+  arg.deprecated = std::make_unique<ArgumentDeprecation>("", std::move(msg), removed);
 
   return *this;
 }
@@ -538,17 +530,21 @@ OpSchema &OpSchema::PassThrough(const std::map<int, int> &inout) {
   for (const auto &elems : inout) {
     outputs.insert(elems.second);
   }
-  DALI_ENFORCE(inout.size() == outputs.size(),
-               "Pass through can be defined only as 1-1 mapping between inputs and outputs, "
-               "without duplicates.");
-  DALI_ENFORCE(!HasSamplewisePassThrough(), "Two different modes of pass through can't be mixed.");
+  if (inout.size() != outputs.size())
+    throw std::logic_error(
+      "Pass through can be defined only as 1-1 mapping between inputs and outputs, "
+      "without duplicates.");
+
+  if (HasSamplewisePassThrough())
+    throw std::logic_error("Two different modes of pass through can't be mixed.");
   passthrough_map_ = inout;
   return *this;
 }
 
 
 OpSchema &OpSchema::SamplewisePassThrough() {
-  DALI_ENFORCE(!HasStrictPassThrough(), "Two different modes of pass through can't be mixed.");
+  if (HasStrictPassThrough())
+    throw std::logic_error("Two different modes of pass through can't be mixed.");
   samplewise_any_passthrough_ = true;
   return *this;
 }
@@ -561,7 +557,7 @@ const vector<std::string> &OpSchema::GetParentNames() const {
 const vector<const OpSchema *> &OpSchema::GetParents() const {
   return parents_.Get([&]() {
     std::vector<const OpSchema *> parents;
-    if (this == &Default())
+    if (default_)
       return parents;  // the default schema has no parents
 
     parents.reserve(parent_names_.size() + 1);  // add one more for the default
@@ -609,7 +605,8 @@ DLL_PUBLIC bool OpSchema::HasCallDox() const {
 
 
 DLL_PUBLIC std::string OpSchema::GetCallDox() const {
-  DALI_ENFORCE(HasCallDox(), "__call__ docstring was not set");
+  if (!HasCallDox())
+    throw std::logic_error("__call__ docstring was not set");
   return call_dox_;
 }
 
@@ -620,7 +617,9 @@ DLL_PUBLIC bool OpSchema::HasInputDox() const {
 
 
 DLL_PUBLIC std::string OpSchema::GetCallSignatureInputs() const {
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
+
   std::stringstream result;
   for (int i = 0; i < MinNumInput(); i++) {
     result << input_info_[i].name;
@@ -640,24 +639,27 @@ DLL_PUBLIC std::string OpSchema::GetCallSignatureInputs() const {
 
 DLL_PUBLIC std::string OpSchema::GetInputName(int input_idx) const {
   CheckInputIndex(input_idx);
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
-  DALI_ENFORCE(!input_info_[input_idx].name.empty(),
-               make_string("Docstring for input ", input_idx,
-                           "was not set. All inputs should be documented."));
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
+  if (input_info_[input_idx].name.empty())
+    throw std::logic_error(make_string("Docstring for input ", input_idx,
+                                       "was not set. All inputs should be documented."));
   return input_info_[input_idx].name;
 }
 
 
 DLL_PUBLIC std::string OpSchema::GetInputType(int input_idx) const {
   CheckInputIndex(input_idx);
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
   return input_info_[input_idx].doc.type_doc;
 }
 
 
 DLL_PUBLIC std::string OpSchema::GetInputDox(int input_idx) const {
   CheckInputIndex(input_idx);
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
   return input_info_[input_idx].doc.doc;
 }
 
@@ -737,7 +739,8 @@ DLL_PUBLIC bool OpSchema::IsDeprecatedArg(std::string_view arg_name) const {
 DLL_PUBLIC const ArgumentDeprecation &OpSchema::DeprecatedArgInfo(std::string_view arg_name) const {
   auto &arg = GetArgument(arg_name);
   if (!arg.deprecated)
-    DALI_FAIL(make_string("No deprecation info for argument \"", arg_name, "\" found."));
+    throw std::invalid_argument(
+      make_string("No deprecation info for argument \"", arg_name, "\" found."));
   return *arg.deprecated;
 }
 
@@ -854,16 +857,21 @@ bool OpSchema::HasOptionalArgument(std::string_view name) const {
 }
 
 bool OpSchema::HasInternalArgument(std::string_view name) const {
-  return FindArgument(name, [](const ArgumentDef &arg) {
-    return arg.internal;
-  });
+  if (default_) {
+    auto it = arguments_.find(name);
+    if (it != arguments_.end())
+      return it->second.internal;
+    return false;
+  } else {
+    return Default().HasInternalArgument(name);
+  }
 }
 
 const ArgumentDef &OpSchema::GetArgument(std::string_view name) const {
   if (auto *arg = FindArgument(name))
     return *arg;
   throw std::out_of_range(make_string(
-        "Argument \"", name, "\" is not supported by operator \"", this->name(), "\"."));
+        "Argument \"", name, "\" is not defined for operator \"", this->name(), "\"."));
 }
 
 const std::string &OpSchema::GetArgumentDox(std::string_view name) const {
@@ -885,9 +893,11 @@ bool OpSchema::HasArgumentDefaultValue(std::string_view name) const {
 std::string OpSchema::GetArgumentDefaultValueString(std::string_view name) const {
   auto *value_ptr = GetArgument(name).default_value.get();
 
-  DALI_ENFORCE(value_ptr,
-               make_string("Argument \"", name,
-                           "\" in operator \"", this->name(), "\" has no default value."));
+  if (!value_ptr) {
+    throw std::invalid_argument(
+      make_string("Argument \"", name,
+                  "\" in operator \"", this->name(), "\" has no default value."));
+  }
 
   auto &val = *value_ptr;
   auto str = val.ToString();
