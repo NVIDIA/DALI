@@ -76,6 +76,10 @@ OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
+  AddOptionalArg("seed", R"code(Random seed.
+If not provided, it will be populated based on the global seed of the pipeline.)code",
+                 -1);
+
   AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
 If specified, the operator's outputs residing in GPU or page-locked host memory will be preallocated
@@ -131,9 +135,9 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                  "path), for example: cast_like or CastLike.",
                  OperatorName());
 
-  AddOptionalArg("seed",
-                 "Random seed; if not set, one will be assigned automatically, if needed.",
-                 -1_u64);
+  DeprecateArg("seed", true,
+               "The argument \"seed\" should not be used with operators that don't use "
+               "random numbers.");
 }
 
 
@@ -471,7 +475,7 @@ OpSchema &OpSchema::AddOptionalTypeArg(std::string_view s, std::string doc) {
 OpSchema &OpSchema::AddRandomSeedArg() {
   AddOptionalArg("seed",
                  "Random seed; if not set, one will be assigned automatically, if needed.",
-                 -1_u64);
+                 -1);
   return *this;
 }
 
@@ -881,7 +885,6 @@ const std::string &OpSchema::GetArgumentDox(std::string_view name) const {
 
 DALIDataType OpSchema::GetArgumentType(std::string_view name) const {
   return GetArgument(name).dtype;
-
 }
 
 
@@ -939,7 +942,7 @@ const ArgumentDef *OpSchema::FindTensorArgument(std::string_view name) const {
 void OpSchema::CheckInputIndex(int index) const {
   if (index < 0 && index >= max_num_input_)
     throw std::out_of_range(make_string(
-      "Input index ", index, " is out of range [0.." ,max_num_input_, ").\nWas NumInput called?"));
+      "Input index ", index, " is out of range [0..", max_num_input_, ").\nWas NumInput called?"));
 }
 
 

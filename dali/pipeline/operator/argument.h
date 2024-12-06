@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,8 +59,6 @@ class Value {
   }
   virtual ~Value() = default;
 
-  virtual std::unique_ptr<Value> Clone() const = 0;
-
  protected:
   Value() : type_(DALI_NO_TYPE) {}
 
@@ -85,10 +83,6 @@ class ValueInst : public Value {
 
   const T &Get() const {
     return val_;
-  }
-
-  virtual std::unique_ptr<Value> Clone() const override {
-    return std::make_unique<ValueInst<T>>(val_);
   }
 
  private:
