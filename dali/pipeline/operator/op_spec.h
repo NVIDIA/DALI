@@ -321,13 +321,13 @@ class DLL_PUBLIC OpSpec {
   /**
    * @brief Lists all arguments specified in this spec.
    */
-  DLL_PUBLIC std::vector<std::string> ListArguments() const {
-    std::vector<std::string> ret;
+  DLL_PUBLIC auto ListArgumentNames() const {
+    std::set<std::string_view, std::less<>> ret;
     for (auto &a : arguments_) {
-      ret.push_back(a->get_name());
+      ret.insert(a->get_name());
     }
     for (auto &a : argument_inputs_) {
-      ret.push_back(a.first);
+      ret.insert(a.first);
     }
     return ret;
   }

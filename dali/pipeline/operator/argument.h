@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,6 +59,8 @@ class Value {
   }
   virtual ~Value() = default;
 
+  virtual std::unique_ptr<Value> Clone() const = 0;
+
  protected:
   Value() : type_(DALI_NO_TYPE) {}
 
@@ -83,6 +85,10 @@ class ValueInst : public Value {
 
   const T &Get() const {
     return val_;
+  }
+
+  virtual std::unique_ptr<Value> Clone() const override {
+    return std::make_unique<ValueInst<T>>(val_);
   }
 
  private:
@@ -111,8 +117,8 @@ class Argument {
     return has_name_;
   }
 
-  inline const string get_name() const {
-    return has_name() ? name_ : "<no name>";
+  inline std::string_view get_name() const & {
+    return has_name() ? std::string_view(name_) : "<no name>";
   }
 
   inline void set_name(string name) {
@@ -126,7 +132,7 @@ class Argument {
   }
 
   virtual std::string ToString() const {
-    return get_name();
+    return std::string(get_name());
   }
 
   virtual DALIDataType GetTypeId() const = 0;
@@ -230,8 +236,8 @@ template <typename T>
 T Argument::Get() {
   ArgumentInst<T>* self = dynamic_cast<ArgumentInst<T>*>(this);
   if (self == nullptr) {
-    DALI_FAIL("Invalid type of argument \"" + this->get_name() + "\". Expected " +
-              typeid(T).name());
+    DALI_FAIL(make_string("Invalid type of argument \"", get_name(), "\". Expected ",
+              typeid(T).name()));
   }
   return self->Get();
 }
