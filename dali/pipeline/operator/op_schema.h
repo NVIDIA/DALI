@@ -82,8 +82,7 @@ struct ArgumentDeprecation {
 
 class OpSchema;
 
-/** This class should be default-copyable */
-struct ArgumentDefBase {
+struct ArgumentDef {
   const OpSchema *defined_in;
   std::string name;
   std::string doc;
@@ -95,38 +94,6 @@ struct ArgumentDefBase {
   bool per_frame  = false;
   bool internal   = false;
   bool hidden     = false;
-};
-static_assert(std::is_copy_assignable_v<ArgumentDefBase> &&
-              std::is_copy_constructible_v<ArgumentDefBase>);
-
-/** Definition of an operator's argument.
- *
- * NOTE: All normal members should be defined in ArgumentDefBase. This class stores only
- *       members with custom copy logic.
- */
-struct ArgumentDef : ArgumentDefBase {
-  inline ArgumentDef() = default;
-  inline ArgumentDef(ArgumentDef &&) = default;
-
-  inline ArgumentDef(const ArgumentDef &other) {
-    *this = other;
-  }
-
-  inline ArgumentDef &operator=(ArgumentDef &&) = default;
-
-  inline ArgumentDef &operator=(const ArgumentDef &other) {
-    static_cast<ArgumentDefBase &>(*this) = static_cast<const ArgumentDefBase &>(other);
-    if (other.default_value)
-      default_value = other.default_value->Clone();
-    else
-      default_value.reset();
-
-    if (other.deprecated)
-      deprecated = std::make_unique<ArgumentDeprecation>(*other.deprecated);
-    else
-      deprecated.reset();
-    return *this;
-  }
 
   std::unique_ptr<Value> default_value;
   std::unique_ptr<ArgumentDeprecation> deprecated;
@@ -721,7 +688,13 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool IsTensorArgument(std::string_view name) const;
   bool ArgSupportsPerFrameInput(std::string_view arg_name) const;
 
+  bool IsDefault() const { return default_; }
+
  private:
+  struct DefaultSchemaTag {};
+  /** Populates the default schema with common arguments */
+  explicit OpSchema(DefaultSchemaTag);
+
   static inline bool ShouldHideArgument(std::string_view name) {
     return name.size() && name[0] == '_';
   }
@@ -768,9 +741,6 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /** Initialize the module_path_ and operator_name_ fields based on the schema name. */
   void InitNames();
-
-  /** Populates the default schema with common arguments */
-  void InitDefaultSchema();
 
   std::string dox_;
   /// The name of the schema
@@ -831,6 +801,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool allow_instance_grouping_ = true;
   bool no_prune_ = false;
   bool serializable_ = true;
+  const bool default_ = false;
 
   ////////////////////////////////////////////////////////////////////////////
   // Passthrough operators
@@ -859,15 +830,22 @@ class SchemaRegistry {
 template <typename T>
 inline T OpSchema::GetDefaultValueForArgument(std::string_view name) const {
   const Value *v = FindDefaultValue(name);
-  DALI_ENFORCE(v != nullptr,
-               make_string("The argument \"", name, "\" doesn't have a default value in schema \"",
-                           this->name(), "\"."));
+  if (!v) {
+    (void)GetArgument(name);  // throw an error if the argument is undefined
+
+    // otherwise throw a different error
+    throw std::invalid_argument(make_string(
+      "The argument \"", name, "\" in operator \"", this->name(),
+      "\" doesn't have a default value."));
+  }
 
   using S = argument_storage_t<T>;
   const ValueInst<S> *vS = dynamic_cast<const ValueInst<S> *>(v);
-  DALI_ENFORCE(vS != nullptr, make_string(
-    "Unexpected type of the default value for argument \"", name, "\" of schema \"",
-    this->name(), "\""));
+  if (!vS) {
+    throw std::invalid_argument(make_string(
+      "Unexpected type of the default value for argument \"", name, "\" of schema \"",
+      this->name(), "\""));
+  }
   return static_cast<T>(vS->Get());
 }
 

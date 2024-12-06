@@ -1684,7 +1684,7 @@ pools as well as from the host pinned memory pool.
 This function is safe to use while DALI pipelines are running.)");
 }
 
-py::dict DeprecatedArgInfoToDict(const DeprecatedArgDef & meta) {
+py::dict ArgumentDeprecationInfoToDict(const ArgumentDeprecation & meta) {
   py::dict d;
   d["msg"] = meta.msg;
   d["removed"] = meta.removed;
@@ -2413,7 +2413,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("DeprecatedArgInfo",
         [](OpSchema *schema, const std::string &arg_name) {
           auto meta = schema->DeprecatedArgInfo(arg_name);
-          return DeprecatedArgInfoToDict(meta);
+          return ArgumentDeprecationInfoToDict(meta);
         })
     .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts)
     .def("HasArgument",

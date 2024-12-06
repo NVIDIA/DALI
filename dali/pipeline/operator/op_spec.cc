@@ -110,7 +110,7 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
       "Argument '", arg_name, "' is already specified."));
   const OpSchema& schema = GetSchemaOrDefault();
   DALI_ENFORCE(schema.HasArgument(arg_name),
-               make_string("Argument '", arg_name, "' is not supported by operator `",
+               make_string("Argument '", arg_name, "' is not defined for operator `",
                            GetOpDisplayName(*this, true), "`."));
   DALI_ENFORCE(schema.IsTensorArgument(arg_name),
                make_string("Argument '", arg_name, "' in operator `", GetOpDisplayName(*this, true),
