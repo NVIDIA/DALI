@@ -76,9 +76,9 @@ OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
-  AddOptionalArg("seed", R"code(Random seed.
+  AddOptionalArg<int>("seed", R"code(Random seed.
 If not provided, it will be populated based on the global seed of the pipeline.)code",
-                 -1);
+                 nullptr);
 
   AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
@@ -473,9 +473,9 @@ OpSchema &OpSchema::AddOptionalTypeArg(std::string_view s, std::string doc) {
 
 
 OpSchema &OpSchema::AddRandomSeedArg() {
-  AddOptionalArg("seed",
-                 "Random seed; if not set, one will be assigned automatically, if needed.",
-                 -1);
+  AddOptionalArg<int>("seed",
+                      "Random seed; if not set, one will be assigned automatically.",
+                      nullptr);
   return *this;
 }
 
