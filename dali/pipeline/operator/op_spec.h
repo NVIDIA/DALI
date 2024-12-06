@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_OP_SPEC_H_
 #define DALI_PIPELINE_OPERATOR_OP_SPEC_H_
 
+#include <functional>
 #include <map>
 #include <utility>
 #include <string>
