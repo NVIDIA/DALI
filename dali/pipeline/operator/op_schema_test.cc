@@ -113,6 +113,17 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
 }
 
+DALI_SCHEMA(Circular1)
+  .AddParent("Circular2");
+
+DALI_SCHEMA(Circular2)
+  .AddParent("Circular1");
+
+TEST(OpSchemaTest, CircularInheritance) {
+  EXPECT_THROW(SchemaRegistry::GetSchema("Circular1").HasArgument("foo"), std::logic_error);
+  EXPECT_THROW(SchemaRegistry::GetSchema("Circular2").HasArgument("foo"), std::logic_error);
+}
+
 DALI_SCHEMA(Dummy5)
   .DocStr("Foo")
   .AddParent("Dummy4")

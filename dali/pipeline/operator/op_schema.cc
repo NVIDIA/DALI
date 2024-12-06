@@ -575,15 +575,34 @@ const vector<const OpSchema *> &OpSchema::GetParents() const {
 
 std::map<std::string, const ArgumentDef *, std::less<>> &OpSchema::GetFlattenedArguments() const {
   return flattened_arguments_.Get([&]() {
+    if (circular_inheritance_detector_)
+      throw std::logic_error(make_string(
+        "Circular schema inheritance detected in \"", name(), "\""));
+    circular_inheritance_detector_++;
+
     std::map<std::string, const ArgumentDef *, std::less<>> args;
     for (auto &[name, arg] : arguments_)
       args.emplace(name, &arg);
-    // This is slightly inefficient, because we'll go over the default arguments multiple times
-    // but that's only once in schema's lifetime.
+
+    // First insert all non-deprecated arguments that don't come from the default schema.
+    // Once we've gone over those, add the deprecated ones and finally the default.
+    std::vector<std::pair<std::string_view, const ArgumentDef *>> deprecated, from_default;
     for (auto *parent : GetParents()) {
-      for (auto &[name, arg] : parent->GetFlattenedArguments())
-        args.emplace(name, arg);  // this will skip arguments defined in this schema
+      for (auto &[name, arg] : parent->GetFlattenedArguments()) {
+        if (arg->defined_in == &Default())
+          from_default.emplace_back(name, arg);
+        else if (arg->deprecated)
+          deprecated.emplace_back(name, arg);
+        else
+          args.emplace(name, arg);  // this will skip arguments defined in this schema
+      }
     }
+    for (auto &[name, arg] : deprecated)
+      args.emplace(name, arg);
+    for (auto &[name, arg] : from_default)
+      args.emplace(name, arg);
+
+    circular_inheritance_detector_--;
     return args;
   });
 }
