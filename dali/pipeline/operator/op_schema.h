@@ -143,7 +143,7 @@ struct LazyValue {
     return *data;
   }
   std::unique_ptr<T> data;
-  std::mutex lock;
+  std::recursive_mutex lock;
 };
 }  // namespace detail
 
@@ -758,6 +758,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   mutable
   detail::LazyValue<std::map<std::string, const ArgumentDef *, std::less<>>> flattened_arguments_;
+  mutable int circular_inheritance_detector_ = 0;
 
   std::map<std::string, const ArgumentDef *, std::less<>> &GetFlattenedArguments() const;
 
