@@ -71,18 +71,22 @@ enum class InputDevice : uint8_t {
 };
 
 struct ArgumentDeprecation {
-  std::string renamed_to = {};
-  std::string msg = {};
+  ArgumentDeprecation() = default;
+  ArgumentDeprecation(string renamed_to, string msg, bool removed = false)
+  : renamed_to(renamed_to), msg(msg), removed(removed) {}
+
+  std::string renamed_to;
+  std::string msg;
   bool removed = false;
 };
 
 class OpSchema;
 
-struct ArgumentDef {
+/** This class should be default-copyable */
+struct ArgumentDefBase {
   const OpSchema *defined_in;
   std::string name;
   std::string doc;
-  std::unique_ptr<Value> default_value;
   DALIDataType dtype;
 
   // TODO(michalz): Convert to bit fields in C++20 (before C++20 bit fields can't have initializers)
@@ -91,7 +95,40 @@ struct ArgumentDef {
   bool per_frame  = false;
   bool internal   = false;
   bool hidden     = false;
+};
+static_assert(std::is_copy_assignable_v<ArgumentDefBase> &&
+              std::is_copy_constructible_v<ArgumentDefBase>);
 
+/** Definition of an operator's argument.
+ *
+ * NOTE: All normal members should be defined in ArgumentDefBase. This class stores only
+ *       members with custom copy logic.
+ */
+struct ArgumentDef : ArgumentDefBase {
+  inline ArgumentDef() = default;
+  inline ArgumentDef(ArgumentDef &&) = default;
+
+  inline ArgumentDef(const ArgumentDef &other) {
+    *this = other;
+  }
+
+  inline ArgumentDef &operator=(ArgumentDef &&) = default;
+
+  inline ArgumentDef &operator=(const ArgumentDef &other) {
+    static_cast<ArgumentDefBase &>(*this) = static_cast<const ArgumentDefBase &>(other);
+    if (other.default_value)
+      default_value = other.default_value->Clone();
+    else
+      default_value.reset();
+
+    if (other.deprecated)
+      deprecated = std::make_unique<ArgumentDeprecation>(*other.deprecated);
+    else
+      deprecated.reset();
+    return *this;
+  }
+
+  std::unique_ptr<Value> default_value;
   std::unique_ptr<ArgumentDeprecation> deprecated;
 };
 
@@ -109,13 +146,24 @@ struct InputInfo {
 
 namespace detail {
 
+/** A helper class for lazy evaluation
+ *
+ * In some cases, it's impossible or wasteful to compute a value eagerly.
+ * This class provides a thread-safe storage for such value.
+ *
+ * Usage: place in your class (possibly as a mutable field) and call Get with a function
+ * that returns a value convertible to T. This function will be called only once per LazyValue's
+ * lifetime.
+ *
+ * NOTE: Copying the lazy value is a no-op.
+ */
 template <typename T>
-struct CachedValue {
-  // Copy and move constructor and assignment do nothing
-  CachedValue(const CachedValue &) {}
-  CachedValue(CachedValue &&) {}
-  CachedValue &operator=(const CachedValue &) { return *this; }
-  CachedValue &operator=(CachedValue &&) { return *this; }
+struct LazyValue {
+  LazyValue() = default;
+  LazyValue(const LazyValue &) {}
+  LazyValue(LazyValue &&) {}
+  LazyValue &operator=(const LazyValue &) { return *this; }
+  LazyValue &operator=(LazyValue &&) { return *this; }
 
   template <typename PopulateFn>
   T &Get(PopulateFn &&fn) {
@@ -124,7 +172,7 @@ struct CachedValue {
     std::lock_guard g(lock);
     if (data)
       return *data;
-    data = std::make_unique<T>(PopulateFn());
+    data = std::make_unique<T>(fn());
     return *data;
   }
   std::unique_ptr<T> data;
@@ -137,29 +185,29 @@ class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
 
-  OpSchema(OpSchema &&) = default;
+  OpSchema(OpSchema &&) = delete;
   OpSchema(const OpSchema &) = delete;
   OpSchema &operator=(const OpSchema &) = delete;
-  OpSchema &operator=(OpSchema &&) = default;
+  OpSchema &operator=(OpSchema &&) = delete;
 
-  DLL_PUBLIC explicit OpSchema(std::string_view name);
+  explicit OpSchema(std::string_view name);
 
-  DLL_PUBLIC inline ~OpSchema() = default;
+  inline ~OpSchema() = default;
 
   /**  Returns an empty schema, with only internal arguments */
-  DLL_PUBLIC static const OpSchema &Default();
+  static const OpSchema &Default();
 
   /**  Returns the schema name of this operator. */
-  DLL_PUBLIC std::string_view name() const;
+  const std::string &name() const;
 
   /** Returns the module path of this operator. */
-  DLL_PUBLIC const std::vector<std::string> &ModulePath() const;
+  const std::vector<std::string> &ModulePath() const;
 
   /** Returns the camel case name of the operator (without the module path) */
-  DLL_PUBLIC std::string_view OperatorName() const;
+  const std::string &OperatorName() const;
 
   /** Sets the doc string for this operator. */
-  DLL_PUBLIC OpSchema &DocStr(std::string dox);
+  OpSchema &DocStr(std::string dox);
 
   /** Sets the docstring for input.
    *
@@ -172,8 +220,7 @@ class DLL_PUBLIC OpSchema {
    * name : type_doc
    *     doc
    */
-  DLL_PUBLIC OpSchema &InputDox(int index, std::string_view name, std::string type_doc,
-                                std::string doc);
+  OpSchema &InputDox(int index, std::string_view name, std::string type_doc, std::string doc);
 
   /** Allows to set a docstring for __call__ method of Operator.
    *
@@ -199,7 +246,7 @@ class DLL_PUBLIC OpSchema {
    * @param doc
    * @param append_kwargs_section
    */
-  DLL_PUBLIC OpSchema &CallDocStr(std::string doc, bool append_kwargs_section = false);
+  OpSchema &CallDocStr(std::string doc, bool append_kwargs_section = false);
 
   /** Sets a function that infers the number of outputs this op will produce from OpSpec.
    *
@@ -208,7 +255,7 @@ class DLL_PUBLIC OpSchema {
    * If the ops has a fixed number of outputs, this function
    * does not need to be added to the schema.
    */
-  DLL_PUBLIC OpSchema &OutputFn(SpecFunc f);
+  OpSchema &OutputFn(SpecFunc f);
 
   /**  Sets a function to determine the number of additional outputs from the OpSpec.
    *
@@ -218,78 +265,78 @@ class DLL_PUBLIC OpSchema {
    * Use case is to expose additional information (such as random
    * numbers used within operators) to the user
    */
-  DLL_PUBLIC OpSchema &AdditionalOutputsFn(SpecFunc f);
+  OpSchema &AdditionalOutputsFn(SpecFunc f);
 
   /** Sets the number of inputs that the op can receive. */
-  DLL_PUBLIC OpSchema &NumInput(int n);
+  OpSchema &NumInput(int n);
 
   /** Sets the min and max number of inputs the op can receive. */
-  DLL_PUBLIC OpSchema &NumInput(int min, int max);
+  OpSchema &NumInput(int min, int max);
 
   /** Sets the input device for given range of inputs */
-  DLL_PUBLIC OpSchema &InputDevice(int first, int one_past, dali::InputDevice device);
+  OpSchema &InputDevice(int first, int one_past, dali::InputDevice device);
 
   /** Sets the input device for given range of input */
-  DLL_PUBLIC OpSchema &InputDevice(int index, dali::InputDevice device);
+  OpSchema &InputDevice(int index, dali::InputDevice device);
 
   /** Gets the supported input device for given input */
-  DLL_PUBLIC dali::InputDevice GetInputDevice(int index) const;
+  dali::InputDevice GetInputDevice(int index) const;
 
   /** Sets the number of outputs that the op can receive. */
-  DLL_PUBLIC OpSchema &NumOutput(int n);
+  OpSchema &NumOutput(int n);
 
   /**
    * @brief Indicates that this operator should not use auto-generated documentation
    *        of inputs and `__call__` operator with custom signature.
    */
-  DLL_PUBLIC OpSchema &DisableAutoInputDox();
+  OpSchema &DisableAutoInputDox();
 
   /**
    * @brief Indicates that multiple instances of this operator cannot share a logical ID to achieve
    *        uniform processing of multiple input sets
    */
-  DLL_PUBLIC OpSchema &DisallowInstanceGrouping();
+  OpSchema &DisallowInstanceGrouping();
 
   /** Notes that this operator expects sequence inputs exclusively */
-  DLL_PUBLIC OpSchema &SequenceOperator();
+  OpSchema &SequenceOperator();
 
   /** Notes that sequences can be used with this op */
-  DLL_PUBLIC OpSchema &AllowSequences();
+  OpSchema &AllowSequences();
 
   /** Notes that the operator can process 3D data. */
-  DLL_PUBLIC OpSchema &SupportVolumetric();
+  OpSchema &SupportVolumetric();
 
   /** Notes that this operator is internal and shouldn't be exposed in Python API. */
-  DLL_PUBLIC OpSchema &MakeInternal();
+  OpSchema &MakeInternal();
 
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
-  DLL_PUBLIC OpSchema &MakeDocHidden();
+  OpSchema &MakeDocHidden();
 
   /**
    * @brief Notes that for this operator only the doc_str should be visible, but not the docs for
    *        the inputs, outputs or argument (the Op is exposed in Python API)
    */
-  DLL_PUBLIC OpSchema &MakeDocPartiallyHidden();
+  OpSchema &MakeDocPartiallyHidden();
 
   /**  Notes that this operator is deprecated and optionally specifies its successor
    *
    * @param in_favor_of schema name of the replacement
    * @param explanation additional explanation
    */
-  DLL_PUBLIC OpSchema &Deprecate(std::string_view in_favor_of = "",
-                                 std::string_view explanation = "");
+  OpSchema &Deprecate(std::string_view in_favor_of = "",
+                      std::string_view explanation = "");
 
   /** Notes that this operator cannot be serialized */
-  DLL_PUBLIC OpSchema &Unserializable();
+  OpSchema &Unserializable();
 
   /** Adds a required argument to op with its type */
-  DLL_PUBLIC OpSchema &AddArg(std::string_view s, std::string doc,
-                              const DALIDataType dtype, bool enable_tensor_input = false,
-                              bool support_per_frame_input = false);
+  OpSchema &AddArg(std::string_view s, std::string doc,
+                   const DALIDataType dtype, bool enable_tensor_input = false,
+                   bool support_per_frame_input = false);
 
 
   /** Adds a required argument of type DALIDataType */
-  DLL_PUBLIC OpSchema &AddTypeArg(std::string_view s, std::string doc);
+  OpSchema &AddTypeArg(std::string_view s, std::string doc);
 
   /** Sets input layout constraints and default for given input.
    *
@@ -299,7 +346,7 @@ class DLL_PUBLIC OpSchema {
    * If the input tensor has no layout, the one provided to this function is assumed
    * if number of dimensions matches. Otherswise, error is raised.
    */
-  DLL_PUBLIC OpSchema &InputLayout(int index, TensorLayout layout);
+  OpSchema &InputLayout(int index, TensorLayout layout);
 
   /** Sets input layout constraints and default for given input.
    *
@@ -311,29 +358,29 @@ class DLL_PUBLIC OpSchema {
    * it will be the default value for this input. If number of dimensions doesn't
    * match any of the layouts provided here, an error is raised.
    */
-  DLL_PUBLIC OpSchema &InputLayout(int index, std::initializer_list<TensorLayout> layouts);
+  OpSchema &InputLayout(int index, std::initializer_list<TensorLayout> layouts);
 
   /** Sets input layout constraint and default for all inputs.
    *
    * @see InputLayout(int index, TensorLayout layout)
    */
-  DLL_PUBLIC OpSchema &InputLayout(TensorLayout layout);
+  OpSchema &InputLayout(TensorLayout layout);
 
   /**  Sets input layout constraint and default for all inputs.
    *
    * @see InputLayout(int index, TensorLayout layout)
    */
-  DLL_PUBLIC OpSchema &InputLayout(std::initializer_list<TensorLayout> layouts);
+  OpSchema &InputLayout(std::initializer_list<TensorLayout> layouts);
 
   /**
    * @brief Verifies that the layout is valid for given input index and number of dimensions
    *        or returns a default layout if the layout parameter is empty.
    */
-  DLL_PUBLIC const TensorLayout &GetInputLayout(int index, int sample_ndim,
-                                                const TensorLayout &layout = {}) const;
+  const TensorLayout &GetInputLayout(int index, int sample_ndim,
+                                     const TensorLayout &layout = {}) const;
 
 
-  DLL_PUBLIC const std::vector<TensorLayout> &GetSupportedLayouts(int input_idx) const;
+  const std::vector<TensorLayout> &GetSupportedLayouts(int input_idx) const;
 
   /**
    * @brief Adds an optional non-vector argument without default to op
@@ -341,10 +388,10 @@ class DLL_PUBLIC OpSchema {
    *        If the arg name starts is with an underscore, it will be marked hidden, which
    *        makes it not listed in the docs.
    */
-  DLL_PUBLIC OpSchema &AddOptionalArg(std::string_view s, std::string doc,
-                                      DALIDataType dtype, std::nullptr_t,
-                                      bool enable_tensor_input = false,
-                                      bool support_per_frame_input = false);
+  OpSchema &AddOptionalArg(std::string_view s, std::string doc,
+                           DALIDataType dtype, std::nullptr_t,
+                           bool enable_tensor_input = false,
+                           bool support_per_frame_input = false);
 
   /**
    * @brief Adds an optional non-vector argument without default to op.
@@ -352,9 +399,9 @@ class DLL_PUBLIC OpSchema {
    *        makes it not listed in the docs.
    */
   template <typename T>
-  DLL_PUBLIC inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
-                                             std::nullptr_t, bool enable_tensor_input = false,
-                                             bool support_per_frame_input = false) {
+  inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
+                                  std::nullptr_t, bool enable_tensor_input = false,
+                                  bool support_per_frame_input = false) {
     AddOptionalArg(name, doc, type2id<T>::value, nullptr, enable_tensor_input,
                    support_per_frame_input);
     return *this;
@@ -367,7 +414,7 @@ class DLL_PUBLIC OpSchema {
    * makes it not listed in the docs.
    */
   template <typename T>
-  DLL_PUBLIC inline std::enable_if_t<!is_vector<T>::value && !is_std_array<T>::value, OpSchema &>
+  inline std::enable_if_t<!is_vector<T>::value && !is_std_array<T>::value, OpSchema &>
   AddOptionalArg(std::string_view name, std::string doc, T default_value,
                  bool enable_tensor_input = false, bool support_per_frame_input = false) {
     static_assert(
@@ -387,18 +434,24 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * If the arg name starts is with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
-  DLL_PUBLIC OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc,
-                                          DALIDataType default_value);
+  OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc, DALIDataType default_value);
 
   /**  Adds an optional argument of type DALIDataType without a default value
    *
    * If the arg name starts is with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
-  DLL_PUBLIC OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc);
+  OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc);
 
-  DLL_PUBLIC OpSchema &AddOptionalArg(std::string_view name, std::string doc,
-                                      const char *default_value);
+  inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
+                                      const char *default_value) {
+    return AddOptionalArg(name, std::move(doc), std::string(default_value), false);
+  }
+
+  inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
+                                  std::string_view default_value) {
+    return AddOptionalArg(name, std::move(doc), std::string(default_value), false);
+  }
 
   /**  Adds an optional vector argument to op
    *
@@ -406,10 +459,10 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * makes it not listed in the docs.
    */
   template <typename T>
-  DLL_PUBLIC inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
-                                             std::vector<T> default_value,
-                                             bool enable_tensor_input = false,
-                                             bool support_per_frame_input = false) {
+  inline OpSchema &AddOptionalArg(std::string_view name, std::string doc,
+                                  std::vector<T> default_value,
+                                  bool enable_tensor_input = false,
+                                  bool support_per_frame_input = false) {
     using S = argument_storage_t<T>;
     auto value = Value::construct(detail::convert_vector<S>(default_value));
     auto &arg = AddArgumentImpl(name,
@@ -421,15 +474,15 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     return *this;
   }
 
-  DLL_PUBLIC OpSchema &AddRandomSeedArg();
+  OpSchema &AddRandomSeedArg();
 
   /**  Marks an argument as deprecated in favor of a new argument
    *
    * Providing renamed_to means the argument has been renamed and we can safely
    * propagate the value to the new argument name.
    */
-  DLL_PUBLIC OpSchema &DeprecateArgInFavorOf(std::string_view arg_name, std::string renamed_to,
-                                             std::string msg = {});
+  OpSchema &DeprecateArgInFavorOf(std::string_view arg_name, std::string renamed_to,
+                                  std::string msg = {});
 
   /**  Marks an argument as deprecated
    *
@@ -440,24 +493,24 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    *              deprecated argument until it is finally removed completely from the schema.
    *          3. For renaming the argument see DeprecateArgInFavorOf
    */
-  DLL_PUBLIC OpSchema &DeprecateArg(std::string_view arg_name, bool removed = true,
-                                    std::string msg = {});
+  OpSchema &DeprecateArg(std::string_view arg_name, bool removed = true,
+                         std::string msg = {});
 
   /**
    * @brief Sets a function that infers whether the op can
    *        be executed in-place depending on the ops specification.
    */
-  DLL_PUBLIC OpSchema &InPlaceFn(SpecFunc f);
+  OpSchema &InPlaceFn(SpecFunc f);
 
   /** Sets a parent (which could be used as a storage of default parameters)
    *
    * Does not support cyclic dependency. There can be multiple parents and the lookup is transitive.
    * Only arguments are inherited, inputs and outputs are not.
    */
-  DLL_PUBLIC OpSchema &AddParent(std::string_view parentName);
+  OpSchema &AddParent(std::string parent_name);
 
   /**  Notes that this operator should not be pruned from a graph even if its outputs are unused. */
-  DLL_PUBLIC OpSchema &NoPrune();
+  OpSchema &NoPrune();
 
   /**
    * @brief Informs that the data passes through this operator unchanged, only
@@ -473,7 +526,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * @param inout - tells which inputs are passed through to which outputs.
    *                Only (partial - as in partial function) bijective mappings are allowed.
    */
-  DLL_PUBLIC OpSchema &PassThrough(const std::map<int, int> &inout);
+  OpSchema &PassThrough(const std::map<int, int> &inout);
 
   /**
    * @brief Informs that the operator passes through data unchanged, sharing the allocation
@@ -481,188 +534,192 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    *
    * The data is passed on sample basis, allowing to mix any input to any output.
    */
-  DLL_PUBLIC OpSchema &SamplewisePassThrough();
+  OpSchema &SamplewisePassThrough();
 
   /** Get parent schemas (non-recursive) */
-  DLL_PUBLIC const vector<std::string> &GetParentNames() const;
+  const vector<std::string> &GetParentNames() const;
 
-  DLL_PUBLIC const vector<const OpSchema *> &GetParents() const;
+  const vector<const OpSchema *> &GetParents() const;
 
   /** Get the docstring of the operator - provided by DocStr in the schema definition. */
-  DLL_PUBLIC string Dox() const;
+  string Dox() const;
 
   /** Return true wether the default input docs can be used */
-  DLL_PUBLIC bool CanUseAutoInputDox() const;
+  bool CanUseAutoInputDox() const;
 
   /**
    * @brief Whether the docstring for kwargs should be automatically generated and appended to the
    *        one provided in CallDocStr.
    */
-  DLL_PUBLIC bool AppendKwargsSection() const;
+  bool AppendKwargsSection() const;
 
   /**  Return true when `__call__` docstring was explicitly set
    *
    * Should be considered as highest preference
    */
-  DLL_PUBLIC bool HasCallDox() const;
+  bool HasCallDox() const;
 
   /** Get the documentation for Operator __call__ signature provided by CallDocStr. */
-  DLL_PUBLIC std::string GetCallDox() const;
+  std::string GetCallDox() const;
 
   /** Check if this operator has input docstrings provided */
-  DLL_PUBLIC bool HasInputDox() const;
+  bool HasInputDox() const;
 
   /**
    * @brief List all the inputs that should appear in `__call__` signature based on the input
    *        docs that were specified. Requires HasInputDox() to return true
    *
    */
-  DLL_PUBLIC std::string GetCallSignatureInputs() const;
+  std::string GetCallSignatureInputs() const;
 
   /** Get the docstring name of the input at given index. */
-  DLL_PUBLIC std::string GetInputName(int input_idx) const;
+  std::string GetInputName(int input_idx) const;
 
   /** Get the docstring type of the input at given index. */
-  DLL_PUBLIC std::string GetInputType(int input_idx) const;
+  std::string GetInputType(int input_idx) const;
 
   /** Get the docstring text of the input at given index. */
-  DLL_PUBLIC std::string GetInputDox(int input_idx) const;
+  std::string GetInputDox(int input_idx) const;
 
   /** Get the maximal number of accepted inputs. */
-  DLL_PUBLIC int MaxNumInput() const;
+  int MaxNumInput() const;
 
   /** Get the minimal number of required inputs. */
-  DLL_PUBLIC int MinNumInput() const;
+  int MinNumInput() const;
 
   /** Get the number of static outputs, see also CalculateOutputs and CalculateAdditionalOutputs */
-  DLL_PUBLIC int NumOutput() const;
+  int NumOutput() const;
 
-  DLL_PUBLIC bool AllowsInstanceGrouping() const;
+  bool AllowsInstanceGrouping() const;
 
   /** Whether this operator accepts ONLY sequences as inputs */
-  DLL_PUBLIC bool IsSequenceOperator() const;
+  bool IsSequenceOperator() const;
 
   /** Whether this operator accepts sequences as inputs */
-  DLL_PUBLIC bool AllowsSequences() const;
+  bool AllowsSequences() const;
 
   /** Whether this operator accepts volumes as inputs */
-  DLL_PUBLIC bool SupportsVolumetric() const;
+  bool SupportsVolumetric() const;
 
   /**  Whether this operator is internal to DALI backend (and shouldn't be exposed in Python API) */
-  DLL_PUBLIC bool IsInternal() const;
+  bool IsInternal() const;
 
   /** Whether this operator doc should not be visible (but the Op is exposed in Python API) */
-  DLL_PUBLIC bool IsDocHidden() const;
+  bool IsDocHidden() const;
 
   /**
    * Whether this operator doc should be visible without documenting any parameters.
    * Useful for deprecated ops.
    */
-  DLL_PUBLIC bool IsDocPartiallyHidden() const;
+  bool IsDocPartiallyHidden() const;
 
   /** Whether this operator is deprecated. */
-  DLL_PUBLIC bool IsDeprecated() const;
+  bool IsDeprecated() const;
 
   /** What operator replaced the current one. */
-  DLL_PUBLIC std::string_view DeprecatedInFavorOf() const;
+  const std::string &DeprecatedInFavorOf() const;
 
   /** Additional deprecation message */
-  DLL_PUBLIC std::string_view DeprecationMessage() const;
+  const std::string &DeprecationMessage() const;
 
   /** Whether given argument is deprecated. */
-  DLL_PUBLIC bool IsDeprecatedArg(std::string_view arg_name) const;
+  bool IsDeprecatedArg(std::string_view arg_name) const;
 
   /** Information about the argument deprecation - error message, renaming, removal, etc. */
-  DLL_PUBLIC const ArgumentDeprecation &DeprecatedArgInfo(std::string_view arg_name) const;
+  const ArgumentDeprecation &DeprecatedArgInfo(std::string_view arg_name) const;
 
   /** Check whether this operator calculates number of outputs statically
    *
    * @return false if static, true if dynamic
    */
-  DLL_PUBLIC bool HasOutputFn() const;
+  bool HasOutputFn() const;
 
   /** Check whether this operator won't be pruned out of graph even if not used. */
-  DLL_PUBLIC bool IsNoPrune() const;
+  bool IsNoPrune() const;
 
-  DLL_PUBLIC bool IsSerializable() const;
+  bool IsSerializable() const;
 
   /**  Returns the index of the output to which the input is passed.
    *
    * @param strict consider only fully passed through batches
    * @return Output indicies or empty vector if given input is not passed through.
    */
-  DLL_PUBLIC std::vector<int> GetPassThroughOutputIdx(int input_idx, const OpSpec &spec,
+  std::vector<int> GetPassThroughOutputIdx(int input_idx, const OpSpec &spec,
                                                       bool strict = true) const;
 
   /** Is the input_idx passed through to output_idx */
-  DLL_PUBLIC bool IsPassThrough(int input_idx, int output_idx, bool strict = true) const;
+  bool IsPassThrough(int input_idx, int output_idx, bool strict = true) const;
 
   /** Does this operator pass through any data? */
-  DLL_PUBLIC bool HasPassThrough() const;
+  bool HasPassThrough() const;
 
   /** Does this operator pass through any data as a whole batch to batch? */
-  DLL_PUBLIC bool HasStrictPassThrough() const;
+  bool HasStrictPassThrough() const;
 
   /** Does this operator pass through any data by the means of sharing individual samples? */
-  DLL_PUBLIC bool HasSamplewisePassThrough() const;
+  bool HasSamplewisePassThrough() const;
 
   /** Return the static number of outputs or calculate regular outputs using output_fn */
-  DLL_PUBLIC int CalculateOutputs(const OpSpec &spec) const;
+  int CalculateOutputs(const OpSpec &spec) const;
 
   /** Calculate the number of additional outputs obtained from additional_outputs_fn */
-  DLL_PUBLIC int CalculateAdditionalOutputs(const OpSpec &spec) const;
+  int CalculateAdditionalOutputs(const OpSpec &spec) const;
 
-  DLL_PUBLIC bool SupportsInPlace(const OpSpec &spec) const;
+  bool SupportsInPlace(const OpSpec &spec) const;
 
-  DLL_PUBLIC void CheckArgs(const OpSpec &spec) const;
+  void CheckArgs(const OpSpec &spec) const;
 
   /** Get default value of optional or internal argument. The default value must be declared */
   template <typename T>
-  DLL_PUBLIC inline T GetDefaultValueForArgument(std::string_view s) const;
+  inline T GetDefaultValueForArgument(std::string_view s) const;
 
-  DLL_PUBLIC bool HasOptionalArgument(std::string_view name) const;
+  /** Checks if the argument with the given name is defined and not required */
+  bool HasOptionalArgument(std::string_view name) const;
+
+  /** Checks if the argument with the given name is defined and marked as internal */
+  bool HasInternalArgument(std::string_view name) const;
 
   /** Finds default value for a given argument
    *
    * @return A pair of the defining schema and the value
    */
-  DLL_PUBLIC const Value *FindDefaultValue(std::string_view arg_name) const;
+  const Value *FindDefaultValue(std::string_view arg_name) const;
 
   /** Checks whether the schema defines an argument with the given name
    *
    * @param include_internal - returns `true` also for internal/implicit arugments
    * @param local_only       - doesn't look in parent schemas
    */
-  DLL_PUBLIC bool HasArgument(std::string_view name, bool include_internal = false) const;
+  bool HasArgument(std::string_view name, bool include_internal = false) const;
 
   /** Returns true if the operator has a "seed" argument. */
-  DLL_PUBLIC bool HasRandomSeedArg() const;
+  bool HasRandomSeedArg() const;
 
   /** Get docstring for operator argument of given name (Python Operator Kwargs). */
-  DLL_PUBLIC std::string GetArgumentDox(std::string_view name) const;
+  const std::string &GetArgumentDox(std::string_view name) const;
 
   /** Get enum representing type of argument of given name. */
-  DLL_PUBLIC DALIDataType GetArgumentType(std::string_view name) const;
+  DALIDataType GetArgumentType(std::string_view name) const;
 
-  DLL_PUBLIC const ArgumentDef &GetArgument(std::string_view name) const;
+  const ArgumentDef &GetArgument(std::string_view name) const;
 
   /** Check if the argument has a default value.
    *
    * Required arguments always return false.
    * Internal arguments always return true.
    */
-  DLL_PUBLIC bool HasArgumentDefaultValue(std::string_view name) const;
+  bool HasArgumentDefaultValue(std::string_view name) const;
 
   /**
    * @brief Get default value of optional argument represented as python-compatible repr string.
    *        Not allowed for internal arguments.
    */
-  DLL_PUBLIC std::string GetArgumentDefaultValueString(std::string_view name) const;
+  std::string GetArgumentDefaultValueString(std::string_view name) const;
 
   /** Get names of all required, optional, and deprecated arguments */
-  DLL_PUBLIC std::vector<std::string> GetArgumentNames() const;
-  DLL_PUBLIC bool IsTensorArgument(std::string_view name) const;
-  DLL_PUBLIC bool ArgSupportsPerFrameInput(std::string_view arg_name) const;
+  std::vector<std::string> GetArgumentNames() const;
+  bool IsTensorArgument(std::string_view name) const;
+  bool ArgSupportsPerFrameInput(std::string_view arg_name) const;
 
  private:
   static inline bool ShouldHideArgument(std::string_view name) {
@@ -702,10 +759,12 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     arg.internal = true;
   }
 
-  DLL_PUBLIC ArgumentDef &AddArgumentImpl(std::string_view name,
-                                          DALIDataType type,
-                                          std::unique_ptr<Value> default_value,
-                                          std::string doc);
+  ArgumentDef &AddArgumentImpl(std::string_view name);
+
+  ArgumentDef &AddArgumentImpl(std::string_view name,
+                               DALIDataType type,
+                               std::unique_ptr<Value> default_value,
+                               std::string doc);
 
   /** Initialize the module_path_ and operator_name_ fields based on the schema name. */
   void InitNames();
@@ -728,7 +787,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::map<std::string, ArgumentDef, std::less<>> arguments_;
 
   mutable
-  detail::CachedValue<std::map<std::string, const ArgumentDef *, std::less<>>> flattened_arguments_;
+  detail::LazyValue<std::map<std::string, const ArgumentDef *, std::less<>>> flattened_arguments_;
 
   std::map<std::string, const ArgumentDef *, std::less<>> &GetFlattenedArguments() const;
 
@@ -748,7 +807,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /// Names of the parent schemas
   vector<string> parent_names_;
   /// Cached pointers to parent schemas, to avoid repeated lookups
-  mutable detail::CachedValue<std::vector<const OpSchema *>> parents_;
+  mutable detail::LazyValue<std::vector<const OpSchema *>> parents_;
 
   ////////////////////////////////////////////////////////////////////////////
   // Documentation-related

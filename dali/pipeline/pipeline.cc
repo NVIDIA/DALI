@@ -701,7 +701,7 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
   for (auto& a : spec.Arguments()) {
     // filter out args that need to be dealt with on
     // loading a serialized pipeline
-    auto &name = a->get_name();
+    auto name = a->get_name();
     if (name == "max_batch_size" ||
         name == "num_threads" ||
         name == "bytes_per_sample_hint") {
