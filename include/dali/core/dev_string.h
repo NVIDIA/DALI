@@ -173,7 +173,7 @@ inline __device__ DeviceString dev_to_string(const void *ptr) {
   while (x) {
     int digit = x&0xf;
     x >>= 4;;
-    buf[--cursor] = "01234567889ABCDEF"[digit];
+    buf[--cursor] = "0123456789ABCDEF"[digit];
   }
   buf[--cursor] = 'x';
   buf[--cursor] = '0';

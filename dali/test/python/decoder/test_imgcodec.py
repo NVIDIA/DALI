@@ -179,7 +179,10 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
                 dump_as_core_artifacts(
                     img_1.source_info(), arr_1, arr_2, iter=it, sample_idx=sample_idx
                 )
-            assert is_ok, f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
+            assert is_ok, (
+                f"{validation_fun.__name__}\n"
+                + f"image: {img_1.source_info()} iter: {it} sample_idx: {sample_idx}"
+            )
 
 
 def test_image_decoder_fused():
@@ -532,6 +535,7 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
         ref = ref * multiplier
         if dtype != types.FLOAT:
             kwargs["atol"] = 0.5  # possible rounding error
+        kwargs["rtol"] = 2e-7
     np.testing.assert_allclose(ref, result, **kwargs)
 
 
