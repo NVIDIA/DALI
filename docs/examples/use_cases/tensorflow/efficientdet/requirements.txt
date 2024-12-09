@@ -3,4 +3,4 @@ argparse-utils
 absl-py
 Pillow
 PyYAML
-numpy<1.24
+numpy<2
