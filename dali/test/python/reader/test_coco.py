@@ -192,7 +192,7 @@ def test_operator_coco_reader_same_images():
 
 
 @raises(
-    RuntimeError,
+    KeyError,
     glob='Argument "preprocessed_annotations_dir" is not defined for operator *readers*COCO',
 )
 def test_invalid_args():

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ The shape and data type of the output will match the input.
 )code")
     .NumInput(1)
     .NumOutput(1)
+    .AddRandomSeedArg()
     .AddOptionalArg<float>("mean",
       R"code(Mean of the distribution.)code",
       0.f, true)
