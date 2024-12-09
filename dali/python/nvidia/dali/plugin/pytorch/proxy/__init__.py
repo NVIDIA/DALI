@@ -15,13 +15,15 @@
 import torch
 import torch.multiprocessing as mp
 from torch.utils import data as torchdata
-from torch.utils.data._utils.collate import collate
-from nvidia.dali.backend import TensorGPU, TensorListCPU, TensorListGPU
-from nvidia.dali import types, Pipeline
+from torch.utils.data._utils.collate import default_collate_fn_map
+from nvidia.dali.backend import TensorGPU
+from nvidia.dali import Pipeline
 from nvidia.dali.external_source import ExternalSource
 import threading
 from queue import Empty
-from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
+from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type, feed_ndarray
+import tree
+import warnings
 
 
 def _external_source_node_names(pipeline):
@@ -58,6 +60,7 @@ class PipelineRunRef:
             raise RuntimeError(
                 f"Unexpected number of inputs. Expected: {self.input_names}, got: {inputs}"
             )
+
 
 class _DALIProxy:
     def __init__(self, input_names, send_q):
@@ -96,6 +99,7 @@ class _DALIProxy:
                 f"Unexpected number of inputs. Expected: {self.input_names}, got: {inputs}"
             )
         return PipelineRunRef(self, inputs)
+
 
 class DALIServer:
 
@@ -150,13 +154,35 @@ class DALIServer:
         outputs = self.pipe.outputs()
         torch.cuda.nvtx.range_pop()
 
-        # Return information about the iteration, together with the data
-        processed_outputs = tuple(
-            [to_torch_tensor(output, device_id=self.pipe.device_id) for output in outputs]
-        )
+        is_exec_dynamic = self.pipe.exec_dynamic
+        if not is_exec_dynamic:
+            processed_outputs = []
+            for output in outputs:
+                tensor = output.as_tensor()
+                torch_dtype = to_torch_type[tensor.dtype]
+                if isinstance(tensor, TensorGPU):
+                    torch_device = torch.device("cuda", self.pipe.device_id)
+                else:
+                    torch_device = torch.device("cpu")
+                processed_output = torch.empty(
+                    tensor.shape(),
+                    dtype=torch_dtype,
+                    device=torch_device,
+                )
+                cuda_stream = (
+                    torch.cuda.current_stream(device=torch_device)
+                    if isinstance(tensor, TensorGPU)
+                    else None
+                )
+                feed_ndarray(tensor, processed_output, cuda_stream=cuda_stream)
+                processed_outputs.append(processed_output)
+            processed_outputs = tuple(processed_outputs)
+        else:
+            processed_outputs = tuple([torch.from_dlpack(output.as_tensor()) for output in outputs])
         return (info, processed_outputs)
 
-    def get_outputs(self, req_info):
+    def get_outputs(self, pipe_out_ref: DALIPipelineOutputRef):
+        req_info = pipe_out_ref.info
         req_outputs = None
         # If the data was already read, just return it (and clear the cache entry)
         if req_info in self.cache_outputs:
@@ -182,7 +208,7 @@ class DALIServer:
         Asynchronous DALI thread that gets iteration data from the queue and schedules it
         for execution
         """
-        self.pipe.build() # just in case
+        self.pipe.build()  # just in case
 
         while not self.thread_stop_event.is_set():
             try:
@@ -235,7 +261,7 @@ class DALIServer:
     def __exit__(self, exc_type, exc_value, tb):
         self.stop_thread()
         if exc_type is not None:
-            print(f"An exception occurred: {exc_value}")
+            warnings.warn(f"An exception occurred: {exc_value}", category=UserWarning)
         return False  # Return False to propagate exceptions
 
 
@@ -251,17 +277,12 @@ def _collate_pipeline_run_ref_fn(pipe_out, *, collate_fn_map=None):
         assert proxy == elem.proxy
         for idx, input_ref in enumerate(elem.inputs):
             inputs[idx].append(input_ref)
-    return proxy.schedule_batch(inputs)
+    ret = proxy.schedule_batch(inputs)
+    return ret
 
 
-def _custom_collate(batch):
-    """
-    Subscribe a special collate function for PipelineRunRef, that handles the scheduling
-    of the iteration on the fly
-    """
-    collate_fn_map = torchdata._utils.collate.default_collate_fn_map
-    collate_fn_map.update({PipelineRunRef: _collate_pipeline_run_ref_fn})
-    return collate(batch, collate_fn_map=collate_fn_map)
+# In-place modify `default_collate_fn_map` to handle PipelineRunRef
+default_collate_fn_map.update({PipelineRunRef: _collate_pipeline_run_ref_fn})
 
 
 class DataLoader(torchdata.dataloader.DataLoader):
@@ -270,7 +291,7 @@ class DataLoader(torchdata.dataloader.DataLoader):
     processing asynchronously with regards to the training.
     """
 
-    class DALIMultiProcessingDataLoaderIter(torchdata.dataloader._MultiProcessingDataLoaderIter):
+    class _Iter(torchdata.dataloader._MultiProcessingDataLoaderIter):
         """
         Data loader iterator used by the DALI proxy data loader
         """
@@ -282,35 +303,27 @@ class DataLoader(torchdata.dataloader.DataLoader):
         def _next_data(self):
             data = super()._next_data()
             if not hasattr(data, "__iter__"):
-                print(
+                warnings.warn(
                     "Warning: Non iterable returned from dataloader. Please "
-                    " review the code, since it usually indicates a bug in the pipeline."
+                    " review the code, since it usually indicates a bug in the pipeline.",
+                    category=UserWarning,
                 )
                 data = [data]
-            for data_idx, data_elem in enumerate(data):
-                # If loader returns a dictionary the iterator iterates over its keys.
-                # We need to access a value. Probably need to address more casess.
-                if isinstance(data, dict):
-                    if isinstance(data[data_elem], DALIPipelineOutputRef):
-                        data[data_elem] = self.loader.dali_server.get_outputs(data[data_elem].info)
-                elif isinstance(data_elem, DALIPipelineOutputRef):
-                    data[data_idx] = self.loader.dali_server.get_outputs(data_elem.info)
+            if self.loader.dali_server.thread is None:
+                raise RuntimeError("DALI server is not running")
+            data = tree.map_structure(
+                lambda entry: (
+                    self.loader.dali_server.get_outputs(entry)
+                    if isinstance(entry, DALIPipelineOutputRef)
+                    else entry
+                ),
+                data,
+            )
             return data
 
     def __init__(self, dali_server, *args, **kwargs):
-        if "collate_fn" in kwargs and kwargs["collate_fn"] is not None:
-            print(
-                "Warning: Make sure to handle PipelineRunRef when providing"
-                " a custom collate_fn (see collate_pipeline_run_ref_fn)"
-            )
-        else:
-            kwargs["collate_fn"] = _custom_collate
         super().__init__(*args, **kwargs)
         self.dali_server = dali_server
 
-    def _get_iterator(self) -> "_BaseDataLoaderIter":
-        if self.num_workers == 0:
-            return torchdata.dataloader._SingleProcessDataLoaderIter(self)
-        else:
-            self.check_worker_number_rationality()
-            return DataLoader.DALIMultiProcessingDataLoaderIter(self)
+    def _get_iterator(self):
+        return DataLoader._Iter(self)

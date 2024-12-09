@@ -15,12 +15,11 @@
 import sys
 
 from typing import Union, Optional
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from nvidia.dali import internal as _internal
 from nvidia.dali import ops
-from nvidia.dali import types
-from nvidia.dali.backend import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU
+from nvidia.dali.backend import TensorCPU, TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
@@ -28,63 +27,17 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 import torch
 import torch.utils.dlpack as torch_dlpack  # noqa: F401
-import ctypes
 import numpy as np
 
 from . import fn  # noqa: F401
 from . import proxy  # noqa: F401
 
-from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type
+from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type, feed_ndarray
 from nvidia.dali.plugin.pytorch._torch_function import TorchPythonFunction as TorchPythonFunction
 
 _internal._adjust_operator_module(TorchPythonFunction, sys.modules[__name__], [])
 
 ops._wrap_op(TorchPythonFunction, "fn", __name__)
-
-
-def feed_ndarray(
-    dali_tensor: Union[TensorCPU, TensorGPU, TensorListCPU, TensorListGPU],
-    arr: torch.Tensor,
-    cuda_stream: Union[torch.cuda.Stream, Any, None] = None,
-) -> torch.Tensor:
-    """
-    Copy contents of DALI tensor to PyTorch's Tensor.
-
-    Parameters
-    ----------
-    dali_tensor : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
-                    Tensor from which to copy
-    arr : torch.Tensor
-            Destination of the copy
-    cuda_stream : torch.cuda.Stream, cudaStream_t or any value that can be cast to cudaStream_t.
-                    CUDA stream to be used for the copy
-                    (if not provided, an internal user stream will be selected)
-                    In most cases, using pytorch's current stream is expected (for example,
-                    if we are copying to a tensor allocated with torch.zeros(...))
-    """
-    dali_type = to_torch_type[dali_tensor.dtype]
-
-    assert dali_type == arr.dtype, (
-        "The element type of DALI Tensor/TensorList"
-        " doesn't match the element type of the target PyTorch Tensor: "
-        "{} vs {}".format(dali_type, arr.dtype)
-    )
-    assert dali_tensor.shape() == list(
-        arr.size()
-    ), "Shapes do not match: DALI tensor has size {0}, but PyTorch Tensor has size {1}".format(
-        dali_tensor.shape(), list(arr.size())
-    )
-
-    non_blocking = cuda_stream is not None
-    cuda_stream = types._raw_cuda_stream_ptr(cuda_stream)
-
-    # turn raw int to a c void pointer
-    c_type_pointer = ctypes.c_void_p(arr.data_ptr())
-    if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        dali_tensor.copy_to_external(c_type_pointer, cuda_stream, non_blocking=non_blocking)
-    else:
-        dali_tensor.copy_to_external(c_type_pointer)
-    return arr
 
 
 class DALIGenericIterator(_DaliBaseIterator):

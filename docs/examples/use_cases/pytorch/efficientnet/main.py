@@ -513,7 +513,7 @@ def prepare_for_training(args, model_args, model_arch):
         print("Bad databackend picked")
         exit(1)
 
-    train_loader, train_loader_len = get_train_loader(
+    train_loader, train_loader_len, dali_server_train = get_train_loader(
         args.data,
         image_size,
         args.batch_size,
@@ -530,7 +530,7 @@ def prepare_for_training(args, model_args, model_arch):
     if args.mixup != 0.0:
         train_loader = MixUpWrapper(args.mixup, train_loader)
 
-    val_loader, val_loader_len = get_val_loader(
+    val_loader, val_loader_len, dali_server_val = get_val_loader(
         args.data,
         image_size,
         args.batch_size,
@@ -604,7 +604,9 @@ def prepare_for_training(args, model_args, model_arch):
         lr_policy,
         train_loader,
         train_loader_len,
+        dali_server_train,
         val_loader,
+        dali_server_val,
         logger,
         start_epoch,
         best_prec1,
@@ -619,20 +621,18 @@ def conditional_with(resource):
 
 def main(args, model_args, model_arch):
     exp_start_time = time.time()
-
     (
         trainer,
         lr_policy,
         train_loader,
         train_loader_len,
+        dali_server_train,
         val_loader,
+        dali_server_val,
         logger,
         start_epoch,
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
-
-    dali_server_train = train_loader.dali_server if hasattr(train_loader, "dali_server") else None
-    dali_server_val = val_loader.dali_server if hasattr(val_loader, "dali_server") else None
 
     with conditional_with(dali_server_train), conditional_with(dali_server_val):
         train_loop(
