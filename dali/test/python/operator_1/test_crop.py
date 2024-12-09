@@ -678,7 +678,7 @@ def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layou
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
     pipe.build()
     with assert_raises(
-        RuntimeError, glob=f'The layout "{layout}" does not match any of the allowed layouts'
+        ValueError, glob=f'The layout "{layout}" does not match any of the allowed layouts'
     ):
         pipe.run()
 
