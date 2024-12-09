@@ -475,7 +475,7 @@ OpSchema &OpSchema::AddOptionalTypeArg(std::string_view s, std::string doc) {
 OpSchema &OpSchema::AddRandomSeedArg() {
   AddOptionalArg<int>("seed",
                       "Random seed; if not set, one will be assigned automatically.",
-                      nullptr);
+                      -1);
   return *this;
 }
 
