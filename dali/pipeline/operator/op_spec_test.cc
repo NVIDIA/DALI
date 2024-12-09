@@ -208,12 +208,12 @@ TEST(OpSpecTest, GetArgumentVec) {
 TEST(OpSpecTest, GetArgumentNonExisting) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2);
-  EXPECT_THROW(spec0.GetArgument<int>("<no_such_argument>"), std::out_of_range);
+  EXPECT_THROW(spec0.GetArgument<int>("<no_such_argument>"), invalid_key);
   int result = 0;
   EXPECT_FALSE(spec0.TryGetArgument<int>(result, "<no_such_argument>"));
 
 
-  EXPECT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), std::out_of_range);
+  EXPECT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), invalid_key);
   std::vector<int> result_vec;
   EXPECT_FALSE(spec0.TryGetRepeatedArgument(result_vec, "<no_such_argument>"));
   SmallVector<int, 1> result_sv;

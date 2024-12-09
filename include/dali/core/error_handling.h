@@ -85,10 +85,12 @@ class DALIException : public std::runtime_error {
 };
 
 struct unsupported_exception : std::runtime_error {
-  explicit unsupported_exception(const std::string &str) : runtime_error(str), msg(str) {}
+  explicit unsupported_exception(const std::string &str) : runtime_error(str) {}
+};
 
-  const char *what() const noexcept override { return msg.c_str(); }
-  std::string msg;
+struct invalid_key : std::out_of_range {
+  explicit invalid_key(const std::string &message) : std::out_of_range(message) {}
+  explicit invalid_key(const char *message) : std::out_of_range(message) {}
 };
 
 inline string BuildErrorString(string statement, string file, int line) {

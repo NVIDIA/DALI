@@ -2443,6 +2443,8 @@ PYBIND11_MODULE(backend_impl, m) {
     try {
       if (p)
         std::rethrow_exception(p);
+    } catch (const invalid_key &e) {
+      PyErr_SetString(PyExc_KeyError, e.what());
     } catch (const DaliRuntimeError &e) {
       PyErr_SetString(PyExc_RuntimeError, e.what());
     } catch (const DaliIndexError &e) {

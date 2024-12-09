@@ -46,7 +46,7 @@ const OpSchema &SchemaRegistry::GetSchema(std::string_view name) {
   auto &schema_map = registry();
   auto it = schema_map.find(name);
   if (it == schema_map.end())
-    throw std::out_of_range("Schema for operator '" + std::string(name) + "' not registered");
+    throw invalid_key("Schema for operator '" + std::string(name) + "' not registered");
 
   return it->second;
 }
@@ -216,7 +216,7 @@ OpSchema &OpSchema::AdditionalOutputsFn(SpecFunc f) {
 
 OpSchema &OpSchema::NumInput(int n) {
   if (n < 0)
-    throw std::out_of_range("The number of inputs must not be negative");
+    throw invalid_key("The number of inputs must not be negative");
   max_num_input_ = n;
   min_num_input_ = n;
   input_info_.resize(n);
@@ -226,9 +226,9 @@ OpSchema &OpSchema::NumInput(int n) {
 
 OpSchema &OpSchema::NumInput(int min, int max) {
   if (min < 0 || max < 0)
-    throw std::out_of_range("The number of inputs must not be negative");
+    throw invalid_key("The number of inputs must not be negative");
   if (min > max)
-    throw std::out_of_range("The min. number of inputs must not be greater than max.");
+    throw invalid_key("The min. number of inputs must not be greater than max.");
   min_num_input_ = min;
   max_num_input_ = max;
   input_info_.resize(max);
@@ -256,7 +256,7 @@ DLL_PUBLIC dali::InputDevice OpSchema::GetInputDevice(int index) const {
 
 OpSchema &OpSchema::NumOutput(int n) {
   if (n < 0)
-    throw std::out_of_range("The number of outputs must not be negative");
+    throw invalid_key("The number of outputs must not be negative");
   num_output_ = n;
   return *this;
 }
@@ -893,7 +893,7 @@ bool OpSchema::HasInternalArgument(std::string_view name) const {
 const ArgumentDef &OpSchema::GetArgument(std::string_view name) const {
   if (auto *arg = FindArgument(name))
     return *arg;
-  throw std::out_of_range(make_string(
+  throw invalid_key(make_string(
         "Argument \"", name, "\" is not defined for operator \"", this->name(), "\"."));
 }
 
@@ -960,7 +960,7 @@ const ArgumentDef *OpSchema::FindTensorArgument(std::string_view name) const {
 
 void OpSchema::CheckInputIndex(int index) const {
   if (index < 0 && index >= max_num_input_)
-    throw std::out_of_range(make_string(
+    throw invalid_key(make_string(
       "Input index ", index, " is out of range [0..", max_num_input_, ").\nWas NumInput called?"));
 }
 
