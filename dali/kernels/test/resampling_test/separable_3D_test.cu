@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, 2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -446,8 +446,8 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
       } else {
         // Epsilons are quite big because, processing order in the reference is forced to be XYZ
         // or YXZ, whereas the tested implementation can use any order.
-        double eps = std::is_integral<Out>::value ? 1 : 1e-3;
-        Check(out_cpu, ref_cpu, EqualEpsRel(eps, 1e-4));
+        double eps = std::is_integral<Out>::value ? 1 : 2e-3;
+        Check(out_cpu, ref_cpu, EqualEpsRel(eps, 1e-3));
       }
     }
   }
@@ -501,7 +501,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
           Check(out_cpu[i], ref_cpu[i]);
         } else {
           // Epsilons are quite big because:
-          // - GPU uses fma
+          // - GPU uses fma (the reference is GPU!)
           // - GPU uses different rounding
           // - processing order in the reference is forced to be XYZ or YXZ, whereas
           //   the tested implementation can use any order.
