@@ -51,7 +51,8 @@ This argument is mutually exclusive with `value` argument.
 If 0, the pixel position is sampled uniformly from all available pixels.)code",
       0, true)
     .NumInput(1)
-    .NumOutput(1);
+    .NumOutput(1)
+    .AddRandomSeedArg();
 
 class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
  public:

@@ -29,6 +29,8 @@ It should be added as parent to all RNG operators.)code")
 
 .. note::
   The generated numbers are converted to the output data type, rounding and clamping if necessary.
-)code", nullptr);
+)code", nullptr)
+  .AddRandomSeedArg();
+
 
 }  // namespace dali
