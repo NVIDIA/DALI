@@ -788,7 +788,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     }
 
-    if (nsamples_cache > 0) {
+    if (use_cache && nsamples_cache > 0) {
       DomainTimeRange tr("LoadDeferred", DomainTimeRange::kOrange);
       cache_->LoadDeferred(ws.stream());
     }
