@@ -32,7 +32,6 @@ import torch
 import numpy as np
 from PIL import Image
 from functools import partial
-
 from image_classification.autoaugment import AutoaugmentImageNetPolicy
 
 DATA_BACKEND_CHOICES = ["pytorch", "synthetic"]
@@ -46,9 +45,9 @@ try:
     DATA_BACKEND_CHOICES.append("dali")
     DATA_BACKEND_CHOICES.append("dali_proxy")
 
-except ImportError as e:
+except ImportError as err:
     print(
-        "Please install DALI from https://www.github.com/NVIDIA/DALI to run this example."
+        f"Please install DALI from https://www.github.com/NVIDIA/DALI to run this example. Error: {err}"
     )
 
 import torchvision.datasets as datasets
@@ -77,24 +76,26 @@ def load_jpeg_from_file(path, cuda=True):
 
     return input
 
-class DALIWrapper(object):
+# If we requested the data in channels_last form, utilize the fact that DALI
+# can return it as NHWC. The network expects NCHW shape with NHWC internal memory,
+# so we can keep the memory and just create a view with appropriate shape and
+# strides reflacting that memory layouyt
+def reinterpret_as_nchw(data):
+    shape = data.shape
+    stride = data.stride()
 
+    # permute shape and stride from NHWC to NCHW
+    def nhwc_to_nchw(t):
+        return t[0], t[3], t[1], t[2]
+
+    return torch.as_strided(data, size=nhwc_to_nchw(shape),
+                            stride=nhwc_to_nchw(stride))
+
+class DALIWrapper(object):
     def gen_wrapper(dalipipeline, num_classes, one_hot, memory_format):
         for data in dalipipeline:
             if memory_format == torch.channels_last:
-                # If we requested the data in channels_last form, utilize the fact that DALI
-                # can return it as NHWC. The network expects NCHW shape with NHWC internal memory,
-                # so we can keep the memory and just create a view with appropriate shape and
-                # strides reflacting that memory layouyt
-                shape = data[0]["data"].shape
-                stride = data[0]["data"].stride()
-
-                # permute shape and stride from NHWC to NCHW
-                def nhwc_to_nchw(t):
-                    return t[0], t[3], t[1], t[2]
-
-                input = torch.as_strided(data[0]["data"], size=nhwc_to_nchw(shape),
-                                         stride=nhwc_to_nchw(stride))
+                input = reinterpret_as_nchw(data[0]["data"])
             else:
                 input = data[0]["data"].contiguous(memory_format=memory_format)
             target = torch.reshape(data[0]["label"], [-1]).cuda().long()
@@ -113,7 +114,6 @@ class DALIWrapper(object):
         return DALIWrapper.gen_wrapper(
             self.dalipipeline, self.num_classes, self.one_hot, self.memory_format
         )
-
 
 def get_dali_train_loader(dali_device="gpu"):
     def gdtl(
@@ -164,9 +164,11 @@ def get_dali_train_loader(dali_device="gpu"):
             pipe, reader_name="Reader", fill_last_batch=False
         )
 
+        dali_server = None
         return (
             DALIWrapper(train_loader, num_classes, one_hot, memory_format),
             int(pipe.epoch_size("Reader") / (world_size * batch_size)),
+            dali_server,
         )
 
     return gdtl
@@ -219,9 +221,11 @@ def get_dali_val_loader(dali_device="gpu"):
             pipe, reader_name="Reader", fill_last_batch=False
         )
 
+        dali_server = None
         return (
             DALIWrapper(val_loader, num_classes, one_hot, memory_format),
             int(pipe.epoch_size("Reader") / (world_size * batch_size)),
+            dali_server,
         )
 
     return gdvl
@@ -255,7 +259,7 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
-    def prefetched_loader(loader, num_classes, one_hot, normalize):
+    def prefetched_loader(loader, num_classes, one_hot, normalize, memory_format, data_layout):
         if normalize:
             mean = (
                 torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
@@ -272,6 +276,10 @@ class PrefetchedWrapper(object):
         first = True
 
         for next_input, next_target in loader:
+            # we have PyTorch default CHW layout even if the DALI provided HWC, so we can simply reinterpret the strides
+            if memory_format == torch.channels_last and data_layout == "HWC" and next_input.is_contiguous():
+                next_input = reinterpret_as_nchw(next_input)
+
             with torch.cuda.stream(stream):
                 next_input = next_input.cuda(non_blocking=True)
                 next_target = next_target.cuda(non_blocking=True)
@@ -293,12 +301,14 @@ class PrefetchedWrapper(object):
 
         yield input, target
 
-    def __init__(self, dataloader, start_epoch, num_classes, one_hot, normalize=True):
+    def __init__(self, dataloader, start_epoch, num_classes, one_hot, normalize, memory_format, output_layout):
         self.dataloader = dataloader
         self.epoch = start_epoch
         self.one_hot = one_hot
         self.num_classes = num_classes
         self.normalize = normalize
+        self.memory_format = memory_format
+        self.output_layout = output_layout
 
     def __iter__(self):
         if self.dataloader.sampler is not None and isinstance(
@@ -308,7 +318,7 @@ class PrefetchedWrapper(object):
             self.dataloader.sampler.set_epoch(self.epoch)
         self.epoch += 1
         return PrefetchedWrapper.prefetched_loader(
-            self.dataloader, self.num_classes, self.one_hot, self.normalize
+            self.dataloader, self.num_classes, self.one_hot, self.normalize, self.memory_format, self.output_layout,
         )
 
     def __len__(self):
@@ -366,10 +376,11 @@ def get_pytorch_train_loader(
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
-
+    dali_server = None
     return (
-        PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot),
+        PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, True, memory_format, "CHW"),
         len(train_loader),
+        dali_server,
     )
 
 
@@ -422,8 +433,12 @@ def get_pytorch_val_loader(
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
-
-    return PrefetchedWrapper(val_loader, 0, num_classes, one_hot), len(val_loader)
+    dali_server = None
+    return (
+        PrefetchedWrapper(val_loader, 0, num_classes, one_hot, True, memory_format, "CHW"),
+        len(val_loader),
+        dali_server
+    )
 
 def read_file(path):
     return np.fromfile(path, dtype=np.uint8)
@@ -453,6 +468,7 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
         }[interpolation]
 
         output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
 
         pipeline_kwargs = {
@@ -497,10 +513,10 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
             persistent_workers=True,
             prefetch_factor=prefetch_factor,
         )
-
         return (
-            PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, normalize=False),
+            PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, False, memory_format, output_layout),
             len(train_loader),
+            dali_server,
         )
     return get_impl
 
@@ -549,7 +565,6 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
             loader=read_filepath if send_filepaths else read_file
         )
 
-
         if torch.distributed.is_initialized():
             val_sampler = torch.utils.data.distributed.DistributedSampler(
                 val_dataset, shuffle=False
@@ -573,8 +588,9 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
         )
 
         return (
-            PrefetchedWrapper(val_loader, 0, num_classes, one_hot, normalize=False),
+            PrefetchedWrapper(val_loader, 0, num_classes, one_hot,  False, memory_format, output_layout),
             len(val_loader),
+            dali_server,
         )
     return get_impl
 
@@ -625,6 +641,7 @@ def get_synthetic_loader(
     memory_format=torch.contiguous_format,
     **kwargs,
 ):
+    dali_server = None
     return (
         SynteticDataLoader(
             batch_size,
@@ -636,4 +653,5 @@ def get_synthetic_loader(
             memory_format=memory_format,
         ),
         -1,
+        dali_server,
     )
