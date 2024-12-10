@@ -14,6 +14,7 @@ test_body() {
     ${python_invoke_test} test_backend_impl_torch_dlpack.py
     ${python_invoke_test} test_dali_fork_torch.py
     ${python_invoke_test} test_copy_to_external_torch.py
+    ${python_invoke_test} test_dali_proxy.py
     ${python_invoke_test} --attr 'pytorch' test_external_source_impl_utils.py
     ${python_invoke_test} --attr 'pytorch' test_pipeline_debug.py
     ${python_invoke_test} --attr 'pytorch' test_functional_api.py
