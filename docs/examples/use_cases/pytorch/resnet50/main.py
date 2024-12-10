@@ -298,6 +298,8 @@ def main():
     val_loader = None
     train_pipe = None
     val_pipe = None
+    dali_server_train = None
+    dali_server_val = None
     if not args.disable_dali:
         train_pipe = create_dali_pipeline(batch_size=args.batch_size,
                                           num_threads=args.workers,
