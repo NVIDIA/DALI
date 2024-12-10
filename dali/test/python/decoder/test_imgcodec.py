@@ -195,9 +195,17 @@ def test_image_decoder_fused():
     ]:
         # before CUDA 11.4 HW decoder API doesn't support ROI so we get slightly different results
         # HW decoder + slice vs fused which in this case is executed by the hybrid backend
+        #
+        # nvimagecodec 0.4.x versions made the assignment of the HW decoder backend
+        # non-deterministic, so we need to allow for a bigger error for the case when the fused
+        # and the general branch pick a different backend.
         if (
             test_fun == create_decoder_random_crop_pipeline
             or nvidia.dali.backend.GetNvjpegVersion() < 11040
+            or (
+                nvidia.dali.backend.GetNvimgcodecVersion() >= 400
+                and nvidia.dali.backend.GetNvimgcodecVersion() < 500
+            )
         ):
             # random_resized_crop can properly handle border as it has pixels that are cropped out,
             # while plain resize following image_decoder_random_crop cannot do that
