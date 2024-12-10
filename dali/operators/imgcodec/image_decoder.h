@@ -491,6 +491,19 @@ class ImageDecoder : public StatelessOperator<Backend> {
     // Make sure we set the default that DALI expects
     if (decoder_params_.count("jpeg_fancy_upsampling") == 0)
       decoder_params_["jpeg_fancy_upsampling"] = false;
+
+    // Overriding hw_decoder_load default if nvImageCodec 0.4.x version
+    if (!spec.HasArgument("hw_decoder_load") && decoder_params_.count("hw_decoder_load") > 0) {
+      int major = -1, minor = -1, patch = -1;
+      get_nvimgcodec_version(&major, &minor, &patch);
+      if (MAKE_SEMANTIC_VERSION(major, minor, patch) >= MAKE_SEMANTIC_VERSION(0, 4, 0) &&
+          MAKE_SEMANTIC_VERSION(major, minor, patch) < MAKE_SEMANTIC_VERSION(0, 5, 0)) {
+        DALI_WARN(
+            "nvImageCodec 0.4.x version detected. Setting hw_decoder_load to 1.0f for "
+            "deterministic results");
+        decoder_params_["hw_decoder_load"] = 1.0f;
+      }
+    }
   }
 
   void ParseSample(ParsedSample &parsed_sample, span<const uint8_t> encoded) {
@@ -545,8 +558,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
    * to the decoding function
    */
   bool need_host_sync_alloc() {
-    int major, minor, patch;
-    get_nvimgcodec_version(&major, &minor, &patch);
     return !version_at_least(0, 3, 0);
   }
 

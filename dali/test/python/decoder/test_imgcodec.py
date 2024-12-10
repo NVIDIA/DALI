@@ -527,7 +527,6 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
         ref = ref * multiplier
         if dtype != types.FLOAT:
             kwargs["atol"] = 0.5  # possible rounding error
-        kwargs["rtol"] = 2e-7
     np.testing.assert_allclose(ref, result, **kwargs)
 
 
