@@ -138,6 +138,7 @@ a pipeline scope. False if it was defined without pipeline being set as current.
   DeprecateArg("seed", true,
                "The argument \"seed\" should not be used with operators that don't use "
                "random numbers.");
+  arguments_["seed"].hidden = true;
 }
 
 
