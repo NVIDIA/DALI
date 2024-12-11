@@ -291,7 +291,7 @@ def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
             return img2, other
 
     # This is just for educational purposes. It is recommended to rely
-    # default_collate_fn_map, which is updated to handle PipelineRunRef
+    # default_collate_fn_map, which is updated to handle DALIProcessedSampleRef
     def custom_collate_fn(batch):
         images, labels = zip(*batch)
         return dali_proxy._collate_pipeline_run_ref_fn(images), torch.tensor(

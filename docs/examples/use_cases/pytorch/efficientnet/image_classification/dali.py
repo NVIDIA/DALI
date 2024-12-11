@@ -19,17 +19,17 @@ from nvidia.dali.pipeline.experimental import pipeline_def
 
 from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
-@pipeline_def(enable_conditionals=True)
+@pipeline_def(enable_conditionals=True, exec_dynamic=True)
 def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_augmentation,
                   dali_device="gpu", rank=0, world_size=1, send_filepaths=False):
     rng = fn.random.coin_flip(probability=0.5)
 
     if data_dir is None:
         if send_filepaths:
-            filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+            filepaths = fn.external_source(name="images", no_copy=True)
             jpegs = fn.io.file.read(filepaths)
         else:
-            jpegs = fn.external_source(name="images", no_copy=True, blocking=True)
+            jpegs = fn.external_source(name="images", no_copy=True)
     else:
         jpegs, labels = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
                                         num_shards=world_size, random_shuffle=True, pad_last_batch=True)
@@ -76,15 +76,15 @@ def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_
         return output, labels
 
 
-@pipeline_def
+@pipeline_def(exec_dynamic=True)
 def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layout,
                     dali_device="gpu", rank=0, world_size=1, send_filepaths=False):
     if data_dir is None:
         if send_filepaths:
-            filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+            filepaths = fn.external_source(name="images", no_copy=True)
             jpegs = fn.io.file.read(filepaths)
         else:
-            jpegs = fn.external_source(name="images", no_copy=True, blocking=True)
+            jpegs = fn.external_source(name="images", no_copy=True)
     else:
         jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
                                        num_shards=world_size, random_shuffle=False, pad_last_batch=True)

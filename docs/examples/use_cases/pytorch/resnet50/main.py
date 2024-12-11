@@ -125,10 +125,10 @@ def to_python_float(t):
 def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
     if data_dir is None:
         if args.send_filepaths:
-            filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+            filepaths = fn.external_source(name="images", no_copy=True)
             images = fn.io.file.read(filepaths)
         else:
-            images = fn.external_source(name="images", no_copy=True, blocking=True)
+            images = fn.external_source(name="images", no_copy=True)
     else:
         images, labels = fn.readers.file(file_root=data_dir,
                                          shard_id=shard_id,
