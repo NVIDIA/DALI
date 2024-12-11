@@ -111,9 +111,11 @@ test_body_wrapper() {(
     fi
 
     test_body
+    RV=$?
 
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
         disable_sanitizer
+        return ${RV}
     fi
 )}
 
