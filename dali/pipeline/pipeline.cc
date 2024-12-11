@@ -524,6 +524,14 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     }
   }
 
+  // Graph optimization goes here
+
+  for (int o = 0, nout = graph_.Outputs().size(); o++) {
+    auto out_name = graph_.Outputs();
+    assert(out_name.substr(out_name.length() - 4) == "_" + output_descs[o].device);
+    output_descs_[o].name = out_name[o].substr(0, out_name.size() - 4);
+  }
+
   // Load the final graph into the executor
   executor_->Build(graph_);
   // CAUTION: Do not insert anything that can throw between `executor_->Build()` and
