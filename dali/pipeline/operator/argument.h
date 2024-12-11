@@ -111,8 +111,8 @@ class Argument {
     return has_name_;
   }
 
-  inline const string get_name() const {
-    return has_name() ? name_ : "<no name>";
+  inline std::string_view get_name() const & {
+    return has_name() ? std::string_view(name_) : "<no name>";
   }
 
   inline void set_name(string name) {
@@ -126,7 +126,7 @@ class Argument {
   }
 
   virtual std::string ToString() const {
-    return get_name();
+    return std::string(get_name());
   }
 
   virtual DALIDataType GetTypeId() const = 0;
@@ -230,8 +230,8 @@ template <typename T>
 T Argument::Get() {
   ArgumentInst<T>* self = dynamic_cast<ArgumentInst<T>*>(this);
   if (self == nullptr) {
-    DALI_FAIL("Invalid type of argument \"" + this->get_name() + "\". Expected " +
-              typeid(T).name());
+    DALI_FAIL(make_string("Invalid type of argument \"", get_name(), "\". Expected ",
+              typeid(T).name()));
   }
   return self->Get();
 }

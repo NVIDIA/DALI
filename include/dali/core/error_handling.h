@@ -85,10 +85,21 @@ class DALIException : public std::runtime_error {
 };
 
 struct unsupported_exception : std::runtime_error {
-  explicit unsupported_exception(const std::string &str) : runtime_error(str), msg(str) {}
+  explicit unsupported_exception(const std::string &str) : runtime_error(str) {}
+};
 
-  const char *what() const noexcept override { return msg.c_str(); }
-  std::string msg;
+/** An exception thrown when an invalid dictionary key is provided
+ *
+ * The exception denotes an invalid key. It can be thrown when:
+ * - the key is not found and the function returns a non-nullable type
+ * - the key doesn't meet some constraints (e.g. a dictionary doesn't accept an empty
+ *   string as a key).
+ *
+ * This exception is used at the Python boundary to raise KeyError rather than IndexError.
+ */
+struct invalid_key : std::out_of_range {
+  explicit invalid_key(const std::string &message) : std::out_of_range(message) {}
+  explicit invalid_key(const char *message) : std::out_of_range(message) {}
 };
 
 inline string BuildErrorString(string statement, string file, int line) {

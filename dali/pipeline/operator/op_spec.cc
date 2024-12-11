@@ -110,7 +110,7 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
       "Argument '", arg_name, "' is already specified."));
   const OpSchema& schema = GetSchemaOrDefault();
   DALI_ENFORCE(schema.HasArgument(arg_name),
-               make_string("Argument '", arg_name, "' is not supported by operator `",
+               make_string("Argument '", arg_name, "' is not defined for operator `",
                            GetOpDisplayName(*this, true), "`."));
   DALI_ENFORCE(schema.IsTensorArgument(arg_name),
                make_string("Argument '", arg_name, "' in operator `", GetOpDisplayName(*this, true),
@@ -124,7 +124,7 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
 
 OpSpec& OpSpec::SetInitializedArg(const string& arg_name, std::shared_ptr<Argument> arg) {
   if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
-    const auto& deprecation_meta = schema_->DeprecatedArgMeta(arg_name);
+    const auto& deprecation_meta = schema_->DeprecatedArgInfo(arg_name);
     // Argument was removed, and we can discard it
     if (deprecation_meta.removed) {
       return *this;

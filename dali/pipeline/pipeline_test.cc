@@ -489,7 +489,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
 TYPED_TEST(PipelineTest, TestSeedSet) {
   int num_thread = TypeParam::nt;
   int batch_size = this->jpegs_.nImages();
-  constexpr int seed_set = 567;
+  constexpr int64_t seed_set = 567;
 
   Pipeline pipe(batch_size, num_thread, 0);
 
@@ -500,7 +500,7 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   pipe.AddExternalInput("data");
 
   pipe.AddOperator(
-      OpSpec("Copy")
+      OpSpec("DummyOpToAdd")
       .AddArg("device", "cpu")
       .AddArg("seed", seed_set)
       .AddInput("data", "cpu")
@@ -523,8 +523,40 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
 
   // Check if seed can be manually set
   EXPECT_EQ(original_graph.GetOp("copy1")->spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_EQ(original_graph.GetOp("copy2")->spec.GetArgument<int64_t>("seed"), seed_set);
-  EXPECT_NE(original_graph.GetOp("data")->spec.GetArgument<int64_t>("seed"), seed_set);
+  // The "seed" argument is deprecated as removed - so the argument is not added to the OpSpec
+  EXPECT_FALSE(original_graph.GetOp("copy2")->spec.HasArgument("seed"));
+  EXPECT_FALSE(original_graph.GetOp("data")->spec.HasArgument("seed"));
+}
+
+
+TYPED_TEST(PipelineTest, TestSeedAuto) {
+  int num_thread = TypeParam::nt;
+  int batch_size = this->jpegs_.nImages();
+
+  Pipeline pipe(batch_size, num_thread, 0);
+
+
+  TensorList<CPUBackend> batch;
+  test::MakeRandomBatch(batch, batch_size);
+
+  pipe.AddExternalInput("data");
+
+  pipe.AddOperator(
+      OpSpec("DummyOpToAdd")
+      .AddArg("device", "cpu")
+      .AddInput("data", "cpu")
+      .AddOutput("out0", "cpu"), "dummy");
+
+  pipe.Build({{"out0", "gpu"}});
+
+  pipe.SetExternalInput("data", batch);
+
+  graph::OpGraph &original_graph = this->GetGraph(&pipe);
+
+  // ExternalSource doesn't have a seed...
+  EXPECT_FALSE(original_graph.GetOp("data")->spec.HasArgument("seed"));
+  // ...but DumyOpToAdd does - check if it was set by the Pipeline
+  EXPECT_TRUE(original_graph.GetOp("dummy")->spec.HasArgument("seed"));
 }
 
 
@@ -650,31 +682,8 @@ DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
 DALI_SCHEMA(DummyOpToAdd)
   .DocStr("DummyOpToAdd")
   .NumInput(1)
-  .NumOutput(1);
-
-
-class DummyOpNoSync : public Operator<CPUBackend> {
- public:
-  explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
-
-  bool HasContiguousOutputs() const override {
-    return false;
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    return false;
-  }
-
-  void RunImpl(Workspace &ws) override {}
-};
-
-DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);
-
-DALI_SCHEMA(DummyOpNoSync)
-  .DocStr("DummyOpNoSync")
-  .DisallowInstanceGrouping()
-  .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AddRandomSeedArg();
 
 TEST(PipelineTest, AddOperator) {
   Pipeline pipe(10, 4, 0);
@@ -701,16 +710,6 @@ TEST(PipelineTest, AddOperator) {
           .AddOutput("data_out2", "cpu"), "third_op");
 
   EXPECT_EQ(third_op, second_op + 1);
-
-  int disallow_sync_op = pipe.AddOperator(OpSpec("DummyOpNoSync")
-          .AddArg("device", "cpu")
-          .AddInput("data_in0", "cpu")
-          .AddOutput("data_out3", "cpu"), "DummyOpNoSync");
-
-  ASSERT_THROW(pipe.AddOperator(OpSpec("DummyOpNoSync")
-          .AddArg("device", "cpu")
-          .AddInput("data_in0", "cpu")
-          .AddOutput("data_out4", "cpu"), "DummyOpNoSync2", disallow_sync_op), std::runtime_error);
 
   vector<std::pair<string, string>> outputs = {
       {"data_out0", "cpu"}, {"data_out1", "cpu"}, {"data_out2", "cpu"}};
@@ -811,7 +810,6 @@ DALI_REGISTER_OPERATOR(DummyInputOperator, DummyInputOperator, CPU);
 
 DALI_SCHEMA(DummyInputOperator)
   .DocStr("DummyInputOperator")
-  .DisallowInstanceGrouping()
   .NumInput(0)
   .NumOutput(2);
 

@@ -36,7 +36,7 @@ from test_utils import (
     get_dali_extra_path,
     RandomDataIterator,
 )
-from nose_utils import raises, assert_raises, SkipTest
+from nose_utils import raises, assert_raises, assert_warns, SkipTest
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -491,6 +491,19 @@ def test_none_seed():
             test_out_ref = test_out
         else:
             assert np.sum(np.abs(test_out_ref - test_out)) != 0
+
+
+def test_seed_deprecated():
+    @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+    def my_pipe():
+        with assert_warns(
+            DeprecationWarning,
+            glob='The argument "seed" should not be used with operators '
+            "that don't use random numbers.",
+        ):
+            return fn.reshape(np.float32([1, 2]), shape=[2], seed=123)
+
+    my_pipe()
 
 
 def test_as_array():
