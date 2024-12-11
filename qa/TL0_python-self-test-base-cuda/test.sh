@@ -14,6 +14,7 @@ version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
   pip uninstall -y `pip list | grep nvidia-cufft | cut -d " " -f1` \
                    `pip list | grep nvidia-nvjpeg | cut -d " " -f1` \
                    `pip list | grep nvidia-nvjpeg2k | cut -d " " -f1` \
+                   `pip list | grep nvidia-nvtiff | cut -d " " -f1` \
                    `pip list | grep nvidia-npp | cut -d " " -f1` \
   || true
 
@@ -43,4 +44,5 @@ version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
               nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
               nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
               nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
+              nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
   || true
