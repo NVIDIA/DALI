@@ -40,13 +40,21 @@ def _external_source_node_names(pipeline):
     return input_node_names
 
 
-class DALIPipelineOutputRef:
+class DALIPipelineRunRef:
     """
-    Placeholder for a pipeline output reference, after the iteration has been scheduled to DALI.
+    Reference for a DALI pipeline run iteration.
     """
 
-    def __init__(self, batch_id):
+    def __init__(self, batch_id, is_scheduled=True, inputs=None):
+        """
+        batch_id: Identifier of the batch
+        is_scheduled: Whether the iteration has been scheduled for execution already
+        inputs: Inputs to be used when scheduling the iteration (makes sense only if
+        is_scheduled is False)
+        """
         self.batch_id = batch_id
+        self.is_scheduled = is_scheduled
+        self.inputs = inputs
 
 
 class DALIProcessedSampleRef:
@@ -67,8 +75,11 @@ class DALIProcessedSampleRef:
 
 
 class _DALIProxy:
-    def __init__(self, dali_input_names, dali_input_q):
+    def __init__(self, dali_input_names, dali_input_q, deterministic):
+        # External source instance names
         self.dali_input_names = dali_input_names
+        # If True, the inputs are scheduled after the data loader has returned
+        self.deterministic = deterministic
         # Shared queue with the server
         self.dali_input_q = dali_input_q
         # Torch worker id, to be filled on first call to worker_id()
@@ -79,8 +90,8 @@ class _DALIProxy:
     @property
     def worker_id(self):
         """
-        Getter for 'worker_id'. In case of torch data worker it is the worker info,
-        and in case of a thread the thread identifier
+        Getter for 'worker_id'. In case of torch data worker it is the worker info, and
+        in case of a thread the thread identifier
         """
         if self._worker_id is None:
             worker_info = torchdata.get_worker_info()
@@ -90,12 +101,14 @@ class _DALIProxy:
     def _schedule_batch(self, inputs):
         # Identifier of this request
         batch_id = (self.worker_id, self.data_idx)
-        torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {batch_id}")
-        self.dali_input_q.put((batch_id, inputs))
-        torch.cuda.nvtx.range_pop()
         self.data_idx = self.data_idx + 1
-        # Returns a placeholder, which is replaced with the actual data once the iteration completes
-        return DALIPipelineOutputRef(batch_id)
+        if not self.deterministic:
+            torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {batch_id}")
+            self.dali_input_q.put((batch_id, inputs))
+            torch.cuda.nvtx.range_pop()
+            return DALIPipelineRunRef(batch_id, is_scheduled=True)
+        else:
+            return DALIPipelineRunRef(batch_id, is_scheduled=False, inputs=inputs)
 
     def __call__(self, *inputs):
         """
@@ -110,14 +123,22 @@ class _DALIProxy:
 
 class DALIServer:
 
-    def __init__(self, pipeline, input_names=None):
+    def __init__(self, pipeline, input_names=None, deterministic=False):
         """
         Initializes a new DALI server instance.
 
         Args:
             input_names (list): list of strings representing the inputs to the pipeline. Those
-            should match the names of the ``external_source`` nodes in the DALI pipeline.
-            If the pipeline has a single input, there is no need to provide this argument.
+                                should match the names of the ``external_source`` nodes in the
+                                DALI pipeline. If the pipeline has a single input, there is no
+                                need to provide this argument.
+            deterministic (bool): If True, it ensures that the order of execution is always
+                                the same, which is important when the pipeline has a state
+                                and we are interested in obtaining reproducible results.
+                                Also, if enabled, the execution will be less performant, as
+                                the DALI processing can be scheduled only after the data
+                                loader has returned the batch information, and not as soon
+                                as data worker collates the batch.
         """
         assert isinstance(pipeline, Pipeline), f"Expected an NVIDIA DALI pipeline, got: {pipeline}"
         self.pipe = pipeline
@@ -143,17 +164,25 @@ class DALIServer:
         self.thread = None
         # Cache
         self.cache_outputs = dict()
+        # Whether we want the order of DALI execution to be reproducible
+        self.deterministic = deterministic
 
     @property
     def proxy(self):
-        return _DALIProxy(self.dali_input_names, self.dali_input_q)
+        return _DALIProxy(self.dali_input_names, self.dali_input_q, self.deterministic)
 
-    def get_outputs(self, pipe_out_ref: DALIPipelineOutputRef):
+    def get_outputs(self, pipe_run_ref: DALIPipelineRunRef):
         """
         Gets the pipeline outputs for a specific batch id. It will keep reading data until the
         right batch is found, caching the results that were not consumed until a future call
         """
-        req_batch_id = pipe_out_ref.batch_id
+        req_batch_id = pipe_run_ref.batch_id
+        if not pipe_run_ref.is_scheduled:  # We still have to schedule the iteration
+            torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {req_batch_id}")
+            self.dali_input_q.put((req_batch_id, pipe_run_ref.inputs))
+            torch.cuda.nvtx.range_pop()
+
+        # Wait for the requested output to be ready
         req_outputs = None
         # If the data was already read, just return it (and clear the cache entry)
         if req_batch_id in self.cache_outputs:
@@ -311,7 +340,7 @@ class DataLoader(torchdata.dataloader.DataLoader):
             data = tree.map_structure(
                 lambda entry: (
                     self.loader.dali_server.get_outputs(entry)
-                    if isinstance(entry, DALIPipelineOutputRef)
+                    if isinstance(entry, DALIPipelineRunRef)
                     else entry
                 ),
                 data,
