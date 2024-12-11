@@ -15,7 +15,7 @@ test_body() {
     # Hopper
     MIN_PERF=19000;
     # use taskset to avoid inefficient data migration between cores we don't want to use
-    taskset --cpu-list 0-69 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 | tee ${LOG}
+    taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 | tee ${LOG}
   else
     # GraceHopper
     MIN_PERF=29000;
