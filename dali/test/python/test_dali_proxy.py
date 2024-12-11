@@ -26,7 +26,7 @@ test_input_filenames = [read_filepath(fname) for fname in test_files]
 
 @pipeline_def(exec_dynamic=True)
 def pipe_decoder(device):
-    filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+    filepaths = fn.external_source(name="images", no_copy=True)
     images = fn.io.file.read(filepaths)
     decoder_device = "mixed" if device == "gpu" else "cpu"
     images = fn.decoders.image(images, device=decoder_device, output_type=types.RGB)
@@ -115,7 +115,7 @@ def test_dali_proxy_demo_basic_communication(device, debug=False):
 def rn50_train_pipe(dali_device="gpu"):
     rng = fn.random.coin_flip(probability=0.5)
 
-    filepaths = fn.external_source(name="images", no_copy=True, blocking=True)
+    filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
     if dali_device == "gpu":
         decoder_device = "mixed"
@@ -132,6 +132,8 @@ def rn50_train_pipe(dali_device="gpu"):
         random_area=[0.08, 1.0],
     )
 
+    images = images.gpu()  # make sure from now on it is GPU
+
     images = fn.resize(
         images,
         device=resize_device,
@@ -139,12 +141,7 @@ def rn50_train_pipe(dali_device="gpu"):
         interp_type=types.INTERP_LINEAR,
         antialias=False,
     )
-
-    # Make sure that from this point we are processing on GPU regardless of dali_device parameter
-    images = images.gpu()
-
     images = fn.flip(images, horizontal=rng)
-
     output = fn.crop_mirror_normalize(
         images,
         dtype=types.FLOAT,
@@ -246,7 +243,7 @@ def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
 
     @pipeline_def
     def processing_pipe(dali_device="gpu"):
-        images = fn.external_source(name="images", no_copy=True, blocking=True)
+        images = fn.external_source(name="images", no_copy=True)
         rng = fn.random.coin_flip(probability=0.5)
         if dali_device == "gpu":
             images = images.gpu()
@@ -324,3 +321,52 @@ def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
                 ],
                 next_target.shape,
             )
+
+
+@attr("pytorch")
+@params((False,), (True,))
+def test_dali_proxy_deterministic(deterministic, debug=False):
+    # Shows how DALI proxy can be configured for deterministic results
+    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
+    import torchvision.datasets as datasets
+    import torch
+
+    # For non deterministic, use a high number of iterations, even though we stop the test as
+    # we get some different results (usually in the very first iteration).
+    # For deterministic, we verify that all runs produce the exact same results
+    niterations = 5 if deterministic else 30
+    num_workers = 12
+    seed0 = 123456
+    seed1 = 5555464
+    seed2 = 775653
+
+    outputs = []
+    for i in range(niterations):
+        pipe = rn50_train_pipe(batch_size=1, num_threads=1, device_id=0, seed=seed0)
+        outputs_i = []
+        torch.manual_seed(seed2)
+        with dali_proxy.DALIServer(pipe, deterministic=deterministic) as dali_server:
+            dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
+            # many workers so that we introduce a lot of variability in the order of arrival
+            loader = dali_proxy.DataLoader(
+                dali_server,
+                dataset,
+                batch_size=1,
+                num_workers=num_workers,
+                shuffle=True,
+                worker_init_fn=lambda worker_id: np.random.seed(seed1 + worker_id),
+            )
+            outputs_i = [np.array(next(iter(loader))[0].cpu()) for _ in range(num_workers)]
+        outputs.append(outputs_i)
+
+        if i > 0:
+            if deterministic:
+                for k in range(num_workers):
+                    assert np.array_equal(outputs[i][k], outputs[0][k])
+            else:
+                for k in range(num_workers):
+                    if not np.array_equal(outputs[i][k], outputs[0][k]):
+                        return  # OK
+
+    if not deterministic:
+        assert False, "we got exactly the same results in all runs"
