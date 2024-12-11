@@ -26,6 +26,81 @@ from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type, feed_ndarray
 import tree
 import warnings
 
+# DALI proxy is a PyTorch specific layer that connects a multi-process PyTorch DataLoader with
+# a single DALI pipeline. This allows to run CUDA processing in a single process, avoiding the
+# problem of having multiple CUDA contexts which hurts the performance.
+#
+# The diagram below shows how the different processes and thread interact with each other
+# via shared queues. req_n_k represents the k-th processing request from data worker n,
+# consisting of a batch identifier (n, k) and a set of inputs. data_n_k represents the
+# outputs of a DALI pipeline corresponding to the same batch identifier, consisting of the
+# batch identifier and a set of outputs.
+# 
+# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
+# | main  |   | dali_output_q |     | data_thread | | dali_input_q  |     | worker_0  | | worker_1  |
+# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
+#     |               |                    |                |                   |             |
+#     |~~~get()~~~~~~>|                    |                |                   |             |
+#     |               |                    |~~~get()~~~~~~~>|                   |             |
+#     |               |                    |                |                   |             |
+#     |               |                    |                |             -------------       |
+#     |               |                    |                |             | collate   |       |
+#     |               |                    |                |             -------------       |
+#     |               |                    |                |                   |             |
+#     |               |                    |                |<~~put(req_0_0)~~~~|             |
+#     |               |                    |                |                   |             |
+#     |               |                    |                |------------------>|             |
+#     |               |                    |                |                   |             |
+#     |               |                    |<--req_0_0------|                   |             |
+#     |               |                    |                |                   |             |
+#     |               |             ---------------         |                   |             |
+#     |               |             | run         |         |                   |             |
+#     |               |             ---------------         |                   |             |
+#     |               |                    |                |                   |       -------------
+#     |               |                    |                |                   |       | collate   |
+#     |               |                    |                |                   |       -------------
+#     |               |                    |                |                   |             |
+#     |               |                    |                |<~~put(req_1_0)~~~~~~~~~~~~~~~~~~|
+#     |               |                    |                |                   |             |
+#     |               |                    |                |-------------------------------->|
+#     |               |                    |                |                   |             |
+#     |               |<~~put(data_0_0)~~~~|                |                   |             |
+#     |               |                    |                |                   |             |
+#     |               |------------------->|                |                   |             |
+#     |               |                    |                |                   |             |
+#     |               |                    |                |                   |       -------------
+#     |               |                    |                |                   |       | collate   |
+#     |               |                    |                |                   |       -------------
+#     |               |                    |                |                   |             |
+#     |               |                    |                |<~~put(req_1_1)~~~~~~~~~~~~~~~~~~|
+#     |               |                    |                |                   |             |
+#     |               |                    |                |-------------------------------->|
+#     |               |                    |                |                   |             |
+#     |<--data_0_0----|                    |                |                   |             |
+#     |               |                    |                |                   |             |
+#     |~~~get()~~~~~~>|                    |                |                   |             |
+#     |               |                    |~~~get()~~~~~~~>|                   |             |
+#     |               |                    |                |                   |             |
+#     |               |                    |<--req_1_0------|                   |             |
+#     |               |                    |                |                   |             |
+#     |               |             ---------------         |                   |             |
+#     |               |             | run         |         |                   |             |
+#     |               |             ---------------         |                   |             |
+#     |               |                    |                |                   |             |
+#     |               |                    |                |<~~put(req_0_1)~~~~|             |
+#     |               |                    |                |                   |             |
+#     |               |                    |                |------------------>|             |
+#     |               |                    |                |                   |             |
+#     |               |<~~put(data_1_0)~~~~|                |                   |             |
+#     |               |                    |                |                   |             |
+#     |               |------------------->|                |                   |             |
+#     |               |                    |                |                   |             |
+#     |<--data_1_0----|                    |                |                   |             |
+#     |               |                    |                |                   |             |
+# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
+# | main  |   | dali_output_q |     | data_thread | | dali_input_q  |     | worker_0  | | worker_1  |
+# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
+
 
 def _external_source_node_names(pipeline):
     """
@@ -122,7 +197,6 @@ class _DALIProxy:
 
 
 class DALIServer:
-
     def __init__(self, pipeline, input_names=None, deterministic=False):
         """
         Initializes a new DALI server instance.
@@ -139,6 +213,64 @@ class DALIServer:
                                 the DALI processing can be scheduled only after the data
                                 loader has returned the batch information, and not as soon
                                 as data worker collates the batch.
+
+        Example:
+
+            .. code-block:: python
+
+                @pipeline_def
+                def rn50_train_pipe():
+                    rng = fn.random.coin_flip(probability=0.5)
+                    filepaths = fn.external_source(name="images", no_copy=True)
+                    jpegs = fn.io.file.read(filepaths)
+                    images = fn.decoders.image_random_crop(
+                        jpegs,
+                        device="mixed",
+                        output_type=types.RGB,
+                        random_aspect_ratio=[0.75, 4.0 / 3.0],
+                        random_area=[0.08, 1.0],
+                    )
+                    images = fn.resize(
+                        images,
+                        size=[224, 224],
+                        interp_type=types.INTERP_LINEAR,
+                        antialias=False,
+                    )
+                    output = fn.crop_mirror_normalize(
+                        images,
+                        dtype=types.FLOAT,
+                        output_layout="CHW",
+                        crop=(224, 224),
+                        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+                        mirror=rng,
+                    )
+                    return output
+
+                def read_filepath(path):
+                    return np.frombuffer(path.encode(), dtype=np.int8)
+
+                nworkers = 8
+                pipe = rn50_train_pipe(batch_size=16, num_threads=3, device_id=0, prefetch_queue_depth=2*nworkers)
+                
+                # The scope makes sure the server starts and stops at enter/exit
+                with dali_proxy.DALIServer(pipe) as dali_server:
+                    # DALI proxy instance can be used as a transform callable
+                    dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
+
+                    # Same interface as torch DataLoader, but takes a dali_server as first argument
+                    loader = nvidia.dali.plugin.pytorch.proxy.DataLoader(
+                        dali_server,
+                        dataset,
+                        batch_size=batch_size,
+                        num_workers=nworkers,
+                        drop_last=True,
+                    )
+
+                    for data, target in loader:
+                        # consume it
+                        pass
+
         """
         assert isinstance(pipeline, Pipeline), f"Expected an NVIDIA DALI pipeline, got: {pipeline}"
         self.pipe = pipeline
