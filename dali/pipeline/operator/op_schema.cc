@@ -76,6 +76,10 @@ OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
+  AddInternalArg("preserve_name", R"(When true, the operator cannot be renamed.
+This disables merging this operator with another one with a different name.)",
+                 false);
+
   AddOptionalArg<int>("seed", R"code(Random seed.
 If not provided, it will be populated based on the global seed of the pipeline.)code",
                  nullptr);
