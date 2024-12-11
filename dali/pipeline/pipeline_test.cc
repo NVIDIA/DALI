@@ -685,30 +685,6 @@ DALI_SCHEMA(DummyOpToAdd)
   .NumOutput(1)
   .AddRandomSeedArg();
 
-
-class DummyOpNoSync : public Operator<CPUBackend> {
- public:
-  explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
-
-  bool HasContiguousOutputs() const override {
-    return false;
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    return false;
-  }
-
-  void RunImpl(Workspace &ws) override {}
-};
-
-DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);
-
-DALI_SCHEMA(DummyOpNoSync)
-  .DocStr("DummyOpNoSync")
-  .DisallowInstanceGrouping()
-  .NumInput(1)
-  .NumOutput(1);
-
 TEST(PipelineTest, AddOperator) {
   Pipeline pipe(10, 4, 0);
   int input_0 = pipe.AddExternalInput("data_in0");
@@ -734,16 +710,6 @@ TEST(PipelineTest, AddOperator) {
           .AddOutput("data_out2", "cpu"), "third_op");
 
   EXPECT_EQ(third_op, second_op + 1);
-
-  int disallow_sync_op = pipe.AddOperator(OpSpec("DummyOpNoSync")
-          .AddArg("device", "cpu")
-          .AddInput("data_in0", "cpu")
-          .AddOutput("data_out3", "cpu"), "DummyOpNoSync");
-
-  ASSERT_THROW(pipe.AddOperator(OpSpec("DummyOpNoSync")
-          .AddArg("device", "cpu")
-          .AddInput("data_in0", "cpu")
-          .AddOutput("data_out4", "cpu"), "DummyOpNoSync2", disallow_sync_op), std::runtime_error);
 
   vector<std::pair<string, string>> outputs = {
       {"data_out0", "cpu"}, {"data_out1", "cpu"}, {"data_out2", "cpu"}};
@@ -844,7 +810,6 @@ DALI_REGISTER_OPERATOR(DummyInputOperator, DummyInputOperator, CPU);
 
 DALI_SCHEMA(DummyInputOperator)
   .DocStr("DummyInputOperator")
-  .DisallowInstanceGrouping()
   .NumInput(0)
   .NumOutput(2);
 
