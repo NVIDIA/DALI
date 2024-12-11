@@ -269,12 +269,6 @@ OpSchema &OpSchema::DisableAutoInputDox() {
 }
 
 
-OpSchema &OpSchema::DisallowInstanceGrouping() {
-  allow_instance_grouping_ = false;
-  return *this;
-}
-
-
 OpSchema &OpSchema::SequenceOperator() {
   is_sequence_operator_ = true;
   return *this;
@@ -311,10 +305,10 @@ OpSchema &OpSchema::MakeDocPartiallyHidden() {
 }
 
 
-OpSchema &OpSchema::Deprecate(std::string_view in_favor_of, std::string_view explanation) {
+OpSchema &OpSchema::Deprecate(std::string in_favor_of, std::string explanation) {
   is_deprecated_ = true;
-  deprecated_in_favor_of_ = in_favor_of;
-  deprecation_message_ = explanation;
+  deprecated_in_favor_of_ = std::move(in_favor_of);
+  deprecation_message_ = std::move(explanation);
   return *this;
 }
 
@@ -700,11 +694,6 @@ int OpSchema::MinNumInput() const {
 
 int OpSchema::NumOutput() const {
   return num_output_;
-}
-
-
-bool OpSchema::AllowsInstanceGrouping() const {
-  return allow_instance_grouping_;
 }
 
 

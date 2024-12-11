@@ -387,10 +387,6 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
             GetOpDisplayName(spec, true) + "` using logical_id=" + std::to_string(logical_id) +
             " which is already assigned to " + group_name + ".");
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
-    DALI_ENFORCE(schema.AllowsInstanceGrouping(),
-                 "Operator `" + GetOpDisplayName(spec, true) +
-                     "` does not support synced random execution required "
-                     "for multiple input sets processing.");
   }
   op_specs_.push_back({inst_name, spec, logical_id});
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);

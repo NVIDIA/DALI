@@ -258,12 +258,6 @@ class DLL_PUBLIC OpSchema {
    */
   OpSchema &DisableAutoInputDox();
 
-  /**
-   * @brief Indicates that multiple instances of this operator cannot share a logical ID to achieve
-   *        uniform processing of multiple input sets
-   */
-  OpSchema &DisallowInstanceGrouping();
-
   /** Notes that this operator expects sequence inputs exclusively */
   OpSchema &SequenceOperator();
 
@@ -290,8 +284,8 @@ class DLL_PUBLIC OpSchema {
    * @param in_favor_of schema name of the replacement
    * @param explanation additional explanation
    */
-  OpSchema &Deprecate(std::string_view in_favor_of = "",
-                      std::string_view explanation = "");
+  OpSchema &Deprecate(std::string in_favor_of = "",
+                      std::string explanation = "");
 
   /** Notes that this operator cannot be serialized */
   OpSchema &Unserializable();
@@ -352,7 +346,7 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Adds an optional non-vector argument without default to op
    *        The type can be specified as enum, nullptr_t is used for overload resolution
-   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        If the arg name starts with an underscore, it will be marked hidden, which
    *        makes it not listed in the docs.
    */
   OpSchema &AddOptionalArg(std::string_view s, std::string doc,
@@ -362,7 +356,7 @@ class DLL_PUBLIC OpSchema {
 
   /**
    * @brief Adds an optional non-vector argument without default to op.
-   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        If the arg name starts with an underscore, it will be marked hidden, which
    *        makes it not listed in the docs.
    */
   template <typename T>
@@ -377,7 +371,7 @@ class DLL_PUBLIC OpSchema {
 
   /**  Adds an optional non-vector argument to op
    *
-   * If the arg name starts is with an underscore, it will be marked hidden, which
+   * If the arg name starts with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
   template <typename T>
@@ -398,14 +392,14 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /** Adds an optional argument of type DALIDataType with a default value
    *
-   * If the arg name starts is with an underscore, it will be marked hidden, which
+   * If the arg name starts with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
   OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc, DALIDataType default_value);
 
   /**  Adds an optional argument of type DALIDataType without a default value
    *
-   * If the arg name starts is with an underscore, it will be marked hidden, which
+   * If the arg name starts with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
   OpSchema &AddOptionalTypeArg(std::string_view name, std::string doc);
@@ -422,7 +416,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /**  Adds an optional vector argument to op
    *
-   * If the arg name starts is with an underscore, it will be marked hidden, which
+   * If the arg name starts with an underscore, it will be marked hidden, which
    * makes it not listed in the docs.
    */
   template <typename T>
@@ -556,8 +550,6 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /** Get the number of static outputs, see also CalculateOutputs and CalculateAdditionalOutputs */
   int NumOutput() const;
-
-  bool AllowsInstanceGrouping() const;
 
   /** Whether this operator accepts ONLY sequences as inputs */
   bool IsSequenceOperator() const;
@@ -799,7 +791,6 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   ////////////////////////////////////////////////////////////////////////////
   // Internal flags
-  bool allow_instance_grouping_ = true;
   bool no_prune_ = false;
   bool serializable_ = true;
   const bool default_ = false;
