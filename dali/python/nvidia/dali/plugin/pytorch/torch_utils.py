@@ -74,3 +74,29 @@ def feed_ndarray(
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return arr
+
+
+def to_torch_tensor(dali_tensor, copy):
+    """
+    Converts to torch.Tensor, either copying the data or using dlpack
+    """
+    if copy:
+        torch_dtype = to_torch_type[dali_tensor.dtype]
+        if isinstance(dali_tensor, TensorGPU):
+            torch_device = torch.device("cuda", dali_tensor.device_id)
+        else:
+            torch_device = torch.device("cpu")
+        torch_output = torch.empty(
+            dali_tensor.shape(),
+            dtype=torch_dtype,
+            device=torch_device,
+        )
+        cuda_stream = (
+            torch.cuda.current_stream(device=torch_device)
+            if isinstance(dali_tensor, TensorGPU)
+            else None
+        )
+        feed_ndarray(dali_tensor, torch_output, cuda_stream=cuda_stream)
+        return torch_output
+    else:
+        return torch.from_dlpack(dali_tensor)
