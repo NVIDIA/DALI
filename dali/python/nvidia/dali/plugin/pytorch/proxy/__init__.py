@@ -16,13 +16,12 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils import data as torchdata
 from torch.utils.data._utils.collate import default_collate_fn_map
-from nvidia.dali.backend import TensorGPU
 from nvidia.dali import Pipeline
 from nvidia.dali.external_source import ExternalSource
 import threading
 import queue
 from queue import Empty
-from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type, feed_ndarray
+from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 import tree
 import warnings
 
@@ -35,77 +34,83 @@ import warnings
 # consisting of a batch identifier (n, k) and a set of inputs. data_n_k represents the
 # outputs of a DALI pipeline corresponding to the same batch identifier, consisting of the
 # batch identifier and a set of outputs.
-# 
-# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
-# | main  |   | dali_output_q |     | data_thread | | dali_input_q  |     | worker_0  | | worker_1  |
-# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
-#     |               |                    |                |                   |             |
-#     |~~~get()~~~~~~>|                    |                |                   |             |
-#     |               |                    |~~~get()~~~~~~~>|                   |             |
-#     |               |                    |                |                   |             |
-#     |               |                    |                |             -------------       |
-#     |               |                    |                |             | collate   |       |
-#     |               |                    |                |             -------------       |
-#     |               |                    |                |                   |             |
-#     |               |                    |                |<~~put(req_0_0)~~~~|             |
-#     |               |                    |                |                   |             |
-#     |               |                    |                |------------------>|             |
-#     |               |                    |                |                   |             |
-#     |               |                    |<--req_0_0------|                   |             |
-#     |               |                    |                |                   |             |
-#     |               |             ---------------         |                   |             |
-#     |               |             | run         |         |                   |             |
-#     |               |             ---------------         |                   |             |
-#     |               |                    |                |                   |       -------------
-#     |               |                    |                |                   |       | collate   |
-#     |               |                    |                |                   |       -------------
-#     |               |                    |                |                   |             |
-#     |               |                    |                |<~~put(req_1_0)~~~~~~~~~~~~~~~~~~|
-#     |               |                    |                |                   |             |
-#     |               |                    |                |-------------------------------->|
-#     |               |                    |                |                   |             |
-#     |               |<~~put(data_0_0)~~~~|                |                   |             |
-#     |               |                    |                |                   |             |
-#     |               |------------------->|                |                   |             |
-#     |               |                    |                |                   |             |
-#     |               |                    |                |                   |       -------------
-#     |               |                    |                |                   |       | collate   |
-#     |               |                    |                |                   |       -------------
-#     |               |                    |                |                   |             |
-#     |               |                    |                |<~~put(req_1_1)~~~~~~~~~~~~~~~~~~|
-#     |               |                    |                |                   |             |
-#     |               |                    |                |-------------------------------->|
-#     |               |                    |                |                   |             |
-#     |<--data_0_0----|                    |                |                   |             |
-#     |               |                    |                |                   |             |
-#     |~~~get()~~~~~~>|                    |                |                   |             |
-#     |               |                    |~~~get()~~~~~~~>|                   |             |
-#     |               |                    |                |                   |             |
-#     |               |                    |<--req_1_0------|                   |             |
-#     |               |                    |                |                   |             |
-#     |               |             ---------------         |                   |             |
-#     |               |             | run         |         |                   |             |
-#     |               |             ---------------         |                   |             |
-#     |               |                    |                |                   |             |
-#     |               |                    |                |<~~put(req_0_1)~~~~|             |
-#     |               |                    |                |                   |             |
-#     |               |                    |                |------------------>|             |
-#     |               |                    |                |                   |             |
-#     |               |<~~put(data_1_0)~~~~|                |                   |             |
-#     |               |                    |                |                   |             |
-#     |               |------------------->|                |                   |             |
-#     |               |                    |                |                   |             |
-#     |<--data_1_0----|                    |                |                   |             |
-#     |               |                    |                |                   |             |
-# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
-# | main  |   | dali_output_q |     | data_thread | | dali_input_q  |     | worker_0  | | worker_1  |
-# +-------+   +---------------+     +-------------+ +---------------+     +-----------+ +-----------+
+#
+# +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
+# | main  |   | dali_output_q |   | data_thread | | dali_input_q  |   | worker_0  | | worker_1  |
+# +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
+#     |~~~get()~~~~~~>|                  |                |                 |             |
+#     |               |                  |~~~get()~~~~~~~>|                 |             |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |           -------------       |
+#     |               |                  |                |           | collate   |       |
+#     |               |                  |                |           -------------       |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |<~~put(req_0_0)~~|             |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |---------------->|             |
+#     |               |                  |                |                 |             |
+#     |               |                  |<--req_0_0------|                 |             |
+#     |               |                  |                |                 |             |
+#     |               |           ---------------         |                 |             |
+#     |               |           | run         |         |                 |             |
+#     |               |           ---------------         |                 |             |
+#     |               |                  |                |                 |       -------------
+#     |               |                  |                |                 |       | collate   |
+#     |               |                  |                |                 |       -------------
+#     |               |                  |                |                 |             |
+#     |               |                  |                |<~~put(req_1_0)~~~~~~~~~~~~~~~~|
+#     |               |                  |                |                 |             |
+#     |               |                  |                |------------------------------>|
+#     |               |                  |                |                 |             |
+#     |               |<~~put(data_0_0)~~|                |                 |             |
+#     |               |                  |                |                 |             |
+#     |               |----------------->|                |                 |             |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |                 |       -------------
+#     |               |                  |                |                 |       | collate   |
+#     |               |                  |                |                 |       -------------
+#     |               |                  |                |                 |             |
+#     |               |                  |                |<~~put(req_1_1)~~~~~~~~~~~~~~~~|
+#     |               |                  |                |                 |             |
+#     |               |                  |                |------------------------------>|
+#     |               |                  |                |                 |             |
+#     |<--data_0_0----|                  |                |                 |             |
+#     |               |                  |                |                 |             |
+#     |~~~get()~~~~~~>|                  |                |                 |             |
+#     |               |                  |~~~get()~~~~~~~>|                 |             |
+#     |               |                  |                |                 |             |
+#     |               |                  |<--req_1_0------|                 |             |
+#     |               |                  |                |                 |             |
+#     |               |           ---------------         |                 |             |
+#     |               |           | run         |         |                 |             |
+#     |               |           ---------------         |                 |             |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |<~~put(req_0_1)~~|             |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |-----------------|             |
+#     |               |                  |                |                 |             |
+#     |               |<~~put(data_1_0)~~|                |                 |             |
+#     |               |                  |                |                 |             |
+#     |               |----------------->|                |                 |             |
+#     |               |                  |                |                 |             |
+#     |<--data_1_0----|                  |                |                 |             |
+#     |               |                  |                |                 |             |
+# +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
+# | main  |   | dali_output_q |   | data_thread | | dali_input_q  |   | worker_0  | | worker_1  |
+# +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
 
 
 def _external_source_node_names(pipeline):
     """
     extract the names of all the ExternalSource nodes in the pipeline
     """
+    # TODO(janton): Add a native function to query those names, so that we can do it
+    # also on deserialized pipelines
+    if pipeline._deserialized:
+        raise RuntimeError(
+            "Not able to find the external source "
+            "operator names, since the pipeline was deserialized"
+        )
     if not pipeline._py_graph_built:
         pipeline._build_graph()
     input_node_names = []
@@ -251,12 +256,15 @@ class DALIServer:
                     return np.frombuffer(path.encode(), dtype=np.int8)
 
                 nworkers = 8
-                pipe = rn50_train_pipe(batch_size=16, num_threads=3, device_id=0, prefetch_queue_depth=2*nworkers)
-                
+                pipe = rn50_train_pipe(
+                    batch_size=16, num_threads=3, device_id=0,
+                    prefetch_queue_depth=2*nworkers)
+
                 # The scope makes sure the server starts and stops at enter/exit
                 with dali_proxy.DALIServer(pipe) as dali_server:
                     # DALI proxy instance can be used as a transform callable
-                    dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
+                    dataset = datasets.ImageFolder(
+                        jpeg, transform=dali_server.proxy, loader=read_filepath)
 
                     # Same interface as torch DataLoader, but takes a dali_server as first argument
                     loader = nvidia.dali.plugin.pytorch.proxy.DataLoader(
@@ -359,35 +367,12 @@ class DALIServer:
                 self.pipe.feed_input(input_name, inputs[idx])
             self.pipe._run_once()
             pipe_outputs = self.pipe.outputs()
-
-            # If exec_dynamic, we can avoid copying the data
-            if not self.pipe.exec_dynamic:
-                torch_outputs = []
-                for pipe_output in pipe_outputs:
-                    tensor = pipe_output.as_tensor()
-                    torch_dtype = to_torch_type[tensor.dtype]
-                    if isinstance(tensor, TensorGPU):
-                        torch_device = torch.device("cuda", self.pipe.device_id)
-                    else:
-                        torch_device = torch.device("cpu")
-                    torch_output = torch.empty(
-                        tensor.shape(),
-                        dtype=torch_dtype,
-                        device=torch_device,
-                    )
-                    cuda_stream = (
-                        torch.cuda.current_stream(device=torch_device)
-                        if isinstance(tensor, TensorGPU)
-                        else None
-                    )
-                    feed_ndarray(tensor, torch_output, cuda_stream=cuda_stream)
-                    torch_outputs.append(torch_output)
-                torch_outputs = tuple(torch_outputs)
-            else:
-                torch_outputs = tuple(
-                    [torch.from_dlpack(pipe_output.as_tensor()) for pipe_output in pipe_outputs]
-                )
-
+            torch_outputs = tuple(
+                [
+                    to_torch_tensor(out.as_tensor(), not self.pipe.exec_dynamic)
+                    for out in pipe_outputs
+                ]
+            )
             self.dali_output_q.put((batch_id, torch_outputs))
             torch.cuda.nvtx.range_pop()
 
