@@ -30,7 +30,7 @@ import torch.utils.dlpack as torch_dlpack  # noqa: F401
 import numpy as np
 
 from . import fn  # noqa: F401
-from . import proxy  # noqa: F401
+from . import experimental  # noqa: F401
 
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_type, feed_ndarray
 from nvidia.dali.plugin.pytorch._torch_function import TorchPythonFunction as TorchPythonFunction

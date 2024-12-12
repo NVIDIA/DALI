@@ -37,7 +37,7 @@ from image_classification.autoaugment import AutoaugmentImageNetPolicy
 DATA_BACKEND_CHOICES = ["pytorch", "synthetic"]
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import nvidia.dali.types as types
 
     from image_classification.dali import training_pipe, validation_pipe
