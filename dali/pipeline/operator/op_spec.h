@@ -22,6 +22,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <type_traits>
 
@@ -286,6 +287,14 @@ class DLL_PUBLIC OpSpec {
 
   DLL_PUBLIC inline const auto &Arguments() const {
     return arguments_;
+  }
+
+  inline std::optional<int> GetArgumentIdx(const string &name) const {
+    auto it = argument_idxs_.find(name);
+    if (it != argument_idxs_.end())
+      return it->second;
+    else
+      return std::nullopt;
   }
 
   DLL_PUBLIC inline int OutputIdxForName(const string &name, const string &device) {

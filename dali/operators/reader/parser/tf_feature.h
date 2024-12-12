@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/compare.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
 
 namespace dali {
@@ -205,6 +206,40 @@ class Feature {
     }
   }
 
+  bool operator<(const Feature &rhs) const {
+    return Compare(rhs) < 0;
+  }
+
+  int Compare(const Feature &rhs) const {
+    if (int cmp = has_shape_ - rhs.has_shape_)
+      return cmp;
+    if (int cmp = has_partial_shape_ - rhs.has_partial_shape_)
+      return cmp;
+    if (int cmp = type_ - rhs.type_)
+      return cmp;
+    switch (type_) {
+      case int64:
+        if (int64_t cmp = val_.int64 - rhs.val_.int64)
+          return cmp >> 32;
+        break;
+      case float32:
+        if (float cmp = val_.float32 - rhs.val_.float32)
+          return 1 - 2 * std::signbit(cmp);
+        break;
+      case string:
+        if (int cmp = val_.str.compare(rhs.val_.str))
+          return cmp;
+        break;
+    }
+    if (has_shape_)
+      if (int cmp = compare(shape_, rhs.shape_))
+        return cmp;
+    if (has_partial_shape_)
+      if (int cmp = compare(partial_shape_, rhs.partial_shape_))
+        return cmp;
+    return 0;
+  }
+
  private:
   bool has_shape_;
   std::vector<Index> shape_;
@@ -213,6 +248,10 @@ class Feature {
   bool has_partial_shape_ = false;
   std::vector<Index> partial_shape_;
 };
+
+inline int compare(const TFUtil::Feature &a, const TFUtil::Feature &b) {
+  return a.Compare(b);
+}
 
 }  // namespace TFUtil
 

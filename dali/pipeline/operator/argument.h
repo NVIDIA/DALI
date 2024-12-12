@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/compare.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
@@ -81,7 +82,7 @@ class ValueInst : public Value {
     return to_string(val_);
   }
 
-  const T &Get() const {
+  const T &Get() const & {
     return val_;
   }
 
@@ -134,15 +135,17 @@ class Argument {
   virtual void SerializeToProtobuf(DaliProtoPriv* arg) = 0;
 
   template <typename T>
-  T Get();
+  const T &Get() const &;
 
   template <typename T>
-  bool IsType();
+  bool IsType() const;
 
   template <typename T>
   static std::shared_ptr<Argument> Store(const std::string& s, const T& val);
 
   virtual ~Argument() = default;
+
+  virtual int Compare(const Argument &other) const = 0;
 
  protected:
   Argument() : has_name_(false) {}
@@ -154,12 +157,16 @@ class Argument {
   bool has_name_;
 };
 
+inline int compare(Argument &a, Argument &b) {
+  return a.Compare(b);
+}
+
 template <typename T>
 class ArgumentInst : public Argument {
  public:
   explicit ArgumentInst(const std::string& s, const T& v) : Argument(s), val(v) {}
 
-  T Get() {
+  const T &Get() const & {
     return val.Get();
   }
 
@@ -179,6 +186,13 @@ class ArgumentInst : public Argument {
     dali::SerializeToProtobuf(val.Get(), arg);
   }
 
+  int Compare(const Argument &other) const override {
+    if (auto *pother  = dynamic_cast<const ArgumentInst<T> *>(&other))
+      return compare(Get(), pother->Get());
+    else
+      return GetTypeId() - other.GetTypeId();
+  }
+
  private:
   ValueInst<T> val;
 };
@@ -188,7 +202,7 @@ class ArgumentInst<std::vector<T>> : public Argument {
  public:
   explicit ArgumentInst(const std::string& s, const std::vector<T>& v) : Argument(s), val(v) {}
 
-  std::vector<T> Get() {
+  const std::vector<T> &Get() const & {
     return val.Get();
   }
 
@@ -215,6 +229,14 @@ class ArgumentInst<std::vector<T>> : public Argument {
     }
   }
 
+  int Compare(const Argument &other) const override {
+    if (auto *pother  = dynamic_cast<const ArgumentInst<std::vector<T>> *>(&other)) {
+      return compare(Get(), pother->Get());
+    } else {
+      return GetTypeId() - other.GetTypeId();
+    }
+  }
+
  private:
   ValueInst<std::vector<T>> val;
 };
@@ -222,13 +244,13 @@ class ArgumentInst<std::vector<T>> : public Argument {
 DLL_PUBLIC std::shared_ptr<Argument> DeserializeProtobuf(const DaliProtoPriv &arg);
 
 template <typename T>
-bool Argument::IsType() {
-  return dynamic_cast<ArgumentInst<T>*>(this) != nullptr;
+bool Argument::IsType() const {
+  return dynamic_cast<const ArgumentInst<T>*>(this) != nullptr;
 }
 
 template <typename T>
-T Argument::Get() {
-  ArgumentInst<T>* self = dynamic_cast<ArgumentInst<T>*>(this);
+const T &Argument::Get() const & {
+  auto *self = dynamic_cast<const ArgumentInst<T>*>(this);
   if (self == nullptr) {
     DALI_FAIL(make_string("Invalid type of argument \"", get_name(), "\". Expected ",
               typeid(T).name()));
