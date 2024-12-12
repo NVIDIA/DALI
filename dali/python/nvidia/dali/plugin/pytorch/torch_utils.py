@@ -83,7 +83,7 @@ def to_torch_tensor(dali_tensor, copy):
     if copy:
         torch_dtype = to_torch_type[dali_tensor.dtype]
         if isinstance(dali_tensor, TensorGPU):
-            torch_device = torch.device("cuda", dali_tensor.device_id)
+            torch_device = torch.device("cuda", dali_tensor.device_id())
         else:
             torch_device = torch.device("cpu")
         torch_output = torch.empty(
