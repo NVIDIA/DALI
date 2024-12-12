@@ -79,6 +79,12 @@ parser.add_argument(
     type=int,
 )
 
+parser.add_argument(
+    "--experimental_decoder",
+    action="store_true",
+    help="If True, uses the experimental decoder instead of the default",
+)
+
 args = parser.parse_args()
 
 DALI_INPUT_NAME = "DALI_INPUT_0"
@@ -86,12 +92,15 @@ needs_feed_input = args.pipeline == "efficientnet_inference"
 
 
 @pipeline_def(
-    batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
+    batch_size=args.batch_size,
+    num_threads=args.num_threads,
+    device_id=args.device_id,
+    seed=0,
 )
-def DecoderPipeline():
+def DecoderPipeline(decoders_module=fn.decoders):
     device = "mixed" if args.device == "gpu" else "cpu"
     jpegs, _ = fn.readers.file(file_root=args.images_dir)
-    images = fn.decoders.image(
+    images = decoders_module.image(
         jpegs,
         device=device,
         output_type=types.RGB,
@@ -103,12 +112,15 @@ def DecoderPipeline():
 
 
 @pipeline_def(
-    batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
+    batch_size=args.batch_size,
+    num_threads=args.num_threads,
+    device_id=args.device_id,
+    seed=0,
 )
-def RN50Pipeline(minibatch_size):
+def RN50Pipeline(minibatch_size, decoders_module=fn.decoders):
     device = "mixed" if args.device == "gpu" else "cpu"
     jpegs, _ = fn.readers.file(file_root=args.images_dir)
-    images = fn.decoders.image_random_crop(
+    images = decoders_module.image_random_crop(
         jpegs,
         device=device,
         output_type=types.RGB,
@@ -138,10 +150,10 @@ def RN50Pipeline(minibatch_size):
     device_id=args.device_id,
     seed=0,
     enable_conditionals=True,
+    decoders_module=fn.decoders,
 )
 def EfficientnetTrainingPipeline(
-    minibatch_size,
-    automatic_augmentation="autoaugment",
+    minibatch_size, automatic_augmentation="autoaugment", decoders_module=fn.decoders
 ):
     dali_device = args.device
     output_layout = types.NCHW
@@ -159,7 +171,7 @@ def EfficientnetTrainingPipeline(
         decoder_device = "cpu"
         resize_device = "cpu"
 
-    images = fn.decoders.image_random_crop(
+    images = decoders_module.image_random_crop(
         jpegs,
         device=decoder_device,
         output_type=types.RGB,
@@ -213,9 +225,9 @@ def EfficientnetTrainingPipeline(
     device_id=args.device_id,
     prefetch_queue_depth=1,
 )
-def EfficientnetInferencePipeline():
+def EfficientnetInferencePipeline(decoders_module=fn.decoders):
     images = fn.external_source(device="cpu", name=DALI_INPUT_NAME)
-    images = fn.decoders.image(
+    images = decoders_module.image(
         images,
         device="mixed" if args.device == "gpu" else "cpu",
         output_type=types.RGB,
@@ -276,7 +288,9 @@ def non_image_preprocessing(raw_text):
 @pipeline_def(
     batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
 )
-def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000):
+def vit_pipeline(
+    is_training=False, image_shape=(384, 384, 3), num_classes=1000, decoders_module=fn.decoders
+):
     files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)]
 
     img, clss = fn.readers.webdataset(
@@ -298,7 +312,7 @@ def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000)
     labels = fn.one_hot(labels, num_classes=num_classes)
 
     device = "mixed" if use_gpu else "cpu"
-    img = fn.decoders.image(
+    img = decoders_module.image(
         img,
         device=device,
         output_type=types.RGB,
@@ -336,19 +350,32 @@ def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000)
     return img, labels
 
 
+decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
+print(f"Using decoders_module={decoders_module}")
+
 pipes = []
 if args.pipeline == "decoder":
     for i in range(args.gpu_num):
-        pipes.append(DecoderPipeline(device_id=i + args.device_id))
+        pipes.append(DecoderPipeline(device_id=i + args.device_id, decoders_module=decoders_module))
 elif args.pipeline == "rn50":
     for i in range(args.gpu_num):
-        pipes.append(RN50Pipeline(device_id=i + args.device_id, minibatch_size=args.minibatch_size))
+        pipes.append(
+            RN50Pipeline(
+                device_id=i + args.device_id,
+                minibatch_size=args.minibatch_size,
+                decoders_module=decoders_module,
+            )
+        )
 elif args.pipeline == "efficientnet_inference":
     for i in range(args.gpu_num):
-        pipes.append(EfficientnetInferencePipeline(device_id=i + args.device_id))
+        pipes.append(
+            EfficientnetInferencePipeline(
+                device_id=i + args.device_id, decoders_module=decoders_module
+            )
+        )
 elif args.pipeline == "vit":
     for i in range(args.gpu_num):
-        pipes.append(vit_pipeline(device_id=i + args.device_id))
+        pipes.append(vit_pipeline(device_id=i + args.device_id, decoders_module=decoders_module))
 elif args.pipeline == "efficientnet_training":
     for i in range(args.gpu_num):
         pipes.append(
@@ -356,6 +383,7 @@ elif args.pipeline == "efficientnet_training":
                 device_id=i + args.device_id,
                 minibatch_size=args.minibatch_size,
                 automatic_augmentation=args.aug_strategy,
+                decoders_module=decoders_module,
             )
         )
 else:
