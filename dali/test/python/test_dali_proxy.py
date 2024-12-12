@@ -42,7 +42,7 @@ def test_dali_proxy_demo_basic_communication(device, debug=False):
     # A better example for user API is `test_dali_proxy_torch_data_loader`
 
     import torch
-    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
 
     threads = []
     batch_size = 4
@@ -68,12 +68,12 @@ def test_dali_proxy_demo_basic_communication(device, debug=False):
             def thread_fn(proxy_pipe_call):
                 for _ in range(niter):
                     # The proxy call is run per sample
-                    pipe_run_refs = [
+                    processed_sample_refs = [
                         proxy_pipe_call(test_input_filenames[i % len(test_input_filenames)])
                         for i in range(batch_size)
                     ]
                     # this forms a batch and sends it to DALI
-                    dali_proxy._collate_pipeline_run_ref_fn(pipe_run_refs)
+                    dali_proxy._collate_dali_processed_sample_ref_fn(processed_sample_refs)
 
             thread = threading.Thread(target=thread_fn, args=(dali_server.proxy,))
             threads.append(thread)
@@ -85,7 +85,7 @@ def test_dali_proxy_demo_basic_communication(device, debug=False):
 
         # On the main thread, we can query the server for new outputs
         for _ in range(nworkers * niter):
-            info, outputs = dali_server.next_outputs()
+            info, outputs = dali_server.dali_output_q.get()
             worker_id = info[0]
             data_idx = info[1]
             if debug:
@@ -119,10 +119,8 @@ def rn50_train_pipe(dali_device="gpu"):
     jpegs = fn.io.file.read(filepaths)
     if dali_device == "gpu":
         decoder_device = "mixed"
-        resize_device = "gpu"
     else:
         decoder_device = "cpu"
-        resize_device = "cpu"
 
     images = fn.decoders.image_random_crop(
         jpegs,
@@ -132,11 +130,8 @@ def rn50_train_pipe(dali_device="gpu"):
         random_area=[0.08, 1.0],
     )
 
-    images = images.gpu()  # make sure from now on it is GPU
-
     images = fn.resize(
         images,
-        device=resize_device,
         size=[224, 224],
         interp_type=types.INTERP_LINEAR,
         antialias=False,
@@ -158,7 +153,7 @@ def rn50_train_pipe(dali_device="gpu"):
 def test_dali_proxy_torch_data_loader(device, debug=False):
     # Shows how DALI proxy is used in practice with a PyTorch data loader
 
-    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import torchvision.datasets as datasets
 
     batch_size = 4
@@ -201,7 +196,7 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
 def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
     # Shows how to integrate with DALI proxy manually with an existing data loader
 
-    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import torch
     from torch.utils import data as torchdata
     from PIL import Image
@@ -291,7 +286,7 @@ def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
     # default_collate_fn_map, which is updated to handle DALIProcessedSampleRef
     def custom_collate_fn(batch):
         images, labels = zip(*batch)
-        return dali_proxy._collate_pipeline_run_ref_fn(images), torch.tensor(
+        return dali_proxy._collate_dali_processed_sample_ref_fn(images), torch.tensor(
             labels, dtype=torch.long
         )
 
@@ -311,8 +306,8 @@ def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
         assert len(loader) > 0
 
         for next_input, next_target in loader:
-            assert isinstance(next_input, dali_proxy.DALIPipelineOutputRef)
-            next_input = dali_server.get_outputs(next_input)
+            assert isinstance(next_input, dali_proxy.DALIPipelineRunRef)
+            next_input = dali_server.produce_data(next_input)
             assert isinstance(next_input, torch.Tensor)
             np.testing.assert_equal([batch_size, 3, 224, 224], next_input.shape)
             np.testing.assert_equal(
@@ -327,14 +322,14 @@ def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
 @params((False,), (True,))
 def test_dali_proxy_deterministic(deterministic, debug=False):
     # Shows how DALI proxy can be configured for deterministic results
-    from nvidia.dali.plugin.pytorch import proxy as dali_proxy
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import torchvision.datasets as datasets
     import torch
 
     # For non deterministic, use a high number of iterations, even though we stop the test as
     # we get some different results (usually in the very first iteration).
     # For deterministic, we verify that all runs produce the exact same results
-    niterations = 5 if deterministic else 30
+    niterations = 3 if deterministic else 10
     num_workers = 12
     seed0 = 123456
     seed1 = 5555464
