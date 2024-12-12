@@ -302,7 +302,7 @@ def test_too_many_channels():
 
 def test_wrong_sample_dim():
     with assert_raises(
-        RuntimeError, glob="The number of dimensions 5 does not match any of the allowed"
+        ValueError, glob="The number of dimensions 5 does not match any of the allowed"
     ):
         _test_shape_pipeline((1, 1, 1, 1, 1), np.uint8)
 

@@ -387,10 +387,6 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
             GetOpDisplayName(spec, true) + "` using logical_id=" + std::to_string(logical_id) +
             " which is already assigned to " + group_name + ".");
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
-    DALI_ENFORCE(schema.AllowsInstanceGrouping(),
-                 "Operator `" + GetOpDisplayName(spec, true) +
-                     "` does not support synced random execution required "
-                     "for multiple input sets processing.");
   }
   op_specs_.push_back({inst_name, spec, logical_id});
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);
@@ -649,20 +645,26 @@ void Pipeline::ToGPU(std::map<string, EdgeMeta>::iterator it) {
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
-  if (logical_id_to_seed_.find(logical_id) == logical_id_to_seed_.end()) {
-    logical_id_to_seed_[logical_id] = seed_[current_seed_];
-  }
   spec->AddArg("max_batch_size", max_batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
-    .AddArg("checkpointing", checkpointing_)
-    .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
+    .AddArg("checkpointing", checkpointing_);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
     spec->AddArg("cpu_prefetch_queue_depth", prefetch_queue_depth_.cpu_size);
   if (dev == "gpu" || dev == "mixed")
     spec->AddArg("gpu_prefetch_queue_depth", prefetch_queue_depth_.gpu_size);
-  current_seed_ = (current_seed_+1) % MAX_SEEDS;
+
+  if (spec->GetSchemaOrDefault().HasRandomSeedArg()) {
+    if (spec->ArgumentDefined("seed")) {
+      logical_id_to_seed_[logical_id] = spec->GetArgument<int64_t>("seed");
+    } else {
+      if (logical_id_to_seed_.find(logical_id) == logical_id_to_seed_.end())
+        logical_id_to_seed_[logical_id] = seed_[current_seed_];
+      spec->AddArg("seed", logical_id_to_seed_[logical_id]);
+      current_seed_ = (current_seed_+1) % MAX_SEEDS;
+    }
+  }
 }
 
 /**
@@ -695,7 +697,7 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
   for (auto& a : spec.Arguments()) {
     // filter out args that need to be dealt with on
     // loading a serialized pipeline
-    auto &name = a->get_name();
+    auto name = a->get_name();
     if (name == "max_batch_size" ||
         name == "num_threads" ||
         name == "bytes_per_sample_hint") {

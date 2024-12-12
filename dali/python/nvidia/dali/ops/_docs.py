@@ -107,7 +107,7 @@ def _get_kwargs(schema):
         doc = ""
         deprecation_warning = None
         if schema.IsDeprecatedArg(arg):
-            meta = schema.DeprecatedArgMeta(arg)
+            meta = schema.DeprecatedArgInfo(arg)
             msg = meta["msg"]
             assert msg is not None
             deprecation_warning = ".. warning::\n\n    " + msg.replace("\n", "\n    ")

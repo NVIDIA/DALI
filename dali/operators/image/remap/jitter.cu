@@ -29,6 +29,7 @@ and bounded by half of the `nDegree` parameter.)code")
       R"code(Each pixel is moved by a random amount in the ``[-nDegree/2, nDegree/2]`` range)code",
       2)
   .InputLayout(0, "HWC")
+  .AddRandomSeedArg()
   .AddParent("DisplacementFilter");
 
 DALI_REGISTER_OPERATOR(Jitter, Jitter<GPUBackend>, GPU);

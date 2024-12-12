@@ -338,7 +338,7 @@ def build_pipes(
         batch_size=batch_size,
         num_threads=8,
         device_id=0,
-        seed=1234,
+        seed=12345,
         exec_async=False,
         exec_pipelined=False,
     )

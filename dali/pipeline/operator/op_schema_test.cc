@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,9 +80,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
 
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
 
-  ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), std::runtime_error);
+  ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), invalid_key);
 }
 
 DALI_SCHEMA(Dummy4)
@@ -109,8 +109,19 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
 
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
+}
+
+DALI_SCHEMA(Circular1)
+  .AddParent("Circular2");
+
+DALI_SCHEMA(Circular2)
+  .AddParent("Circular1");
+
+TEST(OpSchemaTest, CircularInheritance) {
+  EXPECT_THROW(SchemaRegistry::GetSchema("Circular1").HasArgument("foo"), std::logic_error);
+  EXPECT_THROW(SchemaRegistry::GetSchema("Circular2").HasArgument("foo"), std::logic_error);
 }
 
 DALI_SCHEMA(Dummy5)
@@ -143,8 +154,8 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
 
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
 }
 
 DALI_SCHEMA(Dummy6)
@@ -183,9 +194,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default3"));
 
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<float>("no_default3"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<float>("no_default3"), std::invalid_argument);
 }
 
 DALI_SCHEMA(Dummy8)

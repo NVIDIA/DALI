@@ -953,7 +953,7 @@ def check_crop_mirror_normalize_wrong_layout(
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
     pipe.build()
     with assert_raises(
-        RuntimeError, glob=f'The layout "{layout}" does not match any of the allowed layouts'
+        ValueError, glob=f'The layout "{layout}" does not match any of the allowed layouts'
     ):
         pipe.run()
 

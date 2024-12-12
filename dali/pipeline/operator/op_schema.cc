@@ -14,6 +14,8 @@
 
 
 #include <string>
+#include <string_view>
+#include <sstream>
 
 #include "dali/core/error_handling.h"
 #include "dali/core/python_util.h"
@@ -22,46 +24,50 @@
 
 namespace dali {
 
-std::map<string, OpSchema> &SchemaRegistry::registry() {
-  static std::map<string, OpSchema> schema_map;
+std::map<string, OpSchema, std::less<>> &SchemaRegistry::registry() {
+  static std::map<string, OpSchema, std::less<>> schema_map;
   return schema_map;
 }
 
-OpSchema &SchemaRegistry::RegisterSchema(const std::string &name) {
+OpSchema &SchemaRegistry::RegisterSchema(std::string_view name) {
   auto &schema_map = registry();
-  DALI_ENFORCE(schema_map.count(name) == 0,
-               "OpSchema already "
-               "registered for operator '" +
-                   name +
-                   "'. DALI_SCHEMA(op) "
-                   "should only be called once per op.");
+
+  if (schema_map.count(name))
+    throw std::logic_error(make_string(
+      "OpSchema already registered for operator '", name, "'.\n"
+      "DALI_SCHEMA(op) should only be called once per op."));
 
   // Insert the op schema and return a reference to it
-  schema_map.emplace(std::make_pair(name, OpSchema(name)));
-  return schema_map.at(name);
-}
-
-const OpSchema &SchemaRegistry::GetSchema(const std::string &name) {
-  auto &schema_map = registry();
-  auto it = schema_map.find(name);
-  DALI_ENFORCE(it != schema_map.end(), "Schema for operator '" + name + "' not registered");
+  auto [it, inserted] = schema_map.emplace(name, name);
   return it->second;
 }
 
-const OpSchema *SchemaRegistry::TryGetSchema(const std::string &name) {
+const OpSchema &SchemaRegistry::GetSchema(std::string_view name) {
+  auto &schema_map = registry();
+  auto it = schema_map.find(name);
+  if (it == schema_map.end())
+    throw invalid_key("Schema for operator '" + std::string(name) + "' not registered");
+
+  return it->second;
+}
+
+const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name) {
   auto &schema_map = registry();
   auto it = schema_map.find(name);
   return it != schema_map.end() ? &it->second : nullptr;
 }
 
 const OpSchema &OpSchema::Default() {
-  static OpSchema default_schema("");
+  static OpSchema default_schema(DefaultSchemaTag{});
   return default_schema;
 }
 
-OpSchema::OpSchema(const std::string &name) : name_(name) {
+OpSchema::OpSchema(std::string_view name) : name_(name) {
   // Process the module path and operator name
   InitNames();
+}
+
+OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
   // Fill internal arguments
   AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1);
   AddInternalArg("max_batch_size", "Max batch size", -1);
@@ -70,10 +76,9 @@ OpSchema::OpSchema(const std::string &name) : name_(name) {
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
 
-  AddOptionalArg("seed", R"code(Random seed.
-
+  AddOptionalArg<int>("seed", R"code(Random seed.
 If not provided, it will be populated based on the global seed of the pipeline.)code",
-                 -1);
+                 nullptr);
 
   AddOptionalArg("bytes_per_sample_hint", R"code(Output size hint, in bytes per sample.
 
@@ -129,6 +134,11 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                  "Operator name as presented in the API it was instantiated in (without the module "
                  "path), for example: cast_like or CastLike.",
                  OperatorName());
+
+  DeprecateArg("seed", true,
+               "The argument \"seed\" should not be used with operators that don't use "
+               "random numbers.");
+  arguments_["seed"].hidden = true;
 }
 
 
@@ -156,31 +166,38 @@ void OpSchema::InitNames() {
   operator_name_ = name_.substr(start_pos);
 }
 
-OpSchema &OpSchema::DocStr(const string &dox) {
-  dox_ = dox;
+OpSchema &OpSchema::DocStr(std::string dox) {
+  dox_ = std::move(dox);
   return *this;
 }
 
 
-OpSchema &OpSchema::InputDox(int index, const string &name, const string &type_doc,
-                             const string &doc) {
+OpSchema &OpSchema::InputDox(int index, std::string_view name, std::string type_doc,
+                             std::string doc) {
   CheckInputIndex(index);
-  DALI_ENFORCE(!name.empty(), "Name of the argument should not be empty");
-  DALI_ENFORCE(call_dox_.empty(),
+  if (name.empty())
+    throw std::invalid_argument("Name of the argument should not be empty");
+  if (!call_dox_.empty())
+    throw std::logic_error(
                "Providing docstrings for inputs is not supported when the CallDocStr was used.");
   input_dox_set_ = true;
-  input_dox_[index] = {name, type_doc, doc};
+  input_info_[index].name = name;
+  input_info_[index].doc = {std::move(type_doc), std::move(doc)};
   return *this;
 }
 
 
-OpSchema &OpSchema::CallDocStr(const string &doc, bool append_kwargs_section) {
-  DALI_ENFORCE(!doc.empty(), "The custom docstring for __call__ should not be empty.");
+OpSchema &OpSchema::CallDocStr(std::string doc, bool append_kwargs_section) {
+  if (doc.empty())
+    throw std::logic_error("The custom docstring for __call__ should not be empty.");
 
-  DALI_ENFORCE(!input_dox_set_,
+  if (input_dox_set_) {
+    throw std::logic_error(
                "Providing docstring for `__call__` is not supported when docstrings for separate "
                "inputs were set using InputDox.");
-  call_dox_ = doc;
+  }
+
+  call_dox_ = std::move(doc);
   append_kwargs_section_ = append_kwargs_section;
   return *this;
 }
@@ -199,49 +216,48 @@ OpSchema &OpSchema::AdditionalOutputsFn(SpecFunc f) {
 
 
 OpSchema &OpSchema::NumInput(int n) {
-  DALI_ENFORCE(n >= 0);
+  if (n < 0)
+    throw std::invalid_argument("The number of inputs must not be negative");
   max_num_input_ = n;
   min_num_input_ = n;
-  input_dox_.resize(n);
-  input_layouts_.resize(n);
-  input_devices_.resize(n);
+  input_info_.resize(n);
   return *this;
 }
 
 
 OpSchema &OpSchema::NumInput(int min, int max) {
-  DALI_ENFORCE(min <= max);
-  DALI_ENFORCE(min >= 0);
-  DALI_ENFORCE(max >= 0);
+  if (min < 0 || max < 0)
+    throw std::invalid_argument("The number of inputs must not be negative");
+  if (min > max)
+    throw std::invalid_argument("The min. number of inputs must not be greater than max.");
   min_num_input_ = min;
   max_num_input_ = max;
-  input_layouts_.resize(max);
-  input_dox_.resize(max);
-  input_devices_.resize(max);
+  input_info_.resize(max);
   return *this;
 }
 
 
 OpSchema &OpSchema::InputDevice(int first, int one_past, dali::InputDevice device) {
   for (int i = first; i < one_past; i++)
-    input_devices_[i] = device;
+    input_info_[i].device = device;
   return *this;
 }
 
 
 OpSchema &OpSchema::InputDevice(int index, dali::InputDevice device) {
-  input_devices_[index] = device;
+  input_info_[index].device = device;
   return *this;
 }
 
 
 DLL_PUBLIC dali::InputDevice OpSchema::GetInputDevice(int index) const {
-  return input_devices_[index];
+  return input_info_[index].device;
 }
 
 
 OpSchema &OpSchema::NumOutput(int n) {
-  DALI_ENFORCE(n >= 0);
+  if (n < 0)
+    throw std::invalid_argument("The number of outputs must not be negative");
   num_output_ = n;
   return *this;
 }
@@ -249,12 +265,6 @@ OpSchema &OpSchema::NumOutput(int n) {
 
 OpSchema &OpSchema::DisableAutoInputDox() {
   disable_auto_input_dox_ = true;
-  return *this;
-}
-
-
-OpSchema &OpSchema::DisallowInstanceGrouping() {
-  allow_instance_grouping_ = false;
   return *this;
 }
 
@@ -295,10 +305,10 @@ OpSchema &OpSchema::MakeDocPartiallyHidden() {
 }
 
 
-OpSchema &OpSchema::Deprecate(const std::string &in_favor_of, const std::string &explanation) {
+OpSchema &OpSchema::Deprecate(std::string in_favor_of, std::string explanation) {
   is_deprecated_ = true;
-  deprecated_in_favor_of_ = in_favor_of;
-  deprecation_message_ = explanation;
+  deprecated_in_favor_of_ = std::move(in_favor_of);
+  deprecation_message_ = std::move(explanation);
   return *this;
 }
 
@@ -309,19 +319,50 @@ OpSchema &OpSchema::Unserializable() {
 }
 
 
-OpSchema &OpSchema::AddArg(const std::string &s, const std::string &doc, const DALIDataType dtype,
-                           bool enable_tensor_input, bool support_per_frame_input) {
-  CheckArgument(s);
-  arguments_[s] = {doc, dtype};
-  if (enable_tensor_input) {
-    tensor_arguments_[s] = {support_per_frame_input};
+ArgumentDef &OpSchema::AddArgumentImpl(std::string_view name) {
+  if (HasInternalArgument(name))
+    throw std::invalid_argument(make_string(
+      "The argument name `", name, "` is reserved for internal use"));
+
+  auto [it, inserted] = arguments_.emplace(name, ArgumentDef());
+  if (!inserted) {
+    throw std::invalid_argument(make_string(
+      "The schema for operator `", name_, "` already contains an argument `", name, "`."));
   }
+  auto &arg = it->second;
+  arg.defined_in = this;
+  arg.name = std::string(name);
+  return arg;
+}
+
+ArgumentDef &OpSchema::AddArgumentImpl(std::string_view name,
+                                       DALIDataType type,
+                                       std::unique_ptr<Value> default_value,
+                                       std::string doc) {
+  auto &arg = AddArgumentImpl(name);
+  arg.dtype = type;
+  arg.default_value = std::move(default_value);
+  arg.doc = std::move(doc);
+
+  if (ShouldHideArgument(name))
+    arg.hidden = true;
+
+  return arg;
+}
+
+OpSchema &OpSchema::AddArg(std::string_view s, std::string doc, const DALIDataType dtype,
+                           bool enable_tensor_input, bool support_per_frame_input) {
+  auto &arg = AddArgumentImpl(s, dtype, nullptr, std::move(doc));
+  arg.required = true;
+  arg.tensor = enable_tensor_input;
+  if (arg.tensor)
+    arg.per_frame = support_per_frame_input;
   return *this;
 }
 
 
-OpSchema &OpSchema::AddTypeArg(const std::string &s, const std::string &doc) {
-  return AddArg(s, doc, DALI_DATA_TYPE);
+OpSchema &OpSchema::AddTypeArg(std::string_view s, std::string doc) {
+  return AddArg(s, std::move(doc), DALI_DATA_TYPE);
 }
 
 
@@ -332,12 +373,17 @@ OpSchema &OpSchema::InputLayout(int index, TensorLayout layout) {
 
 OpSchema &OpSchema::InputLayout(int index, std::initializer_list<TensorLayout> layouts) {
   CheckInputIndex(index);
-  DALI_ENFORCE(input_layouts_[index].empty(),
-               "Layouts for input " + std::to_string(index) + " already specified");
+  if (!input_info_[index].layouts.empty())
+    throw std::logic_error(make_string("Layouts for input ", index, " already specified"));
+
+  std::set<TensorLayout> unique_layouts;
   for (auto &l : layouts) {
-    DALI_ENFORCE(!l.empty(), "Cannot specify an empty layout for an input");
+    auto [it, inserted] = unique_layouts.insert(l);
+    if (!inserted)
+      throw std::logic_error(make_string(
+        "The layout \"", l, "\" for input ", index, " specified more than once."));
   }
-  input_layouts_[index] = layouts;
+  input_info_[index].layouts = layouts;
   return *this;
 }
 
@@ -357,16 +403,16 @@ OpSchema &OpSchema::InputLayout(std::initializer_list<TensorLayout> layouts) {
 const TensorLayout &OpSchema::GetInputLayout(int index, int sample_ndim,
                                              const TensorLayout &layout) const {
   CheckInputIndex(index);
-  DALI_ENFORCE(layout.empty() || layout.ndim() == sample_ndim,
-               make_string("The layout '", layout, "' is not valid for ", sample_ndim,
-                           "-dimensional tensor"));
+  if (!layout.empty() && layout.ndim() != sample_ndim)
+    throw std::invalid_argument(make_string(
+      "The layout '", layout, "' is not valid for ", sample_ndim, "-dimensional tensor"));
 
-  if (input_layouts_[index].empty()) {
+  if (input_info_[index].layouts.empty()) {
     return layout;
   }
 
   if (layout.empty()) {
-    for (auto &l : input_layouts_[index])
+    for (auto &l : input_info_[index].layouts)
       if (l.ndim() == sample_ndim)
         return l;
     std::stringstream ss;
@@ -374,11 +420,11 @@ const TensorLayout &OpSchema::GetInputLayout(int index, int sample_ndim,
        << " does not match any of the allowed"
           " layouts for input "
        << index << ". Valid layouts are:\n";
-    for (auto &l : input_layouts_[index])
+    for (auto &l : input_info_[index].layouts)
       ss << l.c_str() << "\n";
-    DALI_FAIL(ss.str());
+    throw std::invalid_argument(ss.str());
   } else {
-    for (auto &l : input_layouts_[index])
+    for (auto &l : input_info_[index].layouts)
       if (l == layout)
         return l;
     std::stringstream ss;
@@ -386,68 +432,75 @@ const TensorLayout &OpSchema::GetInputLayout(int index, int sample_ndim,
        << "\" does not match any of the allowed"
           " layouts for input "
        << index << ". Valid layouts are:\n";
-    for (auto &l : input_layouts_[index])
+    for (auto &l : input_info_[index].layouts)
       ss << l.c_str() << "\n";
-    DALI_FAIL(ss.str());
+    throw std::invalid_argument(ss.str());
   }
 }
 
 const std::vector<TensorLayout> &OpSchema::GetSupportedLayouts(int input_idx) const {
   CheckInputIndex(input_idx);
-  return input_layouts_[input_idx];
+  return input_info_[input_idx].layouts;
 }
 
 
-OpSchema &OpSchema::AddOptionalArg(const std::string &s, const std::string &doc, DALIDataType dtype,
+OpSchema &OpSchema::AddOptionalArg(std::string_view s, std::string doc, DALIDataType dtype,
                                    std::nullptr_t, bool enable_tensor_input,
                                    bool support_per_frame_input) {
-  CheckArgument(s);
-  optional_arguments_[s] = {doc, dtype, nullptr, ShouldHideArgument(s)};
-  if (enable_tensor_input) {
-    tensor_arguments_[s] = {support_per_frame_input};
-  }
+  auto &arg = AddArgumentImpl(s, dtype, nullptr, std::move(doc));
+  arg.tensor = enable_tensor_input;
+  if (arg.tensor)
+    arg.per_frame = support_per_frame_input;
   return *this;
 }
 
 
-OpSchema &OpSchema::AddOptionalTypeArg(const std::string &s, const std::string &doc,
+OpSchema &OpSchema::AddOptionalTypeArg(std::string_view name, std::string doc,
                                        DALIDataType default_value) {
-  CheckArgument(s);
-  auto to_store = Value::construct(default_value);
-  optional_arguments_[s] = {doc, DALI_DATA_TYPE, to_store.get(), ShouldHideArgument(s)};
-  optional_arguments_unq_.push_back(std::move(to_store));
+  AddArgumentImpl(name, DALI_DATA_TYPE, Value::construct(default_value), std::move(doc));
   return *this;
 }
 
 
-OpSchema &OpSchema::AddOptionalTypeArg(const std::string &s, const std::string &doc) {
-  return AddOptionalArg<DALIDataType>(s, doc, nullptr);
+OpSchema &OpSchema::AddOptionalTypeArg(std::string_view s, std::string doc) {
+  return AddOptionalArg<DALIDataType>(s, std::move(doc), nullptr);
 }
 
 
-OpSchema &OpSchema::AddOptionalArg(const std::string &s, const std::string &doc,
-                                   const char *default_value) {
-  return AddOptionalArg(s, doc, std::string(default_value), false);
+OpSchema &OpSchema::AddRandomSeedArg() {
+  AddOptionalArg<int>("seed",
+                      "Random seed; if not set, one will be assigned automatically.",
+                      -1);
+  return *this;
 }
 
+bool OpSchema::HasRandomSeedArg() const {
+  return !IsDeprecatedArg("seed");
+}
 
-OpSchema &OpSchema::DeprecateArgInFavorOf(const std::string &arg_name, std::string renamed_to,
+OpSchema &OpSchema::DeprecateArgInFavorOf(std::string_view arg_name, std::string renamed_to,
                                           std::string msg) {
   if (msg.empty())
     msg = DefaultDeprecatedArgMsg(arg_name, renamed_to, false);
-  deprecated_arguments_[arg_name] = {std::move(renamed_to), std::move(msg), false};
+
+  auto &alias = AddArgumentImpl(arg_name);
+  alias.defined_in = this;
+  alias.deprecated = std::make_unique<ArgumentDeprecation>(renamed_to, std::move(msg), false);
+
   return *this;
 }
 
-
-OpSchema &OpSchema::DeprecateArg(const std::string &arg_name, bool removed, std::string msg) {
-  DALI_ENFORCE(
-      HasArgument(arg_name),
-      make_string("Argument \"", arg_name,
-                  "\" has been marked for deprecation but it is not present in the schema."));
+OpSchema &OpSchema::DeprecateArg(std::string_view arg_name, bool removed, std::string msg) {
   if (msg.empty())
     msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
-  deprecated_arguments_[arg_name] = {{}, std::move(msg), removed};
+
+  auto &arg = arguments_[std::string(arg_name)];
+
+  if (arg.deprecated)
+    throw std::logic_error(make_string("The argument \"", arg_name, "\" is already deprecated"));
+
+  arg.deprecated = std::make_unique<ArgumentDeprecation>("", std::move(msg), removed);
+
   return *this;
 }
 
@@ -459,8 +512,8 @@ OpSchema &OpSchema::InPlaceFn(SpecFunc f) {
 }
 
 
-OpSchema &OpSchema::AddParent(const std::string &parentName) {
-  parents_.push_back(parentName);
+OpSchema &OpSchema::AddParent(std::string parent_name) {
+  parent_names_.push_back(std::move(parent_name));
   return *this;
 }
 
@@ -476,26 +529,78 @@ OpSchema &OpSchema::PassThrough(const std::map<int, int> &inout) {
   for (const auto &elems : inout) {
     outputs.insert(elems.second);
   }
-  DALI_ENFORCE(inout.size() == outputs.size(),
-               "Pass through can be defined only as 1-1 mapping between inputs and outputs, "
-               "without duplicates.");
-  DALI_ENFORCE(!HasSamplewisePassThrough(), "Two different modes of pass through can't be mixed.");
+  if (inout.size() != outputs.size())
+    throw std::logic_error(
+      "Pass through can be defined only as 1-1 mapping between inputs and outputs, "
+      "without duplicates.");
+
+  if (HasSamplewisePassThrough())
+    throw std::logic_error("Two different modes of pass through can't be mixed.");
   passthrough_map_ = inout;
   return *this;
 }
 
 
 OpSchema &OpSchema::SamplewisePassThrough() {
-  DALI_ENFORCE(!HasStrictPassThrough(), "Two different modes of pass through can't be mixed.");
+  if (HasStrictPassThrough())
+    throw std::logic_error("Two different modes of pass through can't be mixed.");
   samplewise_any_passthrough_ = true;
   return *this;
 }
 
 
-const vector<std::string> &OpSchema::GetParents() const {
-  return parents_;
+const vector<std::string> &OpSchema::GetParentNames() const {
+  return parent_names_;
 }
 
+const vector<const OpSchema *> &OpSchema::GetParents() const {
+  return parents_.Get([&]() {
+    std::vector<const OpSchema *> parents;
+    if (default_)
+      return parents;  // the default schema has no parents
+
+    parents.reserve(parent_names_.size() + 1);  // add one more for the default
+    for (auto &name : parent_names_) {
+      parents.push_back(&SchemaRegistry::GetSchema(name));
+    }
+    parents.push_back(&Default());
+    return parents;
+  });
+}
+
+std::map<std::string, const ArgumentDef *, std::less<>> &OpSchema::GetFlattenedArguments() const {
+  return flattened_arguments_.Get([&]() {
+    if (circular_inheritance_detector_)
+      throw std::logic_error(make_string(
+        "Circular schema inheritance detected in \"", name(), "\""));
+    circular_inheritance_detector_++;
+
+    std::map<std::string, const ArgumentDef *, std::less<>> args;
+    for (auto &[name, arg] : arguments_)
+      args.emplace(name, &arg);
+
+    // First insert all non-deprecated arguments that don't come from the default schema.
+    // Once we've gone over those, add the deprecated ones and finally the default.
+    std::vector<std::pair<std::string_view, const ArgumentDef *>> deprecated, from_default;
+    for (auto *parent : GetParents()) {
+      for (auto &[name, arg] : parent->GetFlattenedArguments()) {
+        if (arg->defined_in == &Default())
+          from_default.emplace_back(name, arg);
+        else if (arg->deprecated)
+          deprecated.emplace_back(name, arg);
+        else
+          args.emplace(name, arg);  // this will skip arguments defined in this schema
+      }
+    }
+    for (auto &[name, arg] : deprecated)
+      args.emplace(name, arg);
+    for (auto &[name, arg] : from_default)
+      args.emplace(name, arg);
+
+    circular_inheritance_detector_--;
+    return args;
+  });
+}
 
 string OpSchema::Dox() const {
   return dox_;
@@ -518,7 +623,8 @@ DLL_PUBLIC bool OpSchema::HasCallDox() const {
 
 
 DLL_PUBLIC std::string OpSchema::GetCallDox() const {
-  DALI_ENFORCE(HasCallDox(), "__call__ docstring was not set");
+  if (!HasCallDox())
+    throw std::logic_error("__call__ docstring was not set");
   return call_dox_;
 }
 
@@ -529,16 +635,18 @@ DLL_PUBLIC bool OpSchema::HasInputDox() const {
 
 
 DLL_PUBLIC std::string OpSchema::GetCallSignatureInputs() const {
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
+
   std::stringstream result;
   for (int i = 0; i < MinNumInput(); i++) {
-    result << input_dox_[i].name;
+    result << input_info_[i].name;
     if (i < MaxNumInput() - 1) {
       result << ", ";
     }
   }
   for (int i = MinNumInput(); i < MaxNumInput(); i++) {
-    result << input_dox_[i].name << " = None";
+    result << input_info_[i].name << " = None";
     if (i < MaxNumInput() - 1) {
       result << ", ";
     }
@@ -549,25 +657,28 @@ DLL_PUBLIC std::string OpSchema::GetCallSignatureInputs() const {
 
 DLL_PUBLIC std::string OpSchema::GetInputName(int input_idx) const {
   CheckInputIndex(input_idx);
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
-  DALI_ENFORCE(!input_dox_[input_idx].name.empty(),
-               make_string("Docstring for input ", input_idx,
-                           "was not set. All inputs should be documented."));
-  return input_dox_[input_idx].name;
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
+  if (input_info_[input_idx].name.empty())
+    throw std::logic_error(make_string("Docstring for input ", input_idx,
+                                       "was not set. All inputs should be documented."));
+  return input_info_[input_idx].name;
 }
 
 
 DLL_PUBLIC std::string OpSchema::GetInputType(int input_idx) const {
   CheckInputIndex(input_idx);
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
-  return input_dox_[input_idx].type_doc;
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
+  return input_info_[input_idx].doc.type_doc;
 }
 
 
 DLL_PUBLIC std::string OpSchema::GetInputDox(int input_idx) const {
   CheckInputIndex(input_idx);
-  DALI_ENFORCE(HasInputDox(), "Input documentation was not specified for this operator.");
-  return input_dox_[input_idx].doc;
+  if (!HasInputDox())
+    throw std::logic_error("Input documentation was not specified for this operator.");
+  return input_info_[input_idx].doc.doc;
 }
 
 
@@ -583,11 +694,6 @@ int OpSchema::MinNumInput() const {
 
 int OpSchema::NumOutput() const {
   return num_output_;
-}
-
-
-bool OpSchema::AllowsInstanceGrouping() const {
-  return allow_instance_grouping_;
 }
 
 
@@ -636,29 +742,19 @@ const std::string &OpSchema::DeprecationMessage() const {
 }
 
 
-DLL_PUBLIC bool OpSchema::IsDeprecatedArg(const std::string &arg_name) const {
-  if (deprecated_arguments_.find(arg_name) != deprecated_arguments_.end())
-    return true;
-  for (const auto &parent_name : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
-    if (parent.IsDeprecatedArg(arg_name))
-      return true;
-  }
+DLL_PUBLIC bool OpSchema::IsDeprecatedArg(std::string_view arg_name) const {
+  if (auto *arg = FindArgument(arg_name))
+    return arg->deprecated != nullptr;
   return false;
 }
 
 
-DLL_PUBLIC const DeprecatedArgDef &OpSchema::DeprecatedArgMeta(const std::string &arg_name) const {
-  auto it = deprecated_arguments_.find(arg_name);
-  if (it != deprecated_arguments_.end()) {
-    return it->second;
-  }
-  for (const auto &parent_name : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
-    if (parent.IsDeprecatedArg(arg_name))
-      return parent.DeprecatedArgMeta(arg_name);
-  }
-  DALI_FAIL(make_string("No deprecation metadata for argument \"", arg_name, "\" found."));
+DLL_PUBLIC const ArgumentDeprecation &OpSchema::DeprecatedArgInfo(std::string_view arg_name) const {
+  auto &arg = GetArgument(arg_name);
+  if (!arg.deprecated)
+    throw std::invalid_argument(
+      make_string("No deprecation info for argument \"", arg_name, "\" found."));
+  return *arg.deprecated;
 }
 
 
@@ -743,118 +839,77 @@ bool OpSchema::SupportsInPlace(const OpSpec &spec) const {
 
 
 void OpSchema::CheckArgs(const OpSpec &spec) const {
-  std::vector<string> vec = spec.ListArguments();
-  std::set<std::string> req_arguments_left;
-  auto required_arguments = GetRequiredArguments();
-  for (auto &arg_pair : required_arguments) {
-    req_arguments_left.insert(arg_pair.first);
+  auto args_in_spec = spec.ListArgumentNames();
+  for (const auto &name : args_in_spec) {
+    auto *arg = FindArgument(name);
+    if (!arg)
+      throw std::invalid_argument(make_string("Got an unexpected argument \"", name, "\""));
   }
-  for (const auto &s : vec) {
-    DALI_ENFORCE(HasArgument(s) || internal_arguments_.find(s) != internal_arguments_.end(),
-                 "Got an unexpected argument \"" + s + "\"");
-    std::set<std::string>::iterator it = req_arguments_left.find(s);
-    if (it != req_arguments_left.end()) {
-      req_arguments_left.erase(it);
-    }
+  std::vector<std::string_view> missing_args;
+  for (auto &[name, arg] : GetFlattenedArguments()) {
+    if (arg->required)
+      if (!args_in_spec.count(name))
+        missing_args.push_back(name);
   }
-  if (!req_arguments_left.empty()) {
-    std::string ret = "Not all required arguments were specified for op \"" + this->name() +
-                      "\". Please specify values for arguments: ";
-    for (auto &str : req_arguments_left) {
-      ret += "\"" + str + "\", ";
-    }
-    ret.erase(ret.size() - 2);
-    ret += ".";
-    DALI_FAIL(ret);
+
+  if (!missing_args.empty()) {
+    std::stringstream ss;
+    ss << "Not all required arguments were specified for op \"" << name() << "\". "
+          "Please specify values for arguments: "
+          "\"";
+    join(ss, missing_args, "\", \"");
+    ss << "\"";
+    throw std::runtime_error(ss.str());
   }
 }
 
-
-bool OpSchema::HasRequiredArgument(const std::string &name, bool local_only) const {
-  bool ret = arguments_.find(name) != arguments_.end();
-  if (ret || local_only) {
-    return ret;
-  }
-  for (const auto &p : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(p);
-    ret = ret || parent.HasRequiredArgument(name);
-  }
-  return ret;
+bool OpSchema::HasOptionalArgument(std::string_view name) const {
+  return FindArgument(name, [](const ArgumentDef &arg) {
+    return !arg.required;
+  });
 }
 
-
-bool OpSchema::HasOptionalArgument(const std::string &name, bool local_only) const {
-  bool ret = optional_arguments_.find(name) != optional_arguments_.end();
-  if (ret || local_only) {
-    return ret;
-  }
-  for (const auto &p : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(p);
-    ret = ret || parent.HasOptionalArgument(name);
-  }
-  return ret;
-}
-
-
-bool OpSchema::HasInternalArgument(const std::string &name, bool local_only) const {
-  bool ret = internal_arguments_.find(name) != internal_arguments_.end();
-  if (ret || local_only) {
-    return ret;
-  }
-  for (const auto &p : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(p);
-    ret = ret || parent.HasInternalArgument(name);
-  }
-  return ret;
-}
-
-
-std::string OpSchema::GetArgumentDox(const std::string &name) const {
-  DALI_ENFORCE(HasArgument(name),
-               "Argument \"" + name + "\" is not supported by operator \"" + this->name() + "\".");
-  if (HasRequiredArgument(name)) {
-    return GetRequiredArguments().at(name).doc;
-  } else {
-    return GetOptionalArguments().at(name).doc;
-  }
-}
-
-
-DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
-  DALI_ENFORCE(HasArgument(name),
-               "Argument \"" + name + "\" is not supported by operator \"" + this->name() + "\".");
-  if (HasRequiredArgument(name)) {
-    return GetRequiredArguments().at(name).dtype;
-  } else {
-    return GetOptionalArguments().at(name).dtype;
-  }
-}
-
-
-bool OpSchema::HasArgumentDefaultValue(const std::string &name) const {
-  DALI_ENFORCE(HasArgument(name, true),
-               "Argument \"" + name + "\" is not supported by operator \"" + this->name() + "\".");
-  if (HasRequiredArgument(name)) {
+bool OpSchema::HasInternalArgument(std::string_view name) const {
+  if (default_) {
+    auto it = arguments_.find(name);
+    if (it != arguments_.end())
+      return it->second.internal;
     return false;
+  } else {
+    return Default().HasInternalArgument(name);
   }
-  if (HasInternalArgument(name, true)) {
-    return true;
-  }
-  auto *value_ptr = GetOptionalArguments().at(name).default_value;
-  return value_ptr != nullptr;
+}
+
+const ArgumentDef &OpSchema::GetArgument(std::string_view name) const {
+  if (auto *arg = FindArgument(name))
+    return *arg;
+  throw invalid_key(make_string(
+        "Argument \"", name, "\" is not defined for operator \"", this->name(), "\"."));
+}
+
+const std::string &OpSchema::GetArgumentDox(std::string_view name) const {
+  return GetArgument(name).doc;
 }
 
 
-std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) const {
-  DALI_ENFORCE(HasOptionalArgument(name), "Argument \"" + name +
-                                              "\" is either not supported by operator \"" +
-                                              this->name() + "\" or is not optional.");
+DALIDataType OpSchema::GetArgumentType(std::string_view name) const {
+  return GetArgument(name).dtype;
+}
 
-  auto *value_ptr = GetOptionalArguments().at(name).default_value;
 
-  DALI_ENFORCE(value_ptr,
-               make_string("Argument \"", name,
-                           "\" in operator \"" + this->name() + "\" has no default value."));
+bool OpSchema::HasArgumentDefaultValue(std::string_view name) const {
+  return GetArgument(name).default_value != nullptr;
+}
+
+
+std::string OpSchema::GetArgumentDefaultValueString(std::string_view name) const {
+  auto *value_ptr = GetArgument(name).default_value.get();
+
+  if (!value_ptr) {
+    throw std::invalid_argument(
+      make_string("Argument \"", name,
+                  "\" in operator \"", this->name(), "\" has no default value."));
+  }
 
   auto &val = *value_ptr;
   auto str = val.ToString();
@@ -871,71 +926,37 @@ std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) con
 
 std::vector<std::string> OpSchema::GetArgumentNames() const {
   std::vector<std::string> ret;
-  const auto &required = GetRequiredArguments();
-  const auto &optional = GetOptionalArguments();
-  const auto &deprecated = GetDeprecatedArguments();
-  for (auto &arg_pair : required) {
-    ret.push_back(arg_pair.first);
-  }
-  for (auto &arg_pair : optional) {
-    if (!arg_pair.second.hidden) {
-      ret.push_back(arg_pair.first);
-    }
-  }
-  for (auto &arg_pair : deprecated) {
-    // Deprecated aliases only appear in `deprecated` but regular
-    // deprecated arguments appear both in `deprecated` and either `required` or `optional`.
-    if (required.find(arg_pair.first) == required.end() &&
-        optional.find(arg_pair.first) == optional.end())
-      ret.push_back(arg_pair.first);
-  }
+  const auto &args = GetFlattenedArguments();
+  for (auto it = args.begin(); it != args.end(); ++it)
+    if (!it->second->hidden)
+      ret.push_back(it->first);
   return ret;
 }
 
 
-bool OpSchema::IsTensorArgument(const std::string &name) const {
+bool OpSchema::IsTensorArgument(std::string_view name) const {
   return FindTensorArgument(name);
 }
 
 
-bool OpSchema::ArgSupportsPerFrameInput(const std::string &arg_name) const {
-  auto arg_desc = FindTensorArgument(arg_name);
-  return arg_desc && arg_desc->supports_per_frame;
+bool OpSchema::ArgSupportsPerFrameInput(std::string_view arg_name) const {
+  return FindArgument(arg_name, [](const ArgumentDef &arg) { return arg.per_frame; });
 }
 
 
-const TensorArgDesc *OpSchema::FindTensorArgument(const std::string &name) const {
-  auto it = tensor_arguments_.find(name);
-  if (it != tensor_arguments_.end()) {
-    return &it->second;
-  }
-  for (const auto &p : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(p);
-    auto desc = parent.FindTensorArgument(name);
-    if (desc) {
-      return desc;
-    }
-  }
-  return nullptr;
+const ArgumentDef *OpSchema::FindTensorArgument(std::string_view name) const {
+  return FindArgument(name, [](const ArgumentDef &def) { return def.tensor; });
 }
-
-
-void OpSchema::CheckArgument(const std::string &s) {
-  DALI_ENFORCE(!HasArgument(s, false, true), "Argument \"" + s + "\" already added to the schema");
-  DALI_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(),
-               "Argument name \"" + s + "\" is reserved for internal use");
-}
-
 
 void OpSchema::CheckInputIndex(int index) const {
-  DALI_ENFORCE(index >= 0 && index < max_num_input_,
-               "Output index (=" + std::to_string(index) + ") out of range [0.." +
-                   std::to_string(max_num_input_) + ").\nWas NumInput called?");
+  if (index < 0 && index >= max_num_input_)
+    throw std::out_of_range(make_string(
+      "Input index ", index, " is out of range [0..", max_num_input_, ").\nWas NumInput called?"));
 }
 
 
-std::string OpSchema::DefaultDeprecatedArgMsg(const std::string &arg_name,
-                                              const std::string &renamed_to, bool removed) const {
+std::string OpSchema::DefaultDeprecatedArgMsg(std::string_view arg_name,
+                                              std::string_view renamed_to, bool removed) const {
   std::stringstream ss;
   if (removed) {
     ss << "The argument `" << arg_name
@@ -950,70 +971,19 @@ std::string OpSchema::DefaultDeprecatedArgMsg(const std::string &arg_name,
 }
 
 
-std::map<std::string, RequiredArgumentDef> OpSchema::GetRequiredArguments() const {
-  auto ret = arguments_;
-  for (const auto &parent_name : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
-    const auto &parent_args = parent.GetRequiredArguments();
-    ret.insert(parent_args.begin(), parent_args.end());
-  }
-  return ret;
+const Value *OpSchema::FindDefaultValue(std::string_view name) const {
+  if (auto *arg = FindArgument(name))
+    return arg->default_value.get();
+  else
+    return nullptr;
 }
 
 
-std::map<std::string, DefaultedArgumentDef> OpSchema::GetOptionalArguments() const {
-  auto ret = optional_arguments_;
-  for (const auto &parent_name : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
-    const auto &parent_args = parent.GetOptionalArguments();
-    ret.insert(parent_args.begin(), parent_args.end());
-  }
-  return ret;
-}
-
-
-std::map<std::string, DeprecatedArgDef> OpSchema::GetDeprecatedArguments() const {
-  auto ret = deprecated_arguments_;
-  for (const auto &parent_name : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
-    const auto &parent_args = parent.GetDeprecatedArguments();
-    ret.insert(parent_args.begin(), parent_args.end());
-  }
-  return ret;
-}
-
-
-std::pair<const OpSchema *, const Value *> OpSchema::FindDefaultValue(const std::string &name,
-                                                                      bool local_only,
-                                                                      bool include_internal) const {
-  auto it = optional_arguments_.find(name);
-  if (it != optional_arguments_.end()) {
-    return {this, it->second.default_value};
-  }
-  if (include_internal) {
-    it = internal_arguments_.find(name);
-    if (it != internal_arguments_.end()) {
-      return {this, it->second.default_value};
-    }
-  }
-  if (local_only)
-    return {nullptr, nullptr};
-
-  for (const auto &p : parents_) {
-    const OpSchema &parent = SchemaRegistry::GetSchema(p);
-    auto schema_val = parent.FindDefaultValue(name, false, include_internal);
-    if (schema_val.first && schema_val.second)
-      return schema_val;
-  }
-  return {nullptr, nullptr};
-}
-
-
-bool OpSchema::HasArgument(const std::string &name,
-                           bool include_internal,
-                           bool local_only) const {
-  return HasRequiredArgument(name, local_only) || HasOptionalArgument(name, local_only) ||
-         (include_internal && HasInternalArgument(name, true));
+bool OpSchema::HasArgument(std::string_view name, bool include_internal) const {
+  if (auto *arg = FindArgument(name))
+    return arg && (include_internal || !arg->internal);
+  else
+    return false;
 }
 
 }  // namespace dali

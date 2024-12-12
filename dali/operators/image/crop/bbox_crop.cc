@@ -194,6 +194,7 @@ associated with each of the bounding boxes.)code")
       return spec.NumRegularInput() - 1 +                    // +1 if labels are provided
              spec.GetArgument<bool>("output_bbox_indices");  // +1 if output_bbox_indices=True
     })
+    .AddRandomSeedArg()
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum IoU or a different metric, if specified by `threshold_type`, of the
