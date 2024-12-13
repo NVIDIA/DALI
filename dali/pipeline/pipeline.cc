@@ -32,6 +32,7 @@
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/graph/graph2dot.h"
+#include "dali/pipeline/graph/cse.h"
 
 namespace dali {
 
@@ -525,7 +526,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   }
 
   // Graph optimization goes here
-
+  graph::EliminateCommonSubgraphs(graph_);
 
   // Load the final graph into the executor
   executor_->Build(graph_);
