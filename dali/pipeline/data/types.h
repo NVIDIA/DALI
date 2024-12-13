@@ -52,6 +52,9 @@
 #define DALI_REGISTER_TYPE_IMPL(...)
 #endif
 
+inline std::string to_string(daliDataType_t dtype);
+inline std::ostream &operator<<(std::ostream &, daliDataType_t dtype);
+
 namespace dali {
 
 class TensorLayout;
@@ -89,9 +92,6 @@ inline Copier GetCopier() {
 }  // namespace detail
 
 using DALIDataType = daliDataType_t;
-
-inline std::string to_string(DALIDataType dtype);
-inline std::ostream &operator<<(std::ostream &, DALIDataType dtype);
 
 constexpr auto GetBuiltinTypeName = daliDataTypeName;
 constexpr auto IsFloatingPoint = daliDataTypeIsFloatingPoint;
@@ -412,14 +412,6 @@ inline std::string_view TypeName(DALIDataType dtype) {
   return "<unknown>";
 }
 
-inline std::string to_string(DALIDataType dtype) {
-  std::string_view name = TypeName(dtype);
-  if (name == "<unknown>")
-    return "unknown type: " + std::to_string(static_cast<int>(dtype));
-  else
-    return std::string(name);
-}
-
 // Used to define a type for use in dali. Inserts the type into the
 // TypeTable w/ a unique id and creates a method to get the name of
 // the type as a string. This does not work for non-fundamental types,
@@ -465,8 +457,22 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
 DALI_REGISTER_TYPE(std::vector<DALIDataType>, DALI_DATA_TYPE_VEC);
 
-inline std::ostream &operator<<(std::ostream &os, DALIDataType dtype) {
-  std::string_view name = TypeName(dtype);
+#define DALI_INTEGRAL_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t
+#define DALI_NUMERIC_TYPES DALI_INTEGRAL_TYPES, float, double
+#define DALI_NUMERIC_TYPES_FP16 DALI_NUMERIC_TYPES, float16
+
+}  // namespace dali
+
+inline std::string to_string(daliDataType_t dtype) {
+  std::string_view name = dali::TypeName(dtype);
+  if (name == "<unknown>")
+    return "unknown type: " + std::to_string(static_cast<int>(dtype));
+  else
+    return std::string(name);
+}
+
+inline std::ostream &operator<<(std::ostream &os, daliDataType_t dtype) {
+  std::string_view name = dali::TypeName(dtype);
   if (name == "<unknown>") {
     // Use string concatenation so that the result is the same as in to_string, unaffected by
     // formatting & other settings in `os`.
@@ -476,10 +482,5 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType dtype) {
   }
 }
 
-#define DALI_INTEGRAL_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t
-#define DALI_NUMERIC_TYPES DALI_INTEGRAL_TYPES, float, double
-#define DALI_NUMERIC_TYPES_FP16 DALI_NUMERIC_TYPES, float16
-
-}  // namespace dali
 
 #endif  // DALI_PIPELINE_DATA_TYPES_H_
