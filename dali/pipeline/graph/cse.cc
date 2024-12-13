@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/graph/cse.h"
+#include "dali/pipeline/dali.pb.h"
 #include <functional>
 #include <map>
 #include <string>
@@ -20,46 +21,45 @@
 namespace dali {
 namespace graph {
 
-struct OpSpecCompare {
-  int operator()(const OpSpec &a, const OpSpec &b) const {
-    auto na = std::make_tuple(a.Arguments().size(), a.NumInput(), a.NumOutput());
-    auto nb = std::make_tuple(b.Arguments().size(), b.NumInput(), b.NumOutput());
-    if (na < nb)
-      return -1;
-    if (na > nb)
-      return 1;
-    for (int i = 0; i < a.NumInput(); i++) {
-      auto ia = a.Input(i);
-      auto ib = a.Input(i);
-      int cmp = ia.compare(ib);
-      if (cmp)
-        return cmp;
+std::string OpSpecToString(const OpSpec &spec) {
+  dali_proto::OpDef op;
+  op.set_name(spec.SchemaName());
+
+  for (int i = 0; i < spec.NumInput(); ++i) {
+    dali_proto::InputOutput *in = op.add_input();
+    in->set_name(spec.InputName(i));
+    in->set_device(spec.InputDevice(i));
+    if (spec.IsArgumentInput(i)) {
+        in->set_arg_name(spec.ArgumentInputName(i));
     }
-    auto names_a = a.ListArgumentNames();
-    auto names_b = b.ListArgumentNames();
-    int cmp = compare(names_a, names_b);
-    if (cmp)
-      return cmp;
-
-    for (auto name_v : names_a) {
-      string name(name_v);  // TODO(michalz): use string_view in OpSpec
-      int i = a.GetArgumentIdx(name).value();
-      int j = b.GetArgumentIdx(name).value();
-      int cmp = compare(*a.Arguments()[i], *b.Arguments()[j]);
-      if (cmp)
-        return cmp;
-    }
-    // we deliberately don't compare output names here!
-    return 0;
+    in->set_is_argument_input(spec.IsArgumentInput(i));
   }
-};
 
-struct OpSpecLess {
-  bool operator()(const OpSpec &a, const OpSpec &b) const {
-    return OpSpecCompare()(a, b) < 0;
+  for (int i = 0; i < spec.NumOutput(); ++i) {
+    dali_proto::InputOutput *out = op.add_output();
+    // clear output name!
+    out->set_name(std::to_string(i));
+    out->set_device(spec.OutputDevice(i));
+    out->set_is_argument_input(false);
   }
-};
 
+  auto &schema = spec.GetSchemaOrDefault();
+  for (auto& a : spec.Arguments()) {
+    // filter out args that need to be dealt with on
+    // loading a serialized pipeline
+    auto name = a->get_name();
+
+    // Some arguments should be skipped when comparing operators
+    if (schema.GetArgument(name).ignore_cmp)
+      continue;
+
+    dali_proto::Argument *arg = op.add_args();
+    DaliProtoPriv arg_wrap(arg);
+
+    a->SerializeToProtobuf(&arg_wrap);
+  }
+  return op.SerializeAsString();
+}
 
 class CSE {
  public:
@@ -69,11 +69,14 @@ class CSE {
   }
 
   void Run(OpNode *node) {
+    for (int i = 0, ninp = node->inputs; i < ninp; ++i) {
+    }
   }
 
-  std::map<OpSpec, OpNode *, OpSpecCompare> normalized_nodes_;
-  std::map<string, string, std::less<>> renamed_;
+  std::map<std::string, OpNode *> normalized_nodes_;
+  std::map<OpNode *, OpNode *> renamed_;
   OpGraph &graph_;
+  OpGraph::Builder builder_;
 };
 
 void EliminateCommonSubgraphs(OpGraph &graph) {
