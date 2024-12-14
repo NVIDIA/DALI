@@ -15,21 +15,21 @@ else
 fi
 
 test_body() {
-    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
+    # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
 
     # No plugin installed, should fail
     ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadFail
 
     # Installing "current" dali tf (built against installed TF)
-    pip install ../../../nvidia-dali-tf-plugin*.tar.gz
+    pip install ../../../nvidia_dali_tf_plugin*.tar.gz
     ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
     # Installing "current" dali tf (built against installed TF) - force rebuild without DALI using internal stubs
     # and then install DALI again
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
     pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
-    DALI_TF_ALWAYS_BUILD=1 pip install --no-deps ../../../nvidia-dali-tf-plugin*.tar.gz
+    DALI_TF_ALWAYS_BUILD=1 pip install --no-deps ../../../nvidia_dali_tf_plugin*.tar.gz
     pip install ../../../nvidia_dali_*.whl
     ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 

@@ -21,10 +21,10 @@ do_once() {
         install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
     fi
 
-    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
-    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+    # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
+    pip uninstall -y `pip list | grep nvidia_dali_tf_plugin | cut -d " " -f1` || true
 
-    pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+    pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz
 
     export PATH=$PATH:/usr/local/mpi/bin
     # MPI might be present in CUDA 10 image already so no need to build it if that is the case
