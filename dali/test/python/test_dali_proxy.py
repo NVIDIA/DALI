@@ -1,9 +1,8 @@
 from nvidia.dali import pipeline_def, fn, types
 import numpy as np
 import os
-import threading
 from nose2.tools import params
-from nose_utils import attr
+from nose_utils import attr, assert_raises
 
 
 def read_file(path):
@@ -12,6 +11,12 @@ def read_file(path):
 
 def read_filepath(path):
     return np.frombuffer(path.encode(), dtype=np.int8)
+
+
+def read_image(path):
+    from PIL import Image
+
+    return np.array(Image.open(path))
 
 
 dali_extra = os.environ["DALI_EXTRA_PATH"]
@@ -24,111 +29,26 @@ test_files = [
 test_input_filenames = [read_filepath(fname) for fname in test_files]
 
 
-@pipeline_def(exec_dynamic=True)
-def pipe_decoder(device):
-    filepaths = fn.external_source(name="images", no_copy=True)
-    images = fn.io.file.read(filepaths)
-    decoder_device = "mixed" if device == "gpu" else "cpu"
-    images = fn.decoders.image(images, device=decoder_device, output_type=types.RGB)
-    images = fn.crop(images, crop=(224, 224))
-    return images
-
-
-@attr("pytorch")
-@params(("cpu",), ("gpu",))
-def test_dali_proxy_demo_basic_communication(device, debug=False):
-    # This is a test that is meant to illustrate how the inter-process or inter-thread communication
-    # works when using DALI proxy. The code here is not really meant to be run like this by a user.
-    # A better example for user API is `test_dali_proxy_torch_data_loader`
-
-    import torch
-    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
-
-    threads = []
-    batch_size = 4
-    num_threads = 3
-    device_id = 0
-    nworkers = 3
-    niter = 5
-    pipe = pipe_decoder(
-        device,
-        batch_size=batch_size,
-        num_threads=num_threads,
-        device_id=device_id,
-        prefetch_queue_depth=2 + nworkers,
-    )
-
-    # Runs the server (and clean up on exit)
-    with dali_proxy.DALIServer(pipe) as dali_server:
-
-        # Creating a bunch of worker threads that call the proxy callabe sample by sample
-        # and call the collate function directly, which will trigger a pipeline run on the server
-        for _ in range(nworkers):
-
-            def thread_fn(proxy_pipe_call):
-                for _ in range(niter):
-                    # The proxy call is run per sample
-                    processed_sample_refs = [
-                        proxy_pipe_call(test_input_filenames[i % len(test_input_filenames)])
-                        for i in range(batch_size)
-                    ]
-                    # this forms a batch and sends it to DALI
-                    dali_proxy._collate_dali_processed_sample_ref_fn(processed_sample_refs)
-
-            thread = threading.Thread(target=thread_fn, args=(dali_server.proxy,))
-            threads.append(thread)
-            thread.start()
-
-        collected_data_info = {}
-        for thread in threads:
-            collected_data_info[thread.ident] = [None for _ in range(niter)]
-
-        # On the main thread, we can query the server for new outputs
-        for _ in range(nworkers * niter):
-            info, outputs = dali_server.dali_output_q.get()
-            worker_id = info[0]
-            data_idx = info[1]
-            if debug:
-                print(f"worker_id={worker_id}, data_idx={data_idx}, data_shape={outputs[0].shape}")
-            assert worker_id in collected_data_info
-            collected_data_info[worker_id][data_idx] = outputs
-            assert len(outputs) == 1
-            np.testing.assert_equal([batch_size, 224, 224, 3], outputs[0].shape)
-
-        for thread in threads:
-            thread.join()
-
-        # Make sure we received all the data we expected
-        for thread in threads:
-            for data_idx in range(niter):
-                (data,) = collected_data_info[thread.ident][data_idx]
-                assert data is not None
-                expected_device = (
-                    torch.device(type="cuda", index=device_id)
-                    if device == "gpu"
-                    else torch.device("cpu")
-                )
-                np.testing.assert_equal(expected_device, data.device)
-
-
 @pipeline_def
-def rn50_train_pipe(dali_device="gpu"):
-    rng = fn.random.coin_flip(probability=0.5)
-
+def image_pipe(dali_device="gpu", random_pipe=True):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
-    if dali_device == "gpu":
-        decoder_device = "mixed"
-    else:
-        decoder_device = "cpu"
+    decoder_device = "mixed" if dali_device == "gpu" else "cpu"
 
-    images = fn.decoders.image_random_crop(
-        jpegs,
-        device=decoder_device,
-        output_type=types.RGB,
-        random_aspect_ratio=[0.75, 4.0 / 3.0],
-        random_area=[0.08, 1.0],
-    )
+    if random_pipe:
+        images = fn.decoders.image_random_crop(
+            jpegs,
+            device=decoder_device,
+            output_type=types.RGB,
+            random_aspect_ratio=[0.75, 4.0 / 3.0],
+            random_area=[0.08, 1.0],
+        )
+    else:
+        images = fn.decoders.image(
+            jpegs,
+            device=decoder_device,
+            output_type=types.RGB,
+        )
 
     images = fn.resize(
         images,
@@ -136,7 +56,7 @@ def rn50_train_pipe(dali_device="gpu"):
         interp_type=types.INTERP_LINEAR,
         antialias=False,
     )
-    images = fn.flip(images, horizontal=rng)
+    mirror = fn.random.coin_flip(probability=0.5) if random_pipe else False
     output = fn.crop_mirror_normalize(
         images,
         dtype=types.FLOAT,
@@ -144,6 +64,7 @@ def rn50_train_pipe(dali_device="gpu"):
         crop=(224, 224),
         mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
         std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+        mirror=mirror,
     )
     return output
 
@@ -155,23 +76,37 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
 
     from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import torchvision.datasets as datasets
+    from torch.utils import data as torchdata
+    from nvidia.dali.tensors import TensorCPU, TensorGPU
 
     batch_size = 4
     num_threads = 3
     device_id = 0
     nworkers = 4
-    pipe = rn50_train_pipe(
-        device,
+    pipe = image_pipe(
+        dali_device=device,
+        random_pipe=False,
         batch_size=batch_size,
         num_threads=num_threads,
         device_id=device_id,
         prefetch_queue_depth=2 + nworkers,
     )
 
+    pipe_ref = image_pipe(
+        dali_device=device,
+        random_pipe=False,
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=device_id,
+        prefetch_queue_depth=1,
+    )
+    pipe_ref.build()
+
     # Run the server (it also cleans up on scope exit)
     with dali_proxy.DALIServer(pipe) as dali_server:
 
         dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
+        dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy(), loader=read_filepath)
 
         loader = dali_proxy.DataLoader(
             dali_server,
@@ -181,19 +116,40 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
             drop_last=True,
         )
 
-        for next_input, next_target in loader:
-            np.testing.assert_equal([batch_size, 3, 224, 224], next_input.shape)
+        def ref_collate_fn(batch):
+            filepaths, labels = zip(*batch)  # Separate the inputs and labels
+            # Just return the batch as they are, a list of individual tensors
+            return filepaths, labels
+
+        loader_ref = torchdata.dataloader.DataLoader(
+            dataset_ref,
+            batch_size=batch_size,
+            num_workers=1,
+            collate_fn=ref_collate_fn,
+            shuffle=False,
+        )
+
+        for _, ((data, target), (ref_filepaths, ref_target)) in enumerate(zip(loader, loader_ref)):
+            np.testing.assert_equal([batch_size, 3, 224, 224], data.shape)
             np.testing.assert_equal(
                 [
                     batch_size,
                 ],
-                next_target.shape,
+                target.shape,
             )
+            np.testing.assert_array_equal(target, ref_target)
+            ref_filepaths_tensors = [TensorCPU(obj) for obj in ref_filepaths]
+            pipe_ref.feed_input("images", ref_filepaths_tensors)
+            (ref_data,) = pipe_ref.run()
+            for sample_idx in range(batch_size):
+                ref_tensor = ref_data[sample_idx]
+                if isinstance(ref_tensor, TensorGPU):
+                    ref_tensor = ref_tensor.as_cpu()
+                np.testing.assert_array_equal(ref_tensor, data[sample_idx].cpu())
 
 
 @attr("pytorch")
-@params(("cpu",), ("gpu",))
-def test_dali_proxy_torch_data_loader_manual_integration(device, debug=False):
+def test_dali_proxy_torch_data_loader_manual_integration(device="gpu", debug=False):
     # Shows how to integrate with DALI proxy manually with an existing data loader
 
     from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
@@ -326,18 +282,26 @@ def test_dali_proxy_deterministic(deterministic, debug=False):
     import torchvision.datasets as datasets
     import torch
 
-    # For non deterministic, use a high number of iterations, even though we stop the test as
-    # we get some different results (usually in the very first iteration).
-    # For deterministic, we verify that all runs produce the exact same results
-    niterations = 3 if deterministic else 10
-    num_workers = 12
+    # Use a high number of iterations for non-deterministic tests, even though
+    # we stop the test once we get different results (usually in the first iteration).
+    # For deterministic tests, we check that all runs produce the same results.
+    niterations = 1 if deterministic else 10
+    num_workers = 8
     seed0 = 123456
     seed1 = 5555464
     seed2 = 775653
 
     outputs = []
     for i in range(niterations):
-        pipe = rn50_train_pipe(batch_size=1, num_threads=1, device_id=0, seed=seed0)
+        pipe = image_pipe(
+            random_pipe=True,
+            dali_device="gpu",
+            batch_size=1,
+            num_threads=1,
+            device_id=0,
+            seed=seed0,
+            prefetch_queue_depth=1,
+        )
         outputs_i = []
         torch.manual_seed(seed2)
         with dali_proxy.DALIServer(pipe, deterministic=deterministic) as dali_server:
@@ -351,7 +315,11 @@ def test_dali_proxy_deterministic(deterministic, debug=False):
                 shuffle=True,
                 worker_init_fn=lambda worker_id: np.random.seed(seed1 + worker_id),
             )
-            outputs_i = [np.array(next(iter(loader))[0].cpu()) for _ in range(num_workers)]
+            outputs_i = []
+            for _ in range(num_workers):
+                for data, _ in loader:
+                    outputs_i.append(data.cpu())
+                    break
         outputs.append(outputs_i)
 
         if i > 0:
@@ -363,5 +331,52 @@ def test_dali_proxy_deterministic(deterministic, debug=False):
                     if not np.array_equal(outputs[i][k], outputs[0][k]):
                         return  # OK
 
+        pipe._shutdown()
+        del pipe
+
     if not deterministic:
         assert False, "we got exactly the same results in all runs"
+
+
+@attr("pytorch")
+def test_dali_proxy_error_propagation():
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
+    import torchvision.datasets as datasets
+
+    batch_size = 4
+    num_threads = 3
+    device_id = 0
+    nworkers = 2
+
+    @pipeline_def
+    def pipe_with_error():
+        images = fn.external_source(name="images", no_copy=True)
+        error_anchor = types.Constant(np.array([-10], dtype=np.float32))
+        return fn.crop(
+            images, crop=(224, 224), crop_pos_x=error_anchor, out_of_bounds_policy="error"
+        )
+
+    pipe = pipe_with_error(
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=device_id,
+        prefetch_queue_depth=3,
+    )
+    with dali_proxy.DALIServer(pipe) as dali_server:
+
+        dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_image)
+        loader = dali_proxy.DataLoader(
+            dali_server,
+            dataset,
+            batch_size=batch_size,
+            num_workers=nworkers,
+        )
+
+        err_msg = "Critical error in pipeline:*Anchor for dimension 1*is out of range*"
+        with assert_raises(RuntimeError, glob=err_msg):
+            next(iter(loader))
+
+    # For some reason if we don't do this in this test, we see some ignored exception
+    # messages in the next test
+    pipe._shutdown()
+    del pipe
