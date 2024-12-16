@@ -20,6 +20,39 @@
 namespace dali {
 namespace graph {
 
+/** Eliminate Common Subgraphs
+ *
+ * Runs a common subexpression (subgraph) analysis on the graph.
+ * The graph is completely rewritten in the process.
+ *
+ * The algorithm works by traversing the original graph in topological order.
+ * Each OpSpec is first updated by renaming the inputs to match the previously merged nodes.
+ * If the update OpSpec was already seen, then the OpSpec is replaced and the output names
+ * are added to the renaming map.
+ *
+ * op1(args1) --- out1_A -- op2(args2)
+ *            \            /
+ *             --- out1_B -
+ *
+ * op2(args1) --- out1_A -- op2(args2)
+ *            \            /
+ *             --- out1_B -
+ *
+ * To identify matchin operators, a key is computed which consists of the OpSpec's schema name,
+ * arguments, inputs and output devices (but NOT output names!).
+ *
+ * If the key matches one previously seen, the operators are assumed equal.
+ *
+ * Some arguments are ignored - notably, the ones identifying the source location in Python
+ * (that would make any kind of CSE pointless).
+ *
+ * There are some operators which are never merged:
+ * - ExternalSource
+ * - operators with explicitly given name
+ * - operators with "preserve" argument set
+ * - operators with NoPrune schema
+ *
+ */
 void EliminateCommonSubgraphs(OpGraph &graph);
 
 }  // namespace graph

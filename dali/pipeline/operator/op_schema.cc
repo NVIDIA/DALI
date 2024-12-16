@@ -62,19 +62,23 @@ const OpSchema &OpSchema::Default() {
   return default_schema;
 }
 
+namespace {
+constexpr const char *default_module = "nvidia.dali.ops";
+}  // namespace
+
 OpSchema::OpSchema(std::string_view name) : name_(name) {
   // Process the module path and operator name
   InitNames();
 
-  std::string default_module = "nvidia.dali.ops";
+  std::string module = default_module;
   for (const auto &submodule : ModulePath()) {
-    default_module += "." + submodule;
+    module += "." + submodule;
   }
 
   AddOptionalArg("_module",
                  "String identifying the module in which the operator is defined. "
                  "Most of the time it is `__module__` of the API function/class.",
-                 default_module);
+                 module);
   arguments_["_module"].ignore_cmp = true;
 
   AddOptionalArg("_display_name",
@@ -151,6 +155,18 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                "The argument \"seed\" should not be used with operators that don't use "
                "random numbers.");
   arguments_["seed"].hidden = true;
+
+  AddOptionalArg("_module",
+                 "String identifying the module in which the operator is defined. "
+                 "Most of the time it is `__module__` of the API function/class.",
+                 default_module);
+  arguments_["_module"].ignore_cmp = true;
+
+  AddOptionalArg("_display_name",
+                 "Operator name as presented in the API it was instantiated in (without the module "
+                 "path), for example: cast_like or CastLike.",
+                 "<empty>");
+  arguments_["_display_name"].ignore_cmp = true;
 }
 
 

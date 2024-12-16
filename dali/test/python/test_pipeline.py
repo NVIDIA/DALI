@@ -2340,22 +2340,24 @@ def test_cse():
         a = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
         b = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
         c = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
-        i = fn.random.uniform(range=[0, 1], shape=(1,), seed=1234)
+        i = fn.random.uniform(range=[0, 1], shape=(1,), seed=1234)  # different seed - must not CSE
+        j = fn.random.uniform(range=[0, 1], shape=(1,), seed=123, name="do_not_merge")
 
         d = a[0]
         e = a[0]  # repeated a[0] should be ignored
-        f = c[0]  # c -> a -> a[0]
+        f = c[0]  # c -> a, so it follows that c[0] -> a[0]
 
-        g = a[0] + b[0] - c[0]
-        h = c[0] + a[0] - b[0]
-        return a, b, c, d, e, f, g, h, i
+        g = a[0] + b[0] - c[0]  # a[0] + a[0] - a[0]
+        h = c[0] + a[0] - b[0]  # likewise
+        return a, b, c, d, e, f, g, h, i, j
 
     pipe = my_pipe()
     pipe.build()
-    a, b, c, d, e, f, g, h, i = pipe.run()
+    a, b, c, d, e, f, g, h, i, j = pipe.run()
     assert a.data_ptr() == b.data_ptr()
     assert a.data_ptr() == c.data_ptr()
     assert a.data_ptr() != i.data_ptr()
+    assert j.data_ptr() != a.data_ptr()  # j has a manually specified name and should not be merged
 
     assert d.data_ptr() == e.data_ptr()
     assert d.data_ptr() == f.data_ptr()
@@ -2364,7 +2366,13 @@ def test_cse():
 
 
 def test_cse_cond():
-    @pipeline_def(batch_size=8, num_threads=4, device_id=0, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=8,
+        num_threads=4,
+        device_id=0,
+        enable_conditionals=True,
+        exec_dynamic=True,  # required for opportunistic MakeContiguous
+    )
     def my_pipe():
         a = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
         b = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)

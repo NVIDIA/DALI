@@ -22,7 +22,10 @@
 namespace dali {
 namespace graph {
 
-std::string OpSpecKey(const OpSpec &spec) {
+namespace {
+
+/** Computes the CSE key by serializing the relevant subset of an OpSpec to protobuf */
+std::string OpSpecCSEKey(const OpSpec &spec) {
   dali_proto::OpDef op;
   op.set_name(spec.SchemaName());
 
@@ -38,21 +41,21 @@ std::string OpSpecKey(const OpSpec &spec) {
 
   for (int i = 0; i < spec.NumOutput(); ++i) {
     dali_proto::InputOutput *out = op.add_output();
-    // clear output name!
+    // Use a placeholder instead of the real name
     out->set_name(std::to_string(i));
     out->set_device(spec.OutputDevice(i));
-    out->set_is_argument_input(false);
   }
 
   auto &schema = spec.GetSchemaOrDefault();
   std::map<std::string_view, Argument *, std::less<>> sorted_args;
   for (auto &a : spec.Arguments()) {
     // Some arguments should be skipped when comparing operators
-    if (schema.HasArgument(a->get_name()))
-      if (schema.GetArgument(a->get_name()).ignore_cmp)
+    auto arg_name = a->get_name();
+    if (schema.HasArgument(arg_name))
+      if (schema.GetArgument(arg_name).ignore_cmp)
         continue;
 
-    sorted_args.emplace(a->get_name(), a.get());
+    sorted_args.emplace(arg_name, a.get());
   }
 
   for (auto [name, a] : sorted_args) {
@@ -64,6 +67,7 @@ std::string OpSpecKey(const OpSpec &spec) {
   return op.SerializeAsString();
 }
 
+/** The context for Common Subgraph Elimination */
 class CSE {
  public:
   void Run(OpGraph &graph) {
@@ -82,7 +86,9 @@ class CSE {
   }
 
   bool IsFoldable(const OpSpec &spec) {
-    return !spec.GetArgument<bool>("preserve") && !spec.GetArgument<bool>("preserve_name");
+    return !spec.GetArgument<bool>("preserve") &&
+           !spec.GetArgument<bool>("preserve_name") &&
+           !spec.GetSchemaOrDefault().IsNoPrune();
   }
 
   void Run(OpNode *node) {
@@ -92,7 +98,7 @@ class CSE {
       if (it != renamed_.end())
         new_spec.RenameInput(i, it->second);
     }
-    std::string key = OpSpecKey(new_spec);
+    std::string key = OpSpecCSEKey(new_spec);
     OpNode *&norm = normalized_nodes_[key];
     bool foldable = IsFoldable(new_spec);
 
@@ -114,6 +120,8 @@ class CSE {
   std::map<std::string, std::string, std::less<>> renamed_full_;
   OpGraph::Builder builder_;
 };
+
+}  // namespace
 
 void EliminateCommonSubgraphs(OpGraph &graph) {
   CSE cse;
