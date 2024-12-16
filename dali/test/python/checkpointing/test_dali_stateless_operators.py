@@ -16,7 +16,6 @@ import os
 import glob
 import numpy as np
 import itertools
-import nvidia.dali as dali
 from nvidia.dali import fn, pipeline_def, types
 from test_utils import (
     compare_pipelines,
@@ -41,9 +40,7 @@ stateless_signed_off = create_sign_off_decorator()
 
 
 def tensor_list_to_array(tensor_list):
-    if isinstance(tensor_list, dali.backend_impl.TensorListGPU):
-        tensor_list = tensor_list.as_cpu()
-    return tensor_list.as_array()
+    return tensor_list.as_cpu().as_array()
 
 
 # Check whether a given pipeline is stateless

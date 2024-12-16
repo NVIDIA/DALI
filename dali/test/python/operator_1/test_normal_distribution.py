@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.backend_impl import TensorListGPU
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
@@ -106,10 +105,7 @@ def check_normal_distribution(
         pipe.set_outputs(out, shape_out, mean_arg, stddev_arg)
     for i in range(niter):
         outputs = pipe.run()
-        out, shapes, means, stddevs = tuple(
-            outputs[i].as_cpu() if isinstance(outputs[i], TensorListGPU) else outputs[i]
-            for i in range(len(outputs))
-        )
+        out, shapes, means, stddevs = tuple(outputs[i].as_cpu() for i in range(len(outputs)))
         for sample_idx in range(batch_size):
             sample = np.array(out[sample_idx])
             if sample.shape == ():

@@ -312,7 +312,7 @@ def test_python_operator_brightness():
         (numpy_output,) = numpy_brightness.run()
         (dali_output,) = dali_brightness.run()
         for i in range(len(dali_output)):
-            assert numpy.allclose(numpy_output.at(i), dali_output.as_cpu().at(i), rtol=1e-5, atol=1)
+            assert numpy.allclose(numpy_output.at(i), dali_output.at(i).as_cpu(), rtol=1e-5, atol=1)
 
 
 def invalid_function(image):

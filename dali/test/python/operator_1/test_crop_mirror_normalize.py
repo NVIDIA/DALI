@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -771,10 +770,8 @@ def check_cmn_with_out_of_bounds_policy_support(
         out = outs[0]
         in_data = outs[1]
         mirror_data = outs[2]
-        if isinstance(out, dali.backend_impl.TensorListGPU):
-            out = out.as_cpu()
-        if isinstance(in_data, dali.backend_impl.TensorListGPU):
-            in_data = in_data.as_cpu()
+        out = out.as_cpu()
+        in_data = in_data.as_cpu()
 
         assert batch_size == len(out)
         for idx in range(batch_size):
@@ -903,14 +900,7 @@ def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale,
     for _ in range(3):
         outs = p.run()
         for s in range(batch_size):
-            out, image_like, mean, std = [
-                (
-                    np.array(o[s].as_cpu())
-                    if isinstance(o, dali.backend_impl.TensorListGPU)
-                    else np.array(o[s])
-                )
-                for o in outs
-            ]
+            out, image_like, mean, std = [np.array(o[s].as_cpu()) for o in outs]
         ref_scale = scale or 1.0
         ref_shift = shift or 0.0
         ref_out = ref_scale * (image_like - mean) / std + ref_shift

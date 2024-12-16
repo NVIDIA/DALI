@@ -19,7 +19,6 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageOps
 from nose2.tools import params, cartesian_params
 
-import nvidia.dali.tensors as _tensors
 from nvidia.dali import fn, pipeline_def
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core._utils import get_translations as _get_translations
@@ -90,8 +89,7 @@ def compare_against_baseline(
     if dev == "gpu":
         output = output.as_cpu()
     output = [np.array(sample) for sample in output]
-    if isinstance(data, _tensors.TensorListGPU):
-        data = data.as_cpu()
+    data = data.as_cpu()
     data = [np.array(sample) for sample in data]
 
     if modality == "image":

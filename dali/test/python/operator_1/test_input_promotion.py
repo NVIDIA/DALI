@@ -43,7 +43,7 @@ def test_slice_fn():
     pipe.set_outputs(out_cpu, out_gpu)
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[14], [17]]))
-    assert np.array_equal(o[1].as_cpu().at(0), np.array([[14], [17]]))
+    assert np.array_equal(o[1].at(0).as_cpu(), np.array([[14], [17]]))
 
 
 def test_slice_ops():
@@ -58,7 +58,7 @@ def test_slice_ops():
     pipe.set_outputs(out_cpu, out_gpu)
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[14], [17]]))
-    assert np.array_equal(o[1].as_cpu().at(0), np.array([[14], [17]]))
+    assert np.array_equal(o[1].at(0).as_cpu(), np.array([[14], [17]]))
 
 
 def test_python_function():

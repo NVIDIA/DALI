@@ -683,7 +683,7 @@ def test_warpaffine():
             borderValue=(128, 128, 128),
             flags=(cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR),
         )
-        dali_output = pipe_out[2].as_cpu().at(i)
+        dali_output = pipe_out[2].at(i).as_cpu()
         maxdif = np.max(cv2.absdiff(out, dali_output) / 255.0)
         assert maxdif < 0.025
 

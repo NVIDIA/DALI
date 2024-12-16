@@ -21,7 +21,7 @@ import numpy as np
 from scipy.stats import chisquare
 from nose2.tools import params
 
-from nvidia.dali import fn, tensors, types
+from nvidia.dali import fn, types
 from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import rand_augment
 from nvidia.dali.auto_aug.core import augmentation
@@ -43,8 +43,7 @@ def debug_discrepancy_helper(*batch_pairs):
     """
 
     def as_array_list(batch):
-        if isinstance(batch, tensors.TensorListGPU):
-            batch = batch.as_cpu()
+        batch = batch.as_cpu()
         return [np.array(sample) for sample in batch]
 
     batch_names = [name for _, _, name in batch_pairs]

@@ -296,7 +296,7 @@ def _test_extremely_large_data(device):
     if device == "cpu":
         out = out.at(0)
     else:
-        out = out.as_cpu().at(0)
+        out = out.at(0).as_cpu()
     assert out.shape == (out_size, out_size, channels)
     for c in range(channels):
         assert out[0, 0, c] == c

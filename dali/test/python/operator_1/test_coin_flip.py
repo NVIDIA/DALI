@@ -14,7 +14,6 @@
 
 import numpy as np
 import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 
 
@@ -52,10 +51,10 @@ def check_coin_flip(
             outputs += [shape_out]
         pipe.set_outputs(*outputs)
     outputs = pipe.run()
-    data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]
+    data_out = outputs[0].as_cpu()
     shapes_out = None
     if max_shape is not None:
-        shapes_out = outputs[1].as_cpu() if isinstance(outputs[1], TensorListGPU) else outputs[1]
+        shapes_out = outputs[1].as_cpu()
     p = p if p is not None else 0.5
     for i in range(batch_size):
         data = np.array(data_out[i])

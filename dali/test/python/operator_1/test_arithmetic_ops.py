@@ -17,7 +17,6 @@ from nvidia.dali import pipeline_def, fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.math as math
-from nvidia.dali.tensors import TensorListGPU
 import numpy as np
 from nose_utils import attr, raises, assert_raises, assert_equals
 from nose2.tools import params
@@ -224,12 +223,6 @@ comparisons_operations = [
 ternary_operations = [
     (((lambda v, lo, hi: math.clamp(v, lo, hi)), (lambda v, lo, hi: np.clip(v, lo, hi))), "clamp")
 ]
-
-
-def as_cpu(tl):
-    if isinstance(tl, TensorListGPU):
-        return tl.as_cpu()
-    return tl
 
 
 def max_dtype(kind, left_dtype, right_dtype):
@@ -449,8 +442,8 @@ def get_numpy_input(input, kind, orig_type, target_type):
 
 
 def extract_un_data(pipe_out, sample_id, kind, target_type):
-    input = as_cpu(pipe_out[0]).at(sample_id)
-    out = as_cpu(pipe_out[1]).at(sample_id)
+    input = pipe_out[0].at(sample_id).as_cpu()
+    out = pipe_out[1].at(sample_id).as_cpu()
     assert_equals(out.dtype, target_type)
     in_np = get_numpy_input(input, kind, input.dtype.type, target_type)
     return in_np, out
@@ -465,7 +458,7 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
     arity = len(kinds)
     inputs = []
     for i in range(arity):
-        dali_in = as_cpu(pipe_out[i]).at(sample_id)
+        dali_in = pipe_out[i].at(sample_id).as_cpu()
         numpy_in = get_numpy_input(
             dali_in,
             kinds[i],
@@ -473,7 +466,7 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
             target_type if target_type is not None else dali_in.dtype.type,
         )
         inputs.append(numpy_in)
-    out = as_cpu(pipe_out[arity]).at(sample_id)
+    out = pipe_out[arity].at(sample_id).as_cpu()
     return tuple(inputs) + (out,)
 
 

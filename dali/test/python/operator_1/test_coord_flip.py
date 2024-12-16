@@ -69,7 +69,7 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
         for sample in range(batch_size):
             in_coords = outputs[0].at(sample)
             if device == "gpu":
-                out_coords = outputs[1].as_cpu().at(sample)
+                out_coords = outputs[1].at(sample).as_cpu()
             else:
                 out_coords = outputs[1].at(sample)
             if in_coords.shape == () or in_coords.shape[0] == 0:

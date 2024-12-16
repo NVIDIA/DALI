@@ -41,7 +41,7 @@ def init_video_data():
         video_pipe.set_outputs(input)
 
     out = video_pipe.run()
-    in_seq = out[0].as_cpu().at(0)
+    in_seq = out[0].at(0).as_cpu()
     return in_seq
 
 
