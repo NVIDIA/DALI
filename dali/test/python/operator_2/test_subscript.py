@@ -38,7 +38,7 @@ def test_plain_indexing():
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[1, 1], cpu.at(i))
-        assert np.array_equal(x[1, 1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[1, 1], gpu.at(i).as_cpu())
 
 
 def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
@@ -50,7 +50,7 @@ def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_i
         x = inp.at(i)
         ref = (ref_index_func or dali_index_func)(x)
         assert np.array_equal(ref, cpu.at(i))
-        assert np.array_equal(ref, gpu.as_cpu().at(i))
+        assert np.array_equal(ref, gpu.at(i).as_cpu())
         assert cpu.layout() == output_layout
         assert gpu.layout() == output_layout
 
@@ -94,7 +94,7 @@ def test_swapped_ends():
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[2:1], cpu.at(i))
-        assert np.array_equal(x[2:1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[2:1], gpu.at(i).as_cpu())
 
 
 def test_noop():
@@ -129,7 +129,7 @@ def test_runtime_indexing():
             j = (j + 1) % len(lo_idxs)
             k = (k + 1) % len(hi_idxs)
             assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, gpu.at(i).as_cpu())
 
 
 def test_runtime_stride_dim1():
@@ -154,7 +154,7 @@ def test_runtime_stride_dim1():
             ref = x[::strides[j]]
             # fmt: on
             assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, gpu.at(i).as_cpu())
             j = (j + 1) % len(strides)
 
 
@@ -180,7 +180,7 @@ def test_runtime_stride_dim2():
             ref = x[:, ::strides[j]]
             # fmt: on
             assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, gpu.at(i).as_cpu())
             j = (j + 1) % len(strides)
 
 
@@ -304,7 +304,7 @@ def test_multiple_skipped_dims():
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[1, :, :, 1], cpu.at(i))
-        assert np.array_equal(x[1, :, :, 1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[1, :, :, 1], gpu.at(i).as_cpu())
 
 
 def test_empty_slice():
@@ -316,4 +316,4 @@ def test_empty_slice():
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[0:0, 0:1], cpu.at(i))
-        assert np.array_equal(x[0:0, 0:1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[0:0, 0:1], gpu.at(i).as_cpu())

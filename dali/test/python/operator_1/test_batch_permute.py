@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import numpy as np
@@ -69,8 +68,7 @@ def _test_permute_batch(device, type):
     for i in range(10):
         orig, permuted, idxs = pipe.run()
         idxs = [int(idxs.at(i)) for i in range(batch_size)]
-        if isinstance(orig, dali.backend.TensorListGPU):
-            orig = orig.as_cpu()
+        orig = orig.as_cpu()
         ref = [orig.at(idx) for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
@@ -91,10 +89,9 @@ def _test_permute_batch_fixed(device):
     pipe.set_outputs(data, fn.permute_batch(data, indices=idxs))
     pipe.build()
 
-    for i in range(10):
+    for _ in range(10):
         orig, permuted = pipe.run()
-        if isinstance(orig, dali.backend.TensorListGPU):
-            orig = orig.as_cpu()
+        orig = orig.as_cpu()
         ref = [orig.at(idx) for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 

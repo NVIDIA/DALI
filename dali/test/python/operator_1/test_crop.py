@@ -16,7 +16,6 @@ from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import pipeline_def, fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
 import os
 from nose_utils import assert_raises
@@ -580,15 +579,10 @@ def check_crop_with_out_of_bounds_policy_support(
     if fill_values is None:
         fill_values = 0
     pipe.build()
-    for k in range(3):
+    for _ in range(3):
         outs = pipe.run()
-        out = outs[0]
-        in_data = outs[1]
-        if isinstance(out, dali.backend_impl.TensorListGPU):
-            out = out.as_cpu()
-        if isinstance(in_data, dali.backend_impl.TensorListGPU):
-            in_data = in_data.as_cpu()
-
+        out = outs[0].as_cpu()
+        in_data = outs[1].as_cpu()
         assert batch_size == len(out)
         for idx in range(batch_size):
             sample_in = in_data.at(idx)
