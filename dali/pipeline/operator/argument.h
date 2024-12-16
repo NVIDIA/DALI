@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/core/compare.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
@@ -145,8 +144,6 @@ class Argument {
 
   virtual ~Argument() = default;
 
-  virtual int Compare(const Argument &other) const = 0;
-
  protected:
   Argument() : has_name_(false) {}
 
@@ -156,10 +153,6 @@ class Argument {
   std::string name_;
   bool has_name_;
 };
-
-inline int compare(Argument &a, Argument &b) {
-  return a.Compare(b);
-}
 
 template <typename T>
 class ArgumentInst : public Argument {
@@ -184,13 +177,6 @@ class ArgumentInst : public Argument {
   void SerializeToProtobuf(DaliProtoPriv* arg) override {
     arg->set_name(Argument::ToString());
     dali::SerializeToProtobuf(val.Get(), arg);
-  }
-
-  int Compare(const Argument &other) const override {
-    if (auto *pother  = dynamic_cast<const ArgumentInst<T> *>(&other))
-      return compare(Get(), pother->Get());
-    else
-      return GetTypeId() - other.GetTypeId();
   }
 
  private:
@@ -226,14 +212,6 @@ class ArgumentInst<std::vector<T>> : public Argument {
       ArgumentInst<T> tmp("element " + to_string(i), vec[i]);
       auto extra_arg = arg->add_extra_args();
       tmp.SerializeToProtobuf(&extra_arg);
-    }
-  }
-
-  int Compare(const Argument &other) const override {
-    if (auto *pother  = dynamic_cast<const ArgumentInst<std::vector<T>> *>(&other)) {
-      return compare(Get(), pother->Get());
-    } else {
-      return GetTypeId() - other.GetTypeId();
     }
   }
 

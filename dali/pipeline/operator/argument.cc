@@ -41,7 +41,8 @@ inline std::shared_ptr<Argument> DeserializeProtobufVectorImpl(const DaliProtoPr
   auto args = arg.extra_args();
   std::vector<T> ret_val;
   for (auto& a : args) {
-    const T& elem = DeserializeProtobuf(a)->Get<T>();
+    auto des = DeserializeProtobuf(a);
+    const T& elem = des->Get<T>();
     ret_val.push_back(elem);
   }
   return Argument::Store(arg.name(), ret_val);

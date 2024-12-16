@@ -13,10 +13,11 @@
 // limitations under the License.
 
 #include "dali/pipeline/graph/cse.h"
-#include "dali/pipeline/dali.pb.h"
 #include <functional>
 #include <map>
 #include <string>
+#include <utility>
+#include "dali/pipeline/dali.pb.h"
 
 namespace dali {
 namespace graph {
@@ -93,7 +94,9 @@ class CSE {
     }
     std::string key = OpSpecKey(new_spec);
     OpNode *&norm = normalized_nodes_[key];
-    if (!norm || !IsFoldable(new_spec))
+    bool foldable = IsFoldable(new_spec);
+
+    if (!norm || !foldable)
       norm = node;
 
     if (norm != node) {

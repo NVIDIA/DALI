@@ -278,6 +278,9 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
   if (spec.GetSchema().IsNoPrune())
     spec.SetArg("preserve", true);
 
+  if (spec.SchemaName() == "ExternalSource")
+    spec.SetArg("preserve_name", true);  // ExternalSource must not be collapsed in CSE
+
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
