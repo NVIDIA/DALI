@@ -151,11 +151,6 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                  true);
   arguments_["_pipeline_internal"].ignore_cmp = true;
 
-  DeprecateArg("seed", true,
-               "The argument \"seed\" should not be used with operators that don't use "
-               "random numbers.");
-  arguments_["seed"].hidden = true;
-
   AddOptionalArg("_module",
                  "String identifying the module in which the operator is defined. "
                  "Most of the time it is `__module__` of the API function/class.",
@@ -167,6 +162,11 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                  "path), for example: cast_like or CastLike.",
                  "<empty>");
   arguments_["_display_name"].ignore_cmp = true;
+
+  DeprecateArg("seed", true,
+               "The argument \"seed\" should not be used with operators that don't use "
+               "random numbers.");
+  arguments_["seed"].hidden = true;
 }
 
 
