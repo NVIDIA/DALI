@@ -4,11 +4,11 @@ pip_packages='${python_test_runner_package} jupyter tensorflow-gpu'
 target_dir=./dali/test/python
 
 test_body() {
-    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
-    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+    # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
+    pip uninstall -y `pip list | grep nvidia_dali_tf_plugin | cut -d " " -f1` || true
 
     # Installing "current" dali tf (built against installed TF)
-    pip install ../../../nvidia-dali-tf-plugin*.tar.gz
+    pip install ../../../nvidia_dali_tf_plugin*.tar.gz
 
     is_compatible=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_compatible_tensorflow())')
     if [ $is_compatible = 'True' ]; then

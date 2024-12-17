@@ -181,7 +181,7 @@ do
                     pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
                     pip install /opt/dali/nvidia_dali*.whl;
                 fi
-                pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+                pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz
             fi
             # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)
             # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels

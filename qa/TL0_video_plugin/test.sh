@@ -22,7 +22,7 @@ test_body() {
     pip uninstall -y `pip list | grep nvidia-dali-video | cut -d " " -f1` || true
 
     # Installing the video plugin
-    pip install -v ../../../nvidia-dali-video*.tar.gz
+    pip install -v ../../../nvidia_dali_video*.tar.gz
 
     # Check that the plugin can be loaded
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk

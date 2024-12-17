@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y python3 python3-pip build-essential cmake git && \
-    python3 -m pip install setuptools scikit-build && \
+    python3 -m pip install "setuptools>=70" scikit-build && \
     rm -rf /var/lib/apt/lists/* && \
     rm -rf /root/.cache/pip/
 
