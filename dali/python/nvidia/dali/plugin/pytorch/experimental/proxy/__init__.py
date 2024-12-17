@@ -23,6 +23,14 @@ import queue
 from queue import Empty
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 import warnings
+import numpy as np
+
+try:
+    from PIL import Image
+    has_pil = True
+except:
+    has_pil = False
+
 
 # DALI proxy is a PyTorch specific layer that connects a multi-process PyTorch DataLoader with
 # a single DALI pipeline. This allows to run CUDA processing in a single process, avoiding the
@@ -224,6 +232,11 @@ class _DALIProxy:
             raise RuntimeError(
                 f"Unexpected number of inputs. Expected: {self.dali_input_names}, got: {inputs}"
             )
+
+        # Seamlessly handle PIL.Image (as it is typically done in PyTorch)
+        if has_pil:
+            inputs = [np.array(item) if isinstance(item, Image) else item for item in inputs]
+
         return DALIProcessedSampleRef(self, inputs)
 
 
