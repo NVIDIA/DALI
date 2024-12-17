@@ -2352,7 +2352,6 @@ def test_cse():
         return a, b, c, d, e, f, g, h, i, j
 
     pipe = my_pipe()
-    pipe.build()
     a, b, c, d, e, f, g, h, i, j = pipe.run()
     assert a.data_ptr() == b.data_ptr()
     assert a.data_ptr() == c.data_ptr()
@@ -2385,8 +2384,36 @@ def test_cse_cond():
         return a, b, d
 
     pipe = my_pipe()
-    pipe.build()
     a, b, d = pipe.run()
     assert a.data_ptr() == b.data_ptr()
     # `d` is opportunistically reassembled and gets the same first sample pointer as `a`
     assert d.data_ptr() == a.data_ptr()
+
+
+def test_optional_build():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0)
+    def pdef_regular():
+        enc, _ = fn.readers.file(file_root=jpeg_folder, name="only_reader")
+        img = fn.decoders.image(enc, device="mixed")
+        return img
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0)
+    def pdef_source():
+        source = fn.external_source(name="source")
+        return source
+
+    pipes = [pdef_regular() for _ in range(5)]
+
+    pipes[0].run()
+    pipes[1].schedule_run()
+    assert pipes[2].epoch_size("only_reader") != 0
+    assert pipes[3].executor_statistics() == {}
+    assert "shard_id" in pipes[4].reader_meta("only_reader")
+
+    pipes.append(pdef_source())
+    pipes[-1].feed_input("source", np.array([10, 10]))
+
+    for pipe in pipes:
+        assert pipe._built

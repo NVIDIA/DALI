@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -790,8 +790,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         """Run the pipeline and return the result."""
         import numpy as np
 
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self._ensure_built()
 
         self._debug_on = True
         self._cur_operator_id = -1
@@ -834,8 +833,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         """Pass data to an ExternalSource operator inside the pipeline.
 
         Refer to :meth:`Pipeline.feed_input() <nvidia.dali.Pipeline.feed_input>` for details."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self._ensure_built()
         if isinstance(data_node, str):
             name = data_node
         else:
