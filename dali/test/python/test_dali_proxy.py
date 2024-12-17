@@ -3,7 +3,7 @@ import numpy as np
 import os
 from nose2.tools import params
 from nose_utils import attr, assert_raises
-
+import PIL.Image
 
 def read_file(path):
     return np.fromfile(path, dtype=np.uint8)
@@ -11,12 +11,6 @@ def read_file(path):
 
 def read_filepath(path):
     return np.frombuffer(path.encode(), dtype=np.int8)
-
-
-def read_image(path):
-    from PIL import Image
-
-    return np.array(Image.open(path))
 
 
 dali_extra = os.environ["DALI_EXTRA_PATH"]
@@ -30,25 +24,36 @@ test_input_filenames = [read_filepath(fname) for fname in test_files]
 
 
 @pipeline_def
-def image_pipe(dali_device="gpu", random_pipe=True):
-    filepaths = fn.external_source(name="images", no_copy=True)
-    jpegs = fn.io.file.read(filepaths)
-    decoder_device = "mixed" if dali_device == "gpu" else "cpu"
+def image_pipe(dali_device="gpu", include_decoder=True, random_pipe=True):
+    if include_decoder:
+        filepaths = fn.external_source(name="images", no_copy=True)
+        jpegs = fn.io.file.read(filepaths)
+        decoder_device = "mixed" if dali_device == "gpu" else "cpu"
 
-    if random_pipe:
-        images = fn.decoders.image_random_crop(
-            jpegs,
-            device=decoder_device,
-            output_type=types.RGB,
-            random_aspect_ratio=[0.75, 4.0 / 3.0],
-            random_area=[0.08, 1.0],
-        )
+        if random_pipe:
+            images = fn.decoders.image_random_crop(
+                jpegs,
+                device=decoder_device,
+                output_type=types.RGB,
+                random_aspect_ratio=[0.75, 4.0 / 3.0],
+                random_area=[0.08, 1.0],
+            )
+        else:
+            images = fn.decoders.image(
+                jpegs,
+                device=decoder_device,
+                output_type=types.RGB,
+            )
     else:
-        images = fn.decoders.image(
-            jpegs,
-            device=decoder_device,
-            output_type=types.RGB,
-        )
+        images = fn.external_source(name="images", no_copy=True)
+        if random_pipe:
+            shapes = images.shape()
+            crop_anchor, crop_shape = fn.random_crop_generator(
+                shapes,
+                random_aspect_ratio=[0.75, 4.0 / 3.0],
+                random_area=[0.08, 1.0]
+            )
+            images = fn.slice(images, start=crop_anchor, shape=crop_shape, axes=[0, 1])
 
     images = fn.resize(
         images,
@@ -70,8 +75,8 @@ def image_pipe(dali_device="gpu", random_pipe=True):
 
 
 @attr("pytorch")
-@params(("cpu",), ("gpu",))
-def test_dali_proxy_torch_data_loader(device, debug=False):
+@params(("cpu", False), ("cpu", True), ("cpu", False), ("gpu", True))
+def test_dali_proxy_torch_data_loader(device, include_decoder, debug=False):
     # Shows how DALI proxy is used in practice with a PyTorch data loader
 
     from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
@@ -85,6 +90,7 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
     nworkers = 4
     pipe = image_pipe(
         dali_device=device,
+        include_decoder=include_decoder,
         random_pipe=False,
         batch_size=batch_size,
         num_threads=num_threads,
@@ -94,6 +100,7 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
 
     pipe_ref = image_pipe(
         dali_device=device,
+        include_decoder=include_decoder,
         random_pipe=False,
         batch_size=batch_size,
         num_threads=num_threads,
@@ -105,8 +112,12 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
     # Run the server (it also cleans up on scope exit)
     with dali_proxy.DALIServer(pipe) as dali_server:
 
-        dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
-        dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy(), loader=read_filepath)
+        if include_decoder:
+            dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
+            dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy(), loader=read_filepath)
+        else:
+            dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy)
+            dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy())
 
         loader = dali_proxy.DataLoader(
             dali_server,
@@ -129,7 +140,7 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
             shuffle=False,
         )
 
-        for _, ((data, target), (ref_filepaths, ref_target)) in enumerate(zip(loader, loader_ref)):
+        for _, ((data, target), (ref_data, ref_target)) in enumerate(zip(loader, loader_ref)):
             np.testing.assert_equal([batch_size, 3, 224, 224], data.shape)
             np.testing.assert_equal(
                 [
@@ -138,8 +149,9 @@ def test_dali_proxy_torch_data_loader(device, debug=False):
                 target.shape,
             )
             np.testing.assert_array_equal(target, ref_target)
-            ref_filepaths_tensors = [TensorCPU(obj) for obj in ref_filepaths]
-            pipe_ref.feed_input("images", ref_filepaths_tensors)
+            ref_data_nparrays = [np.array(obj) if isinstance(obj, PIL.Image.Image) else obj for obj in ref_data]
+            ref_data_tensors = [TensorCPU(arr) for arr in ref_data_nparrays]
+            pipe_ref.feed_input("images", ref_data_tensors)
             (ref_data,) = pipe_ref.run()
             for sample_idx in range(batch_size):
                 ref_tensor = ref_data[sample_idx]
@@ -364,7 +376,7 @@ def test_dali_proxy_error_propagation():
     )
     with dali_proxy.DALIServer(pipe) as dali_server:
 
-        dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_image)
+        dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy)
         loader = dali_proxy.DataLoader(
             dali_server,
             dataset,
