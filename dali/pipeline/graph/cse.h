@@ -27,30 +27,58 @@ namespace graph {
  *
  * The algorithm works by traversing the original graph in topological order.
  * Each OpSpec is first updated by renaming the inputs to match the previously merged nodes.
- * If the update OpSpec was already seen, then the OpSpec is replaced and the output names
- * are added to the renaming map.
+ * If the updated OpSpec was already seen, then it is replaced and the output names are added
+ * to the renaming map.
  *
- * op1(args1) --- out1_A -- op2(args2)
- *            \            /
- *             --- out1_B -
- *
- * op2(args1) --- out1_A -- op2(args2)
- *            \            /
- *             --- out1_B -
- *
- * To identify matchin operators, a key is computed which consists of the OpSpec's schema name,
+ * To identify matching operators, a key is computed which consists of the OpSpec's schema name,
  * arguments, inputs and output devices (but NOT output names!).
- *
- * If the key matches one previously seen, the operators are assumed equal.
- *
  * Some arguments are ignored - notably, the ones identifying the source location in Python
  * (that would make any kind of CSE pointless).
  *
- * There are some operators which are never merged:
+ * If the key matches one previously seen, the operators are assumed equal and can be merged,
+ * with several exceptions.
+ *
+ * The operators which are not merged:
  * - ExternalSource
  * - operators with explicitly given name
  * - operators with "preserve" argument set
  * - operators with NoPrune schema
+ *
+ * Example:
+ *
+ * ```
+ * op1(args1) --- out1_0_A --- op2(args2) -- out2_0 --> pipeline_output_0
+ * __op1_0    \               /  __op2_0
+ *             --- out1_0_B --
+ *
+ * op1(args1) --- out1_1_A --- op2(args2) -- out2_1 --> pipeline_output_1
+ * __op1_1    \               /  __op2_1
+ *             --- out1_1_B --
+ * ```
+ *
+ * In the example above, the two instances of op1 are identical so they're collapsed into one,
+ * the __op1_0. The renaming map is:
+ *  out1_1_A : out1_0_A
+ *  out1_1_B : out1_0_B
+ *
+ * After renaming the inputs to __op2_1, we get:
+ *
+ * ```
+ * op1(args1) --+-- out1_0_A ----- op2(args2) -- out2_0 --> pipeline_output_0
+ * __op1_0   |   \              /  __op2_0
+ *           +----(-- out1_0_B -
+ *           |     \
+ *           |       --------- op2(args2) ------ out2_1 --> pipeline_output_1
+ *            \               /  __op2_1
+ *             ---------------
+ * ```
+ * At this point, __op2_1 is identical to __op2_0 and can be removed. The final graph:
+ *
+ * ```
+ * op1(args1) --- out1_0_A --- op2(args2) -- out2_0 -+---> pipeline_output_0
+ * __op1_0    \               /  __op2_0              \
+ *             --- out1_0_B --                         --> pipeline_output_1
+ * ```
  *
  */
 void EliminateCommonSubgraphs(OpGraph &graph);
