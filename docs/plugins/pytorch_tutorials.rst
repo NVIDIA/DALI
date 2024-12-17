@@ -6,5 +6,6 @@ PyTorch
    :glob:
 
    pytorch_plugin_api
+   pytorch_dali_proxy
    ../examples/frameworks/pytorch/index
 
