@@ -480,10 +480,12 @@ class Pipeline(object):
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
+        self.build()
         return [elem if elem != types.NO_TYPE else None for elem in self._pipe.output_dtype()]
 
     def output_ndim(self) -> list:
         """Number of dimensions expected at the outputs."""
+        self.build()
         return [elem if elem != -1 else None for elem in self._pipe.output_ndim()]
 
     def epoch_size(self, name=None):
@@ -1075,6 +1077,7 @@ class Pipeline(object):
         self._built = True
 
     def input_feed_count(self, input_name):
+        self.build()
         return self._pipe.InputFeedCount(input_name)
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -1398,6 +1401,7 @@ class Pipeline(object):
                 (e.g. `feed_input` function or `source` argument in the `fn.external_source`
                 operator.)"""
             )
+        self.build()
         for inp_name, inp_value in pipeline_inputs.items():
             self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
@@ -1713,7 +1717,7 @@ class Pipeline(object):
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-
+        self.build()
         cpt = self._get_checkpoint()
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
