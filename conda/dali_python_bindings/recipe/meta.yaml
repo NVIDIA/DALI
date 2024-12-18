@@ -77,6 +77,7 @@ requirements:
     - dali-opencv
     - dali-ffmpeg
     - python
+    - setuptools
     - future
     - astunparse >=1.6.0
     - gast >=0.3.3
