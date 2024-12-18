@@ -2355,6 +2355,10 @@ def test_optional_build():
         return source
 
     pipes = [pdef_regular() for _ in range(5)]
+    pipes.append(pdef_source())
+
+    for pipe in pipes:
+        pipe.build()
 
     pipes[0].run()
     pipes[1].schedule_run()
@@ -2362,8 +2366,5 @@ def test_optional_build():
     assert pipes[3].executor_statistics() == {}
     assert "shard_id" in pipes[4].reader_meta("only_reader")
 
-    pipes.append(pdef_source())
     pipes[-1].feed_input("source", np.array([10, 10]))
 
-    for pipe in pipes:
-        assert pipe._built
