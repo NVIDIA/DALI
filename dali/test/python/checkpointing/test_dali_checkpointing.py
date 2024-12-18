@@ -1112,7 +1112,7 @@ def test_external_source_unsupported(kind, parallel):
         return fn.external_source(source=source)
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
-        pipeline()
+        pipeline().run()
 
 
 # Auto augmentation tests - run auto augmentations as a good example of pipeline
