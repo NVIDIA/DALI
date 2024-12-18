@@ -32,6 +32,7 @@
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/graph/graph2dot.h"
+#include "dali/pipeline/graph/cse.h"
 
 namespace dali {
 
@@ -90,6 +91,28 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
 
 void InitializeMemoryResources() {
   (void)mm::GetDefaultResource<mm::memory_kind::host>();
+}
+
+bool IsGraphOptimizationEnabled() {
+  static const bool enabled = []() {
+    if (const char *env = getenv("DALI_OPTIMIZE_GRAPH"))
+      return atoi(env) != 0;
+    else  // enabled by default
+      return true;
+  }();
+  return enabled;
+}
+
+bool IsCSEEnabled() {
+  static const bool enabled = []() {
+    if (!IsGraphOptimizationEnabled())
+      return false;
+    if (const char *env = getenv("DALI_ENABLE_CSE"))
+      return atoi(env) != 0;
+    else  // enabled by default
+      return true;
+  }();
+  return enabled;
 }
 
 }  // namespace
@@ -276,6 +299,9 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
   auto device = const_spec.GetArgument<std::string>("device");
   if (spec.GetSchema().IsNoPrune())
     spec.SetArg("preserve", true);
+
+  if (spec.SchemaName() == "ExternalSource")
+    spec.SetArg("preserve_name", true);  // ExternalSource must not be collapsed in CSE
 
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
@@ -523,6 +549,10 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       PropagateMemoryHint(node);
     }
   }
+
+  // Graph optimization goes here
+  if (IsCSEEnabled())
+    graph::EliminateCommonSubgraphs(graph_);
 
   // Load the final graph into the executor
   executor_->Build(graph_);

@@ -89,11 +89,12 @@ struct ArgumentDef {
   DALIDataType dtype;
 
   // TODO(michalz): Convert to bit fields in C++20 (before C++20 bit fields can't have initializers)
-  bool required   = false;
-  bool tensor     = false;
-  bool per_frame  = false;
-  bool internal   = false;
-  bool hidden     = false;
+  bool required   = false;  //< The argument must be set.
+  bool tensor     = false;  //< The argument can be provided as a TensorList
+  bool per_frame  = false;  //< The (tensor) argument can be expanded to multiple frames
+  bool internal   = false;  //< The argument cannot be set by the user in Python
+  bool hidden     = false;  //< The argument doesn't appear in the documentation
+  bool ignore_cmp = false;  //< Two operators can be considered equal if this argument differs
 
   std::unique_ptr<Value> default_value;
   std::unique_ptr<ArgumentDeprecation> deprecated;

@@ -547,7 +547,7 @@ def test_as_array():
 
 
 def test_seed_serialize():
-    batch_size = 64
+    batch_size = 32
 
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
@@ -574,18 +574,17 @@ def test_seed_serialize():
             )
             return (output, self.labels)
 
-    n = 30
     orig_pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
     s = orig_pipe.serialize()
-    for i in range(50):
+    for i in range(10):
         pipe = Pipeline()
         pipe.deserialize_and_build(s)
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].as_cpu()
-        img_chw_test = pipe_out_cpu.at(n)
         if i == 0:
-            img_chw = img_chw_test
-        assert np.sum(np.abs(img_chw - img_chw_test)) == 0
+            ref = pipe_out_cpu
+        else:
+            check_batch(pipe_out_cpu, ref)
 
 
 def test_make_contiguous_serialize():
@@ -2333,3 +2332,61 @@ def test_gpu2cpu_conditionals():
         (ref,) = ref_pipe.run()
         check_batch(cpu, ref, bs, 0, 0, "HWC")
         check_batch(gpu, ref, bs, 0, 0, "HWC")
+
+
+def test_cse():
+    @pipeline_def(batch_size=8, num_threads=4, device_id=0)
+    def my_pipe():
+        a = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
+        b = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
+        c = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
+        i = fn.random.uniform(range=[0, 1], shape=(1,), seed=1234)  # different seed - must not CSE
+        j = fn.random.uniform(range=[0, 1], shape=(1,), seed=123, name="do_not_merge")
+
+        d = a[0]
+        e = a[0]  # repeated a[0] should be ignored
+        f = c[0]  # c -> a, so it follows that c[0] -> a[0]
+
+        g = a[0] + b[0] - c[0]  # a[0] + a[0] - a[0]
+        h = c[0] + a[0] - b[0]  # likewise
+        return a, b, c, d, e, f, g, h, i, j
+
+    pipe = my_pipe()
+    pipe.build()
+    a, b, c, d, e, f, g, h, i, j = pipe.run()
+    assert a.data_ptr() == b.data_ptr()
+    assert a.data_ptr() == c.data_ptr()
+    assert a.data_ptr() != i.data_ptr()
+    assert j.data_ptr() != a.data_ptr()  # j has a manually specified name and should not be merged
+
+    assert d.data_ptr() == e.data_ptr()
+    assert d.data_ptr() == f.data_ptr()
+
+    assert g.data_ptr() == h.data_ptr()
+
+
+def test_cse_cond():
+    @pipeline_def(
+        batch_size=8,
+        num_threads=4,
+        device_id=0,
+        enable_conditionals=True,
+        exec_dynamic=True,  # required for opportunistic MakeContiguous
+    )
+    def my_pipe():
+        a = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
+        b = fn.random.uniform(range=[0, 1], shape=(1,), seed=123)
+
+        if a[0] > 0:
+            d = a
+        else:
+            d = b  # this is the same as `a`
+
+        return a, b, d
+
+    pipe = my_pipe()
+    pipe.build()
+    a, b, d = pipe.run()
+    assert a.data_ptr() == b.data_ptr()
+    # `d` is opportunistically reassembled and gets the same first sample pointer as `a`
+    assert d.data_ptr() == a.data_ptr()

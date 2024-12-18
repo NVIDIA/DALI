@@ -387,6 +387,7 @@ class _OperatorInstance(object):
 
         self._process_instance_name(arguments)
         self._process_trace(arguments)
+        self._spec.AddArg("preserve_name", not self._autoname)
         _process_arguments(op._schema, self._spec, arguments, op._operator_name())
 
         self._inputs = _process_inputs(op._schema, self._spec, inputs, op._operator_name())

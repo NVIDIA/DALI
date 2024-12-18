@@ -411,6 +411,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
       .AddArg("device", "cpu")
       .AddArg("bytes_per_sample_hint", presize_val_CPU)
       .AddInput("raw_jpegs", "cpu")
+      .AddArg("preserve", true)
       .AddOutput("out_2", "cpu"));
 
   pipe.AddOperator(
@@ -867,18 +868,21 @@ TEST(PipelineTest, AutoName) {
   int id = pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
+      .AddArg("preserve_name", true)  // suppress CSE
       .AddInput("data", "gpu")
       .AddOutput("copied1", "gpu"), 1);
 
   EXPECT_NO_THROW(pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
+      .AddArg("preserve_name", true)
       .AddInput("data", "gpu")
       .AddOutput("copied2", "gpu"), id));
 
   EXPECT_NO_THROW(pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
+      .AddArg("preserve_name", true)
       .AddInput("data", "gpu")
       .AddOutput("copied3", "gpu"), id));
 

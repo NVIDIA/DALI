@@ -62,9 +62,30 @@ const OpSchema &OpSchema::Default() {
   return default_schema;
 }
 
+namespace {
+constexpr const char *default_module = "nvidia.dali.ops";
+}  // namespace
+
 OpSchema::OpSchema(std::string_view name) : name_(name) {
   // Process the module path and operator name
   InitNames();
+
+  std::string module = default_module;
+  for (const auto &submodule : ModulePath()) {
+    module += "." + submodule;
+  }
+
+  AddOptionalArg("_module",
+                 "String identifying the module in which the operator is defined. "
+                 "Most of the time it is `__module__` of the API function/class.",
+                 module);
+  arguments_["_module"].ignore_cmp = true;
+
+  AddOptionalArg("_display_name",
+                 "Operator name as presented in the API it was instantiated in (without the module "
+                 "path), for example: cast_like or CastLike.",
+                 OperatorName());
+  arguments_["_display_name"].ignore_cmp = true;
 }
 
 OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
@@ -75,6 +96,10 @@ OpSchema::OpSchema(DefaultSchemaTag) : name_(""), default_(true) {
   AddInternalArg("inplace", "Whether Op can be run in place", false);
   AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);  // deprecated
   AddInternalArg("checkpointing", "Setting to `true` enables checkpointing", false);
+
+  AddInternalArg("preserve_name", R"(When true, the operator cannot be renamed.
+This disables merging this operator with another one with a different name.)",
+                 false);
 
   AddOptionalArg<int>("seed", R"code(Random seed.
 If not provided, it will be populated based on the global seed of the pipeline.)code",
@@ -89,6 +114,7 @@ to accommodate a batch of samples of this size.)code",
   AddOptionalArg("preserve", R"code(Prevents the operator from being removed from the
 graph even if its outputs are not used.)code",
                  false);
+  arguments_["preserve"].ignore_cmp = true;
 
   // For simplicity we pass StackSummary as 4 separate arguments so we don't need to extend DALI
   // with support for special FrameSummary type.
@@ -103,37 +129,39 @@ messages, pointing to the origin of the error in pipeline definition.
 The list of FrameSummaries is split into four parameters: each is the list containing corresponding
 parameters of FrameSummary. This parameter represents the `filename` member.)code",
                  std::vector<std::string>{});
+  arguments_["_origin_stack_filename"].ignore_cmp = true;
 
   AddOptionalArg("_origin_stack_lineno", R"code(StackSummary - lineno member of FrameSummary, see
 _origin_stack_filename for more information.)code",
                  std::vector<int>{});
+  arguments_["_origin_stack_lineno"].ignore_cmp = true;
 
   AddOptionalArg("_origin_stack_name", R"code(StackSummary - name member of FrameSummary, see
 _origin_stack_filename for more information.)code",
                  std::vector<std::string>{});
+  arguments_["_origin_stack_name"].ignore_cmp = true;
 
   AddOptionalArg("_origin_stack_line", R"code(StackSummary - line member of FrameSummary, see
 _origin_stack_filename for more information.)code",
                  std::vector<std::string>{});
+  arguments_["_origin_stack_line"].ignore_cmp = true;
 
   AddOptionalArg("_pipeline_internal", R"code(Boolean specifying if this operator was defined within
 a pipeline scope. False if it was defined without pipeline being set as current.)code",
                  true);
-
-  std::string default_module = "nvidia.dali.ops";
-  for (const auto &submodule : ModulePath()) {
-    default_module += "." + submodule;
-  }
+  arguments_["_pipeline_internal"].ignore_cmp = true;
 
   AddOptionalArg("_module",
                  "String identifying the module in which the operator is defined. "
                  "Most of the time it is `__module__` of the API function/class.",
                  default_module);
+  arguments_["_module"].ignore_cmp = true;
 
   AddOptionalArg("_display_name",
                  "Operator name as presented in the API it was instantiated in (without the module "
                  "path), for example: cast_like or CastLike.",
-                 OperatorName());
+                 "<empty>");
+  arguments_["_display_name"].ignore_cmp = true;
 
   DeprecateArg("seed", true,
                "The argument \"seed\" should not be used with operators that don't use "
