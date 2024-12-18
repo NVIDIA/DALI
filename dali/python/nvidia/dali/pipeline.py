@@ -162,9 +162,9 @@ class Pipeline(object):
         If ``spawn`` method is used, ExternalSource's callback must be picklable.
         In order to use ``fork``, there must be no CUDA contexts acquired at the moment of starting
         the workers. For this reason, if you need to build multiple pipelines that use Python
-        workers, you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
-        of the pipelines. You can find more details and caveats of both methods in Python's
-        ``multiprocessing`` module documentation.
+        workers, you will need to call :meth:`start_py_workers` before building or running
+        any of the pipelines (see :meth:`build` for details). You can find more details and caveats
+        of both methods in Python's ``multiprocessing`` module documentation.
     py_callback_pickler : module or tuple, default = None
         If `py_start_method` is set to *spawn*, callback passed to parallel
         ExternalSource must be picklable.
@@ -500,7 +500,7 @@ class Pipeline(object):
             The reader which should be used to obtain epoch size.
         """
 
-        self._ensure_built()
+        self.build()
         if name is not None:
             return self._pipe.reader_meta(name)["epoch_size_padded"]
         meta = self._pipe.reader_meta()
@@ -528,7 +528,7 @@ class Pipeline(object):
         .. note::
             Executor statistics are not available when using ``exec_dynamic=True``.
         """
-        self._ensure_built()
+        self.build()
         return self._pipe.executor_statistics()
 
     def external_source_shm_statistics(self):
@@ -588,7 +588,7 @@ class Pipeline(object):
         name : str, optional, default = None
             The reader which should be used to obtain shards_number.
         """
-        self._ensure_built()
+        self.build()
         if name is not None:
             return self._pipe.reader_meta(name)
         return self._pipe.reader_meta()
@@ -1002,8 +1002,8 @@ class Pipeline(object):
 
         If you are going to build more than one pipeline that starts Python workers by forking
         the process then you need to call :meth:`start_py_workers` method on all those pipelines
-        before calling :meth:`build` method of any pipeline, as build acquires CUDA context
-        for current process.
+        before calling any method that builds or runs the pipeline (see :meth:`build` for details),
+        as building acquires CUDA context for current process.
 
         The same applies to using any other functionality that would create CUDA context -
         for example, initializing a framework that uses CUDA or creating CUDA tensors with it.
@@ -1041,7 +1041,14 @@ class Pipeline(object):
     def build(self):
         """Build the pipeline (optional step).
 
-        Pipeline is automatically built when Pipeline is:
+        Instantiates the pipeline's backend objects and starts processing threads. If the pipeline
+        uses multi-processing ``external_source``, the worker processes are also started.
+        In most cases, there's no need to manually call build. When multi-processing is used,
+        it may be necessary to call :meth:`build` or :meth:`start_py_workers` before the main
+        process makes any interaction with the GPU. If needed, the :meth:`build` can used before
+        running the pipeline to separate the graph building and the processing steps.
+
+        Pipeline is automatically built when it is:
 
             * run, either via the run APIs (:meth:`run`, :meth:`schedule_run`),
               or the framework-specific plugins,
@@ -1049,9 +1056,6 @@ class Pipeline(object):
             * the pipeline metadata is accessed (:meth:`epoch_size`, :meth:`reader_meta`)
             * outputs are accessed - including :meth:`output_stream`
             * the graph needs to be otherwise materialized - like :meth:`save_graph_to_dot_file`.
-
-        If needed, the :meth:`build` can be invoked ahead, allowing to separate the graph building
-        and the processing steps.
         """
         if self._built:
             return
@@ -1069,12 +1073,6 @@ class Pipeline(object):
         self._pipe.Build(self._generate_build_args())
         self._restore_state_from_checkpoint()
         self._built = True
-
-    def _ensure_built(self):
-        """Ensure that the Pipeline is built before proceeding further. Allows to make the
-        pipeline.build() optional."""
-        if not self._built:
-            self.build()
 
     def input_feed_count(self, input_name):
         return self._pipe.InputFeedCount(input_name)
@@ -1154,7 +1152,7 @@ class Pipeline(object):
             If set to True, DALI will use a CUDA kernel to feed the data (only applicable
             when copying data to/from GPU memory) instead of ``cudaMemcpyAsync`` (default).
         """
-        self._ensure_built()
+        self.build()
         if isinstance(data_node, str):
             name = data_node
         else:
@@ -1237,7 +1235,7 @@ class Pipeline(object):
 
     def output_stream(self):
         """Returns the internal CUDA stream on which the outputs are produced."""
-        self._ensure_built()
+        self.build()
         return self._pipe.GetOutputStream()
 
     # for the backward compatibility
@@ -1306,7 +1304,7 @@ class Pipeline(object):
             When using dynamic executor (``exec_dynamic=True``), the buffers are not invalidated.
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
-            self._ensure_built()
+            self.build()
             ret = self._pipe.ReleaseOutputs()
             return ret
 
@@ -1321,7 +1319,7 @@ class Pipeline(object):
 
         Calling this function is equivalent to calling release_outputs
         then calling share_outputs"""
-        self._ensure_built()
+        self.build()
         return self._pipe.Outputs(types._raw_cuda_stream_ptr(cuda_stream))
 
     def _are_pipeline_inputs_possible(self):
@@ -1407,7 +1405,7 @@ class Pipeline(object):
 
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
-        self._ensure_built()
+        self.build()
         if not self._pipe:
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
@@ -1671,7 +1669,7 @@ class Pipeline(object):
         use_colors : bool
                    Whether use color to distinguish stages
         """
-        self._ensure_built()
+        self.build()
         if show_ids is not None:
             with warnings.catch_warnings():
                 warnings.simplefilter("default")

@@ -790,7 +790,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         """Run the pipeline and return the result."""
         import numpy as np
 
-        self._ensure_built()
+        self.build()
 
         self._debug_on = True
         self._cur_operator_id = -1
@@ -833,7 +833,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         """Pass data to an ExternalSource operator inside the pipeline.
 
         Refer to :meth:`Pipeline.feed_input() <nvidia.dali.Pipeline.feed_input>` for details."""
-        self._ensure_built()
+        self.build()
         if isinstance(data_node, str):
             name = data_node
         else:
