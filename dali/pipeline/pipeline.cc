@@ -93,6 +93,28 @@ void InitializeMemoryResources() {
   (void)mm::GetDefaultResource<mm::memory_kind::host>();
 }
 
+bool IsGraphOptimizationEnabled() {
+  static const bool enabled = []() {
+    if (const char *env = getenv("DALI_OPTIMIZE_GRAPH"))
+      return atoi(env) != 0;
+    else  // enabled by default
+      return true;
+  }();
+  return enabled;
+}
+
+bool IsCSEEnabled() {
+  static const bool enabled = []() {
+    if (!IsGraphOptimizationEnabled())
+      return false;
+    if (const char *env = getenv("DALI_ENABLE_CSE"))
+      return atoi(env) != 0;
+    else  // enabled by default
+      return true;
+  }();
+  return enabled;
+}
+
 }  // namespace
 
 Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed,
@@ -529,7 +551,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   }
 
   // Graph optimization goes here
-  graph::EliminateCommonSubgraphs(graph_);
+  if (IsCSEEnabled())
+    graph::EliminateCommonSubgraphs(graph_);
 
   // Load the final graph into the executor
   executor_->Build(graph_);
