@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,7 +75,6 @@ def test_shuffling_patterns():
             shuffle_after_epoch=False,
             pad_last_batch=False,
         )
-        pipe.build()
         iters = pipe.epoch_size("Reader")
         for _ in range(iters):
             pipe.schedule_run()
@@ -220,7 +219,6 @@ def test_global_shuffle_random_shuffle():
     ]
 
     for pipe in pipes:
-        pipe.build()
 
     _, img_ids_list_set, _ = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes)
@@ -254,7 +252,6 @@ def test_global_shuffle_random_shuffle_2():
     ]
 
     for pipe in pipes:
-        pipe.build()
 
     img_ids_list, img_ids_list_set, _ = gather_ids(pipes, num_gpus_arg=2, gpus_arg=[0])
     assert len(img_ids_list) == len(img_ids_list_set)
@@ -286,7 +283,6 @@ def test_global_shuffle_dont_mix_epochs():
     ]
 
     for pipe in pipes:
-        pipe.build()
 
     _, img_ids_list_set, _ = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes)
@@ -319,7 +315,6 @@ def test_dont_mix_epochs():
     ]
 
     for pipe in pipes:
-        pipe.build()
 
     _, img_ids_list_set, epochs_run = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes, epochs_run)
@@ -354,7 +349,6 @@ def test_pad_last_batch_epoch_size():
         shuffle_after_epoch=False,
         pad_last_batch=True,
     )
-    pipe.build()
     reference_size = pipe.epoch_size("Reader")
 
     for num_gpus in range(1, 10):
@@ -369,7 +363,6 @@ def test_pad_last_batch_epoch_size():
             shuffle_after_epoch=False,
             pad_last_batch=True,
         )
-        pipe.build()
         size = pipe.epoch_size("Reader")
         print(reference_size, size, num_gpus)
         assert size == int(math.ceil(reference_size * 1.0 / num_gpus)) * num_gpus

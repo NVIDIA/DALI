@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ def wds_index_file_pipeline(idx_path, device):
 
 def _test_wds_index_file_pipeline(idx_path, device):
     p = wds_index_file_pipeline(idx_path, device)
-    p.build()
     p.run()
 
 

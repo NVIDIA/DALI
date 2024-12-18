@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -92,7 +92,6 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
         return inflated, sample
 
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
     for iter_size in iteration_sizes:
         inflated, baseline = pipe.run()
         check_batch(inflated, baseline, iter_size)
@@ -130,7 +129,6 @@ def _test_scalar_shape(dtype, shape, layout):
 
     batch_size = 16
     pipe = pipeline(batch_size=batch_size, num_threads=8, device_id=0)
-    pipe.build()
     for _ in range(4):
         inflated, baseline = pipe.run()
         check_batch(inflated, baseline, batch_size, layout)
@@ -235,7 +233,6 @@ def _test_chunks(
         return inflated, baseline
 
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
     if layout:
         layout = (sequence_axis_name or "F") + layout
     for _ in range(4):
@@ -303,7 +300,6 @@ def test_total_no_chunks(ex_kwargs):
 
     batch_size = 8
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
     for _ in range(2):
         (inflated,) = pipe.run()
         check_batch(inflated, [baseline] * batch_size, batch_size, layout="FHWC")
@@ -312,7 +308,6 @@ def test_total_no_chunks(ex_kwargs):
 def _test_validation(pipeline, error_glob, kwargs=None):
     with assert_raises(RuntimeError, glob=error_glob):
         pipe = pipeline(batch_size=4, num_threads=4, device_id=0, **(kwargs or {}))
-        pipe.build()
         pipe.run()
 
 

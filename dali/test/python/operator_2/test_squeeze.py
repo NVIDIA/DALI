@@ -41,7 +41,6 @@ def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, exp
         axis_names=axis_names,
         layout=layout,
     )
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         assert outs[0].layout() == expected_layout
@@ -99,7 +98,6 @@ def _test_squeeze_throw_error(axes, axis_names, layout, shapes):
         axis_names=axis_names,
         layout=layout,
     )
-    pipe.build()
     pipe.run()
 
 

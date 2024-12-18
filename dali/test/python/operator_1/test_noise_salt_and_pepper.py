@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,7 +117,6 @@ def _testimpl_operator_noise_salt_and_pepper(
         device_id=0,
         seed=12345,
     )
-    pipe.build()
     salt_val = 255 if salt_val is None else salt_val
     pepper_val = 0 if pepper_val is None else pepper_val
     for _ in range(niter):

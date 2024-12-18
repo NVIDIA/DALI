@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ def test_element_extract_operator():
             self.feed_input(self.sequences, sequences)
 
     pipe = ElementExtractPipeline(batch_size, 1, 0)
-    pipe.build()
     pipe_out = pipe.run()
     output1, output2, output3, output4 = pipe_out
 
@@ -123,7 +122,6 @@ def element_extract_pipe(shape, layout, element_map, dev, dtype):
 
 def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
     pipe = element_extract_pipe(shape, layout, element_map, dev, dtype)
-    pipe.build()
     for i in range(10):
         results = pipe.run()
         input = results[0]

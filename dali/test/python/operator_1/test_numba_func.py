@@ -195,7 +195,6 @@ def _testimpl_numba_func(
         blocks=blocks,
         threads_per_block=threads_per_block,
     )
-    pipe.build()
     for it in range(3):
         outs = pipe.run()
         for i in range(batch_size):
@@ -531,7 +530,6 @@ def _testimpl_numba_func_image(
         blocks=blocks,
         threads_per_block=threads_per_block,
     )
-    pipe.build()
     for _ in range(3):
         images_in, images_out = pipe.run()
         for i in range(len(images_in)):
@@ -791,7 +789,6 @@ def test_split_images_col():
         ins_ndim=[3],
         device="cpu",
     )
-    pipe.build()
     for _ in range(3):
         images_in, R, G, B = pipe.run()
         for i in range(len(images_in)):
@@ -816,7 +813,6 @@ def test_split_images_col_gpu():
         blocks=blocks,
         threads_per_block=threads_per_block,
     )
-    pipe.build()
     for _ in range(3):
         images_in, R, G, B = pipe.run()
         for i in range(len(images_in)):
@@ -906,7 +902,6 @@ def test_multiple_ins():
         ins_ndim=[2, 2, 2],
         device="cpu",
     )
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         out_arr = np.array(outs[0][0])
@@ -933,7 +928,6 @@ def test_multiple_ins_gpu():
         blocks=blocks,
         threads_per_block=threads_per_block,
     )
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         out_arr = to_array(outs[0][0])
@@ -1015,7 +1009,6 @@ def test_nonuniform_types_cpu():
         ins_ndim=[3],
         device="cpu",
     )
-    pipe.build()
     for _ in range(3):
         images_in, images_out, img_shape = pipe.run()
         for i in range(len(images_in)):
@@ -1041,7 +1034,6 @@ def test_nonuniform_types_gpu():
         blocks=blocks,
         threads_per_block=threads_per_block,
     )
-    pipe.build()
     for _ in range(3):
         images_in, images_out, img_shape = pipe.run()
         images_in, images_out, img_shape = (

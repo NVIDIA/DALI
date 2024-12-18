@@ -72,7 +72,6 @@ def calculate_iterations_in_epoch(pipe, batch_size, num_shards=1):
 
 def check_pipeline_checkpointing_native(pipeline_factory):
     pipe = pipeline_factory(**pipeline_args)
-    pipe.build()
 
     iterations_in_epoch = calculate_iterations_in_epoch(pipe, pipeline_args["batch_size"])
     for _ in range(warmup_epochs * iterations_in_epoch):
@@ -123,7 +122,6 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
             return result
 
     p = pipeline()
-    p.build()
 
     num_shards = kwargs.get("num_shards", 1)
 
@@ -142,7 +140,6 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
                     break
 
     restored = pipeline(checkpoint=p.checkpoint())
-    restored.build()
 
     compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
 
@@ -655,13 +652,11 @@ def test_multiple_readers(num_iters):
         return (a + b) // 2
 
     p = pipeline()
-    p.build()
 
     for _ in range(num_iters):
         p.run()
 
     restored = pipeline(checkpoint=p.checkpoint())
-    restored.build()
 
     compare_pipelines(p, restored, 1, 20)
 
@@ -1022,14 +1017,12 @@ def check_external_source_pipeline_checkpointing(pipeline_factory, iterations, c
             assert np.all(out1 == out2)
 
     p1 = pipeline_factory()
-    p1.build()
 
     for _ in range(iterations):
         run_and_reset(p1)
 
     cpt = p1.checkpoint()
     p2 = pipeline_factory(checkpoint=cpt)
-    p2.build()
     compare_external_source_pipelines(p1, p2, compare_iterations)
 
 
@@ -1119,8 +1112,7 @@ def test_external_source_unsupported(kind, parallel):
         return fn.external_source(source=source)
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
-        pipeline().build()
-
+        pipeline()
 
 # Auto augmentation tests - run auto augmentations as a good example of pipeline
 # consisting of many ops
@@ -1169,7 +1161,6 @@ def test_multiple_restores(warmup_epochs, warmup_iters, run_epochs, run_iters):
         return fn.decoders.image(data, device="cpu")
 
     pipe = pipeline()
-    pipe.build()
 
     iters_in_epoch = pipe.reader_meta()["Reader"]["epoch_size"] // batch_size
     warmup_iters += warmup_epochs * iters_in_epoch
@@ -1179,12 +1170,10 @@ def test_multiple_restores(warmup_epochs, warmup_iters, run_epochs, run_iters):
         pipe.run()
 
     pipe2 = pipeline(checkpoint=pipe.checkpoint())
-    pipe2.build()
     for _ in range(run_iters):
         pipe2.run()
 
     pipe3 = pipeline(checkpoint=pipe2.checkpoint())
-    pipe3.build()
 
     compare_pipelines(pipe2, pipe3, batch_size, 5)
 
@@ -1203,7 +1192,6 @@ def test_unsupported_dangling_subgraph():
         glob="The pipeline does not support checkpointing*"
         "because it contains operator*outside the pipeline*",
     ):
-        p.build()
 
 
 unsupported_readers = [

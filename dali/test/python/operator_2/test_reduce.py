@@ -159,8 +159,6 @@ def run_dali(
             reduced_gpu = reduce_fn(input.gpu(), mean.gpu(), **args)
         pipe.set_outputs(reduced_cpu, reduced_gpu)
 
-    pipe.build()
-
     for _ in range(batch_fn.num_iter()):
         output = pipe.run()
         check_layout(output[0], layout, axes, keep_dims)
@@ -455,7 +453,6 @@ def run_reduce_with_layout(batch_size, get_batch, reduction, axes, axis_names, b
         reduced_by_name = reduction(input, keep_dims=False, axis_names=axis_names)
 
     pipe.set_outputs(reduced, reduced_by_name)
-    pipe.build()
 
     run_and_compare_with_layout(batch_fn, pipe)
 
@@ -471,7 +468,6 @@ def run_reduce_with_layout_with_mean_input(
         reduced_by_name = reduction(input, mean, keep_dims=False, axis_names=axis_names)
 
     pipe.set_outputs(reduced, reduced_by_name)
-    pipe.build()
 
     run_and_compare_with_layout(batch_fn, pipe)
 
@@ -578,7 +574,6 @@ def _test_reduce_large_data(rank, axes, device, in_layout):
     input = fn.external_source(data, cycle=True, device=device, layout=in_layout)
     reduced = fn.reductions.sum(input, axes=axes)
     pipe.set_outputs(reduced)
-    pipe.build()
 
     for b, batch in enumerate(data):
         (out,) = pipe.run()
@@ -615,7 +610,6 @@ def _test_std_dev_large_data(rank, axes, device, in_layout):
     mean = fn.reductions.mean(input, axes=axes)
     reduced = fn.reductions.std_dev(input, mean, axes=axes, ddof=0)
     pipe.set_outputs(reduced)
-    pipe.build()
 
     for b, batch in enumerate(data):
         (out,) = pipe.run()

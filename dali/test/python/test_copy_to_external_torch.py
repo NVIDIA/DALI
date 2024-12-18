@@ -124,7 +124,6 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
         for i in range(10):
             # create a fresh pipeline
             pipe = _test_pipe(prefetch_queue_depth=2)
-            pipe.build()
             # schedule some runs ahead, so we know that the execution
             # of the next iteration starts immediately
             pipe.schedule_run()

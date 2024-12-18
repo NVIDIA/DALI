@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,7 +72,6 @@ def rcm_pipe(device, mode, roi_start=None, roi_end=None):
 )
 def test_vs_separate_ops(dev, mode, roi_start, roi_end):
     pipe = rcm_pipe(dev, mode, roi_start, roi_end)
-    pipe.build()
     for _ in range(5):
         rcm, separate = pipe.run()
         check_batch(rcm, separate, len(rcm), 1e-3, 1)

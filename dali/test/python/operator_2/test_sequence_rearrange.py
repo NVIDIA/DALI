@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,7 +73,6 @@ def check_sequence_rearrange(
         order = fn.external_source(lambda: reorders) if persample_reorder else reorders
         rearranged = fn.sequence_rearrange(frames, new_order=order, device=op_type)
         pipe.set_outputs(rearranged, input)
-    pipe.build()
     result, input = pipe.run()
     if op_type == "gpu":
         result = result.as_cpu()

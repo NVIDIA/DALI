@@ -58,7 +58,6 @@ class FwTestBase:
 
     def check_pipeline_checkpointing(self, pipeline_factory, reader_name=None, size=-1):
         pipe = pipeline_factory(**pipeline_args)
-        pipe.build()
 
         iter = self.FwIterator(
             pipe,
@@ -74,7 +73,6 @@ class FwTestBase:
                 pass
 
         restored = pipeline_factory(**pipeline_args, checkpoint=iter.checkpoints()[0])
-        restored.build()
         iter2 = self.FwIterator(
             restored,
             output_map=self.output_map(with_labels=False),
@@ -162,7 +160,6 @@ class FwTestBase:
             return image, label
 
         p = pipeline()
-        p.build()
 
         iter = self.FwIterator(
             p, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader"
@@ -174,7 +171,6 @@ class FwTestBase:
                         break
 
         restored = pipeline(checkpoint=iter.checkpoints()[0])
-        restored.build()
         iter2 = self.FwIterator(
             restored,
             output_map=self.output_map(with_labels=True),
@@ -241,7 +237,6 @@ class FwTestBase:
                     return data
 
                 p = pipeline(checkpoint=checkpoint)
-                p.build()
                 return p
 
             def make_pipelines(checkpoints=None):
@@ -340,7 +335,6 @@ class FwTestBase:
                         break
 
         pipeline = pipeline_factory()
-        pipeline.build()
 
         iter = self.FwIterator(
             pipeline,
@@ -354,7 +348,6 @@ class FwTestBase:
         run(iter, iterations)
 
         restored = pipeline_factory(checkpoint=iter.checkpoints()[0])
-        restored.build()
         iter2 = self.FwIterator(
             restored,
             output_map=self.output_map(with_labels=False),
@@ -406,7 +399,6 @@ class FwTestBase:
             return data
 
         pipe = pipeline()
-        pipe.build()
         it = make_iter(pipe)
 
         for _ in it:
@@ -417,12 +409,10 @@ class FwTestBase:
         checkpoint_after_reset = it.checkpoints()[0]
 
         pipe_before_reset = pipeline(checkpoint=checkpoint_before_reset)
-        pipe_before_reset.build()
         it_before_reset = make_iter(pipe_before_reset)
         assert is_empty(it_before_reset)
 
         pipe_after_reset = pipeline(checkpoint=checkpoint_after_reset)
-        pipe_after_reset.build()
         it_after_reset = make_iter(pipe_after_reset)
         assert not is_empty(it_after_reset)
 
@@ -446,18 +436,15 @@ class FwTestBase:
             return fn.random.uniform()
 
         pipe = pipeline()
-        pipe.build()
         it = make_iter(pipe)
 
         for _ in range(warmup_iters):
             next(it)
 
         pipe2 = pipeline(checkpoint=it.checkpoints()[0])
-        pipe2.build()
         it2 = make_iter(pipe2)
 
         pipe3 = pipeline(checkpoint=it2.checkpoints()[0])
-        pipe3.build()
         it3 = make_iter(pipe3)
 
         self.compare_iters(it2, it3)
@@ -569,7 +556,6 @@ class TestJaxPeekable(FwTestBase):
             return data
 
         p = pipeline()
-        p.build()
 
         it = self.FwIterator(
             [p],

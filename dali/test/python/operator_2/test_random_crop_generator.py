@@ -37,7 +37,6 @@ def test_random_crop_generator():
         return images_crop1, images_crop2
 
     p = pipe()
-    p.build()
     out0, out1 = p.run()
     for i in range(batch_size):
         np.testing.assert_array_equal(out0[i], out1[i])
@@ -73,7 +72,6 @@ def test_random_crop_generator_subcrop():
         return images_crop1_A, images_crop1_B
 
     p = pipe()
-    p.build()
     out0, out1 = p.run()
     for i in range(batch_size):
         np.testing.assert_array_equal(out0[i], out1[i])

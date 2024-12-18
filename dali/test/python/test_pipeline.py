@@ -75,7 +75,6 @@ def test_tensor_multiple_uses():
             return (images, images_cpu, images_gpu)
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-    pipe.build()
     out = pipe.run()
     assert out[0].is_dense_tensor()
     assert out[1].is_dense_tensor()
@@ -158,7 +157,6 @@ def test_multiple_input_sets():
             )
 
     pipe = MISPipe(batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-    pipe.build()
     out = pipe.run()
     for i in range(batch_size):
         for j in range(0, len(out) - 2, 2):
@@ -199,7 +197,6 @@ def test_pipeline_separated_exec_setup():
         num_gpus=1,
         prefetch_queue_depth={"cpu_size": 5, "gpu_size": 3},
     )
-    pipe.build()
     out = pipe.run()
     assert out[0].is_dense_tensor()
     assert out[1].is_dense_tensor()
@@ -243,7 +240,6 @@ def test_pipeline_simple_sync_no_prefetch():
             return (images, images_gpu)
 
     pipe = HybridPipe(batch_size=batch_size)
-    pipe.build()
     for _ in range(n_iters):
         pipe.run()
 
@@ -268,7 +264,6 @@ def test_use_twice():
             return (images0, images1)
 
     pipe = Pipe(batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-    pipe.build()
     out = pipe.run()
     assert out[0].is_dense_tensor()
     assert out[1].is_dense_tensor()
@@ -312,7 +307,6 @@ def test_cropmirrornormalize_layout():
             return (output_nchw, output_nhwc)
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-    pipe.build()
     out = pipe.run()
     assert out[0].is_dense_tensor()
     assert out[1].is_dense_tensor()
@@ -367,7 +361,6 @@ def test_cropmirrornormalize_pad():
 
     for layout in [types.NCHW, types.NHWC]:
         pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-        pipe.build()
         out = pipe.run()
         assert out[0].is_dense_tensor()
         assert out[1].is_dense_tensor()
@@ -427,7 +420,6 @@ def test_cropmirrornormalize_multiple_inputs():
 
     for device in ["cpu", "gpu"]:
         pipe = HybridPipe(batch_size=batch_size, device=device)
-        pipe.build()
         for _ in range(5):
             out1, out2, out3, out4 = pipe.run()
             outs = [out.as_cpu() if device == "gpu" else out for out in [out1, out2, out3, out4]]
@@ -467,7 +459,6 @@ def test_seed():
     n = 30
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
-        pipe.build()
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].as_cpu()
         img_chw_test = pipe_out_cpu.at(n)
@@ -484,7 +475,6 @@ def test_none_seed():
         with pipe:
             coin = fn.random.uniform(range=(0.0, 1.0))
         pipe.set_outputs(coin)
-        pipe.build()
         pipe_out = pipe.run()[0]
         test_out = pipe_out.as_array()
         if i == 0:
@@ -536,7 +526,6 @@ def test_as_array():
 
     for i in range(10):
         pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
-        pipe.build()
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].as_cpu()
         img_chw_test = pipe_out_cpu.as_array()
@@ -678,7 +667,6 @@ def test_warpaffine():
             return [self.labels] + outputs
 
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id=0)
-    pipe.build()
     pipe_out = pipe.run()
     import cv2
 
@@ -744,7 +732,6 @@ def test_type_conversion():
             return [self.labels] + outputs
 
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id=0)
-    pipe.build()
     for i in range(10):
         pipe_out = pipe.run()
         orig_cpu = pipe_out[1].as_cpu().as_tensor()
@@ -802,10 +789,8 @@ def test_lazy_init_empty_data_path():
 
     nonlazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=False)
     with assert_raises(RuntimeError):
-        nonlazy_pipe.build()
 
     lazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=True)
-    lazy_pipe.build()
 
 
 def test_lazy_init():
@@ -870,7 +855,6 @@ def test_iter_setup():
 
     iterator = iter(TestIterator(iter_num))
     pipe = IterSetupPipeline(iterator, 3, 0)
-    pipe.build()
 
     i = 0
     while True:
@@ -1091,10 +1075,8 @@ def test_caffe_no_label():
             return images
 
     pipe = CaffePipeline(2, caffe_db_folder, True)
-    pipe.build()
     pipe.run()
     pipe = CaffePipeline(2, caffe_no_label_db_folder, False)
-    pipe.build()
     pipe.run()
 
 
@@ -1132,10 +1114,8 @@ def test_caffe2_no_label():
             return images
 
     pipe = Caffe2Pipeline(2, c2lmdb_db_folder, 0)
-    pipe.build()
     pipe.run()
     pipe = Caffe2Pipeline(2, c2lmdb_no_label_db_folder, 4)
-    pipe.build()
     pipe.run()
 
 
@@ -1152,7 +1132,6 @@ def test_as_tensor():
     batch_size = 8
     shape = [[2, 2, 2], [8, 1], [1, 8], [4, 2], [2, 4], [8], [1, 2, 1, 2, 1, 2], [1, 1, 1, 8]]
     pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
-    pipe.build()
     for sh in shape:
         pipe_out = pipe.run()[0]
         assert pipe_out.as_tensor().shape() == [batch_size, 1]
@@ -1183,7 +1162,6 @@ def test_as_tensor_fail():
         [7, 1, 1, 1, 8],
     ]
     pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
-    pipe.build()
     for sh in shape:
         pipe_out = pipe.run()[0]
         assert pipe_out.as_tensor().shape() == [batch_size, 1]
@@ -1229,7 +1207,6 @@ def test_python_formats():
     ]:
         test_array = np.array([[1, 1], [1, 1]], dtype=t)
         pipe = TestPipeline(2, 1, 0, 1, test_array)
-        pipe.build()
         out = pipe.run()[0]
         out_dtype = out.at(0).dtype
         assert test_array.dtype.itemsize == out_dtype.itemsize
@@ -1251,7 +1228,6 @@ def test_api_check1():
             return inputs
 
     pipe = TestPipeline(batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-    pipe.build()
     pipe.run()
     for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs]:
         with assert_raises(
@@ -1283,7 +1259,6 @@ def test_api_check2():
             return inputs
 
     pipe = TestPipeline(batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-    pipe.build()
     pipe.schedule_run()
     pipe.share_outputs()
     pipe.release_outputs()
@@ -1346,7 +1321,6 @@ def check_duplicated_outs_pipeline(first_device, second_device):
         first_out_device=first_device,
         second_out_device=second_device,
     )
-    pipe.build()
     out = pipe.run()
     assert len(out) == 4
     for i in range(batch_size):
@@ -1585,7 +1559,6 @@ def check_duplicated_outs_cpu_to_gpu(device):
         normalized_anchor=normalized_anchor,
         normalized_shape=normalized_shape,
     )
-    pipe.build()
     out = pipe.run()
     assert isinstance(out[0][0], dali.backend_impl.TensorGPU) or device == "cpu"
     assert not isinstance(out[1][0], dali.backend_impl.TensorGPU)
@@ -1611,7 +1584,6 @@ def test_ref_count():
 
     pipe = HybridPipe()
     assert sys.getrefcount(pipe) == 2
-    pipe.build()
     assert sys.getrefcount(pipe) == 2
 
 
@@ -1655,7 +1627,6 @@ def test_executor_meta():
     test_pipe = TestPipeline(
         batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1, seed=random_seed
     )
-    test_pipe.build()
     test_pipe.run()
     meta = test_pipe.executor_statistics()
     # all operators (readers.Caffe, decoders.ImageRandomCrop, Resize, CropMirrorNormalize,
@@ -1705,7 +1676,6 @@ def test_bytes_per_sample_hint():
             out = fn.readers.caffe(path=caffe_db_folder, shard_id=0, num_shards=1, **kvargs)
             out = [o.gpu() for o in out]
             pipe.set_outputs(*out)
-        pipe.build()
         for _ in range(iters):
             pipe.run()
         meta = pipe.executor_statistics()
@@ -1740,7 +1710,6 @@ def trigger_output_dtype_deprecated_warning():
             std=[1.0, 1.0, 1.0],
         )
         pipe.set_outputs(cmn)
-    pipe.build()
 
     (result,) = pipe.run()
     assert result.as_array().dtype == np.float32
@@ -1764,7 +1733,6 @@ def trigger_image_type_deprecated_warning():
             std=[1.0, 1.0, 1.0],
         )
         pipe.set_outputs(cmn)
-    pipe.build()
 
     (result,) = pipe.run()
     assert result.as_array().dtype == np.float32
@@ -1820,7 +1788,6 @@ def test_output_dtype_both_error():
             std=[1.0, 1.0, 1.0],
         )
         pipe.set_outputs(cmn)
-    pipe.build()
 
 
 def test_epoch_size():
@@ -1854,7 +1821,6 @@ def test_epoch_size():
             return jpegs_mxnet, jpegs_caffe, jpegs_caffe2, jpegs_file
 
     pipe = ReaderPipeline(1)
-    pipe.build()
     meta = pipe.reader_meta()
     assert len(meta) == 4
     assert pipe.epoch_size("readers.mxnet") != 0
@@ -1869,7 +1835,6 @@ def test_pipeline_out_of_scope():
         pipe = dali.Pipeline(1, 1, 0)
         with pipe:
             pipe.set_outputs(dali.fn.external_source(source=[[np.array([-0.5, 1.25])]]))
-        pipe.build()
         return pipe.run()
 
     out = get_output()[0].at(0)
@@ -1880,7 +1845,6 @@ def test_return_constants():
     pipe = dali.Pipeline(1, 1, None)
     types = [bool, np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32, np.float32]
     pipe.set_outputs(np.array([[1, 2], [3, 4]]), 10, *[t(42) for t in types])
-    pipe.build()
     a, b, *other = pipe.run()
     assert np.array_equal(a.at(0), np.array([[1, 2], [3, 4]]))
     assert b.at(0) == 10
@@ -1895,7 +1859,6 @@ def test_preserve_arg():
         out = dali.fn.external_source(source=[[np.array([-0.5, 1.25])]], preserve=True)
         res = dali.fn.resize(out, preserve=True)  # noqa: F841
         pipe.set_outputs(out)
-    pipe.build()
 
 
 def test_pipeline_wrong_device_id():
@@ -1903,7 +1866,6 @@ def test_pipeline_wrong_device_id():
     with pipe:
         pipe.set_outputs(np.int32([1, 2, 3]))
     with assert_raises(Exception, regex="(wrong device_id)|(device_id.*is invalid)"):
-        pipe.build()
         pipe.run()
 
 
@@ -1976,7 +1938,6 @@ def check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs):
     with tempfile.NamedTemporaryFile() as f:
         dali_pipeline.serialize(filename=f.name)
         deserialized_pipeline = Pipeline.deserialize(filename=f.name)
-        deserialized_pipeline.build()
         assert ndim_dtype_matches(
             deserialized_pipeline.output_ndim(), output_ndim
         ), f"`output_ndim` is not serialized properly. {deserialized_pipeline.output_ndim()} vs {output_ndim}."  # noqa: E501
@@ -1984,7 +1945,6 @@ def check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs):
             deserialized_pipeline.output_dtype(), output_dtype
         ), f"`output_dtype` is not serialized properly. {deserialized_pipeline.output_dtype()} vs {output_dtype}."  # noqa: E501
         deserialized_pipeline.run()
-    dali_pipeline.build()
     dali_pipeline.run()
 
 
@@ -2173,14 +2133,12 @@ def test_regression_without_current_pipeline1():
         return pipe
 
     p = get_pipe("gpu")
-    p.build()
 
 
 def test_regression_without_current_pipeline2():
     pipe = Pipeline(batch_size=4, num_threads=3, device_id=0)
     data = fn.external_source(source=[1, 2, 3], batch=False, cycle=True)
     pipe.set_outputs(data.gpu())
-    pipe.build()
 
 
 def test_subgraph_stealing():
@@ -2193,12 +2151,10 @@ def test_subgraph_stealing():
     with p2:
         es2 = fn.external_source(source=[1, 2, 3], batch=False)
         p2.set_outputs(x + es2)
-    p1.build()
     with assert_raises(
         RuntimeError,
         glob="The pipeline is invalid because it contains operators with non-unique names",
     ):
-        p2.build()
 
 
 def test_gpu2cpu():
@@ -2211,7 +2167,6 @@ def test_gpu2cpu():
         return img, img.cpu()
 
     pipe = pdef()
-    pipe.build()
     for i in range(10):
         gpu, cpu = pipe.run()
         assert isinstance(gpu, dali.backend_impl.TensorListGPU)
@@ -2227,7 +2182,6 @@ def test_gpu2cpu_arg_input():
         return resized
 
     pipe = pdef()
-    pipe.build()
     (o,) = pipe.run()
     assert o[0].shape() == [42]
 
@@ -2245,7 +2199,6 @@ def test_shapes_gpu():
         return peek, shapes_of_gpu, shapes_of_cpu, img.shape(), img.cpu().shape()
 
     pipe = pdef()
-    pipe.build()
     for i in range(10):
         peek, shape_of_gpu, shape_of_cpu, shape_func_gpu, shape_func_cpu = pipe.run()
         # all results must be CPU tensor lists
@@ -2281,7 +2234,6 @@ def test_gpu2cpu_old_exec_error():
     pipe = pdef(lambda gpu: gpu._to_backend("cpu"))  # this will not raise errors until build-time
 
     with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
-        pipe.build()
 
 
 def test_gpu2cpu_conditionals():
@@ -2322,9 +2274,7 @@ def test_gpu2cpu_conditionals():
         return img ^ mask
 
     test_pipe = def_test()
-    test_pipe.build()
     ref_pipe = def_ref()
-    ref_pipe.build()
     for i in range(3):
         gpu, cpu = test_pipe.run()
         assert isinstance(gpu, dali.backend_impl.TensorListGPU)

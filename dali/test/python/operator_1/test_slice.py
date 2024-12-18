@@ -712,7 +712,6 @@ def check_slice_with_out_of_bounds_policy_support(
     )
     if fill_values is None:
         fill_values = 0
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         out, in_data, anchor_data, shape_data = outs
@@ -794,7 +793,6 @@ def check_slice_with_out_of_bounds_error(
         out_of_bounds_policy="error",
     )
 
-    pipe.build()
     with assert_raises(
         RuntimeError, glob="Slice can't be placed out of bounds with current policy. Got:"
     ):
@@ -865,7 +863,6 @@ def check_slice_named_args(device, batch_size):
                 outs += [fn.slice(data, rel_start=rel_start_arg, shape=shape_arg, axes=(0, 1))]
 
         pipe.set_outputs(*outs)
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         for out_idx in range(1, len(outs)):
@@ -902,7 +899,6 @@ def check_slice_named_args_default_start_or_end(device, batch_size):
             fn.slice(data, end=end, axes=(0, 1)),
         ]
         pipe.set_outputs(*outs)
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         for sample in range(batch_size):
@@ -940,7 +936,6 @@ def check_slice_named_args_errors(device, batch_size):
         RuntimeError,
         glob='"end", "rel_end", "shape", and "rel_shape" arguments are mutually exclusive',
     ):
-        pipe.build()
         for _ in range(1):
             outs = pipe.run()
 
@@ -963,7 +958,6 @@ def check_no_slice(device, dtype, batch_size, num_threads):
         return image, sliced1, sliced2
 
     pipe = make_pipe()
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         nouts = len(outs)
@@ -1015,7 +1009,6 @@ def check_rel_start_rel_shape(
             return image, axes, rel_start, rel_shape, sliced1, sliced2
 
     pipe = make_pipe()
-    pipe.build()
     ndim = 3
     for _ in range(3):
         outs = pipe.run()
@@ -1088,7 +1081,6 @@ def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
         return sliced
 
     p = make_pipe()
-    p.build()
     # Note: [[] and []] are '[' and ']' characters.
     assert_raises(
         RuntimeError,
@@ -1122,7 +1114,6 @@ def check_scalar(device):
         return data, sliced, shape, anchor
 
     pipe = test_pipe()
-    pipe.build()
     ref, data, shape, anchor = pipe.run()
     for sample_idx in range(batch_size):
         d = as_array(data[sample_idx])
@@ -1159,7 +1150,6 @@ def test_empty_input(device, use_empty_input):
         return fn.slice(x, anchor, 0, axes=[0])
 
     p = make_pipe()
-    p.build()
     (o,) = p.run()
     if device == "gpu":
         o = o.as_cpu()
@@ -1177,7 +1167,6 @@ def test_wrong_arg_backend():
 
     with assert_raises(RuntimeError, glob='is stored on incompatible device "gpu"'):
         p = make_pipe()
-        p.build()
         p.run()
 
 
@@ -1194,5 +1183,4 @@ def test_wrong_backend_named_args():
         RuntimeError, glob="Named argument inputs to operators must be CPU data nodes"
     ):
         p = make_pipe()
-        p.build()
         p.run()

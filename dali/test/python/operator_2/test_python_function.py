@@ -195,8 +195,6 @@ NUM_WORKERS = 6
 def run_case(func):
     pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
     pyfunc_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func)
-    pipe.build()
-    pyfunc_pipe.build()
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
         (output,) = pyfunc_pipe.run()
@@ -261,8 +259,6 @@ def test_python_operator_bias():
 def test_python_operator_flip():
     dali_flip = FlippingPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
     numpy_flip = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, flip)
-    dali_flip.build()
-    numpy_flip.build()
     for it in range(ITERS):
         (numpy_output,) = numpy_flip.run()
         (dali_output,) = dali_flip.run()
@@ -297,8 +293,6 @@ def test_python_operator_rotate():
     numpy_rotate = PythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate
     )
-    dali_rotate.build()
-    numpy_rotate.build()
     for it in range(ITERS):
         (numpy_output,) = numpy_rotate.run()
         (dali_output,) = dali_rotate.run()
@@ -314,8 +308,6 @@ def test_python_operator_brightness():
     numpy_brightness = PythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Brightness
     )
-    dali_brightness.build()
-    numpy_brightness.build()
     for it in range(ITERS):
         (numpy_output,) = numpy_brightness.run()
         (dali_output,) = dali_brightness.run()
@@ -332,7 +324,6 @@ def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, invalid_function
     )
-    invalid_pipe.build()
     invalid_pipe.run()
 
 
@@ -341,7 +332,6 @@ def test_python_operator_with_input_sets():
     invalid_pipe = PythonOperatorInputSetsPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate
     )
-    invalid_pipe.build()
 
 
 def split_red_blue(image):
@@ -357,8 +347,6 @@ def run_two_outputs(func):
     pyfunc_pipe = TwoOutputsPythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func
     )
-    pipe.build()
-    pyfunc_pipe.build()
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
         output1, output2 = pyfunc_pipe.run()
@@ -405,8 +393,6 @@ def run_multi_input_multi_output(func, compare, batch=False):
     pyfunc_pipe = MultiInputMultiOutputPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func, batch_processing=batch
     )
-    pipe.build()
-    pyfunc_pipe.build()
     compare(func, pipe, pyfunc_pipe)
 
 
@@ -457,7 +443,6 @@ def test_not_a_tuple():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, flip_batch
     )
-    invalid_pipe.build()
     invalid_pipe.run()
 
 
@@ -472,7 +457,6 @@ def test_not_a_tuple_dl():
         dlflip_batch,
         op=ops.DLTensorPythonFunction,
     )
-    invalid_pipe.build()
     invalid_pipe.run()
 
 
@@ -485,7 +469,6 @@ def test_wrong_outputs_number():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, three_outputs
     )
-    invalid_pipe.build()
     invalid_pipe.run()
 
 
@@ -500,7 +483,6 @@ def test_wrong_outputs_number_dl():
         three_outputs,
         op=ops.DLTensorPythonFunction,
     )
-    invalid_pipe.build()
     invalid_pipe.run()
 
 
@@ -513,7 +495,6 @@ def save(image):
 
 def test_sink():
     pipe = SinkTestPipeline(BATCH_SIZE, DEVICE_ID, SEED, images_dir, save)
-    pipe.build()
     if not os.path.exists(SINK_PATH):
         os.mkdir(SINK_PATH)
     assert len(glob.glob(SINK_PATH + "/sink_img*")) == 0
@@ -554,9 +535,6 @@ def test_func_with_side_effects():
         func_with_side_effects,
         prefetch_queue_depth=1,
     )
-
-    pipe_one.build()
-    pipe_two.build()
 
     global counter
 
@@ -599,7 +577,6 @@ def test_output_layout():
         )
 
         pipe.set_outputs(out1, out2, out3, out4, out5, out6)
-    pipe.build()
     out1, out2, out3, out4, out5, out6 = pipe.run()
     assert out1.layout() == "ABC"
     assert out2.layout() == "DE"
@@ -615,7 +592,6 @@ def test_invalid_layouts_arg():
     with pipe:
         out = fn.python_function(function=lambda: numpy.zeros((1, 1)), output_layouts=["HW", "HWC"])
         pipe.set_outputs(out)
-    pipe.build()
     pipe.run()
 
 
@@ -645,7 +621,6 @@ def test_python_function_conditionals():
         return out1, out2
 
     pipe = py_fun_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -689,7 +664,6 @@ def test_different_types(input_type):
     pipe = test_pipe(
         batch_size=max_batch_size, num_threads=1, device_id=0, enable_conditionals=True
     )
-    pipe.build()
 
     _ = pipe.run()
 
@@ -702,6 +676,5 @@ def test_delete_pipe_while_function_running():
     for i in range(5):
         with Pipeline(batch_size=1, num_threads=1, device_id=None) as pipe:
             pipe.set_outputs(fn.python_function(types.Constant(0), function=func))
-            pipe.build()
             pipe.run()
         del pipe

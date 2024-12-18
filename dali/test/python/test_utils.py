@@ -377,8 +377,6 @@ def compare_pipelines(
         compare_layouts (bool, optional): Whether to compare layouts of outputs between pipelines.
             Defaults to True.
     """
-    pipe1.build()
-    pipe2.build()
     for _ in range(N_iterations):
         out1 = pipe1.run()
         out2 = pipe2.run()

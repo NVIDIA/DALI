@@ -102,7 +102,6 @@ def rn50_pipeline():
 
 def test_operations_on_debug_pipeline():
     pipe = rn50_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -155,7 +154,6 @@ def injection_pipeline_standard(device="cpu"):
 
 def _test_injection(device, name, transform, eps=1e-07):
     pipe_load = load_images_pipeline()
-    pipe_load.build()
     pipe_standard = injection_pipeline_standard(device)
     pipe_debug = injection_pipeline(lambda: transform(pipe_load.run()[0]), device)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10, eps=eps)
@@ -236,8 +234,6 @@ def test_external_source_debug_sample_pipeline():
     pipe_load = load_images_pipeline()
     pipe_standard = es_pipeline_standard(prefetch_queue_depth=prefetch_queue_depth)
     pipe_debug = es_pipeline_debug(prefetch_queue_depth=prefetch_queue_depth)
-    pipe_load.build()
-    pipe_debug.build()
     # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
     # missing batches near the end of the epoch caused by prefetching
     for _ in range(n_iters + prefetch_queue_depth):
@@ -260,8 +256,6 @@ def _test_external_source_debug(source, batch):
     prefetch_queue_depth = 2
     pipe_debug = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth, debug=True)
     pipe_standard = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth)
-    pipe_debug.build()
-    pipe_standard.build()
     if source is None:
         # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
         # missing batches near the end of the epoch caused by prefetching
@@ -330,7 +324,6 @@ def order_change_pipeline():
 def test_operators_order_change():
     order_change_pipeline.change = False
     pipe = order_change_pipeline()
-    pipe.build()
     pipe.run()
     pipe.run()
 
@@ -353,7 +346,6 @@ def inputs_len_change():
 def test_inputs_len_change():
     inputs_len_change.change = True
     pipe = inputs_len_change()
-    pipe.build()
     pipe.run()
     pipe.run()
 
@@ -379,7 +371,6 @@ def kwargs_len_change():
 def test_kwargs_len_change():
     kwargs_len_change.change = True
     pipe = kwargs_len_change()
-    pipe.build()
     pipe.run()
     pipe.run()
 
@@ -398,7 +389,6 @@ def inputs_batch_change():
 def test_inputs_batch_change():
     inputs_batch_change.change = True
     pipe = inputs_batch_change()
-    pipe.build()
     pipe.run()
     pipe.run()
 
@@ -418,7 +408,6 @@ def kwargs_batch_change():
 def test_kwargs_batch_change():
     kwargs_batch_change.change = True
     pipe = kwargs_batch_change()
-    pipe.build()
     pipe.run()
     pipe.run()
 
@@ -445,7 +434,6 @@ def shape_pipeline(output_device):
 
 def _test_shape_pipeline(device):
     pipe = shape_pipeline(device)
-    pipe.build()
     (res,) = pipe.run()
 
     # Test TensorList.shape() directly.
@@ -517,7 +505,6 @@ def device_change_rn50_pipeline_base():
 @raises(RuntimeError, glob="Input * for operator * is on * but was on * when created.")
 def test_device_change():
     pipe = device_change_rn50_pipeline_base()
-    pipe.build()
     device_change_rn50_pipeline_base.change = True
     pipe.run()
     device_change_rn50_pipeline_base.change = False
@@ -537,7 +524,6 @@ def cpu_after_gpu_pipeline():
 @raises(RuntimeError, glob='incompatible device "gpu"')
 def test_cpu_operator_after_gpu():
     pipe = cpu_after_gpu_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -579,7 +565,6 @@ def incorrect_input_sets_pipeline():
 )
 def test_incorrect_input_sets():
     pipe = incorrect_input_sets_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -612,7 +597,6 @@ def test_variable_batch_size_from_external_source():
     batch_sizes = [3, 6, 7, 8]
     src_data = [np.zeros((batch_size, 64, 64, 3), dtype=np.uint8) for batch_size in batch_sizes]
     pipe = variable_batch_size_from_external_source_pipeline(src_data)
-    pipe.build()
     for batch_size in batch_sizes:
         (output,) = pipe.run()
         assert len(output) == batch_size
@@ -635,7 +619,6 @@ def incorrect_variable_batch_size_from_es_pipeline():
 )
 def test_incorrect_variable_batch_size_from_es():
     pipe = incorrect_variable_batch_size_from_es_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -656,7 +639,6 @@ def incorrect_variable_batch_size_inside_es_pipeline():
 @raises(RuntimeError, glob="External source must return outputs with consistent batch size.*")
 def test_incorrect_variable_batch_size_inside_es():
     pipe = incorrect_variable_batch_size_inside_es_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -672,7 +654,6 @@ def incorrect_variable_batch_size_pipeline():
 @raises(RuntimeError, glob="Batch size must be uniform across an iteration. Input*")
 def test_variable_batch_size():
     pipe = incorrect_variable_batch_size_pipeline()
-    pipe.build()
     pipe.run()
 
 
@@ -683,7 +664,6 @@ def unused_arg_es_pipeline(kwargs):
 
 def _test_es_unused_args(kwargs):
     pipe = unused_arg_es_pipeline(kwargs)
-    pipe.build()
     pipe.run()
 
 
@@ -700,7 +680,6 @@ def es_device_change_pipeline(source, device):
 
 def _test_es_device_change(source, device):
     pipe = es_device_change_pipeline(source, device)
-    pipe.build()
     (res,) = pipe.run()
     assert device in str(type(res)).lower()
 
@@ -719,7 +698,6 @@ def nan_check_pipeline(source):
 
 def _test_nan_check(values):
     pipe = nan_check_pipeline(iter(values))
-    pipe.build()
     for _ in range(2):
         pipe.run()
 
@@ -762,10 +740,8 @@ def test_debug_pipeline_conditionals():
         return pred, output
 
     pipe_standard = pipeline_split_merge(debug=True)
-    pipe_standard.build()
 
     pipe_cond = pipeline_cond(debug=True)
-    pipe_cond.build()
     compare_pipelines(pipe_standard, pipe_cond, 8, 5)
 
 
@@ -801,10 +777,8 @@ def test_debug_pipeline_conditional_repeated_op():
         return pred, output
 
     pipe_standard = pipeline_split_merge(debug=True)
-    pipe_standard.build()
 
     pipe_cond = pipeline_cond(debug=True)
-    pipe_cond.build()
     compare_pipelines(pipe_standard, pipe_cond, 8, 5)
 
 
@@ -859,5 +833,4 @@ def test_debug_pipeline_conditional_without_data_node():
         ),
     ):
         pipe_cond = pipeline_cond(debug=True)
-        pipe_cond.build()
         pipe_cond.run()

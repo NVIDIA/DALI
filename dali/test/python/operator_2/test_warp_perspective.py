@@ -577,7 +577,6 @@ def test_invalid_shape():
                 types.Constant(np.ones((3, 4), dtype=np.float32), device="gpu"),
             )
         )
-    pipe1.build()
     pipe1.run()
 
 
@@ -595,7 +594,6 @@ def test_clashing_args():
                 matrix=np.ones((3, 3), dtype=np.float32),
             )
         )
-    pipe1.build()
     pipe1.run()
 
 
@@ -609,7 +607,6 @@ def test_invalid_matrix_type():
                 types.Constant(np.ones((3, 3), dtype=np.int16), device="gpu"),
             )
         )
-    pipe1.build()
     pipe1.run()
 
 
@@ -624,5 +621,4 @@ def test_invalid_border_mode():
                 border_mode="foo",
             )
         )
-    pipe1.build()
     pipe1.run()

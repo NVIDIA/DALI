@@ -83,7 +83,6 @@ def compare_against_baseline(
         return output, data
 
     p = pipeline()
-    p.build()
     (
         output,
         data,
@@ -141,7 +140,6 @@ def get_videos():
         return fn.resize(image, size=size)
 
     p = pipeline()
-    p.build()
     (out,) = p.run()
 
     out = [np.array(sample) for sample in out]

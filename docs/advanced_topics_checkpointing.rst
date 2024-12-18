@@ -26,7 +26,6 @@ Enabling checkpointing shouldn't have any impact on the performance.
       ...
 
   p = pipeline()
-  p.build()
 
 
 .. note::
@@ -66,7 +65,6 @@ Such a pipeline should then return exactly the same outputs as the original one.
 
   checkpoint = open('checkpoint_file.cpt', 'rb').read()
   p_restored = pipeline(checkpoint=checkpoint)
-  p_restored.build()
 
 .. warning::
     Make sure that the pipeline that you're restoring is the same as the original one,

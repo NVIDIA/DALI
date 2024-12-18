@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ def read_imgs(num_imgs, dtype, seed):
         return fn.decoders.image(input, device="cpu", output_type=types.RGB)
 
     pipe = pipeline(batch_size=num_imgs, device_id=0, num_threads=4)
-    pipe.build()
     (batch,) = pipe.run()
     return [np.array(img, dtype=dtype) for img in batch]
 
@@ -72,7 +71,6 @@ def read_video(num_sequences, num_frames, height, width, seed=42):
         return video
 
     pipe = pipeline(batch_size=num_sequences, device_id=0, num_threads=4)
-    pipe.build()
     (batch,) = pipe.run()
     return [np.array(seq) for seq in batch.as_cpu()]
 
@@ -137,7 +135,6 @@ class DebayerTest(unittest.TestCase):
             return debayered_imgs, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
-        pipe.build()
 
         out_batches = []
         for _ in range(num_iterations):
@@ -182,7 +179,6 @@ class DebayerTest(unittest.TestCase):
             return debayered_imgs, blue_poses, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
-        pipe.build()
 
         out_batches = []
         for _ in range(num_iterations):
@@ -246,7 +242,6 @@ class DebayerVideoTest(unittest.TestCase):
             return debayered_vid, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
-        pipe.build()
 
         out_batches = []
         for _ in range(num_iterations):
@@ -277,7 +272,6 @@ def _test_shape_pipeline(shape, dtype):
         return fn.experimental.debayer(bayer_imgs.gpu(), blue_position=[0, 0])
 
     pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
-    pipe.build()
     pipe.run()
 
 
@@ -316,7 +310,6 @@ def test_no_blue_position_specified():
             return fn.experimental.debayer(bayer_imgs.gpu())
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
-        pipe.build()
         pipe.run()
 
 
@@ -330,5 +323,4 @@ def test_blue_position_outside_of_2x2_tile(blue_position):
             return fn.experimental.debayer(bayer_imgs.gpu(), blue_position=blue_position)
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
-        pipe.build()
         pipe.run()

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,6 @@ def check_select_masks(
             mask_ids, polygons, vertices, reindex_masks=reindex_masks
         )
     pipe.set_outputs(polygons, vertices, mask_ids, out_polygons, out_vertices)
-    pipe.build()
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):
@@ -119,7 +118,6 @@ def wrong_input_pipe(data_source_fn, reindex_masks=False):
 
 def _test_select_masks_wrong_input(data_source_fn, err_regex):
     p = wrong_input_pipe(data_source_fn=data_source_fn)
-    p.build()
     with assert_raises(RuntimeError, regex=err_regex):
         _ = p.run()
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,7 +99,6 @@ class DecoderPipeline(Pipeline):
 
 def test_decoded_vs_generated():
     pipeline = DecoderPipeline()
-    pipeline.build()
     idx = 0
     for iter in range(1):
         out = pipeline.run()
@@ -187,7 +186,6 @@ def check_audio_decoder_correctness(fmt, dtype):
     audio_files = get_files(os.path.join("db", "audio", fmt), fmt)
     npy_files = [os.path.splitext(fpath)[0] + ".npy" for fpath in audio_files]
     pipe = audio_decoder_pipe(audio_files, dtype)
-    pipe.build()
     for it in range(niterations):
         data = pipe.run()
         for s in range(batch_size):

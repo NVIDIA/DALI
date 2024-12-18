@@ -75,7 +75,6 @@ if __name__ == "__main__":
         device_id=0,
         file_root=VIDEO_FILE_ROOT,
     )
-    pipe.build()
     for i in range(ITER):
         print("Iteration " + str(i))
         sequences_out, label = pipe.run()

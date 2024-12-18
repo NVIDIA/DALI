@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,7 +79,6 @@ def run_benchmark(pipe_fun, batch_size, num_threads, num_samples, debug, data_pa
 
     times[0] = time()
     pipe = pipe_fun(data_path, batch_size=batch_size, num_threads=num_threads, debug=debug)
-    pipe.build()
     build_time = time()
 
     for i in range(num_iters):

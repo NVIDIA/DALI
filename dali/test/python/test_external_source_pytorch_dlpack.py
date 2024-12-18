@@ -136,7 +136,6 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
     iter_num = 5
     source = TestIterator(n=iter_num, batch_size=batch_size, dims=[2, 3], device=gen_device)
     pipe = IterSetupPipeline(iter(source), 3, 0, src_device)
-    pipe.build()
 
     run_and_check(pipe, source)
 
@@ -166,7 +165,6 @@ def _test_external_source_callback_torch_stream(src_device, gen_device):
                     source=gen_batch, device=src_device, cuda_stream=torch.cuda.current_stream()
                 )
             )
-            pipe.build()
 
             for i in range(10):
                 check_output(

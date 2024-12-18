@@ -60,7 +60,6 @@ def test_io_file_read(dtype):
         return data, data_ref
 
     p = pipe()
-    p.build()
 
     for _ in range(4):
         data, data_ref = p.run()
@@ -80,4 +79,3 @@ def test_io_file_const_str_err():
         "or convertible to constant nodes.",
     ):
         p = pipe()
-        p.build()

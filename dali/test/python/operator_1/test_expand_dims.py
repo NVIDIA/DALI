@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +42,6 @@ def _testimpl_expand_dims(
         new_axis_names=new_axis_names,
         layout=layout,
     )
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         assert outs[0].layout() == expected_layout
@@ -134,5 +133,4 @@ def test_expand_dims_throw_error():
             layout=layout,
         )
         with assert_raises(RuntimeError, regex=err_msg):
-            pipe.build()
             pipe.run()

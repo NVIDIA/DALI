@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -204,7 +204,6 @@ class NemoAsrReaderPipeline(Pipeline):
 def test_decoded_vs_generated():
     batch_size = 3
     pipeline = NemoAsrReaderPipeline(batch_size=batch_size)
-    pipeline.build()
 
     for iter in range(1):
         out = pipeline.run()
@@ -345,7 +344,6 @@ def test_nemo_asr_reader_pad_last_batch():
 
     def _testimpl_nemo_asr_reader_pad_last_batch(batch_size):
         pipe = nemo_asr_pad_last_batch_pipe(batch_size=batch_size)
-        pipe.build()
 
         dataset_len = len(names)
         assert dataset_len % batch_size > 0  # Checking that we need to pad
@@ -396,9 +394,7 @@ def test_read_idxs():
 
     seed = 12345
     pipe1 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
-    pipe1.build()
     pipe2 = nemo_asr_reader_read_idxs(batch_size=batch_size, reader_seed=seed)
-    pipe2.build()
 
     total_samples = len(names)
 

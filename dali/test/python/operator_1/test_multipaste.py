@@ -358,7 +358,6 @@ def check_operator_multipaste(
         use_in_anchors_rel=use_in_anchors_rel,
         use_out_anchors_rel=use_out_anchors_rel,
     )
-    pipe.build()
     try:
         result, input = pipe.run()
         r = result.as_cpu() if device == "gpu" else result
@@ -740,7 +739,6 @@ def test_input_shape_inference(device, use_uniform_shape, use_in_idx, output_siz
         return fn.multi_paste(image, *args, **kwargs)
 
     p = pipeline()
-    p.build()
     if not use_uniform_shape and output_size is None:
         with assert_raises(
             RuntimeError,
@@ -780,7 +778,6 @@ def test_out_of_bounds_idx(out_of_bound_idx, batch_size, device):
         return fn.multi_paste(image, in_ids=in_ids)
 
     p = pipeline()
-    p.build()
     with assert_raises(
         RuntimeError,
         glob=f"The `in_idx` must be in range * Got in_idx: {out_of_bound_idx}. "
@@ -828,7 +825,6 @@ def test_conflicting_channels(device, use_positional):
         return fn.multi_paste(image, *args, **kwargs)
 
     p = pipeline()
-    p.build()
     with assert_raises(
         RuntimeError,
         glob="All regions pasted into given output sample must have the same number of channels",
@@ -929,7 +925,6 @@ def test_var_channels(device, use_positional):
         return output, image_base, in_ids, in_out_size, num_channels
 
     p = pipeline()
-    p.build()
     for _ in range(num_iters):
         out_images, inp_images, idxs, out_sizes, num_channels = p.run()
         idxs = [np.array(sample) for sample in idxs]

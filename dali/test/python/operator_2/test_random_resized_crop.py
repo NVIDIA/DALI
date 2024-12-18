@@ -184,7 +184,6 @@ def _test_rrc(
         dtype=output_type,
     )
     pipe.set_outputs(out, shape)
-    pipe.build()
     for iter in range(3):
         outputs, input_shapes = pipe.run()
         if device == "gpu":

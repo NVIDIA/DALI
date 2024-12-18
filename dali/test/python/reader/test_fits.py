@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -173,7 +173,6 @@ def _testimpl_types_and_shapes(
         )
 
         try:
-            pipe.build()
             i = 0
             while i < nsamples:
                 pipe_out = pipe.run()
@@ -247,7 +246,6 @@ def test_concurrent_pipelines(device):
         pipeline = FitsReaderPipeline(
             test_data_path, device=device, device_id=0, num_threads=4, batch_size=1
         )
-        pipeline.build()
         pipelines.append(pipeline)
 
     for _ in range(3):

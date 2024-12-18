@@ -303,8 +303,6 @@ def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_da
         num_threads=4,
         device_id=0,
     )
-    seq_pipe.build()
-    baseline_pipe.build()
 
     for _ in range(num_iters):
         (seq_batch,) = seq_pipe.run()
@@ -483,7 +481,6 @@ def vid_source(batch_size, num_batches, num_frames, width, height, seq_layout):
         seq_layout=seq_layout,
         prefetch_queue_depth=1,
     )
-    pipe.build()
     batches = []
     for _ in range(num_batches):
         (pipe_out,) = pipe.run()

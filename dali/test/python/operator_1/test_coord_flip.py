@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,7 +64,6 @@ class CoordFlipPipeline(Pipeline):
 def check_operator_coord_flip(device, batch_size, layout, shape, center_x, center_y, center_z):
     eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
     pipe = CoordFlipPipeline(device, batch_size, iter(eii1), layout, center_x, center_y, center_z)
-    pipe.build()
     for i in range(30):
         outputs = pipe.run()
         for sample in range(batch_size):

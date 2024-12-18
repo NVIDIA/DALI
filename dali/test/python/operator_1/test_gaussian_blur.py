@@ -124,7 +124,6 @@ def get_gaussian_pipe(batch_size, sigma, window_size, op_type):
 
 def check_gaussian_blur(batch_size, sigma, window_size, op_type="cpu"):
     pipe = get_gaussian_pipe(batch_size, sigma, window_size, op_type)
-    pipe.build()
     for _ in range(test_iters):
         result, input = pipe.run()
         if op_type == "gpu":
@@ -221,7 +220,6 @@ def check_generic_gaussian_blur(
             input, device=op_type, sigma=sigma, window_size=window_size, dtype=out_dtype
         )
         pipe.set_outputs(blurred, input)
-    pipe.build()
 
     for _ in range(test_iters):
         result, input = pipe.run()
@@ -347,7 +345,6 @@ def check_per_sample_gaussian_blur(
             input = input.gpu()
         blurred = fn.gaussian_blur(input, device=op_type, sigma=sigma_arg, window_size=window_arg)
         pipe.set_outputs(blurred, input, sigma, window_size)
-    pipe.build()
 
     for _ in range(test_iters):
         result, input, sigma, window_size = pipe.run()
@@ -581,5 +578,4 @@ def test_fail_per_frame_no_frames():
         return fn.gaussian_blur(image, window_size=fn.per_frame(per_channel))
 
     pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
-    pipe.build()
     pipe.run()

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -232,9 +232,7 @@ io_types = [
 def test_vs_cv():
     def impl(device, batch_size, use_input, otype, itype, inv_map):
         cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
-        cv_pipeline.build()
         cpu_pipeline = WarpPipeline(device, batch_size, otype, itype, use_input, inv_map=inv_map)
-        cpu_pipeline.build()
         compare(cv_pipeline, cpu_pipeline, 8)
 
     random.seed(1009)
@@ -249,9 +247,7 @@ def test_vs_cv():
 def test_gpu_vs_cpu():
     def impl(batch_size, use_input, otype, itype, inv_map):
         cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inv_map=inv_map)
-        cpu_pipeline.build()
         gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
-        gpu_pipeline.build()
 
     random.seed(1006)
     for use_input in [False, True]:
@@ -283,7 +279,6 @@ def _test_extremely_large_data(device):
         interp_type=types.INTERP_NN,
     )
     pipe.set_outputs(rotated)
-    pipe.build()
 
     out = None
     try:

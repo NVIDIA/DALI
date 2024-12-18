@@ -156,7 +156,6 @@ def get_dali_train_loader(dali_device="gpu"):
                              dali_device=dali_device, rank=rank, world_size=world_size,
                              **pipeline_kwargs)
 
-        pipe.build()
         train_loader = DALIClassificationIterator(
             pipe, reader_name="Reader", fill_last_batch=False
         )
@@ -211,7 +210,6 @@ def get_dali_val_loader():
                                image_size=image_size + crop_padding, image_crop=image_size,
                                output_layout=output_layout, **pipeline_kwargs)
 
-        pipe.build()
         val_loader = DALIClassificationIterator(
             pipe, reader_name="Reader", fill_last_batch=False
         )
