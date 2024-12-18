@@ -1227,6 +1227,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`release_outputs`
         and :meth:`share_outputs`.
         Should not be mixed with :meth:`run` in the same pipeline"""
+        self.build()
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
                 self._prefetch()
@@ -1470,6 +1471,7 @@ class Pipeline(object):
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
+        self.build()
         try:
             if not self._last_iter:
                 self._iter_setup()
@@ -1738,6 +1740,7 @@ class Pipeline(object):
         raise NotImplementedError
 
     def _iter_setup(self):
+        self.build()
         iters, success = self._run_input_callbacks()
         if not success:
             raise StopIteration
