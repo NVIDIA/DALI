@@ -1179,7 +1179,7 @@ void ExposeTensorList(py::module &m) {
       Returns a `TensorListGPU` object being a copy of this `TensorListCPU`.
       )code",
       py::return_value_policy::take_ownership)
-    .def("as_cpu", [](TensorList<CPUBackend> &t) {
+    .def("as_cpu", [](TensorList<CPUBackend> &t) -> TensorList<CPUBackend> & {
         return t;
       }, R"code(Passthrough, as it is already an instance of `TensorListCPU`.)code",
       py::return_value_policy::reference_internal)
