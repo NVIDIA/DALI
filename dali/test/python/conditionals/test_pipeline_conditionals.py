@@ -472,7 +472,6 @@ def _impl_against_split_merge(base_additional_kwargs={}, conditional_additional_
         return output
 
     pipes = [regular_pipe(), conditional_pipe()]
-    for pipe in pipes:
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -522,7 +521,6 @@ def _impl_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={}):
         return output
 
     pipes = [regular_pipe(), conditional_pipe()]
-    for pipe in pipes:
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -571,7 +569,6 @@ def _impl_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additio
         return output
 
     pipes = [global_transform_pipe(), scoped_transform_pipe()]
-    for pipe in pipes:
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -664,7 +661,6 @@ def _impl_generators(pred, base_additional_kwargs={}, conditional_additional_kwa
         return encoded_out, rand_out
 
     pipes = [baseline_pipe(), conditional_pipe()]
-    for pipe in pipes:
     compare_pipelines(*pipes, bs, iters)
 
 

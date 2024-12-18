@@ -789,7 +789,7 @@ def test_lazy_init_empty_data_path():
 
     nonlazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=False)
     with assert_raises(RuntimeError):
-
+        nonlazy_pipe.build()
     lazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=True)
 
 
@@ -2155,6 +2155,7 @@ def test_subgraph_stealing():
         RuntimeError,
         glob="The pipeline is invalid because it contains operators with non-unique names",
     ):
+        p2.build()
 
 
 def test_gpu2cpu():
@@ -2234,7 +2235,7 @@ def test_gpu2cpu_old_exec_error():
     pipe = pdef(lambda gpu: gpu._to_backend("cpu"))  # this will not raise errors until build-time
 
     with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
-
+        pipe.build()
 
 def test_gpu2cpu_conditionals():
     bs = 4
@@ -2360,11 +2361,13 @@ def test_optional_build():
     for pipe in pipes:
         pipe.build()
 
-    pipes[0].run()
+    (res,) = pipes[0].run()
+    assert len(res.shape()) == 8
     pipes[1].schedule_run()
+    (res_2,) = pipes[1].outputs()
+    assert len(res_2.shape()) == 8
     assert pipes[2].epoch_size("only_reader") != 0
     assert pipes[3].executor_statistics() == {}
     assert "shard_id" in pipes[4].reader_meta("only_reader")
 
     pipes[-1].feed_input("source", np.array([10, 10]))
-

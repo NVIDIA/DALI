@@ -218,8 +218,6 @@ def test_global_shuffle_random_shuffle():
         for gpu in range(num_gpus)
     ]
 
-    for pipe in pipes:
-
     _, img_ids_list_set, _ = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes)
 
@@ -251,8 +249,6 @@ def test_global_shuffle_random_shuffle_2():
         for gpu in range(num_gpus)
     ]
 
-    for pipe in pipes:
-
     img_ids_list, img_ids_list_set, _ = gather_ids(pipes, num_gpus_arg=2, gpus_arg=[0])
     assert len(img_ids_list) == len(img_ids_list_set)
 
@@ -281,8 +277,6 @@ def test_global_shuffle_dont_mix_epochs():
         )
         for gpu in range(num_gpus)
     ]
-
-    for pipe in pipes:
 
     _, img_ids_list_set, _ = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes)
@@ -313,8 +307,6 @@ def test_dont_mix_epochs():
         )
         for gpu in range(num_gpus)
     ]
-
-    for pipe in pipes:
 
     _, img_ids_list_set, epochs_run = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes, epochs_run)
