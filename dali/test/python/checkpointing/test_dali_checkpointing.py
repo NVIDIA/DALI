@@ -1192,6 +1192,7 @@ def test_unsupported_dangling_subgraph():
         glob="The pipeline does not support checkpointing*"
         "because it contains operator*outside the pipeline*",
     ):
+        p.run()
 
 
 unsupported_readers = [

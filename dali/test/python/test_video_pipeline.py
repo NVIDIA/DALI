@@ -133,6 +133,7 @@ def test_simple_videopipeline():
 def test_wrong_length_sequence_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000)
     with assert_raises(RuntimeError, glob="There are no valid sequences in the provided dataset"):
+        pipe.run()
 
 
 def check_videopipeline_supported_type(dtype):

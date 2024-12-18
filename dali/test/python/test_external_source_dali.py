@@ -62,7 +62,7 @@ def _test_feed_input(device, is_serialized):
             exec_async=False,
             exec_pipelined=False,
         )
-    else:
+
     for _ in range(3):
         out1 = src_pipe.run()
         dst_pipe.feed_input("ext", out1[0])
@@ -501,6 +501,7 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
         f"but the {pruned_str} not used."
     )
     with assert_warns(Warning, glob=expected_error_msg):
+        pipe.run()
 
 
 def test_partially_utilized_external_source_warning():
@@ -899,6 +900,7 @@ def test_external_source_with_disallowed_var_args():
         return fn.external_source(source=my_source, batch=False)
 
     pipe = test_pipe()
+    pipe.build()
 
 
 @raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
@@ -911,6 +913,7 @@ def test_external_source_with_disallowed_arg_and_var_args():
         return fn.external_source(source=my_source, batch=False)
 
     pipe = test_pipe()
+    pipe.build()
 
 
 @raises(TypeError, glob="Found var-keyword argument `**kwargs` which is not allowed")
@@ -923,6 +926,7 @@ def test_external_source_with_disallowed_var_kwargs():
         return fn.external_source(source=my_source, batch=False)
 
     pipe = test_pipe()
+    pipe.build()
 
 
 @raises(TypeError, glob="Found var-keyword argument `**kwargs` which is not allowed")
@@ -935,6 +939,7 @@ def test_external_source_with_disallowed_arg_and_var_kwargs():
         return fn.external_source(source=my_source, batch=False)
 
     pipe = test_pipe()
+    pipe.build()
 
 
 @raises(TypeError, glob="Found keyword-only argument `kw_only` which is not allowed.")
@@ -947,6 +952,7 @@ def test_external_source_with_disallowed_kwarg_only():
         return fn.external_source(source=my_source, batch=False)
 
     pipe = test_pipe()
+    pipe.build()
 
 
 @raises(TypeError, glob="Found more than one positional argument, which is not allowed.")
@@ -959,6 +965,7 @@ def test_external_source_with_disallowed_too_many():
         return fn.external_source(source=my_source, batch=False)
 
     pipe = test_pipe()
+    pipe.build()
 
 
 def test_accepted_arg_count():

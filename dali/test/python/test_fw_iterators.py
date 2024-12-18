@@ -477,7 +477,6 @@ def check_mxnet_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-    for p in pipes:
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
@@ -784,7 +783,6 @@ def check_gluon_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-    for p in pipes:
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
@@ -1498,8 +1496,6 @@ def check_pytorch_iterator_pass_reader_name(
         for id in range(pipes_number)
     ]
 
-    for p in pipes:
-
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
     ids = [pipe.reader_meta("Reader")["shard_id"] for pipe in pipes]
@@ -1781,8 +1777,6 @@ def check_paddle_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-
-    for p in pipes:
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size

@@ -348,7 +348,6 @@ def test_conditionals():
         batch_size=32,
         enable_conditionals=True,
     )
-    for pipe in [pipe_base, pipe_cond]:
     compare_pipelines(pipe_base, pipe_cond, 32, 5)
 
 

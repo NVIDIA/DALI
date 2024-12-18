@@ -202,6 +202,7 @@ def test_argument_errors():
             device_id=0,
             num_threads=1,
         )
+        webdataset_pipeline.build()
 
     assert_raises(
         RuntimeError,

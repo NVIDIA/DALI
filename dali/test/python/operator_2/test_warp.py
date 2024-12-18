@@ -247,7 +247,9 @@ def test_vs_cv():
 def test_gpu_vs_cpu():
     def impl(batch_size, use_input, otype, itype, inv_map):
         cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+        cpu_pipeline.build()
         gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+        gpu_pipeline.build()
 
     random.seed(1006)
     for use_input in [False, True]:

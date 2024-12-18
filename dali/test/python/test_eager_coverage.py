@@ -119,7 +119,7 @@ class PipelineInput:
             self.pipe = pipe_fun(*args, kwargs)
         else:
             self.pipe = pipe_fun(*args)
-        self.
+
     def __call__(self, *_):
         return self.pipe.run()
 

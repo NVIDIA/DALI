@@ -259,7 +259,6 @@ def run_dataset_eager_mode(dali_datasets, iterations, to_stop_iter=False):
 def run_pipeline(pipelines, iterations, device, to_stop_iter=False):
     if not isinstance(pipelines, list):
         pipelines = [pipelines]
-    for pipeline in pipelines:
     results = []
     with expect_iter_end(not to_stop_iter, StopIteration):
         for _ in range(iterations):

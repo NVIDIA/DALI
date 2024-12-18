@@ -791,6 +791,7 @@ def test_lazy_init_empty_data_path():
     with assert_raises(RuntimeError):
         nonlazy_pipe.build()
     lazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=True)
+    lazy_pipe.build()
 
 
 def test_lazy_init():
@@ -2133,6 +2134,7 @@ def test_regression_without_current_pipeline1():
         return pipe
 
     p = get_pipe("gpu")
+    p.build()
 
 
 def test_regression_without_current_pipeline2():
@@ -2236,6 +2238,7 @@ def test_gpu2cpu_old_exec_error():
 
     with assert_raises(RuntimeError, glob="doesn't support transition from GPU to CPU"):
         pipe.build()
+
 
 def test_gpu2cpu_conditionals():
     bs = 4
