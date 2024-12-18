@@ -147,6 +147,7 @@ def check_videopipeline_supported_type(dtype):
 @raises(RuntimeError, glob="Data type must be FLOAT or UINT8")
 def check_videopipeline_unsupported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
+    pipe.run()
 
 
 SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
@@ -279,6 +280,7 @@ def test_file_list_include_preceding_frame_fail():
     # there should be no valid sequences
     expected_msg = "Start time number should be lesser or equal to end time for a file"
     with assert_raises(RuntimeError, glob=expected_msg):
+        pipe.run()
     os.remove(list_file_name)
 
 
@@ -296,6 +298,7 @@ def _test_file_list_invalid_range(start, end):
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
     expected_msg = "Start frame number should be lesser or equal to end frame number for a file"
     with assert_raises(RuntimeError, glob=expected_msg):
+        pipe.run()
     os.remove(list_file.name)
 
 
@@ -313,6 +316,7 @@ def test_file_list_empty_range():
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
     with assert_raises(RuntimeError, glob="No files were read"):
+        pipe.run()
     os.remove(list_file.name)
 
 
