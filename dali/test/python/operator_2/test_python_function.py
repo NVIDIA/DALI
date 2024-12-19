@@ -27,7 +27,7 @@ import time
 from PIL import Image, ImageEnhance
 from nvidia.dali.ops import _DataNode
 from nose2.tools import params
-
+import numpy as np
 from nose_utils import raises
 from test_utils import get_dali_extra_path, np_type_to_dali
 
@@ -312,7 +312,9 @@ def test_python_operator_brightness():
         (numpy_output,) = numpy_brightness.run()
         (dali_output,) = dali_brightness.run()
         for i in range(len(dali_output)):
-            assert numpy.allclose(numpy_output.at(i), dali_output.at(i).as_cpu(), rtol=1e-5, atol=1)
+            assert numpy.allclose(
+                numpy_output.at(i), np.array(dali_output.at(i).as_cpu()), rtol=1e-5, atol=1
+            )
 
 
 def invalid_function(image):

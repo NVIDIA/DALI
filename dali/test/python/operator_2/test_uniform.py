@@ -22,10 +22,9 @@ def check_uniform_default(device="cpu", batch_size=32, shape=[1e5], val_range=No
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
-    for it in range(niter):
-        outputs = pipe.run()
+    for _ in range(niter):
+        (data_out,) = tuple(out.as_cpu() for out in pipe.run())
         val_range = (-1.0, 1.0) if val_range is None else val_range
-        data_out = outputs[0].as_cpu()
         pvs = []
         for i in range(batch_size):
             data = np.array(data_out[i])
@@ -63,9 +62,8 @@ def check_uniform_continuous_next_after(device="cpu", batch_size=32, shape=[1e5]
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
-    for it in range(niter):
-        outputs = pipe.run()
-        data_out = outputs[0].as_cpu()
+    for _ in range(niter):
+        (data_out,) = tuple(out.as_cpu() for out in pipe.run())
         for i in range(batch_size):
             data = np.array(data_out[i])
             assert (val_range[0] == data).all(), f"{data} is outside of requested range"
@@ -83,9 +81,8 @@ def check_uniform_discrete(device="cpu", batch_size=32, shape=[1e5], values=None
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, values=values, shape=shape))
-    for it in range(niter):
-        outputs = pipe.run()
-        data_out = outputs[0].as_cpu()
+    for _ in range(niter):
+        (data_out,) = tuple(out.as_cpu() for out in pipe.run())
         values_set = set(values)
         maxval = np.max(values)
         bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval + 1)])])

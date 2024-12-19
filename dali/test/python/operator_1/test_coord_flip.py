@@ -65,22 +65,20 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
     eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
     pipe = CoordFlipPipeline(device, batch_size, iter(eii1), layout, center_x, center_y, center_z)
     for i in range(30):
-        outputs = pipe.run()
+        outputs0, outputs1, outputs2, outputs3, outputs4 = pipe.run()
+        outputs1 = outputs1.as_cpu()
         for sample in range(batch_size):
-            in_coords = outputs[0].at(sample)
-            if device == "gpu":
-                out_coords = outputs[1].at(sample).as_cpu()
-            else:
-                out_coords = outputs[1].at(sample)
+            in_coords = outputs0.at(sample)
+            out_coords = outputs1.at(sample)
             if in_coords.shape == () or in_coords.shape[0] == 0:
                 assert out_coords.shape == () or out_coords.shape[0] == 0
                 continue
 
-            flip_x = outputs[2].at(sample)
-            flip_y = outputs[3].at(sample)
+            flip_x = outputs2.at(sample)
+            flip_y = outputs3.at(sample)
             flip_z = None
             if len(layout) == 3:
-                flip_z = outputs[4].at(sample)
+                flip_z = outputs4.at(sample)
             _, ndim = in_coords.shape
 
             flip_dim = [flip_x, flip_y]

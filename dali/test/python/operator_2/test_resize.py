@@ -864,7 +864,7 @@ def test_large_gpu(interp, antialias):
 
     pipe = resize_pipe()
     (outs,) = pipe.run()
-    out = outs.at(0).as_cpu()
+    out = np.array(outs.at(0).as_cpu())
     global large_data_resized
     if large_data_resized is None:
         large_data_resized = make_cube(350, 224, 224)

@@ -275,8 +275,10 @@ def check_batch(
         return False
 
     import_numpy()
-    batch1 = batch1.as_cpu()
-    batch2 = batch2.as_cpu()
+    if isinstance(batch1, dali.backend.TensorListGPU):
+        batch1 = batch1.as_cpu()
+    if isinstance(batch2, dali.backend.TensorListGPU):
+        batch2 = batch2.as_cpu()
 
     if batch_size is None:
         batch_size = len(batch1)
@@ -376,12 +378,10 @@ def compare_pipelines(
             Defaults to True.
     """
     for _ in range(N_iterations):
-        out1 = pipe1.run()
-        out2 = pipe2.run()
+        out1 = tuple(out.as_cpu() for out in pipe1.run())
+        out2 = tuple(out.as_cpu() for out in pipe2.run())
         assert len(out1) == len(out2)
-        for i in range(len(out1)):
-            out1_data = out1[i].as_cpu()
-            out2_data = out2[i].as_cpu()
+        for i, (out1_data, out2_data) in enumerate(zip(out1, out2)):
             if isinstance(expected_layout, tuple):
                 current_expected_layout = expected_layout[i]
             else:

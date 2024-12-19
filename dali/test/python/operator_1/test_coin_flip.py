@@ -50,8 +50,7 @@ def check_coin_flip(
         if shape_out is not None:
             outputs += [shape_out]
         pipe.set_outputs(*outputs)
-    outputs = pipe.run()
-    data_out = outputs[0].as_cpu()
+    (data_out,) = tuple(out.as_cpu() for out in pipe.run())
     shapes_out = None
     if max_shape is not None:
         shapes_out = outputs[1].as_cpu()

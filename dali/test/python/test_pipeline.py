@@ -667,10 +667,9 @@ def test_warpaffine():
             return [self.labels] + outputs
 
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id=0)
-    pipe_out = pipe.run()
+    _, orig_cpu, dali_output_batch = tuple(out.as_cpu() for out in pipe.run())
     import cv2
 
-    orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
         # apply 0.5 correction for opencv's not-so-good notion of pixel centers
@@ -683,7 +682,7 @@ def test_warpaffine():
             borderValue=(128, 128, 128),
             flags=(cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR),
         )
-        dali_output = pipe_out[2].at(i).as_cpu()
+        dali_output = dali_output_batch.at(i)
         maxdif = np.max(cv2.absdiff(out, dali_output) / 255.0)
         assert maxdif < 0.025
 
