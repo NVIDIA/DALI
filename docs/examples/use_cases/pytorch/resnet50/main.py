@@ -123,19 +123,62 @@ def to_python_float(t):
 
 @pipeline_def(exec_dynamic=True)
 def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
-    if data_dir is None:
-        if args.send_filepaths:
-            filepaths = fn.external_source(name="images", no_copy=True)
-            images = fn.io.file.read(filepaths)
-        else:
-            images = fn.external_source(name="images", no_copy=True)
+    images, labels = fn.readers.file(file_root=data_dir,
+                                        shard_id=shard_id,
+                                        num_shards=num_shards,
+                                        random_shuffle=is_training,
+                                        pad_last_batch=True,
+                                        name="Reader")
+
+    dali_device = 'cpu' if dali_cpu else 'gpu'
+    decoder_device = 'cpu' if dali_cpu else 'mixed'
+    # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
+    preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
+    preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
+    if is_training:
+        images = fn.decoders.image_random_crop(images,
+                                               device=decoder_device, output_type=types.RGB,
+                                               preallocate_width_hint=preallocate_width_hint,
+                                               preallocate_height_hint=preallocate_height_hint,
+                                               random_aspect_ratio=[0.8, 1.25],
+                                               random_area=[0.1, 1.0],
+                                               num_attempts=100)
+        images = fn.resize(images,
+                           device=dali_device,
+                           resize_x=crop,
+                           resize_y=crop,
+                           interp_type=types.INTERP_TRIANGULAR)
+        mirror = fn.random.coin_flip(probability=0.5)
     else:
-        images, labels = fn.readers.file(file_root=data_dir,
-                                         shard_id=shard_id,
-                                         num_shards=num_shards,
-                                         random_shuffle=is_training,
-                                         pad_last_batch=True,
-                                         name="Reader")
+        images = fn.decoders.image(images,
+                                   device=decoder_device,
+                                   output_type=types.RGB)
+        images = fn.resize(images,
+                           device=dali_device,
+                           size=size,
+                           mode="not_smaller",
+                           interp_type=types.INTERP_TRIANGULAR)
+        mirror = False
+
+    images = fn.crop_mirror_normalize(images.gpu(),
+                                      dtype=types.FLOAT,
+                                      output_layout="CHW",
+                                      crop=(crop, crop),
+                                      mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                      std=[0.229 * 255,0.224 * 255,0.225 * 255],
+                                      mirror=mirror)
+    labels = labels.gpu()
+    return images, labels
+
+
+
+@pipeline_def(exec_dynamic=True)
+def create_dali_pipeline_external_source(crop, size, dali_cpu=False, is_training=True):
+    if args.send_filepaths:
+        filepaths = fn.external_source(name="images", no_copy=True)
+        images = fn.io.file.read(filepaths)
+    else:
+        images = fn.external_source(name="images", no_copy=True)
 
     dali_device = 'cpu' if dali_cpu else 'gpu'
     decoder_device = 'cpu' if dali_cpu else 'mixed'
@@ -175,11 +218,7 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                                       std=[0.229 * 255,0.224 * 255,0.225 * 255],
                                       mirror=mirror)
 
-    if data_dir is None:
-        return images
-    else:
-        labels = labels.gpu()
-        return images, labels
+    return images
 
 
 def main():
@@ -300,12 +339,12 @@ def main():
     val_pipe = None
     dali_server_train = None
     dali_server_val = None
-    if not args.disable_dali:
+    if not args.disable_dali and not args.dali_proxy:
         train_pipe = create_dali_pipeline(batch_size=args.batch_size,
                                           num_threads=args.workers,
                                           device_id=args.local_rank,
                                           seed=12 + args.local_rank,
-                                          data_dir=traindir if not args.dali_proxy else None,
+                                          data_dir=traindir,
                                           crop=crop_size,
                                           size=val_size,
                                           dali_cpu=args.dali_cpu,
@@ -318,7 +357,7 @@ def main():
                                         num_threads=args.workers,
                                         device_id=args.local_rank,
                                         seed=12 + args.local_rank,
-                                        data_dir=valdir if not args.dali_proxy else None,
+                                        data_dir=valdir,
                                         crop=crop_size,
                                         size=val_size,
                                         dali_cpu=args.dali_cpu,
@@ -327,14 +366,35 @@ def main():
                                         is_training=False)
         val_pipe.build()
 
-    if not args.disable_dali and not args.dali_proxy:
         train_loader = DALIClassificationIterator(train_pipe, reader_name="Reader",
                                                   last_batch_policy=LastBatchPolicy.PARTIAL,
                                                   auto_reset=True)
         val_loader = DALIClassificationIterator(val_pipe, reader_name="Reader",
                                                 last_batch_policy=LastBatchPolicy.PARTIAL,
                                                 auto_reset=True)
-    elif args.dali_proxy:
+    elif not args.disable_dali and args.dali_proxy:
+        train_pipe = create_dali_pipeline_external_source(
+            batch_size=args.batch_size,
+            num_threads=args.workers,
+            device_id=args.local_rank,
+            seed=12 + args.local_rank,
+            crop=crop_size,
+            size=val_size,
+            dali_cpu=args.dali_cpu,
+            is_training=True)
+        train_pipe.build()
+
+        val_pipe = create_dali_pipeline_external_source(
+            batch_size=args.batch_size,
+            num_threads=args.workers,
+            device_id=args.local_rank,
+            seed=12 + args.local_rank,
+            crop=crop_size,
+            size=val_size,
+            dali_cpu=args.dali_cpu,
+            is_training=False)
+        val_pipe.build()
+
         assert train_pipe is not None
         assert val_pipe is not None
         dali_server_train = dali_proxy.DALIServer(train_pipe)

@@ -153,7 +153,7 @@ If using a custom ``DataLoader``, call the DALI server explicitly:
 .. code-block:: python
 
    for data, _ in loader:
-      # Replaces instances of ``DALIPipelineRunRef`` with actual data
+      # Replaces instances of ``DALIOutputBatchRef`` with actual data
       processed_data = dali_server.produce_data(data)
       print(processed_data.shape)  # data is now ready
 
