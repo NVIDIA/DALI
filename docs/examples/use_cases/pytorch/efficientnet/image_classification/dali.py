@@ -21,31 +21,82 @@ from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
 @pipeline_def(enable_conditionals=True, exec_dynamic=True)
 def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_augmentation,
-                  dali_device="gpu", rank=0, world_size=1, send_filepaths=False):
+                  dali_device="gpu", rank=0, world_size=1):
     rng = fn.random.coin_flip(probability=0.5)
 
-    if data_dir is None:
-        if send_filepaths:
-            filepaths = fn.external_source(name="images", no_copy=True)
-            jpegs = fn.io.file.read(filepaths)
-        else:
-            jpegs = fn.external_source(name="images", no_copy=True)
-    else:
-        jpegs, labels = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
-                                        num_shards=world_size, random_shuffle=True, pad_last_batch=True)
+    jpegs, labels = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
+                                    num_shards=world_size, random_shuffle=True, pad_last_batch=True)
 
-    if dali_device == "gpu":
-        decoder_device = "mixed"
-        resize_device = "gpu"
-    else:
-        decoder_device = "cpu"
-        resize_device = "cpu"
-
+    decoder_device = "mixed" if dali_device == "gpu" else "cpu"
     images = fn.decoders.image_random_crop(jpegs, device=decoder_device, output_type=types.RGB,
                                            random_aspect_ratio=[0.75, 4.0 / 3.0],
                                            random_area=[0.08, 1.0])
 
-    images = fn.resize(images, device=resize_device, size=[image_size, image_size],
+    images = fn.resize(images, size=[image_size, image_size],
+                       interp_type=interpolation, antialias=False)
+
+    # Make sure that from this point we are processing on GPU regardless of dali_device parameter
+    images = images.gpu()
+
+    images = fn.flip(images, horizontal=rng)
+
+    # Based on the specification, apply the automatic augmentation policy. Note, that from the point
+    # of Pipeline definition, this `if` statement relies on static scalar parameter, so it is
+    # evaluated exactly once during build - we either include automatic augmentations or not.
+    # We pass the shape of the image after the resize so the translate operations are done
+    # relative to the image size.
+    if automatic_augmentation == "autoaugment":
+        output = auto_augment.auto_augment_image_net(images, shape=[image_size, image_size])
+    elif automatic_augmentation == "trivialaugment":
+        output = trivial_augment.trivial_augment_wide(images, shape=[image_size, image_size])
+    else:
+        output = images
+
+    output = fn.crop_mirror_normalize(output, dtype=types.FLOAT, output_layout=output_layout,
+                                      crop=(image_size, image_size),
+                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                      std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return output, labels
+
+
+@pipeline_def(exec_dynamic=True)
+def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layout,
+                    dali_device="gpu", rank=0, world_size=1):
+    jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
+                                   num_shards=world_size, random_shuffle=False, pad_last_batch=True)
+
+    decoder_device = "mixed" if dali_device == "gpu" else "cpu"
+    images = fn.decoders.image(jpegs, device=decoder_device, output_type=types.RGB)
+
+    images = fn.resize(images, resize_shorter=image_size,
+                       interp_type=interpolation, antialias=False)
+
+    images = images.gpu()
+
+    output = fn.crop_mirror_normalize(images, dtype=types.FLOAT, output_layout=output_layout,
+                                      crop=(image_crop, image_crop),
+                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                      std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return output, label
+
+
+
+@pipeline_def(enable_conditionals=True, exec_dynamic=True)
+def training_pipe_external_source(interpolation, image_size, output_layout, automatic_augmentation,
+                                  dali_device="gpu", send_filepaths=False):
+    rng = fn.random.coin_flip(probability=0.5)
+    if send_filepaths:
+        filepaths = fn.external_source(name="images", no_copy=True)
+        jpegs = fn.io.file.read(filepaths)
+    else:
+        jpegs = fn.external_source(name="images", no_copy=True)
+
+    decoder_device = "mixed" if dali_device == "gpu" else "cpu"
+    images = fn.decoders.image_random_crop(jpegs, device=decoder_device, output_type=types.RGB,
+                                           random_aspect_ratio=[0.75, 4.0 / 3.0],
+                                           random_area=[0.08, 1.0])
+
+    images = fn.resize(images, size=[image_size, image_size],
                        interp_type=interpolation, antialias=False)
 
     # Make sure that from this point we are processing on GPU regardless of dali_device parameter
@@ -70,35 +121,22 @@ def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
 
-    if data_dir is None:
-        return output
-    else:
-        return output, labels
+    return output
 
 
 @pipeline_def(exec_dynamic=True)
-def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layout,
-                    dali_device="gpu", rank=0, world_size=1, send_filepaths=False):
-    if data_dir is None:
-        if send_filepaths:
-            filepaths = fn.external_source(name="images", no_copy=True)
-            jpegs = fn.io.file.read(filepaths)
-        else:
-            jpegs = fn.external_source(name="images", no_copy=True)
+def validation_pipe_external_source(interpolation, image_size, image_crop, output_layout,
+                                    dali_device="gpu", send_filepaths=False):
+    if send_filepaths:
+        filepaths = fn.external_source(name="images", no_copy=True)
+        jpegs = fn.io.file.read(filepaths)
     else:
-        jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
-                                       num_shards=world_size, random_shuffle=False, pad_last_batch=True)
+        jpegs = fn.external_source(name="images", no_copy=True)
 
-    if dali_device == "gpu":
-        decoder_device = "mixed"
-        resize_device = "gpu"
-    else:
-        decoder_device = "cpu"
-        resize_device = "cpu"
-
+    decoder_device = "mixed" if dali_device == "gpu" else "cpu"
     images = fn.decoders.image(jpegs, device=decoder_device, output_type=types.RGB)
 
-    images = fn.resize(images, device=resize_device, resize_shorter=image_size,
+    images = fn.resize(images, resize_shorter=image_size,
                        interp_type=interpolation, antialias=False)
 
     images = images.gpu()
@@ -108,7 +146,4 @@ def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layo
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
 
-    if data_dir is None:
-        return output
-    else:
-        return output, label
+    return output
