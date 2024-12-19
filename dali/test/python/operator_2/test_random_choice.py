@@ -137,7 +137,6 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
     tuple_output_shape = output_shape if output_shape is not None else ()
 
     pipe = choice_pipe()
-    pipe.build()
     choices = [[] for _ in range(batch_size)]
     for _ in range(n_iters):
         ch, a, p = pipe.run()
@@ -162,7 +161,6 @@ def test_choice_0_prob():
         return fn.random.choice(2, p=[0.0, 1.0], shape=10)
 
     pipe = choice_pipe()
-    pipe.build()
     for _ in range(3):
         (out,) = pipe.run()
         for i in range(2):
@@ -181,7 +179,6 @@ def test_choice_1_elem(input, expected_output, p):
         return fn.random.choice(input, p=p)
 
     pipe = choice_pipe()
-    pipe.build()
     for _ in range(3):
         (out,) = pipe.run()
         for i in range(2):
@@ -195,7 +192,6 @@ def test_choice_64_bit_type():
         return fn.random.choice(a)
 
     pipe = choice_pipe()
-    pipe.build()
     for _ in range(3):
         (out,) = pipe.run()
         assert out.dtype == types.INT64, f"Expected {types.INT64}, got {out.dtype}."
@@ -217,7 +213,6 @@ def test_layout(input, input_layout, expected_layout, shape):
         return fn.random.choice(a, shape=shape)
 
     pipe = choice_pipe()
-    pipe.build()
     for _ in range(3):
         (out,) = pipe.run()
         assert (
@@ -274,7 +269,6 @@ def test_choice_validation(args, kwargs, expected_error):
             return values
 
         pipe = choice_pipe()
-        pipe.build()
         pipe.run()
 
 
@@ -295,7 +289,6 @@ def test_enum_choice():
         return interp, interp_as_int, imgs
 
     pipe = choice_pipeline()
-    pipe.build()
     (interp, interp_as_int, imgs) = pipe.run()
     assert interp.dtype == types.DALIDataType.INTERP_TYPE
     for i in range(batch_size):

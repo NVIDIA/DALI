@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ def run_and_compare(expected, data, device, resize_fn):
         return resize_fn(input_data)
 
     p = pipe()
-    p.build()
     out = p.run()
     np.testing.assert_allclose(expected, as_array(out[0][0]), rtol=1e-3, atol=1e-7)
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ def _test_use_foreground(classes, weights, bg):
         background=bg,
     )
     pipe.set_outputs(*pipe_outs)
-    pipe.build()
     outs = pipe.run()
     for i in range(len(outs[2])):
         assert outs[2].at(i) != (bg or 0)
@@ -333,7 +332,6 @@ def _test_random_object_bbox_with_class(
         assert isinstance(outs2, (list, tuple))
         outputs = [inp, classes_out, weights_out, background_out, threshold_out, *outs1, *outs2]
         pipe.set_outputs(*outputs)
-    pipe.build()
 
     format = format or "anchor_shape"
 
@@ -458,7 +456,6 @@ def _test_random_object_bbox_ignore_class(
         if not isinstance(outs, list):
             outs = [outs]
         pipe.set_outputs(inp, background_out, threshold_out, *outs)
-    pipe.build()
 
     format = format or "anchor_shape"
 
@@ -526,7 +523,6 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     )
 
     pipe.set_outputs(box, label)
-    pipe.build()
     _, labels = pipe.run()
     assert int(labels.at(0)) == expected_bg
 
@@ -549,7 +545,6 @@ def _test_err_args(**kwargs):
     inp = fn.external_source(data, batch=False)
     outs = fn.segmentation.random_object_bbox(inp, **kwargs)
     pipe.set_outputs(*outs)
-    pipe.build()
     pipe.run()
 
 

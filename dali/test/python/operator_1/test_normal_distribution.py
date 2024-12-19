@@ -104,7 +104,6 @@ def check_normal_distribution(
             *inputs, device=device, shape=shape_arg, mean=mean_arg, stddev=stddev_arg, dtype=dtype
         )
         pipe.set_outputs(out, shape_out, mean_arg, stddev_arg)
-    pipe.build()
     for i in range(niter):
         outputs = pipe.run()
         out, shapes, means, stddevs = tuple(

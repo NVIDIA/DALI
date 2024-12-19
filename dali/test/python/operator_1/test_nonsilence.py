@@ -66,7 +66,6 @@ def check_nonsilence_operator(
     )
     hop_length = 1
     ref = np.max if not reference_power else reference_power
-    pipe.build()
     for _ in range(3):
         audio_batch_cpu, begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = pipe.run()
         for s in range(batch_size):
@@ -134,7 +133,6 @@ def test_cpu_vs_gpu():
         num_threads=3,
         device_id=0,
     )
-    pipe.build()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 1
@@ -143,7 +141,6 @@ def test_cpu_vs_gpu():
     pipe = nonsilent_pipe(
         data_arr=audio_arr, window_size=1, batch_size=1, num_threads=3, device_id=0
     )
-    pipe.build()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 5
@@ -152,14 +149,12 @@ def test_cpu_vs_gpu():
     pipe = nonsilent_pipe(
         data_arr=audio_arr, window_size=5, batch_size=1, num_threads=3, device_id=0
     )
-    pipe.build()
     outputs = pipe.run()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in outputs]
     assert begin_cpu == begin_gpu == (10 - window + 1)
     assert len_cpu == len_gpu == 13
 
     pipe = nonsilent_pipe(batch_size=batch_size, num_threads=3, device_id=0, seed=42)
-    pipe.build()
     for _ in range(3):
         begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = pipe.run()
         for s in range(batch_size):

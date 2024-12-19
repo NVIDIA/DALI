@@ -48,7 +48,6 @@ def test_external_source_with_iter_cupy_stream():
                 return [cp.array([attempt * 100 + i * 10 + 1.5], dtype=cp.float32)]
 
             pipe.set_outputs(fn.external_source(get_data))
-            pipe.build()
 
             for i in range(10):
                 check_output(
@@ -69,7 +68,6 @@ def test_external_source_mixed_contiguous():
     pipe = Pipeline(batch_size, 3, 0)
 
     pipe.set_outputs(fn.external_source(device="gpu", source=generator, no_copy=True))
-    pipe.build()
 
     pattern = (
         "ExternalSource operator should not mix contiguous and noncontiguous inputs. "
@@ -107,7 +105,6 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
             with pipe:
                 pipe.set_outputs(fn.external_source(get_data, batch=False, device="gpu"))
 
-            pipe.build()
             for i in range(10):
                 (out,) = pipe.run()
                 assert np.array_equal(
@@ -168,7 +165,6 @@ def _test_memory_consumption(device, test_case):
         return fn.external_source(source=cb(), device=device, batch=batch_mode, no_copy=no_copy)
 
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
     for _ in range(num_iters):
         pipe.run()
 

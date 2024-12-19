@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,7 +79,6 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
         file_root=root, files=fnames, labels=lbl, random_shuffle=shuffle
     )
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     num_iters = (len(fnames) + 2 * batch_size) // batch_size
     for i in range(num_iters):
@@ -106,7 +105,6 @@ def test_file_reader_relpath():
     pipe = Pipeline(batch_size, 1, 0)
     files, labels = fn.readers.file(files=fnames, random_shuffle=True)
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     num_iters = (len(fnames) + 2 * batch_size) // batch_size
     for i in range(num_iters):
@@ -129,7 +127,6 @@ def test_file_reader_relpath_file_list():
     pipe = Pipeline(batch_size, 1, 0)
     files, labels = fn.readers.file(file_list=list_file, random_shuffle=True)
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     num_iters = (len(fnames) + 2 * batch_size) // batch_size
     for i in range(num_iters):
@@ -150,7 +147,6 @@ def _test_file_reader_filter(
         file_root=root, file_filters=filters, case_sensitive_filter=case_sensitive_filter
     )
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     fnames = set()
     for label, dir in enumerate(sorted(next(os.walk(root))[1])):

@@ -51,7 +51,6 @@ def check_coin_flip(
         if shape_out is not None:
             outputs += [shape_out]
         pipe.set_outputs(*outputs)
-    pipe.build()
     outputs = pipe.run()
     data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]
     shapes_out = None

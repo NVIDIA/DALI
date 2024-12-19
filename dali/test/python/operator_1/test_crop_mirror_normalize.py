@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -659,7 +659,6 @@ def check_cmn_crop_sequence_length(
         pad_output=should_pad,
         crop_seq_as_depth=True,
     )
-    pipe.build()
     out = pipe.run()
     out_data = out[0]
 
@@ -767,7 +766,6 @@ def check_cmn_with_out_of_bounds_policy_support(
 
     if fill_values is None:
         fill_values = 0
-    pipe.build()
     for k in range(3):
         outs = pipe.run()
         out = outs[0]
@@ -865,7 +863,6 @@ def check_cmn_with_out_of_bounds_error(cmn_op, device, batch_size, input_shape=(
         crop_pos_y=crop_y,
         out_of_bounds_policy="error",
     )
-    pipe.build()
     pipe.run()
 
 
@@ -903,7 +900,6 @@ def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale,
 
     batch_size = 10
     p = pipe(batch_size=batch_size)
-    p.build()
     for _ in range(3):
         outs = p.run()
         for s in range(batch_size):
@@ -951,7 +947,6 @@ def check_crop_mirror_normalize_wrong_layout(
         return cmn_fn(data, crop_h=10, crop_w=10)
 
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
-    pipe.build()
     with assert_raises(
         ValueError, glob=f'The layout "{layout}" does not match any of the allowed layouts'
     ):
@@ -984,7 +979,6 @@ def check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, input_s
         return cmn_fn(data, crop_h=10, crop_w=20)
 
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
-    pipe.build()
     (data,) = pipe.run()
     for i in range(batch_size):
         assert as_array(data[i]).shape == (3, 10, 20)  # CHW by default

@@ -38,7 +38,6 @@ def video_decoder_pipeline(data_path):
 
 def run_video_decoding_test(test_file_path, frame_list_file_path, frames_directory_path):
     pipeline = video_decoder_pipeline(test_file_path)
-    pipeline.build()
 
     (output,) = pipeline.run()
     frames = output.as_cpu().as_array()

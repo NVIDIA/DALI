@@ -50,10 +50,8 @@ def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, nu
     with different batch_size and num_threads
     """
     pipe1 = CaffeReaderPipeline(caffe_db_folder, batch_size1, num_threads1)
-    pipe1.build()
 
     pipe2 = CaffeReaderPipeline(paths, batch_size2, num_threads2)
-    pipe2.build()
 
     def Seq(pipe):
         while True:
@@ -119,7 +117,6 @@ def test_caffe_sharding():
 
     def get_data(shard_id, num_shards, stick_to_shard):
         p = pipeline(shard_id, num_shards, stick_to_shard)
-        p.build()
         size = p.reader_meta()["Reader"]["epoch_size_padded"]
 
         # This should return some unique number for each sample

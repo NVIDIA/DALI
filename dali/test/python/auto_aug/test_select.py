@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,8 +58,8 @@ def cutout(image, shape):
     ("gpu",),
 )
 def test_select(dev):
+
     def _collect_batch(p):
-        p.build()
         batches = p.run()
         if dev == "gpu":
             batches = (batch.as_cpu() for batch in batches)

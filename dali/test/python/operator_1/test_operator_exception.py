@@ -48,7 +48,6 @@ Current pipeline object is no longer valid."""
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -75,7 +74,6 @@ Current pipeline object is no longer valid."""
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -112,7 +110,6 @@ Current pipeline object is no longer valid."""
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -138,7 +135,6 @@ Current pipeline object is no longer valid."""
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -170,7 +166,6 @@ Current pipeline object is no longer valid."""
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -202,7 +197,6 @@ Current pipeline object is no longer valid."""
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -233,7 +227,6 @@ encountered:
         ),
     ):
         pipe = non_scalar_condition()
-        pipe.build()
         pipe.run()
 
 
@@ -263,7 +256,6 @@ encountered:
         ),
     ):
         pipe = non_scalar_condition()
-        pipe.build()
         pipe.run()
 
 
@@ -289,7 +281,6 @@ Error while specifying argument 'probability'. Named argument inputs to operator
         ),
     ):
         p = pipe()
-        p.build()
         p.run()
 
 
@@ -314,5 +305,4 @@ def test_operator_invalid_input_constant_promotion():
             ),
         ):
             p = p_def()
-            p.build()
             p.run()

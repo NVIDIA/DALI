@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ def test_rn50_pipe():
 
     pipe = rn50_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     imgs, labels = pipe.run()
     expect_tensor_list(imgs, labels)
     assert isinstance(imgs, tensors.TensorListGPU)
@@ -132,7 +131,6 @@ def test_rn50_pipe_mis():
 
     pipe = rn50_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     imgs_0, imgs_1, labels = pipe.run()
     for imgs in [imgs_0, imgs_1]:
         assert isinstance(imgs, tensors.TensorListGPU)
@@ -168,7 +166,6 @@ def test_rn50_ops_pipe():
 
     pipe = rn50_ops_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     imgs, labels = pipe.run()
     expect_tensor_list(imgs, labels)
     assert isinstance(imgs, tensors.TensorListGPU)
@@ -193,7 +190,6 @@ def test_copy_tensor_constant():
 
     pipe = const_copy_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     const_int, const_float, const_list, const_tuple, const_torch, const_np = pipe.run()
     expect_tensor_list(const_int, const_float, const_list, const_tuple, const_torch, const_np)
     assert np.array_equal(np.array(const_int.as_tensor()), np.full((10,), 1))
@@ -222,7 +218,6 @@ def test_cond_pipe():
 
     pipe = cond_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     imgs, labels = pipe.run()
     expect_tensor_list(imgs, labels)
     assert isinstance(imgs, tensors.TensorListGPU)
@@ -245,7 +240,6 @@ def test_es_pipe():
 
     pipe = es_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     out0, out1, out2, out3, out4 = pipe.run()
     expect_tensor_list(out0, out1, out2, out3, out4)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((10, 1), 0))
@@ -279,7 +273,6 @@ def test_python_function_pipe():
 
     pipe = fn_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     out0, out1, out2, out3 = pipe.run()
     expect_tensor_list(out0, out1, out2, out3)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
@@ -317,7 +310,6 @@ def test_pytorch_plugin():
 
     pipe = torch_pipe()
     expect_pipeline(pipe)
-    pipe.build()
     out0, out1 = pipe.run()
     expect_tensor_list(out0, out1)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
@@ -370,7 +362,6 @@ def test_numba_plugin():
         return out, out_from_const
 
     pipe = numba_pipe()
-    pipe.build()
     out0, out1 = pipe.run()
     expect_tensor_list(out0, out1)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 2), 84))

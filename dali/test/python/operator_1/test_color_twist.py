@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -134,7 +134,6 @@ def check_ref(inp_dtype, out_dtype, has_3_dims):
         inp_dtype=inp_dtype,
         out_dtype=out_dtype,
     )
-    pipe.build()
     for _ in range(n_iters):
         inp, out_cpu, out_gpu, H, S, B, C = pipe.run()
         out_gpu = out_gpu.as_cpu()
@@ -213,7 +212,6 @@ def test_color_twist_default_dtype():
             return op(data)
 
         pipe = pipeline()
-        pipe.build()
         (data,) = pipe.run()
         assert data[0].dtype == type, f"{data[0].dtype} != {type}"
 

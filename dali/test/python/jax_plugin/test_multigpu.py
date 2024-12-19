@@ -88,12 +88,10 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
     pipe_0 = sequential_sharded_pipeline(
         batch_size=batch_size, shape=shape, device_id=0, shard_id=0, shard_size=batch_size
     )
-    pipe_0.build()
 
     pipe_1 = sequential_sharded_pipeline(
         batch_size=batch_size, shape=shape, device_id=1, shard_id=1, shard_size=batch_size
     )
-    pipe_1.build()
 
     for batch_id in range(100):
         dali_tensor_gpu_0 = pipe_0.run()[0].as_tensor()

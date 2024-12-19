@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,7 +114,6 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
     pipe = jpeg_distortion_pipe(
         device=device, quality=quality, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     for _ in range(3):
         out = pipe.run()
         assert out[0].layout() == layout
@@ -160,7 +159,6 @@ def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, 
         return tuple(outs)
 
     pipe = jpeg_distortion_pipe(device=device, quality=quality)
-    pipe.build()
     for _ in range(3):
         out = pipe.run()
         nouts = len(out)

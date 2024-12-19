@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,7 +53,6 @@ def _testimpl_operator_noise_gaussian_vs_add_normal_dist(
         num_threads=3,
         device_id=0,
     )
-    pipe.build()
     for _ in range(niter):
         out0, out1 = pipe.run()
         check_batch(out0, out1, batch_size=batch_size, eps=0.1)

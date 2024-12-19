@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ def video_decoder_iter(batch_size, epochs=1, device="cpu", module=fn.experimenta
         device=device,
         module=module,
     )
-    pipe.build()
     for _ in range(int((epochs * len(files) + batch_size - 1) / batch_size)):
         (output,) = pipe.run()
         if isinstance(output, TensorListGPU):
@@ -87,7 +86,6 @@ def ref_iter(epochs=1, device="cpu"):
     for _ in range(epochs):
         for filename in filenames:
             pipe = reference_pipeline(filename, device=device)
-            pipe.build()
             (output,) = pipe.run()
             if isinstance(output, TensorListGPU):
                 output = output.as_cpu()
@@ -122,7 +120,6 @@ def test_full_range_video():
 
     video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
 
-    video_pipeline.build()
     o = video_pipeline.run()
     out = o[0].as_cpu().as_array()
     ref = cv2.imread(get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png")
@@ -148,7 +145,6 @@ def test_full_range_video_in_memory(device):
 
     video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
 
-    video_pipeline.build()
     o = video_pipeline.run()
     out = o[0]
     if device == "gpu":
@@ -194,9 +190,6 @@ def test_multi_gpu_video(device):
     video_pipeline_0 = test_pipeline(batch_size=1, num_threads=1, device_id=0)
     video_pipeline_1 = test_pipeline(batch_size=1, num_threads=1, device_id=1)
 
-    video_pipeline_0.build()
-    video_pipeline_1.build()
-
     iters = 5
     for _ in range(iters):
         video_pipeline_0.run()
@@ -227,7 +220,6 @@ def test_source_info(device):
 
     batch_size = 4
     p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
-    p.build()
 
     samples_read = 0
     while samples_read < len(files):
@@ -249,6 +241,5 @@ def test_error_source_info(device):
 
     batch_size = 4
     p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
-    p.build()
 
     assert_raises(RuntimeError, p.run)

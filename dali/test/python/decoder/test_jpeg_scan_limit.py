@@ -165,5 +165,4 @@ class ProgressiveJpeg(unittest.TestCase):
             f"The number of scans ({max_scans + 1}) during progressive decoding *",
         ):
             p = pipeline()
-            p.build()
             p.run()
