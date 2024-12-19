@@ -368,6 +368,7 @@ def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
     src_ext = fn.external_source(layout="HWC", ndim=2)
     src_pipe.set_outputs(src_ext)
+    src_pipe.run()
 
 
 @raises(RuntimeError, glob="ExternalSource expected data with 3 dimensions and got 2 dimensions")
