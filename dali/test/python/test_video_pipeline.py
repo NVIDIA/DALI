@@ -265,6 +265,7 @@ def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_f
 
 def test_file_list_include_preceding_frame():
     pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(True)
+    pipe.build()
 
     os.remove(list_file_name)
     for _ in range(3):
