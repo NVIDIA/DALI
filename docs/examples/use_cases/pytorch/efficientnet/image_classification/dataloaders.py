@@ -41,6 +41,7 @@ try:
     import nvidia.dali.types as types
 
     from image_classification.dali import training_pipe, validation_pipe
+    from image_classification.dali import training_pipe_external_source, validation_pipe_external_source
 
     DATA_BACKEND_CHOICES.append("dali")
     DATA_BACKEND_CHOICES.append("dali_proxy")
@@ -157,7 +158,7 @@ def get_dali_train_loader(dali_device="gpu"):
         pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
                              output_layout=output_layout, automatic_augmentation=augmentation,
                              dali_device=dali_device, rank=rank, world_size=world_size,
-                             prefetch_queue_depth=8,
+                             prefetch_queue_depth=workers*2,
                              **pipeline_kwargs)
 
         pipe.build()
@@ -261,6 +262,7 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
+    @staticmethod
     def prefetched_loader(loader, num_classes, one_hot, normalize, memory_format, data_layout):
         if normalize:
             mean = (
@@ -480,10 +482,11 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
             "seed": 12 + rank % torch.cuda.device_count(),
         }
 
-        pipe = training_pipe(data_dir=None, interpolation=interpolation, image_size=image_size,
-                             output_layout=output_layout, automatic_augmentation=augmentation,
-                             dali_device=dali_device, prefetch_queue_depth=8, send_filepaths=send_filepaths,
-                             **pipeline_kwargs)
+        pipe = training_pipe_external_source(
+            interpolation=interpolation, image_size=image_size,
+            output_layout=output_layout, automatic_augmentation=augmentation,
+            dali_device=dali_device, prefetch_queue_depth=workers*2, send_filepaths=send_filepaths,
+            **pipeline_kwargs)
         pipe.build()
 
         dali_server = dali_proxy.DALIServer(pipe)
@@ -552,12 +555,12 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
             "seed": 12 + rank % torch.cuda.device_count(),
         }
 
-        pipe = validation_pipe(data_dir=None, interpolation=interpolation,
-                               image_size=image_size + crop_padding, image_crop=image_size,
-                               output_layout=output_layout,
-                               send_filepaths=send_filepaths,
-                               **pipeline_kwargs)
-
+        pipe = validation_pipe_external_source(
+            interpolation=interpolation,
+            image_size=image_size + crop_padding, image_crop=image_size,
+            output_layout=output_layout,
+            send_filepaths=send_filepaths,
+            **pipeline_kwargs)
         pipe.build()
 
         dali_server = dali_proxy.DALIServer(pipe)

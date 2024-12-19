@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.multiprocessing as mp
-from torch.utils import data as torchdata
-from torch.utils.data._utils.collate import default_collate_fn_map
-from nvidia.dali import Pipeline
-from nvidia.dali.external_source import ExternalSource
+__all__ = ["DALIServer", "DataLoader"]
+
+import torch as _torch
+import torch.multiprocessing as _mp
+from torch.utils import data as _torchdata
+from torch.utils.data._utils.collate import default_collate_fn_map as _default_collate_fn_map
+from nvidia.dali import Pipeline as _Pipeline
+from nvidia.dali.external_source import ExternalSource as _ExternalSource
 import threading
 import queue
 from queue import Empty
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 import warnings
+import inspect
 
 # DALI proxy is a PyTorch specific layer that connects a multi-process PyTorch DataLoader with
 # a single DALI pipeline. This allows to run CUDA processing in a single process, avoiding the
@@ -37,9 +40,9 @@ import warnings
 # +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
 # | main  |   | dali_output_q |   | data_thread | | dali_input_q  |   | worker_0  | | worker_1  |
 # +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
-#     |~~~get()~~~~~~>|                  |                |                 |             |
-#     |               |                  |~~~get()~~~~~~~>|                 |             |
-#     |               |                  |                |                 |             |
+#     |~~~get()~~~~~~>|                  |                |           | sample 0  |       |
+#     |               |                  |~~~get()~~~~~~~>|           | sample 1  |       |
+#     |               |                  |                |           | sample N  |       |
 #     |               |                  |                |           -------------       |
 #     |               |                  |                |           | collate   |       |
 #     |               |                  |                |           -------------       |
@@ -49,10 +52,10 @@ import warnings
 #     |               |                  |                |---------------->|             |
 #     |               |                  |                |                 |             |
 #     |               |                  |<--req_0_0------|                 |             |
-#     |               |                  |                |                 |             |
-#     |               |           ---------------         |                 |             |
-#     |               |           | run         |         |                 |             |
-#     |               |           ---------------         |                 |             |
+#     |               |                  |                |                 |       -------------
+#     |               |           ---------------         |                 |       | sample 0  |
+#     |               |           | run #0      |         |                 |       | sample 1  |
+#     |               |           ---------------         |                 |       | sample N  |
 #     |               |                  |                |                 |       -------------
 #     |               |                  |                |                 |       | collate   |
 #     |               |                  |                |                 |       -------------
@@ -61,11 +64,11 @@ import warnings
 #     |               |                  |                |                 |             |
 #     |               |                  |                |------------------------------>|
 #     |               |                  |                |                 |             |
-#     |               |<~~put(data_0_0)~~|                |                 |             |
-#     |               |                  |                |                 |             |
-#     |               |----------------->|                |                 |             |
-#     |               |                  |                |                 |             |
-#     |               |                  |                |                 |       -------------
+#     |               |<~~put(data_0_0)~~|                |                 |       -------------
+#     |               |                  |                |                 |       | sample 0  |
+#     |               |----------------->|                |                 |       | sample 1  |
+#     |<--data_0_0----|                  |                |                 |       | sample N  |
+#     |~~~get()~~~~~~>|                  |                |                 |       -------------
 #     |               |                  |                |                 |       | collate   |
 #     |               |                  |                |                 |       -------------
 #     |               |                  |                |                 |             |
@@ -73,17 +76,17 @@ import warnings
 #     |               |                  |                |                 |             |
 #     |               |                  |                |------------------------------>|
 #     |               |                  |                |                 |             |
-#     |<--data_0_0----|                  |                |                 |             |
 #     |               |                  |                |                 |             |
-#     |~~~get()~~~~~~>|                  |                |                 |             |
+#     |               |                  |                |                 |             |
+#     |               |                  |                |                 |             |
 #     |               |                  |~~~get()~~~~~~~>|                 |             |
-#     |               |                  |                |                 |             |
-#     |               |                  |<--req_1_0------|                 |             |
-#     |               |                  |                |                 |             |
-#     |               |           ---------------         |                 |             |
-#     |               |           | run         |         |                 |             |
-#     |               |           ---------------         |                 |             |
-#     |               |                  |                |                 |             |
+#     |               |                  |                |           -------------       |
+#     |               |                  |<--req_1_0------|           | sample 0  |       |
+#     |               |                  |                |           | sample 1  |       |
+#     |               |           ---------------         |           | sample N  |       |
+#     |               |           | run #1      |         |           -------------       |
+#     |               |           ---------------         |           | collate   |       |
+#     |               |                  |                |           -------------       |
 #     |               |                  |                |<~~put(req_0_1)~~|             |
 #     |               |                  |                |                 |             |
 #     |               |                  |                |-----------------|             |
@@ -91,8 +94,8 @@ import warnings
 #     |               |<~~put(data_1_0)~~|                |                 |             |
 #     |               |                  |                |                 |             |
 #     |               |----------------->|                |                 |             |
-#     |               |                  |                |                 |             |
 #     |<--data_1_0----|                  |                |                 |             |
+#     |               |                  |                |                 |             |
 #     |               |                  |                |                 |             |
 # +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
 # | main  |   | dali_output_q |   | data_thread | | dali_input_q  |   | worker_0  | | worker_1  |
@@ -114,9 +117,27 @@ def _external_source_node_names(pipeline):
         pipeline._build_graph()
     input_node_names = []
     for op in pipeline._ops:
-        if isinstance(op._op, ExternalSource):
+        if isinstance(op._op, _ExternalSource):
             input_node_names.append(op.name)
     return input_node_names
+
+
+class DALIOutputSampleRef:
+    """
+    Reference for a single sample output bound to a pipeline run.
+    """
+
+    def __init__(self, proxy, pipe_run_ref, output_idx, sample_idx):
+        self.proxy = proxy
+        self.pipe_run_ref = pipe_run_ref
+        self.output_idx = output_idx
+        self.sample_idx = sample_idx
+
+    def __repr__(self):
+        return (
+            f"DALIOutputSampleRef({self.pipe_run_ref}, "
+            + f"output_idx={self.output_idx}, sample_idx={self.sample_idx})"
+        )
 
 
 class DALIPipelineRunRef:
@@ -124,64 +145,59 @@ class DALIPipelineRunRef:
     Reference for a DALI pipeline run iteration.
     """
 
-    def __init__(self, batch_id, inputs):
-        """
-        batch_id: Identifier of the batch
-        is_scheduled: Whether the iteration has been scheduled for execution already
-        inputs: Inputs to be used when scheduling the iteration (makes sense only if
-        is_scheduled is False)
-        """
+    def __init__(self, proxy, batch_id):
         self.batch_id = batch_id
-        self.inputs = inputs
-        assert self.inputs is not None
+        self.inputs = {name: [] for name in proxy._dali_input_names}
         self.is_scheduled = False
+        self.is_complete = False
+
+    def __repr__(self):
+        return (
+            f"DALIPipelineRunRef(batch_id={self.batch_id}, is_scheduled="
+            f"{self.is_scheduled}, is_complete={self.is_complete})"
+        )
 
 
-class DALIProcessedSampleRef:
+class DALIOutputBatchRef:
     """
-    Placeholder for a pipeline run reference, which is returned by the data worker instead of
-    the actual data. The PyTorch worker returns this trivial object, only containing information
-    about this proxy instance and the input data to the pipeline. Later in the collate function,
-    we send the data for execution to DALI.
+    Reference for a batched output bound to a pipeline run.
     """
 
-    def __init__(self, proxy, inputs):
-        self.proxy = proxy
-        self.inputs = inputs
-        if len(inputs) != len(self.proxy._dali_input_names):
-            raise RuntimeError(
-                f"Unexpected number of inputs. Expected: {self._dali_input_names}, got: {inputs}"
-            )
+    def __init__(self, pipe_run_ref, output_idx):
+        self.pipe_run_ref = pipe_run_ref
+        self.output_idx = output_idx
+
+    def __repr__(self):
+        return f"DALIOutputBatchRef(pipe_run_ref={self.pipe_run_ref}, output_idx={self.output_idx})"
 
 
-def _collate_dali_processed_sample_ref_fn(samples, *, collate_fn_map=None):
+def _collate_dali_output_sample_ref_fn(samples, *, collate_fn_map=None):
     """
     Special collate function that schedules a DALI iteration for execution
     """
     assert len(samples) > 0
-    sample = samples[0]
-    inputs = [[] for _ in range(len(sample.inputs))]
-    proxy = sample.proxy
-    for sample in samples:
-        assert proxy == sample.proxy
-        for idx, input_ref in enumerate(sample.inputs):
-            inputs[idx].append(input_ref)
-    pipe_run_ref = proxy._create_pipe_run_ref(inputs)
-    if not proxy._deterministic:
+    pipe_run_ref = samples[0].pipe_run_ref
+    output_idx = samples[0].output_idx
+    proxy = samples[0].proxy
+    for i, sample in enumerate(samples):
+        # Sanity check
+        assert sample.proxy == proxy
+        assert sample.pipe_run_ref == pipe_run_ref
+        assert sample.output_idx == output_idx
+        assert sample.sample_idx == i, f"{samples}"
+    if not proxy._deterministic and not pipe_run_ref.is_scheduled:
         proxy._schedule_batch(pipe_run_ref)
-        # No need for the inputs now
         pipe_run_ref.inputs = None
-        # Mark as already scheduled
-        pipe_run_ref.is_scheduled = True
-    return pipe_run_ref
+    pipe_run_ref.is_complete = True
+    return DALIOutputBatchRef(pipe_run_ref, output_idx)
 
 
-# In-place modify `default_collate_fn_map` to handle DALIProcessedSampleRef
-default_collate_fn_map.update({DALIProcessedSampleRef: _collate_dali_processed_sample_ref_fn})
+# In-place modify `default_collate_fn_map` to handle DALIOutputSampleRef
+_default_collate_fn_map.update({DALIOutputSampleRef: _collate_dali_output_sample_ref_fn})
 
 
 class _DALIProxy:
-    def __init__(self, dali_input_names, dali_input_q, deterministic):
+    def __init__(self, dali_input_names, dali_input_q, dali_num_outputs, deterministic):
         # External source instance names
         self._dali_input_names = dali_input_names
         # If True, the request is not sent to DALI upon creation, so that it can be scheduled
@@ -189,43 +205,64 @@ class _DALIProxy:
         self._deterministic = deterministic
         # Shared queue with the server
         self._dali_input_q = dali_input_q
-        # Torch worker id, to be filled on first call to worker_id()
-        self._worker_id = None
-        # Iteration index for the current worker
-        self.data_idx = 0
+        # Number of outputs in the pipeline
+        self._dali_num_outputs = dali_num_outputs
+        # Per worker
+        self._worker_data = None
 
-    @property
-    def worker_id(self):
+    def _init_worker_data(self):
+        self._worker_data = {
+            "worker_id": self._get_worker_id(),
+            "data_idx": 0,
+            "pipe_run_ref": None,
+            "batch_sample_idx": 0,
+        }
+
+    def _get_worker_data(self):
+        if self._worker_data is None:
+            self._init_worker_data()
+        return self._worker_data
+
+    def _get_worker_id(self):
         """
         Getter for 'worker_id'. In case of torch data worker it is the worker info, and
         in case of a thread the thread identifier
         """
-        if self._worker_id is None:
-            worker_info = torchdata.get_worker_info()
-            self._worker_id = worker_info.id if worker_info else threading.get_ident()
-        return self._worker_id
+        worker_info = _torchdata.get_worker_info()
+        return worker_info.id if worker_info else threading.get_ident()
 
-    def _create_pipe_run_ref(self, inputs):
-        # Identifier of this request
-        batch_id = (self.worker_id, self.data_idx)
-        self.data_idx = self.data_idx + 1
-        return DALIPipelineRunRef(batch_id, inputs=inputs)
+    def _add_sample(self, bound_args):
+        state = self._get_worker_data()
+        if state["pipe_run_ref"] is None or state["pipe_run_ref"].is_complete:
+            state["pipe_run_ref"] = DALIPipelineRunRef(
+                self, (state["worker_id"], state["data_idx"])
+            )
+            state["data_idx"] += 1
+            state["batch_sample_idx"] = 0
+
+        for name, value in bound_args.arguments.items():
+            if name != "self":
+                state["pipe_run_ref"].inputs[name].append(value)
+
+        ret = tuple(
+            DALIOutputSampleRef(
+                self,
+                pipe_run_ref=state["pipe_run_ref"],
+                output_idx=i,
+                sample_idx=state["batch_sample_idx"],
+            )
+            for i in range(self._dali_num_outputs)
+        )
+        state["batch_sample_idx"] += 1
+        return ret[0] if len(ret) == 1 else ret
 
     def _schedule_batch(self, pipe_run_ref):
-        torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {pipe_run_ref.batch_id}")
+        if pipe_run_ref.inputs is None:
+            raise RuntimeError("No inputs for the pipeline to run (was it already scheduled?)")
+        _torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {pipe_run_ref.batch_id}")
         self._dali_input_q.put((pipe_run_ref.batch_id, pipe_run_ref.inputs))
-        torch.cuda.nvtx.range_pop()
-
-    def __call__(self, *inputs):
-        """
-        Returns a reference to the pipeline run
-        """
-        if len(inputs) != len(self._dali_input_names):
-            raise RuntimeError(
-                f"Unexpected number of inputs. Expected: {self._dali_input_names}, got: {inputs}"
-            )
-
-        return DALIProcessedSampleRef(self, inputs)
+        pipe_run_ref.is_scheduled = True
+        _torch.cuda.nvtx.range_pop()
 
 
 class DALIServer:
@@ -309,24 +346,16 @@ class DALIServer:
                         pass
 
         """
-        assert isinstance(pipeline, Pipeline), f"Expected an NVIDIA DALI pipeline, got: {pipeline}"
-        self._pipe = pipeline
-        self._pipe_input_names = _external_source_node_names(self._pipe)
-        if len(self._pipe_input_names) == 0:
-            raise RuntimeError("The provided pipeline doesn't have any inputs")
-        elif len(self._pipe_input_names) == 1:
-            assert input_names is None or input_names[0] == self._pipe_input_names[0]
-            self._dali_input_names = self._pipe_input_names
-        elif input_names is None or len(input_names) != len(self._pipe_input_names):
-            raise RuntimeError(
-                "The provided pipeline has more than one output. In such case, the argument "
-                "`input_names` should containi the same exact number of strings, one for "
-                "each pipeline input to be mapped by the proxy callable object"
-            )
-        self._num_inputs = len(self._dali_input_names)
-
+        if not isinstance(pipeline, _Pipeline):
+            raise RuntimeError(f"Expected an NVIDIA DALI pipeline, got: {pipeline}")
+        else:
+            self._pipe = pipeline
+        # get and validate dali pipeline input names
+        self._dali_input_names, self._allow_positional_args = self._check_dali_input_names(
+            input_names
+        )
         # Multi-process queue used to transfer data from the pytorch workers to the main process
-        self._dali_input_q = mp.Queue()
+        self._dali_input_q = _mp.Queue()
         # Multi-process queue used by the main process to consume outputs from the DALI pipeline
         self._dali_output_q = queue.Queue()
         # Thread
@@ -335,15 +364,68 @@ class DALIServer:
         self._cache_outputs = dict()
         # Whether we want the order of DALI execution to be reproducible
         self._deterministic = deterministic
+        # Proxy
+        self._proxy = None
+
+    def _check_dali_input_names(self, input_names):
+        pipe_input_names = _external_source_node_names(self._pipe)
+        if len(pipe_input_names) == 0:
+            raise RuntimeError("The provided pipeline doesn't have any inputs")
+        pipe_input_names_set = set(pipe_input_names)
+        input_names_set = set(input_names or [])
+        if len(input_names_set) != len(input_names_set):
+            raise RuntimeError("``input_names`` argument should not contain any duplicated values")
+
+        if len(input_names_set) == 0:
+            allow_positional_args = True if len(pipe_input_names) == 1 else False
+            return pipe_input_names, allow_positional_args
+
+        if input_names_set != pipe_input_names_set:
+            raise RuntimeError(
+                "The set of DALI input names provided should match exactly the "
+                "ones provided by the pipeline. "
+                f"\nProvided input names are: {input_names}"
+                f"\nPipeline input names are: {pipe_input_names}"
+            )
+        return input_names, True
 
     @property
     def proxy(self):
-        return _DALIProxy(self._dali_input_names, self._dali_input_q, self._deterministic)
+        if self._proxy is None:
+            parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+            for input_name in self._dali_input_names:
+                if self._allow_positional_args:
+                    parameters.append(
+                        inspect.Parameter(input_name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                    )
+                else:
+                    parameters.append(inspect.Parameter(input_name, inspect.Parameter.KEYWORD_ONLY))
+
+            signature = inspect.Signature(parameters)
+
+            def call_impl(self, *args, **kwargs):
+                try:
+                    bound_args = signature.bind(self, *args, **kwargs)
+                except Exception as exc:
+                    raise RuntimeError(f"{exc}. Signature is {signature}")
+                return self._add_sample(bound_args)
+
+            call_impl.__signature__ = inspect.Signature(parameters)
+            _DALIProxy.__call__ = call_impl
+            self._proxy = _DALIProxy(
+                self._dali_input_names,
+                self._dali_input_q,
+                self._pipe.num_outputs,
+                self._deterministic,
+            )
+
+        return self._proxy
 
     def _schedule_batch(self, pipe_run_ref):
-        torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {pipe_run_ref.batch_id}")
+        _torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {pipe_run_ref.batch_id}")
         self._dali_input_q.put((pipe_run_ref.batch_id, pipe_run_ref.inputs))
-        torch.cuda.nvtx.range_pop()
+        pipe_run_ref.is_scheduled = True
+        _torch.cuda.nvtx.range_pop()
 
     def _get_outputs(self, pipe_run_ref: DALIPipelineRunRef):
         """
@@ -355,7 +437,6 @@ class DALIServer:
         # In case we haven't scheduled the iteration yet (i.e. deterministic config), do it now
         if not pipe_run_ref.is_scheduled:
             self._schedule_batch(pipe_run_ref)
-            pipe_run_ref.is_scheduled = True
 
         # Wait for the requested output to be ready
         req_outputs = None
@@ -368,9 +449,9 @@ class DALIServer:
             curr_batch_id = None
             # If not the data we are looking for, store it and keep processing until we find it
             while req_batch_id != curr_batch_id:
-                torch.cuda.nvtx.range_push("dali_output_q.get")
+                _torch.cuda.nvtx.range_push("dali_output_q.get")
                 curr_batch_id, curr_processed_outputs, err = self._dali_output_q.get()
-                torch.cuda.nvtx.range_pop()
+                _torch.cuda.nvtx.range_pop()
 
                 if err is not None:
                     raise err
@@ -379,46 +460,77 @@ class DALIServer:
                     req_outputs = curr_processed_outputs
                 else:
                     self._cache_outputs[curr_batch_id] = curr_processed_outputs
-        # Unpack single element tuples
-        if isinstance(req_outputs, tuple) and len(req_outputs) == 1:
-            req_outputs = req_outputs[0]
         return req_outputs
+
+    def _produce_data_impl(self, obj, cache):
+        """
+        Recursive implementation of produce_data
+        """
+        # If it is an instance of DALIPipelineRunRef, replace it with data
+        if isinstance(obj, DALIOutputBatchRef):
+            if obj.pipe_run_ref.batch_id not in cache:
+                cache[obj.pipe_run_ref.batch_id] = self._get_outputs(obj.pipe_run_ref)
+            return cache[obj.pipe_run_ref.batch_id][obj.output_idx]
+
+        # If it is a custom class, recursively call produce data on its members
+        elif hasattr(obj, "__dict__"):
+            for attr_name, attr_value in obj.__dict__.items():
+                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
+            return obj
+
+        # If it's a list, recursively apply the function to each element
+        elif isinstance(obj, list):
+            return [self._produce_data_impl(item, cache) for item in obj]
+
+        # If it's a tuple, recursively apply the function to each element (and preserve tuple type)
+        elif isinstance(obj, tuple):
+            return tuple(self._produce_data_impl(item, cache) for item in obj)
+
+        # If it's a dictionary, apply the function to the values
+        elif isinstance(obj, dict):
+            return {key: self._produce_data_impl(value, cache) for key, value in obj.items()}
+
+        else:  # return directly anything else
+            return obj
 
     def produce_data(self, obj):
         """
         A generic function to recursively visits all elements in a nested structure and replace
-        instances of DALIPipelineRunRef with the actual data provided by the DALI server
+        instances of DALIOutputBatchRef with the actual data provided by the DALI server
 
         Args:
             obj: The object to map (can be an instance of any class).
 
         Returns:
-            A new object where any instance of DALIPipelineRunRef has been replaced with actual
+            A new object where any instance of DALIOutputBatchRef has been replaced with actual
             data.
         """
-        # If it is an instance of DALIPipelineRunRef, replace it with data
-        if isinstance(obj, DALIPipelineRunRef):
-            return self._get_outputs(obj)
-        # If it is a custom class, recursively call produce data on its members
-        elif hasattr(obj, "__dict__"):
-            for attr_name, attr_value in obj.__dict__.items():
-                setattr(obj, attr_name, self.produce_data(attr_value))
-            return obj
+        cache = dict()
+        ret = self._produce_data_impl(obj, cache)
+        del cache
+        return ret
 
-        # If it's a list, recursively apply the function to each element
-        elif isinstance(obj, list):
-            return [self.produce_data(item) for item in obj]
+    def _get_input_batches(self, max_num_batches, timeout=None):
+        _torch.cuda.nvtx.range_push("dali_input_q.get")
+        count = 0
+        batches = []
+        if timeout is not None:
+            try:
+                batches.append(self._dali_input_q.get(timeout=timeout))
+                count = count + 1
+            except Empty:
+                return None
+            except _mp.TimeoutError:
+                return None
 
-        # If it's a tuple, recursively apply the function to each element (and preserve tuple type)
-        elif isinstance(obj, tuple):
-            return tuple(self.produce_data(item) for item in obj)
-
-        # If it's a dictionary, apply the function to both keys and values
-        elif isinstance(obj, dict):
-            return {key: self.produce_data(value) for key, value in obj.items()}
-
-        else:  # return directly anything else
-            return obj
+        while count < max_num_batches:
+            try:
+                batches.append(self._dali_input_q.get_nowait())
+                count = count + 1
+            except Empty:
+                break
+        _torch.cuda.nvtx.range_pop()
+        return batches
 
     def _thread_fn(self):
         """
@@ -427,23 +539,33 @@ class DALIServer:
         """
         self._pipe.build()  # just in case
 
+        fed_batches = queue.Queue()
         while not self._thread_stop_event.is_set():
-            try:
-                torch.cuda.nvtx.range_push("dali_input_q.get")
-                batch_id, inputs = self._dali_input_q.get(timeout=5)
-                torch.cuda.nvtx.range_pop()
-            except mp.TimeoutError:
-                continue
-            except Empty:
+            _torch.cuda.nvtx.range_push("get_input_batches")
+            timeout = 5 if fed_batches.empty() else None
+            # We try to feed as many batches as the prefetch queue (if available)
+            batches = self._get_input_batches(
+                self._pipe.prefetch_queue_depth - fed_batches.qsize(), timeout=timeout
+            )
+            _torch.cuda.nvtx.range_pop()
+            if batches is not None and len(batches) > 0:
+                _torch.cuda.nvtx.range_push("feed_pipeline")
+                for batch_id, inputs in batches:
+                    for input_name, input_data in inputs.items():
+                        self._pipe.feed_input(input_name, input_data)
+                    self._pipe._run_once()
+                    fed_batches.put(batch_id)
+                _torch.cuda.nvtx.range_pop()
+
+            # If no batches to consume, continue
+            if fed_batches.qsize() == 0:
                 continue
 
+            _torch.cuda.nvtx.range_push("outputs")
+            batch_id = fed_batches.get_nowait()  # we are sure there's at least one
             err = None
             torch_outputs = None
-            torch.cuda.nvtx.range_push(f"schedule iteration {batch_id}")
             try:
-                for idx, input_name in enumerate(self._dali_input_names):
-                    self._pipe.feed_input(input_name, inputs[idx])
-                self._pipe._run_once()
                 pipe_outputs = self._pipe.outputs()
                 torch_outputs = tuple(
                     [
@@ -453,8 +575,9 @@ class DALIServer:
                 )
             except Exception as exception:
                 err = exception
+
             self._dali_output_q.put((batch_id, torch_outputs, err))
-            torch.cuda.nvtx.range_pop()
+            _torch.cuda.nvtx.range_pop()
 
     def start_thread(self):
         """
@@ -488,13 +611,13 @@ class DALIServer:
         return False  # Return False to propagate exceptions
 
 
-class DataLoader(torchdata.dataloader.DataLoader):
+class DataLoader(_torchdata.dataloader.DataLoader):
     """
     DALI data loader to be used in the main loop, which runs the DALI pipeline doing the
     processing asynchronously with regards to the training.
     """
 
-    class _Iter(torchdata.dataloader._MultiProcessingDataLoaderIter):
+    class _Iter(_torchdata.dataloader._MultiProcessingDataLoaderIter):
         """
         Data loader iterator used by the DALI proxy data loader
         """
@@ -502,13 +625,12 @@ class DataLoader(torchdata.dataloader.DataLoader):
         def __init__(self, loader):
             super().__init__(loader)
             self.loader = loader
+            if self.loader.dali_server._thread is None:
+                raise RuntimeError("DALI server is not running")
 
         def _next_data(self):
             data = super()._next_data()
-            if self.loader.dali_server._thread is None:
-                raise RuntimeError("DALI server is not running")
-            data = self.loader.dali_server.produce_data(data)
-            return data
+            return self.loader.dali_server.produce_data(data)
 
     def __init__(self, dali_server, *args, **kwargs):
         super().__init__(*args, **kwargs)

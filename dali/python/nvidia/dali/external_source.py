@@ -26,6 +26,7 @@ from nvidia.dali._utils.external_source_impl import (
     SourceKind as _SourceKind,
 )
 
+
 def _get_shape(data):
     if isinstance(data, (_tensors.TensorCPU, _tensors.TensorGPU)):
         if callable(data.shape):
