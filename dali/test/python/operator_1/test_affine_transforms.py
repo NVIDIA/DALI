@@ -73,7 +73,6 @@ def check_transform_translation_op(
         else:
             T1 = fn.transforms.translation(device="cpu", offset=offset)
             pipe.set_outputs(T1)
-    pipe.build()
     outs = pipe.run()
     ref_mat = translate_affine_mat(offset=offset)
     T0 = outs[1] if has_input else None
@@ -142,7 +141,6 @@ def check_transform_scale_op(
         else:
             T1 = fn.transforms.scale(device="cpu", scale=scale, center=center, ndim=ndim)
             pipe.set_outputs(T1)
-    pipe.build()
     outs = pipe.run()
     ref_mat = scale_affine_mat(scale=scale, center=center, ndim=ndim)
     T0 = outs[1] if has_input else None
@@ -231,7 +229,6 @@ def check_transform_rotation_op(
             outputs.append(angle)
 
         pipe.set_outputs(*outputs)
-    pipe.build()
     outs = pipe.run()
     out_idx = 1
     out_T0 = None
@@ -341,7 +338,6 @@ def check_transform_shear_op(
         else:
             T1 = fn.transforms.shear(device="cpu", shear=shear, angles=angles, center=center)
             pipe.set_outputs(T1)
-    pipe.build()
     outs = pipe.run()
     ref_mat = shear_affine_mat(shear=shear, angles=angles, center=center)
     T0 = outs[1] if has_input else None
@@ -384,7 +380,6 @@ def check_transform_shear_op_runtime_args(
             reverse_order=reverse_order,
         )
         pipe.set_outputs(T1, *inputs, *params)
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         T0 = outs[1] if has_input else None
@@ -531,7 +526,6 @@ def check_transform_crop_op(
                 absolute=absolute,
             )
             pipe.set_outputs(T1)
-    pipe.build()
     outs = pipe.run()
 
     ref_mat = crop_affine_mat(from_start, from_end, to_start, to_end, absolute=absolute)
@@ -605,7 +599,6 @@ def check_combine_transforms(
         ]
         T = fn.transforms.combine(*transforms)
     pipe.set_outputs(T, *transforms)
-    pipe.build()
     outs = pipe.run()
     for idx in range(batch_size):
         num_mats = len(outs) - 1
@@ -650,7 +643,6 @@ def test_combine_transforms_correct_order():
         t12 = T.rotation(T.translation(offset=(1, 2)), angle=30.0)
         t21 = T.translation(T.rotation(angle=30.0), offset=(1, 2))
         pipe.set_outputs(T.combine(t1, t2), t12, T.combine(t1, t2, reverse_order=True), t21)
-    pipe.build()
     outs = pipe.run()
     for idx in range(batch_size):
         assert np.allclose(outs[0].at(idx), outs[1].at(idx), atol=1e-6)
@@ -826,7 +818,6 @@ def test_combine_shape_mismatch():
             return fn.transforms.combine(fn.per_frame(mts0), fn.per_frame(mts1))
 
         pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-        pipe.build()
         pipe.run()
 
 
@@ -860,7 +851,6 @@ def test_rotate_shape_mismatch():
             return fn.transforms.rotation(fn.per_frame(mts), angle=fn.per_frame(angles))
 
         pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-        pipe.build()
         pipe.run()
 
     with assert_raises(
@@ -876,5 +866,4 @@ def test_rotate_shape_mismatch():
             return fn.transforms.rotation(angle=fn.per_frame(angles), center=fn.per_frame(centers))
 
         pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-        pipe.build()
         pipe.run()

@@ -73,9 +73,7 @@ def test_run_trivial(i, args):
 
     # run the pipeline twice to make sure instantiation preserves determinism
     p1 = pipeline()
-    p1.build()
     p2 = pipeline()
-    p2.build()
     for _ in range(3):
         (out1,) = p1.run()
         (out2,) = p2.run()
@@ -108,7 +106,6 @@ class VideoTest(unittest.TestCase):
         cls.vid_files = []
         for size in (size_1, size_2):
             p = pipeline(size=size)
-            p.build()
             (out,) = p.run()
             cls.vid_files.extend(np.array(sample) for sample in out.as_cpu())
 
@@ -150,9 +147,7 @@ class VideoTest(unittest.TestCase):
 
         # run the pipeline twice to make sure instantiation preserves determinism
         p1 = pipeline()
-        p1.build()
         p2 = pipeline()
-        p2.build()
 
         for _ in range(num_iterations):
             (out1,) = p1.run()
@@ -220,7 +215,6 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
         return data
 
     p = pipeline()
-    p.build()
     stats = []
     for i in range(3):
         (output,) = p.run()

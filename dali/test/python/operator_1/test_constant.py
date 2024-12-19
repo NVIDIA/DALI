@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -123,7 +123,6 @@ ref = [
 
 def _test_op(device):
     pipe = ConstantPipeline(device)
-    pipe.build()
     for iter in range(3):
         out = pipe.run()
         if device == "gpu":
@@ -136,7 +135,6 @@ def _test_op(device):
 
 def _test_func(device, array_interface):
     pipe = ConstantFnPipeline(device, array_interface)
-    pipe.build()
     for iter in range(3):
         out = pipe.run()
         if device == "gpu":
@@ -159,7 +157,6 @@ def _test_scalar_constant_promotion(device):
         return (fn.copy(1.25, device=device), fn.cat(p1, p2))
 
     pipe = scalar_constant_pipeline(device)
-    pipe.build()
     ref = [np.array(1.25, dtype=np.float32), np.array([1, 2, 3, 4], dtype=np.int32)]
     for iter in range(3):
         out = pipe.run()
@@ -197,7 +194,6 @@ def test_variable_batch():
     dummy = fn.external_source(batches, cycle=True)
     val = np.float32([[1, 2], [3, 4]])
     pipe.set_outputs(types.Constant(val, device="cpu"), types.Constant(val, device="gpu"), dummy)
-    pipe.build()
     for batch in batches:
         cpu, gpu, _ = pipe.run()
         assert len(cpu) == len(batch)
@@ -217,6 +213,5 @@ def test_constant_promotion_mixed():
         from_reader = fn.decoders.image(jpegs, device="mixed")
         from_constant = fn.decoders.image(file_contents, device="mixed")
         pipe.set_outputs(from_constant, from_reader)
-    pipe.build()
     from_reader, from_constant = pipe.run()
     check_batch(from_reader, from_constant, 1)

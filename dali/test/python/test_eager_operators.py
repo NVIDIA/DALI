@@ -159,7 +159,6 @@ def test_mixed_devices_decoder():
     file_root = os.path.join(get_dali_extra_path(), "db/single/jpeg")
 
     pipe = mixed_image_decoder_pipeline(file_root, seed, batch_size=batch_size)
-    pipe.build()
     (pipe_out,) = pipe.run()
 
     jpeg, _ = next(eager.readers.file(file_root=file_root, batch_size=batch_size, seed=seed))

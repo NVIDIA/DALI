@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -211,4 +211,4 @@ def test_operator_natural_logarithm():
 
 @raises(RuntimeError, glob="`reference` argument can't be zero")
 def test_invalid_reference():
-    NLDaliPipeline("cpu", None, 1, reference=0.0).build()
+    NLDaliPipeline("cpu", None, 1, reference=0.0)

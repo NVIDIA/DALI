@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -145,8 +145,6 @@ class RemapTest(unittest.TestCase):
             **self.common_dali_pipe_params,
             prefetch_queue_depth=1,
         )
-        dpipe.build()
-        cpipe.build()
         dtime = self._measure_time(dpipe.run)
         ctime = self._measure_time(cpipe.run)
         nvtx.range_pop()
@@ -160,14 +158,11 @@ class RemapTest(unittest.TestCase):
         dpipe = remap_pipe(
             "dali", maps, self.img_size, **self.common_dali_pipe_params, prefetch_queue_depth=1
         )
-        dpipe.build()
         avg_time = self._measure_time(dpipe.run)
         nvtx.range_pop()
         print(f"DALI Pipeline average execution time: {avg_time} seconds.")
 
     def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=0.01):
-        pipe1.build()
-        pipe2.build()
         for _ in range(N_iterations):
             out1 = pipe1.run()
             out2 = pipe2.run()

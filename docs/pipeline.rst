@@ -42,7 +42,6 @@ Example::
         return images, masks, labels
 
     pipe = my_pipeline(batch_size=4, num_threads=2, device_id=0)
-    pipe.build()
 
 
 The resulting graph is:
@@ -101,7 +100,6 @@ Example::
         return flipped, labels.gpu()
 
     pipe = my_pipeline(batch_size=4, num_threads=2, device_id=0)
-    pipe.build()
 
 .. note::
     If the ``device`` parameter is not specified, it is selected automatically based on the

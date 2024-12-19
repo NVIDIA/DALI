@@ -78,7 +78,6 @@ def run_decode(data_path, batch, device, threads):
         device=device,
         prefetch_queue_depth=1,
     )
-    pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for iter in range(iters):
         pipe.run()
@@ -166,7 +165,6 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         device=device,
         prefetch_queue_depth=1,
     )
-    pipe.build()
     idxs = [i for i in range(batch)]
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for it in range(iters):
@@ -351,7 +349,6 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
 
     files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir=None)
     pipe = pipe(device, out_type=out_type, files=files)
-    pipe.build()
     out, shape = pipe.run()
     if device == "mixed":
         out = out.as_cpu()
@@ -381,7 +378,6 @@ def _testimpl_image_decoder_crop_error_oob(device):
         return decoded
 
     p = pipe(device)
-    p.build()
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
@@ -404,7 +400,6 @@ def _testimpl_image_decoder_slice_error_oob(device):
         return decoded
 
     p = pipe(device)
-    p.build()
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
@@ -427,7 +422,6 @@ def test_tiff_palette():
         return decoded, peeked_shapes
 
     p = pipe()
-    p.build()
     imgs, peeked_shapes = p.run()
     assert (
         peeked_shapes.at(0) == peeked_shapes.at(1)
@@ -450,7 +444,6 @@ def _testimpl_image_decoder_peek_shape(
         )
 
     pipe = peek_shape_pipeline(file)
-    pipe.build()
     shape = tuple(np.asarray(pipe.run()[0][0]))
     assert shape == expected_shape, f"Expected shape {expected_shape} but got {shape}"
 
@@ -518,7 +511,6 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
         return decoded
 
     p = pipe(data_dir + f"/{img_name}.jpg")
-    p.build()
     (out,) = p.run()
     result = np.array(out[0].as_cpu())
 
@@ -546,6 +538,5 @@ def test_image_decoder_lossless_jpeg_cpu_not_supported():
 
     imgfile = "db/single/jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg"
     p = pipe(os.path.join(test_data_root, imgfile))
-    p.build()
 
     assert_raises(RuntimeError, p.run, glob="*Failed to decode*")

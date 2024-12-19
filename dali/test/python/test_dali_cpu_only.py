@@ -74,7 +74,6 @@ def test_tensorflow_build_check():
         return data
 
     pipe = get_dali_pipe(batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
-    pipe.build()
     pipe.run()
 
 
@@ -194,7 +193,6 @@ def check_single_input(
             pipe.set_outputs(*processed)
         else:
             pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -207,7 +205,6 @@ def check_no_input(op, get_data=get_data, **kwargs):
             pipe.set_outputs(*processed)
         else:
             pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -264,7 +261,6 @@ def test_cast_like_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
     out = fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
     pipe.set_outputs(out)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -319,7 +315,6 @@ def _test_image_decoder_args_cpu(decoder_type, **args):
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     decoded = decoder_type(input, output_type=types.RGB, **args)
     pipe.set_outputs(decoded)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -501,7 +496,6 @@ def test_nonsilent_region_cpu():
     data = fn.external_source(source=get_data)
     processed, _ = fn.nonsilent_region(data)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -542,7 +536,6 @@ def test_mel_filter_bank_cpu():
     spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
     processed = fn.mel_filter_bank(spectrum)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -563,7 +556,6 @@ def test_mfcc_cpu():
     dec = fn.to_decibels(mel)
     processed = fn.mfcc(dec)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -594,7 +586,6 @@ def test_one_hot_cpu():
     data = fn.external_source(source=get_data)
     processed = fn.one_hot(data, num_classes=256)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -608,7 +599,6 @@ def test_audio_decoder_cpu():
     input, _ = fn.readers.file(files=audio_files, shard_id=0, num_shards=1)
     decoded, _ = fn.decoders.audio(input)
     pipe.set_outputs(decoded)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -693,7 +683,6 @@ def test_slice_cpu():
     shape = fn.external_source(source=get_shape)
     processed = fn.slice(data, anchors, shape, out_of_bounds_policy="pad")
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -726,7 +715,6 @@ def _test_image_decoder_slice_cpu(decoder_type):
     shape = fn.external_source(source=get_shape)
     processed = decoder_type(input, anchors, shape)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -753,7 +741,6 @@ def test_pad_cpu():
     data = fn.external_source(source=get_data, layout="HWC")
     processed = fn.pad(data, fill_value=-1, axes=(0,), shape=(10,))
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -791,7 +778,6 @@ def test_tfrecord_reader_cpu():
     )
     out = input["image/encoded"]
     pipe.set_outputs(out)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -875,7 +861,6 @@ def test_bbox_paste_cpu():
     paste_ratio = fn.random.uniform(range=(1, 2))
     processed = fn.bbox_paste(data, paste_x=paste_posx, paste_y=paste_posy, ratio=paste_ratio)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -913,7 +898,6 @@ def test_random_bbox_crop_cpu():
         bbox_layout="xyXY",
     )
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -945,7 +929,6 @@ def test_ssd_random_crop_cpu():
     lables = fn.external_source(source=get_lables)
     processed, _, _ = fn.ssd_random_crop(data, boxes, lables)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -991,7 +974,6 @@ def test_box_encoder_cpu():
     labels = fn.external_source(source=get_labels)
     processed, _ = fn.box_encoder(boxes, labels, anchors=coco_anchors())
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1063,7 +1045,6 @@ def test_combine_transforms_cpu():
         s = fn.transforms.scale(scale=(2, 3))
         out = fn.transforms.combine(t, r, s)
     pipe.set_outputs(out)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1097,7 +1078,6 @@ def test_segmentation_select_masks():
             selected_masks, polygons, vertices, reindex_masks=False
         )
     pipe.set_outputs(polygons, vertices, selected_masks, out_polygons, out_vertices)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1120,7 +1100,6 @@ def test_reduce_std_cpu():
     mean = fn.reductions.mean(data)
     reduced = fn.reductions.std_dev(data, mean)
     pipe.set_outputs(reduced)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1135,7 +1114,6 @@ def test_reduce_variance_cpu():
 
 def test_arithm_ops_cpu():
     pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size, num_threads=4, device_id=None)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1193,7 +1171,6 @@ def test_cat_cpu():
     data3 = fn.external_source(source=get_data, layout="HWC")
     pixel_pos = fn.cat(data, data2, data3)
     pipe.set_outputs(pixel_pos)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1205,7 +1182,6 @@ def test_stack_cpu():
     data3 = fn.external_source(source=get_data, layout="HWC")
     pixel_pos = fn.stack(data, data2, data3)
     pipe.set_outputs(pixel_pos)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1216,7 +1192,6 @@ def test_batch_permute_cpu():
     perm = fn.batch_permutation(seed=420)
     processed = fn.permute_batch(data, indices=perm)
     pipe.set_outputs(processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1237,7 +1212,6 @@ def _test_peek_image_shape_cpu(op):
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     shapes = op(input)
     pipe.set_outputs(shapes)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -1264,7 +1238,6 @@ def test_separated_exec_setup():
     images_cpu = fn.dump_image(images, suffix="cpu")
     pipe.set_outputs(images, images_cpu)
 
-    pipe.build()
     out = pipe.run()
     assert out[0].is_dense_tensor()
     assert out[1].is_dense_tensor()
@@ -1281,7 +1254,6 @@ def test_tensor_subscript():
     pipe = Pipeline(batch_size=3, num_threads=3, device_id=None)
     input = fn.external_source(source=get_data)
     pipe.set_outputs(input[1:, :-1, 1])
-    pipe.build()
     (out,) = pipe.run()
     assert out.at(0).shape == np.zeros(test_data_shape)[1:, :-1, 1].shape
 
@@ -1299,7 +1271,6 @@ def test_get_property():
     root_path = os.path.join(data_root, "db", "single", "png", "0")
     files = [os.path.join(root_path, i) for i in os.listdir(root_path)]
     p = file_properties(files, batch_size=8, num_threads=4, device_id=None)
-    p.build()
     output = p.run()
     for out in output:
         for source_info, ref in zip(out, files):
@@ -1331,7 +1302,6 @@ def test_video_input():
     n_iterations = 3
     test_data = np.fromfile(video_files[0], dtype=np.uint8)
     p = video_input_pipeline(input_name)
-    p.build()
     p.feed_input(input_name, [test_data])
     for _ in range(n_iterations):
         p.run()
@@ -1349,7 +1319,6 @@ def test_conditional():
         return output
 
     cond_pipe = conditional_pipeline(batch_size=5, num_threads=1, device_id=None)
-    cond_pipe.build()
     cond_pipe.run()
 
     @pipeline_def
@@ -1366,7 +1335,6 @@ def test_conditional():
         return merged, negated, pred_validated
 
     pipe = explicit_conditional_ops_pipeline(batch_size=5, num_threads=1, device_id=None)
-    pipe.build()
     pipe.run()
 
 
@@ -1405,7 +1373,6 @@ def test_full_like():
         return fn.full_like(np.zeros((2, 3)), np.array([1, 2, 3]))
 
     p = full_like_pipe()
-    p.build()
     for _ in range(3):
         p.run()
 

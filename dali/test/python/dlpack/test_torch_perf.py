@@ -18,7 +18,6 @@ def bench_dlpack(verbose=False):
     if verbose:
         print("Testing dlpack")
     pipe = test_pipe(exec_dynamic=True)
-    pipe.build()
     pipe.run()
 
     s = torch.cuda.Stream(0)
@@ -42,7 +41,6 @@ def bench_copy(new_exec, verbose=False):
     if verbose:
         print(f"Testing output copy with {'new' if new_exec else 'old'} executor")
     pipe = test_pipe(exec_dynamic=new_exec)
-    pipe.build()
     pipe.run()
 
     def to_torch(dali_tensor):

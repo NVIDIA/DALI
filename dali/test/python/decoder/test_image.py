@@ -81,7 +81,6 @@ def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False)
         memory_stats=memory_stats,
         prefetch_queue_depth=1,
     )
-    pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
         outs = pipe.run()
@@ -172,7 +171,6 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         device=device,
         prefetch_queue_depth=1,
     )
-    pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
         out_1, out_2 = pipe.run()
@@ -371,7 +369,6 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
 
     files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir=None)
     pipe = pipe(device, out_type=out_type, files=files)
-    pipe.build()
     out, shape = pipe.run()
     if device == "mixed":
         out = out.as_cpu()
@@ -451,7 +448,6 @@ def _testimpl_image_decoder_crop_error_oob(device):
         return decoded
 
     p = pipe(device)
-    p.build()
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
@@ -472,7 +468,6 @@ def _testimpl_image_decoder_slice_error_oob(device):
         return decoded
 
     p = pipe(device)
-    p.build()
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
@@ -495,7 +490,6 @@ def test_pinned_input_hw_decoder():
         return decoded, encoded_gpu
 
     p = pipe()
-    p.build()
     p.run()
 
 
@@ -511,7 +505,6 @@ def test_tiff_palette():
         return decoded, peeked_shapes
 
     p = pipe()
-    p.build()
     imgs, peeked_shapes = p.run()
     assert (
         peeked_shapes.at(0) == peeked_shapes.at(1)

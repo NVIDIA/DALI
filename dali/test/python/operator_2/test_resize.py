@@ -465,8 +465,6 @@ def build_pipes(
         resized = resize_PIL(dim, channel_first, dtype, interp, images, sizes, roi_start, roi_end)
         resized = fn.reshape(resized, layout=layout_str(dim, channel_first))
         pil_pipe.set_outputs(resized)
-    dali_pipe.build()
-    pil_pipe.build()
 
     return dali_pipe, pil_pipe
 
@@ -724,7 +722,6 @@ def _test_stitching(backend, dim, channel_first, dtype, interp):
 
         pipe.set_outputs(*outputs)
 
-    pipe.build()
     for iter in range(1):
         out = pipe.run()
         if backend_device(backend) == "gpu":
@@ -793,7 +790,6 @@ def _test_empty_input(dim, backend):
     resize_with_empty = resize_op(backend)(degenerate_images, size=size_inp, mode="not_larger")
 
     pipe.set_outputs(resize_no_empty, resize_with_empty)
-    pipe.build()
 
     for it in range(3):
         out_no_empty, out_with_empty = pipe.run()
@@ -827,7 +823,6 @@ def _test_very_small_output(dim, backend):
     resize_tiny = resize_op(backend)(images, size=1e-10)
 
     pipe.set_outputs(resize_tiny)
-    pipe.build()
 
     for it in range(3):
         (out,) = pipe.run()
@@ -872,7 +867,6 @@ def test_large_gpu(interp, antialias):
         )
 
     pipe = resize_pipe()
-    pipe.build()
     (outs,) = pipe.run()
     out = outs.as_cpu().at(0)
     global large_data_resized
@@ -922,7 +916,6 @@ def test_nn_on_one_axis(device, axis):
         )
 
     pipe = test_pipe()
-    pipe.build()
     (out,) = pipe.run()
     check_batch(out, [ref], 1, 1e-5, 1e-5, None, False)
 
@@ -1011,7 +1004,6 @@ def test_checkerboard_dali_vs_onnx_ref():
         ref = ref_data[interp_type][antialias]
 
         p = pipe(device, interp_type, antialias)
-        p.build()
         (out,) = p.run()
 
         out_dali = as_array(out[0])

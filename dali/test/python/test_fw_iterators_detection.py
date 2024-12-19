@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -188,7 +188,6 @@ def test_api_fw_check2(iter_type, data_definition):
     root, annotations = data_paths()
 
     pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
-    pipe.build()
     pipe.schedule_run()
     pipe.share_outputs()
     pipe.release_outputs()

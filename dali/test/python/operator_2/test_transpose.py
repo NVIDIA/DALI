@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,7 +126,6 @@ def check_transpose_layout(
         transpose_layout=transpose_layout,
         out_layout_arg=out_layout_arg,
     )
-    pipe.build()
     out = pipe.run()
 
     expected_out_layout = in_layout
@@ -175,6 +174,5 @@ def test_transpose_default(device, shape):
         return fn.transpose(data), fn.transpose(data, perm=perm)
 
     p = pipe()
-    p.build()
     out_default, out_explicit = [as_array(o[0]) for o in p.run()]
     np.testing.assert_array_equal(out_explicit, out_default)

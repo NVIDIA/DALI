@@ -32,7 +32,6 @@ def run_decode(data_path, out_type):
     decoded_shape = decoded.shape()
     raw_shape = fn.peek_image_shape(input, dtype=out_type)
     pipe.set_outputs(decoded, decoded_shape, raw_shape)
-    pipe.build()
     samples = 0
     length = pipe.reader_meta(name="reader")["epoch_size"]
     while samples < length:

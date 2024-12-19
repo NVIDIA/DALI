@@ -49,7 +49,6 @@ def test_api_name(module, op):
         return op(target="module")
 
     p = pipe()
-    p.build()
     (out,) = p.run()
     out_str = extract_str_from_tl(out)
     assert out_str == module, f"Expected {module}, got {out_str}"
@@ -72,7 +71,6 @@ def test_op_name(module_op, include_module):
         return op(target="op_name", include_module=include_module)
 
     p = pipe()
-    p.build()
     (out,) = p.run()
     out_str = extract_str_from_tl(out)
     expected = baseline_display_name(module, include_module)

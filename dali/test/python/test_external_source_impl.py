@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -225,7 +225,6 @@ def _test_iter_setup(use_fn_api, by_name, device):
     iter_num = 5
     source = TestIterator(iter_num, batch_size, [2, 3])
     pipe = IterSetupPipeline(iter(source), 3, 0, device)
-    pipe.build()
 
     run_and_check(pipe, source)
 
@@ -254,7 +253,6 @@ def _test_external_source_callback(use_fn_api, batch, as_tensor, device):
         ext_source = ops.ExternalSource(lambda: next(iter_in), device=device, batch=batch)
         input = ext_source()
     pipe.set_outputs(input)
-    pipe.build()
 
     run_and_check(pipe, source)
 
@@ -285,7 +283,6 @@ def _test_external_source_callback_split(use_fn_api, batch, as_tensor, device):
         )
         inputs = ext_source()
     pipe.set_outputs(*inputs)
-    pipe.build()
 
     run_and_check(pipe, source)
 
@@ -313,7 +310,6 @@ def _test_external_source_iter(use_fn_api, device):
         ext_source = ops.ExternalSource(source, device=device)
         input = ext_source()
     pipe.set_outputs(input)
-    pipe.build()
 
     run_and_check(pipe, source)
 
@@ -339,7 +335,6 @@ def _test_external_source_iter_split(use_fn_api, device):
         ext_source = ops.ExternalSource(source, num_outputs=3, device=device)
         inputs = ext_source()
     pipe.set_outputs(*inputs)
-    pipe.build()
 
     run_and_check(pipe, source)
 
@@ -359,7 +354,6 @@ def test_external_source_collection():
     ]
 
     pipe.set_outputs(fn.external_source(batches))
-    pipe.build()
     run_and_check(pipe, batches)
 
 
@@ -369,7 +363,6 @@ def test_external_source_iterate_ndarray():
     batch = make_array([1.5, 2.5, 2, 3], dtype=datapy.float32)
 
     pipe.set_outputs(fn.external_source(batch, batch=False))
-    pipe.build()
     run_and_check(pipe, [batch])
 
 
@@ -382,7 +375,6 @@ def test_external_source_collection_cycling():
     ]
 
     pipe.set_outputs(fn.external_source(batches, cycle=True))
-    pipe.build()
 
     # epochs are cycles over the source iterable
     for _ in range(3):
@@ -406,7 +398,6 @@ def test_external_source_collection_cycling_raise():
     pipe.set_outputs(
         fn.external_source(batches, cycle="raise"), fn.external_source(batch_gen, cycle="raise")
     )
-    pipe.build()
 
     # epochs are cycles over the source iterable
     for _ in range(3):
@@ -430,7 +421,6 @@ def test_external_source_with_iter():
                 lambda i: [make_array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]
             )
         )
-        pipe.build()
 
         for i in range(10):
             check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
@@ -448,7 +438,6 @@ def test_external_source_with_sample_info():
             )
 
         pipe.set_outputs(fn.external_source(src, batch=False))
-        pipe.build()
 
         for i in range(10):
             batch = [
@@ -466,7 +455,6 @@ def test_external_source_generator():
             yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     pipe.set_outputs(fn.external_source(gen()))
-    pipe.build()
 
     for i in range(5):
         check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
@@ -480,7 +468,6 @@ def test_external_source_gen_function_cycle():
             yield [make_array([i + 1.5], dtype=datapy.float32)]
 
     pipe.set_outputs(fn.external_source(gen, cycle=True))
-    pipe.build()
 
     for _ in range(3):
         for i in range(5):
@@ -495,7 +482,6 @@ def test_external_source_gen_function_partial():
             yield [make_array([i + base], dtype=datapy.float32)]
 
     pipe.set_outputs(fn.external_source(functools.partial(gen, 1.5), cycle=True))
-    pipe.build()
 
     for _ in range(3):
         for i in range(5):
@@ -559,7 +545,6 @@ def test_external_source():
     iter_num = 5
     iterator = iter(TestIterator(iter_num))
     pipe = IterSetupPipeline(iterator, 3, 0)
-    pipe.build()
 
     i = 0
     while True:
@@ -592,7 +577,6 @@ def test_external_source_fail_missing_output():
 
     batch_size = 3
     pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
-    pipe.build()
     assert_raises(RuntimeError, pipe.run, regex=r"Could not find an input operator with name .*")
 
 
@@ -615,7 +599,6 @@ def external_data_veri(external_data, batch_size):
             self.feed_input(self.batch, batch)
 
     pipe = ExternalSourcePipeline(batch_size, external_data, 3, 0)
-    pipe.build()
     for _ in range(10):
         out = pipe.run()
         for i in range(batch_size):
@@ -662,7 +645,6 @@ def test_external_source_gpu():
     for batch_size in [1, 10]:
         for use_list in (True, False):
             pipe = ExternalSourcePipeline(batch_size, 3, 0, use_list)
-            pipe.build()
             pipe.run()
 
 
@@ -768,7 +750,6 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
         iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples
     )
     pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
-    pipe.build()
 
     if (device == "cpu" and not cpu_input) or (device == "gpu" and cpu_input):
         input_types = ["CPU", "GPU"]

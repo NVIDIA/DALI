@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ def video_reader_pipeline_base(video_reader, batch_size, video_reader_params, re
         if type(outputs) is list:
             outputs = outputs[0]
         pipeline.set_outputs(outputs)
-    pipeline.build()
 
     return pipeline
 
@@ -103,7 +102,6 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
         resized_frame = resized_frame[0].gpu()
         resized_frame = dali.fn.resize(resized_frame, **resize_params)
         gt_pipeline.set_outputs(resized_frame)
-    gt_pipeline.build()
 
     return gt_pipeline
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -450,7 +450,6 @@ def _run_test(
     pipe = NormalizePipeline(
         device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale
     )
-    pipe.build()
     for iter in range(2):
         out = pipe.run()
         pipe.check_batch(*[to_list(x) for x in out])
@@ -515,5 +514,4 @@ def test_batch_of_empty_samples(device):
         return fn.normalize(empty_sample, mean=5, stddev=1)
 
     p = pipeline(batch_size=4, device_id=0, num_threads=4)
-    p.build()
     p.run()

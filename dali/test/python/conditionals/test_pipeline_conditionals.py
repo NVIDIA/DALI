@@ -155,7 +155,6 @@ def generic_execute(function, input_gen_list, optional_params=None):
         return [generator(SampleInfo(bs * iter + i, i, iter, 0)) for i in range(bs)]
 
     pipe = pipeline_definition(*es_inputs, **kwargs)
-    pipe.build()
 
     for iter in range(iters):
         batches = [gen_batch(gen, bs, iter) for gen in input_gen_list]
@@ -473,8 +472,6 @@ def _impl_against_split_merge(base_additional_kwargs={}, conditional_additional_
         return output
 
     pipes = [regular_pipe(), conditional_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -524,8 +521,6 @@ def _impl_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={}):
         return output
 
     pipes = [regular_pipe(), conditional_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -574,8 +569,6 @@ def _impl_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additio
         return output
 
     pipes = [global_transform_pipe(), scoped_transform_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -614,7 +607,6 @@ def _impl_arg_inputs_scoped_uninitialized(additional_kwargs={}):
         ),
     ):
         pipe = scoped_transform_pipe()
-        pipe.build()
         pipe.run()
 
 
@@ -669,8 +661,6 @@ def _impl_generators(pred, base_additional_kwargs={}, conditional_additional_kwa
         return encoded_out, rand_out
 
     pipes = [baseline_pipe(), conditional_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -707,7 +697,6 @@ def _impl_uninitialized(additional_kwargs={}):
         ),
     ):
         p = one_branch()
-        p.build()
         p.run()
 
     @experimental.pipeline_def(enable_conditionals=True, **kwargs)
@@ -726,7 +715,6 @@ def _impl_uninitialized(additional_kwargs={}):
         ),
     ):
         p = one_return()
-        p.build()
         p.run()
 
 
@@ -875,7 +863,6 @@ def test_named_tensor_arguments(op):
     pipe = get_pipeline(
         op=op, args_batches=args_batches, mask_batches=mask_batches, kwargs_batches=kwargs_batches
     )
-    pipe.build()
     for _ in range(len(mask_batches)):
         pipe.run()
 
@@ -896,7 +883,6 @@ def test_simple_batch_permute(batch_size, permute_prefix):
         return sample_idx
 
     p = pipeline()
-    p.build()
 
     for _ in range(3):
         (sample_indices,) = p.run()
@@ -944,7 +930,6 @@ def test_batch_permutation(batch_size, num_split_level):
         return sample_idx, group
 
     p = pipeline()
-    p.build()
 
     for _ in range(3):
         sample_indices, groups = p.run()
@@ -988,7 +973,6 @@ def test_error_condition():
         ),
     ):
         pipe = gpu_condition()
-        pipe.build()
         print(pipe.run())
 
     @experimental.pipeline_def(**kwargs)
@@ -1010,7 +994,6 @@ def test_error_condition():
         ),
     ):
         pipe = non_scalar_condition()
-        pipe.build()
         pipe.run()
 
 
@@ -1056,7 +1039,6 @@ def test_predicate_any_type(input_type):
         return output
 
     pipe = non_bool_predicate()
-    pipe.build()
     (batch,) = pipe.run()
 
     target = [42 if i < batch_size / 2 else 0 for i in range(batch_size)]
@@ -1088,7 +1070,6 @@ def test_data_node_if_error():
         " `enable_conditionals=True` in `@nvidia.dali.pipeline_def` decorator*",
     ):
         pipe = pipeline()
-        pipe.build()
         pipe.run()
 
 
@@ -1111,7 +1092,6 @@ def test_sanity_enable_conditionals():
         return output
 
     pipe = pipeline(10, enable_conditionals=True, b=4, **kwargs)
-    pipe.build()
     pipe.run()
 
 
@@ -1136,7 +1116,6 @@ def test_multiple_input_source():
         return out_42_scoped, out_idx_scoped
 
     pipe = pipeline()
-    pipe.build()
     for _ in range(4):
         out_42, out_idx = pipe.run()
         check_batch(out_42, [[42] if i < (batch_size / 2) else [0] for i in range(batch_size)])

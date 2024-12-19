@@ -40,7 +40,6 @@ def _test_file_properties(device):
     root_path = os.path.join(test_data_root, "db", "single", "png", "0")
     files = [os.path.join(root_path, i) for i in os.listdir(root_path)]
     p = file_properties(files, device, batch_size=8, num_threads=4, device_id=0)
-    p.build()
     output = p.run()
     for out in output:
         out = out if device == "cpu" else out.as_cpu()
@@ -88,11 +87,9 @@ def _test_wds_source_info(device, generate_index):
             p = wds_source_info(
                 root_path, device, index_paths, batch_size=8, num_threads=4, device_id=0
             )
-            p.build()
             output = p.run()
     else:
         p = wds_source_info(root_path, device, None, batch_size=8, num_threads=4, device_id=0)
-        p.build()
         output = p.run()
     for out in output:
         for source_info, ref_fname, ref_idx in zip(out, ref_filenames, ref_indices):
@@ -127,7 +124,6 @@ def _test_tfr_properties(device):
     index_path = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
     idx = [0, 171504, 553687, 651500, 820966, 1142396, 1380096, 1532947]
     p = tfr_properties(root_path, index_path, device, batch_size=8, num_threads=4, device_id=0)
-    p.build()
     output = p.run()
     for out in output:
         out = out if device == "cpu" else out.as_cpu()
@@ -161,7 +157,6 @@ def es_properties(layouts, device):
 def _test_es_properties(device):
     layouts = ["ABC", "XYZ"]
     p = es_properties(layouts, device, batch_size=8, num_threads=4, device_id=0)
-    p.build()
     output = p.run()
     for out, lt in zip(output, layouts):
         out = out if device == "cpu" else out.as_cpu()
@@ -184,7 +179,6 @@ def improper_property(root_path, device):
 def _test_improper_property(device):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     p = improper_property(root_path, device, batch_size=8, num_threads=4, device_id=0)
-    p.build()
     p.run()
 
 
@@ -200,7 +194,6 @@ def test_get_property_gpu2cpu():
         return fn.get_property(data, key="layout", device="cpu")
 
     pipe = test_pipe()
-    pipe.build()
     (out,) = pipe.run()
     assert _uint8_tensor_to_string(out[0]) == "abc"
     assert _uint8_tensor_to_string(out[1]) == "abc"

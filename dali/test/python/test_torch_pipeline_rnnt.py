@@ -197,7 +197,6 @@ class FilterbankFeatures:
 
 
 def dali_run(pipe, device):
-    pipe.build()
     outs = pipe.run()
     return to_array(outs[0])[0]
 
@@ -518,7 +517,6 @@ def _testimpl_rnnt_data_pipeline(
         seed=42,
         batch_size=batch_size,
     )
-    pipe.build()
     nbatches = (nrecordings + batch_size - 1) // batch_size
     i = 0
     for b in range(nbatches):
@@ -667,7 +665,6 @@ def test_rnnt_data_pipeline_throughput(
         seed=42,
         batch_size=batch_size,
     )
-    pipe.build()
 
     import time
     from test_utils import AverageMeter

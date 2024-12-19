@@ -78,7 +78,6 @@ def extract_trace_from_tl(out):
 def capture_dali_traces(pipe_def):
     """Run the pipeline and extract all the traces returned as the outputs of the pipeline"""
     p = pipe_def()
-    p.build()
     outputs = p.run()
     result = [extract_trace_from_tl(output) for output in outputs]
     return result
@@ -144,7 +143,6 @@ def test_trace_almost_trivial_debug():
         return origin_trace()
 
     p = pipe()
-    p.build()
     (out,) = p.run()
     assert out.shape() == [(0,), (0,)], "Debug doesn't carry trace information"
 

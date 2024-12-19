@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -104,7 +104,6 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
 
         pipe.set_outputs(X, Y, M, T, MT)
 
-    pipe.build()
     for iter in range(3):
         outputs = pipe.run()
         outputs = [x.as_cpu() if hasattr(x, "as_cpu") else x for x in outputs]
@@ -225,7 +224,6 @@ def _test_empty_input(device):
         )
         Y = fn.coord_transform(X, M=(1, 2, 3, 4, 5, 6), T=(1, 2))
         pipe.set_outputs(Y)
-    pipe.build()
     o = pipe.run()
     assert o[0].layout() == "AB"
     assert len(o[0]) == 2

@@ -65,9 +65,7 @@ class HybridDecoderPipeline(Pipeline):
 @params(("legacy",), ("experimental",))
 def test_nvjpeg_cached(decoder_type):
     ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0, decoder_type)
-    ref_pipe.build()
     cached_pipe = HybridDecoderPipeline(batch_size, 1, 0, 100, decoder_type)
-    cached_pipe.build()
     epoch_size = ref_pipe.epoch_size("Reader")
 
     for i in range(0, (2 * epoch_size + batch_size - 1) // batch_size):

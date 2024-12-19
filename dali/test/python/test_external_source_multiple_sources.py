@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ def pipeline():
 )
 def test_feed_input_with_source():
     pipe = pipeline()
-    pipe.build()
     pipe.feed_input("input", np.zeros((8, 8)))
     pipe.run()
 
@@ -40,7 +39,6 @@ def test_feed_input_with_source():
 def test_external_source_with_callback():
     """Test if using external_source with 'source' doesn't raise exceptions."""
     pipe = pipeline()
-    pipe.build()
     pipe.run()
 
 

@@ -109,7 +109,6 @@ class TestLoadedPlugin(unittest.TestCase):
     def test_pipeline_including_custom_plugin(self):
         load_empty_plugin()
         pipe = CustomPipeline(batch_size, 1, 0)
-        pipe.build()
         pipe_out = pipe.run()
         print(pipe_out)
         images, output = pipe_out

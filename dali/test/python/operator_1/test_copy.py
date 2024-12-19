@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ def copy_pipe(shape, layout, dev, dtype):
 
 def check_copy(shape, layout, dev, dtype=np.uint8):
     pipe = copy_pipe(shape, layout, dev, dtype)
-    pipe.build()
     for i in range(10):
         input, output = pipe.run()
         for i in range(batch_size):

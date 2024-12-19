@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,7 +77,6 @@ def test_lo_hi_mag_range():
         return const_mag, dyn_mag
 
     p = pipeline()
-    p.build()
     const_mag, dyn_mag = p.run()
     const_mag_ref = ref_param(mag_range, 5, [const_bin] * batch_size)
     dyn_mag_ref = ref_param(mag_range, 11, list(range(batch_size)))
@@ -102,7 +101,6 @@ def test_explicit_mag_range():
         return const_mag, dyn_mag
 
     p = pipeline()
-    p.build()
     const_mag, dyn_mag = p.run()
     const_mag_ref = ref_param(mag_range, None, [const_bin] * batch_size)
     dyn_mag_ref = ref_param(mag_range, None, list(range(batch_size)))
@@ -144,7 +142,6 @@ def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const
         warn_glob = "but unsigned `magnitude_bin` was passed to the augmentation call"
         with assert_warns(Warning, glob=warn_glob):
             p = pipeline()
-    p.build()
     (magnitudes,) = p.run()
     magnitudes = [np.array(el) for el in magnitudes]
     if use_implicit_sign:
@@ -192,7 +189,6 @@ def test_no_randomly_negate(const_mag):
         )
 
     p = pipeline()
-    p.build()
     (magnitudes,) = p.run()
     magnitude_bin = (
         [const_mag] * batch_size
@@ -235,7 +231,6 @@ def test_mag_to_param(mag_range, num_magnitude_bins, const_mag, dtype, param_dev
         )
 
     p = pipeline()
-    p.build()
     (magnitudes,) = p.run()
     if param_device == "cpu":
         assert isinstance(magnitudes, _tensors.TensorListCPU)

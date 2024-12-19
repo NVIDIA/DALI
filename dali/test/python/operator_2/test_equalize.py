@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,7 +72,6 @@ def test_image_pipeline(dev, layout_batch_size):
     pipe = images_pipeline(
         num_threads=4, device_id=0, batch_size=batch_size, layout=layout, dev=dev
     )
-    pipe.build()
 
     for _ in range(num_iters):
         equalized, imgs = pipe.run()
@@ -111,7 +110,6 @@ def test_multichannel(dev):
         return fn.experimental.equalize(input), input
 
     pipe = pipeline()
-    pipe.build()
 
     for _ in range(num_iters):
         equalized, imgs = pipe.run()

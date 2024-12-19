@@ -73,7 +73,6 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
                 save_preprocessed_annotations_dir=annotations_dir,
             )
             pipeline.set_outputs(ids)
-        pipeline.build()
 
         i = 0
         assert len(images) % batch_size == 0
@@ -117,7 +116,6 @@ def test_operator_coco_reader_label_remap(avoid_remap):
             avoid_class_remapping=avoid_remap,
         )
         pipeline.set_outputs(ids, labels)
-    pipeline.build()
 
     i = 0
     assert len(images) % batch_size == 0
@@ -165,7 +163,6 @@ def test_operator_coco_reader_same_images():
             pipe.set_outputs(
                 inputs1, boxes1, labels1, inputs2, boxes2, labels2, inputs3, boxes3, labels3
             )
-        pipe.build()
 
         epoch_sz = pipe.epoch_size("reader1")
         assert epoch_sz == pipe.epoch_size("reader2")
@@ -206,7 +203,6 @@ def test_invalid_args():
             preprocessed_annotations_dir="/tmp",
         )
         pipeline.set_outputs(ids)
-    pipeline.build()
 
 
 batch_size_alias_test = 64
@@ -257,7 +253,6 @@ def test_coco_include_crowd(include_iscrowd):
         annotations = json.load(file)
 
     pipe = coco_pipe(include_iscrowd=include_iscrowd)
-    pipe.build()
     number_of_samples = pipe.epoch_size()
     for k in number_of_samples:
         # there is only one reader
@@ -303,7 +298,6 @@ def test_coco_empty_annotations_pix():
         return masks, ids
 
     pipe = coco_pipe()
-    pipe.build()
     number_of_samples = pipe.epoch_size()
     for k in number_of_samples:
         # there is only one reader
@@ -343,7 +337,6 @@ def test_coco_empty_annotations_poly():
         return poly, vert, ids
 
     pipe = coco_pipe()
-    pipe.build()
     number_of_samples = pipe.epoch_size()
     for k in number_of_samples:
         # there is only one reader

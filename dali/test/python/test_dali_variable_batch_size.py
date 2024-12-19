@@ -184,7 +184,6 @@ def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ["cpu", "gpu"], **
         n_iter = len(input_epoch)
         max_bs = max(get_batch_size(batch) for batch in input_epoch)
         var_pipe = pipeline_fn(max_bs, input_epoch, device, **pipeline_fn_args)
-        var_pipe.build()
         for _ in range(n_iter):
             var_pipe.run()
 
@@ -213,14 +212,12 @@ def check_pipeline(
         n_iter = len(input_epoch)
         max_bs = max(get_batch_size(batch) for batch in input_epoch)
         var_pipe = pipeline_fn(max_bs, input_epoch, device, **pipeline_fn_args)
-        var_pipe.build()
 
         for iter_idx in range(n_iter):
             iter_input = input_epoch[iter_idx]
             batch_size = get_batch_size(iter_input)
 
             const_pipe = pipeline_fn(batch_size, [iter_input], device, **pipeline_fn_args)
-            const_pipe.build()
 
             test_utils.compare_pipelines(
                 var_pipe, const_pipe, batch_size=batch_size, N_iterations=1, eps=eps
@@ -1323,7 +1320,6 @@ def test_crop_argument_from_external_source():
         return images
 
     pipe = pipeline()
-    pipe.build()
 
     image_data = np.fromfile(
         os.path.join(

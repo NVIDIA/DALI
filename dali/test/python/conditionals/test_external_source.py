@@ -44,7 +44,6 @@ def es_with_local_source(parallel=False):
         return fn.external_source(source=source_local, parallel=parallel, batch=False)
 
     p = pipe_with_local()
-    p.build()
     (out,) = p.run()
     assert np.array_equal(np.array(out.as_tensor()), np.full((4, 2), 1))
 
@@ -75,7 +74,6 @@ def es_with_nonlocal_converted_source(parallel=False):
         return fn.external_source(source=source, parallel=parallel, batch=False)
 
     p = pipe_with_converted_factory()
-    p.build()
     (out,) = p.run()
     assert np.array_equal(np.array(out.as_tensor()), np.full((4, 3), 10))
 
@@ -107,7 +105,6 @@ def es_with_nonlocal_not_converted_source(parallel=False):
         return fn.external_source(source=source, parallel=parallel, batch=False)
 
     p = pipe_with_converted_factory()
-    p.build()
     (out,) = p.run()
     assert np.array_equal(np.array(out.as_tensor()), np.full((4, 3), 10))
 

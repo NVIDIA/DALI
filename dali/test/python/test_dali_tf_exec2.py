@@ -85,7 +85,6 @@ def daliop_pipe():
 
 def get_batch_dali(batch_size):
     pipe = daliop_pipe(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
 
     daliop = dali_tf.DALIIterator()
     images = []

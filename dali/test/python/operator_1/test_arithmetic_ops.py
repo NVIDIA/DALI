@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -483,7 +483,6 @@ def check_unary_op(kind, type, op, shape, _):
     pipe = ExprOpPipeline(
         kind, type, iterator, op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         in_np, out = extract_un_data(pipe_out, sample, kind, type)
@@ -516,7 +515,6 @@ def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps
     pipe = ExprOpPipeline(
         kind, type, iterator, op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe_out = pipe.run()
     out_type = np.float32 if is_integer else type
     for sample in range(batch_size):
@@ -577,7 +575,6 @@ def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
     pipe = ExprOpPipeline(
         kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
@@ -601,7 +598,6 @@ def check_ternary_op(kinds, types, op, shape, _):
     pipe = ExprOpPipeline(
         kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         x, y, z, out = extract_data(pipe_out, sample, kinds, target_type)
@@ -709,7 +705,6 @@ def check_comparsion_op(kinds, types, op, shape, _):
     pipe = ExprOpPipeline(
         kinds, types, iterator, op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
@@ -755,7 +750,6 @@ def check_arithm_binary_float(kinds, types, op, shape, get_range, _):
     pipe = ExprOpPipeline(
         kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
@@ -822,7 +816,6 @@ def check_arithm_div(kinds, types, shape):
         num_threads=2,
         device_id=0,
     )
-    pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
@@ -870,7 +863,6 @@ def check_raises(kinds, types, op, shape):
     pipe = ExprOpPipeline(
         kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2, device_id=0
     )
-    pipe.build()
     pipe.run()
 
 
@@ -1106,7 +1098,6 @@ def test_layout_broadcasting(op_name, args_desc, out_desc, in_devs, in_types, op
         return op(*in_nodes)
 
     p = pipeline()
-    p.build()
     if isinstance(out_desc, Exception):
         with assert_raises(Exception, glob="They must be equal or one must be a suffix"):
             p.run()
@@ -1132,7 +1123,6 @@ def test_broadcasting_dimensionality_limits():
             return a + b
 
         p = pipe()
-        p.build()
         p.run()
 
     # ERROR
@@ -1163,7 +1153,6 @@ def test_broadcasting_incompatible_shapes():
             return a + b
 
         p = pipe()
-        p.build()
         p.run()
 
     error_msg1 = (

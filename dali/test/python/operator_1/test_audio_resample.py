@@ -52,7 +52,6 @@ def audio_decoder_pipe(device):
 
 def _test_standalone_vs_fused(device):
     pipe = audio_decoder_pipe(device=device, batch_size=2, num_threads=1, device_id=0)
-    pipe.build()
     is_gpu = device == "gpu"
     for _ in range(2):
         outs = pipe.run()
@@ -83,7 +82,6 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
         return fn.audio_resample(input, dtype=dst_type, scale=1, quality=0)
 
     pipe = test_pipe(device, device_id=0, num_threads=4)
-    pipe.build()
     for _ in range(2):
         (out,) = pipe.run()
         assert len(out) == len(out_values)

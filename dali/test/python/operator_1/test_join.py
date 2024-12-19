@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,6 @@ def test_cat_different_length():
         out_gpu = fn.cat(src1.gpu(), src2.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
 
-    pipe.build()
     o = pipe.run()
 
     o = list(o)
@@ -79,7 +78,6 @@ def test_cat_empty_input():
         out_gpu = fn.cat(src1.gpu(), src2.gpu(), src3.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
 
-    pipe.build()
     o = pipe.run()
 
     o = list(o)
@@ -100,7 +98,6 @@ def test_cat_all_empty():
         out_gpu = fn.cat(src1.gpu(), src1.gpu(), src1.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
 
-    pipe.build()
     o = pipe.run()
 
     o = list(o)
@@ -150,7 +147,6 @@ def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
         out_cpu = fn.cat(*inputs, axis=axis_arg, axis_name=axis_name)
         out_gpu = fn.cat(*(x.gpu() for x in inputs), axis=axis_arg, axis_name=axis_name)
         pipe.set_outputs(out_cpu, out_gpu, *inputs)
-    pipe.build()
 
     for iter in range(num_iter):
         o_cpu, o_gpu, *inputs = pipe.run()
@@ -182,7 +178,6 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
         out_cpu = fn.stack(*inputs, axis=axis, axis_name=axis_name)
         out_gpu = fn.stack(*(x.gpu() for x in inputs), axis=axis, axis_name=axis_name)
         pipe.set_outputs(out_cpu, out_gpu, *inputs)
-    pipe.build()
 
     for _ in range(num_iter):
         o_cpu, o_gpu, *inputs = pipe.run()

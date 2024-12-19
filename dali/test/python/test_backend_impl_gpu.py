@@ -41,7 +41,6 @@ class ExternalSourcePipe(Pipeline):
 def test_tensorlist_getitem_gpu():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr)
-    pipe.build()
     tensorlist = pipe.run()[0]
     list_of_tensors = [x for x in tensorlist]
 
@@ -58,7 +57,6 @@ def test_tensorlist_getitem_gpu():
 def test_data_ptr_tensor_gpu():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr)
-    pipe.build()
     tensor = pipe.run()[0][0]
     from_tensor = py_buffer_from_address(
         tensor.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype), gpu=True
@@ -70,7 +68,6 @@ def test_data_ptr_tensor_gpu():
 def test_data_ptr_tensor_list_gpu():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr)
-    pipe.build()
     tensor_list = pipe.run()[0]
     tensor = tensor_list.as_tensor()
     from_tensor = py_buffer_from_address(
@@ -83,7 +80,6 @@ def test_data_ptr_tensor_list_gpu():
 def test_cuda_array_interface_tensor_gpu():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr)
-    pipe.build()
     tensor_list = pipe.run()[0]
     assert tensor_list[0].__cuda_array_interface__["data"][0] == tensor_list[0].data_ptr()
     assert not tensor_list[0].__cuda_array_interface__["data"][1]
@@ -97,7 +93,6 @@ def test_cuda_array_interface_tensor_gpu():
 def test_cuda_array_interface_tensor_gpu_create():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr)
-    pipe.build()
     tensor_list = pipe.run()[0]
     assert cp.allclose(arr[0], cp.asanyarray(tensor_list[0]))
 
@@ -105,7 +100,6 @@ def test_cuda_array_interface_tensor_gpu_create():
 def test_cuda_array_interface_tensor_list_gpu_create():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr)
-    pipe.build()
     tensor_list = pipe.run()[0]
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
@@ -113,7 +107,6 @@ def test_cuda_array_interface_tensor_list_gpu_create():
 def test_cuda_array_interface_tensor_gpu_create_copy_kernel():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr, use_copy_kernel=True)
-    pipe.build()
     tensor_list = pipe.run()[0]
     assert cp.allclose(arr[0], cp.asanyarray(tensor_list[0]))
 
@@ -121,7 +114,6 @@ def test_cuda_array_interface_tensor_gpu_create_copy_kernel():
 def test_cuda_array_interface_tensor_list_gpu_create_copy_kernel():
     arr = np.random.rand(3, 5, 6)
     pipe = ExternalSourcePipe(arr.shape[0], arr, use_copy_kernel=True)
-    pipe.build()
     tensor_list = pipe.run()[0]
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 

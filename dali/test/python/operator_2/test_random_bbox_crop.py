@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -303,7 +303,6 @@ def check_random_bbox_crop_variable_shape(
     else:
         filter_fn = functools.partial(filter_by_area, thresh=bbox_prune_threshold)
 
-    pipe.build()
     for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
@@ -368,7 +367,6 @@ def check_random_bbox_crop_fixed_shape(
     else:
         filter_fn = functools.partial(filter_by_area, thresh=bbox_prune_threshold)
 
-    pipe.build()
     for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
@@ -425,7 +423,6 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
         crop_shape=crop_shape,
         all_boxes_above_threshold=False,
     )
-    pipe.build()
     for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
@@ -493,7 +490,6 @@ def test_random_bbox_crop_no_labels():
         bbox_layout="xyXY",
     )
     pipe.set_outputs(*processed)
-    pipe.build()
     for _ in range(3):
         pipe.run()
 
@@ -521,7 +517,6 @@ def _testimpl_random_bbox_crop_square(use_input_shape):
         return in_sh, outputs[1]
 
     pipe = random_bbox_crop_fixed_aspect_ratio()
-    pipe.build()
     for _ in range(3):
         outputs = pipe.run()
         for sample in range(batch_size):

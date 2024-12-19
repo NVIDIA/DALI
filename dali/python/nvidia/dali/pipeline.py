@@ -162,9 +162,9 @@ class Pipeline(object):
         If ``spawn`` method is used, ExternalSource's callback must be picklable.
         In order to use ``fork``, there must be no CUDA contexts acquired at the moment of starting
         the workers. For this reason, if you need to build multiple pipelines that use Python
-        workers, you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
-        of the pipelines. You can find more details and caveats of both methods in Python's
-        ``multiprocessing`` module documentation.
+        workers, you will need to call :meth:`start_py_workers` before building or running
+        any of the pipelines (see :meth:`build` for details). You can find more details and caveats
+        of both methods in Python's ``multiprocessing`` module documentation.
     py_callback_pickler : module or tuple, default = None
         If `py_start_method` is set to *spawn*, callback passed to parallel
         ExternalSource must be picklable.
@@ -480,10 +480,12 @@ class Pipeline(object):
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
+        self.build()
         return [elem if elem != types.NO_TYPE else None for elem in self._pipe.output_dtype()]
 
     def output_ndim(self) -> list:
         """Number of dimensions expected at the outputs."""
+        self.build()
         return [elem if elem != -1 else None for elem in self._pipe.output_ndim()]
 
     def epoch_size(self, name=None):
@@ -500,8 +502,7 @@ class Pipeline(object):
             The reader which should be used to obtain epoch size.
         """
 
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         if name is not None:
             return self._pipe.reader_meta(name)["epoch_size_padded"]
         meta = self._pipe.reader_meta()
@@ -529,8 +530,7 @@ class Pipeline(object):
         .. note::
             Executor statistics are not available when using ``exec_dynamic=True``.
         """
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         return self._pipe.executor_statistics()
 
     def external_source_shm_statistics(self):
@@ -590,8 +590,7 @@ class Pipeline(object):
         name : str, optional, default = None
             The reader which should be used to obtain shards_number.
         """
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         if name is not None:
             return self._pipe.reader_meta(name)
         return self._pipe.reader_meta()
@@ -1005,8 +1004,8 @@ class Pipeline(object):
 
         If you are going to build more than one pipeline that starts Python workers by forking
         the process then you need to call :meth:`start_py_workers` method on all those pipelines
-        before calling :meth:`build` method of any pipeline, as build acquires CUDA context
-        for current process.
+        before calling any method that builds or runs the pipeline (see :meth:`build` for details),
+        as building acquires CUDA context for current process.
 
         The same applies to using any other functionality that would create CUDA context -
         for example, initializing a framework that uses CUDA or creating CUDA tensors with it.
@@ -1042,10 +1041,23 @@ class Pipeline(object):
         return i
 
     def build(self):
-        """Build the pipeline.
+        """Build the pipeline (optional step).
 
-        Pipeline needs to be built in order to run it standalone.
-        Framework-specific plugins handle this step automatically.
+        Instantiates the pipeline's backend objects and starts processing threads. If the pipeline
+        uses multi-processing ``external_source``, the worker processes are also started.
+        In most cases, there's no need to manually call build. When multi-processing is used,
+        it may be necessary to call :meth:`build` or :meth:`start_py_workers` before the main
+        process makes any interaction with the GPU. If needed, the :meth:`build` can used before
+        running the pipeline to separate the graph building and the processing steps.
+
+        Pipeline is automatically built when it is:
+
+            * run, either via the run APIs (:meth:`run`, :meth:`schedule_run`),
+              or the framework-specific plugins,
+            * the inputs are provided via :meth:`feed_input`
+            * the pipeline metadata is accessed (:meth:`epoch_size`, :meth:`reader_meta`)
+            * outputs are accessed - including :meth:`output_stream`
+            * the graph needs to be otherwise materialized - like :meth:`save_graph_to_dot_file`.
         """
         if self._built:
             return
@@ -1065,6 +1077,7 @@ class Pipeline(object):
         self._built = True
 
     def input_feed_count(self, input_name):
+        self.build()
         return self._pipe.InputFeedCount(input_name)
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -1142,8 +1155,7 @@ class Pipeline(object):
             If set to True, DALI will use a CUDA kernel to feed the data (only applicable
             when copying data to/from GPU memory) instead of ``cudaMemcpyAsync`` (default).
         """
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         if isinstance(data_node, str):
             name = data_node
         else:
@@ -1218,6 +1230,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`release_outputs`
         and :meth:`share_outputs`.
         Should not be mixed with :meth:`run` in the same pipeline"""
+        self.build()
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
                 self._prefetch()
@@ -1226,8 +1239,7 @@ class Pipeline(object):
 
     def output_stream(self):
         """Returns the internal CUDA stream on which the outputs are produced."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         return self._pipe.GetOutputStream()
 
     # for the backward compatibility
@@ -1296,8 +1308,7 @@ class Pipeline(object):
             When using dynamic executor (``exec_dynamic=True``), the buffers are not invalidated.
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
-            if not self._built:
-                raise RuntimeError("Pipeline must be built first.")
+            self.build()
             ret = self._pipe.ReleaseOutputs()
             return ret
 
@@ -1312,8 +1323,7 @@ class Pipeline(object):
 
         Calling this function is equivalent to calling release_outputs
         then calling share_outputs"""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         return self._pipe.Outputs(types._raw_cuda_stream_ptr(cuda_stream))
 
     def _are_pipeline_inputs_possible(self):
@@ -1361,7 +1371,6 @@ class Pipeline(object):
             :meth:`run()` function::
 
                 p = my_pipe(prefetch_queue_depth=1, ...)
-                p.build()
                 p.run(my_inp=np.random((2,3,2)))
 
             Such keyword argument specified in the :meth:`run()` function has to have a
@@ -1392,6 +1401,7 @@ class Pipeline(object):
                 (e.g. `feed_input` function or `source` argument in the `fn.external_source`
                 operator.)"""
             )
+        self.build()
         for inp_name, inp_value in pipeline_inputs.items():
             self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
@@ -1400,8 +1410,7 @@ class Pipeline(object):
 
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         if not self._pipe:
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
@@ -1466,6 +1475,7 @@ class Pipeline(object):
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
+        self.build()
         try:
             if not self._last_iter:
                 self._iter_setup()
@@ -1665,8 +1675,7 @@ class Pipeline(object):
         use_colors : bool
                    Whether use color to distinguish stages
         """
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+        self.build()
         if show_ids is not None:
             with warnings.catch_warnings():
                 warnings.simplefilter("default")
@@ -1708,7 +1717,7 @@ class Pipeline(object):
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-
+        self.build()
         cpt = self._get_checkpoint()
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
@@ -1735,6 +1744,7 @@ class Pipeline(object):
         raise NotImplementedError
 
     def _iter_setup(self):
+        self.build()
         iters, success = self._run_input_callbacks()
         if not success:
             raise StopIteration
@@ -2042,7 +2052,7 @@ def pipeline_def(
     The decorated function returns a DALI Pipeline object::
 
         pipe = my_pipe(True, False)
-        # pipe.build()  # the pipeline is not configured properly yet
+        # pipe.run()  # the pipeline is not configured properly yet
 
     A pipeline requires additional parameters such as batch size, number of worker threads,
     GPU device id and so on (see :meth:`nvidia.dali.Pipeline()` for a
@@ -2051,9 +2061,9 @@ def pipeline_def(
     passed to the decorated function::
 
         pipe = my_pipe(True, False, batch_size=32, num_threads=1, device_id=0)
-        pipe.build()  # the pipeline is properly configured, we can build it now
 
-    The outputs from the original function became the outputs of the Pipeline::
+    The pipeline is properly configured, we can run it now. The outputs from the original function
+    became the outputs of the Pipeline::
 
         flipped, img = pipe.run()
 
