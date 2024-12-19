@@ -2365,6 +2365,25 @@ def test_cse():
     assert g.data_ptr() == h.data_ptr()
 
 
+def test_cse_ext_src():
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def my_pipe():
+        data1 = np.float32([1, 2, 3])
+        d = [data1]
+        es1 = fn.external_source(source=d, cycle=True, batch=False)
+        es2 = fn.external_source(source=d, cycle=True, batch=False)
+        return es1, es2
+
+    pipe = my_pipe()
+    pipe.build()
+    a, b = pipe.run()
+
+    # external source operators should not be merged, even if they're identical
+    assert a.data_ptr() != b.data_ptr()
+    assert np.array_equal(a[0], np.float32([1, 2, 3]))
+    assert np.array_equal(b[0], np.float32([1, 2, 3]))
+
+
 def test_cse_cond():
     @pipeline_def(
         batch_size=8,
