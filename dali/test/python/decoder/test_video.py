@@ -21,7 +21,6 @@ import glob
 import os
 from itertools import cycle
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
-from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
 from nose_utils import SkipTest, attr, assert_raises
 
@@ -77,8 +76,7 @@ def video_decoder_iter(batch_size, epochs=1, device="cpu", module=fn.experimenta
     pipe.build()
     for _ in range(int((epochs * len(files) + batch_size - 1) / batch_size)):
         (output,) = pipe.run()
-        if isinstance(output, TensorListGPU):
-            output = output.as_cpu()
+        output = output.as_cpu()
         for i in range(batch_size):
             yield np.array(output[i])
 
@@ -89,8 +87,7 @@ def ref_iter(epochs=1, device="cpu"):
             pipe = reference_pipeline(filename, device=device)
             pipe.build()
             (output,) = pipe.run()
-            if isinstance(output, TensorListGPU):
-                output = output.as_cpu()
+            output = output.as_cpu()
             yield np.array(output[0])
 
 

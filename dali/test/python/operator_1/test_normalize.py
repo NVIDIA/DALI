@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali import backend
 import nvidia.dali.ops as ops
 import numpy as np
 from test_utils import dali_type
@@ -395,8 +394,7 @@ class NormalizePipeline(Pipeline):
 
 
 def to_list(tensor_list):
-    if isinstance(tensor_list, backend.TensorListGPU):
-        tensor_list = tensor_list.as_cpu()
+    tensor_list = tensor_list.as_cpu()
     out = []
     for i in range(len(tensor_list)):
         out.append(tensor_list.at(i))

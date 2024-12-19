@@ -23,10 +23,7 @@ from nvidia.dali.backend import CheckDLPackCapsule
 
 def convert_to_torch(tensor, device="cuda", dtype=None, size=None):
     if size is None:
-        if isinstance(tensor, TensorListCPU) or isinstance(tensor, TensorListGPU):
-            t = tensor.as_tensor()
-        else:
-            t = tensor
+        t = tensor.as_tensor()
         size = t.shape()
     dali_torch_tensor = torch.empty(size=size, device=device, dtype=dtype)
     c_type_pointer = ctypes.c_void_p(dali_torch_tensor.data_ptr())
