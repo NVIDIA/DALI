@@ -22,10 +22,20 @@ if [ ! -d "train" ]; then
    ln -sf /data/imagenet/train-jpeg/ train
 fi
 
+
 LOG=dali.log
 
 SECONDS=0
-torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./ 2>&1 | tee $LOG
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode --epochs 2 ./ 2>&1 | tee $LOG
+
+SECONDS=0
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --dali_proxy --workers 4 --lr=0.4 --fp16-mode --epochs 2 ./ 2>&1 | tee $LOG
+
+SECONDS=0
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --disable_dali --workers 4 --lr=0.4 --fp16-mode --epochs 2 ./ 2>&1 | tee $LOG
+
+SECONDS=0
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --dali_proxy --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
