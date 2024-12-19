@@ -1099,17 +1099,17 @@ def test_external_source_checkpointing(dataset_info, iterations, mode, parallel)
 )
 def test_external_source_unsupported(kind, parallel):
     if kind == "iterator":
-        source = iter([1, 2, 3])
+        source = iter([np.array(1), np.array(2), np.array(3)])
     elif kind == "iterable":
-        source = [1, 2, 3]
+        source = [np.array(1), np.array(2), np.array(3)]
     elif kind == "callable":
 
         def source():
-            return 42
+            return np.array(42)
 
     @pipeline_def(batch_size=1, num_threads=1, device_id=0, enable_checkpointing=True)
     def pipeline():
-        return fn.external_source(source=source)
+        return fn.external_source(source=source, batch=False)
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
         pipeline().run()
