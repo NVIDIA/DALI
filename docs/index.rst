@@ -62,6 +62,7 @@ NVIDIA DALI Documentation
    advanced_topics_checkpointing
    advanced_topics_experimental
    compilation
+   env_vars
 
 .. toctree::
    :hidden:
