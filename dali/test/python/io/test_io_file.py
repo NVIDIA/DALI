@@ -79,4 +79,4 @@ def test_io_file_const_str_err():
         "or convertible to constant nodes.",
     ):
         p = pipe()
-        p.run()
+        p.build()

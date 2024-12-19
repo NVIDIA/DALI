@@ -332,7 +332,7 @@ def test_python_operator_with_input_sets():
     invalid_pipe = PythonOperatorInputSetsPipeline(
         BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate
     )
-    invalid_pipe.run()
+    invalid_pipe.build()
 
 
 def split_red_blue(image):

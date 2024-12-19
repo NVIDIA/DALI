@@ -501,7 +501,7 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
         f"but the {pruned_str} not used."
     )
     with assert_warns(Warning, glob=expected_error_msg):
-        pipe.run()
+        pipe.build()
 
 
 def test_partially_utilized_external_source_warning():

@@ -1112,7 +1112,7 @@ def test_external_source_unsupported(kind, parallel):
         return fn.external_source(source=source, batch=False)
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
-        pipeline().run()
+        pipeline().build()
 
 
 # Auto augmentation tests - run auto augmentations as a good example of pipeline
@@ -1193,7 +1193,7 @@ def test_unsupported_dangling_subgraph():
         glob="The pipeline does not support checkpointing*"
         "because it contains operator*outside the pipeline*",
     ):
-        p.run()
+        p.build()
 
 
 unsupported_readers = [

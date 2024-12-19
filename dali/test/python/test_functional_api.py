@@ -49,7 +49,7 @@ def test_set_outputs():
     with assert_raises(
         TypeError, glob="Illegal pipeline output type. " "The output * contains a nested `DataNode`"
     ):
-        pipe.run()
+        pipe.build()
 
 
 def test_set_outputs_err_msg_unpack():
@@ -59,7 +59,7 @@ def test_set_outputs_err_msg_unpack():
     with assert_raises(
         TypeError, glob="Illegal pipeline output type. " "The output * contains a nested `DataNode`"
     ):
-        pipe.run()
+        pipe.build()
 
 
 def test_set_outputs_err_msg_random_type():
@@ -68,7 +68,7 @@ def test_set_outputs_err_msg_random_type():
     with assert_raises(
         TypeError, glob="Illegal output type. " "The output * is a `<class 'str'>`."
     ):
-        pipe.run()
+        pipe.build()
 
 
 def test_fn_rotate():
