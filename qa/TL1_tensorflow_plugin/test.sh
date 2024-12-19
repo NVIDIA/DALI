@@ -14,7 +14,7 @@ test_body() {
     # Remove the old and installing "current" dali tf (built against installed TF)
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
 
-    pip install --upgrade ../../../nvidia-dali-tf-plugin*.tar.gz
+    pip install --upgrade ../../../nvidia_dali_tf_plugin*.tar.gz
     ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
     # DALI TF run
