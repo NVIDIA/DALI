@@ -42,7 +42,7 @@ def init_video_data():
 
     video_pipe.build()
     out = video_pipe.run()
-    in_seq = out[0].at(0).as_cpu()
+    in_seq = np.array(out[0].at(0).as_cpu())
     return in_seq
 
 
