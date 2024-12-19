@@ -211,4 +211,4 @@ def test_operator_natural_logarithm():
 
 @raises(RuntimeError, glob="`reference` argument can't be zero")
 def test_invalid_reference():
-    NLDaliPipeline("cpu", None, 1, reference=0.0)
+    NLDaliPipeline("cpu", None, 1, reference=0.0).build()
