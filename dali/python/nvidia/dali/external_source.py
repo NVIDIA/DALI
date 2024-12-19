@@ -26,19 +26,28 @@ from nvidia.dali._utils.external_source_impl import (
     SourceKind as _SourceKind,
 )
 
+def _get_shape(data):
+    if isinstance(data, (_tensors.TensorCPU, _tensors.TensorGPU)):
+        if callable(data.shape):
+            return data.shape()
+        else:
+            return data.shape
+    elif hasattr(data, "__array_interface__"):
+        return data.__array_interface__["shape"]
+    elif hasattr(data, "__array__"):
+        return data.__array__().shape
+    else:
+        raise RuntimeError(f"Don't know how to extract the shape out of {type(data)}")
+
 
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _tensors.TensorListCPU, _tensors.TensorListGPU)):
         if len(data) == 0:
             return [], True
-        if callable(data[0].shape):
-            return [x.shape() for x in data], False
         else:
-            return [x.shape for x in data], False
+            return [_get_shape(x) for x in data], False
     else:
-        shape = data.shape
-        if callable(shape):
-            shape = data.shape()
+        shape = _get_shape(data)
         return [shape[1:]] * shape[0], True
 
 
@@ -68,6 +77,8 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
             return x.asnumpy()
         elif _types._is_torch_tensor(x):
             return x.numpy()
+        elif hasattr(x, "__array__"):
+            return x.__array__()
         else:
             return x
 
