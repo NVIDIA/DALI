@@ -442,8 +442,8 @@ def get_numpy_input(input, kind, orig_type, target_type):
 
 
 def extract_un_data(pipe_out, sample_id, kind, target_type):
-    input = pipe_out[0].at(sample_id).as_cpu()
-    out = pipe_out[1].at(sample_id).as_cpu()
+    input = np.array(pipe_out[0][sample_id].as_cpu())
+    out = np.array(pipe_out[1][sample_id].as_cpu())
     assert_equals(out.dtype, target_type)
     in_np = get_numpy_input(input, kind, input.dtype.type, target_type)
     return in_np, out
@@ -458,7 +458,7 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
     arity = len(kinds)
     inputs = []
     for i in range(arity):
-        dali_in = pipe_out[i].at(sample_id).as_cpu()
+        dali_in = np.array(pipe_out[i][sample_id].as_cpu())
         numpy_in = get_numpy_input(
             dali_in,
             kinds[i],
@@ -466,7 +466,7 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
             target_type if target_type is not None else dali_in.dtype.type,
         )
         inputs.append(numpy_in)
-    out = pipe_out[arity].at(sample_id).as_cpu()
+    out = np.array(pipe_out[arity][sample_id].as_cpu())
     return tuple(inputs) + (out,)
 
 

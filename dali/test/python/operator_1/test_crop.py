@@ -580,9 +580,7 @@ def check_crop_with_out_of_bounds_policy_support(
         fill_values = 0
     pipe.build()
     for _ in range(3):
-        outs = pipe.run()
-        out = outs[0].as_cpu()
-        in_data = outs[1].as_cpu()
+        out, in_data = tuple(out.as_cpu() for out in pipe.run())
         assert batch_size == len(out)
         for idx in range(batch_size):
             sample_in = in_data.at(idx)
