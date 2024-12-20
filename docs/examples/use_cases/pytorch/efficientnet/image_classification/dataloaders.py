@@ -51,9 +51,14 @@ except ImportError as e:
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
+
 def load_jpeg_from_file(path, cuda=True):
     img_transforms = transforms.Compose(
-        [transforms.Resize(256), transforms.CenterCrop(224), transforms.ToTensor()]
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+        ]
     )
 
     img = img_transforms(Image.open(path))
@@ -74,6 +79,7 @@ def load_jpeg_from_file(path, cuda=True):
 
     return input
 
+
 class DALIWrapper(object):
 
     def gen_wrapper(dalipipeline, num_classes, one_hot, memory_format):
@@ -90,8 +96,11 @@ class DALIWrapper(object):
                 def nhwc_to_nchw(t):
                     return t[0], t[3], t[1], t[2]
 
-                input = torch.as_strided(data[0]["data"], size=nhwc_to_nchw(shape),
-                                         stride=nhwc_to_nchw(stride))
+                input = torch.as_strided(
+                    data[0]["data"],
+                    size=nhwc_to_nchw(shape),
+                    stride=nhwc_to_nchw(stride),
+                )
             else:
                 input = data[0]["data"].contiguous(memory_format=memory_format)
             target = torch.reshape(data[0]["label"], [-1]).cuda().long()
@@ -108,7 +117,10 @@ class DALIWrapper(object):
 
     def __iter__(self):
         return DALIWrapper.gen_wrapper(
-            self.dalipipeline, self.num_classes, self.one_hot, self.memory_format
+            self.dalipipeline,
+            self.num_classes,
+            self.one_hot,
+            self.memory_format,
         )
 
 
@@ -145,16 +157,23 @@ def get_dali_train_loader(dali_device="gpu"):
         traindir = os.path.join(data_path, "train")
 
         pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
+            "batch_size": batch_size,
+            "num_threads": workers,
+            "device_id": rank % torch.cuda.device_count(),
             "seed": 12 + rank % torch.cuda.device_count(),
         }
 
-        pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
-                             output_layout=output_layout, automatic_augmentation=augmentation,
-                             dali_device=dali_device, rank=rank, world_size=world_size,
-                             **pipeline_kwargs)
+        pipe = training_pipe(
+            data_dir=traindir,
+            interpolation=interpolation,
+            image_size=image_size,
+            output_layout=output_layout,
+            automatic_augmentation=augmentation,
+            dali_device=dali_device,
+            rank=rank,
+            world_size=world_size,
+            **pipeline_kwargs,
+        )
 
         pipe.build()
         train_loader = DALIClassificationIterator(
@@ -201,15 +220,20 @@ def get_dali_val_loader():
         valdir = os.path.join(data_path, "val")
 
         pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
+            "batch_size": batch_size,
+            "num_threads": workers,
+            "device_id": rank % torch.cuda.device_count(),
             "seed": 12 + rank % torch.cuda.device_count(),
         }
 
-        pipe = validation_pipe(data_dir=valdir, interpolation=interpolation,
-                               image_size=image_size + crop_padding, image_crop=image_size,
-                               output_layout=output_layout, **pipeline_kwargs)
+        pipe = validation_pipe(
+            data_dir=valdir,
+            interpolation=interpolation,
+            image_size=image_size + crop_padding,
+            image_crop=image_size,
+            output_layout=output_layout,
+            **pipeline_kwargs,
+        )
 
         pipe.build()
         val_loader = DALIClassificationIterator(
@@ -224,11 +248,16 @@ def get_dali_val_loader():
     return gdvl
 
 
-def fast_collate(memory_format, batch):
+def fast_collate(memory_format, typical_loader, batch):
     imgs = [img[0] for img in batch]
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
-    w = imgs[0].size[0]
-    h = imgs[0].size[1]
+    if typical_loader:
+        w = imgs[0].size()[1]
+        h = imgs[0].size()[2]
+    else:
+        w = imgs[0].size[0]
+        h = imgs[0].size[1]
+
     tensor = torch.zeros((len(imgs), 3, h, w), dtype=torch.uint8).contiguous(
         memory_format=memory_format
     )
@@ -236,7 +265,8 @@ def fast_collate(memory_format, batch):
         nump_array = np.asarray(img, dtype=np.uint8)
         if nump_array.ndim < 3:
             nump_array = np.expand_dims(nump_array, axis=-1)
-        nump_array = np.rollaxis(nump_array, 2)
+        if typical_loader is False:
+            nump_array = np.rollaxis(nump_array, 2)
 
         tensor[i] += torch.from_numpy(nump_array.copy())
 
@@ -252,57 +282,70 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
-    def prefetched_loader(loader, num_classes, one_hot):
-        mean = (
-            torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
-            .cuda()
-            .view(1, 3, 1, 1)
-        )
-        std = (
-            torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255])
-            .cuda()
-            .view(1, 3, 1, 1)
-        )
+    def prefetched_loader(loader, num_classes, one_hot, typical_loader ):
+        if typical_loader:
+            stream = torch.cuda.Stream()
+            for next_input, next_target in loader:
+                with torch.cuda.stream(stream):
+                    next_input = next_input.to(device="cuda")
+                    next_target = next_target.to(device="cuda")
+                    next_input = next_input.float()
+                    if one_hot:
+                        next_target = expand(num_classes, torch.float, next_target)
+                yield next_input, next_target
+        else:
+            mean = (
+                torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
+                .cuda()
+                .view(1, 3, 1, 1)
+            )
+            std = (
+                torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255])
+                .cuda()
+                .view(1, 3, 1, 1)
+            )
 
-        stream = torch.cuda.Stream()
-        first = True
+            stream = torch.cuda.Stream()
+            first = True
 
-        for next_input, next_target in loader:
-            with torch.cuda.stream(stream):
-                next_input = next_input.cuda(non_blocking=True)
-                next_target = next_target.cuda(non_blocking=True)
-                next_input = next_input.float()
-                if one_hot:
-                    next_target = expand(num_classes, torch.float, next_target)
+            for next_input, next_target in loader:
+                with torch.cuda.stream(stream):
+                    next_input = next_input.cuda(non_blocking=True)
+                    next_target = next_target.cuda(non_blocking=True)
+                    next_input = next_input.float()
+                    if one_hot:
+                        next_target = expand(num_classes, torch.float, next_target)
 
-                next_input = next_input.sub_(mean).div_(std)
+                    # next_input = next_input.sub_(mean).div_(std)
 
-            if not first:
-                yield input, target
-            else:
-                first = False
+                if not first:
+                    yield input, target
+                else:
+                    first = False
 
-            torch.cuda.current_stream().wait_stream(stream)
-            input = next_input
-            target = next_target
+                torch.cuda.current_stream().wait_stream(stream)
+                input = next_input
+                target = next_target
 
-        yield input, target
+            yield input, target
 
-    def __init__(self, dataloader, start_epoch, num_classes, one_hot):
+    def __init__(self, dataloader, start_epoch, num_classes, one_hot, typical_loader):
         self.dataloader = dataloader
         self.epoch = start_epoch
         self.one_hot = one_hot
         self.num_classes = num_classes
+        self.typical_loader = typical_loader
 
     def __iter__(self):
         if self.dataloader.sampler is not None and isinstance(
-            self.dataloader.sampler, torch.utils.data.distributed.DistributedSampler
+            self.dataloader.sampler,
+            torch.utils.data.distributed.DistributedSampler,
         ):
 
             self.dataloader.sampler.set_epoch(self.epoch)
         self.epoch += 1
         return PrefetchedWrapper.prefetched_loader(
-            self.dataloader, self.num_classes, self.one_hot
+            self.dataloader, self.num_classes, self.one_hot, self.typical_loader
         )
 
     def __len__(self):
@@ -322,6 +365,7 @@ def get_pytorch_train_loader(
     _worker_init_fn=None,
     prefetch_factor=2,
     memory_format=torch.contiguous_format,
+    typical_loader=False,
 ):
     interpolation = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR}[
         interpolation
@@ -336,9 +380,19 @@ def get_pytorch_train_loader(
     elif augmentation == "autoaugment":
         transforms_list.append(AutoaugmentImageNetPolicy())
     else:
-        raise NotImplementedError(f"Automatic augmentation: '{augmentation}' is not supported"
-                                  " for PyTorch data loader.")
-    train_dataset = datasets.ImageFolder(traindir, transforms.Compose(transforms_list))
+        raise NotImplementedError(
+            f"Automatic augmentation: '{augmentation}' is not supported"
+            " for PyTorch data loader."
+        )
+
+    if typical_loader:
+        transforms_list.append(transforms.ToTensor())
+        transforms_list.append(
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        )
+    train_dataset = datasets.ImageFolder(
+        traindir, transforms.Compose(transforms_list)
+    )
 
     if torch.distributed.is_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -355,14 +409,14 @@ def get_pytorch_train_loader(
         num_workers=workers,
         worker_init_fn=_worker_init_fn,
         pin_memory=True,
-        collate_fn=partial(fast_collate, memory_format),
+        collate_fn=partial(fast_collate, memory_format, typical_loader),
         drop_last=True,
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
 
     return (
-        PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot),
+        PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, typical_loader),
         len(train_loader),
     )
 
@@ -379,21 +433,26 @@ def get_pytorch_val_loader(
     crop_padding=32,
     memory_format=torch.contiguous_format,
     prefetch_factor=2,
+    typical_loader=False,
 ):
     interpolation = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR}[
         interpolation
     ]
     valdir = os.path.join(data_path, "val")
+    transforms_list = [
+        transforms.Resize(
+            image_size + crop_padding, interpolation=interpolation
+        ),
+        transforms.CenterCrop(image_size),
+    ]
+    if typical_loader:
+        transforms_list.append(transforms.ToTensor())
+        transforms_list.append(
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        )
     val_dataset = datasets.ImageFolder(
         valdir,
-        transforms.Compose(
-            [
-                transforms.Resize(
-                    image_size + crop_padding, interpolation=interpolation
-                ),
-                transforms.CenterCrop(image_size),
-            ]
-        ),
+        transforms.Compose(transforms_list),
     )
 
     if torch.distributed.is_initialized():
@@ -411,13 +470,15 @@ def get_pytorch_val_loader(
         num_workers=workers,
         worker_init_fn=_worker_init_fn,
         pin_memory=True,
-        collate_fn=partial(fast_collate, memory_format),
+        collate_fn=partial(fast_collate, memory_format, typical_loader),
         drop_last=False,
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
 
-    return PrefetchedWrapper(val_loader, 0, num_classes, one_hot), len(val_loader)
+    return PrefetchedWrapper(val_loader, 0, num_classes, one_hot, typical_loader), len(
+        val_loader
+    )
 
 
 class SynteticDataLoader(object):
