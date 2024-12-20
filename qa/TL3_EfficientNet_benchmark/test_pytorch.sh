@@ -68,16 +68,16 @@ python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 -
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --report-file bench_report_dali_ta.json $PATH_TO_IMAGENET
 
 # PyTorch without automatic augmentations
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --typical_loader --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch.json $PATH_TO_IMAGENET
 
 # PyTorch with AutoAugment:
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --typical_loader --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch_aa.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch_aa.json $PATH_TO_IMAGENET
 
 # Optimized PyTorch without automatic augmentations
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_optimized_pytorch.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch_optimized --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_optimized_pytorch.json $PATH_TO_IMAGENET
 
 # Optimized PyTorch with AutoAugment:
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_optimized_pytorch_aa.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch_optimized --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_optimized_pytorch_aa.json $PATH_TO_IMAGENET
 
 
 # The line below finds the lines with `train.total_ips`, takes the last one (with the result we
