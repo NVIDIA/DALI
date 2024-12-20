@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -471,7 +471,6 @@ def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_sh
         data_layout=input_layout,
         crop_seq_as_depth=True,
     )
-    pipe.build()
     out = pipe.run()
     out_data = out[0]
 
@@ -579,7 +578,6 @@ def check_crop_with_out_of_bounds_policy_support(
     )
     if fill_values is None:
         fill_values = 0
-    pipe.build()
     for k in range(3):
         outs = pipe.run()
         out = outs[0]
@@ -649,7 +647,6 @@ def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 20
         out_of_bounds_policy="error",
     )
 
-    pipe.build()
     with assert_raises(
         RuntimeError, glob="Slice can't be placed out of bounds with current policy."
     ):
@@ -676,7 +673,6 @@ def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layou
         return fn.crop(data, crop_h=10, crop_w=10)
 
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
-    pipe.build()
     with assert_raises(
         ValueError, glob=f'The layout "{layout}" does not match any of the allowed layouts'
     ):
@@ -702,7 +698,6 @@ def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
         return fn.crop(data, crop_h=10, crop_w=20)
 
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
-    pipe.build()
     (data,) = pipe.run()
     for i in range(batch_size):
         assert as_array(data[i]).shape == (10, 20, 3)
@@ -731,7 +726,6 @@ def test_crop_arg_input(device, layout):
         return out, crop_arg
 
     p = pipe(batch_size=3, num_threads=1, device_id=0)
-    p.build()
     out, shape = p.run()
     ndim = len(layout)
     channel_dim = layout.find("C")
@@ -758,7 +752,6 @@ def test_crop_rounding(device, rounding):
         return data, cropped
 
     p = pipe(batch_size=1, num_threads=1, device_id=0)
-    p.build()
     input_data, cropped_data = p.run()
     data = as_array(input_data[0])
     cropped = as_array(cropped_data[0])

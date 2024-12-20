@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,7 +64,6 @@ def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
         crop_shape,
         out_mask,
     )
-    pipe.build()
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):

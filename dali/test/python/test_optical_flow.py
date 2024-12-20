@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -251,7 +251,6 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
         hint_grid=hint_grid,
         use_temporal_hints=use_temporal_hints,
     )
-    pipe.build()
     if get_arch() < 8:
         if output_grid != 4:
             assert_raises(
@@ -298,12 +297,10 @@ def test_optflow():
 @raises(RuntimeError, "Output grid size: 3 is not supported, supported are:")
 def test_wrong_out_grid_size():
     pipe = of_pipeline(num_threads=3, device_id=0, output_grid=3)
-    pipe.build()
     pipe.run()
 
 
 @raises(RuntimeError, "Hint grid size: 3 is not supported, supported are:")
 def test_wrong_hint_grid_size():
     pipe = of_pipeline(num_threads=3, device_id=0, output_grid=4, hint_grid=3)
-    pipe.build()
     pipe.run()

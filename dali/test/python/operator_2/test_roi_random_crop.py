@@ -129,7 +129,6 @@ def check_roi_random_crop(
 
     outputs = [in_shape, roi_start, roi_shape, crop_shape, *outs]
     pipe.set_outputs(*outputs)
-    pipe.build()
     for _ in range(niter):
         outputs = pipe.run()
         batch_size = len(outputs[0])
@@ -220,7 +219,6 @@ def check_roi_random_crop_error(
         )
     pipe.set_outputs(out)
     with assert_raises(RuntimeError, regex=error_msg):
-        pipe.build()
         for _ in range(niter):
             pipe.run()
 

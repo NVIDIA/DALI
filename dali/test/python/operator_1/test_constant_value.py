@@ -22,7 +22,6 @@ def run(op):
         return op
 
     p = pipe0()
-    p.build()
     return np.array(p.run()[0][0])
 
 

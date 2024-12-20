@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ def run_pipeline(device, num_dim, replace=False, layout=None):
         return fn.per_frame(arg, replace=replace, device=device)
 
     pipe = pipeline(num_threads=4, batch_size=max_batch_size, device_id=0)
-    pipe.build()
     expected_layout = "F" + "*" * (num_dim - 1) if layout is None else "F" + layout[1:]
     for baseline in input_batch(num_dim):
         (out,) = pipe.run()
@@ -94,7 +93,6 @@ def _test_pass_through():
         return fn.per_frame(fn.random.uniform(range=rng, device="gpu", shape=(1, 1, 1), seed=42))
 
     pipe = pipeline(batch_size=1, num_threads=4, device_id=0)
-    pipe.build()
     for i in range(5):
         (out,) = pipe.run()
         [sample] = [np.array(s) for s in out.as_cpu()]

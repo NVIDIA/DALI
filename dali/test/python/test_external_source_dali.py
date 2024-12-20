@@ -43,7 +43,6 @@ def build_src_pipe(device, layout=None):
     src_pipe = Pipeline(len(batches), 1, 0)
     out_batches = fn.external_source(source=batches, device=device, cycle=True, layout=layout)
     src_pipe.set_outputs(out_batches)
-    src_pipe.build()
     return src_pipe, len(batches)
 
 
@@ -63,9 +62,7 @@ def _test_feed_input(device, is_serialized):
             exec_async=False,
             exec_pipelined=False,
         )
-        dst_pipe.build()
-    else:
-        dst_pipe.build()
+
     for _ in range(3):
         out1 = src_pipe.run()
         dst_pipe.feed_input("ext", out1[0])
@@ -91,7 +88,6 @@ def _test_callback(device, as_tensors, change_layout_to=None):
 
     outs = fn.external_source(source=get_from_src, device=device, layout=change_layout_to)
     dst_pipe.set_outputs(outs)
-    dst_pipe.build()
 
     for iter in range(3):
         ref = ref_pipe.run()
@@ -115,10 +111,8 @@ def _test_scalar(device, as_tensors):
     )
     src_pipe.set_outputs(src_ext)
 
-    src_pipe.build()
     dst_pipe = Pipeline(batch_size, 1, 0, exec_async=False, exec_pipelined=False)
     dst_pipe.set_outputs(fn.external_source(name="ext", device=device))
-    dst_pipe.build()
 
     for iter in range(3):
         src = src_pipe.run()
@@ -182,7 +176,6 @@ def _test_batch_info_flag_default(cb, batch_size):
     with pipe:
         ext = fn.external_source(source=cb)
         pipe.set_outputs(ext)
-    pipe.build()
     pipe.run()
 
 
@@ -202,7 +195,6 @@ def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
     with pipe:
         ext = fn.external_source(source=cb, batch_info=batch_info, batch=batch_mode)
         pipe.set_outputs(ext)
-    pipe.build()
     for epoch_idx in range(num_epochs):
         for iteration in range(epoch_size):
             (batch,) = pipe.run()
@@ -239,7 +231,6 @@ def test_dtype_arg():
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext)
-    src_pipe.build()
     (out,) = src_pipe.run()
     for i in range(batch_size):
         t = out.at(i)
@@ -260,7 +251,6 @@ def test_dtype_arg_multioutput():
         source=src_data, num_outputs=2, dtype=[DALIDataType.UINT8, DALIDataType.FLOAT]
     )
     src_pipe.set_outputs(src_ext, src_ext2)
-    src_pipe.build()
     out1, out2 = src_pipe.run()
     for i in range(batch_size):
         t1 = out1.at(i)
@@ -278,7 +268,6 @@ def test_incorrect_dtype_arg():
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext)
-    src_pipe.build()
     src_pipe.run()
 
 
@@ -297,7 +286,6 @@ def test_changing_dtype():
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data)
     src_pipe.set_outputs(src_ext)
-    src_pipe.build()
     src_pipe.run()
     src_pipe.run()
 
@@ -309,7 +297,6 @@ def test_ndim_arg():
     src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, ndim=3)
     src_ext2 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, layout="HWC")
     src_pipe.set_outputs(src_ext1, src_ext2)
-    src_pipe.build()
     out1, out2 = src_pipe.run()
     for i in range(batch_size):
         t1 = out1.at(i)
@@ -339,7 +326,6 @@ def test_ndim_arg_multioutput():
     )
 
     src_pipe.set_outputs(src1_ext, src1_ext2, src2_ext, src2_ext2)
-    src_pipe.build()
     out11, out12, out21, out22 = src_pipe.run()
     for i in range(batch_size):
         t1 = out11.at(i)
@@ -365,7 +351,6 @@ def test_layout_ndim_match():
         source=src_data, num_outputs=2, dtype=DALIDataType.UINT8, layout=["HWC", "HW"], ndim=[3, 2]
     )
     src_pipe.set_outputs(src_ext1, src_ext2)
-    src_pipe.build()
     out1, out2 = src_pipe.run()
     for i in range(batch_size):
         t1 = out1.at(i)
@@ -383,7 +368,7 @@ def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
     src_ext = fn.external_source(layout="HWC", ndim=2)
     src_pipe.set_outputs(src_ext)
-    src_pipe.build()
+    src_pipe.run()
 
 
 @raises(RuntimeError, glob="ExternalSource expected data with 3 dimensions and got 2 dimensions")
@@ -400,7 +385,6 @@ def test_ndim_data_mismatch():
         source=src_data, num_outputs=2, dtype=DALIDataType.UINT8, ndim=3
     )
     src_pipe.set_outputs(src_ext1, src_ext2)
-    src_pipe.build()
     src_pipe.run()
 
 
@@ -419,7 +403,6 @@ def test_ndim_changing():
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext1)
-    src_pipe.build()
     src_pipe.run()
     src_pipe.run()
 
@@ -428,7 +411,6 @@ def test_ndim_changing():
 def test_layout_data_mismatch():
     src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
     src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
-    src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
     src_pipe.run()
 
@@ -442,7 +424,6 @@ def test_layout_data_mismatch():
 def test_layout_changing():
     src_pipe = Pipeline(1, 1, 0)
     src_pipe.set_outputs(fn.external_source(name="input"))
-    src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
     src_pipe.feed_input("input", [np.zeros((1))], layout="H")
     src_pipe.run()
@@ -452,7 +433,6 @@ def test_layout_changing():
 def test_layout_set_as_arg():
     src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
     src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
-    src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))])
     (out,) = src_pipe.run()
     assert out.layout() == "H"
@@ -576,7 +556,6 @@ def _test_partially_utilized_es_old_style(usage_mask):
                 self.feed_input(out, batch)
 
     pipe = OldStylePipe(batch_size=batch_size, num_threads=4, device_id=0)
-    pipe.build()
     pipe.run()
 
 
@@ -605,7 +584,6 @@ def _test_non_utilized_external_source_pruning(num_outputs):
         return fn.gaussian_blur(img, window_size=3)
 
     pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-    pipe.build()
     pipe.run()
 
 
@@ -627,7 +605,6 @@ def __test_empty_es():
     # empty batch as input into DALI graph.
     with assert_raises(RuntimeError, glob="*ExternalSource expects non-empty batches*"):
         pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-        pipe.build()
         pipe.run()
 
 
@@ -637,7 +614,6 @@ def to_tensor_list_gpu(data):
         return fn.external_source(source=[data], device="gpu")
 
     pipe = convert_pipe()
-    pipe.build()
     (out,) = pipe.run()
     return out
 
@@ -650,7 +626,6 @@ def test_repeat_last():
         return cpu, gpu
 
     pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
-    pipe.build()
     data1 = [
         np.array([1], dtype=np.int32),
         np.array([3], dtype=np.int32),
@@ -698,7 +673,6 @@ def test_repeat_last_queue():
         return cpu, gpu
 
     pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
-    pipe.build()
     data1 = [
         np.array([1], dtype=np.int32),
         np.array([3], dtype=np.int32),
@@ -746,7 +720,6 @@ def _check_repeat_last_var_batch(device):
         return es, u
 
     pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
-    pipe.build()
     data1 = [
         np.array([1], dtype=np.int32),
         np.array([3], dtype=np.int32),
@@ -813,7 +786,6 @@ def _check_blocking(device):
         seed=12,
         prefetch_queue_depth=prefetch_queue_depth,
     )
-    pipe.build()
     pipe.feed_input("test_source", data_to_feed)
 
     for _ in range(5):
@@ -855,7 +827,6 @@ def _blocking_destructor(device):
         seed=12,
         prefetch_queue_depth=prefetch_queue_depth,
     )
-    pipe.build()
     # feed one input to pipeline can return something
     pipe.feed_input("test_source", data_to_feed)
 
@@ -914,7 +885,6 @@ def test_decorated_external_source():
         return src_0, src_1, src_2
 
     pipe = test_pipe()
-    pipe.build()
     (out0, out1, out2) = pipe.run()
     np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
     np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))

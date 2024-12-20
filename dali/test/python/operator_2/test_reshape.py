@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -180,7 +180,6 @@ def verify_make_tall(imgs, reshaped, src_shape=None):
 
 def check_reshape(device, batch_size, relative, use_wildcard):
     pipe = ReshapePipeline(device, batch_size, relative, use_wildcard)
-    pipe.build()
     for iter in range(10):
         imgs, reshaped = pipe.run()
         if device == "gpu":
@@ -192,7 +191,6 @@ def check_reshape(device, batch_size, relative, use_wildcard):
 
 def check_reshape_with_input(device, batch_size, use_wildcard):
     pipe = ReshapeWithInput(device, batch_size, use_wildcard)
-    pipe.build()
     for iter in range(2):
         imgs, reshaped = pipe.run()
         if device == "gpu":
@@ -204,7 +202,6 @@ def check_reshape_with_input(device, batch_size, use_wildcard):
 
 def check_reshape_with_arg_input(device, batch_size, relative, use_wildcard):
     pipe = ReshapeWithArgInput(device, batch_size, relative, use_wildcard)
-    pipe.build()
     for iter in range(2):
         imgs, reshaped = pipe.run()
         if device == "gpu":
@@ -268,7 +265,6 @@ def _test_reinterpret_default_shape(device):
     np.random.seed(31337)
     batch_size = 4
     pipe = ReinterpretPipelineWithDefaultShape(device, batch_size)
-    pipe.build()
     pipe_outs = pipe.run()
     in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
     out_batch = pipe_outs[1].as_cpu() if device == "gpu" else pipe_outs[1]
@@ -311,7 +307,6 @@ def _test_reinterpret_wildcard_shape(device):
     np.random.seed(31337)
     batch_size = 4
     pipe = ReinterpretPipelineWildcardDim(device, batch_size)
-    pipe.build()
     pipe_outs = pipe.run()
     in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
     out_batch = pipe_outs[1].as_cpu() if device == "gpu" else pipe_outs[1]
@@ -346,7 +341,6 @@ def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_sha
         src_dims=src_dims,
         rel_shape=rel_shape,
     )
-    pipe.build()
     for _ in range(3):
         outs = pipe.run()
         for i in range(batch_size):
@@ -401,7 +395,6 @@ def test_reshape_src_dims_throw_error(src_dims, rel_shape, shapes, err_regex):
         src_dims=src_dims,
         rel_shape=rel_shape,
     )
-    pipe.build()
     with assert_raises(RuntimeError, regex=err_regex):
         pipe.run()
 
@@ -412,7 +405,6 @@ def test_trailing_wildcard(rel_shape):
     pipe = reshape_pipe(
         batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, rel_shape=rel_shape
     )
-    pipe.build()
     (out,) = pipe.run()
     assert out[0].shape() == [480, 640, 1]
     assert out[1].shape() == [320, 240, 1]
@@ -424,7 +416,6 @@ def test_invalid_wildcard(rel_shape):
     pipe = reshape_pipe(
         batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, rel_shape=rel_shape
     )
-    pipe.build()
     err_glob = (
         "*`rel_shape` has more elements (3) than*dimensions in the input (2)*" "use `src_dims`*"
     )
@@ -437,7 +428,6 @@ def test_wildcard_zero_volume():
     pipe = reshape_pipe(
         batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, rel_shape=[-1, 1]
     )
-    pipe.build()
     err_glob = "*Cannot infer*dimension 0 when the volume*is 0. Input shape:*320 x 0"
     with assert_raises(RuntimeError, glob=err_glob):
         pipe.run()

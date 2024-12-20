@@ -43,7 +43,6 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
         return values
 
     pipe = dali_pipeline(device_id=device_id)
-    pipe.build()
     dali_output = pipe.run()
 
     return dali_output[0][0]

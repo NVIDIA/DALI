@@ -86,7 +86,6 @@ def test_beta_distribution(case_idx, alpha, beta, dtype):
         )
 
     p = pipeline()
-    p.build()
     batch = [np.array(s) for s in p.run()[0]]
     assert all(s.dtype == dtype for s in batch)
     assert all(s.shape == shape for s in batch)
@@ -166,7 +165,6 @@ def test_beta_distribution_tensor_input(case_idx, min_param, max_param, dtype):
         )
 
     p = pipeline()
-    p.build()
     for i in range(2):
         alps, bs, samples, _ = p.run()
         alps = [np.array(a) for a in alps]
@@ -214,5 +212,4 @@ def test_incorrect_param(a, b, dtype, msg):
 
     with assert_raises(RuntimeError, glob=msg):
         p = pipeline()
-        p.build()
         p.run()

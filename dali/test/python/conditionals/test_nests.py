@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,11 +72,9 @@ def test_select_impls():
         return image, label
 
     pipe_unpacking = pipeline(unpacking_select=True)
-    pipe_unpacking.build()
     pipe_unpacking.run()
 
     pipe_forwarding = pipeline(unpacking_select=False)
-    pipe_forwarding.build()
     pipe_forwarding.run()
 
 
@@ -91,7 +89,6 @@ def test_dicts():
         return out["out"]
 
     pipe = pipeline()
-    pipe.build()
     (out,) = pipe.run()
     check_batch(out, [i % 2 + 1 for i in range(8)])
 
@@ -106,7 +103,6 @@ def test_dicts():
         return out["out"]
 
     pipe_op = pipeline_op()
-    pipe_op.build()
     (out,) = pipe_op.run()
     check_batch(out, [41 if i % 2 else 43 for i in range(8)])
 
@@ -124,7 +120,6 @@ def test_tuples():
         return a, b, c
 
     pipe = pipeline()
-    pipe.build()
     (
         a,
         b,

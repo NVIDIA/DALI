@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ def check_uniform_default(device="cpu", batch_size=32, shape=[1e5], val_range=No
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
-    pipe.build()
     for it in range(niter):
         outputs = pipe.run()
         val_range = (-1.0, 1.0) if val_range is None else val_range
@@ -65,7 +64,6 @@ def check_uniform_continuous_next_after(device="cpu", batch_size=32, shape=[1e5]
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
-    pipe.build()
     for it in range(niter):
         outputs = pipe.run()
         data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]
@@ -86,7 +84,6 @@ def check_uniform_discrete(device="cpu", batch_size=32, shape=[1e5], values=None
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, values=values, shape=shape))
-    pipe.build()
     for it in range(niter):
         outputs = pipe.run()
         data_out = outputs[0].as_cpu() if isinstance(outputs[0], TensorListGPU) else outputs[0]

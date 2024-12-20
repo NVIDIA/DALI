@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ def _test_permutation_generator(allow_repetitions, no_fixed):
     perm = fn.batch_permutation(allow_repetitions=allow_repetitions, no_fixed_points=no_fixed)
     pipe.set_outputs(perm)
 
-    pipe.build()
     for iter in range(100):
         (idxs,) = pipe.run()
         for i in range(batch_size):
@@ -64,7 +63,6 @@ def _test_permute_batch(device, type):
     )
     perm = fn.batch_permutation()
     pipe.set_outputs(data, fn.permute_batch(data, indices=perm), perm)
-    pipe.build()
 
     for i in range(10):
         orig, permuted, idxs = pipe.run()
@@ -89,7 +87,6 @@ def _test_permute_batch_fixed(device):
     )
     idxs = [4, 8, 0, 6, 3, 5, 2, 9, 7, 1]
     pipe.set_outputs(data, fn.permute_batch(data, indices=idxs))
-    pipe.build()
 
     for i in range(10):
         orig, permuted = pipe.run()
@@ -116,7 +113,6 @@ def _test_permute_batch_out_of_range(device):
     )
     perm = fn.batch_permutation()
     pipe.set_outputs(data, fn.permute_batch(data, indices=[0, 1, 2, 3, 4, 5, 10, 7, 8, 9]), perm)
-    pipe.build()
     pipe.run()
 
 

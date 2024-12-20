@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019, 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -143,9 +143,6 @@ def pytorch_wrapper(fun):
 def common_case(wrapped_fun, device, compare, synchronize=True):
     load_pipe = LoadingPipeline(device)
     op_pipe = DLTensorOpPipeline(wrapped_fun, device, synchronize)
-
-    load_pipe.build()
-    op_pipe.build()
 
     for iter in range(ITERS):
         pre1, pre2 = load_pipe.run()
@@ -460,7 +457,6 @@ def _gpu_sliced_torch_case(case_name, dtype, g):
         return data
 
     p = pipeline()
-    p.build()
     (out,) = p.run()
 
     out = [numpy.array(sample) for sample in out.as_cpu()]
@@ -608,7 +604,6 @@ def _gpu_permuted_extents_torch_case(case_name, dtype, g):
         return data
 
     p = pipeline()
-    p.build()
     (out,) = p.run()
 
     out = [numpy.array(sample) for sample in out.as_cpu()]
@@ -663,9 +658,7 @@ def _cupy_negative_strides_case(dtype, batch_size, steps):
         return img
 
     p = pipeline()
-    p.build()
     baseline = baseline_pipeline()
-    baseline.build()
 
     for _ in range(5):
         (batch,) = p.run()
@@ -714,7 +707,5 @@ def test_current_pipeline():
         )
         pipe2.set_outputs(output)
 
-    pipe1.build()
-    pipe2.build()
     pipe1.run()
     pipe2.run()

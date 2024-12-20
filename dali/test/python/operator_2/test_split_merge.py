@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,9 +62,6 @@ def check_conditional_split_merge(dev, pred_gen):
     pipe_sm = conditional_split_merge_pipe(dev, **kwargs)
     pipe_true = rotate_pipe(dev, **kwargs)
     pipe_false = flip_pipe(dev, **kwargs)
-    pipe_sm.build()
-    pipe_true.build()
-    pipe_false.build()
     data_iter = RandomlyShapedDataIterator(bs, min_shape=(20, 20, 3), max_shape=(40, 30, 3))
     data_iter = iter(data_iter)
     for _ in range(test_iters):
@@ -137,7 +134,6 @@ def run_conditional_split_merge_reinterpret(dtype, layout, shape):
         "prefetch_queue_depth": 1,  # so that it's easier to use external source
     }
     pipe = conditional_split_merge_reinterpret_pipe(dtype, layout, shape, **kwargs)
-    pipe.build()
     pipe.run()
 
 

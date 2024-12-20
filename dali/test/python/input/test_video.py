@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,7 +94,6 @@ def get_num_frames(encoded_video):
     decoder_pipe = video_decoder_pipeline(
         input_name=input_name, batch_size=1, device="cpu", **common_pipeline_params
     )
-    decoder_pipe.build()
     decoder_pipe.feed_input(input_name, [encoded_video])
     decoder_out = decoder_pipe.run()
     return decoder_out[0].as_array()[0].shape[0]
@@ -144,11 +143,9 @@ def test_video_input_compare_with_video_decoder(device, frames_per_sequence, bat
         **common_pipeline_params,
     )
 
-    decoder_pipe.build()
     decoder_pipe.feed_input(input_name, [test_file])
     decoder_out = decoder_pipe.run()
 
-    input_pipe.build()
     input_pipe.feed_input(input_name, np.array([[test_file]]))
 
     for ref_seq in portion_out_reference_sequence(decoder_out, frames_per_sequence, batch_size):
@@ -179,9 +176,7 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
 
     num_frames = get_num_frames(test_video)
 
-    partial_pipe.build()
     partial_pipe.feed_input(input_name, np.array([[test_video]]))
-    pad_pipe.build()
     pad_pipe.feed_input(input_name, np.array([[test_video]]))
 
     num_iterations, num_full_sequences, num_frames_in_partial_sequence = get_batch_outline(
@@ -237,7 +232,6 @@ def test_video_input_input_queue(device, n_test_files):
         **common_pipeline_params,
     )
 
-    input_pipe.build()
     for i in range(n_test_files):
         input_pipe.feed_input(input_name, np.array([[files[i]]]))
 
@@ -275,7 +269,6 @@ def test_video_input_audio_stream(device):
 
     filename = os.path.join(test_data_root, "db", "video", "sintel", "sintel_trailer-720p.mp4")
     test_file = np.fromfile(filename, dtype=np.uint8)
-    input_pipe.build()
     input_pipe.feed_input(input_name, np.array([[test_file]]))
 
     input_pipe.run()

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,7 +117,6 @@ def check_bbox_random_crop_adjust_polygons(
         slice_shape,
         bbox_indices,
     )
-    pipe.build()
     # Enough iterations to see an example with more than one bounding box
     for i in range(num_iters):
         outs = pipe.run()

@@ -129,9 +129,7 @@ def test_run_rand_aug(i, args):
 
     # run the pipeline twice to make sure instantiation preserves determinism
     p1 = pipeline()
-    p1.build()
     p2 = pipeline()
-    p2.build()
     for iteration_idx in range(3):
         encoded1, decoded1, resized1, out1 = p1.run()
         encoded2, decoded2, resized2, out2 = p2.run()
@@ -177,7 +175,6 @@ class VideoTest(unittest.TestCase):
         cls.vid_files = []
         for size in (size_1, size_2):
             p = pipeline(size=size)
-            p.build()
             (out,) = p.run()
             cls.vid_files.extend(np.array(sample) for sample in out.as_cpu())
 
@@ -218,9 +215,7 @@ class VideoTest(unittest.TestCase):
 
         # run the pipeline twice to make sure instantiation preserves determinism
         p1 = pipeline()
-        p1.build()
         p2 = pipeline()
-        p2.build()
 
         for _ in range(num_iterations):
             (out1,) = p1.run()
@@ -297,7 +292,6 @@ def test_ops_selection_and_mags(case_idx, args):
         return fn.reshape(data, shape=(-1, 2))
 
     p = pipeline()
-    p.build()
     for i in range(3):
         (output,) = p.run()
         output = [np.array(s) for s in (output.as_cpu() if dev == "gpu" else output)]

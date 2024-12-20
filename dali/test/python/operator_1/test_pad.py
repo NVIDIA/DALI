@@ -79,7 +79,6 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
         shape_arg=shape_arg,
         layout=layout,
     )
-    pipe.build()
 
     if axis_names:
         axes = []
@@ -195,7 +194,6 @@ def test_pad_error():
         layout=layout,
     )
 
-    pipe.build()
     with assert_raises(RuntimeError, glob="Values of `align` argument must be positive."):
         pipe.run()
 
@@ -224,7 +222,6 @@ def check_pad_per_sample_shapes_and_alignment(device="cpu", batch_size=3, ndim=2
         pipe.set_outputs(
             in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both
         )
-    pipe.build()
     for _ in range(num_iter):
         outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
         for i in range(batch_size):
@@ -264,7 +261,6 @@ def check_pad_to_square(device="cpu", batch_size=3, ndim=2, num_iter=3):
             in_data = in_data.gpu()
         out_data = fn.pad(in_data, axis_names="HW", shape=fn.cat(side, side, axis=0))
         pipe.set_outputs(in_data, out_data)
-    pipe.build()
     for _ in range(num_iter):
         outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
         for i in range(batch_size):
@@ -305,7 +301,6 @@ def check_pad_dynamic_axes(device, batch_size, num_threads, use_negative, use_em
         return image, axes, shape, pad1, pad2, fill_value
 
     pipe = make_pipe()
-    pipe.build()
     ndim = 3
     for _ in range(3):
         outs = pipe.run()
@@ -371,7 +366,6 @@ def check_pad_wrong_axes(device, wrong_axes_range=None):
         return padded
 
     p = make_pipe()
-    p.build()
     # Note: [[] and []] are '[' and ']' characters.
     assert_raises(
         RuntimeError,

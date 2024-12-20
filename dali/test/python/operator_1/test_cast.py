@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -140,7 +140,6 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
         return inp, fn.cast(inp_dev, dtype=np_type_to_dali(out_dtype))
 
     pipe = cast_pipe()
-    pipe.build()
     for _ in range(10):
         inp, out = pipe.run()
         if device == "gpu":
@@ -232,7 +231,6 @@ def test_cast_like(devices, dtype_in, dtype_out):
         return fn.cast_like(data0, data1)
 
     p = cast_pipe()
-    p.build()
     (out,) = p.run()
     expected_type = np_type_to_dali(dtype_out)
     assert out.dtype == expected_type, f"{out.dtype} != {expected_type}"

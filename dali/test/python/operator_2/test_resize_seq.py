@@ -40,7 +40,6 @@ def init_video_data():
         input = fn.readers.video(device="gpu", filenames=video_files, sequence_length=32, stride=5)
         video_pipe.set_outputs(input)
 
-    video_pipe.build()
     out = video_pipe.run()
     in_seq = out[0].as_cpu().at(0)
     return in_seq
@@ -141,9 +140,7 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
 def _test_resize(layout, interp, dtype, w, h):
     channel_first = layout == "FCHW"
     pipe_dali = create_dali_pipe(channel_first, 8, interp, dtype, w, h)
-    pipe_dali.build()
     pipe_ref = create_ref_pipe(channel_first, 8, interp, dtype, w, h)
-    pipe_ref.build()
     eps = 1e-2
     max_err = 6
     for iter in range(4):

@@ -248,7 +248,6 @@ def test_mxnet_iterator_empty_array():
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
     outs = fn.external_source(source=get_data, num_outputs=len(np_types) * 2)
     pipe.set_outputs(*outs)
-    pipe.build()
 
     # create map of [(data, type_a), (label, type_a), ...]
     data_map = [("data_{}".format(i), MXNetIterator.DATA_TAG) for i, t in enumerate(np_types)]
@@ -478,8 +477,6 @@ def check_mxnet_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-    for p in pipes:
-        p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
@@ -786,8 +783,6 @@ def check_gluon_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-    for p in pipes:
-        p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
@@ -1174,7 +1169,6 @@ def test_pytorch_iterator_feed_ndarray():
     )
     for gpu_id in range(num_gpus):
         pipe = pipes[gpu_id]
-        pipe.build()
         outs = pipe.run()
         out_data = outs[0].as_tensor()
         device = torch.device("cuda", gpu_id)
@@ -1336,7 +1330,6 @@ def test_mxnet_iterator_feed_ndarray():
     )
     for gpu_id in range(num_gpus):
         pipe = pipes[gpu_id]
-        pipe.build()
         outs = pipe.run()
         out_data = outs[0].as_tensor()
         with mx.Context(mx.gpu(gpu_id)):
@@ -1400,7 +1393,6 @@ def test_paddle_iterator_feed_ndarray():
     )
     for gpu_id in range(num_gpus):
         pipe = pipes[gpu_id]
-        pipe.build()
         outs = pipe.run()
         out_data = outs[0].as_tensor()
 
@@ -1503,9 +1495,6 @@ def check_pytorch_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-
-    for p in pipes:
-        p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
@@ -1788,9 +1777,6 @@ def check_paddle_iterator_pass_reader_name(
         )
         for id in range(pipes_number)
     ]
-
-    for p in pipes:
-        p.build()
 
     data_set_size = pipes[0].reader_meta("Reader")["epoch_size"]
     rounded_shard_size = math.ceil(math.ceil(data_set_size / shards_num) / batch_size) * batch_size
@@ -2758,7 +2744,6 @@ def test_mxnet_feed_ndarray():
     import mxnet
 
     pipe = feed_ndarray_test_pipeline(batch_size=1, num_threads=1, device_id=0)
-    pipe.build()
     out = pipe.run()[0]
     mxnet_tensor = mxnet.nd.empty([1], None, np.int8)
     assert_raises(
@@ -2777,7 +2762,6 @@ def test_pytorch_feed_ndarray():
     import torch
 
     pipe = feed_ndarray_test_pipeline(batch_size=1, num_threads=1, device_id=0)
-    pipe.build()
     out = pipe.run()[0]
     torch_tensor = torch.empty((1), dtype=torch.int8, device="cpu")
     assert_raises(

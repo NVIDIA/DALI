@@ -48,7 +48,6 @@ def check_dataset_checkpointing(dali_dataset, *, warmup_iters, test_iters):
 
 def check_pipeline_checkpointing(pipeline_factory, output_dtypes, **kwargs):
     p = pipeline_factory()
-    p.build()
     with tf.device("cpu"):
         dataset = dali_tf.DALIDataset(pipeline=p, output_dtypes=output_dtypes)
         check_dataset_checkpointing(dataset, **kwargs)
@@ -79,7 +78,6 @@ def test_inputs_unsupported():
         return fn.external_source(source=lambda x: np.array(x.iteration), batch=False)
 
     p = external_source_pipe()
-    p.build()
     with tf.device("cpu"):
         dataset = dali_tf.experimental.DALIDatasetWithInputs(
             pipeline=p,

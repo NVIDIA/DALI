@@ -118,9 +118,7 @@ def test_run_auto_aug(i, args):
 
     # run the pipeline twice to make sure instantiation preserves determinism
     p1 = pipeline()
-    p1.build()
     p2 = pipeline()
-    p2.build()
     for _ in range(3):
         (out1,) = p1.run()
         (out2,) = p2.run()
@@ -153,7 +151,6 @@ class VideoTest(unittest.TestCase):
         cls.vid_files = []
         for size in (size_1, size_2):
             p = pipeline(size=size)
-            p.build()
             (out,) = p.run()
             cls.vid_files.extend(np.array(sample) for sample in out.as_cpu())
 
@@ -197,9 +194,7 @@ class VideoTest(unittest.TestCase):
 
         # run the pipeline twice to make sure instantiation preserves determinism
         p1 = pipeline()
-        p1.build()
         p2 = pipeline()
-        p2.build()
 
         for _ in range(num_iterations):
             (out1,) = p1.run()
@@ -256,7 +251,6 @@ def test_sub_policy(randomly_negate, dev, batch_size):
 
     policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
     p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
-    p.build()
 
     sub_policy_outputs = collect_sub_policy_outputs(sub_policies, num_magnitude_bins)
     # magnitudes are chosen so that the magnitude of the first op in
@@ -397,7 +391,6 @@ def test_op_skipping(dev):
 
     policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
     p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy, seed=1234)
-    p.build()
 
     for _ in range(5):
         (output,) = p.run()

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,8 +99,6 @@ def torch_batch_operation(tensors):
 def check_pytorch_operator(device):
     pipe = BasicPipeline()
     pt_pipe = TorchPythonFunctionPipeline(torch_operation, device)
-    pipe.build()
-    pt_pipe.build()
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
         output1, output2 = pt_pipe.run()
@@ -123,8 +121,6 @@ def test_pytorch_operator():
 def check_pytorch_operator_batch_processing(device):
     pipe = BasicPipeline()
     pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device, True)
-    pipe.build()
-    pt_pipe.build()
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
         tensors = [torch.from_numpy(preprocessed_output.at(i)) for i in range(BATCH_SIZE)]
@@ -167,7 +163,5 @@ def test_current_pipeline():
         )
         pipe2.set_outputs(output)
 
-    pipe1.build()
-    pipe2.build()
     pipe1.run()
     pipe2.run()

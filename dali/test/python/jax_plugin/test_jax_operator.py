@@ -64,7 +64,6 @@ def test_identity(device, use_jit):
         return identity_jit(idx) if use_jit else identity(idx)
 
     p = pipeline()
-    p.build()
     for i in range(num_iters):
         (batch,) = p.run()
         if device == "gpu":
@@ -109,7 +108,6 @@ def test_conditionals(device):
         return idx, cf
 
     p = pipeline()
-    p.build()
     for i in range(num_iters):
         batch, cfs = p.run()
         if device == "gpu":
@@ -157,7 +155,6 @@ def test_pre_and_post_ops(device):
         return img
 
     p = pipeline()
-    p.build()
     ref = center_crop_base(base_sample)
     for _ in range(num_iters):
         (batch,) = p.run()
@@ -209,7 +206,6 @@ def test_multi_input_output(device):
         return jax_flip_channels, flip_vert, flip_hor, jax_img
 
     p = pipeline()
-    p.build()
     for _ in range(num_iters):
         jax_flip_channels, flip_vert, flip_hor, batch = p.run()
         if device == "gpu":
@@ -261,7 +257,6 @@ def test_multi_input_different_contiguity(device):
         return flip_hor(img, mod_dev), fn.flip(img, horizontal=mod), img
 
     p = pipeline()
-    p.build()
     for _ in range(num_iters):
         jax_flip, dali_flip, imgs = p.run()
         check_batch(jax_flip, dali_flip, compare_layouts=True, max_allowed_error=0)
@@ -306,7 +301,6 @@ def test_preserve(device, preserve, no_in_out):
         return img
 
     p = pipeline()
-    p.build()
     for _ in range(num_iters):
         p.run()
 
@@ -340,7 +334,6 @@ def test_explicit_output_layouts(device):
         return tuple(reshape(img))
 
     p = pipeline()
-    p.build()
     for _ in range(num_iters):
         img, f_image = p.run()
         assert len(img) == batch_size, f"{len(img)}!= {batch_size}"
@@ -360,7 +353,6 @@ def test_non_uniform_shape(device):
         return dax.fn.jax_function(lambda x: x)(img)
 
     p = pipeline()
-    p.build()
     with assert_raises(RuntimeError, glob="*batch of samples with different shapes*"):
         p.run()
 
@@ -383,7 +375,6 @@ def test_wrong_device_output(device):
         return dax.fn.jax_function(jax.jit(flip, backend=other_device), device=device)(img)
 
     p = pipeline()
-    p.build()
     with assert_raises(
         RuntimeError,
         glob=f"*array residing on the device of kind `{other_device}`, expected `{device}`*",
@@ -408,7 +399,6 @@ def test_wrong_output_num():
         return cb(img)
 
     p = pipeline()
-    p.build()
     with assert_raises(RuntimeError, glob="*(a tuple of) `num_outputs=1` outputs, but returned 2*"):
         p.run()
 
@@ -429,7 +419,6 @@ def test_wrong_num_samples():
         return cat(img)
 
     p = pipeline()
-    p.build()
     with assert_raises(
         RuntimeError, glob="*current batch size of 11, but the output at index 0 * 224 x 224 x 3*"
     ):
@@ -467,7 +456,6 @@ def test_multi_input_source_info(device):
         return mixup(img0, img1), mixed_up, img0, img1
 
     p = pipeline()
-    p.build()
     for _ in range(num_iters):
         jax_mixed, dali_mixed, base_0, base_1 = p.run()
 

@@ -39,8 +39,6 @@ def test_not():
         return not boolean_input
 
     pipes = [regular_pipe(), not_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -74,8 +72,6 @@ def test_and():
         )
 
     pipes = [regular_pipe(), and_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -109,8 +105,6 @@ def test_or():
         )
 
     pipes = [regular_pipe(), or_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -136,8 +130,6 @@ def test_complex_expression():
         return boolean_input_0 or boolean_input_1 and boolean_input_2 or not boolean_input_3
 
     pipes = [regular_pipe(), expr_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -164,8 +156,6 @@ def test_lazy_eval():
         return val
 
     pipes = [if_pipe(), expr_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -188,8 +178,6 @@ def test_lazy_eval_with_oob():
         return val
 
     pipes = [base_pipe(), expr_pipe()]
-    for pipe in pipes:
-        pipe.build()
     compare_pipelines(*pipes, bs, iters)
 
 
@@ -247,7 +235,6 @@ def test_error_input(expression):
         ),
     ):
         pipe = gpu_input()
-        pipe.build()
         pipe.run()
 
     @pipeline_def(**kwargs)
@@ -265,7 +252,6 @@ def test_error_input(expression):
         ),
     ):
         pipe = non_scalar_input()
-        pipe.build()
         pipe.run()
 
 
@@ -300,7 +286,6 @@ def test_non_boolean_input_error(expression):
         ),
     ):
         pipe = non_bool_input()
-        pipe.build()
         pipe.run()
 
 
@@ -342,7 +327,6 @@ def test_not_any_type(input_type):
         return not input
 
     pipe = non_bool_input()
-    pipe.build()
     (batch,) = pipe.run()
 
     target = [False if i < batch_size / 2 else True for i in range(batch_size)]

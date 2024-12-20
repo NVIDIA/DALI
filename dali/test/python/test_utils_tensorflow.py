@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -259,8 +259,6 @@ def run_dataset_eager_mode(dali_datasets, iterations, to_stop_iter=False):
 def run_pipeline(pipelines, iterations, device, to_stop_iter=False):
     if not isinstance(pipelines, list):
         pipelines = [pipelines]
-    for pipeline in pipelines:
-        pipeline.build()
     results = []
     with expect_iter_end(not to_stop_iter, StopIteration):
         for _ in range(iterations):

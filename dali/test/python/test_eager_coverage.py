@@ -119,7 +119,6 @@ class PipelineInput:
             self.pipe = pipe_fun(*args, kwargs)
         else:
             self.pipe = pipe_fun(*args)
-        self.pipe.build()
 
     def __call__(self, *_):
         return self.pipe.run()
@@ -174,7 +173,6 @@ def compare_eager_with_pipeline(
     `N_iterations`.
     """
 
-    pipe.build()
     for i in range(N_iterations):
         input_tl = eager_source(i, layout)
         out_fn = pipe.run()
@@ -317,7 +315,6 @@ def check_reader(
 ):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = reader_pipeline(fn_op, kwargs)
-    pipe.build()
 
     iter_eager = eager_op(batch_size=batch_size, **kwargs)
 
@@ -838,7 +835,6 @@ def test_image_decoder_slice():
     )
 
     eager_input = file_reader_pipeline({"file_root": images_dir})
-    eager_input.build()
 
     def eager_source(i, _):
         return (

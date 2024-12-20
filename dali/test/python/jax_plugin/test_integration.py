@@ -49,7 +49,6 @@ def test_dali_sequential_tensors_to_jax_array():
     shape = (1, 5)
 
     pipe = sequential_pipeline(batch_size, shape)
-    pipe.build()
 
     for batch_id in range(100):
         # given

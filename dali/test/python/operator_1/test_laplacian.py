@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -107,7 +107,6 @@ def _test_kernels(device, num_dims, smoothing, normalize):
         return sum(outer(*ws) for ws in windows)
 
     pipe = pipeline(num_threads=4, batch_size=batch_size, device_id=0)
-    pipe.build()
     (kernels, scales) = pipe.run()
     if device == "gpu":
         kernels = kernels.as_cpu()
@@ -193,7 +192,6 @@ def _test_vs_open_cv(device, batch_size, window_size, in_type, out_type, normali
         normalize=normalize,
         grayscale=grayscale,
     )
-    pipe.build()
     norm_factor = normalization_factor(window_size)
     scale = 1 if not normalize else norm_factor
     for _ in range(test_iters):
@@ -292,7 +290,6 @@ def _test_vs_scipy(device, batch_size, num_dims, in_type, out_type):
         return edges, input
 
     pipe = pipeline(device_id=0, num_threads=4, batch_size=batch_size)
-    pipe.build()
 
     for _ in range(test_iters):
         edges, input = pipe.run()
@@ -476,7 +473,6 @@ def check_per_sample_laplacian(
         normalize=normalize,
         out_type=out_type,
     )
-    pipe.build()
 
     for _ in range(test_iters):
         edges, data, window_size, smoothing_size, scale = pipe.run()
@@ -595,7 +591,6 @@ def check_fixed_param_laplacian(
         return edges, data
 
     pipe = pipeline(device_id=0, num_threads=4, batch_size=batch_size, seed=42)
-    pipe.build()
 
     for _ in range(test_iters):
         edges, data = pipe.run()
@@ -754,7 +749,6 @@ def check_tensor_input_fail(
 
     with assert_raises(RuntimeError, regex=err_regex):
         pipe = pipeline(device_id=0, num_threads=4, batch_size=batch_size)
-        pipe.build()
         pipe.run()
 
 

@@ -1,4 +1,4 @@
-#  Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#  Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -48,6 +48,5 @@ def naive_hist_pipe():
 
 def test_naive_histogram():
     pipe = naive_hist_pipe(batch_size=2, num_threads=1, device_id=0)
-    pipe.build()
     out = pipe.run()
     print(out[0].as_cpu().as_array())

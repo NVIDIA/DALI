@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,6 @@ def check_is_pipeline_stateless(pipeline_factory, iterations=10):
     }
 
     pipe = pipeline_factory(**args)
-    pipe.build()
     for _ in range(iterations):
         pipe.run()
 

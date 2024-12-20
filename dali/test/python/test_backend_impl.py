@@ -329,7 +329,6 @@ def test_dtype_converion():
     np_types = list(map(dali_type_to_np, dali_types))
     for dali_type, np_type in zip(dali_types, np_types):
         pipe = dtype_pipeline(np_type, dali_type)
-        pipe.build()
         assert pipe.run()[0].dtype == dali_type
 
 

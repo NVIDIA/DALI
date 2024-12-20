@@ -55,7 +55,6 @@ def test_enum_constant_capture(converter):
         return scalar, tensor, scalar_as_int, tensor_as_int
 
     pipe = enum_constant_pipe()
-    pipe.build()
     scalar, tensor, scalar_as_int, tensor_as_int = pipe.run()
     assert scalar.dtype == types.DALIDataType.DATA_TYPE
     assert scalar.shape() == [()] * batch_size, f"{scalar.shape}"
@@ -92,5 +91,4 @@ def test_prohibited_cast(param, dtype):
         "in casts with integral types, but not floating point types.",
     ):
         p = pipeline()
-        p.build()
         p.run()

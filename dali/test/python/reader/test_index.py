@@ -64,8 +64,6 @@ def test_tfrecord():
 
     pipe = TFRecordPipeline(1, 1, 0, 1, tfrecord, idx_file)
     pipe_org = TFRecordPipeline(1, 1, 0, 1, tfrecord, tfrecord_idx_org)
-    pipe.build()
-    pipe_org.build()
     iters = pipe.epoch_size("Reader")
     for _ in range(iters):
         out = pipe.run()
@@ -95,8 +93,6 @@ def test_tfrecord_odirect():
 
     pipe = tfrecord_pipe(tfrecord, tfrecord_idx, True, True)
     pipe_ref = tfrecord_pipe(tfrecord, tfrecord_idx, False, False)
-    pipe.build()
-    pipe_ref.build()
     iters = (pipe.epoch_size("Reader") + batch_size) // batch_size
     for _ in range(iters):
         out = pipe.run()
@@ -143,8 +139,6 @@ def test_tfrecord_pad_last_batch(batch_description, dont_use_mmap, use_o_direct)
 
     pipe = tfrecord_pipe(tfrecord, idx_file, dont_use_mmap, use_o_direct)
     pipe_ref = tfrecord_pipe(tfrecord, idx_file, False, False)
-    pipe.build()
-    pipe_ref.build()
     iters = (pipe.epoch_size("Reader") + batch_size) // batch_size
     for _ in range(iters):
         out = pipe.run()
@@ -176,8 +170,6 @@ def test_recordio():
 
     pipe = MXNetReaderPipeline(1, 1, 0, 1, recordio, idx_file)
     pipe_org = MXNetReaderPipeline(1, 1, 0, 1, recordio, recordio_idx_org)
-    pipe.build()
-    pipe_org.build()
     iters = pipe.epoch_size("Reader")
     for _ in range(iters):
         out = pipe.run()
@@ -204,7 +196,6 @@ def test_wrong_feature_shape():
     pipe.set_outputs(
         input["image/encoded"], input["image/object/class/label"], input["image/object/bbox"]
     )
-    pipe.build()
     # the error is raised because FixedLenFeature is used with insufficient shape to house the input
     assert_raises(
         RuntimeError,
@@ -271,7 +262,6 @@ def test_tfrecord_reader_alias2():
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
     tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
     pipe = tfrecord_pipe_empty_fields(tfrecord, tfrecord_idx)
-    pipe.build()
     out = pipe.run()
     for tensor in out[0]:
         data = np.array(tensor)
@@ -302,7 +292,6 @@ def test_tfrecord_reader_scalars():
         return data["image/height"]
 
     pipe = tfrecord_pipe_scalars()
-    pipe.build()
     out = pipe.run()
 
     for tensor in out[0]:
@@ -359,8 +348,6 @@ def test_conditionals():
         batch_size=32,
         enable_conditionals=True,
     )
-    for pipe in [pipe_base, pipe_cond]:
-        pipe.build()
     compare_pipelines(pipe_base, pipe_cond, 32, 5)
 
 
@@ -386,5 +373,4 @@ def test_wrong_feature_type():
     tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
     tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
     pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
-    pipe.build()
     pipe.run()
