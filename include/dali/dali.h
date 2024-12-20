@@ -377,10 +377,24 @@ DALI_API daliResult_t daliPipelineFeedInput(
   daliFeedInputFlags_t options,
   const cudaStream_t *stream);
 
-/** Gets the number of pipeline outputs */
+/** Gets the number of pipeline outputs.
+ *
+ * @param pipeline  [in]  The pipeline
+ * @param out_count [out] A pointer to a place where the number of pipeline outputs is stored.
+ */
 DALI_API daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count);
 
-/** Gets the number of pipeline outputs */
+/** Gets a descriptor of the specified pipeline output.
+ *
+ * @param pipeline  [in]  The pipeline
+ * @param out_desc  [out] A pointer to the returned descriptor.
+ * @param index     [in]  The 0-based index of the output. See `daliPipelineGetOutputCount`.
+ *
+ * NOTE: The names returned by this function match those specified when defining the pipeline,
+ *       but don't necessarily indicate the output operators. When building the pipeline,
+ *       operators may be added (e.g. to guarantee dense storage of the outputs) or removed
+ *       (in the process of graph optimization).
+ */
 DALI_API daliResult_t daliPipelineGetOutputDesc(
   daliPipeline_h pipeline,
   daliPipelineOutputDesc_t *out_desc,
@@ -390,10 +404,14 @@ DALI_API daliResult_t daliPipelineGetOutputDesc(
 /** Pops the pipeline outputs from the pipeline's output queue.
  *
  * The outputs are ready for use on any stream.
- * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
+ * When no longer used, the outputs must be freed by destroying the `daliPipelineOutput` object.
+ *
+ * @param pipeline [in]  The pipeline whose outputs are to be obtained
+ * @param out      [out] A pointer to the output handle. The handle is NULL if the function
+ *                       reports an error.
  *
  * @return This function will report errors that occurred asynchronously when preparing the
- *         relevant data batch.
+ *         relevant data batch. If an error is reported, the output handle is NULL.
  *
  */
 DALI_API daliResult_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutputs_h *out);
@@ -401,12 +419,16 @@ DALI_API daliResult_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipeli
 /** Pops the pipeline outputs from the pipeline's output queue.
  *
  * The outputs are ready for use on the provided stream.
- * When no longer used, the outputs should be freed by destroying the daliPipelineOutput object.
+ * When no longer used, the outputs must be freed by destroying the daliPipelineOutput object.
  *
  * This function works only with DALI_EXEC_IS_DYNAMIC.
  *
+ * @param pipeline [in]  The pipeline whose outputs are to be obtained
+ * @param out      [out] A pointer to the output handle. The handle is NULL if the function
+ *                       reports an error.
+ *
  * @return This function will report errors that occurred asynchronously when preparing the
- *         relevant data batch.
+ *         relevant data batch. If an error is reported, the output handle is NULL.
  */
 DALI_API daliResult_t daliPipelinePopOutputsAsync(
   daliPipeline_h pipeline,
@@ -671,7 +693,21 @@ DALI_API daliResult_t daliTensorListSetLayout(
   const char *layout
 );
 
-/** Gets the "source info" metadata of a sample */
+/** Gets the "source info" metadata of a sample.
+ *
+ * Each sample can be associated with a "source info" string, which typically is the file name,
+ * but can also contain an index in a container, key, etc.
+ *
+ * @param tensor_list     [in]  The tensor list
+ * @param out_source_info [out] A pointer to a place where the pointer to the source_info string
+ *                              is stored. On success, `*out_source_info` contains a pointer to the
+ *                              beginning of a null-terminated string. If the sample doesn't have
+ *                              associated source info, a NULL pointer is returned.
+ * @param sample_idx      [in]  The index of a sample whose source info is queried.
+ *
+ * The return value is a string pointer. It is invalidated by destroying, clearing or resizing
+ * the TensorList as well as by assigning a new source info.
+ */
 DALI_API daliResult_t daliTensorListGetSourceInfo(
   daliTensorList_h tensor_list,
   const char **out_source_info,
@@ -684,7 +720,7 @@ DALI_API daliResult_t daliTensorListGetSourceInfo(
  * @param sample_idx  [in] The index of the sample, whose descriptor to get.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
- * clearing or resizing the TensorList or re-attaching new data to it.
+ * destroying, clearing or resizing the TensorList or re-attaching new data to it.
  */
 DALI_API daliResult_t daliTensorListGetTensor(
   daliTensorList_h tensor_list,
