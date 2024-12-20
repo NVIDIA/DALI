@@ -79,11 +79,6 @@ def add_parser_arguments(parser, skip_arch=False):
         + " (default: dali)",
     )
     parser.add_argument(
-        "--typical_loader",
-        action="store_true",
-        help="Skip advanced PyTorch data loader optimizations.",
-    )
-    parser.add_argument(
         "--interpolation",
         metavar="INTERPOLATION",
         default="bicubic",
@@ -524,6 +519,10 @@ def prepare_for_training(args, model_args, model_arch):
         args.workers = args.workers * 2
         get_train_loader = get_pytorch_train_loader
         get_val_loader = get_pytorch_val_loader
+    elif args.data_backend == "pytorch_optimized":
+        args.workers = args.workers * 2
+        get_train_loader = get_pytorch_optimized_train_loader
+        get_val_loader = get_pytorch_optimize_val_loader
     elif args.data_backend == "dali":
         get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
         get_val_loader = get_dali_val_loader()
@@ -547,7 +546,6 @@ def prepare_for_training(args, model_args, model_arch):
         _worker_init_fn=_worker_init_fn,
         memory_format=memory_format,
         prefetch_factor=args.prefetch,
-        typical_loader=args.typical_loader,
     )
     if args.mixup != 0.0:
         train_loader = MixUpWrapper(args.mixup, train_loader)
@@ -563,7 +561,6 @@ def prepare_for_training(args, model_args, model_arch):
         _worker_init_fn=_worker_init_fn,
         memory_format=memory_format,
         prefetch_factor=args.prefetch,
-        typical_loader=args.typical_loader,
     )
 
     if (
