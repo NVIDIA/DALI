@@ -85,13 +85,13 @@ python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 -
 # as JSON using Python. We can now parse the values or directly evaluate the thresholds.
 # grep "train.total_ips" <filename>.json | tail -1 | cut -c 5- | python3 -c "import sys, json; print(json.load(sys.stdin))"
 
-# Actual results are about 500 samples/s more
-SYNTH_THRESHOLD=32000
-DALI_NONE_THRESHOLD=27000
-DALI_AA_THRESHOLD=26000
-DALI_TA_THRESHOLD=26000
-PYTORCH_NONE_THRESHOLD=23000
-PYTORCH_AA_THRESHOLD=22000
+# Actual results are about 10% samples/s more
+SYNTH_THRESHOLD=38000
+DALI_NONE_THRESHOLD=32000
+DALI_AA_THRESHOLD=32000
+DALI_TA_THRESHOLD=32000
+PYTORCH_NONE_THRESHOLD=32000
+PYTORCH_AA_THRESHOLD=32000
 
 function CHECK_PERF_THRESHOLD {
     FILENAME=$1
