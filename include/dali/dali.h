@@ -66,6 +66,8 @@ typedef enum {
   DALI_ERROR_INVALID_OPERATION,
   /** The index is out of valid range */
   DALI_ERROR_OUT_OF_RANGE,
+  /** The key is not found (when getting) or is not a valid key (when setting) */
+  DALI_INVALID_KEY,
 
   /** A path to a file or other OS resource is invalid */
   DALI_ERROR_PATH_NOT_FOUND,
@@ -332,7 +334,7 @@ DALI_API daliResult_t daliPipelineRun(daliPipeline_h pipeline);
  *       `daliPipelineFeedCount`.
  *
  * @retval DALI_SUCCESS
- * @retval DALI_ERROR_OUT_OF_RANGE        if `input_name` is not a valid name of an input of the
+ * @retval DALI_ERROR_INVALID_KEY         if `input_name` is not a valid name of an input of the
  *                                        pipeline
  */
 DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
@@ -345,7 +347,7 @@ DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
  * @param input_name      [in]  The name of the input.
  *
  * @retval DALI_SUCCESS
- * @retval DALI_ERROR_OUT_OF_RANGE        if `input_name` is not a valid name of an input of the
+ * @retval DALI_ERROR_INVALID_KEY         if `input_name` is not a valid name of an input of the
  *                                        pipeline
  */
 DALI_API daliResult_t daliPipelineGetFeedCount(
@@ -437,16 +439,65 @@ DALI_API daliResult_t daliPipelinePopOutputsAsync(
 
 /** Releases the pipeline outputs.
  *
+ * @param pipeline [in]  The pipeline outputs which are being released.
+ *
  * This function destroys the daliPipelineOutputObject. The availability of the outputs differs
  * between different executors.
  * If DALI_EXEC_IS_DYNAMIC is used, the outputs may be used until their handles are destroyed.
  * Otherwise, the outputs must not be used after this call has been made.
+ *
+ * @warning When NOT using DALI_EXEC_IS_DYNAMIC, the maximum number of live daliPipelineOutputs_h
+ *          obtained from a single pipeline must not exceed the prefetch_queue_depth. An attempt
+ *          to run the pipeline again after the
  */
 DALI_API daliResult_t daliPipelineOutputsDestroy(daliPipelineOutputs_h out);
 
+typedef struct _DALIOperatorTrace {
+  const char *operator;
+  const char *trace;
+  const char *value;
+} daliOperatorTrace_t;
+
+/** Gets all operator "traces" that were set when producing this set of outputs.
+ *
+ * @param outputs         [in]  The outputs
+ * @param out_traces      [out] A return value pointer where, the a pointer to the beginning of an
+ *                              array of operator traces is stored.
+ * @param out_trace_count [out] A pointer that receives the number of traces.
+ *
+ * The output array is valid until the `outputs` handle is destroyed.
+ */
+DALI_API daliResult_t daliPipelineOutputsGetTraces(
+  daliPipelineOutputs_h outputs,
+  const daliOperatorTrace_t **out_traces,
+  int *out_trace_count);
+
+/** Gets a single operator "trace", identified by operator instance name and a trace name.
+ *
+ * @param outputs       [in]  The outputs
+ * @param out_trace     [out] A pointer which receives a ppointer to the trace.
+ * @param operator_name [in]  The name of the operator whose trace is being obtained.
+ * @param trace_name    [in]  The name of the trace.
+ *
+ * @retval DALI_SUCCESS           On success
+ * @retval DALI_ERROR_INVALID_KEY When there's no trace that matches the names
+ */
+DALI_API daliResult_t daliPipelineOutputsGetTrace(
+  daliPipelineOutputs_h outputs,
+  const char **out_trace,
+  const char *operator_name,
+  const char *trace_name);
+
 /** Gets index-th output.
  *
- * The handle returned by this function must be released with a call to daliTensorListDecRef
+ * The handle returned by this function must be released with a call to daliTensorListDecRef.
+ *
+ * Unless the pipeline uses DALI_EXEC_IS_DYNAMIC flag, the returned tensor list must not be used
+ * after the `outputs` handle is destroyed.
+ *
+ * @param outputs [in]  The pipeline outputs object
+ * @param out     [out] A pointer to a TensorList handle
+ * @param index   [in]  The index of the output to get a handle to.
  */
 DALI_API daliResult_t daliPipelineOutputsGet(
   daliPipelineOutputs_h outputs,
@@ -650,13 +701,11 @@ DALI_API daliResult_t daliTensorListGetOrCreateReadyEvent(
 
 /** Gets the shape of the tensor list
  *
- * @param tensor_list     [in]  the tensor list whose shape obtain
+ * @param tensor_list     [in]  the tensor list whose shape to obtain
  * @param out_num_samples [out] optional; the number of samples in the batch
  * @param out_ndim        [out] optional; the number of dimensions in a sample
  * @param out_shape       [out] optional; the pointer to the concatenated array of sample shapes;
  *                              contains (*out_num_samples) * (*out_ndim) elements
- *
- * @retval DALI_SUCCESS T
  *
  * The pointer returned in `out_shape` remains valid until the TensorList is destroyed or modified.
  * If the caller is not intersted in some of the values, the pointers can be NULL.
@@ -669,12 +718,18 @@ DALI_API daliResult_t daliTensorListGetShape(
 
 /** Gets a layout string describing the samples in the TensorList.
  *
+ * @param tensor_list [in]  the tensor list whose layout to obtain
+ * @param out_layout  [out] a pointer to the place where a pointer to the the layout string of
+ *                          the samples in the tensor list is stored
+ *
  * When present, the layout string consists of exactly `sample_ndim` single-character _axis labels_.
  * The layout does not contain the leading "sample" dimension (typically denoted as `N`),
  * for example, a batch of images would typically have a "HWC" layout.
- * The axis labels can be any character except the '\0'.
- * If there's no layout set, the returned pointer is NULL and the function returns DALI_NO_DATA
- * status.
+ * The axis labels can be any character except the null character '\0'.
+ * If there's no layout set, the returned pointer is NULL.
+ *
+ * The pointer remains valid until the tensor list is destroyed, cleared, resized or its layout
+ * changed.
  */
 DALI_API daliResult_t daliTensorListGetLayout(
   daliTensorList_h tensor_list,
