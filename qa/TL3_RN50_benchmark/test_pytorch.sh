@@ -62,11 +62,11 @@ CHECK_PERF_THRESHOLD() {
 
 # ref < dali_proxy < dali
 CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --disable_dali --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali0.log" "0" "REF_THROUGHPUT"
-CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --dali_proxy --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali1.log" "${REF_THROUGHPUT}" "PERF_PROXY"
-CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali2.log" "${DALI_PROXY_THROUGHPUT}" "PERF_DALI"
+CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --dali_proxy --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali1.log" "${REF_THROUGHPUT}" "DALI_PROXY_THROUGHPUT"
+CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali2.log" "${DALI_PROXY_THROUGHPUT}" "DALI_THROUGHPUT"
 
 CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 128 --loss-scale 128.0 --disable_dali --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali3.log" "0" "REF_THROUGHPUT2"
-CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --dali_proxy --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali4.log" "${REF_THROUGHPUT2}" "PERF_PROXY"
-CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali5.log" "${DALI_PROXY_THROUGHPUT2}" "PERF_DAL2"
+CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --dali_proxy --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali4.log" "${REF_THROUGHPUT2}" "DALI_PROXY_THROUGHPUT2"
+CHECK_PERF_THRESHOLD "torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode --epochs 2" "dali5.log" "${DALI_PROXY_THROUGHPUT2}" "DALI_THROUGHPUT2"
 
 exit 0

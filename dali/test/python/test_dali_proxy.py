@@ -121,59 +121,57 @@ def test_dali_proxy_torch_data_loader(device, include_decoder, debug=False):
         prefetch_queue_depth=1,
     )
 
-    # Run the server (it also cleans up on scope exit)
-    with dali_proxy.DALIServer(pipe) as dali_server:
+    dali_server = dali_proxy.DALIServer(pipe)
+    if include_decoder:
+        dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
+        dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy(), loader=read_filepath)
+    else:
+        dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy)
+        dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy())
 
-        if include_decoder:
-            dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy, loader=read_filepath)
-            dataset_ref = datasets.ImageFolder(
-                jpeg, transform=lambda x: x.copy(), loader=read_filepath
-            )
-        else:
-            dataset = datasets.ImageFolder(jpeg, transform=dali_server.proxy)
-            dataset_ref = datasets.ImageFolder(jpeg, transform=lambda x: x.copy())
+    loader = dali_proxy.DataLoader(
+        dali_server,
+        dataset,
+        batch_size=batch_size,
+        num_workers=nworkers,
+        drop_last=True,
+    )
 
-        loader = dali_proxy.DataLoader(
-            dali_server,
-            dataset,
-            batch_size=batch_size,
-            num_workers=nworkers,
-            drop_last=True,
+    def ref_collate_fn(batch):
+        filepaths, labels = zip(*batch)  # Separate the inputs and labels
+        # Just return the batch as they are, a list of individual tensors
+        return filepaths, labels
+
+    loader_ref = torchdata.dataloader.DataLoader(
+        dataset_ref,
+        batch_size=batch_size,
+        num_workers=1,
+        collate_fn=ref_collate_fn,
+        shuffle=False,
+    )
+
+    for _, ((data, target), (ref_data, ref_target)) in enumerate(zip(loader, loader_ref)):
+        np.testing.assert_equal([batch_size, 3, 224, 224], data.shape)
+        np.testing.assert_equal(
+            [
+                batch_size,
+            ],
+            target.shape,
         )
+        np.testing.assert_array_equal(target, ref_target)
+        ref_data_nparrays = [
+            np.array(obj) if isinstance(obj, PIL.Image.Image) else obj for obj in ref_data
+        ]
+        ref_data_tensors = [TensorCPU(arr) for arr in ref_data_nparrays]
+        pipe_ref.feed_input("images", ref_data_tensors)
+        (ref_data,) = pipe_ref.run()
+        for sample_idx in range(batch_size):
+            ref_tensor = ref_data[sample_idx]
+            if isinstance(ref_tensor, TensorGPU):
+                ref_tensor = ref_tensor.as_cpu()
+            np.testing.assert_array_equal(ref_tensor, data[sample_idx].cpu())
 
-        def ref_collate_fn(batch):
-            filepaths, labels = zip(*batch)  # Separate the inputs and labels
-            # Just return the batch as they are, a list of individual tensors
-            return filepaths, labels
-
-        loader_ref = torchdata.dataloader.DataLoader(
-            dataset_ref,
-            batch_size=batch_size,
-            num_workers=1,
-            collate_fn=ref_collate_fn,
-            shuffle=False,
-        )
-
-        for _, ((data, target), (ref_data, ref_target)) in enumerate(zip(loader, loader_ref)):
-            np.testing.assert_equal([batch_size, 3, 224, 224], data.shape)
-            np.testing.assert_equal(
-                [
-                    batch_size,
-                ],
-                target.shape,
-            )
-            np.testing.assert_array_equal(target, ref_target)
-            ref_data_nparrays = [
-                np.array(obj) if isinstance(obj, PIL.Image.Image) else obj for obj in ref_data
-            ]
-            ref_data_tensors = [TensorCPU(arr) for arr in ref_data_nparrays]
-            pipe_ref.feed_input("images", ref_data_tensors)
-            (ref_data,) = pipe_ref.run()
-            for sample_idx in range(batch_size):
-                ref_tensor = ref_data[sample_idx]
-                if isinstance(ref_tensor, TensorGPU):
-                    ref_tensor = ref_tensor.as_cpu()
-                np.testing.assert_array_equal(ref_tensor, data[sample_idx].cpu())
+    dali_server.stop_thread()  # make sure we stop the thread before leaving the test
 
 
 @attr("pytorch")
@@ -579,3 +577,43 @@ def test_dali_proxy_proxy_callable(named_arguments, debug=False):
 
         np.testing.assert_array_almost_equal(a_plus_b, a + b)
         np.testing.assert_array_almost_equal(a_minus_b, b - a)
+
+
+@attr("pytorch")
+@params(("cpu",), ("gpu",))
+def test_dali_proxy_restart_server(device, debug=False):
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
+    from torch.utils import data as torchdata
+
+    @pipeline_def
+    def square(device):
+        a = fn.external_source(name="a", no_copy=True)
+        if device == "gpu":
+            a = a.gpu()
+        return a**2
+
+    class MyDataset(torchdata.Dataset):
+        def __init__(self, transform_fn):
+            self.transform_fn = transform_fn
+
+        def __len__(self):
+            return 10
+
+        def __getitem__(self, idx):
+            return np.array(idx), self.transform_fn(np.array(idx))
+
+    batch_size = 4
+    dali_server = dali_proxy.DALIServer(
+        square(device="cpu", batch_size=batch_size, num_threads=3, device_id=None)
+    )
+
+    dataset = MyDataset(dali_server.proxy)
+    loader = dali_proxy.DataLoader(
+        dali_server, dataset, batch_size=batch_size, num_workers=2, drop_last=True
+    )
+    for _ in range(3):  # 3 epochs
+        assert dali_server._thread is None
+        for data0, data1 in iter(loader):
+            np.testing.assert_array_almost_equal(data0**2, data1.cpu())
+            assert dali_server._thread is not None
+        assert dali_server._thread is None

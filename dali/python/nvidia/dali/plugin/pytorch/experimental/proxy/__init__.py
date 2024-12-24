@@ -289,6 +289,12 @@ class _DALIProxy:
         pipe_run_ref.is_scheduled = True
         _torch.cuda.nvtx.range_pop()
 
+    def __call__(self, *args, **kwargs):
+        """
+        To be implemented by the child class
+        """
+        raise RuntimeError("Not implemented")
+
 
 class DALIServer:
     def __init__(self, pipeline, input_names=None, deterministic=False):
@@ -438,12 +444,16 @@ class DALIServer:
         self._dali_output_q = queue.Queue()
         # Thread
         self._thread = None
+        self._thread_stop_event = None
         # Cache
         self._cache_outputs = dict()
         # Whether we want the order of DALI execution to be reproducible
         self._deterministic = deterministic
         # Proxy
         self._proxy = None
+
+    def __del__(self):
+        self.stop_thread()
 
     @property
     def proxy(self):
@@ -458,6 +468,7 @@ class DALIServer:
                 parameters.append(
                     inspect.Parameter(input_name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
                 )
+
             signature = inspect.Signature(parameters)
 
             def call_impl(self, *args, **kwargs):
@@ -469,9 +480,15 @@ class DALIServer:
                     )
                 return self._add_sample(bound_args)
 
-            call_impl.__signature__ = inspect.Signature(parameters)
-            _DALIProxy.__call__ = call_impl
-            self._proxy = _DALIProxy(
+            call_impl.__signature__ = signature
+
+            class _DALIProxyImpl(_DALIProxy):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+
+            _DALIProxyImpl.__call__ = call_impl
+
+            self._proxy = _DALIProxyImpl(
                 self._dali_input_names,
                 self._dali_input_q,
                 self._pipe.num_outputs,
@@ -598,13 +615,13 @@ class DALIServer:
         Asynchronous DALI thread that gets iteration data from the queue and schedules it
         for execution
         """
-        fed_batches = queue.Queue()
+        fed_batches = []
         while not self._thread_stop_event.is_set():
             _torch.cuda.nvtx.range_push("get_input_batches")
-            timeout = 5 if fed_batches.empty() else None
+            timeout = 5 if len(fed_batches) == 0 else None
             # We try to feed as many batches as the prefetch queue (if available)
             batches = self._get_input_batches(
-                self._pipe.prefetch_queue_depth - fed_batches.qsize(), timeout=timeout
+                self._pipe.prefetch_queue_depth - len(fed_batches), timeout=timeout
             )
             _torch.cuda.nvtx.range_pop()
             if batches is not None and len(batches) > 0:
@@ -613,15 +630,15 @@ class DALIServer:
                     for input_name, input_data in inputs.items():
                         self._pipe.feed_input(input_name, input_data)
                     self._pipe._run_once()
-                    fed_batches.put(batch_id)
+                    fed_batches.append(batch_id)
                 _torch.cuda.nvtx.range_pop()
 
             # If no batches to consume, continue
-            if fed_batches.qsize() == 0:
+            if len(fed_batches) == 0:
                 continue
 
             _torch.cuda.nvtx.range_push("outputs")
-            batch_id = fed_batches.get_nowait()  # we are sure there's at least one
+            batch_id = fed_batches.pop(0)  # we are sure there's at least one
             err = None
             torch_outputs = None
             try:
@@ -691,12 +708,15 @@ class DataLoader(_torchdata.dataloader.DataLoader):
         def __init__(self, loader):
             super().__init__(loader)
             self.loader = loader
-            if self.loader.dali_server._thread is None:
-                raise RuntimeError("DALI server is not running")
 
         def _next_data(self):
-            data = super()._next_data()
-            return self.loader.dali_server.produce_data(data)
+            self.loader.dali_server.start_thread()
+            try:
+                data = super()._next_data()
+                return self.loader.dali_server.produce_data(data)
+            except StopIteration:
+                self.loader.dali_server.stop_thread()
+                raise
 
     def __init__(self, dali_server, *args, **kwargs):
         """

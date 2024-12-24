@@ -64,7 +64,7 @@ DALI Proxy in a Nutshell
            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
        )
 
-   # Step 2: Initialize DALI server
+   # Step 2: Initialize DALI server. The scope makes sure to start and stop the background thread
    with dali_proxy.DALIServer(my_dali_pipeline(batch_size=64, num_threads=3, device_id=0)) as dali_server:
        # Step 3: Define a PyTorch Dataset using the DALI proxy
        dataset = datasets.ImageFolder("/path/to/images", transform=dali_server.proxy)
@@ -133,6 +133,24 @@ With more than one input, we can choose to use positional arguments, keyword arg
       # Option 2: named arguments
       a_plus_b, b_minus_a = dali_server.proxy(b=b, a=a)
 
+It is also possible to start and stop the server explicitly:
+
+.. code-block:: python
+
+   dali_server = dali_proxy.DALIServer(example_pipeline2(...))
+   dataset = datasets.ImageFolder("/path/to/images", transform=dali_server.proxy)
+   loader = dali_proxy.DataLoader(dali_server, dataset, batch_size=64, num_workers=8, drop_last=True)
+
+   # Optional, it will be started on first attempt to get data from the loader anyway
+   dali_server.start_thread()
+
+   for data in loader:
+      ...
+
+   # This is needed to make sure we have stopped the thread
+   dali_server.stop_thread()
+
+When possible, use the ``with`` scope.
 
 **3. Data Collation and Execution**
 
@@ -194,10 +212,13 @@ If using a custom :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DataLoad
 
 .. code-block:: python
 
-   for data, _ in loader:
-      # Replaces instances of ``DALIOutputBatchRef`` with actual data
-      processed_data = dali_server.produce_data(data)
-      print(processed_data.shape)  # data is now ready
+   with dali_proxy.DALIServer(pipeline) as dali_server:
+      dataset = CustomDataset(dali_server.proxy, data=images)
+      loader = MyCustomDataloader(...)
+      for data, _ in loader:
+         # Replaces instances of ``DALIOutputBatchRef`` with actual data
+         processed_data = dali_server.produce_data(data)
+         print(processed_data.shape)  # data is now ready
 
 Summary
 -------

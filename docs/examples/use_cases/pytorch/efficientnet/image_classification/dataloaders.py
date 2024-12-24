@@ -165,11 +165,9 @@ def get_dali_train_loader(dali_device="gpu"):
             pipe, reader_name="Reader", fill_last_batch=False
         )
 
-        dali_server = None
         return (
             DALIWrapper(train_loader, num_classes, one_hot, memory_format),
             int(pipe.epoch_size("Reader") / (world_size * batch_size)),
-            dali_server,
         )
 
     return gdtl
@@ -222,11 +220,9 @@ def get_dali_val_loader(dali_device="gpu"):
             pipe, reader_name="Reader", fill_last_batch=False
         )
 
-        dali_server = None
         return (
             DALIWrapper(val_loader, num_classes, one_hot, memory_format),
             int(pipe.epoch_size("Reader") / (world_size * batch_size)),
-            dali_server,
         )
 
     return gdvl
@@ -378,11 +374,9 @@ def get_pytorch_train_loader(
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
-    dali_server = None
     return (
         PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, True, memory_format, "CHW"),
         len(train_loader),
-        dali_server,
     )
 
 
@@ -435,11 +429,9 @@ def get_pytorch_val_loader(
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
-    dali_server = None
     return (
         PrefetchedWrapper(val_loader, 0, num_classes, one_hot, True, memory_format, "CHW"),
         len(val_loader),
-        dali_server
     )
 
 def read_file(path):
@@ -519,7 +511,6 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
         return (
             PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, False, memory_format, output_layout),
             len(train_loader),
-            dali_server,
         )
     return get_impl
 
@@ -593,7 +584,6 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
         return (
             PrefetchedWrapper(val_loader, 0, num_classes, one_hot,  False, memory_format, output_layout),
             len(val_loader),
-            dali_server,
         )
     return get_impl
 
@@ -644,7 +634,6 @@ def get_synthetic_loader(
     memory_format=torch.contiguous_format,
     **kwargs,
 ):
-    dali_server = None
     return (
         SynteticDataLoader(
             batch_size,
@@ -656,5 +645,4 @@ def get_synthetic_loader(
             memory_format=memory_format,
         ),
         -1,
-        dali_server,
     )

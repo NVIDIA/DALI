@@ -3,7 +3,6 @@ import os
 import shutil
 import time
 import math
-from contextlib import nullcontext
 
 import torch
 import torch.nn as nn
@@ -29,11 +28,6 @@ except ImportError:
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-
-def conditional_with(resource):
-    if hasattr(resource, '__enter__') and hasattr(resource, '__exit__'):
-        return resource
-    return nullcontext(resource)
 
 def fast_collate(batch, memory_format):
     """Based on fast_collate from the APEX example
@@ -124,11 +118,11 @@ def to_python_float(t):
 @pipeline_def(exec_dynamic=True)
 def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
     images, labels = fn.readers.file(file_root=data_dir,
-                                        shard_id=shard_id,
-                                        num_shards=num_shards,
-                                        random_shuffle=is_training,
-                                        pad_last_batch=True,
-                                        name="Reader")
+                                     shard_id=shard_id,
+                                     num_shards=num_shards,
+                                     random_shuffle=is_training,
+                                     pad_last_batch=True,
+                                     name="Reader")
 
     dali_device = 'cpu' if dali_cpu else 'gpu'
     decoder_device = 'cpu' if dali_cpu else 'mixed'
@@ -337,8 +331,6 @@ def main():
     val_loader = None
     train_pipe = None
     val_pipe = None
-    dali_server_train = None
-    dali_server_val = None
     if not args.disable_dali and not args.dali_proxy:
         train_pipe = create_dali_pipeline(batch_size=args.batch_size,
                                           num_threads=args.workers,
@@ -351,7 +343,6 @@ def main():
                                           shard_id=args.local_rank,
                                           num_shards=args.world_size,
                                           is_training=True)
-        train_pipe.build()
 
         val_pipe = create_dali_pipeline(batch_size=args.batch_size,
                                         num_threads=args.workers,
@@ -364,7 +355,6 @@ def main():
                                         shard_id=args.local_rank,
                                         num_shards=args.world_size,
                                         is_training=False)
-        val_pipe.build()
 
         train_loader = DALIClassificationIterator(train_pipe, reader_name="Reader",
                                                   last_batch_policy=LastBatchPolicy.PARTIAL,
@@ -372,7 +362,7 @@ def main():
         val_loader = DALIClassificationIterator(val_pipe, reader_name="Reader",
                                                 last_batch_policy=LastBatchPolicy.PARTIAL,
                                                 auto_reset=True)
-    elif not args.disable_dali and args.dali_proxy:
+    elif args.dali_proxy:
         train_pipe = create_dali_pipeline_external_source(
             batch_size=args.batch_size,
             num_threads=args.workers,
@@ -382,7 +372,6 @@ def main():
             size=val_size,
             dali_cpu=args.dali_cpu,
             is_training=True)
-        train_pipe.build()
 
         val_pipe = create_dali_pipeline_external_source(
             batch_size=args.batch_size,
@@ -393,7 +382,6 @@ def main():
             size=val_size,
             dali_cpu=args.dali_cpu,
             is_training=False)
-        val_pipe.build()
 
         assert train_pipe is not None
         assert val_pipe is not None
@@ -489,39 +477,43 @@ def main():
                                        enabled=args.fp16_mode)
     total_time = AverageMeter()
 
-    with conditional_with(dali_server_train), conditional_with(dali_server_val):
-        for epoch in range(args.start_epoch, args.epochs):
-            # train for one epoch
-            avg_train_time = train(train_loader, model, criterion, scaler, optimizer, epoch)
+    for epoch in range(args.start_epoch, args.epochs):
+        # train for one epoch
+        avg_train_time = train(train_loader, model, criterion, scaler, optimizer, epoch)
 
-            if args.data_loader_only:
-                continue
+        if args.data_loader_only:
+            continue
 
-            total_time.update(avg_train_time)
-            if args.test:
-                break
+        total_time.update(avg_train_time)
+        if args.test:
+            break
 
-            # evaluate on validation set
-            [prec1, prec5] = validate(val_loader, model, criterion)
+        # evaluate on validation set
+        [prec1, prec5] = validate(val_loader, model, criterion)
 
-            # remember best prec@1 and save checkpoint
-            if args.local_rank == 0:
-                is_best = prec1 > best_prec1
-                best_prec1 = max(prec1, best_prec1)
-                save_checkpoint({
-                    'epoch': epoch + 1,
-                    'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    'best_prec1': best_prec1,
-                    'optimizer' : optimizer.state_dict(),
-                }, is_best)
-                if epoch == args.epochs - 1:
-                    print('##Top-1 {0}\n'
-                        '##Top-5 {1}\n'
-                        '##Perf  {2}'.format(
-                        prec1,
-                        prec5,
-                        args.total_batch_size / total_time.avg))
+        # remember best prec@1 and save checkpoint
+        if args.local_rank == 0:
+            is_best = prec1 > best_prec1
+            best_prec1 = max(prec1, best_prec1)
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'best_prec1': best_prec1,
+                'optimizer' : optimizer.state_dict(),
+            }, is_best)
+            if epoch == args.epochs - 1:
+                print('##Top-1 {0}\n'
+                    '##Top-5 {1}\n'
+                    '##Perf  {2}'.format(
+                    prec1,
+                    prec5,
+                    args.total_batch_size / total_time.avg))
+
+    if hasattr(train_loader, "dali_server"):
+        train_loader.dali_server.stop_thread()
+    if hasattr(val_loader, "dali_server"):
+        val_loader.dali_server.stop_thread()
 
 class data_prefetcher():
     """Based on prefetcher from the APEX example
