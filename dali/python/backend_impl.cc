@@ -721,7 +721,7 @@ void ExposeTensor(py::module &m) {
     .def("as_cpu", [](Tensor<CPUBackend> &t) -> Tensor<CPUBackend>& {
           return t;
         },
-      R"code(Bypass, since the object is already an instance of `TensorCPU`.)code",
+      R"code(Passthrough, since the object is already an instance of `TensorCPU`.)code",
       py::return_value_policy::reference_internal)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {

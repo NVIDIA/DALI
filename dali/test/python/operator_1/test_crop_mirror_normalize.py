@@ -894,13 +894,14 @@ def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale,
 
     batch_size = 10
     p = pipe(batch_size=batch_size)
+    ref_scale = scale or 1.0
+    ref_shift = shift or 0.0
     for _ in range(3):
-        out, image_like, mean, std = tuple(out.as_cpu() for out in p.run())
-        ref_scale = scale or 1.0
-        ref_shift = shift or 0.0
-        ref_out = ref_scale * (image_like - mean) / std + ref_shift
+        outs = tuple(np.array(out.as_cpu()) for out in p.run())
         for s in range(batch_size):
-            np.testing.assert_allclose(out.at(s), ref_out.at(s), atol=ref_scale * 1e-6)
+            out, image_like, mean, std = tuple(np.array(o[s]) for o in outs)
+            ref_out = ref_scale * (image_like - mean) / std + ref_shift
+            np.testing.assert_allclose(out, ref_out, atol=ref_scale * 1e-6)
 
 
 def test_per_sample_norm_args():
