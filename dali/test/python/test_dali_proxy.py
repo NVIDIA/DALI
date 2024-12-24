@@ -120,7 +120,6 @@ def test_dali_proxy_torch_data_loader(device, include_decoder, debug=False):
         device_id=device_id,
         prefetch_queue_depth=1,
     )
-    pipe_ref.build()
 
     # Run the server (it also cleans up on scope exit)
     with dali_proxy.DALIServer(pipe) as dali_server:
@@ -475,6 +474,16 @@ def test_dali_proxy_duplicated_outputs(device, debug=False):
             np.testing.assert_array_equal(data1, data2)
 
 
+@pipeline_def
+def pipe_2_outputs(device):
+    a = fn.external_source(name="a", no_copy=True)
+    b = fn.external_source(name="b", no_copy=True)
+    if device == "gpu":
+        a = a.gpu()
+        b = b.gpu()
+    return a + b, b - a
+
+
 @attr("pytorch")
 @params(("cpu",), ("gpu",))
 def test_dali_proxy_rearrange_output_order_and_positional_args(device, debug=False):
@@ -487,22 +496,15 @@ def test_dali_proxy_rearrange_output_order_and_positional_args(device, debug=Fal
     nworkers = 4
     arrs = np.random.rand(20, 3)
 
-    @pipeline_def
-    def pipe_2_outputs():
-        a = fn.external_source(name="a", no_copy=True)
-        b = fn.external_source(name="b", no_copy=True)
-        if device == "gpu":
-            a = a.gpu()
-            b = b.gpu()
-        return a + b, b - a
-
     pipe1 = pipe_2_outputs(
+        device=device,
         batch_size=batch_size,
         num_threads=num_threads,
         device_id=device_id,
         prefetch_queue_depth=2 + nworkers,
     )
     pipe2 = pipe_2_outputs(
+        device=device,
         batch_size=batch_size,
         num_threads=num_threads,
         device_id=device_id,
@@ -546,3 +548,34 @@ def test_dali_proxy_rearrange_output_order_and_positional_args(device, debug=Fal
             np.testing.assert_array_equal(data1[0].cpu(), data2[2].cpu())
             np.testing.assert_array_equal(data1[1].cpu(), data2[1].cpu())
             np.testing.assert_array_equal(data1[2].cpu(), data2[0].cpu())
+
+
+@attr("pytorch")
+@params((False,), (True,))
+def test_dali_proxy_proxy_callable(named_arguments, debug=False):
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
+    from torch.utils.data.dataloader import default_collate as default_collate
+
+    batch_size = 4
+    with dali_proxy.DALIServer(
+        pipe_2_outputs(device="cpu", batch_size=batch_size, num_threads=3, device_id=None)
+    ) as dali_server:
+
+        outs = []
+        for _ in range(batch_size):
+            a = np.array(np.random.rand(3, 3), dtype=np.float32)
+            b = np.array(np.random.rand(3, 3), dtype=np.float32)
+
+            if named_arguments:
+                out0, out1 = dali_server.proxy(a=a, b=b)
+            else:
+                out0, out1 = dali_server.proxy(a, b)
+
+            outs.append((a, b, out0, out1))
+
+        outs = default_collate(outs)
+
+        a, b, a_plus_b, a_minus_b = dali_server.produce_data(outs)
+
+        np.testing.assert_array_almost_equal(a_plus_b, a + b)
+        np.testing.assert_array_almost_equal(a_minus_b, b - a)

@@ -28,13 +28,12 @@ from nvidia.dali._utils.external_source_impl import (
 
 
 def _get_shape(data):
-    if isinstance(data, (_tensors.TensorCPU, _tensors.TensorGPU)):
-        if callable(data.shape):
-            return data.shape()
-        else:
-            return data.shape
+    if hasattr(data, "shape"):
+        return data.shape() if callable(data.shape) else data.shape
     elif hasattr(data, "__array_interface__"):
         return data.__array_interface__["shape"]
+    elif hasattr(data, "__cuda_array_interface__"):
+        return data.__cuda_array_interface__["shape"]
     elif hasattr(data, "__array__"):
         return data.__array__().shape
     else:

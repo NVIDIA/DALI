@@ -6,10 +6,14 @@ Overview
 
 **DALI Proxy** is a tool designed to integrate NVIDIA DALI pipelines with PyTorch data workers while maintaining the simplicity of PyTorch's dataset logic. The key features of DALI Proxy include:
 
-- **Efficient GPU Utilization**: DALI Proxy ensures GPU data processing occurs on the same process running the main loop. This avoids performance degradation caused by multiple CUDA contexts for the same GPU.
+- **Efficient GPU Utilization**: DALI Proxy ensures GPU data processing occurs in the same process running the main loop. This avoids performance degradation caused by multiple CUDA contexts for the same GPU.
 - **Selective Offloading**: Users can offload parts of the data processing pipeline to DALI while retaining PyTorch Dataset logic, making it ideal for multi-modal applications.
 
 This tutorial will explain the key components, workflow, and usage of DALI Proxy in PyTorch.
+
+.. note::
+
+   **Disclaimer**: Currently, DALI proxy can only be used in data loaders if no additional processing is required on the outputs provided by DALI before the data is consumed in the training loop.
 
 DALI Proxy Workflow
 -------------------
@@ -35,7 +39,7 @@ DALI Proxy Workflow
 - Each data worker invokes the proxy, which returns a **reference to a future processed sample**.
 - During batch collation, the proxy groups data into a batch and sends it to the server for execution.
 - The server processes the batch asynchronously and outputs the actual data to an output queue.
-- The PyTorch DataLoader retrieves either the processed data or references to pending pipeline runs. If it encounters pipeline run references, it queries the DALI server for the actual data, waiting if necessary until the data becomes available in the output queue.
+- The PyTorch DataLoader retrieves either the processed data or references to pending pipeline runs. The pending pipeline run references are then replaced with actual data, waiting for the data if necessary.
 
 Example Usage
 -------------
@@ -77,7 +81,7 @@ How It Works
 
 **1. DALI Pipeline**
 
-The DALI pipeline defines the data processing steps. Input data is fed using ``fn.external_source``.
+The DALI pipeline defines the data processing steps. Input data is fed using :meth:`~nvidia.dali.fn.external_source`.
 
 .. code-block:: python
 
@@ -94,28 +98,64 @@ The DALI pipeline defines the data processing steps. Input data is fed using ``f
 
 **2. DALI Server and Proxy**
 
-The DALI Server manages the execution of the pipeline. The Proxy acts as an interface for PyTorch data workers.
+The :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DALIServer` manages the execution of the pipeline. The Proxy acts 
+as an interface for PyTorch data workers.
+Note that the DALI pipeline should contain at least one input (an :meth:`~nvidia.dali.fn.external_source` instance), and
+that the names of those nodes then become the inputs to the DALI proxy callable.
 
 .. code-block:: python
 
    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
-
    with dali_proxy.DALIServer(pipeline) as dali_server:
-      # ... in the workers
-      transform_fn = dali_server.proxy  # A callable interface for workers
-      future_samples = [transform_fn(image) for image in images]
+      future_samples = [dali_server.proxy(image) for image in images]
 
-**3. Data Collation and Execution**
-
-The ``default_collate`` function combines processed samples into a batch. DALI executes the pipeline asynchronously when a batch is collated.
-This step is usually abstracted away inside the PyTorch DataLoader and the user doesn't need to take care of it explicitly.
+With more than one input, we can choose to use positional arguments, keyword arguments:
 
 .. code-block:: python
 
-   from torch.utils.data.dataloader import default_collate
+   import numpy as np
+   from nvidia.dali import pipeline_def, fn, types
+   from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
 
-   # Collate samples into a single batch and send to DALI
-   processed_batch = default_collate(future_samples)
+   @pipeline_def
+   def example_pipeline2(device):
+      a = fn.external_source(name="a", no_copy=True)
+      b = fn.external_source(name="b", no_copy=True)
+      return a + b, b - a
+
+   with dali_proxy.DALIServer(example_pipeline2(...)) as dali_server:
+      a = np.array(...)
+      b = np.array(...)
+
+      # Option 1: positional arguments
+      a_plus_b, b_minus_a = dali_server.proxy(a, b)
+
+      # Option 2: named arguments
+      a_plus_b, b_minus_a = dali_server.proxy(b=b, a=a)
+
+
+**3. Data Collation and Execution**
+
+This step is usually abstracted away inside the PyTorch DataLoader and the user doesn't need to take care of it explicitly.
+The ``default_collate`` function combines processed samples into a batch. DALI executes the pipeline asynchronously when a batch is collated.
+
+.. code-block:: python
+
+   from torch.utils.data.dataloader import default_collate as default_collate
+
+   with dali_proxy.DALIServer(example_pipeline2(...)) as dali_server:
+      outs = []
+      for _ in range(10):
+         a = np.array(np.random.rand(3, 3), dtype=np.float32)
+         b = np.array(np.random.rand(3, 3), dtype=np.float32)
+         a_plus_b, b_minus_a = dali_server.proxy(a, b)
+         outs.append((a_plus_b, b_minus_a))
+
+      # Collate into a single batch run reference
+      outs = default_collate(outs)
+
+      # And we can now replace the run reference with actual data
+      outs = dali_server.produce_data(outs)
 
 **4. Integration with PyTorch Dataset**
 
@@ -138,9 +178,11 @@ processing to DALI, while keeping some of the original data intact.
 
 **5. Integration with PyTorch DataLoader**
 
-The ``DataLoader`` wrapper provided by DALI Proxy simplifies the integration process.
+The :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DataLoader` wrapper provided by DALI Proxy simplifies the integration process.
 
 .. code-block:: python
+
+   from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
 
    with dali_proxy.DALIServer(pipeline) as dali_server:
       dataset = CustomDataset(dali_server.proxy, data=images)
@@ -148,7 +190,7 @@ The ``DataLoader`` wrapper provided by DALI Proxy simplifies the integration pro
       for data, _ in loader:
          print(data.shape)  # Ready-to-use processed batch
 
-If using a custom ``DataLoader``, call the DALI server explicitly:
+If using a custom :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DataLoader`, call the DALI server explicitly:
 
 .. code-block:: python
 

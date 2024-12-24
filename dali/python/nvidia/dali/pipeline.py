@@ -481,6 +481,7 @@ class Pipeline(object):
     @property
     def num_outputs(self):
         """Number of pipeline outputs."""
+        self.build()
         return self._num_outputs
 
     def output_dtype(self) -> list:
