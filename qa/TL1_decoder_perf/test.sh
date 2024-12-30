@@ -41,11 +41,31 @@ test_body() {
   # Ensure that PERF2 is no less than 5% smaller than PERF1
   PERF_RESULT3=$(echo "$PERF2 $PERF1" | awk '{if ($1 >= $2 * 0.95) {print "OK"} else { print "FAIL" }}')
 
-  if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT3" == "OK" ]]; then
-    CLEAN_AND_EXIT 0
-  fi
+  echo "PERF_RESULT1=${PERF_RESULT1}"
+  echo "PERF_RESULT2=${PERF_RESULT2}"
+  echo "PERF_RESULT3=${PERF_RESULT3}"
 
-  CLEAN_AND_EXIT 4
+  # If nvImageCodec>=0.5.0 enforce the performance requirements. Otherwise, we check only the legacy decoder
+  NVIMGCODEC_VERSION=$(pip show nvidia-nvimgcodec-cu12 | grep ^Version: | awk '{print $2}')
+  NVIMGCODEC_VERSION_WITHOUT_EXTRA=$(echo "$NVIMGCODEC_VERSION" | awk -F '.' '{print $1 "." $2 "." $3}')
+  if [[ "$NVIMGCODEC_VERSION_WITHOUT_EXTRA" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$NVIMGCODEC_VERSION_WITHOUT_EXTRA"
+    if [[ $MAJOR -gt 0 || ($MAJOR -eq 0 && $MINOR -ge 5) ]]; then
+      if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT3" == "OK" ]]; then
+        CLEAN_AND_EXIT 0
+      else
+        CLEAN_AND_EXIT 4
+      fi
+    else
+      if [[ "$PERF_RESULT1" == "OK" ]]; then
+        CLEAN_AND_EXIT 0
+      else
+        CLEAN_AND_EXIT 4
+      fi
+    fi
+  else
+    CLEAN_AND_EXIT 3
+  fi
 }
 pushd ../..
 source ./qa/test_template.sh
