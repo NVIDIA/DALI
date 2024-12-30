@@ -718,6 +718,11 @@ void ExposeTensor(py::module &m) {
       Returns a `TensorGPU` object being a copy of this `TensorCPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("as_cpu", [](Tensor<CPUBackend> &t) -> Tensor<CPUBackend>& {
+          return t;
+        },
+      R"code(Passthrough, since the object is already an instance of `TensorCPU`.)code",
+      py::return_value_policy::reference_internal)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, AccessOrder::host(), false);
@@ -1174,6 +1179,10 @@ void ExposeTensorList(py::module &m) {
       Returns a `TensorListGPU` object being a copy of this `TensorListCPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("as_cpu", [](TensorList<CPUBackend> &t) -> TensorList<CPUBackend> & {
+        return t;
+      }, R"code(Passthrough, as it is already an instance of `TensorListCPU`.)code",
+      py::return_value_policy::reference_internal)
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
     })

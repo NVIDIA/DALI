@@ -14,7 +14,7 @@
 
 import nvidia.dali as dali
 import nvidia.dali.types as dali_types
-from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
+from nvidia.dali.backend_impl import TensorListCPU
 from nvidia.dali import plugin_manager
 
 import functools
@@ -275,9 +275,9 @@ def check_batch(
         return False
 
     import_numpy()
-    if isinstance(batch1, dali.backend_impl.TensorListGPU):
+    if isinstance(batch1, dali.backend.TensorListGPU):
         batch1 = batch1.as_cpu()
-    if isinstance(batch2, dali.backend_impl.TensorListGPU):
+    if isinstance(batch2, dali.backend.TensorListGPU):
         batch2 = batch2.as_cpu()
 
     if batch_size is None:
@@ -378,16 +378,10 @@ def compare_pipelines(
             Defaults to True.
     """
     for _ in range(N_iterations):
-        out1 = pipe1.run()
-        out2 = pipe2.run()
+        out1 = tuple(out.as_cpu() for out in pipe1.run())
+        out2 = tuple(out.as_cpu() for out in pipe2.run())
         assert len(out1) == len(out2)
-        for i in range(len(out1)):
-            out1_data = (
-                out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) else out1[i]
-            )
-            out2_data = (
-                out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) else out2[i]
-            )
+        for i, (out1_data, out2_data) in enumerate(zip(out1, out2)):
             if isinstance(expected_layout, tuple):
                 current_expected_layout = expected_layout[i]
             else:
@@ -539,8 +533,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
     for idx in range(len(outputs)):
         out = outputs[idx]
         ref = ref_out[idx] if ref_is_list_of_outputs else ref_out
-        if isinstance(out, dali.backend_impl.TensorListGPU):
-            out = out.as_cpu()
+        out = out.as_cpu()
         for i in range(len(out)):
             if not np.array_equal(out[i], ref[i]):
                 print("Mismatch at sample", i)
@@ -720,8 +713,7 @@ class AverageMeter(object):
 
 def to_array(dali_out):
     import_numpy()
-    if isinstance(dali_out, (TensorGPU, TensorListGPU)):
-        dali_out = dali_out.as_cpu()
+    dali_out = dali_out.as_cpu()
     if isinstance(dali_out, TensorListCPU):
         dali_out = dali_out.as_array()
     return np.array(dali_out)
@@ -856,7 +848,7 @@ def generator_random_axes_for_3d_input(
 
 def as_array(tensor):
     import_numpy()
-    return np.array(tensor.as_cpu() if isinstance(tensor, TensorGPU) else tensor)
+    return np.array(tensor.as_cpu())
 
 
 def python_function(*inputs, function, **kwargs):

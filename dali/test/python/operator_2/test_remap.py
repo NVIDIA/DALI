@@ -14,7 +14,6 @@
 
 import cv2
 import numpy as np
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import os.path
 import unittest
@@ -169,24 +168,14 @@ class RemapTest(unittest.TestCase):
         pipe1.build()
         pipe2.build()
         for _ in range(N_iterations):
-            out1 = pipe1.run()
-            out2 = pipe2.run()
+            out1 = tuple(out.as_cpu() for out in pipe1.run())
+            out2 = tuple(out.as_cpu() for out in pipe2.run())
             self.assertTrue(
                 len(out1) == len(out2),
                 f"Numbers of outputs in the pipelines does not match: {len(out1)} vs {len(out2)}.",
             )
             for i in range(len(out1)):
-                out1_data = (
-                    out1[i].as_cpu()
-                    if isinstance(out1[i][0], dali.backend_impl.TensorGPU)
-                    else out1[i]
-                )
-                out2_data = (
-                    out2[i].as_cpu()
-                    if isinstance(out2[i][0], dali.backend_impl.TensorGPU)
-                    else out2[i]
-                )
-                for sample1, sample2 in zip(out1_data, out2_data):
+                for sample1, sample2 in zip(out1[i], out2[i]):
                     s1 = np.array(sample1)
                     s2 = np.array(sample2)
                     self.assertTrue(

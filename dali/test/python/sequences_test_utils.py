@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 from nvidia.dali import types
-import nvidia.dali.tensors as _Tensors
 
 from test_utils import get_dali_extra_path, check_batch
 
@@ -185,8 +184,7 @@ def arg_data_node(arg_data: ArgData):
 
 
 def as_batch(tensor):
-    if isinstance(tensor, _Tensors.TensorListGPU):
-        tensor = tensor.as_cpu()
+    tensor = tensor.as_cpu()
     return [np.array(sample, dtype=types.to_numpy_type(sample.dtype)) for sample in tensor]
 
 

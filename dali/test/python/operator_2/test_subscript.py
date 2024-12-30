@@ -33,22 +33,22 @@ def test_plain_indexing():
     data = [np.float32([[0, 1, 2], [3, 4, 5]]), np.float32([[0, 1], [2, 3], [4, 5]])]
     src = fn.external_source(lambda: data, layout="AB")
     pipe = index_pipe(src, lambda x: x[1, 1])
-    inp, cpu, gpu = pipe.run()
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[1, 1], cpu.at(i))
-        assert np.array_equal(x[1, 1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[1, 1], np.array(gpu.at(i)))
 
 
 def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
     src = fn.external_source(data_gen, layout=input_layout)
     pipe = index_pipe(src, dali_index_func)
-    inp, cpu, gpu = pipe.run()
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
         x = inp.at(i)
         ref = (ref_index_func or dali_index_func)(x)
         assert np.array_equal(ref, cpu.at(i))
-        assert np.array_equal(ref, gpu.as_cpu().at(i))
+        assert np.array_equal(ref, np.array(gpu.at(i)))
         assert cpu.layout() == output_layout
         assert gpu.layout() == output_layout
 
@@ -87,11 +87,11 @@ def test_swapped_ends():
     data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data)
     pipe = index_pipe(src, lambda x: x[2:1])
-    inp, cpu, gpu = pipe.run()
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[2:1], cpu.at(i))
-        assert np.array_equal(x[2:1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[2:1], np.array(gpu.at(i)))
 
 
 def test_noop():
@@ -116,7 +116,7 @@ def test_runtime_indexing():
     j = 0
     k = 0
     for _ in range(4):
-        inp, cpu, gpu = pipe.run()
+        inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
         for i in range(len(inp)):
             x = inp.at(i)
             # fmt: off
@@ -125,7 +125,7 @@ def test_runtime_indexing():
             j = (j + 1) % len(lo_idxs)
             k = (k + 1) % len(hi_idxs)
             assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, np.array(gpu.at(i)))
 
 
 def test_runtime_stride_dim1():
@@ -142,14 +142,14 @@ def test_runtime_stride_dim1():
 
     j = 0
     for _ in range(4):
-        inp, cpu, gpu = pipe.run()
+        inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
         for i in range(len(inp)):
             x = inp.at(i)
             # fmt: off
             ref = x[::strides[j]]
             # fmt: on
             assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, np.array(gpu.at(i)))
             j = (j + 1) % len(strides)
 
 
@@ -167,14 +167,14 @@ def test_runtime_stride_dim2():
 
     j = 0
     for _ in range(4):
-        inp, cpu, gpu = pipe.run()
+        inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
         for i in range(len(inp)):
             x = inp.at(i)
             # fmt: off
             ref = x[:, ::strides[j]]
             # fmt: on
             assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, np.array(gpu.at(i)))
             j = (j + 1) % len(strides)
 
 
@@ -287,19 +287,19 @@ def test_multiple_skipped_dims():
     ]
     src = fn.external_source(lambda: data, layout="ABCD")
     pipe = index_pipe(src, lambda x: x[1, :, :, 1])
-    inp, cpu, gpu = pipe.run()
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[1, :, :, 1], cpu.at(i))
-        assert np.array_equal(x[1, :, :, 1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[1, :, :, 1], np.array(gpu.at(i)))
 
 
 def test_empty_slice():
     data = [np.full((4, 5), 123), np.full((0, 1), 42)]
     src = fn.external_source(lambda: data)
     pipe = index_pipe(src, lambda x: x[0:0, 0:1])
-    inp, cpu, gpu = pipe.run()
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
         x = inp.at(i)
         assert np.array_equal(x[0:0, 0:1], cpu.at(i))
-        assert np.array_equal(x[0:0, 0:1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[0:0, 0:1], np.array(gpu.at(i)))

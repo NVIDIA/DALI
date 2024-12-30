@@ -284,7 +284,7 @@ def _test_extremely_large_data(device):
 
     out = None
     try:
-        (out,) = pipe.run()
+        (out,) = tuple(out.as_cpu() for out in pipe.run())
     except RuntimeError as e:
         if "bad_alloc" in str(e):
             print("Skipping test due to out-of-memory error:", e)
@@ -293,10 +293,7 @@ def _test_extremely_large_data(device):
     except MemoryError as e:
         print("Skipping test due to out-of-memory error:", e)
         return
-    if device == "cpu":
-        out = out.at(0)
-    else:
-        out = out.as_cpu().at(0)
+    out = out.at(0)
     assert out.shape == (out_size, out_size, channels)
     for c in range(channels):
         assert out[0, 0, c] == c

@@ -13,13 +13,11 @@
 # limitations under the License.
 
 import numpy as np
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.math as math
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali import Pipeline, pipeline_def
-from nvidia.dali.backend_impl import TensorListGPU
 
 from nose_utils import assert_raises
 from test_utils import (
@@ -100,10 +98,8 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
         align = [align[0] for _ in actual_axes]
     assert len(align) == len(actual_axes)
 
-    for k in range(5):
-        out1, out2 = pipe.run()
-
-        out1_data = out1.as_cpu() if isinstance(out1[0], dali.backend_impl.TensorGPU) else out1
+    for _ in range(5):
+        out0, out1 = tuple(out.as_cpu() for out in pipe.run())
         max_shape = [-1] * len(input_max_shape)
 
         for i in range(len(actual_axes)):
@@ -111,14 +107,13 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
             align_val = align[i]
             shape_arg_val = shape_arg[i]
             for i in range(batch_size):
-                input_shape = out1_data.at(i).shape
+                input_shape = out0.at(i).shape
                 if input_shape[dim] > max_shape[dim]:
                     max_shape[dim] = input_shape[dim]
 
-        out2_data = out2.as_cpu() if isinstance(out2[0], dali.backend_impl.TensorGPU) else out2
         for i in range(batch_size):
-            input_shape = out1_data.at(i).shape
-            output_shape = out2_data.at(i).shape
+            input_shape = out0.at(i).shape
+            output_shape = out1.at(i).shape
 
             for j in range(len(actual_axes)):
                 dim = actual_axes[j]
@@ -223,7 +218,7 @@ def check_pad_per_sample_shapes_and_alignment(device="cpu", batch_size=3, ndim=2
             in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both
         )
     for _ in range(num_iter):
-        outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
+        outs = tuple(out.as_cpu() for out in pipe.run())
         for i in range(batch_size):
             in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both = [
                 outs[out_idx].at(i) for out_idx in range(len(outs))
@@ -262,7 +257,7 @@ def check_pad_to_square(device="cpu", batch_size=3, ndim=2, num_iter=3):
         out_data = fn.pad(in_data, axis_names="HW", shape=fn.cat(side, side, axis=0))
         pipe.set_outputs(in_data, out_data)
     for _ in range(num_iter):
-        outs = [out.as_cpu() if isinstance(out, TensorListGPU) else out for out in pipe.run()]
+        outs = tuple(out.as_cpu() for out in pipe.run())
         for i in range(batch_size):
             in_data, out_data = [outs[out_idx].at(i) for out_idx in range(len(outs))]
             in_shape = in_data.shape

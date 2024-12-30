@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -766,15 +765,10 @@ def check_cmn_with_out_of_bounds_policy_support(
 
     if fill_values is None:
         fill_values = 0
-    for k in range(3):
-        outs = pipe.run()
-        out = outs[0]
-        in_data = outs[1]
-        mirror_data = outs[2]
-        if isinstance(out, dali.backend_impl.TensorListGPU):
-            out = out.as_cpu()
-        if isinstance(in_data, dali.backend_impl.TensorListGPU):
-            in_data = in_data.as_cpu()
+    for _ in range(3):
+        out, in_data, mirror_data = pipe.run()
+        out = out.as_cpu()
+        in_data = in_data.as_cpu()
 
         assert batch_size == len(out)
         for idx in range(batch_size):
@@ -900,21 +894,14 @@ def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale,
 
     batch_size = 10
     p = pipe(batch_size=batch_size)
+    ref_scale = scale or 1.0
+    ref_shift = shift or 0.0
     for _ in range(3):
-        outs = p.run()
+        outs = tuple(np.array(out.as_cpu()) for out in p.run())
         for s in range(batch_size):
-            out, image_like, mean, std = [
-                (
-                    np.array(o[s].as_cpu())
-                    if isinstance(o, dali.backend_impl.TensorListGPU)
-                    else np.array(o[s])
-                )
-                for o in outs
-            ]
-        ref_scale = scale or 1.0
-        ref_shift = shift or 0.0
-        ref_out = ref_scale * (image_like - mean) / std + ref_shift
-        np.testing.assert_allclose(out, ref_out, atol=ref_scale * 1e-6)
+            out, image_like, mean, std = tuple(np.array(o[s]) for o in outs)
+            ref_out = ref_scale * (image_like - mean) / std + ref_shift
+            np.testing.assert_allclose(out, ref_out, atol=ref_scale * 1e-6)
 
 
 def test_per_sample_norm_args():

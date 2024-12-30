@@ -569,18 +569,14 @@ def _test_ND(
                 print("Requested output", size[i])
                 assert max_err <= eps
 
-        ref_in = dali_in
-        if isinstance(ref_in, dali.tensors.TensorListGPU):
-            ref_in = ref_in.as_cpu()  # suppress warnings
+        ref_in = dali_in.as_cpu()
         pil_pipe.feed_input("images", ref_in, layout=layout_str(dim, channel_first))
         pil_pipe.feed_input("size", dali_out_size)
         pil_pipe.feed_input("roi_start", roi_start)
         pil_pipe.feed_input("roi_end", roi_end)
         ref = pil_pipe.run()
 
-        dali_resized = o[1]
-        if isinstance(dali_resized, dali.tensors.TensorListGPU):
-            dali_resized = dali_resized.as_cpu()
+        dali_resized = o[1].as_cpu()
         ref_resized = ref[0]
 
         max_avg_err = 0.6 if dim == 3 else 0.4
@@ -868,7 +864,7 @@ def test_large_gpu(interp, antialias):
 
     pipe = resize_pipe()
     (outs,) = pipe.run()
-    out = outs.as_cpu().at(0)
+    out = np.array(outs.at(0).as_cpu())
     global large_data_resized
     if large_data_resized is None:
         large_data_resized = make_cube(350, 224, 224)
