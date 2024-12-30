@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-{% set build_version = "0.3.0" %}
+{% set build_version = "0.4.0" %}
 
 package:
   name: nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
@@ -21,7 +21,7 @@ package:
 
 source:
   git_url: https://github.com/NVIDIA/nvImageCodec.git
-  git_rev: v0.3.0
+  git_rev: v0.4.0
 
 build:
   number: 0
