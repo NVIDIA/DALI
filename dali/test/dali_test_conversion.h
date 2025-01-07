@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,11 +33,12 @@ class GenericConversionTest : public GenericMatchingTest<InputImgType, OutputImg
         .AddArg("output_type", this->OutputImageType());
   }
 
-  OpSpec DefaultSchema(const string &pName, const string &pDevice = "cpu") const override {
-    return OpSpec(pName)
-      .AddArg("device", pDevice)
-      .AddInput("input", pDevice)
-      .AddOutput("output", pDevice);
+  OpSpec DefaultSchema(const string &name, const string &device = "cpu") const override {
+    auto storage_device = ParseStorageDevice(device);
+    return OpSpec(name)
+      .AddArg("device", device)
+      .AddInput("input", storage_device)
+      .AddOutput("output", storage_device);
   }
 };
 

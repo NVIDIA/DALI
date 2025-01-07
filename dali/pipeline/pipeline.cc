@@ -484,12 +484,12 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   vector<string> outputs;
   for (const auto &out_desc : output_descs_) {
     string name = out_desc.name;
-    string device = out_desc.device;
+    auto device = out_desc.device;
     auto it = edge_names_.find(name);
     DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +
         name + "' is not known to the pipeline.");
 
-    if (device == "cpu") {
+    if (device == StorageDevice::CPU) {
       if (!it->second.has_cpu)
         ToCPU(it);
 
@@ -501,7 +501,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
         outputs.push_back(it->first + "_cpu");
       }
 
-    } else if (device == "gpu") {
+    } else {
+      assert(device == StorageDevice::GPU);
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
                    make_string(
                      "Cannot move the data node ", name, " to the GPU "
@@ -518,9 +519,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       } else {
         outputs.push_back(it->first + "_gpu");
       }
-    } else {
-      DALI_FAIL("Invalid device argument \"" + device +
-          "\". Valid options are \"cpu\" or \"gpu\"");
     }
   }
 
@@ -767,7 +765,7 @@ string Pipeline::SerializeToProtobuf() const {
     dali_proto::InputOutput *out = pipe.add_pipe_outputs();
 
     out->set_name(output.name);
-    out->set_device(output.device);
+    out->set_device(to_string(output.device));
     out->set_is_argument_input(false);
     out->set_dtype(output.dtype);
     out->set_ndim(output.ndim);
@@ -899,7 +897,7 @@ const std::string &Pipeline::output_name(int id) const {
   return output_descs_[id].name;
 }
 
-const std::string &Pipeline::output_device(int id) const {
+StorageDevice Pipeline::output_device(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
   return output_descs_[id].device;

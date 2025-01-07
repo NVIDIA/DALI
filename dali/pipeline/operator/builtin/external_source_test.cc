@@ -43,7 +43,7 @@ class ExternalSourceBasicTest : public ::testing::Test {
                     .AddArg("repeat_last", repeat_last)
                     .AddArg("device", dev_str)
                     .AddArg("name", input_name_)
-                    .AddOutput(input_name_, dev_str),
+                    .AddOutput(input_name_, is_cpu ? StorageDevice::CPU : StorageDevice::GPU),
             input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
@@ -660,7 +660,7 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   ASSERT_TRUE(op->inputs.empty());
   ASSERT_EQ(op->spec.SchemaName(), "ExternalSource");
   ASSERT_EQ(pipe.num_outputs(), 1);
-  ASSERT_EQ(pipe.output_device(0), dev);
+  ASSERT_EQ(pipe.output_device(0), ParseStorageDevice(dev));
   ASSERT_EQ(pipe.output_name(0), name);
   // Make Contiguous is always added at the end
   ASSERT_EQ(op->outputs.size(), 1_uz);
@@ -717,7 +717,7 @@ TEST(ExternalSourceTest, SerializeDeserializeOpSpec) {
     pipe_to_serialize.AddOperator(OpSpec("ExternalSource")
                       .AddArg("device", dev)
                       .AddArg("name", name)
-                      .AddOutput("es", dev),
+                      .AddOutput("es", ParseStorageDevice(dev)),
                   name);
     pipe_to_serialize.Build({{name, dev}});
     auto serialized = pipe_to_serialize.SerializeToProtobuf();

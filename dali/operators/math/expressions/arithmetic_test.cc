@@ -237,6 +237,7 @@ class BinaryArithmeticOpsTest
 
   void TestFunction(const TensorListShape<> &shape) {
     auto backend = testing::detail::BackendStringName<Backend>();
+    auto storage_device = backend_to_storage_device<Backend>::value;
 
     auto param = this->GetParam();
     auto expression_desc = std::get<0>(param) + "(&0 &1)";
@@ -250,9 +251,9 @@ class BinaryArithmeticOpsTest
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                          .AddArg("device", backend)
                          .AddArg("expression_desc", expression_desc)
-                         .AddInput("data0", backend)
-                         .AddInput("data1", backend)
-                         .AddOutput("result", backend),
+                         .AddInput("data0", storage_device)
+                         .AddInput("data1", storage_device)
+                         .AddOutput("result", storage_device),
                      std::get<0>(param));
 
     vector<std::pair<string, string>> outputs = {{"result", backend}};
@@ -298,7 +299,7 @@ class BinaryArithmeticOpsTest
     TensorShape<> strides1 = {1*3, 0, 1};
 
     auto backend = testing::detail::BackendStringName<Backend>();
-
+    auto storage_device = backend_to_storage_device<Backend>::value;
 
     Pipeline pipe(batch_size, num_threads, 0);
 
@@ -308,9 +309,9 @@ class BinaryArithmeticOpsTest
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                          .AddArg("device", backend)
                          .AddArg("expression_desc", "add(&0 &1)")
-                         .AddInput("data0", backend)
-                         .AddInput("data1", backend)
-                         .AddOutput("result0", backend),
+                         .AddInput("data0", storage_device)
+                         .AddInput("data1", storage_device)
+                         .AddOutput("result0", storage_device),
                      "arithm");
 
     vector<std::pair<string, string>> outputs = {{"result0", backend}};

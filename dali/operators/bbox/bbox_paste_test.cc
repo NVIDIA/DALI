@@ -69,7 +69,8 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     input_tl_ = ToTensorList(input_);
     SetBatchSize(input_tl_->num_samples());
 
-    spec.AddInput("bb_input", "cpu").AddOutput("bb_output", StorageDevice::CPU);
+    spec.AddInput("bb_input", StorageDevice::CPU)
+        .AddOutput("bb_output", StorageDevice::CPU);
 
     spec.AddArg("ltrb", ltrb);
     spec.AddArg("ratio", ratio);

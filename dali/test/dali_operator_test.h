@@ -146,7 +146,7 @@ GetOutputsFromPipeline(Workspace &ws, Pipeline &pipeline, const std::string &out
 inline void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
   std::vector<std::pair<std::string, std::string>> vecoutputs_;
   for (int i = 0; i < spec.NumOutput(); ++i) {
-    vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
+    vecoutputs_.emplace_back(spec.OutputName(i), to_string(spec.OutputDevice(i)));
   }
   pipeline.Build(vecoutputs_);
 }

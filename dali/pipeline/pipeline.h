@@ -537,7 +537,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns a string describing the device type backing the output specified by given id.
    */
-  DLL_PUBLIC const std::string &output_device(int id) const;
+  DLL_PUBLIC StorageDevice output_device(int id) const;
 
   /**
    * @brief Returns data type of the output specified by given id.

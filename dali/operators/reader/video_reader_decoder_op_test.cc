@@ -46,10 +46,10 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
  private:
   template<typename Backend>
   void RunTestImpl(
-    std::vector<std::string> &videos_paths,
-    std::vector<TestVideo> &ground_truth_videos,
-    std::string backend,
-    int device_id) {
+        std::vector<std::string> &videos_paths,
+        std::vector<TestVideo> &ground_truth_videos,
+        std::string backend,
+        int device_id) {
     const int batch_size = 4;
     const int sequence_length = 6;
     const int stride = 3;
@@ -57,6 +57,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     Pipeline pipe(batch_size, 4, device_id);
 
+    auto storage_dev = ParseStorageDevice(backend);
     pipe.AddOperator(OpSpec("experimental__readers__Video")
       .AddArg("device", backend)
       .AddArg("sequence_length", sequence_length)
@@ -66,8 +67,8 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
         "filenames",
         videos_paths)
       .AddArg("labels", std::vector<int>{0, 1})
-      .AddOutput("frames", backend)
-      .AddOutput("labels", backend));
+      .AddOutput("frames", storage_dev)
+      .AddOutput("labels", storage_dev));
 
     pipe.Build({{"frames", backend}, {"labels", backend}});
 
@@ -118,8 +119,8 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
   template<typename Backend>
   void RunShuffleTestImpl(
-    std::string backend,
-    int device_id) {
+        std::string backend,
+        int device_id) {
     const int batch_size = 1;
     const int sequence_length = 1;
     const int seed = 1;
@@ -128,6 +129,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     Pipeline pipe(batch_size, 1, device_id, seed);
 
+    auto storage_device = ParseStorageDevice(backend);
     pipe.AddOperator(OpSpec("experimental__readers__Video")
       .AddArg("device", backend)
       .AddArg("sequence_length", sequence_length)
@@ -137,8 +139,8 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
       .AddArg(
         "filenames",
         std::vector<std::string>{cfr_videos_paths_[0]})
-      .AddOutput("frames", backend)
-      .AddOutput("frame_idx", backend));
+      .AddOutput("frames", storage_device)
+      .AddOutput("frame_idx", storage_device));
 
     pipe.Build({{"frames", backend}, {"frame_idx", backend}});
 

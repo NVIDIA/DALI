@@ -243,14 +243,16 @@ TEST_F(SplitMergeTest, PinnedInside) {
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy").AddInput("input", StorageDevice::CPU).AddOutput("input_copy", StorageDevice::CPU),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", StorageDevice::CPU)
+                                 .AddOutput("input_copy", StorageDevice::CPU),
                    "input_copy");
 
   AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
 
   // copy it, so we don't pin split_0 due to passing it to GPU, but to check it is required
   // to be pinned for consistency reasons
-  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", "cpu").AddOutput("split_0_copy", StorageDevice::CPU),
+  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", StorageDevice::CPU)
+                                 .AddOutput("split_0_copy", StorageDevice::CPU),
                    "split_0_copy");
 
   // this should be made pinned, thus making the input_copy pinned.
@@ -292,7 +294,8 @@ TEST_F(SplitMergeTest, PinnedThroughMerge) {
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", StorageDevice::CPU),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", StorageDevice::CPU)
+                                 .AddOutput("input_copy", StorageDevice::CPU),
                    "input_copy");
 
   AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
@@ -338,16 +341,17 @@ TYPED_TEST(SplitMergeTyped, SimpleCase) {
 
   this->AddSplit(pipe, "split", backend, "input", "pred", "split_0", "split_1");
 
+  auto storage_dev = ParseStorageDevice(backend);
   pipe.AddOperator(OpSpec("Copy")
                        .AddArg("device", backend)
-                       .AddInput("split_0", backend)
-                       .AddOutput("split_0_copy", backend),
+                       .AddInput("split_0", storage_dev)
+                       .AddOutput("split_0_copy", storage_dev),
                    "copy_0");
 
   pipe.AddOperator(OpSpec("Copy")
                        .AddArg("device", backend)
-                       .AddInput("split_1", backend)
-                       .AddOutput("split_1_copy", backend),
+                       .AddInput("split_1", storage_dev)
+                       .AddOutput("split_1_copy", storage_dev),
                    "copy_1");
 
   this->AddMerge(pipe, "merge", backend, "split_0_copy", "split_1_copy", "pred", "merge");

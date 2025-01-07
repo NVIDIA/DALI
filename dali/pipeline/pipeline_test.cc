@@ -54,6 +54,9 @@ class PipelineTest : public DALITest {
   void RunTestEnforce(const string &dev1, const string &dev2) {
     Pipeline pipe(1, 1, 0);
 
+    auto storage_dev1 = ParseStorageDevice(dev1);
+    auto storage_dev2 = ParseStorageDevice(dev2);
+
     pipe.AddOperator(
       OpSpec("ExternalSource")
         .AddArg("device", "gpu")
@@ -62,20 +65,20 @@ class PipelineTest : public DALITest {
     pipe.AddOperator(
       OpSpec("ExternalSource")
         .AddArg("device", dev1)
-        .AddOutput("data_2", dev1));
+        .AddOutput("data_2", storage_dev1));
 
     pipe.AddOperator(
       OpSpec("ExternalSource")
         .AddArg("device", dev1)
-        .AddOutput("data_3", dev1));
+        .AddOutput("data_3", storage_dev1));
 
     // Outputs must have unique names.
     ASSERT_THROW(
       pipe.AddOperator(
         OpSpec("Copy")
           .AddArg("device", dev1)
-          .AddInput("data_2", dev1)
-          .AddOutput("data_3", dev1)),
+          .AddInput("data_2", storage_dev1)
+          .AddOutput("data_3", storage_dev1)),
       std::runtime_error);
 
     if (dev1 == "gpu") {
@@ -90,8 +93,8 @@ class PipelineTest : public DALITest {
       pipe.AddOperator(
         OpSpec("Copy")
           .AddArg("device", dev1)
-          .AddInput("data_2", dev1)
-          .AddOutput("data", dev1)),
+          .AddInput("data_2", storage_dev1)
+          .AddOutput("data", storage_dev1)),
       std::runtime_error);
 
 
@@ -100,12 +103,12 @@ class PipelineTest : public DALITest {
       pipe.AddOperator(
         OpSpec("Copy")
           .AddArg("device", dev1)
-          .AddInput("data_2", dev1)
-          .AddOutput("data_4", dev2)),
+          .AddInput("data_2", storage_dev1)
+          .AddOutput("data_4", storage_dev2)),
       std::runtime_error);
   }
 
-  void RunTestTrigger(const string &dev) {
+  void RunTestTrigger(StorageDevice input_dev) {
     Pipeline pipe(1, 1, 0);
 
     pipe.AddExternalInput("data");
@@ -113,7 +116,7 @@ class PipelineTest : public DALITest {
     pipe.AddOperator(
       OpSpec("Copy")
         .AddArg("device", "gpu")
-        .AddInput("data", dev)
+        .AddInput("data", input_dev)
         .AddOutput("data_copy", StorageDevice::GPU));
 
     vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
@@ -211,7 +214,7 @@ TEST_F(PipelineTestOnce, TestEnforceGPUOpConstraints) {
 }
 
 TEST_F(PipelineTestOnce, TestTriggerCopyToDevice) {
-  RunTestTrigger("gpu");
+  RunTestTrigger(StorageDevice::GPU);
 }
 
 TYPED_TEST(PipelineTest, TestExternalSource) {

@@ -142,14 +142,14 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
 
   void CreateAndSerializePipeline() {
     auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_);
+    string device = is_cpu ? "cpu" : "gpu";
+    auto storage_device = is_cpu ? StorageDevice::CPU : StorageDevice::GPU;
     pipeline->AddOperator(
             OpSpec("experimental__inputs__Video")
                     .AddArg("sequence_length", frames_per_sequence_)
-                    .AddArg("device",
-                            std::string{is_cpu ? "cpu" : "mixed"})
+                    .AddArg("device", device)
                     .AddArg("name", video_input_name_)
-                    .AddOutput(video_input_name_,
-                               std::string{is_cpu ? "cpu" : "gpu"}),
+                    .AddOutput(video_input_name_, storage_device),
             video_input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {

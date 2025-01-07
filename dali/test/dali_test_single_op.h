@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -233,7 +233,7 @@ class DALISingleOpTest : public DALITest {
   void AddOperatorWithOutput(const OpSpec& spec) {
     // generate the output mapping for this op
     for (int i = 0; i < spec.NumOutput(); ++i)
-      outputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
+      outputs_.push_back(std::make_pair(spec.OutputName(i), to_string(spec.OutputDevice(i))));
 
     pipeline_->AddOperator(spec);
   }
@@ -241,16 +241,18 @@ class DALISingleOpTest : public DALITest {
   virtual void AddDefaultArgs(OpSpec& spec) {
   }
 
-  void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
-                             const string &pInput = "input", const string &pOutput = "outputCPU") {
+  void AddOperatorWithOutput(const opDescr &descr, const string &device = "cpu",
+                             const string &input = "input", const string &output = "outputCPU") {
     OpSpec spec(descr.opName);
+    spec.AddArg("device", device);
     if (descr.opAddImgType)
       spec = spec.AddArg("image_type", ImageType());
     AddDefaultArgs(spec);
 
+    auto storage_device = ParseStorageDevice(device);
     AddOperatorWithOutput(AddArguments(&spec, descr.args)
-                            .AddInput(pInput, pDevice)
-                            .AddOutput(pOutput, pDevice));
+                            .AddInput(input, storage_device)
+                            .AddOutput(output, storage_device));
   }
 
   void AddSingleOp(const OpSpec& spec) {
@@ -374,8 +376,8 @@ class DALISingleOpTest : public DALITest {
     return output_img_type_;
   }
 
-  void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
-    OpSpec operation = DefaultSchema(pName, pDevice);
+  void TstBody(const string &name, const string &device = "gpu", double eps = 2e-1) {
+    OpSpec operation = DefaultSchema(name, device);
     TstBody(operation, eps);
   }
 
@@ -388,13 +390,13 @@ class DALISingleOpTest : public DALITest {
     RunOperator(operation, eps);
   }
 
-  virtual OpSpec DefaultSchema(const string &pName, const string &pDevice = "gpu") const {
-    return OpSpec(pName)
-      .AddArg("device", pDevice)
+  virtual OpSpec DefaultSchema(const string &name, const string &device = "gpu") const {
+    return OpSpec(name)
+      .AddArg("device", device)
       .AddArg("image_type", this->ImageType())
       .AddArg("output_type", this->ImageType())
-      .AddInput("input", pDevice)
-      .AddOutput("output", pDevice);
+      .AddInput("input", ParseStorageDevice(device))
+      .AddOutput("output", ParseStorageDevice(device));
   }
 
   OpSpec AddArguments(OpSpec *spec, const vector<OpArg> *args) const {

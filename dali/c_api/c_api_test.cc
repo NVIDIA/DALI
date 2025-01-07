@@ -119,8 +119,8 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                            .AddArg("image_type", DALI_RGB)
                            .AddArg("resize_x", output_size)
                            .AddArg("resize_y", output_size)
-                           .AddInput(input_name, exec_device)
-                           .AddOutput(output_name, exec_device));
+                           .AddInput(input_name, ParseStorageDevice(exec_device))
+                           .AddOutput(output_name, ParseStorageDevice(exec_device)));
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output_name, output_device}};
 
@@ -139,15 +139,15 @@ std::unique_ptr<Pipeline> GetExternalSourcePipeline(bool no_copy, const std::str
                        .AddArg("device", device)
                        .AddArg("name", input_name)
                        .AddArg("no_copy", no_copy)
-                       .AddOutput(input_name, device), input_name);
+                       .AddOutput(input_name, ParseStorageDevice(device)), input_name);
   //  Some Op
   pipe.AddOperator(OpSpec("Resize")
                        .AddArg("device", device)
                        .AddArg("image_type", DALI_RGB)
                        .AddArg("resize_x", output_size)
                        .AddArg("resize_y", output_size)
-                       .AddInput(input_name, device)
-                       .AddOutput(output_name, device));
+                       .AddInput(input_name, ParseStorageDevice(device))
+                       .AddOutput(output_name, ParseStorageDevice(device)));
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output_name, device}};
 
