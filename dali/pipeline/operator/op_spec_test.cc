@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -415,16 +415,16 @@ TEST(ArgumentInputTest, OpSpecAccess) {
   Pipeline pipe(10, 4, 0);
   pipe.AddOperator(OpSpec("TestArgumentInput_Producer")
                        .AddArg("device", "cpu")
-                       .AddOutput("support_arg0", "cpu")
-                       .AddOutput("support_arg1", "cpu")
-                       .AddOutput("support_arg2", "cpu"));
+                       .AddOutput("support_arg0", StorageDevice::CPU)
+                       .AddOutput("support_arg1", StorageDevice::CPU)
+                       .AddOutput("support_arg2", StorageDevice::CPU));
 
   pipe.AddOperator(OpSpec("TestArgumentInput_Consumer")
                        .AddArg("device", "cpu")
                        .AddArgumentInput("arg0", "support_arg0")
                        .AddArgumentInput("arg1", "support_arg1")
                        .AddArgumentInput("arg2", "support_arg2")
-                       .AddOutput("I need to specify something", "cpu")
+                       .AddOutput("I need to specify something", StorageDevice::CPU)
                        .AddArg("preserve", true));
 
   vector<std::pair<string, string>> outputs = {{"I need to specify something", "cpu"}};
@@ -446,7 +446,7 @@ DALI_SCHEMA(Schema_TestOpSpec_Lookup)
 
 TEST(TestOpSpec, Lookup) {
   OpSpec spec("Schema_TestOpSpec_Lookup");
-  spec.AddInput("input_0", "gpu");
+  spec.AddInput("input_0", StorageDevice::GPU);
   spec.AddArgumentInput("one", "input_1");
   spec.AddArgumentInput("zero", "input_2");
   EXPECT_EQ(spec.ArgumentInputIdx("one"), 1);

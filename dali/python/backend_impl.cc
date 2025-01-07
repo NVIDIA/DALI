@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2314,21 +2314,29 @@ PYBIND11_MODULE(backend_impl, m) {
 
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
-    .def("AddInput", &OpSpec::AddInput,
+    .def("AddInput", [](OpSpec *spec, const string &name, const string &device, bool regular) {
+          return spec->AddInput(name, ParseStorageDevice(device), regular);
+        },
         "name"_a,
         "device"_a,
         "regular_input"_a = true,
         py::return_value_policy::reference_internal)
     .def("AddArgumentInput", &OpSpec::AddArgumentInput,
         py::return_value_policy::reference_internal)
-    .def("AddOutput", &OpSpec::AddOutput,
+    .def("AddOutput", [](OpSpec *spec, const string &name, const string &device) {
+          return spec->AddOutput(name, ParseStorageDevice(device));
+        },
         py::return_value_policy::reference_internal)
     .def("RenameInput", &OpSpec::RenameInput, "idx"_a, "name"_a)
     .def("RenameOutput", &OpSpec::RenameOutput, "idx"_a, "name"_a)
     .def("InputName", &OpSpec::InputName, "idx"_a)
-    .def("InputDevice", &OpSpec::InputDevice, "idx"_a)
+    .def("InputDevice", [](const OpSpec *spec, int idx) {
+        return spec->InputDevice(idx) == StorageDevice::GPU ? "gpu" : "cpu";
+      }, "idx"_a)
     .def("OutputName", &OpSpec::OutputName, "idx"_a)
-    .def("OutputDevice", &OpSpec::OutputDevice, "idx"_a)
+    .def("OutputDevice", [](const OpSpec *spec, int idx) {
+        return spec->OutputDevice(idx) == StorageDevice::GPU ? "gpu" : "cpu";
+      }, "idx"_a)
     .def("NumInput", &OpSpec::NumInput)
     .def("NumRegularInput", &OpSpec::NumRegularInput)
     .def("NumOutput", &OpSpec::NumOutput)

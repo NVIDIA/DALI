@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -297,8 +297,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       "filenames",
       cfr_videos_paths_)
     .AddArg("labels", std::vector<int>{0, 1})
-    .AddOutput("frames_cpu", "cpu")
-    .AddOutput("labels_cpu", "cpu"));
+    .AddOutput("frames_cpu", StorageDevice::CPU)
+    .AddOutput("labels_cpu", StorageDevice::CPU));
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "gpu")
     .AddArg("sequence_length", sequence_length)
@@ -313,8 +313,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       "filenames",
       cfr_videos_paths_)
     .AddArg("labels", std::vector<int>{0, 1})
-    .AddOutput("frames_gpu", "gpu")
-    .AddOutput("labels_gpu", "gpu"));
+    .AddOutput("frames_gpu", StorageDevice::GPU)
+    .AddOutput("labels_gpu", StorageDevice::GPU));
   pipe.AddOperator(OpSpec("readers__Video")
     .AddArg("device", "gpu")
     .AddArg("sequence_length", sequence_length)
@@ -329,8 +329,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       "filenames",
       cfr_videos_paths_)
     .AddArg("labels", std::vector<int>{0, 1})
-    .AddOutput("frames_old", "gpu")
-    .AddOutput("labels_old", "gpu"));
+    .AddOutput("frames_old", StorageDevice::GPU)
+    .AddOutput("labels_old", StorageDevice::GPU));
 
   pipe.Build({
     {"frames_cpu", "cpu"},

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -140,14 +140,14 @@ class Argument {
   bool IsType() const;
 
   template <typename T>
-  static std::shared_ptr<Argument> Store(const std::string& s, const T& val);
+  static std::shared_ptr<Argument> Store(std::string name, const T& val);
 
   virtual ~Argument() = default;
 
  protected:
   Argument() : has_name_(false) {}
 
-  explicit Argument(const std::string& s) : name_(s), has_name_(true) {}
+  explicit Argument(std::string name) : name_(std::move(name)), has_name_(true) {}
 
  private:
   std::string name_;
@@ -157,7 +157,7 @@ class Argument {
 template <typename T>
 class ArgumentInst : public Argument {
  public:
-  explicit ArgumentInst(const std::string& s, const T& v) : Argument(s), val(v) {}
+  explicit ArgumentInst(std::string name, const T& v) : Argument(std::move(name)), val(v) {}
 
   const T &Get() const & {
     return val.Get();
@@ -186,7 +186,8 @@ class ArgumentInst : public Argument {
 template <typename T>
 class ArgumentInst<std::vector<T>> : public Argument {
  public:
-  explicit ArgumentInst(const std::string& s, const std::vector<T>& v) : Argument(s), val(v) {}
+  explicit ArgumentInst(std::string name, const std::vector<T>& v)
+  : Argument(std::move(name)), val(v) {}
 
   const std::vector<T> &Get() const & {
     return val.Get();
@@ -237,8 +238,8 @@ const T &Argument::Get() const & {
 }
 
 template <typename T>
-std::shared_ptr<Argument> Argument::Store(const std::string& s, const T& val) {
-  return std::shared_ptr<Argument>(new ArgumentInst<T>(s, val));
+std::shared_ptr<Argument> Argument::Store(std::string name, const T& val) {
+  return std::shared_ptr<Argument>(new ArgumentInst<T>(std::move(name), val));
 }
 
 }  // namespace dali

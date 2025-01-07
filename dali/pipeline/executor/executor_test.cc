@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,20 +148,20 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data1", "cpu")), "");
+          .AddOutput("data1", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("data1", "cpu")
-          .AddOutput("data2", "gpu")), "");
+          .AddInput("data1", StorageDevice::CPU)
+          .AddOutput("data2", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "gpu")
           .AddArg("num_outputs", 1)
-          .AddInput("data2", "gpu")
-          .AddOutput("data3", "gpu")), "");
+          .AddInput("data2", StorageDevice::GPU)
+          .AddOutput("data3", StorageDevice::GPU)), "");
 
   vector<string> outputs = {"data3_gpu"};
   exe->Build(&graph, outputs);
@@ -205,19 +205,19 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")), "");
+          .AddInput("images", StorageDevice::CPU)
+          .AddOutput("final_images", StorageDevice::CPU)), "");
 
   vector<string> outputs = {"final_images_cpu"};
   exe->Build(&graph, outputs);
@@ -249,19 +249,19 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")), "");
+          .AddInput("images", StorageDevice::CPU)
+          .AddOutput("final_images", StorageDevice::CPU)), "");
 
   vector<string> outputs = {"final_images_cpu"};
 
@@ -299,25 +299,25 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("images", "cpu")
-          .AddOutput("images", "gpu")), "");
+          .AddInput("images", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("images", "gpu")
-          .AddOutput("final_images", "gpu")), "");
+          .AddInput("images", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU)), "");
 
   vector<string> outputs = {"final_images_gpu"};
   exe->Build(&graph, outputs);
@@ -394,61 +394,61 @@ TYPED_TEST(ExecutorTest, TestPinning) {
   graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                     .AddArg("device", "cpu")
                                     .AddArg("device_id", 0)
-                                    .AddOutput("data_0", "cpu")),
+                                    .AddOutput("data_0", StorageDevice::CPU)),
               "ExternalSource_0");
 
   // First set of Copy + Copy and Pass Through
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddArg("device", "cpu")
-                                    .AddInput("data_0", "cpu")
-                                    .AddOutput("copy_0", "cpu")),
+                                    .AddInput("data_0", StorageDevice::CPU)
+                                    .AddOutput("copy_0", StorageDevice::CPU)),
               "Copy_0");
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddArg("device", "cpu")
-                                    .AddInput("data_0", "cpu")
-                                    .AddOutput("copy_1", "cpu")),
+                                    .AddInput("data_0", StorageDevice::CPU)
+                                    .AddOutput("copy_1", StorageDevice::CPU)),
               "Copy_1");
 
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddArg("device", "cpu")
-                                    .AddInput("copy_0", "cpu")
-                                    .AddOutput("pass_through_0", "cpu")),
+                                    .AddInput("copy_0", StorageDevice::CPU)
+                                    .AddOutput("pass_through_0", StorageDevice::CPU)),
               "PassThrough_0");
 
   // Trigger pinning of first set when it moves CPU -> GPU
   graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
                                     .AddArg("device", "mixed")
-                                    .AddInput("pass_through_0", "cpu")
-                                    .AddOutput("out_0", "gpu")),
+                                    .AddInput("pass_through_0", StorageDevice::CPU)
+                                    .AddOutput("out_0", StorageDevice::GPU)),
               "MakeContiguous_0");
 
   // but not the Copy_1 to compare against
   graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
                                     .AddArg("device", "mixed")
-                                    .AddInput("copy_1", "cpu")
-                                    .AddOutput("out_1", "cpu")),
+                                    .AddInput("copy_1", StorageDevice::CPU)
+                                    .AddOutput("out_1", StorageDevice::CPU)),
               "MakeContiguous_1");
 
 
   // Second set of Copy and Pass Through
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddArg("device", "cpu")
-                                    .AddInput("data_0", "cpu")
-                                    .AddOutput("copy_2", "cpu")),
+                                    .AddInput("data_0", StorageDevice::CPU)
+                                    .AddOutput("copy_2", StorageDevice::CPU)),
               "Copy_2");
 
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddArg("device", "cpu")
-                                    .AddInput("copy_2", "cpu")
-                                    .AddOutput("pass_through_1", "cpu")),
+                                    .AddInput("copy_2", StorageDevice::CPU)
+                                    .AddOutput("pass_through_1", StorageDevice::CPU)),
               "PassThrough_1");
 
   // Check pinning argument inputs to operators in GPU stage
   graph.AddOp(this->PrepareSpec(OpSpec("CopyArgumentOp")
                                     .AddArg("device", "gpu")
                                     .AddArgumentInput("to_copy", "pass_through_1")
-                                    .AddOutput("out_2", "gpu")),
+                                    .AddOutput("out_2", StorageDevice::GPU)),
               "DummyOpGpu");
 
   vector<string> outputs = {"copy_0_cpu",         "copy_1_cpu", "pass_through_0_cpu", "copy_2_cpu",
@@ -493,7 +493,7 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
   graph_no_cond.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                             .AddArg("device", "cpu")
                                             .AddArg("device_id", 0)
-                                            .AddOutput("data", "cpu")),
+                                            .AddOutput("data", StorageDevice::CPU)),
                       "ExternalSource");
 
   // Build a basic graph without conditionals.
@@ -501,24 +501,24 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
   graph_with_cond.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                             .AddArg("device", "cpu")
                                             .AddArg("device_id", 0)
-                                            .AddOutput("input", "cpu")),
+                                            .AddOutput("input", StorageDevice::CPU)),
                       "ExternalSource");
 
   graph_with_cond.AddOp(this->PrepareSpec(OpSpec("_conditional__Split")
                                               .AddArg("device", "cpu")
-                                              .AddInput("input", "cpu")
+                                              .AddInput("input", StorageDevice::CPU)
                                               .AddArgumentInput("predicate", "input")
-                                              .AddOutput("true_output", "cpu")
-                                              .AddOutput("false_output", "cpu")
+                                              .AddOutput("true_output", StorageDevice::CPU)
+                                              .AddOutput("false_output", StorageDevice::CPU)
                                               .AddArg("_if_stmt", true)),
                         "split");
 
   graph_with_cond.AddOp(this->PrepareSpec(OpSpec("_conditional__Merge")
                                               .AddArg("device", "cpu")
-                                              .AddInput("true_output", "cpu")
-                                              .AddInput("false_output", "cpu")
+                                              .AddInput("true_output", StorageDevice::CPU)
+                                              .AddInput("false_output", StorageDevice::CPU)
                                               .AddArgumentInput("predicate", "input")
-                                              .AddOutput("output", "cpu")),
+                                              .AddOutput("output", StorageDevice::CPU)),
                         "merge");
 
   exe_no_cond->Build(&graph_no_cond, {"data_cpu"});
@@ -542,7 +542,7 @@ TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
         OpSpec("TestStatefulSource")
           .AddArg("checkpointing", true)
           .AddArg("epoch_size", epoch_size)
-          .AddOutput("state", "cpu")),
+          .AddOutput("state", StorageDevice::CPU)),
       "dummy");
 
     exe->Build(graph.get(), {"state_cpu"});
@@ -570,15 +570,15 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
         OpSpec("TestStatefulSource")
           .AddArg("checkpointing", true)
           .AddArg("epoch_size", epoch_size)
-          .AddOutput("data", "cpu")),
+          .AddOutput("data", StorageDevice::CPU)),
       "dummy_src");
 
     graph->AddOp(
       this->PrepareSpec(
         OpSpec("TestStatefulOp")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("processed", "cpu")),
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("processed", StorageDevice::CPU)),
       "dummy_op");
 
     exe->Build(graph.get(), {"processed_cpu"});
@@ -606,23 +606,23 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingMixed) {
         OpSpec("TestStatefulSource")
           .AddArg("checkpointing", true)
           .AddArg("epoch_size", epoch_size)
-          .AddOutput("data1", "cpu")),
+          .AddOutput("data1", StorageDevice::CPU)),
       "dummy_src");
 
     graph->AddOp(
       this->PrepareSpec(
         OpSpec("TestStatefulOp")
           .AddArg("device", "mixed")
-          .AddInput("data1", "cpu")
-          .AddOutput("data2", "gpu")),
+          .AddInput("data1", StorageDevice::CPU)
+          .AddOutput("data2", StorageDevice::GPU)),
       "dummy_op1");
 
     graph->AddOp(
       this->PrepareSpec(
         OpSpec("TestStatefulOp")
           .AddArg("device", "gpu")
-          .AddInput("data2", "gpu")
-          .AddOutput("processed", "gpu")),
+          .AddInput("data2", StorageDevice::GPU)
+          .AddOutput("processed", StorageDevice::GPU)),
       "dummy_op2");
 
     exe->Build(graph.get(), {"processed_gpu"});

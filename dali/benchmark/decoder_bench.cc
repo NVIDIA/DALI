@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,8 +103,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoder_CPU)(benchmark::State& st) {
     OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "cpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::CPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoder_CPU)->Iterations(100)
@@ -124,8 +124,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoder_GPU)(benchmark::State& st) {
       .AddArg("output_type", img_type)
       .AddArg("hybrid_huffman_threshold", std::numeric_limits<unsigned int>::max())
       .AddArg("use_batched_decode", false)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoder_GPU)->Iterations(100)
@@ -149,8 +149,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedThreshold_GPU)(benchmark::Sta
       .AddArg("cache_threshold", 250*250*3)
       .AddArg("cache_type", "threshold")
       .AddArg("cache_debug", true)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCachedThreshold_GPU)->Iterations(100)
@@ -172,8 +172,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedLargest_GPU)(benchmark::State
       .AddArg("cache_size", 1000)  // megabytes
       .AddArg("cache_type", "largest")
       .AddArg("cache_debug", true)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCachedLargest_GPU)->Iterations(100)
@@ -192,8 +192,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderBatched_GPU)(benchmark::State& st) 
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("use_batched_decode", true)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderBatched_GPU)->Iterations(100)
@@ -211,8 +211,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderRandomCrop_CPU)(benchmark::State& s
     OpSpec("ImageDecoderRandomCrop")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "cpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::CPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderRandomCrop_CPU)->Iterations(100)
@@ -231,8 +231,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCrop_CPU)(benchmark::State& st) {
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddArg("crop", std::vector<float>{224.0f, 224.0f})
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "cpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::CPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCrop_CPU)->Iterations(100)
@@ -267,10 +267,10 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
     OpSpec("ImageDecoderSlice")
       .AddArg("device", "cpu")
       .AddArg("output_type", DALI_RGB)
-      .AddInput("raw_jpegs", "cpu")
-      .AddInput("begin_data", "cpu")
-      .AddInput("crop_data", "cpu")
-      .AddOutput("images", "cpu"),
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddInput("begin_data", StorageDevice::CPU)
+      .AddInput("crop_data", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::CPU),
     [&begin_data, &crop_data](Pipeline& pipe) {
       pipe.AddExternalInput("begin_data");
       pipe.SetExternalInput("begin_data", begin_data);
@@ -294,8 +294,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderRandomCrop_GPU)(benchmark::State& s
     OpSpec("ImageDecoderRandomCrop")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderRandomCrop_GPU)->Iterations(100)
@@ -314,8 +314,8 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCrop_GPU)(benchmark::State& st) {
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("crop", std::vector<float>{224.0f, 224.0f})
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 }
 
 BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCrop_GPU)->Iterations(100)
@@ -350,10 +350,10 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
     OpSpec("ImageDecoderSlice")
       .AddArg("device", "mixed")
       .AddArg("output_type", DALI_RGB)
-      .AddInput("raw_jpegs", "cpu")
-      .AddInput("begin_data", "cpu")
-      .AddInput("crop_data", "cpu")
-      .AddOutput("images", "gpu"),
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddInput("begin_data", StorageDevice::CPU)
+      .AddInput("crop_data", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU),
     [&begin_data, &crop_data](Pipeline& pipe) {
       pipe.AddExternalInput("begin_data");
       pipe.SetExternalInput("begin_data", begin_data);

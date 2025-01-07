@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ class DLL_PUBLIC Pipeline {
     auto spec = OpSpec("ExternalSource")
                       .AddArg("name", name)
                       .AddArg("device", device)
-                      .AddOutput(name, device);
+                      .AddOutput(name, ParseStorageDevice(device));
     if (!layout.empty()) spec.AddArg("layout", layout);
     if (ndim >= 0) spec.AddArg("ndim", ndim);
     if (dtype != DALI_NO_TYPE) spec.AddArg("dtype", dtype);
@@ -613,17 +613,14 @@ class DLL_PUBLIC Pipeline {
   void ToCPU(std::map<string, EdgeMeta>::iterator it);
   void ToGPU(std::map<string, EdgeMeta>::iterator it);
 
-  inline EdgeMeta NewEdge(const std::string &device) {
+  inline EdgeMeta NewEdge(StorageDevice device) {
     EdgeMeta edge{};
-    if (device == "cpu") {
+    if (device == StorageDevice::CPU) {
       edge.has_cpu = true;
-    } else if (device == "gpu") {
-      edge.has_gpu = true;
-    } else if (device == "mixed") {
+    } else if (device == StorageDevice::GPU) {
       edge.has_gpu = true;
     } else {
-      DALI_FAIL("Invalid device argument \"" + device + "\". "
-          "Valid options are \"cpu\", \"gpu\" or \"mixed\".");
+      assert(!"Unreachable code");
     }
     return edge;
   }

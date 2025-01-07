@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,24 +73,24 @@ class CocoReaderTest : public ::testing::Test {
       .AddArg("device", "cpu")
       .AddArg("file_root", file_root_)
       .AddArg("save_img_ids", true)
-      .AddOutput("images", "cpu")
-      .AddOutput("boxes", "cpu")
-      .AddOutput("labels", "cpu");
+      .AddOutput("images", StorageDevice::CPU)
+      .AddOutput("boxes", StorageDevice::CPU)
+      .AddOutput("labels", StorageDevice::CPU);
       if (polygon_masks) {
         spec = spec.AddArg("polygon_masks", true)
-                   .AddOutput("polygons", "cpu")
-                   .AddOutput("vertices", "cpu");
+                   .AddOutput("polygons", StorageDevice::CPU)
+                   .AddOutput("vertices", StorageDevice::CPU);
       }
       if (pixelwise_masks) {
         spec = spec.AddArg("pixelwise_masks", true)
-                   .AddOutput("pixelwise_masks", "cpu");
+                   .AddOutput("pixelwise_masks", StorageDevice::CPU);
       }
       if (polygon_masks_legacy) {
         spec = spec.AddArg("masks", true)
-                   .AddOutput("masks_meta", "cpu")
-                   .AddOutput("masks_coords", "cpu");
+                   .AddOutput("masks_meta", StorageDevice::CPU)
+                   .AddOutput("masks_coords", StorageDevice::CPU);
       }
-      spec = spec.AddOutput("image_ids", "cpu");
+      spec = spec.AddOutput("image_ids", StorageDevice::CPU);
       return spec;
   }
 

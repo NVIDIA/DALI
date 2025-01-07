@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,18 +109,18 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
                                    .AddArg("device", "cpu")
                                    .AddArg("file_root", file_root)
                                    .AddArg("file_list", file_list)
-                                   .AddOutput("compressed_images", "cpu")
-                                   .AddOutput("labels", "cpu"));
+                                   .AddOutput("compressed_images", StorageDevice::CPU)
+                                   .AddOutput("labels", StorageDevice::CPU));
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "cpu")
-                                   .AddInput("compressed_images", "cpu")
-                                   .AddOutput("PT_CPU", "cpu")
+                                   .AddInput("compressed_images", StorageDevice::CPU)
+                                   .AddOutput("PT_CPU", StorageDevice::CPU)
                                    .AddArg("trace_name", operator_trace_names[0]),
                            operator_under_test_names[0]);
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "gpu")
-                                   .AddInput("compressed_images", "gpu")
-                                   .AddOutput("PT_GPU", "gpu")
+                                   .AddInput("compressed_images", StorageDevice::GPU)
+                                   .AddOutput("PT_GPU", StorageDevice::GPU)
                                    .AddArg("trace_name", operator_trace_names[1]),
                            operator_under_test_names[1]);
 
@@ -194,15 +194,15 @@ class OperatorTraceTestExternalInput : public OperatorTraceTest {
     pipeline_->AddExternalInput("OP_TRACE_IN_GPU", "gpu");
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "cpu")
-                                   .AddInput("OP_TRACE_IN_CPU", "cpu")
+                                   .AddInput("OP_TRACE_IN_CPU", StorageDevice::CPU)
                                    .AddArg("trace_name", operator_trace_names[0])
-                                   .AddOutput("PT_CPU", "cpu"),
+                                   .AddOutput("PT_CPU", StorageDevice::CPU),
                            operator_under_test_names[0]);
     pipeline_->AddOperator(OpSpec("PassthroughWithTraceOp")
                                    .AddArg("device", "gpu")
-                                   .AddInput("OP_TRACE_IN_GPU", "gpu")
+                                   .AddInput("OP_TRACE_IN_GPU", StorageDevice::GPU)
                                    .AddArg("trace_name", operator_trace_names[1])
-                                   .AddOutput("PT_GPU", "gpu"),
+                                   .AddOutput("PT_GPU", StorageDevice::GPU),
                            operator_under_test_names[1]);
 
     std::vector<std::pair<std::string, std::string>> outputs = {

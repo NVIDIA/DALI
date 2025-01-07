@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ class PipelineTest : public DALITest {
     pipe.AddOperator(
       OpSpec("ExternalSource")
         .AddArg("device", "gpu")
-        .AddOutput("data", "gpu"));
+        .AddOutput("data", StorageDevice::GPU));
 
     pipe.AddOperator(
       OpSpec("ExternalSource")
@@ -82,7 +82,7 @@ class PipelineTest : public DALITest {
       pipe.AddOperator(
         OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("data_4", "cpu"));
+          .AddOutput("data_4", StorageDevice::CPU));
     }
     // All data must have unique names regardless
     // of the device they exist on.
@@ -114,7 +114,7 @@ class PipelineTest : public DALITest {
       OpSpec("Copy")
         .AddArg("device", "gpu")
         .AddInput("data", dev)
-        .AddOutput("data_copy", "gpu"));
+        .AddOutput("data_copy", StorageDevice::GPU));
 
     vector<std::pair<string, string>> outputs = {{"data_copy", "gpu"}};
     pipe.Build(outputs);
@@ -197,8 +197,8 @@ TEST_F(PipelineTestOnce, TestInputNotKnown) {
       pipe.AddOperator(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("copy_out", "cpu")),
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("copy_out", StorageDevice::CPU)),
       std::runtime_error);
 }
 
@@ -256,8 +256,8 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
-      .AddInput("data", "gpu")
-      .AddOutput("copied", "gpu"));
+      .AddInput("data", StorageDevice::GPU)
+      .AddOutput("copied", StorageDevice::GPU));
 
   auto serialized = pipe.SerializeToProtobuf();
 
@@ -403,49 +403,49 @@ TEST_F(PipelineTestOnce, TestPresize) {
       OpSpec("DummyPresizeOp")
       .AddArg("device", "cpu")
       .AddArg("bytes_per_sample_hint", presize_val_CPU)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("out_1", "cpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("out_1", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("DummyPresizeOp")
       .AddArg("device", "cpu")
       .AddArg("bytes_per_sample_hint", presize_val_CPU)
-      .AddInput("raw_jpegs", "cpu")
+      .AddInput("raw_jpegs", StorageDevice::CPU)
       .AddArg("preserve", true)
-      .AddOutput("out_2", "cpu"));
+      .AddOutput("out_2", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("DummyPresizeOp")
       .AddArg("device", "mixed")
       .AddArg("bytes_per_sample_hint", presize_val_Mixed)
-      .AddInput("out_2", "cpu")
-      .AddOutput("out_3", "gpu"));
+      .AddInput("out_2", StorageDevice::CPU)
+      .AddOutput("out_3", StorageDevice::GPU));
 
   pipe.AddOperator(
       OpSpec("MakeContiguous")
       .AddArg("device", "mixed")
-      .AddInput("out_2", "cpu")
-      .AddOutput("out_4", "gpu"));
+      .AddInput("out_2", StorageDevice::CPU)
+      .AddOutput("out_4", StorageDevice::GPU));
 
   pipe.AddOperator(
       OpSpec("DummyPresizeOp")
       .AddArg("device", "gpu")
       .AddArg("bytes_per_sample_hint", presize_val_GPU)
-      .AddInput("out_4", "gpu")
-      .AddOutput("out_5", "gpu"));
+      .AddInput("out_4", StorageDevice::GPU)
+      .AddOutput("out_5", StorageDevice::GPU));
 
   pipe.AddOperator(
       OpSpec("DummyPresizeOp")
       .AddArg("device", "gpu")
       .AddArg("bytes_per_sample_hint", presize_val_GPU)
-      .AddInput("out_4", "gpu")
-      .AddOutput("out_6", "gpu"));
+      .AddInput("out_4", StorageDevice::GPU)
+      .AddOutput("out_6", StorageDevice::GPU));
 
   pipe.AddOperator(
       OpSpec("DummyPresizeOp")
       .AddArg("device", "gpu")
-      .AddInput("out_4", "gpu")
-      .AddOutput("out_7", "gpu"));
+      .AddInput("out_4", StorageDevice::GPU)
+      .AddOutput("out_7", StorageDevice::GPU));
 
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"out_1", "cpu"}, {"out_2", "cpu"},
@@ -504,15 +504,15 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
       OpSpec("DummyOpToAdd")
       .AddArg("device", "cpu")
       .AddArg("seed", seed_set)
-      .AddInput("data", "cpu")
-      .AddOutput("copied0", "cpu"), "copy1");
+      .AddInput("data", StorageDevice::CPU)
+      .AddOutput("copied0", StorageDevice::CPU), "copy1");
 
   pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddArg("seed", seed_set)
-      .AddInput("copied0", "gpu")
-      .AddOutput("copied", "gpu"), "copy2");
+      .AddInput("copied0", StorageDevice::GPU)
+      .AddOutput("copied", StorageDevice::GPU), "copy2");
 
   vector<std::pair<string, string>> outputs = {{"copied", "gpu"}};
 
@@ -545,8 +545,8 @@ TYPED_TEST(PipelineTest, TestSeedAuto) {
   pipe.AddOperator(
       OpSpec("DummyOpToAdd")
       .AddArg("device", "cpu")
-      .AddInput("data", "cpu")
-      .AddOutput("out0", "cpu"), "dummy");
+      .AddInput("data", StorageDevice::CPU)
+      .AddOutput("out0", StorageDevice::CPU), "dummy");
 
   pipe.Build({{"out0", "gpu"}});
 
@@ -577,8 +577,8 @@ TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
   pipe.AddExternalInput("data");
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("data", "gpu")
-          .AddOutput("final_images", "gpu"));
+          .AddInput("data", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU));
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
   pipe.Build(outputs);
@@ -590,8 +590,8 @@ TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
   pipe.AddExternalInput("data");
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("data", "gpu")
-          .AddOutput("final_images", "gpu"));
+          .AddInput("data", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU));
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
   pipe.Build(outputs);
@@ -612,12 +612,12 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   pipe.AddExternalInput("data");
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("data1", "cpu"));
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("data1", StorageDevice::CPU));
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("data1", "gpu")
-          .AddOutput("final_images", "gpu"));
+          .AddInput("data1", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU));
 
   vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
   pipe.Build(outputs);
@@ -693,13 +693,13 @@ TEST(PipelineTest, AddOperator) {
 
   int first_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
-          .AddInput("data_in0", "cpu")
-          .AddOutput("data_out0", "cpu"), "first_op");
+          .AddInput("data_in0", StorageDevice::CPU)
+          .AddOutput("data_out0", StorageDevice::CPU), "first_op");
 
   int second_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
-          .AddInput("data_in1", "cpu")
-          .AddOutput("data_out1", "cpu"), "second_op", first_op);
+          .AddInput("data_in1", StorageDevice::CPU)
+          .AddOutput("data_out1", StorageDevice::CPU), "second_op", first_op);
   EXPECT_EQ(first_op, second_op);
 
   ASSERT_THROW(pipe.AddOperator(OpSpec("Copy"), "another_op", first_op), std::runtime_error);
@@ -707,8 +707,8 @@ TEST(PipelineTest, AddOperator) {
   int third_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
           .AddArg("seed", 0xDEADBEEF)
-          .AddInput("data_in1", "cpu")
-          .AddOutput("data_out2", "cpu"), "third_op");
+          .AddInput("data_in1", StorageDevice::CPU)
+          .AddOutput("data_out2", StorageDevice::CPU), "third_op");
 
   EXPECT_EQ(third_op, second_op + 1);
 
@@ -734,8 +734,8 @@ TEST(PipelineTest, InputsListing) {
 
   pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
-          .AddInput("ZINPUT", "cpu")
-          .AddOutput("OUTPUT", "cpu"), "first_op");
+          .AddInput("ZINPUT", StorageDevice::CPU)
+          .AddOutput("OUTPUT", StorageDevice::CPU), "first_op");
 
   pipe.Build({{"AINPUT0", "cpu"}, {"AINPUT1", "cpu"}, {"OUTPUT", "cpu"}});
 
@@ -819,8 +819,8 @@ TEST(PipelineTest, MultiOutputInputOp) {
   pipe.AddOperator(OpSpec("DummyInputOperator")
     .AddArg("blocking", true)
     .AddArg("no_copy", false)
-    .AddOutput("out0", "cpu")
-    .AddOutput("out1", "cpu"), "DummyInput");
+    .AddOutput("out0", StorageDevice::CPU)
+    .AddOutput("out1", StorageDevice::CPU), "DummyInput");
 
   pipe.Build({{"out0", "cpu"}, {"out1", "cpu"}});
   int input = 3;
@@ -851,14 +851,14 @@ TEST(PipelineTest, DuplicateInstanceName) {
   EXPECT_THROW(pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
-      .AddInput("data", "gpu")
-      .AddOutput("copied", "gpu"), "data"), std::runtime_error);
+      .AddInput("data", StorageDevice::GPU)
+      .AddOutput("copied", StorageDevice::GPU), "data"), std::runtime_error);
 
   EXPECT_NO_THROW(pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
-      .AddInput("data", "gpu")
-      .AddOutput("copied", "gpu"), "data1"));
+      .AddInput("data", StorageDevice::GPU)
+      .AddOutput("copied", StorageDevice::GPU), "data1"));
 }
 
 TEST(PipelineTest, AutoName) {
@@ -869,22 +869,22 @@ TEST(PipelineTest, AutoName) {
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddArg("preserve_name", true)  // suppress CSE
-      .AddInput("data", "gpu")
-      .AddOutput("copied1", "gpu"), 1);
+      .AddInput("data", StorageDevice::GPU)
+      .AddOutput("copied1", StorageDevice::GPU), 1);
 
   EXPECT_NO_THROW(pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddArg("preserve_name", true)
-      .AddInput("data", "gpu")
-      .AddOutput("copied2", "gpu"), id));
+      .AddInput("data", StorageDevice::GPU)
+      .AddOutput("copied2", StorageDevice::GPU), id));
 
   EXPECT_NO_THROW(pipe.AddOperator(
       OpSpec("Copy")
       .AddArg("device", "gpu")
       .AddArg("preserve_name", true)
-      .AddInput("data", "gpu")
-      .AddOutput("copied3", "gpu"), id));
+      .AddInput("data", StorageDevice::GPU)
+      .AddOutput("copied3", StorageDevice::GPU), id));
 
   pipe.SetOutputDescs({{ "copied1", "gpu"}, {"copied2", "gpu"}, {"copied3", "gpu"}});
 

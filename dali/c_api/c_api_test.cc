@@ -102,14 +102,14 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
                              .AddArg("device", "cpu")
                              .AddArg("file_root", file_root)
                              .AddArg("file_list", file_list)
-                             .AddOutput("compressed_images", "cpu")
-                             .AddOutput("labels", "cpu"));
+                             .AddOutput("compressed_images", StorageDevice::CPU)
+                             .AddOutput("labels", StorageDevice::CPU));
 
     pipe.AddOperator(OpSpec("ImageDecoder")
                              .AddArg("device", "cpu")
                              .AddArg("output_type", DALI_RGB)
-                             .AddInput("compressed_images", "cpu")
-                             .AddOutput(input_name, "cpu"));
+                             .AddInput("compressed_images", StorageDevice::CPU)
+                             .AddOutput(input_name, StorageDevice::CPU));
   } else {
     pipe.AddExternalInput(input_name);
   }
@@ -235,8 +235,8 @@ TYPED_TEST(CApiTest, GetOutputNameTest) {
                        .AddArg("device", "cpu")
                        .AddArg("file_root", file_root)
                        .AddArg("file_list", file_list)
-                       .AddOutput(output0_name, "cpu")
-                       .AddOutput(output1_name, "cpu"));
+                       .AddOutput(output0_name, StorageDevice::CPU)
+                       .AddOutput(output1_name, StorageDevice::CPU));
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output0_name, "cpu"},
                                                               {output1_name, "cpu"}};
@@ -1001,8 +1001,8 @@ TEST(CApiTest, GetBackendTest) {
   pipe.AddOperator(OpSpec("MakeContiguous")
                           .AddArg("device", "mixed")
                           .AddArg("name", cont_name)
-                          .AddInput(es_cpu_name, "cpu")
-                          .AddOutput(cont_name, "gpu"), cont_name);
+                          .AddInput(es_cpu_name, StorageDevice::CPU)
+                          .AddOutput(cont_name, StorageDevice::GPU), cont_name);
   std::vector<std::pair<std::string, std::string>> outputs = {{es_gpu_name, "gpu"},
                                                               {cont_name, "gpu"}};
   pipe.SetOutputDescs(outputs);
@@ -1082,7 +1082,7 @@ daliPipelineHandle CreateCheckpointingTestPipe() {
     OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("dtype", DALI_FLOAT64)
-      .AddOutput("OUTPUT", "cpu"));
+      .AddOutput("OUTPUT", StorageDevice::CPU));
   pipe.SetOutputDescs({{"OUTPUT", "cpu"}});
   pipe.EnableCheckpointing();
   std::string ser = pipe.SerializeToProtobuf();

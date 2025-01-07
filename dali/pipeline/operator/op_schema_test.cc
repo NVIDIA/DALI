@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ DALI_SCHEMA(Dummy2)
   });
 
 TEST(OpSchemaTest, OutputFNTest) {
-  auto spec = OpSpec("Dummy2").AddInput("in", "cpu");
+  auto spec = OpSpec("Dummy2").AddInput("in", StorageDevice::CPU);
   auto &schema = SchemaRegistry::GetSchema("Dummy2");
 
   ASSERT_EQ(schema.CalculateOutputs(spec), 2);
@@ -209,10 +209,10 @@ DALI_SCHEMA(Dummy8)
 
 TEST(OpSchemaTest, AdditionalOutputFNTest) {
   auto spec = OpSpec("Dummy8")
-              .AddInput("in", "cpu")
+              .AddInput("in", StorageDevice::CPU)
               .AddArg("extra_out", 3);
   auto spec2 = OpSpec("Dummy8")
-              .AddInput("in", "cpu")
+              .AddInput("in", StorageDevice::CPU)
               .AddArg("extra_out", 0);
   auto &schema = SchemaRegistry::GetSchema("Dummy8");
 

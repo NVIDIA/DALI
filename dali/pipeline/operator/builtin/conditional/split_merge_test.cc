@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ class SplitMergeTest : public ::testing::Test {
     pipe.AddOperator(OpSpec("ExternalSource")
                          .AddArg("device", "cpu")
                          .AddArg("name", input_name)
-                         .AddOutput(input_name, "cpu"),
+                         .AddOutput(input_name, StorageDevice::CPU),
                      input_name);
   }
 
@@ -151,24 +151,26 @@ class SplitMergeTest : public ::testing::Test {
   void AddSplit(Pipeline &pipe, const std::string &name, const std::string &dev,
                 const std::string &input, const std::string &predicate,
                 const std::string &true_output, const std::string &false_output) {
+    auto storage_dev = ParseStorageDevice(dev);
     pipe.AddOperator(OpSpec("_conditional__Split")
                          .AddArg("device", dev)
-                         .AddInput(input, dev)
+                         .AddInput(input, storage_dev)
                          .AddArgumentInput("predicate", predicate)
-                         .AddOutput(true_output, dev)
-                         .AddOutput(false_output, dev),
+                         .AddOutput(true_output, storage_dev)
+                         .AddOutput(false_output, storage_dev),
                      name);
   }
 
   void AddMerge(Pipeline &pipe, const std::string &name, const std::string &dev,
                 const std::string &true_input, const std::string &false_input,
                 const std::string &predicate, const std::string &output) {
+    auto storage_dev = ParseStorageDevice(dev);
     pipe.AddOperator(OpSpec("_conditional__Merge")
                          .AddArg("device", dev)
-                         .AddInput(true_input, dev)
-                         .AddInput(false_input, dev)
+                         .AddInput(true_input, storage_dev)
+                         .AddInput(false_input, storage_dev)
                          .AddArgumentInput("predicate", predicate)
-                         .AddOutput(output, dev),
+                         .AddOutput(output, storage_dev),
                      name);
   }
 
@@ -241,21 +243,21 @@ TEST_F(SplitMergeTest, PinnedInside) {
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", StorageDevice::CPU).AddOutput("input_copy", StorageDevice::CPU),
                    "input_copy");
 
   AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
 
   // copy it, so we don't pin split_0 due to passing it to GPU, but to check it is required
   // to be pinned for consistency reasons
-  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", "cpu").AddOutput("split_0_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", "cpu").AddOutput("split_0_copy", StorageDevice::CPU),
                    "split_0_copy");
 
   // this should be made pinned, thus making the input_copy pinned.
   pipe.AddOperator(OpSpec("MakeContiguous")
                        .AddArg("device", "mixed")
-                       .AddInput("split_1", "cpu")
-                       .AddOutput("split_1_contiguous", "gpu"),
+                       .AddInput("split_1", StorageDevice::CPU)
+                       .AddOutput("split_1_contiguous", StorageDevice::GPU),
                    "make_contiguous");
 
   // as the split_1 is made pinned, split_0 also should be pinned due to coming together into merge
@@ -290,7 +292,7 @@ TEST_F(SplitMergeTest, PinnedThroughMerge) {
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", StorageDevice::CPU),
                    "input_copy");
 
   AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
@@ -301,8 +303,8 @@ TEST_F(SplitMergeTest, PinnedThroughMerge) {
   // consume the data transferred to GPU
   pipe.AddOperator(OpSpec("MakeContiguous")
                        .AddArg("device", "mixed")
-                       .AddInput("merge_cpu", "cpu")
-                       .AddOutput("merge_gpu", "gpu"),
+                       .AddInput("merge_cpu", StorageDevice::CPU)
+                       .AddOutput("merge_gpu", StorageDevice::GPU),
                    "merge_gpu");
 
   vector<std::pair<string, string>> outputs = {
@@ -536,7 +538,7 @@ TEST_F(SplitMergePinnedInputsTest, Mixes) {
   pipe.AddOperator(OpSpec("ExternalSource")
                        .AddArg("device", "cpu")
                        .AddArg("name", "input")
-                       .AddOutput("pinned_input", "cpu"),
+                       .AddOutput("pinned_input", StorageDevice::CPU),
                    "pinned_input");
 
   AddSplit(pipe, "split", "cpu", "input", "pred", "split_0", "split_1");

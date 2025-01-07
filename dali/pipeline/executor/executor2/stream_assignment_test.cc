@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -137,7 +137,7 @@ TEST(Exec2Test, StreamAssignment_Single_OnlyCPU) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecCPU()
-        .AddOutput("a->out", "cpu"));
+        .AddOutput("a->out", StorageDevice::CPU));
   b.AddOutput("a->out_cpu");
   auto g = std::move(b).GetGraph(true);
   ExecGraph eg;
@@ -152,15 +152,15 @@ TEST(Exec2Test, StreamAssignment_Single_CPUMixedGPU) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecCPU()
-        .AddOutput("a->b", "cpu"));
+        .AddOutput("a->b", StorageDevice::CPU));
   b.Add("b",
         SpecMixed()
-        .AddInput("a->b", "cpu")
-        .AddOutput("b->c", "gpu"));
+        .AddInput("a->b", StorageDevice::CPU)
+        .AddOutput("b->c", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("b->c", "gpu")
-        .AddOutput("c->out", "gpu"));
+        .AddInput("b->c", StorageDevice::GPU)
+        .AddOutput("c->out", StorageDevice::GPU));
   b.AddOutput("c->out_gpu");
   auto g = std::move(b).GetGraph(true);
   ExecGraph eg;
@@ -178,16 +178,16 @@ void TestGPU2CPUAssignment() {
       graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->b", "gpu")
-        .AddOutput("a->c", "gpu"));
+        .AddOutput("a->b", StorageDevice::GPU)
+        .AddOutput("a->c", StorageDevice::GPU));
   b.Add("b",
         SpecCPU()
-        .AddInput("a->b", "gpu")
-        .AddOutput("b->out", "cpu"));
+        .AddInput("a->b", StorageDevice::GPU)
+        .AddOutput("b->out", StorageDevice::CPU));
   b.Add("c",
         SpecMetaCPU()
-        .AddInput("a->c", "gpu")
-        .AddOutput("c->out", "cpu"));
+        .AddInput("a->c", StorageDevice::GPU)
+        .AddOutput("c->out", StorageDevice::CPU));
   b.AddOutput("b->out_cpu");
   b.AddOutput("c->out_cpu");
   auto g = std::move(b).GetGraph(true);
@@ -210,7 +210,7 @@ TEST(Exec2Test, StreamAssignment_PerBackend_OnlyCPU) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecCPU()
-        .AddOutput("a->out", "cpu"));
+        .AddOutput("a->out", StorageDevice::CPU));
   b.AddOutput("a->out_cpu");
   auto g = std::move(b).GetGraph(true);
   ExecGraph eg;
@@ -226,16 +226,16 @@ TEST(Exec2Test, StreamAssignment_PerBackend_CPUMixed) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecCPU()
-        .AddOutput("a->b", "cpu")
-        .AddOutput("a->c", "cpu"));
+        .AddOutput("a->b", StorageDevice::CPU)
+        .AddOutput("a->c", StorageDevice::CPU));
   b.Add("b",
         SpecMixed()
-        .AddInput("a->b", "cpu")
-        .AddOutput("b->out", "gpu"));
+        .AddInput("a->b", StorageDevice::CPU)
+        .AddOutput("b->out", StorageDevice::GPU));
   b.Add("c",
         SpecMixed()
-        .AddInput("a->c", "cpu")
-        .AddOutput("c->out", "gpu"));
+        .AddInput("a->c", StorageDevice::CPU)
+        .AddOutput("c->out", StorageDevice::GPU));
   b.AddOutput("b->out_gpu");
   b.AddOutput("c->out_gpu");
   auto g = std::move(b).GetGraph(true);
@@ -253,16 +253,16 @@ TEST(Exec2Test, StreamAssignment_PerBackend_CPUMixedGPU) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecCPU()
-        .AddOutput("a->b", "cpu")
-        .AddOutput("a->c", "cpu"));
+        .AddOutput("a->b", StorageDevice::CPU)
+        .AddOutput("a->c", StorageDevice::CPU));
   b.Add("b",
         SpecGPU()
-        .AddInput("a->b", "cpu")
-        .AddOutput("b->out", "gpu"));
+        .AddInput("a->b", StorageDevice::CPU)
+        .AddOutput("b->out", StorageDevice::GPU));
   b.Add("c",
         SpecMixed()
-        .AddInput("a->c", "cpu")
-        .AddOutput("c->out", "gpu"));
+        .AddInput("a->c", StorageDevice::CPU)
+        .AddOutput("c->out", StorageDevice::GPU));
   b.AddOutput("b->out_gpu");
   b.AddOutput("c->out_gpu");
   auto g = std::move(b).GetGraph(true);
@@ -296,33 +296,33 @@ TEST(Exec2Test, StreamAssignment_PerOperator_1) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->b", "gpu")
-        .AddOutput("a->d", "gpu"));
+        .AddOutput("a->b", StorageDevice::GPU)
+        .AddOutput("a->d", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddInput("a->b", "gpu")
-        .AddOutput("b->c", "gpu"));
+        .AddInput("a->b", StorageDevice::GPU)
+        .AddOutput("b->c", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("b->c", "gpu")
-        .AddOutput("c->g", "gpu"));
+        .AddInput("b->c", StorageDevice::GPU)
+        .AddOutput("c->g", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("a->d", "gpu")
-        .AddOutput("d->e", "cpu"));
+        .AddInput("a->d", StorageDevice::GPU)
+        .AddOutput("d->e", StorageDevice::CPU));
   b.Add("e",
         SpecCPU()
-        .AddInput("d->e", "cpu")
-        .AddOutput("e->f", "cpu"));
+        .AddInput("d->e", StorageDevice::CPU)
+        .AddOutput("e->f", StorageDevice::CPU));
   b.Add("f",
         SpecMixed()
-        .AddInput("e->f", "cpu")
-        .AddOutput("f->g", "gpu"));
+        .AddInput("e->f", StorageDevice::CPU)
+        .AddOutput("f->g", StorageDevice::GPU));
   b.Add("g",
         SpecGPU()
-        .AddInput("c->g", "gpu")
-        .AddInput("f->g", "gpu")
-        .AddOutput("g->o", "gpu"));
+        .AddInput("c->g", StorageDevice::GPU)
+        .AddInput("f->g", StorageDevice::GPU)
+        .AddOutput("g->o", StorageDevice::GPU));
   b.AddOutput("g->o_gpu");
   auto g = std::move(b).GetGraph(true);
   eg.Lower(g);
@@ -356,52 +356,52 @@ TEST(Exec2Test, StreamAssignment_PerOperator_2) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->b", "gpu")
-        .AddOutput("a->e", "gpu"));
+        .AddOutput("a->b", StorageDevice::GPU)
+        .AddOutput("a->e", StorageDevice::GPU));
   b.Add("i",
         SpecGPU()
-        .AddOutput("i->j", "gpu"));
+        .AddOutput("i->j", StorageDevice::GPU));
   b.Add("j",
         SpecMetaCPU()
-        .AddInput("i->j", "gpu")
-        .AddOutput("j->h", "cpu"));
+        .AddInput("i->j", StorageDevice::GPU)
+        .AddOutput("j->h", StorageDevice::CPU));
   b.Add("b",
         SpecCPU()
-        .AddInput("a->b", "gpu")
-        .AddOutput("b->c", "cpu")
-        .AddOutput("b->d", "cpu"));
+        .AddInput("a->b", StorageDevice::GPU)
+        .AddOutput("b->c", StorageDevice::CPU)
+        .AddOutput("b->d", StorageDevice::CPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("b->c", "cpu")
-        .AddOutput("c->d", "gpu"));
+        .AddInput("b->c", StorageDevice::CPU)
+        .AddOutput("c->d", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("b->d", "cpu")
-        .AddInput("c->d", "gpu")
-        .AddOutput("d->f", "gpu"));
+        .AddInput("b->d", StorageDevice::CPU)
+        .AddInput("c->d", StorageDevice::GPU)
+        .AddOutput("d->f", StorageDevice::GPU));
   b.Add("e",
         SpecGPU()
-        .AddInput("a->e", "gpu")
-        .AddOutput("e->f", "gpu"));
+        .AddInput("a->e", StorageDevice::GPU)
+        .AddOutput("e->f", StorageDevice::GPU));
   b.Add("f",
         SpecGPU()
-        .AddInput("d->f", "gpu")
-        .AddInput("e->f", "gpu")
-        .AddOutput("f->g", "gpu")
-        .AddOutput("f->h", "gpu"));
+        .AddInput("d->f", StorageDevice::GPU)
+        .AddInput("e->f", StorageDevice::GPU)
+        .AddOutput("f->g", StorageDevice::GPU)
+        .AddOutput("f->h", StorageDevice::GPU));
   b.Add("g",
         SpecGPU()
-        .AddInput("f->g", "gpu")
-        .AddOutput("g->h", "gpu"));
+        .AddInput("f->g", StorageDevice::GPU)
+        .AddOutput("g->h", StorageDevice::GPU));
   b.Add("h",
         SpecGPU()
-        .AddInput("f->h", "gpu")
-        .AddInput("g->h", "gpu")
-        .AddInput("j->h", "cpu")
-        .AddOutput("h->o", "gpu"));
+        .AddInput("f->h", StorageDevice::GPU)
+        .AddInput("g->h", StorageDevice::GPU)
+        .AddInput("j->h", StorageDevice::CPU)
+        .AddOutput("h->o", StorageDevice::GPU));
   b.Add("k",
         SpecGPU()
-        .AddOutput("k->o", "gpu"));  // directly to output
+        .AddOutput("k->o", StorageDevice::GPU));  // directly to output
   b.AddOutput("h->o_gpu");
   b.AddOutput("k->o_gpu");
   auto g = std::move(b).GetGraph(true);
@@ -435,34 +435,34 @@ TEST(Exec2Test, StreamAssignment_PerOperator_3) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->c", "gpu")
-        .AddOutput("a->d", "gpu"));
+        .AddOutput("a->c", StorageDevice::GPU)
+        .AddOutput("a->d", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddOutput("b->c", "gpu")
-        .AddOutput("b->d", "gpu"));
+        .AddOutput("b->c", StorageDevice::GPU)
+        .AddOutput("b->d", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("a->c", "gpu")
-        .AddInput("b->c", "gpu")
-        .AddOutput("c->e", "gpu")
-        .AddOutput("c->f", "gpu"));
+        .AddInput("a->c", StorageDevice::GPU)
+        .AddInput("b->c", StorageDevice::GPU)
+        .AddOutput("c->e", StorageDevice::GPU)
+        .AddOutput("c->f", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("a->d", "gpu")
-        .AddInput("b->d", "gpu")
-        .AddOutput("d->e", "gpu")
-        .AddOutput("d->f", "gpu"));
+        .AddInput("a->d", StorageDevice::GPU)
+        .AddInput("b->d", StorageDevice::GPU)
+        .AddOutput("d->e", StorageDevice::GPU)
+        .AddOutput("d->f", StorageDevice::GPU));
   b.Add("e",
         SpecGPU()
-        .AddInput("c->e", "gpu")
-        .AddInput("d->e", "gpu")
-        .AddOutput("e->o", "gpu"));
+        .AddInput("c->e", StorageDevice::GPU)
+        .AddInput("d->e", StorageDevice::GPU)
+        .AddOutput("e->o", StorageDevice::GPU));
   b.Add("f",
         SpecGPU()
-        .AddInput("c->f", "gpu")
-        .AddInput("d->f", "gpu")
-        .AddOutput("f->o", "gpu"));
+        .AddInput("c->f", StorageDevice::GPU)
+        .AddInput("d->f", StorageDevice::GPU)
+        .AddOutput("f->o", StorageDevice::GPU));
   b.AddOutput("e->o_gpu");
   b.AddOutput("f->o_gpu");
   auto g = std::move(b).GetGraph(true);
@@ -489,11 +489,11 @@ TEST(Exec2Test, StreamAssignment_PerOperator_4) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->b", "gpu"));
+        .AddOutput("a->b", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddInput("a->b", "gpu")
-        .AddOutput("b->o", "gpu"));
+        .AddInput("a->b", StorageDevice::GPU)
+        .AddOutput("b->o", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
         .AddArg("preserve", true));
@@ -517,40 +517,40 @@ TEST(Exec2Test, StreamAssignment_PerOperator_5) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->d", "gpu")
-        .AddOutput("a->e", "gpu")
-        .AddOutput("a->f", "gpu")
-        .AddOutput("a->c", "gpu"));
+        .AddOutput("a->d", StorageDevice::GPU)
+        .AddOutput("a->e", StorageDevice::GPU)
+        .AddOutput("a->f", StorageDevice::GPU)
+        .AddOutput("a->c", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddOutput("b->d", "gpu")
-        .AddOutput("b->e", "gpu")
-        .AddOutput("b->f", "gpu")
-        .AddOutput("b->c", "gpu"));
+        .AddOutput("b->d", StorageDevice::GPU)
+        .AddOutput("b->e", StorageDevice::GPU)
+        .AddOutput("b->f", StorageDevice::GPU)
+        .AddOutput("b->c", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("a->c", "gpu")
-        .AddInput("b->c", "gpu")
-        .AddOutput("c->g", "gpu"));
+        .AddInput("a->c", StorageDevice::GPU)
+        .AddInput("b->c", StorageDevice::GPU)
+        .AddOutput("c->g", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("a->d", "gpu")
-        .AddInput("b->d", "gpu")
-        .AddOutput("d->od", "gpu"));
+        .AddInput("a->d", StorageDevice::GPU)
+        .AddInput("b->d", StorageDevice::GPU)
+        .AddOutput("d->od", StorageDevice::GPU));
   b.Add("e",
         SpecGPU()
-        .AddInput("a->e", "gpu")
-        .AddInput("b->e", "gpu")
-        .AddOutput("e->oe", "gpu"));
+        .AddInput("a->e", StorageDevice::GPU)
+        .AddInput("b->e", StorageDevice::GPU)
+        .AddOutput("e->oe", StorageDevice::GPU));
   b.Add("f",
         SpecGPU()
-        .AddInput("a->f", "gpu")
-        .AddInput("b->f", "gpu")
-        .AddOutput("f->of", "gpu"));
+        .AddInput("a->f", StorageDevice::GPU)
+        .AddInput("b->f", StorageDevice::GPU)
+        .AddOutput("f->of", StorageDevice::GPU));
   b.Add("g",
         SpecGPU()
-        .AddInput("c->g", "gpu")
-        .AddOutput("g->og", "gpu"));
+        .AddInput("c->g", StorageDevice::GPU)
+        .AddOutput("g->og", StorageDevice::GPU));
   b.AddOutput("d->od_gpu");
   b.AddOutput("e->oe_gpu");
   b.AddOutput("f->of_gpu");
@@ -575,40 +575,40 @@ TEST(Exec2Test, StreamAssignment_PerOperator_6) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->d", "gpu")
-        .AddOutput("a->e", "gpu")
-        .AddOutput("a->f", "gpu")
-        .AddOutput("a->c", "gpu"));
+        .AddOutput("a->d", StorageDevice::GPU)
+        .AddOutput("a->e", StorageDevice::GPU)
+        .AddOutput("a->f", StorageDevice::GPU)
+        .AddOutput("a->c", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddOutput("b->d", "gpu")
-        .AddOutput("b->e", "gpu")
-        .AddOutput("b->f", "gpu")
-        .AddOutput("b->c", "gpu"));
+        .AddOutput("b->d", StorageDevice::GPU)
+        .AddOutput("b->e", StorageDevice::GPU)
+        .AddOutput("b->f", StorageDevice::GPU)
+        .AddOutput("b->c", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("a->c", "gpu")
-        .AddInput("b->c", "gpu")
-        .AddOutput("c->g", "gpu"));
+        .AddInput("a->c", StorageDevice::GPU)
+        .AddInput("b->c", StorageDevice::GPU)
+        .AddOutput("c->g", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("a->d", "gpu")
-        .AddInput("b->d", "gpu")
-        .AddOutput("d->od", "gpu"));
+        .AddInput("a->d", StorageDevice::GPU)
+        .AddInput("b->d", StorageDevice::GPU)
+        .AddOutput("d->od", StorageDevice::GPU));
   b.Add("e",
         SpecGPU()
-        .AddInput("a->e", "gpu")
-        .AddInput("b->e", "gpu")
-        .AddOutput("e->oe", "gpu"));
+        .AddInput("a->e", StorageDevice::GPU)
+        .AddInput("b->e", StorageDevice::GPU)
+        .AddOutput("e->oe", StorageDevice::GPU));
   b.Add("f",
         SpecGPU()
-        .AddInput("a->f", "gpu")
-        .AddInput("b->f", "gpu")
-        .AddOutput("f->of", "gpu"));
+        .AddInput("a->f", StorageDevice::GPU)
+        .AddInput("b->f", StorageDevice::GPU)
+        .AddOutput("f->of", StorageDevice::GPU));
   b.Add("g",
         SpecGPU()
-        .AddInput("c->g", "gpu")
-        .AddOutput("g->og", "gpu"));
+        .AddInput("c->g", StorageDevice::GPU)
+        .AddOutput("g->og", StorageDevice::GPU));
   b.AddOutput("d->od_gpu");
   b.AddOutput("e->oe_gpu");
   b.AddOutput("f->of_gpu");
@@ -646,67 +646,67 @@ TEST(Exec2Test, StreamAssignment_PerOperator_MultiBranch) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->b", "gpu")
-        .AddOutput("a->c", "gpu"));
+        .AddOutput("a->b", StorageDevice::GPU)
+        .AddOutput("a->c", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddInput("a->b", "gpu")
-        .AddOutput("b->d", "gpu"));
+        .AddInput("a->b", StorageDevice::GPU)
+        .AddOutput("b->d", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("a->c", "gpu")
-        .AddOutput("c->d", "gpu"));
+        .AddInput("a->c", StorageDevice::GPU)
+        .AddOutput("c->d", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("b->d", "gpu")
-        .AddInput("c->d", "gpu")
-        .AddOutput("d->e", "gpu")
-        .AddOutput("d->f", "gpu"));
+        .AddInput("b->d", StorageDevice::GPU)
+        .AddInput("c->d", StorageDevice::GPU)
+        .AddOutput("d->e", StorageDevice::GPU)
+        .AddOutput("d->f", StorageDevice::GPU));
   b.Add("e",
         SpecGPU()
-        .AddInput("d->e", "gpu")
-        .AddOutput("e->g", "gpu"));
+        .AddInput("d->e", StorageDevice::GPU)
+        .AddOutput("e->g", StorageDevice::GPU));
   b.Add("f",
         SpecGPU()
-        .AddInput("d->f", "gpu")
-        .AddOutput("f->g", "gpu"));
+        .AddInput("d->f", StorageDevice::GPU)
+        .AddOutput("f->g", StorageDevice::GPU));
   b.Add("g",
         SpecGPU()
-        .AddInput("e->g", "gpu")
-        .AddInput("f->g", "gpu")
-        .AddOutput("g->og", "gpu"));
+        .AddInput("e->g", StorageDevice::GPU)
+        .AddInput("f->g", StorageDevice::GPU)
+        .AddOutput("g->og", StorageDevice::GPU));
 
   b.Add("h",
         SpecGPU()
-        .AddOutput("h->i", "gpu")
-        .AddOutput("h->j", "gpu"));
+        .AddOutput("h->i", StorageDevice::GPU)
+        .AddOutput("h->j", StorageDevice::GPU));
   b.Add("i",
         SpecGPU()
-        .AddInput("h->i", "gpu")
-        .AddOutput("i->k", "gpu"));
+        .AddInput("h->i", StorageDevice::GPU)
+        .AddOutput("i->k", StorageDevice::GPU));
   b.Add("j",
         SpecGPU()
-        .AddInput("h->j", "gpu")
-        .AddOutput("j->k", "gpu"));
+        .AddInput("h->j", StorageDevice::GPU)
+        .AddOutput("j->k", StorageDevice::GPU));
   b.Add("k",
         SpecGPU()
-        .AddInput("i->k", "gpu")
-        .AddInput("j->k", "gpu")
-        .AddOutput("k->l", "gpu")
-        .AddOutput("k->m", "gpu"));
+        .AddInput("i->k", StorageDevice::GPU)
+        .AddInput("j->k", StorageDevice::GPU)
+        .AddOutput("k->l", StorageDevice::GPU)
+        .AddOutput("k->m", StorageDevice::GPU));
   b.Add("l",
         SpecGPU()
-        .AddInput("k->l", "gpu")
-        .AddOutput("l->n", "gpu"));
+        .AddInput("k->l", StorageDevice::GPU)
+        .AddOutput("l->n", StorageDevice::GPU));
   b.Add("m",
         SpecGPU()
-        .AddInput("k->m", "gpu")
-        .AddOutput("m->n", "gpu"));
+        .AddInput("k->m", StorageDevice::GPU)
+        .AddOutput("m->n", StorageDevice::GPU));
   b.Add("n",
         SpecGPU()
-        .AddInput("l->n", "gpu")
-        .AddInput("m->n", "gpu")
-        .AddOutput("n->on", "gpu"));
+        .AddInput("l->n", StorageDevice::GPU)
+        .AddInput("m->n", StorageDevice::GPU)
+        .AddOutput("n->on", StorageDevice::GPU));
 
   b.AddOutput("g->og_gpu");
   b.AddOutput("n->on_gpu");
@@ -747,29 +747,29 @@ TEST(Exec2Test, StreamAssignment_PerOperator_BranchOut) {
   graph::OpGraph::Builder b;
   b.Add("a",
         SpecGPU()
-        .AddOutput("a->c", "gpu"));
+        .AddOutput("a->c", StorageDevice::GPU));
   b.Add("b",
         SpecGPU()
-        .AddOutput("b->c", "gpu")
-        .AddOutput("b->f", "gpu"));
+        .AddOutput("b->c", StorageDevice::GPU)
+        .AddOutput("b->f", StorageDevice::GPU));
   b.Add("c",
         SpecGPU()
-        .AddInput("a->c", "gpu")
-        .AddInput("b->c", "gpu")
-        .AddOutput("c->d", "gpu")
-        .AddOutput("c->e", "gpu"));
+        .AddInput("a->c", StorageDevice::GPU)
+        .AddInput("b->c", StorageDevice::GPU)
+        .AddOutput("c->d", StorageDevice::GPU)
+        .AddOutput("c->e", StorageDevice::GPU));
   b.Add("d",
         SpecGPU()
-        .AddInput("c->d", "gpu")
-        .AddOutput("d->o", "gpu"));
+        .AddInput("c->d", StorageDevice::GPU)
+        .AddOutput("d->o", StorageDevice::GPU));
   b.Add("e",
         SpecGPU()
-        .AddInput("c->e", "gpu")
-        .AddOutput("e->o", "gpu"));
+        .AddInput("c->e", StorageDevice::GPU)
+        .AddOutput("e->o", StorageDevice::GPU));
   b.Add("f",
         SpecGPU()
-        .AddInput("b->f", "gpu")
-        .AddOutput("f->o", "gpu"));
+        .AddInput("b->f", StorageDevice::GPU)
+        .AddOutput("f->o", StorageDevice::GPU));
 
   b.AddOutput("d->o_gpu");
   b.AddOutput("e->o_gpu");

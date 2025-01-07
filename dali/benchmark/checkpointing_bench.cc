@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ BENCHMARK_DEFINE_F(CheckpointingOverhead, StatelessCpu)(benchmark::State& st) {
         .AddArg("device", "cpu")
         .AddArg("idata", std::vector<int>(1, 1))
         .AddArg("shape", std::vector<int>(2, 100))  // 100x100
-        .AddOutput("output", "cpu");
+        .AddOutput("output", StorageDevice::CPU);
   this->run(st, op, {{"output", "cpu"}});
 }
 
@@ -109,7 +109,7 @@ BENCHMARK_DEFINE_F(CheckpointingOverhead, StatelessGpu)(benchmark::State& st) {
         .AddArg("device", "gpu")
         .AddArg("idata", std::vector<int>(1, 1))
         .AddArg("shape", std::vector<int>(2, 100))  // 100x100
-        .AddOutput("output", "gpu");
+        .AddOutput("output", StorageDevice::GPU);
   this->run(st, op, {{"output", "gpu"}});
 }
 
@@ -121,7 +121,7 @@ BENCHMARK_DEFINE_F(CheckpointingOverhead, RandomCpu)(benchmark::State& st) {
   auto op = OpSpec("CoinFlip")
         .AddArg("device", "cpu")
         .AddArg("shape", std::vector<int>(2, 100))  // 100x100
-        .AddOutput("output", "cpu");
+        .AddOutput("output", StorageDevice::CPU);
   this->run(st, op, {{"output", "cpu"}});
 }
 
@@ -133,7 +133,7 @@ BENCHMARK_DEFINE_F(CheckpointingOverhead, RandomGpu)(benchmark::State& st) {
   auto op = OpSpec("CoinFlip")
         .AddArg("device", "gpu")
         .AddArg("shape", std::vector<int>(2, 100))  // 100x100
-        .AddOutput("output", "gpu");
+        .AddOutput("output", StorageDevice::GPU);
   this->run(st, op, {{"output", "gpu"}});
 }
 
@@ -147,8 +147,8 @@ BENCHMARK_DEFINE_F(CheckpointingOverhead, Reader)(benchmark::State& st) {
         .AddArg("files", jpeg_names_)
         .AddArg("initial_fill", 1024)
         .AddArg("random_shuffle", true)
-        .AddOutput("output", "cpu")
-        .AddOutput("labels", "cpu");
+        .AddOutput("output", StorageDevice::CPU)
+        .AddOutput("labels", StorageDevice::CPU);
   this->run(st, op, {{"output", "cpu"}});
 }
 

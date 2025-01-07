@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU)(benchmark::State& st) {
       .AddArg("mean", 0.1f)
       .AddArg("stddev", 1.5f);
 
-  if (!single_value) spec.AddInput("data", "gpu");
+  if (!single_value) spec.AddInput("data", StorageDevice::GPU);
 
   this->RunGPU<float>(st, spec, batch_size, sample_dim, sample_dim, 3);
 }
@@ -57,7 +57,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NormalDistributionGPU_NonUniform)(benchmark::S
       .AddArg("dtype", DALI_FLOAT)
       .AddArg("mean", 0.1f)
       .AddArg("stddev", 1.5f)
-      .AddInput("data", "gpu");
+      .AddInput("data", StorageDevice::GPU);
 
   this->RunGPU<float>(st, spec, batch_size, shape);
 }

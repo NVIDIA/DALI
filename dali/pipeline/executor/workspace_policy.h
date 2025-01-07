@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,31 +28,6 @@
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
-
-inline std::ostream &operator<<(std::ostream &os, OpType op_type) {
-  switch (op_type) {
-  case OpType::CPU:
-    return os << "CPU";
-  case OpType::GPU:
-    return os << "GPU";
-  case OpType::MIXED:
-    return os << "MIXED";
-  default:
-    return os << static_cast<int>(op_type);
-  }
-}
-
-inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
-  switch (device) {
-  case StorageDevice::CPU:
-    return os << "CPU";
-  case StorageDevice::GPU:
-    return os << "GPU";
-  default:
-    return os << static_cast<int>(device);
-  }
-}
-
 
 // We always use queue_idx = 0 if give queue has only one element -> it is not queued
 template <OpType op_type, OpType producer_type, StorageDevice device>

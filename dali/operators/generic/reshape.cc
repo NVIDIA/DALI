@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       shape_source_ = ShapeSource::Arg;
     }
   } else if (has_shape_input) {
-    DALI_ENFORCE(spec.InputDevice(1) == "cpu",
+    DALI_ENFORCE(spec.InputDevice(1) == StorageDevice::CPU,
                  make_string("Output shapes must be provided as a CPU input"));
     shape_source_ = ShapeSource::Input;
   }

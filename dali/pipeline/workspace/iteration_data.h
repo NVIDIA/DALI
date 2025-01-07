@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,12 @@
 #ifndef DALI_PIPELINE_WORKSPACE_ITERATION_DATA_H_
 #define DALI_PIPELINE_WORKSPACE_ITERATION_DATA_H_
 
+#include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <unordered_map>
+#include <string_view>
 
 namespace dali {
 
@@ -35,8 +37,8 @@ namespace dali {
  *   - "number_of_unprocessed_samples" -> "100"
  *   - "next_batch_ready" -> "true"
  */
-using operator_trace_map_t = std::unordered_map<
-  std::string /* trace_name */, std::string /* trace_value */>;
+using operator_trace_map_t = std::map<
+  std::string /* trace_name */, std::string /* trace_value */, std::less<>>;
 
 class Checkpoint;
 
@@ -47,9 +49,16 @@ class OperatorTraces {
    * This function is thread safe, however, the map returned by it is not.
    * The operator must ensure that it does not attempt to modify the map from multiple threads.
    */
-  operator_trace_map_t &Get(const std::string &operator_name) {
+  operator_trace_map_t &Get(std::string_view operator_name) {
     std::lock_guard g(mtx_);
-    return map_[operator_name];
+    // TODO(michalz): in C++26, we can just use map_[operator_name] again, but until that - no luck
+    auto it = map_.find(operator_name);
+    if (it == map_.end()) {
+      bool inserted;
+      std::tie(it, inserted) = map_.emplace(std::string(operator_name), operator_trace_map_t{});
+      assert(inserted);
+    }
+    return it->second;
   }
 
   /** Obtains a copy of trace maps for all operators.
@@ -63,9 +72,10 @@ class OperatorTraces {
 
  private:
   mutable std::mutex mtx_;
-  std::unordered_map<
+  std::map<
         std::string /* op_name */,
-        operator_trace_map_t /* per-operator traces */
+        operator_trace_map_t /* per-operator traces */,
+        std::less<>
   > map_;
 };
 

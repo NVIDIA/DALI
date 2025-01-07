@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -422,17 +422,17 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "add(&0 &1)")
-                       .AddInput("data0", "cpu")
-                       .AddInput("data1", "cpu")
-                       .AddOutput("result", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddInput("data1", StorageDevice::CPU)
+                       .AddOutput("result", StorageDevice::CPU),
                    "arithm_cpu");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "mul(&0 &1)")
-                       .AddInput("result", "gpu")
-                       .AddInput("data1", "gpu")
-                       .AddOutput("result2", "gpu"),
+                       .AddInput("result", StorageDevice::GPU)
+                       .AddInput("data1", StorageDevice::GPU)
+                       .AddOutput("result2", StorageDevice::GPU),
                    "arithm_gpu");
 
   vector<std::pair<string, string>> outputs = {{"result", "cpu"}, {"result2", "gpu"}};
@@ -476,17 +476,17 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "fdiv(&0 &1)")
-                       .AddInput("data0", "cpu")
-                       .AddInput("data1", "cpu")
-                       .AddOutput("result0", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddInput("data1", StorageDevice::CPU)
+                       .AddOutput("result0", StorageDevice::CPU),
                    "arithm_cpu");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "fdiv(&0 &1)")
-                       .AddInput("data0", "gpu")
-                       .AddInput("data1", "gpu")
-                       .AddOutput("result1", "gpu"),
+                       .AddInput("data0", StorageDevice::GPU)
+                       .AddInput("data1", StorageDevice::GPU)
+                       .AddOutput("result1", StorageDevice::GPU),
                    "arithm_gpu");
 
   vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};
@@ -547,16 +547,16 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "add(&0 $0:int32)")
                        .AddArg("integer_constants", std::vector<int>{magic_int})
-                       .AddInput("data0", "cpu")
-                       .AddOutput("result0", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddOutput("result0", StorageDevice::CPU),
                    "arithm_cpu_add");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "mul(&0 $0:float32)")
                        .AddArg("real_constants", std::vector<float>{magic_float})
-                       .AddInput("data0", "cpu")
-                       .AddOutput("result1", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddOutput("result1", StorageDevice::CPU),
                    "arithm_cpu_mul");
 
   vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "cpu"}};
@@ -603,17 +603,17 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                         .AddArg("device", "cpu")
                         .AddArg("expression_desc", "add(&0 &1)")
-                        .AddInput("data0", "cpu")
-                        .AddInput("data1", "cpu")
-                        .AddOutput("result0", "cpu"),
+                        .AddInput("data0", StorageDevice::CPU)
+                        .AddInput("data1", StorageDevice::CPU)
+                        .AddOutput("result0", StorageDevice::CPU),
                     "arithm_cpu");
 
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                         .AddArg("device", "gpu")
                         .AddArg("expression_desc", "add(&0 &1)")
-                        .AddInput("data0", "gpu")
-                        .AddInput("data1", "gpu")
-                        .AddOutput("result1", "gpu"),
+                        .AddInput("data0", StorageDevice::GPU)
+                        .AddInput("data1", StorageDevice::GPU)
+                        .AddOutput("result1", StorageDevice::GPU),
                     "arithm_gpu");
 
     vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};
@@ -748,15 +748,15 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "minus(&0)")
-                       .AddInput("data0", "cpu")
-                       .AddOutput("result0", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddOutput("result0", StorageDevice::CPU),
                    "arithm_cpu_neg");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "plus(&0)")
-                       .AddInput("result0", "gpu")
-                       .AddOutput("result1", "gpu"),
+                       .AddInput("result0", StorageDevice::GPU)
+                       .AddOutput("result1", StorageDevice::GPU),
                    "arithm_gpu_pos");
 
   vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};

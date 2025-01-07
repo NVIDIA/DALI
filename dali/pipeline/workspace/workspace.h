@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,13 @@
 #define DALI_PIPELINE_WORKSPACE_WORKSPACE_H_
 
 #include <cassert>
-#include <vector>
-#include <utility>
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
@@ -60,10 +62,10 @@ class ArgumentWorkspace {
     return argument_inputs_.size();
   }
 
-  int AddArgumentInput(const std::string& arg_name, shared_ptr<TensorList<CPUBackend>> input) {
+  int AddArgumentInput(std::string arg_name, shared_ptr<TensorList<CPUBackend>> input) {
     int idx = argument_input_idxs_.size();
     argument_input_idxs_[arg_name] = idx;
-    argument_inputs_.push_back({ arg_name, std::move(input) });
+    argument_inputs_.push_back({ std::move(arg_name), std::move(input) });
     return idx;
   }
 
@@ -72,14 +74,15 @@ class ArgumentWorkspace {
     argument_inputs_[idx].cpu = std::move(input);
   }
 
-  const TensorList<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
+  const TensorList<CPUBackend>& ArgumentInput(std::string_view arg_name) const {
     auto it = argument_input_idxs_.find(arg_name);
-    DALI_ENFORCE(it != argument_input_idxs_.end(), "Argument \"" + arg_name + "\" not found.");
+    if (it == argument_input_idxs_.end())
+      throw invalid_key(make_string("Argument \"", arg_name, "\" not found."));
     assert(argument_inputs_[it->second].cpu);
     return *argument_inputs_[it->second].cpu;
   }
 
-  const std::string& ArgumentInputName(int idx) const {
+  const std::string &ArgumentInputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumArgumentInput());
     return argument_inputs_[idx].name;
   }
@@ -96,9 +99,10 @@ class ArgumentWorkspace {
   }
 
   std::shared_ptr<TensorList<CPUBackend>>&
-  UnsafeMutableArgumentInput(const std::string &arg_name) {
+  UnsafeMutableArgumentInput(std::string_view arg_name) {
     auto it = argument_input_idxs_.find(arg_name);
-    DALI_ENFORCE(it != argument_input_idxs_.end(), "Argument \"" + arg_name + "\" not found.");
+    if (it == argument_input_idxs_.end())
+      throw invalid_key(make_string("Argument \"", arg_name, "\" not found."));
     return argument_inputs_[it->second].cpu;
   }
 
@@ -114,7 +118,7 @@ class ArgumentWorkspace {
 
  protected:
   // Argument inputs
-  std::unordered_map<std::string, int> argument_input_idxs_;
+  std::map<std::string, int, std::less<>> argument_input_idxs_;
   SmallVector<ArgumentInputBuffers, 4> argument_inputs_;
 };
 
@@ -572,10 +576,9 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @see operator_trace_map_t
    */
-  DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
-    GetOperatorTraces().insert_or_assign(trace_key, std::move(trace_value));
+  DLL_PUBLIC void SetOperatorTrace(std::string trace_key, std::string trace_value) {
+    GetOperatorTraces().insert_or_assign(std::move(trace_key), std::move(trace_value));
   }
-
 
   /**
    * Erase the trace value for the current operator.
@@ -584,7 +587,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @see operator_trace_map_t
    */
-  DLL_PUBLIC void EraseOperatorTrace(const std::string &trace_key) {
+  DLL_PUBLIC void EraseOperatorTrace(std::string_view trace_key) {
     GetOperatorTraces().erase(trace_key);
   }
 
@@ -619,7 +622,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @param operator_name Name (ID) of the operator.
    */
-  DLL_PUBLIC auto &GetOperatorTraces(const std::string &operator_name) const {
+  DLL_PUBLIC auto &GetOperatorTraces(std::string_view operator_name) const {
     return iter_data_->operator_traces.Get(operator_name);
   }
   ///@}

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -164,9 +164,9 @@ CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, boo
     arg.second.SetArg(arg.first.arg_name(), opspec, nullptr);
   }
   if (has_input) {
-    opspec.AddInput(detail::input_name, input_backend);
+    opspec.AddInput(detail::input_name, ParseStorageDevice(input_backend));
   }
-  opspec.AddOutput("output", output_backend);
+  opspec.AddOutput("output", ParseStorageDevice(output_backend));
   return opspec;
 }
 

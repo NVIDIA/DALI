@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,23 +39,23 @@ inline auto &AddCommonArgs(
 inline auto GetTestGraph1() {
   auto spec0 = OpSpec(kTestOpName)
     .AddArg("name", "op0")
-    .AddOutput("op0_0", "cpu")
+    .AddOutput("op0_0", StorageDevice::CPU)
     .AddArg("addend", 10);
   auto spec1 = OpSpec(kTestOpName)
     .AddArg("name", "op1")
     .AddArg("addend", 20)
-    .AddOutput("op1_0", "cpu");
+    .AddOutput("op1_0", StorageDevice::CPU);
   auto spec2 = OpSpec(kTestOpName)
-    .AddInput("op0_0", "cpu")
+    .AddInput("op0_0", StorageDevice::CPU)
     .AddArg("name", "op2")
     .AddArgumentInput("addend", "op1_0")
-    .AddOutput("op2_0", "cpu");
+    .AddOutput("op2_0", StorageDevice::CPU);
   auto spec3 = OpSpec(kTestOpName)
     .AddArg("name", "op3")
-    .AddInput("op0_0", "cpu")
-    .AddInput("op1_0", "cpu")
+    .AddInput("op0_0", StorageDevice::CPU)
+    .AddInput("op1_0", StorageDevice::CPU)
     .AddArg("addend", 1)
-    .AddOutput("op3_0", "cpu");
+    .AddOutput("op3_0", StorageDevice::CPU);
   graph::OpGraph::Builder b;
   b.Add("op0", std::move(AddCommonArgs(spec0, 32)));
   b.Add("op1", std::move(AddCommonArgs(spec1, 32)));
@@ -89,35 +89,35 @@ inline void CheckTestGraph1Results(const Workspace &ws, int batch_size) {
 inline auto GetTestGraph2() {
   auto spec0 = OpSpec(kTestOpName)
     .AddArg("name", "op0")
-    .AddOutput("op0_0", "cpu")
+    .AddOutput("op0_0", StorageDevice::CPU)
     .AddArg("addend", 10);
   auto spec0c = OpSpec("MakeContiguous")
     .AddArg("name", "op0_cont")
-    .AddInput("op0_0", "cpu")
-    .AddOutput("op0_0", "gpu");
+    .AddInput("op0_0", StorageDevice::CPU)
+    .AddOutput("op0_0", StorageDevice::GPU);
   auto spec1 = OpSpec(kTestOpName)
     .AddArg("name", "op1")
     .AddArg("addend", 20)
-    .AddOutput("op1_0", "cpu");
+    .AddOutput("op1_0", StorageDevice::CPU);
   auto spec1c = OpSpec("MakeContiguous")
     .AddArg("name", "op1_cont")
-    .AddInput("op1_0", "cpu")
-    .AddOutput("op1_0", "gpu");
+    .AddInput("op1_0", StorageDevice::CPU)
+    .AddOutput("op1_0", StorageDevice::GPU);
   auto spec2 = OpSpec(kTestOpName)
-    .AddInput("op0_0", "cpu")
+    .AddInput("op0_0", StorageDevice::CPU)
     .AddArg("name", "op2")
     .AddArgumentInput("addend", "op1_0")
-    .AddOutput("op2_0", "cpu");
+    .AddOutput("op2_0", StorageDevice::CPU);
   auto spec3 = OpSpec(kTestOpName)
     .AddArg("name", "op3")
-    .AddInput("op0_0", "gpu")
-    .AddInput("op1_0", "gpu")
+    .AddInput("op0_0", StorageDevice::GPU)
+    .AddInput("op1_0", StorageDevice::GPU)
     .AddArg("addend", 1)
-    .AddOutput("op3_0", "gpu");
+    .AddOutput("op3_0", StorageDevice::GPU);
   auto spec2c = OpSpec("MakeContiguous")
     .AddArg("name", "op2_cont")
-    .AddInput("op2_0", "cpu")
-    .AddOutput("op2_0", "gpu");
+    .AddInput("op2_0", StorageDevice::CPU)
+    .AddOutput("op2_0", StorageDevice::GPU);
   graph::OpGraph::Builder b;
   b.Add("op0",  std::move(AddCommonArgs(spec0,  32, "cpu", 1)));
   b.Add("op0c", std::move(AddCommonArgs(spec0c, 32, "mixed", 1)));
@@ -157,11 +157,11 @@ inline void CheckTestGraph2Results(const Workspace &ws, int batch_size) {
 inline auto GetTestGraph3() {
   auto spec0 = OpSpec(kTestOpName)
     .AddArg("name", "op0")
-    .AddOutput("op0_0", "cpu")
+    .AddOutput("op0_0", StorageDevice::CPU)
     .AddArg("addend", 0);
   auto spec1 = OpSpec(kSinkOpName)
     .AddArg("name", "op1")
-    .AddInput("op0_0", "cpu");
+    .AddInput("op0_0", StorageDevice::CPU);
 
   graph::OpGraph::Builder b;
   b.Add("op0",  std::move(AddCommonArgs(spec0,  32, "cpu", 1)));
