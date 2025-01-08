@@ -297,8 +297,8 @@ if(BUILD_NVIMAGECODEC)
     include(FetchContent)
     FetchContent_Declare(
       nvimgcodec_headers
-      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.4.0.9-archive.tar.xz
-      URL_HASH SHA512=d1dc489b6f6795548ec88293cc3e08034fc5bca636f134d622c9f2c3f54569b8779464ab7628ea3dfaad283ff631962ef0601354ff5e2c602a769beb44f19f00
+      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.4.1.21-archive.tar.xz
+      URL_HASH SHA512=3f20f6944a360597586bfe3550a0605257bcd944748477a869691ec1a42716e3722f8ddbd0b525995ebab89a33cd91ed82d5b151194008f1a8424971448a4824
     )
     FetchContent_Populate(nvimgcodec_headers)
     set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
