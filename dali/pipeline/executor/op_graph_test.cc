@@ -595,29 +595,29 @@ TEST_F(OpGraphTest, TestGetTensorOrigin) {
   graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                     .AddArg("device", "cpu")
                                     .AddArg("device_id", 0)
-                                    .AddOutput("data", StorageDevice::CPU)),  // tensor node 0
-              "ExternalSource");
+                                    .AddOutput("data", StorageDevice::CPU)),
+              "ExternalSource");  // tensor node 0
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddInput("data", StorageDevice::CPU)
-                                    .AddOutput("copy_0_data", StorageDevice::CPU)),  // tensor node 1
-              "Copy0");
+                                    .AddOutput("copy_0_data", StorageDevice::CPU)),
+              "Copy0");  // tensor node 1
 
   graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
                                     .AddInput("copy_0_data", StorageDevice::CPU)
-                                    .AddOutput("contiguous_data", StorageDevice::CPU)),  // tensor node 2
-              "MakeContiguous");
+                                    .AddOutput("contiguous_data", StorageDevice::CPU)),
+              "MakeContiguous");  // tensor node 2
 
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddInput("contiguous_data", StorageDevice::CPU)
-                                    .AddOutput("passthrough_data", StorageDevice::CPU)),  // tensor node 3
-              "Passthrough");
+                                    .AddOutput("passthrough_data", StorageDevice::CPU)),
+              "Passthrough");  // tensor node 3
 
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddInput("passthrough_data", StorageDevice::CPU)
-                                    .AddOutput("copy_1_data", StorageDevice::CPU)),  // tensor node 4
-              "Copy1");
+                                    .AddOutput("copy_1_data", StorageDevice::CPU)),
+              "Copy1");  // tensor node 4
 
   graph.InstantiateOperators();
 
