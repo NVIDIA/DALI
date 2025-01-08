@@ -211,12 +211,43 @@ def train(
     timeout_handler,
     prof=-1,
     step=0,
+    data_loader_only=False,
 ):
     interrupted = False
 
     end = time.time()
 
     data_iter = enumerate(train_loader)
+
+    if data_loader_only:
+        for i, (input, target) in data_iter:
+            torch.cuda.nvtx.range_push(f"iter {i}")
+
+            bs = input.size(0)
+            lr = lr_scheduler(i)
+            data_time = time.time() - end
+            it_time = time.time() - end
+            log_fn(
+                compute_ips=utils.calc_ips(bs, it_time - data_time),
+                total_ips=utils.calc_ips(bs, it_time),
+                data_time=data_time,
+                compute_time=it_time - data_time,
+                lr=lr,
+                loss=0.0,
+                grad_scale=grad_scale_fn(),
+            )
+
+            torch.cuda.nvtx.range_pop()
+
+            end = time.time()
+            if prof > 0 and (i + 1 >= prof):
+                time.sleep(5)
+                break
+            if ((i + 1) % 20 == 0) and timeout_handler.interrupted:
+                time.sleep(5)
+                interrupted = True
+                break
+        return interrupted
 
     for i, (input, target) in data_iter:
         bs = input.size(0)
@@ -254,13 +285,29 @@ def train(
     return interrupted
 
 
-def validate(infer_fn, val_loader, log_fn, prof=-1, with_loss=True, topk=5):
+def validate(infer_fn, val_loader, log_fn, prof=-1, with_loss=True, topk=5, data_loader_only=False):
     top1 = log.AverageMeter()
     # switch to evaluate mode
 
     end = time.time()
 
     data_iter = enumerate(val_loader)
+
+    if data_loader_only:
+        for i, (input, target) in data_iter:
+            bs = input.size(0)
+            data_time = time.time() - end
+            it_time = time.time() - end
+
+            log_fn(
+                compute_ips=utils.calc_ips(bs, it_time - data_time),
+                total_ips=utils.calc_ips(bs, it_time),
+                data_time=data_time,
+                compute_time=it_time - data_time,
+            )
+
+            end = time.time()
+        return top1.get_val()
 
     for i, (input, target) in data_iter:
         bs = input.size(0)
@@ -330,6 +377,7 @@ def train_loop(
     checkpoint_filename="checkpoint.pth.tar",
     keep_last_n_checkpoints=0,
     topk=5,
+    data_loader_only=False,
 ):
     checkpointer = utils.Checkpointer(
         last_filename=checkpoint_filename,
@@ -371,6 +419,7 @@ def train_loop(
                     timeout_handler,
                     prof=prof,
                     step=epoch * train_loader_len,
+                    data_loader_only=data_loader_only,
                 )
 
             if not skip_validation:
@@ -389,6 +438,7 @@ def train_loop(
                         val_metrics[k].log,
                         prof=prof,
                         topk=topk,
+                        data_loader_only=data_loader_only,
                     )
 
                     if k == "val":
@@ -402,6 +452,9 @@ def train_loop(
             else:
                 is_best = False
                 best_prec1 = 0
+
+            if data_loader_only:
+                continue
 
             if logger is not None:
                 logger.end_epoch()
