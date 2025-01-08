@@ -142,7 +142,7 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
 
   void CreateAndSerializePipeline() {
     auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_);
-    string device = is_cpu ? "cpu" : "gpu";
+    string device = is_cpu ? "cpu" : "mixed";
     auto storage_device = is_cpu ? StorageDevice::CPU : StorageDevice::GPU;
     pipeline->AddOperator(
             OpSpec("experimental__inputs__Video")

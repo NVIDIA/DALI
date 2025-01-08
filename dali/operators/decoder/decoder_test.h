@@ -43,12 +43,13 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
   inline OpSpec GetOpSpec(const std::string& op_name,
                           const std::string& device = "cpu") const {
     const bool is_mixed = (device == "mixed");
-    auto default_device = ParseStorageDevice(device);
+    auto input_device = is_mixed ? StorageDevice::CPU : ParseStorageDevice(device);
+    auto output_device = is_mixed ? StorageDevice::GPU : ParseStorageDevice(device);
     return OpSpec(op_name)
       .AddArg("device", device)
       .AddArg("output_type", this->img_type_)
-      .AddInput("encoded", is_mixed ? StorageDevice::CPU : default_device)
-      .AddOutput("decoded", default_device);
+      .AddInput("encoded", input_device)
+      .AddOutput("decoded", output_device);
   }
 
   inline uint32_t GetTestCheckType() const override {
