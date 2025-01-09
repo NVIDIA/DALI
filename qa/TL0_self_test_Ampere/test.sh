@@ -31,6 +31,10 @@ test_body() {
 
   # test decoders on A100 as well
   ${python_new_invoke_test} -s decoder test_image
+
+  # test Optical Flow
+  ${python_invoke_test} test_optical_flow.py
+  ${python_invoke_test} test_dali_variable_batch_size.py:test_optical_flow
 }
 
 pushd ../..
