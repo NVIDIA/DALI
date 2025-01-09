@@ -331,10 +331,11 @@ class DLL_PUBLIC OpSpec {
   }
 
   template <typename T>
-  bool TryGetArgument(T &result,
-                                        std::string_view name,
-                                        const ArgumentWorkspace *ws = nullptr,
-                                        Index idx = 0) const {
+  bool TryGetArgument(
+        T &result,
+        std::string_view name,
+        const ArgumentWorkspace *ws = nullptr,
+        Index idx = 0) const {
     using S = argument_storage_t<T>;
     return TryGetArgumentImpl<T, S>(result, name, ws, idx);
   }
