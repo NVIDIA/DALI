@@ -14,40 +14,15 @@
 
 import os
 import numpy as np
-import platform
 import random
 import cv2
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import fn, types
-from test_utils import get_dali_extra_path, get_arch
+from test_utils import get_dali_extra_path, get_arch, is_of_supported
 from nose_utils import raises, assert_raises, SkipTest
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "imgproc")
-
-is_of_supported_var = None
-
-
-def is_of_supported(device_id=0):
-    global is_of_supported_var
-    if is_of_supported_var is not None:
-        return is_of_supported_var
-
-    driver_version_major = 0
-    try:
-        import pynvml
-
-        pynvml.nvmlInit()
-        driver_version = pynvml.nvmlSystemGetDriverVersion().decode("utf-8")
-        driver_version_major = int(driver_version.split(".")[0])
-    except ModuleNotFoundError:
-        print("NVML not found")
-
-    # there is an issue with OpticalFlow driver in R495 and newer on aarch64 platform
-    is_of_supported_var = get_arch(device_id) >= 7.5 and (
-        platform.machine() == "x86_64" or driver_version_major < 495
-    )
-    return is_of_supported_var
 
 
 def get_mapping(shape):
@@ -242,6 +217,8 @@ interactive = False
 
 
 def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
+    if not is_of_supported():
+        raise SkipTest("Optical Flow is not supported on this platform")
     batch_size = 3
     pipe = of_pipeline(
         batch_size=batch_size,
@@ -286,8 +263,6 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
 
 
 def test_optflow():
-    if not is_of_supported():
-        raise SkipTest("Optical Flow is not supported on this platform")
     for output_grid in [1, 2, 4]:
         hint_grid = random.choice([None, 1, 2, 4, 8])
         for use_temporal_hints in [True, False]:
@@ -296,11 +271,15 @@ def test_optflow():
 
 @raises(RuntimeError, "Output grid size: 3 is not supported, supported are:")
 def test_wrong_out_grid_size():
+    if not is_of_supported():
+        raise SkipTest("Optical Flow is not supported on this platform")
     pipe = of_pipeline(num_threads=3, device_id=0, output_grid=3)
     pipe.run()
 
 
 @raises(RuntimeError, "Hint grid size: 3 is not supported, supported are:")
 def test_wrong_hint_grid_size():
+    if not is_of_supported():
+        raise SkipTest("Optical Flow is not supported on this platform")
     pipe = of_pipeline(num_threads=3, device_id=0, output_grid=4, hint_grid=3)
     pipe.run()

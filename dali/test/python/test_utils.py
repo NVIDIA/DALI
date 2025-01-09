@@ -30,6 +30,9 @@ from packaging.version import Version
 from nose_utils import SkipTest
 
 
+is_of_supported_var = None
+
+
 def get_arch(device_id=0):
     compute_cap = 0
     try:
@@ -989,3 +992,25 @@ def load_test_operator_plugin():
     except RuntimeError:
         # in conda "libtestoperatorplugin" lands inside lib/ dir
         plugin_manager.load_library("libtestoperatorplugin.so")
+
+
+def is_of_supported(device_id=0):
+    global is_of_supported_var
+    if is_of_supported_var is not None:
+        return is_of_supported_var
+
+    driver_version_major = 0
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        driver_version = pynvml.nvmlSystemGetDriverVersion().decode("utf-8")
+        driver_version_major = int(driver_version.split(".")[0])
+    except ModuleNotFoundError:
+        print("NVML not found")
+
+    # there is an issue with OpticalFlow driver in R495 and newer on aarch64 platform
+    is_of_supported_var = get_arch(device_id) >= 7.5 and (
+        platform.machine() == "x86_64" or driver_version_major < 495
+    )
+    return is_of_supported_var
