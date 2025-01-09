@@ -273,9 +273,18 @@ endif()
 # nvimagecodec
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
+set(DALI_INSTALL_REQUIRES_NVJPEG2K "")
+set(DALI_INSTALL_REQUIRES_NVTIFF "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.3.0")
-  set(NVIMGCODEC_MAX_VERSION "0.4.0")
+  set(NVJPEG2K_MIN_VERSION "0.8.0")
+  set(NVJPEG2K_MAX_VERSION "0.9.0")
+
+  set(NVTIFF_MIN_VERSION "0.4.0")
+  set(NVTIFF_MAX_VERSION "0.5.0")
+
+  set(NVIMGCODEC_MIN_VERSION "0.4.1")
+  set(NVIMGCODEC_MAX_VERSION "0.5.0")
+  message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
 
@@ -288,8 +297,8 @@ if(BUILD_NVIMAGECODEC)
     include(FetchContent)
     FetchContent_Declare(
       nvimgcodec_headers
-      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.3.0.5-archive.tar.xz
-      URL_HASH SHA512=259bff93305c301fb4325c6e2f71da93f3f6e0b38c7c8739913ca70b5a9c74cc898a608c5ac6e830dba1739878e53607ded03deaf2f23af3a9cc473463f100eb
+      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.4.1.21-archive.tar.xz
+      URL_HASH SHA512=3f20f6944a360597586bfe3550a0605257bcd944748477a869691ec1a42716e3722f8ddbd0b525995ebab89a33cd91ed82d5b151194008f1a8424971448a4824
     )
     FetchContent_Populate(nvimgcodec_headers)
     set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
@@ -304,7 +313,27 @@ if(BUILD_NVIMAGECODEC)
     message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
     add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 
-    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
+    # Find the position of the substring
+    string(FIND "aarch64-linux-gnu" "${CMAKE_PREFIX_PATH}" SUBSTRING_POSITION)
+    if(NOT SUBSTRING_POSITION EQUAL -1)
+      # Substring found
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
+      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-cu${CUDA_VERSION_MAJOR}")
+      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-cu${CUDA_VERSION_MAJOR}")
+    else()
+      # Substring not found
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
+      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-tegra-cu${CUDA_VERSION_MAJOR}")
+      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-tegra-cu${CUDA_VERSION_MAJOR}")
+    endif()
+
+    # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
+    set(DALI_INSTALL_REQUIRES_NVJPEG2K "\'${NVJPEG2K_PACKAGE_NAME} >= ${NVJPEG2K_MIN_VERSION}, < ${NVJPEG2K_MAX_VERSION}',")
+    message(STATUS "Adding nvjpeg2k requirement as: ${DALI_INSTALL_REQUIRES_NVJPEG2K}")
+    set(DALI_INSTALL_REQUIRES_NVTIFF "\'${NVTIFF_PACKAGE_NAME} >= ${NVTIFF_MIN_VERSION}, < ${NVTIFF_MAX_VERSION}',")
+    message(STATUS "Adding nvtiff requirement as: ${DALI_INSTALL_REQUIRES_NVTIFF}")
+    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
+    message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
   else()
     message(STATUS "nvImageCodec - static link")
 
@@ -321,7 +350,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.3.0
+      GIT_TAG           v0.4.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
@@ -336,6 +365,8 @@ if(BUILD_NVIMAGECODEC)
                         "-DWITH_DYNAMIC_NVJPEG2K=OFF"
                         "-DBUILD_NVJPEG_EXT=${BUILD_NVJPEG}"
                         "-DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG}"
+                        "-DBUILD_NVTIFF_EXT=OFF"
+                        "-DWITH_DYNAMIC_NVTIFF=OFF"
                         "-DBUILD_NVBMP_EXT=OFF"
                         "-DBUILD_NVPNM_EXT=OFF"
                         "-DBUILD_LIBJPEG_TURBO_EXT=${BUILD_LIBJPEG_TURBO}"
