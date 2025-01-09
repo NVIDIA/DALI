@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.multiprocessing as mp
-from torch.utils import data as torchdata
-from torch.utils.data._utils.collate import default_collate_fn_map
-from nvidia.dali import Pipeline
-from nvidia.dali.external_source import ExternalSource
+__all__ = ["DALIServer", "DataLoader"]
+
+from torch.cuda import nvtx as _nvtx
+import torch.multiprocessing as _mp
+from torch.utils import data as _torchdata
+from torch.utils.data._utils.collate import default_collate_fn_map as _default_collate_fn_map
+from nvidia.dali import Pipeline as _Pipeline
+from nvidia.dali.external_source import ExternalSource as _ExternalSource
 import threading
 import queue
 from queue import Empty
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
-import tree
 import warnings
+from inspect import Parameter, Signature
+
 
 # DALI proxy is a PyTorch specific layer that connects a multi-process PyTorch DataLoader with
 # a single DALI pipeline. This allows to run CUDA processing in a single process, avoiding the
@@ -81,9 +84,9 @@ import warnings
 #     |               |                  |                |                 |             |
 #     |               |                  |<--req_1_0------|                 |             |
 #     |               |                  |                |                 |             |
-#     |               |           ---------------         |                 |             |
-#     |               |           | run         |         |                 |             |
-#     |               |           ---------------         |                 |             |
+#     |               |           ---------------         |          -------------        |
+#     |               |           | run         |         |          | collate   |        |
+#     |               |           ---------------         |          -------------        |
 #     |               |                  |                |                 |             |
 #     |               |                  |                |<~~put(req_0_1)~~|             |
 #     |               |                  |                |                 |             |
@@ -115,9 +118,34 @@ def _external_source_node_names(pipeline):
         pipeline._build_graph()
     input_node_names = []
     for op in pipeline._ops:
-        if isinstance(op._op, ExternalSource):
+        if isinstance(op._op, _ExternalSource):
             input_node_names.append(op.name)
     return input_node_names
+
+
+class DALIOutputSampleRef:
+    """
+    Reference for a single sample output bound to a pipeline run.
+    """
+
+    def __init__(self, proxy, pipe_run_ref, output_idx, sample_idx):
+        """
+        Args:
+            proxy (_DALIProxy): The proxy object used for communication or data handling.
+            pipe_run_ref (DALIPipelineRunRef): A reference to the pipeline run.
+            output_idx (int): The index of the output in the pipeline.
+            sample_idx (int): The index of the sample within the batch.
+        """
+        self.proxy = proxy
+        self.pipe_run_ref = pipe_run_ref
+        self.output_idx = output_idx
+        self.sample_idx = sample_idx
+
+    def __repr__(self):
+        return (
+            f"DALIOutputSampleRef({self.pipe_run_ref}, "
+            + f"output_idx={self.output_idx}, sample_idx={self.sample_idx})"
+        )
 
 
 class DALIPipelineRunRef:
@@ -125,117 +153,182 @@ class DALIPipelineRunRef:
     Reference for a DALI pipeline run iteration.
     """
 
-    def __init__(self, batch_id, inputs):
+    def __init__(self, batch_id):
         """
-        batch_id: Identifier of the batch
-        is_scheduled: Whether the iteration has been scheduled for execution already
-        inputs: Inputs to be used when scheduling the iteration (makes sense only if
-        is_scheduled is False)
+        Args:
+            batch_id (tuple(int, int)): A tuple that uniquely identifies the batch. The first
+                element represent the worker, and the second the batch index for that worker
         """
         self.batch_id = batch_id
-        self.inputs = inputs
+        self.call_args = {}
         self.is_scheduled = False
+        self.is_complete = False
+
+    def __repr__(self):
+        return (
+            f"DALIPipelineRunRef(batch_id={self.batch_id}, call_args={self.call_args} "
+            f"is_scheduled={self.is_scheduled}, is_complete={self.is_complete})"
+        )
 
 
-class DALIProcessedSampleRef:
+class DALIOutputBatchRef:
     """
-    Placeholder for a pipeline run reference, which is returned by the data worker instead of
-    the actual data. The PyTorch worker returns this trivial object, only containing information
-    about this proxy instance and the input data to the pipeline. Later in the collate function,
-    we send the data for execution to DALI.
+    Reference for a batched output bound to a pipeline run.
     """
 
-    def __init__(self, proxy, inputs):
-        self.proxy = proxy
-        self.inputs = inputs
-        if len(inputs) != len(self.proxy.dali_input_names):
-            raise RuntimeError(
-                f"Unexpected number of inputs. Expected: {self.dali_input_names}, got: {inputs}"
-            )
+    def __init__(self, pipe_run_ref, output_idx):
+        """
+        Args:
+            pipe_run_ref (DALIPipelineRunRef): A reference to the pipeline run.
+            output_idx (int): The index of the output in the pipeline.
+        """
+        self.pipe_run_ref = pipe_run_ref
+        self.output_idx = output_idx
+
+    def __repr__(self):
+        return f"DALIOutputBatchRef(pipe_run_ref={self.pipe_run_ref}, output_idx={self.output_idx})"
 
 
-def _collate_dali_processed_sample_ref_fn(samples, *, collate_fn_map=None):
+def _collate_dali_output_sample_ref_fn(samples, *, collate_fn_map=None):
     """
     Special collate function that schedules a DALI iteration for execution
     """
     assert len(samples) > 0
-    sample = samples[0]
-    inputs = [[] for _ in range(len(sample.inputs))]
-    proxy = sample.proxy
-    for sample in samples:
-        assert proxy == sample.proxy
-        for idx, input_ref in enumerate(sample.inputs):
-            inputs[idx].append(input_ref)
-    pipe_run_ref = proxy._create_pipe_run_ref(inputs)
-    if not proxy.deterministic:
-        proxy._schedule_batch(pipe_run_ref)
-        # If we scheduled the iteration, we don't need to transfer the inputs back to the consumer
-        return DALIPipelineRunRef(pipe_run_ref.batch_id, inputs=None)
-    else:
-        return pipe_run_ref
+    pipe_run_ref = samples[0].pipe_run_ref
+    output_idx = samples[0].output_idx
+    proxy = samples[0].proxy
+    for i, sample in enumerate(samples):
+        if (
+            sample.proxy != proxy
+            or sample.pipe_run_ref != pipe_run_ref
+            or sample.output_idx != output_idx
+            or sample.sample_idx != i
+        ):
+            raise RuntimeError("All samples should belong to the same batch")
+    pipe_run_ref.is_complete = True
+    if not proxy._deterministic and not pipe_run_ref.is_scheduled:
+        pipe_run_ref = proxy._schedule_batch(pipe_run_ref)
+    return DALIOutputBatchRef(pipe_run_ref, output_idx)
 
 
-# In-place modify `default_collate_fn_map` to handle DALIProcessedSampleRef
-default_collate_fn_map.update({DALIProcessedSampleRef: _collate_dali_processed_sample_ref_fn})
+# In-place modify `default_collate_fn_map` to handle DALIOutputSampleRef
+_default_collate_fn_map.update({DALIOutputSampleRef: _collate_dali_output_sample_ref_fn})
 
 
 class _DALIProxy:
-    def __init__(self, dali_input_names, dali_input_q, deterministic):
-        # External source instance names
-        self.dali_input_names = dali_input_names
+    class _WorkerData:
+        def __init__(self, worker_id):
+            self.worker_id = worker_id
+            self.pipe_run_ref = None
+            self.next_worker_batch_idx = 0
+            self.batch_sample_idx = 0
+
+    def __init__(self, signature, dali_input_q, deterministic):
         # If True, the request is not sent to DALI upon creation, so that it can be scheduled
         # always in the same order by the main process. This comes at a cost of performance
-        self.deterministic = deterministic
+        self._deterministic = deterministic
         # Shared queue with the server
-        self.dali_input_q = dali_input_q
-        # Torch worker id, to be filled on first call to worker_id()
-        self._worker_id = None
-        # Iteration index for the current worker
-        self.data_idx = 0
+        self._dali_input_q = dali_input_q
+        # Per worker
+        self._worker_data = None
+        # Override callable signature
+        self._signature = signature
+        self.__call__ = signature
+        # Current batch
+        self._curr_batch_params = {}
+        # get num outputs
+        self._num_outputs = self._get_num_outputs()
 
-    @property
-    def worker_id(self):
+    def _get_num_outputs(self):
+        return_annotation = self._signature.return_annotation
+        if isinstance(return_annotation, tuple):
+            return len(return_annotation)
+        elif return_annotation is Signature.empty:
+            return 0
+        else:
+            return 1
+
+    def _get_worker_id(self):
         """
         Getter for 'worker_id'. In case of torch data worker it is the worker info, and
         in case of a thread the thread identifier
         """
-        if self._worker_id is None:
-            worker_info = torchdata.get_worker_info()
-            self._worker_id = worker_info.id if worker_info else threading.get_ident()
-        return self._worker_id
+        worker_info = _torchdata.get_worker_info()
+        return worker_info.id if worker_info else threading.get_ident()
 
-    def _create_pipe_run_ref(self, inputs):
-        # Identifier of this request
-        batch_id = (self.worker_id, self.data_idx)
-        self.data_idx = self.data_idx + 1
-        return DALIPipelineRunRef(batch_id, inputs=inputs)
+    def _get_worker_data(self):
+        if self._worker_data is None:
+            self._worker_data = _DALIProxy._WorkerData(self._get_worker_id())
+        return self._worker_data
+
+    def _add_sample(self, bound):
+        """
+        Adds a sample to the current batch. In the collate function, we mark the batch as
+        complete. When a completed batch is encountered, a new batch should be started.
+        """
+        worker_data = self._get_worker_data()
+        if worker_data.pipe_run_ref is None or worker_data.pipe_run_ref.is_complete:
+            worker_data.pipe_run_ref = DALIPipelineRunRef(
+                batch_id=(worker_data.worker_id, worker_data.next_worker_batch_idx)
+            )
+            worker_data.next_worker_batch_idx += 1
+            worker_data.batch_sample_idx = 0
+
+        for name, value in bound.arguments.items():
+            if name not in worker_data.pipe_run_ref.call_args:
+                worker_data.pipe_run_ref.call_args[name] = []
+            worker_data.pipe_run_ref.call_args[name].append(value)
+
+        ret = tuple(
+            DALIOutputSampleRef(
+                self,
+                pipe_run_ref=worker_data.pipe_run_ref,
+                output_idx=i,
+                sample_idx=worker_data.batch_sample_idx,
+            )
+            for i in range(self._num_outputs)
+        )
+        # unpack single element tuple
+        if len(ret) == 1:
+            ret = ret[0]
+        worker_data.batch_sample_idx += 1
+        return ret
 
     def _schedule_batch(self, pipe_run_ref):
-        torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {pipe_run_ref.batch_id}")
-        self.dali_input_q.put((pipe_run_ref.batch_id, pipe_run_ref.inputs))
-        torch.cuda.nvtx.range_pop()
+        """
+        Schedules a batch for execution by appending it to the DALI input queue.
+        """
+        if not pipe_run_ref.call_args:
+            raise RuntimeError("No inputs for the pipeline to run (was it already scheduled?)")
+        if not pipe_run_ref.is_complete:
+            raise RuntimeError("Batch is not marked as complete")
+        _nvtx.range_push(f"dali_input_q put {pipe_run_ref.batch_id}")
 
-    def __call__(self, *inputs):
+        dali_input_q_item = DALIPipelineRunRef(pipe_run_ref.batch_id)
+        dali_input_q_item.call_args = pipe_run_ref.call_args
+        dali_input_q_item.is_complete = True
+        dali_input_q_item.is_scheduled = True
+        self._dali_input_q.put(dali_input_q_item)
+
+        pipe_run_ref.call_args = {}
+        pipe_run_ref.is_scheduled = True
+        _nvtx.range_pop()
+        return pipe_run_ref
+
+    def __call__(self, *args, **kwargs):
         """
-        Returns a reference to the pipeline run
+        Returns a reference to the outputs of the pipeline run
         """
-        if len(inputs) != len(self.dali_input_names):
-            raise RuntimeError(
-                f"Unexpected number of inputs. Expected: {self.dali_input_names}, got: {inputs}"
-            )
-        return DALIProcessedSampleRef(self, inputs)
+        return self._add_sample(self._signature.bind(*args, **kwargs))
 
 
 class DALIServer:
-    def __init__(self, pipeline, input_names=None, deterministic=False):
+    def __init__(self, pipeline, deterministic=False):
         """
         Initializes a new DALI server instance.
 
         Args:
-            input_names (list): list of strings representing the inputs to the pipeline. Those
-                                should match the names of the ``external_source`` nodes in the
-                                DALI pipeline. If the pipeline has a single input, there is no
-                                need to provide this argument.
+            pipeline (Pipeline): DALI pipeline to run.
             deterministic (bool): If True, it ensures that the order of execution is always
                                 the same, which is important when the pipeline has a state
                                 and we are interested in obtaining reproducible results.
@@ -244,7 +337,7 @@ class DALIServer:
                                 loader has returned the batch information, and not as soon
                                 as data worker collates the batch.
 
-        Example:
+        Example 1 - Full integration with PyTorch via DALI proxy DataLoader:
 
             .. code-block:: python
 
@@ -302,45 +395,99 @@ class DALIServer:
 
                     for data, target in loader:
                         # consume it
-                        pass
 
+        Example 2 - Manual execution using DALI proxy / DALI server and PyTorch's default_collate:
+
+            .. code-block:: python
+
+                @pipeline_def
+                def my_pipe():
+                    a = fn.external_source(name="a", no_copy=True)
+                    b = fn.external_source(name="b", no_copy=True)
+                    return a + b, a - b
+
+                with dali_proxy.DALIServer(
+                    my_pipe(device='cpu', batch_size=batch_size,
+                            num_threads=3, device_id=None)) as dali_server:
+
+                    outs = []
+                    for _ in range(batch_size):
+                        a = np.array(np.random.rand(3, 3), dtype=np.float32)
+                        b = np.array(np.random.rand(3, 3), dtype=np.float32)
+
+                        if named_arguments:
+                            out0, out1 = dali_server.proxy(a=a, b=b)
+                        else:
+                            out0, out1 = dali_server.proxy(a, b)
+
+                        outs.append((a, b, out0, out1))
+
+                    outs = torch.utils.data.dataloader.default_collate(outs)
+
+                    a, b, a_plus_b, a_minus_b = dali_server.produce_data(outs)
+
+        Example 3 - Full integration with PyTorch but using the original PyTorch DataLoader
+
+            .. code-block:: python
+
+                pipe = rn50_train_pipe(...)
+                with dali_proxy.DALIServer(pipe) as dali_server:
+                    dataset = torchvision.datasets.ImageFolder(
+                        jpeg, transform=dali_server.proxy, loader=read_filepath)
+
+                    # Using PyTorch DataLoader directly
+                    loader = torch.utils.data.DataLoader(
+                        dataset,
+                        batch_size=batch_size,
+                        num_workers=nworkers,
+                        drop_last=True,
+                    )
+
+                    for data, target in loader:
+                        # replaces the output reference with actual data
+                        data = dali_server.produce_data(data)
+                        ...
         """
-        assert isinstance(pipeline, Pipeline), f"Expected an NVIDIA DALI pipeline, got: {pipeline}"
-        self.pipe = pipeline
-        self.pipe_input_names = _external_source_node_names(self.pipe)
-        if len(self.pipe_input_names) == 0:
+        if not isinstance(pipeline, _Pipeline):
+            raise TypeError(f"Expected an NVIDIA DALI pipeline, got: {pipeline}")
+        else:
+            self._pipe = pipeline
+
+        # get the dali pipeline input names
+        self._dali_input_names = _external_source_node_names(self._pipe)
+        if len(self._dali_input_names) == 0:
             raise RuntimeError("The provided pipeline doesn't have any inputs")
-        elif len(self.pipe_input_names) == 1:
-            assert input_names is None or input_names[0] == self.pipe_input_names[0]
-            self.dali_input_names = self.pipe_input_names
-        elif input_names is None or len(input_names) != len(self.pipe_input_names):
-            raise RuntimeError(
-                "The provided pipeline has more than one output. In such case, the argument "
-                "`input_names` should containi the same exact number of strings, one for "
-                "each pipeline input to be mapped by the proxy callable object"
-            )
-        self.num_inputs = len(self.dali_input_names)
+
+        self._signature = Signature(
+            [
+                Parameter(input_name, Parameter.POSITIONAL_OR_KEYWORD)
+                for input_name in self._dali_input_names
+            ],
+            return_annotation=tuple(DALIOutputSampleRef for _ in range(self._pipe.num_outputs)),
+        )
 
         # Multi-process queue used to transfer data from the pytorch workers to the main process
-        self.dali_input_q = mp.Queue()
+        self._dali_input_q = _mp.Queue()
         # Multi-process queue used by the main process to consume outputs from the DALI pipeline
-        self.dali_output_q = queue.Queue()
+        self._dali_output_q = queue.Queue()
         # Thread
-        self.thread = None
+        self._thread = None
+        self._thread_stop_event = None
         # Cache
-        self.cache_outputs = dict()
+        self._cache_outputs = dict()
         # Whether we want the order of DALI execution to be reproducible
-        self.deterministic = deterministic
+        self._deterministic = deterministic
+        # Proxy
+        self._proxy = None
+
+    def __del__(self):
+        self.stop_thread()
 
     @property
     def proxy(self):
-        return _DALIProxy(self.dali_input_names, self.dali_input_q, self.deterministic)
-
-
-    def _schedule_batch(self, pipe_run_ref):
-        torch.cuda.nvtx.range_push(f"dali_proxy.dali_input_q.put {pipe_run_ref.batch_id}")
-        self.dali_input_q.put((pipe_run_ref.batch_id, pipe_run_ref.inputs))
-        torch.cuda.nvtx.range_pop()
+        if not self._proxy:
+            self._proxy = _DALIProxy(self._signature, self._dali_input_q, self._deterministic)
+        return self._proxy
 
     def _get_outputs(self, pipe_run_ref: DALIPipelineRunRef):
         """
@@ -351,140 +498,198 @@ class DALIServer:
 
         # In case we haven't scheduled the iteration yet (i.e. deterministic config), do it now
         if not pipe_run_ref.is_scheduled:
-            self._schedule_batch(pipe_run_ref)
+            _nvtx.range_push(f"dali_input_q put {pipe_run_ref.batch_id}")
+            self._dali_input_q.put(pipe_run_ref)
             pipe_run_ref.is_scheduled = True
+            _nvtx.range_pop()
 
         # Wait for the requested output to be ready
         req_outputs = None
         # If the data was already read, just return it (and clear the cache entry)
-        if req_batch_id in self.cache_outputs:
-            req_outputs = self.cache_outputs[req_batch_id]
-            del self.cache_outputs[req_batch_id]
+        if req_batch_id in self._cache_outputs:
+            req_outputs = self._cache_outputs[req_batch_id]
+            del self._cache_outputs[req_batch_id]
 
         else:
             curr_batch_id = None
             # If not the data we are looking for, store it and keep processing until we find it
             while req_batch_id != curr_batch_id:
-                torch.cuda.nvtx.range_push("dali_output_q.get")
-                curr_batch_id, curr_processed_outputs = self.dali_output_q.get()
-                torch.cuda.nvtx.range_pop()
+                _nvtx.range_push("dali_output_q.get")
+                curr_batch_id, curr_processed_outputs, err = self._dali_output_q.get()
+                _nvtx.range_pop()
+
+                if err is not None:
+                    raise err
+
                 if curr_batch_id == req_batch_id:
                     req_outputs = curr_processed_outputs
                 else:
-                    self.cache_outputs[curr_batch_id] = curr_processed_outputs
-        # Unpack single element tuples
-        if isinstance(req_outputs, tuple) and len(req_outputs) == 1:
-            req_outputs = req_outputs[0]
+                    self._cache_outputs[curr_batch_id] = curr_processed_outputs
         return req_outputs
+
+    def _produce_data_impl(self, obj, cache):
+        """
+        Recursive implementation of produce_data
+        """
+        # If it is an instance of DALIOutputBatchRef, replace it with data
+        if isinstance(obj, DALIOutputBatchRef):
+            if obj.pipe_run_ref.batch_id not in cache:
+                cache[obj.pipe_run_ref.batch_id] = self._get_outputs(obj.pipe_run_ref)
+            return cache[obj.pipe_run_ref.batch_id][obj.output_idx]
+
+        # If it is a custom class, recursively call produce data on its members
+        elif hasattr(obj, "__dict__"):
+            for attr_name, attr_value in obj.__dict__.items():
+                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
+            return obj
+
+        # If it's a list, recursively apply the function to each element
+        elif isinstance(obj, list):
+            return [self._produce_data_impl(item, cache) for item in obj]
+
+        # If it's a tuple, recursively apply the function to each element (and preserve tuple type)
+        elif isinstance(obj, tuple):
+            return tuple(self._produce_data_impl(item, cache) for item in obj)
+
+        # If it's a dictionary, apply the function to the values
+        elif isinstance(obj, dict):
+            return {key: self._produce_data_impl(value, cache) for key, value in obj.items()}
+
+        else:  # return directly anything else
+            return obj
 
     def produce_data(self, obj):
         """
         A generic function to recursively visits all elements in a nested structure and replace
-        instances of DALIPipelineRunRef with the actual data provided by the DALI server
+        instances of DALIOutputBatchRef with the actual data provided by the DALI server
+        See :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DALIServer` for a full example.
 
         Args:
             obj: The object to map (can be an instance of any class).
 
         Returns:
-            A new object where any instance of DALIPipelineRunRef has been replaced with actual
+            A new object where any instance of DALIOutputBatchRef has been replaced with actual
             data.
+
         """
+        cache = dict()
+        ret = self._produce_data_impl(obj, cache)
+        del cache
+        return ret
 
-        # If it is an instance of DALIPipelineRunRef, replace it with data
-        if isinstance(obj, DALIPipelineRunRef):
-            return self._get_outputs(obj)
-        # If it is a custom class, recursively call produce data on its members
-        elif hasattr(obj, '__dict__'):
-            new_obj = obj.__class__.__new__(obj.__class__)
-            for attr_name, attr_value in obj.__dict__.items():
-                setattr(new_obj, attr_name, self.produce_data(attr_value))
-            return new_obj
+    def _get_input_batches(self, max_num_batches, timeout=None):
+        _nvtx.range_push("dali_input_q.get")
+        count = 0
+        batches = []
+        if timeout is not None:
+            try:
+                batches.append(self._dali_input_q.get(timeout=timeout))
+                count = count + 1
+            except Empty:
+                return None
+            except _mp.TimeoutError:
+                return None
 
-        # If it's a list, recursively apply the function to each element
-        elif isinstance(obj, list):
-            return [self.produce_data(item) for item in obj]
-
-        # If it's a tuple, recursively apply the function to each element (and preserve tuple type)
-        elif isinstance(obj, tuple):
-            return tuple(self.produce_data(item) for item in obj)
-
-        # If it's a dictionary, apply the function to both keys and values
-        elif isinstance(obj, dict):
-            return {key: self.produce_data(value) for key, value in obj.items()}
-
-        else:  # return directly anything else
-            return obj
+        while count < max_num_batches:
+            try:
+                batches.append(self._dali_input_q.get_nowait())
+                count = count + 1
+            except Empty:
+                break
+        _nvtx.range_pop()
+        return batches
 
     def _thread_fn(self):
         """
         Asynchronous DALI thread that gets iteration data from the queue and schedules it
         for execution
         """
-        self.pipe.build()  # just in case
-
-        while not self.thread_stop_event.is_set():
-            try:
-                torch.cuda.nvtx.range_push("dali_input_q.get")
-                batch_id, inputs = self.dali_input_q.get(timeout=5)
-                torch.cuda.nvtx.range_pop()
-            except mp.TimeoutError:
-                continue
-            except Empty:
-                continue
-
-            torch.cuda.nvtx.range_push(f"schedule iteration {batch_id}")
-            for idx, input_name in enumerate(self.dali_input_names):
-                self.pipe.feed_input(input_name, inputs[idx])
-            self.pipe._run_once()
-            pipe_outputs = self.pipe.outputs()
-            torch_outputs = tuple(
-                [
-                    to_torch_tensor(out.as_tensor(), not self.pipe.exec_dynamic)
-                    for out in pipe_outputs
-                ]
+        fed_batches = []
+        while not self._thread_stop_event.is_set():
+            _nvtx.range_push("get_input_batches")
+            timeout = 5 if len(fed_batches) == 0 else None
+            # We try to feed as many batches as the prefetch queue (if available)
+            batches = self._get_input_batches(
+                self._pipe.prefetch_queue_depth - len(fed_batches), timeout=timeout
             )
-            self.dali_output_q.put((batch_id, torch_outputs))
-            torch.cuda.nvtx.range_pop()
+            _nvtx.range_pop()
+            if batches is not None and len(batches) > 0:
+                _nvtx.range_push("feed_pipeline")
+                for pipe_run_ref in batches:
+                    for name, data in pipe_run_ref.call_args.items():
+                        self._pipe.feed_input(name, data)
+                    self._pipe._run_once()
+                    fed_batches.append(pipe_run_ref.batch_id)
+                _nvtx.range_pop()
+
+            # If no batches to consume, continue
+            if len(fed_batches) == 0:
+                continue
+
+            _nvtx.range_push("outputs")
+            batch_id = fed_batches.pop(0)  # we are sure there's at least one
+            err = None
+            torch_outputs = None
+            try:
+                pipe_outputs = self._pipe.outputs()
+                torch_outputs = tuple(
+                    [
+                        to_torch_tensor(out.as_tensor(), not self._pipe.exec_dynamic)
+                        for out in pipe_outputs
+                    ]
+                )
+            except Exception as exception:
+                err = exception
+
+            self._dali_output_q.put((batch_id, torch_outputs, err))
+            _nvtx.range_pop()
 
     def start_thread(self):
         """
-        Starts the DALI pipeline thread
+        Starts the DALI pipeline thread. Note: Using scope's __enter__/__exit__ is preferred
         """
-        if self.thread is not None:
+        if self._thread is not None:
             return
-        self.thread = threading.Thread(target=DALIServer._thread_fn, args=(self,))
-        self.thread_stop_event = threading.Event()
-        self.thread.start()
+        self._thread = threading.Thread(target=DALIServer._thread_fn, args=(self,))
+        self._thread_stop_event = threading.Event()
+        self._thread.start()
 
     def stop_thread(self):
         """
-        Stops the DALI pipeline thread
+        Stops the DALI pipeline thread. Note: Using scope's __enter__/__exit__ is preferred
         """
-        if self.thread_stop_event is None:
+        if self._thread_stop_event is None:
             return
-        self.thread_stop_event.set()
-        self.thread.join()
-        self.thread = None
-        self.thread_stop_event = None
+        self._thread_stop_event.set()
+        self._thread.join()
+        self._thread = None
+        self._thread_stop_event = None
 
     def __enter__(self):
+        """
+        Starts the DALI pipeline thread
+        """
         self.start_thread()
         return self
 
     def __exit__(self, exc_type, exc_value, tb):
+        """
+        Stops the DALI pipeline thread
+        """
         self.stop_thread()
         if exc_type is not None:
             warnings.warn(f"An exception occurred: {exc_value}", category=UserWarning)
         return False  # Return False to propagate exceptions
 
 
-class DataLoader(torchdata.dataloader.DataLoader):
+class DataLoader(_torchdata.dataloader.DataLoader):
     """
-    DALI data loader to be used in the main loop, which runs the DALI pipeline doing the
-    processing asynchronously with regards to the training.
+    DALI data loader to be used in the main loop, which replaces the pipeline run references
+    with actual data produced by the DALI server.
+    See :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DALIServer` for a full example.
     """
 
-    class _Iter(torchdata.dataloader._MultiProcessingDataLoaderIter):
+    class _Iter(_torchdata.dataloader._MultiProcessingDataLoaderIter):
         """
         Data loader iterator used by the DALI proxy data loader
         """
@@ -494,13 +699,18 @@ class DataLoader(torchdata.dataloader.DataLoader):
             self.loader = loader
 
         def _next_data(self):
-            data = super()._next_data()
-            if self.loader.dali_server.thread is None:
-                raise RuntimeError("DALI server is not running")
-            data = self.dali_server.produce_data(data)
-            return data
+            self.loader.dali_server.start_thread()
+            try:
+                data = super()._next_data()
+                return self.loader.dali_server.produce_data(data)
+            except StopIteration:
+                self.loader.dali_server.stop_thread()
+                raise
 
     def __init__(self, dali_server, *args, **kwargs):
+        """
+        Same interface as PyTorch's DataLoader except for the extra DALIServer argument
+        """
         super().__init__(*args, **kwargs)
         self.dali_server = dali_server
 
