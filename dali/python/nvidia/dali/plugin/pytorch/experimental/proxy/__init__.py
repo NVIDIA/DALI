@@ -458,12 +458,14 @@ class DALIServer:
         if len(self._dali_input_names) == 0:
             raise RuntimeError("The provided pipeline doesn't have any inputs")
 
+        # TODO(janton): _py_num_outputs is a private member and not available on pipelines not defined in
+        # Python.
         self._signature = Signature(
             [
                 Parameter(input_name, Parameter.POSITIONAL_OR_KEYWORD)
                 for input_name in self._dali_input_names
             ],
-            return_annotation=tuple(DALIOutputSampleRef for _ in range(self._pipe.num_outputs)),
+            return_annotation=tuple(DALIOutputSampleRef for _ in range(self._pipe._py_num_outputs)),
         )
 
         # Multi-process queue used to transfer data from the pytorch workers to the main process
