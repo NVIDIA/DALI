@@ -314,7 +314,7 @@ if(BUILD_NVIMAGECODEC)
     add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 
     # Find the position of the substring
-    string(FIND "aarch64-linux-gnu" "${CMAKE_PREFIX_PATH}" SUBSTRING_POSITION)
+    string(FIND "${CMAKE_PREFIX_PATH}" "aarch64-linux-gnu" SUBSTRING_POSITION)
     if(NOT SUBSTRING_POSITION EQUAL -1)
       # Substring found
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
