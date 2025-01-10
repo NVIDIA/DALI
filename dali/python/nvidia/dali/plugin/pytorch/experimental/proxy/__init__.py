@@ -108,9 +108,17 @@ def _modify_signature(new_sig):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            bound_args = new_sig.bind(*args, **kwargs)
-            bound_args.apply_defaults()
-            return func(*bound_args.args, **bound_args.kwargs)
+            try:
+                bound_args = new_sig.bind(*args, **kwargs)
+                bound_args.apply_defaults()
+                return func(*bound_args.args, **bound_args.kwargs)
+            except Exception as err:
+                args_str = ", ".join([f"{type(arg)}" for arg in args])
+                kwargs_str = ", ".join([f"{key}={type(arg)}" for key, arg in kwargs.items()])
+                raise ValueError(
+                    f"Expected signature is: {new_sig}. "
+                    f"Got: args=({args_str}), kwargs={kwargs_str}, error: {err}"
+                )
 
         wrapper.__signature__ = new_sig
         return wrapper
@@ -278,7 +286,7 @@ class _DALIProxy:
             self._worker_data = _DALIProxy._WorkerData(self._get_worker_id())
         return self._worker_data
 
-    def _add_sample(self, bound_args):
+    def _add_sample(self, inputs):
         """
         Adds a sample to the current batch. In the collate function, we mark the batch as
         complete. When a completed batch is encountered, a new batch should be started.
@@ -291,7 +299,7 @@ class _DALIProxy:
             worker_data.next_worker_batch_idx += 1
             worker_data.batch_sample_idx = 0
 
-        for name, value in bound_args.arguments.items():
+        for name, value in inputs.items():
             # we want to transfer only the arguments to the caller side, not the the self reference
             if name == "self":
                 continue
@@ -505,7 +513,8 @@ class DALIServer:
 
                 @_modify_signature(self._signature)
                 def __call__(self, *args, **kwargs):
-                    return self._add_sample(self._signature.bind(self, *args, **kwargs))
+                    bound_args = self._signature.bind(self, *args, **kwargs)
+                    return self._add_sample(bound_args.arguments)
 
             self._proxy = _DALIProxyCallable(
                 self._signature, self._dali_input_q, self._deterministic
@@ -550,10 +559,19 @@ class DALIServer:
                     self._cache_outputs[curr_batch_id] = curr_processed_outputs
         return req_outputs
 
-    def _produce_data_impl(self, obj, cache):
+    def _produce_data_impl(self, obj, cache, visited):
         """
         Recursive implementation of produce_data
         """
+
+        # Check if the object has already been visited (to prevent infinite recursion)
+        obj_id = id(obj)
+        if obj_id in visited:
+            return obj
+
+        # Mark the object as visited
+        visited.add(obj_id)
+
         # If it is an instance of DALIOutputBatchRef, replace it with data
         if isinstance(obj, DALIOutputBatchRef):
             if obj.pipe_run_ref.batch_id not in cache:
@@ -563,20 +581,22 @@ class DALIServer:
         # If it is a custom class, recursively call produce data on its members
         elif hasattr(obj, "__dict__"):
             for attr_name, attr_value in obj.__dict__.items():
-                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
+                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache, visited))
             return obj
 
         # If it's a list, recursively apply the function to each element
         elif isinstance(obj, list):
-            return [self._produce_data_impl(item, cache) for item in obj]
+            return [self._produce_data_impl(item, cache, visited) for item in obj]
 
         # If it's a tuple, recursively apply the function to each element (and preserve tuple type)
         elif isinstance(obj, tuple):
-            return tuple(self._produce_data_impl(item, cache) for item in obj)
+            return tuple(self._produce_data_impl(item, cache, visited) for item in obj)
 
         # If it's a dictionary, apply the function to the values
         elif isinstance(obj, dict):
-            return {key: self._produce_data_impl(value, cache) for key, value in obj.items()}
+            return {
+                key: self._produce_data_impl(value, cache, visited) for key, value in obj.items()
+            }
 
         else:  # return directly anything else
             return obj
@@ -596,7 +616,8 @@ class DALIServer:
 
         """
         cache = dict()
-        ret = self._produce_data_impl(obj, cache)
+        visited = set()
+        ret = self._produce_data_impl(obj, cache, visited)
         del cache
         return ret
 

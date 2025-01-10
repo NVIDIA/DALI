@@ -563,18 +563,19 @@ def test_dali_proxy_proxy_callable(named_arguments, debug=False):
         np.testing.assert_array_almost_equal(a_minus_b, b - a)
 
 
+@pipeline_def
+def square(device):
+    a = fn.external_source(name="a", no_copy=True)
+    if device == "gpu":
+        a = a.gpu()
+    return a**2
+
+
 @attr("pytorch")
 @params(("cpu",), ("gpu",))
 def test_dali_proxy_restart_server(device, debug=False):
     from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     from torch.utils import data as torchdata
-
-    @pipeline_def
-    def square(device):
-        a = fn.external_source(name="a", no_copy=True)
-        if device == "gpu":
-            a = a.gpu()
-        return a**2
 
     class MyDataset(torchdata.Dataset):
         def __init__(self, transform_fn):
@@ -601,3 +602,24 @@ def test_dali_proxy_restart_server(device, debug=False):
             np.testing.assert_array_almost_equal(data0**2, data1.cpu())
             assert dali_server._thread is not None
         assert dali_server._thread is None
+
+
+@attr("pytorch")
+@params((1,))
+def test_dali_proxy_produce_data_circular_dependencies(batch_size, debug=False):
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
+
+    with dali_proxy.DALIServer(
+        square(device="cpu", batch_size=batch_size, num_threads=3, device_id=None)
+    ) as dali_server:
+
+        class B:
+            def __init__(self, parent):
+                self.parent = parent
+
+        class A:
+            def __init__(self):
+                self.child = B(self)
+
+        objs = [A() for _ in range(3)]
+        dali_server.produce_data(objs)
