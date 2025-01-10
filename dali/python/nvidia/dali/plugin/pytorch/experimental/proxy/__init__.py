@@ -217,9 +217,12 @@ def _collate_dali_output_sample_ref_fn(samples, *, collate_fn_map=None):
             sample.proxy != proxy
             or sample.pipe_run_ref != pipe_run_ref
             or sample.output_idx != output_idx
-            or sample.sample_idx != i
         ):
             raise RuntimeError("All samples should belong to the same batch")
+
+        if sample.sample_idx != i:
+            raise RuntimeError("Unexpected sample order")
+
     pipe_run_ref.is_complete = True
     if not proxy._deterministic and not pipe_run_ref.is_scheduled:
         pipe_run_ref = proxy._schedule_batch(pipe_run_ref)
@@ -275,7 +278,7 @@ class _DALIProxy:
             self._worker_data = _DALIProxy._WorkerData(self._get_worker_id())
         return self._worker_data
 
-    def _add_sample(self, bound):
+    def _add_sample(self, bound_args):
         """
         Adds a sample to the current batch. In the collate function, we mark the batch as
         complete. When a completed batch is encountered, a new batch should be started.
@@ -288,7 +291,7 @@ class _DALIProxy:
             worker_data.next_worker_batch_idx += 1
             worker_data.batch_sample_idx = 0
 
-        for name, value in bound.arguments.items():
+        for name, value in bound_args.arguments.items():
             # we want to transfer only the arguments to the caller side, not the the self reference
             if name == "self":
                 continue
