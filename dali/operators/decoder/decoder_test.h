@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,11 +43,13 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
   inline OpSpec GetOpSpec(const std::string& op_name,
                           const std::string& device = "cpu") const {
     const bool is_mixed = (device == "mixed");
+    auto input_device = is_mixed ? StorageDevice::CPU : ParseStorageDevice(device);
+    auto output_device = is_mixed ? StorageDevice::GPU : ParseStorageDevice(device);
     return OpSpec(op_name)
       .AddArg("device", device)
       .AddArg("output_type", this->img_type_)
-      .AddInput("encoded", is_mixed ? "cpu" : device)
-      .AddOutput("decoded", is_mixed ? "gpu" : device);
+      .AddInput("encoded", input_device)
+      .AddOutput("decoded", output_device);
   }
 
   inline uint32_t GetTestCheckType() const override {

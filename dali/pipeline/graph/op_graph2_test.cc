@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,10 +49,10 @@ TEST(NewOpGraphTest, AddEraseData) {
 
 TEST(NewOpGraphBuilderTest, AddSingleOp) {
   OpSpec spec("dummy");
-  spec.AddInput("i0",  "cpu");
-  spec.AddInput("i1",  "gpu");
-  spec.AddOutput("o0", "gpu");
-  spec.AddOutput("o1", "cpu");
+  spec.AddInput("i0",  StorageDevice::CPU);
+  spec.AddInput("i1",  StorageDevice::GPU);
+  spec.AddOutput("o0", StorageDevice::GPU);
+  spec.AddOutput("o1", StorageDevice::CPU);
 
   OpGraph::Builder b;
   b.Add("op1", spec);
@@ -129,18 +129,18 @@ TEST(NewOpGraphBuilderTest, AddMultipleOps) {
   */
 
   OpSpec spec1("dummy");
-  spec1.AddInput("i0",  "cpu");
-  spec1.AddInput("i1",  "gpu");
-  spec1.AddOutput("m0", "gpu");
-  spec1.AddOutput("m1", "cpu");
+  spec1.AddInput("i0",  StorageDevice::CPU);
+  spec1.AddInput("i1",  StorageDevice::GPU);
+  spec1.AddOutput("m0", StorageDevice::GPU);
+  spec1.AddOutput("m1", StorageDevice::CPU);
 
   OpSpec spec2("dummy");
   spec2.AddArg("device", "mixed");
-  spec2.AddInput("m1",  "cpu");
-  spec2.AddInput("m0",  "gpu");
-  spec2.AddInput("i1",  "gpu");
-  spec2.AddOutput("o0", "gpu");
-  spec2.AddOutput("o1", "cpu");
+  spec2.AddInput("m1",  StorageDevice::CPU);
+  spec2.AddInput("m0",  StorageDevice::GPU);
+  spec2.AddInput("i1",  StorageDevice::GPU);
+  spec2.AddOutput("o0", StorageDevice::GPU);
+  spec2.AddOutput("o1", StorageDevice::CPU);
 
 
   OpGraph::Builder b;
@@ -254,23 +254,23 @@ TEST(NewOpGraphBuilderTest, SortAndPrune) {
 
   OpSpec spec1("dummy");
   spec1.AddArg("device", "cpu");
-  spec1.AddInput("i0",  "cpu");
-  spec1.AddInput("i1",  "gpu");
-  spec1.AddOutput("m0", "gpu");
-  spec1.AddOutput("m1", "cpu");
+  spec1.AddInput("i0",  StorageDevice::CPU);
+  spec1.AddInput("i1",  StorageDevice::GPU);
+  spec1.AddOutput("m0", StorageDevice::GPU);
+  spec1.AddOutput("m1", StorageDevice::CPU);
 
   OpSpec spec2("dummy");
   spec2.AddArg("device", "gpu");
-  spec2.AddInput("m1",  "cpu");
-  spec2.AddInput("m0",  "gpu");
-  spec2.AddInput("i1",  "gpu");
-  spec2.AddOutput("o0", "gpu");
-  spec2.AddOutput("o1", "cpu");
+  spec2.AddInput("m1",  StorageDevice::CPU);
+  spec2.AddInput("m0",  StorageDevice::GPU);
+  spec2.AddInput("i1",  StorageDevice::GPU);
+  spec2.AddOutput("o0", StorageDevice::GPU);
+  spec2.AddOutput("o1", StorageDevice::CPU);
 
   OpSpec spec3("dummy");
-  spec3.AddInput("m1",  "cpu");
-  spec3.AddInput("i1",  "gpu");
-  spec3.AddOutput("o2", "gpu");
+  spec3.AddInput("m1",  StorageDevice::CPU);
+  spec3.AddInput("i1",  StorageDevice::GPU);
+  spec3.AddOutput("o2", StorageDevice::GPU);
 
   OpSpec spec4("dummy");
   spec4.AddArg("preserve", true);

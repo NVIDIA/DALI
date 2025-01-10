@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -249,30 +249,30 @@ TEST_F(CheckpointTest, CPUOnly) {
             OpSpec("DummySource")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddOutput("data_node_1", "cpu")
-            .AddOutput("data_node_2", "cpu")), "source");
+            .AddOutput("data_node_1", StorageDevice::CPU)
+            .AddOutput("data_node_2", StorageDevice::CPU)), "source");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_1", "cpu")
-            .AddOutput("data_node_3", "cpu")), "inner1");
+            .AddInput("data_node_1", StorageDevice::CPU)
+            .AddOutput("data_node_3", StorageDevice::CPU)), "inner1");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_2", "cpu")
-            .AddOutput("data_node_4", "cpu")), "inner2");
+            .AddInput("data_node_2", StorageDevice::CPU)
+            .AddOutput("data_node_4", StorageDevice::CPU)), "inner2");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyOutput")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_3", "cpu")
-            .AddInput("data_node_4", "cpu")
-            .AddOutput("data_output", "cpu")), "output");
+            .AddInput("data_node_3", StorageDevice::CPU)
+            .AddInput("data_node_4", StorageDevice::CPU)
+            .AddOutput("data_output", StorageDevice::CPU)), "output");
 
     graph.InstantiateOperators();
     return graph;
@@ -287,30 +287,30 @@ TEST_F(CheckpointTest, GPUOnly) {
             OpSpec("DummySource")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddOutput("data_node_1", "gpu")
-            .AddOutput("data_node_2", "gpu")), "source");
+            .AddOutput("data_node_1", StorageDevice::GPU)
+            .AddOutput("data_node_2", StorageDevice::GPU)), "source");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_1", "gpu")
-            .AddOutput("data_node_3", "gpu")), "inner1");
+            .AddInput("data_node_1", StorageDevice::GPU)
+            .AddOutput("data_node_3", StorageDevice::GPU)), "inner1");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_2", "gpu")
-            .AddOutput("data_node_4", "gpu")), "inner2");
+            .AddInput("data_node_2", StorageDevice::GPU)
+            .AddOutput("data_node_4", StorageDevice::GPU)), "inner2");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyOutput")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_3", "gpu")
-            .AddInput("data_node_4", "gpu")
-            .AddOutput("data_output", "gpu")), "output");
+            .AddInput("data_node_3", StorageDevice::GPU)
+            .AddInput("data_node_4", StorageDevice::GPU)
+            .AddOutput("data_output", StorageDevice::GPU)), "output");
 
     graph.InstantiateOperators();
     return graph;
@@ -325,30 +325,30 @@ TEST_F(CheckpointTest, Mixed) {
             OpSpec("DummySource")
             .AddArg("device", "cpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddOutput("data_node_1", "cpu")
-            .AddOutput("data_node_2", "cpu")), "stateful_source");
+            .AddOutput("data_node_1", StorageDevice::CPU)
+            .AddOutput("data_node_2", StorageDevice::CPU)), "stateful_source");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "mixed")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_1", "cpu")
-            .AddOutput("data_node_3", "gpu")), "stateful_op_1");
+            .AddInput("data_node_1", StorageDevice::CPU)
+            .AddOutput("data_node_3", StorageDevice::GPU)), "stateful_op_1");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyInnerLayer")
             .AddArg("device", "mixed")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_2", "cpu")
-            .AddOutput("data_node_4", "gpu")), "stateful_op_2");
+            .AddInput("data_node_2", StorageDevice::CPU)
+            .AddOutput("data_node_4", StorageDevice::GPU)), "stateful_op_2");
 
     graph.AddOp(this->PrepareSpec(
             OpSpec("DummyOutput")
             .AddArg("device", "gpu")
             .AddArg("dummy_state", this->NextState(policy))
-            .AddInput("data_node_3", "gpu")
-            .AddInput("data_node_4", "gpu")
-            .AddOutput("data_output", "gpu")), "dummy_output");
+            .AddInput("data_node_3", StorageDevice::GPU)
+            .AddInput("data_node_4", StorageDevice::GPU)
+            .AddOutput("data_output", StorageDevice::GPU)), "dummy_output");
 
     graph.InstantiateOperators();
     return graph;
@@ -364,25 +364,25 @@ TEST_F(CheckpointTest, Serialize) {
     OpSpec("TestStatefulSource")
     .AddArg("device", "cpu")
     .AddArg("epoch_size", 1)
-    .AddOutput("data_1", "cpu")), "stateful_source");
+    .AddOutput("data_1", StorageDevice::CPU)), "stateful_source");
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulOp")
     .AddArg("device", "cpu")
-    .AddInput("data_1", "cpu")
-    .AddOutput("data_2", "cpu")), "stateful_op_1");
+    .AddInput("data_1", StorageDevice::CPU)
+    .AddOutput("data_2", StorageDevice::CPU)), "stateful_op_1");
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulOp")
     .AddArg("device", "mixed")
-    .AddInput("data_2", "cpu")
-    .AddOutput("data_3", "gpu")), "stateful_op_2");
+    .AddInput("data_2", StorageDevice::CPU)
+    .AddOutput("data_3", StorageDevice::GPU)), "stateful_op_2");
 
   graph.AddOp(this->PrepareSpec(
     OpSpec("TestStatefulOp")
     .AddArg("device", "gpu")
-    .AddInput("data_3", "gpu")
-    .AddOutput("data_4", "gpu")), "stateful_op_3");
+    .AddInput("data_3", StorageDevice::GPU)
+    .AddOutput("data_4", StorageDevice::GPU)), "stateful_op_3");
 
   exec->Build(&graph, {"data_4_gpu"});
   BuildFromLegacyGraph(checkpoint, graph);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,15 +74,15 @@ TEST_F(ImageRandomCropCheckpointingTest_CPU, Simple) {
   auto filepath = testing::dali_extra_path() + "/db/single/jpeg/134/site-1534685_1280.jpg";
   pipe.AddOperator(
     OpSpec("FileReader")
-      .AddOutput("file", "cpu")
-      .AddOutput("label", "cpu")
+      .AddOutput("file", StorageDevice::CPU)
+      .AddOutput("label", StorageDevice::CPU)
       .AddArg("pad_last_batch", true)
       .AddArg("files", std::vector{filepath}));
 
   pipe.AddOperator(
     OpSpec("decoders__ImageRandomCrop")
-      .AddInput("file", "cpu")
-      .AddOutput("decoded", "cpu"));
+      .AddInput("file", StorageDevice::CPU)
+      .AddOutput("decoded", StorageDevice::CPU));
 
   pipe.Build();
   this->RunTest<uint8_t>(std::move(pipe), 2);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,12 +39,12 @@ TEST_F(OpGraphTest, TestCPUOnly) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("external_data", "cpu")), "");
+          .AddOutput("external_data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
-          .AddInput("external_data", "cpu")
-          .AddOutput("copy_data", "cpu")), "");
+          .AddInput("external_data", StorageDevice::CPU)
+          .AddOutput("copy_data", StorageDevice::CPU)), "");
 
   // Validate the graph
   ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
@@ -99,13 +99,13 @@ TEST_F(OpGraphTest, TestGPUOnly) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_data", "gpu")), "");
+          .AddOutput("external_data", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("external_data", "gpu")
-          .AddOutput("copy_data", "gpu")), "");
+          .AddInput("external_data", StorageDevice::GPU)
+          .AddOutput("copy_data", StorageDevice::GPU)), "");
 
   // Validate the graph
   ASSERT_EQ(graph.NumOp(OpType::CPU), 0);
@@ -160,19 +160,19 @@ TEST_F(OpGraphTest, TestCPUToGPU) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("external_data", "cpu")), "");
+          .AddOutput("external_data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("external_data", "cpu")
-          .AddOutput("external_data", "gpu")), "");
+          .AddInput("external_data", StorageDevice::CPU)
+          .AddOutput("external_data", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("external_data", "gpu")
-          .AddOutput("copy_data", "gpu")), "");
+          .AddInput("external_data", StorageDevice::GPU)
+          .AddOutput("copy_data", StorageDevice::GPU)), "");
 
   // Validate the graph
   ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
@@ -253,24 +253,24 @@ TEST_F(OpGraphTest, TestGPUThenCPUTopological) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_dev_data", "gpu")), "");
+          .AddOutput("external_dev_data", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("external_dev_data", "gpu")
-          .AddOutput("copy_data", "gpu")), "");
+          .AddInput("external_dev_data", StorageDevice::GPU)
+          .AddOutput("copy_data", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
-          .AddOutput("external_host_data", "cpu")), "");
+          .AddOutput("external_host_data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("external_host_data", "cpu")
-          .AddOutput("copy_data", "cpu")), "");
+          .AddInput("external_host_data", StorageDevice::CPU)
+          .AddOutput("copy_data", StorageDevice::CPU)), "");
 
   // Validate the graph
   ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
@@ -365,23 +365,23 @@ TEST_F(OpGraphTest, TestOpRemoval) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
-          .AddOutput("data_1", "cpu")
-          .AddOutput("data_2", "cpu")), "");
+          .AddOutput("data_1", StorageDevice::CPU)
+          .AddOutput("data_2", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddArg("num_outputs", 1)
-          .AddInput("data_2", "cpu")
-          .AddInput("data_1", "cpu")
-          .AddOutput("dummy_out", "cpu")), "");
+          .AddInput("data_2", StorageDevice::CPU)
+          .AddInput("data_1", StorageDevice::CPU)
+          .AddOutput("dummy_out", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddArg("num_outputs", 1)
-          .AddInput("data_1", "cpu")
-          .AddOutput("dummy_out_two", "cpu")), "");
+          .AddInput("data_1", StorageDevice::CPU)
+          .AddOutput("dummy_out_two", StorageDevice::CPU)), "");
 
   // Validate the graph
   ASSERT_EQ(graph.NumOp(OpType::CPU), 3);
@@ -529,14 +529,14 @@ TEST_F(OpGraphTest, TestFailureCPUOpGPUInput) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_data", "gpu")), "");
+          .AddOutput("external_data", StorageDevice::GPU)), "");
 
   ASSERT_THROW(
       graph.AddOp(this->PrepareSpec(
               OpSpec("Copy")
               .AddArg("device", "cpu")
-              .AddInput("external_data", "gpu")
-              .AddOutput("copy_data", "cpu")), ""),
+              .AddInput("external_data", StorageDevice::GPU)
+              .AddOutput("copy_data", StorageDevice::CPU)), ""),
       std::runtime_error);
 }
 
@@ -546,14 +546,14 @@ TEST_F(OpGraphTest, TestFailureCPUToGPUOp) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
-          .AddOutput("external_data", "gpu")), "");
+          .AddOutput("external_data", StorageDevice::GPU)), "");
 
   ASSERT_THROW(
       graph.AddOp(this->PrepareSpec(
               OpSpec("Copy")
               .AddArg("device", "cpu")
-              .AddInput("external_data", "cpu")
-              .AddOutput("copy_data", "cpu")), ""),
+              .AddInput("external_data", StorageDevice::CPU)
+              .AddOutput("copy_data", StorageDevice::CPU)), ""),
       std::runtime_error);
 }
 
@@ -564,15 +564,15 @@ TEST_F(OpGraphTest, TestFailureNonTopological) {
       graph.AddOp(this->PrepareSpec(
               OpSpec("Copy")
               .AddArg("device", "cpu")
-              .AddInput("external_data", "cpu")
-              .AddOutput("copy_data", "cpu")), ""),
+              .AddInput("external_data", StorageDevice::CPU)
+              .AddOutput("copy_data", StorageDevice::CPU)), ""),
       std::runtime_error);
 
   // Note: Just to make it clear what this verifies...
   // graph.AddOp(this->PrepareSpec(
   //         OpSpec("ExternalSource")
   //         .AddArg("device", "cpu")
-  //         .AddOutput("external_data", "cpu")
+  //         .AddOutput("external_data", StorageDevice::CPU)
   //         ), "");
 }
 
@@ -583,8 +583,8 @@ TEST_F(OpGraphTest, TestFailureCircularOp) {
       graph.AddOp(this->PrepareSpec(
               OpSpec("Copy")
               .AddArg("device", "cpu")
-              .AddInput("data", "cpu")
-              .AddOutput("data", "cpu")), ""),
+              .AddInput("data", StorageDevice::CPU)
+              .AddOutput("data", StorageDevice::CPU)), ""),
       std::runtime_error);
 }
 
@@ -595,29 +595,29 @@ TEST_F(OpGraphTest, TestGetTensorOrigin) {
   graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                     .AddArg("device", "cpu")
                                     .AddArg("device_id", 0)
-                                    .AddOutput("data", "cpu")),  // tensor node 0
-              "ExternalSource");
+                                    .AddOutput("data", StorageDevice::CPU)),
+              "ExternalSource");  // tensor node 0
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
-                                    .AddInput("data", "cpu")
-                                    .AddOutput("copy_0_data", "cpu")),  // tensor node 1
-              "Copy0");
+                                    .AddInput("data", StorageDevice::CPU)
+                                    .AddOutput("copy_0_data", StorageDevice::CPU)),
+              "Copy0");  // tensor node 1
 
   graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
-                                    .AddInput("copy_0_data", "cpu")
-                                    .AddOutput("contiguous_data", "cpu")),  // tensor node 2
-              "MakeContiguous");
+                                    .AddInput("copy_0_data", StorageDevice::CPU)
+                                    .AddOutput("contiguous_data", StorageDevice::CPU)),
+              "MakeContiguous");  // tensor node 2
 
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
-                                    .AddInput("contiguous_data", "cpu")
-                                    .AddOutput("passthrough_data", "cpu")),  // tensor node 3
-              "Passthrough");
+                                    .AddInput("contiguous_data", StorageDevice::CPU)
+                                    .AddOutput("passthrough_data", StorageDevice::CPU)),
+              "Passthrough");  // tensor node 3
 
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
-                                    .AddInput("passthrough_data", "cpu")
-                                    .AddOutput("copy_1_data", "cpu")),  // tensor node 4
-              "Copy1");
+                                    .AddInput("passthrough_data", StorageDevice::CPU)
+                                    .AddOutput("copy_1_data", StorageDevice::CPU)),
+              "Copy1");  // tensor node 4
 
   graph.InstantiateOperators();
 
@@ -681,23 +681,23 @@ TEST_F(OpGraphTest, Lowering) {
   OpSpec spec0 = this->PrepareSpec(OpSpec("ExternalSource")
     .AddArg("device", "cpu")
     .AddArg("device_id", 0)
-    .AddOutput("data", "cpu"));
+    .AddOutput("data", StorageDevice::CPU));
 
   OpSpec spec1 = this->PrepareSpec(OpSpec("Copy")
-    .AddInput("data", "cpu")
-    .AddOutput("copy_0_data", "cpu"));
+    .AddInput("data", StorageDevice::CPU)
+    .AddOutput("copy_0_data", StorageDevice::CPU));
 
   OpSpec spec2 = this->PrepareSpec(OpSpec("MakeContiguous")
-    .AddInput("copy_0_data", "cpu")
-    .AddOutput("contiguous_data", "cpu"));
+    .AddInput("copy_0_data", StorageDevice::CPU)
+    .AddOutput("contiguous_data", StorageDevice::CPU));
 
   OpSpec spec3 = this->PrepareSpec(OpSpec("PassthroughOp")
-    .AddInput("contiguous_data", "cpu")
-    .AddOutput("passthrough_data", "cpu"));
+    .AddInput("contiguous_data", StorageDevice::CPU)
+    .AddOutput("passthrough_data", StorageDevice::CPU));
 
   OpSpec spec4 = this->PrepareSpec(OpSpec("Copy")
-    .AddInput("passthrough_data", "cpu")
-    .AddOutput("copy_1_data", "cpu"));
+    .AddInput("passthrough_data", StorageDevice::CPU)
+    .AddOutput("copy_1_data", StorageDevice::CPU));
 
   graph::OpGraph::Builder b;
   // This is the same graph as in TestGetTensorOrigin, but the topological order is not maintained.

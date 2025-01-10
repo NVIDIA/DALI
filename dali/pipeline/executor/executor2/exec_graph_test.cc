@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ TEST(ExecGraphTest, SimpleGraph) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op0o0", "cpu")
+       .AddOutput("op0o0", StorageDevice::CPU)
        .AddArg("name", "op0");
   auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
@@ -59,7 +59,7 @@ TEST(ExecGraphTest, SimpleGraph) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op1o0", "cpu")
+       .AddOutput("op1o0", StorageDevice::CPU)
        .AddArg("name", "op1");
   auto op1 = std::make_unique<DummyOpCPU>(spec1);
 
@@ -68,9 +68,9 @@ TEST(ExecGraphTest, SimpleGraph) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddInput("op0o0", "cpu")
-       .AddInput("op1o0", "cpu")
-       .AddOutput("op2o0", "cpu")
+       .AddInput("op0o0", StorageDevice::CPU)
+       .AddInput("op1o0", StorageDevice::CPU)
+       .AddOutput("op2o0", StorageDevice::CPU)
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
@@ -112,7 +112,7 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op0o0", "cpu")
+       .AddOutput("op0o0", StorageDevice::CPU)
        .AddArg("name", "op0");
   auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
@@ -121,7 +121,7 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op1o0", "cpu")
+       .AddOutput("op1o0", StorageDevice::CPU)
        .AddArg("name", "op1");
   auto op1 = std::make_unique<DummyOpCPU>(spec1);
 
@@ -130,9 +130,9 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddInput("op0o0", "cpu")
-       .AddInput("op1o0", "cpu")
-       .AddOutput("op2o0", "cpu")
+       .AddInput("op0o0", StorageDevice::CPU)
+       .AddInput("op1o0", StorageDevice::CPU)
+       .AddOutput("op2o0", StorageDevice::CPU)
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
@@ -180,7 +180,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
        .AddArg("num_threads", 4)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op0o0", "cpu")
+       .AddOutput("op0o0", StorageDevice::CPU)
        .AddArg("name", "op0");
   auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
@@ -188,7 +188,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
   spec1.AddArg("num_threads", 4)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op1o0", "cpu")
+       .AddOutput("op1o0", StorageDevice::CPU)
        .AddArg("name", "op1");
   auto op1 = std::make_unique<CounterOp>(spec1);
 
@@ -197,9 +197,9 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
        .AddArg("num_threads", 4)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddInput("op0o0", "cpu")
-       .AddInput("op1o0", "cpu")
-       .AddOutput("op2o0", "cpu")
+       .AddInput("op0o0", StorageDevice::CPU)
+       .AddInput("op1o0", StorageDevice::CPU)
+       .AddOutput("op2o0", StorageDevice::CPU)
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;
@@ -247,7 +247,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
        .AddArg("num_threads", 4)
        .AddArg("device", "gpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op0o0", "gpu")
+       .AddOutput("op0o0", StorageDevice::GPU)
        .AddArg("name", "op0");
   auto op0 = std::make_unique<DummyOpGPU>(spec0);
 
@@ -256,7 +256,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
        .AddArg("delay", 0)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", batch_size)
-       .AddOutput("op1o0", "cpu")
+       .AddOutput("op1o0", StorageDevice::CPU)
        .AddArg("name", "op1");
   auto op1 = std::make_unique<CounterOp>(spec1);
 
@@ -264,8 +264,8 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   spec1c.AddArg("num_threads", 4)
         .AddArg("device", "mixed")
         .AddArg("max_batch_size", batch_size)
-        .AddInput("op1o0", "cpu")
-        .AddOutput("op1o0", "gpu")
+        .AddInput("op1o0", StorageDevice::CPU)
+        .AddOutput("op1o0", StorageDevice::GPU)
         .AddArg("name", "op1c");
   auto op1c = InstantiateOperator(spec1c);
 
@@ -274,9 +274,9 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
        .AddArg("num_threads", 4)
        .AddArg("device", "gpu")
        .AddArg("max_batch_size", batch_size)
-       .AddInput("op0o0", "gpu")
-       .AddInput("op1o0", "gpu")
-       .AddOutput("op2o0", "gpu")
+       .AddInput("op0o0", StorageDevice::GPU)
+       .AddInput("op1o0", StorageDevice::GPU)
+       .AddOutput("op2o0", StorageDevice::GPU)
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpGPU>(spec2);
   ExecGraph g;
@@ -347,7 +347,7 @@ TEST(ExecGraphTest, Exception) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
-       .AddOutput("op0o0", "cpu")
+       .AddOutput("op0o0", StorageDevice::CPU)
        .AddArg("name", "op0");
   auto op0 = std::make_unique<DummyOpCPU>(spec0);
 
@@ -356,7 +356,7 @@ TEST(ExecGraphTest, Exception) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
-       .AddOutput("op1o0", "cpu")
+       .AddOutput("op1o0", StorageDevice::CPU)
        .AddArg("name", "op1");
   auto op1 = std::make_unique<DummyOpCPU>(spec1);
 
@@ -365,9 +365,9 @@ TEST(ExecGraphTest, Exception) {
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
-       .AddInput("op0o0", "cpu")
-       .AddInput("op1o0", "cpu")
-       .AddOutput("op2o0", "cpu")
+       .AddInput("op0o0", StorageDevice::CPU)
+       .AddInput("op1o0", StorageDevice::CPU)
+       .AddOutput("op2o0", StorageDevice::CPU)
        .AddArg("name", "op2");
   auto op2 = std::make_unique<DummyOpCPU>(spec2);
   ExecGraph g;

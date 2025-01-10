@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,8 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
     input_tl_ = ToTensorList(input_);
     SetBatchSize(input_tl_->num_samples());
 
-    spec.AddInput("bb_input", "cpu").AddOutput("bb_output", "cpu");
+    spec.AddInput("bb_input", StorageDevice::CPU)
+        .AddOutput("bb_output", StorageDevice::CPU);
 
     spec.AddArg("ltrb", ltrb);
     spec.AddArg("ratio", ratio);

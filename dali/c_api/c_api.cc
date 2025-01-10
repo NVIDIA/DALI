@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -608,10 +608,7 @@ const char *daliGetOutputName(daliPipelineHandle_t pipe_handle, int id) {
 
 device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id) {
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
-  if (pipeline->output_device(id) == "gpu") {
-    return device_type_t::GPU;
-  }
-  return device_type_t::CPU;
+  return static_cast<device_type_t>(pipeline->output_device(id));
 }
 
 

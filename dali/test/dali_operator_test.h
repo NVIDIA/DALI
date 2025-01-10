@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -146,7 +146,7 @@ GetOutputsFromPipeline(Workspace &ws, Pipeline &pipeline, const std::string &out
 inline void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
   std::vector<std::pair<std::string, std::string>> vecoutputs_;
   for (int i = 0; i < spec.NumOutput(); ++i) {
-    vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
+    vecoutputs_.emplace_back(spec.OutputName(i), to_string(spec.OutputDevice(i)));
   }
   pipeline.Build(vecoutputs_);
 }
@@ -164,9 +164,9 @@ CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, boo
     arg.second.SetArg(arg.first.arg_name(), opspec, nullptr);
   }
   if (has_input) {
-    opspec.AddInput(detail::input_name, input_backend);
+    opspec.AddInput(detail::input_name, ParseStorageDevice(input_backend));
   }
-  opspec.AddOutput("output", output_backend);
+  opspec.AddOutput("output", ParseStorageDevice(output_backend));
   return opspec;
 }
 

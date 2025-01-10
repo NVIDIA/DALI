@@ -28,7 +28,7 @@ BENCHMARK_DEFINE_F(OperatorBench, CoinFlipGPU)(benchmark::State& st) {
                           .AddArg("max_batch_size", batch_size)
                           .AddArg("num_threads", 1)
                           .AddArg("device", "gpu")
-                          .AddInput("data", "gpu"),
+                          .AddInput("data", StorageDevice::GPU),
                         batch_size, H, W, 1);
 }
 

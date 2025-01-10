@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,21 +31,21 @@ namespace {
 
 bool AllInputsCPU(const OpSpec &spec) {
   for (int i = 0; i < spec.NumInput(); ++i) {
-    if (spec.InputDevice(i) == "gpu") return false;
+    if (spec.InputDevice(i) != StorageDevice::CPU) return false;
   }
   return true;
 }
 
 bool AllOutputsCPU(const OpSpec &spec) {
   for (int i = 0; i < spec.NumOutput(); ++i) {
-    if (spec.OutputDevice(i) == "gpu") return false;
+    if (spec.OutputDevice(i) != StorageDevice::CPU) return false;
   }
   return true;
 }
 
 bool AllOutputsGPU(const OpSpec &spec) {
   for (int i = 0; i < spec.NumOutput(); ++i) {
-    if (spec.OutputDevice(i) == "cpu") return false;
+    if (spec.OutputDevice(i) != StorageDevice::GPU) return false;
   }
   return true;
 }
@@ -184,7 +184,7 @@ OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
-    meta.storage_device = ParseStorageDevice(spec.InputDevice(i));
+    meta.storage_device = spec.InputDevice(i);
 
     // Insert new tensor consumer
     tensor_nodes_[consumed_tensor_id].consumers.push_back(meta);
@@ -197,7 +197,7 @@ OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
-    meta.storage_device = ParseStorageDevice(spec.OutputDevice(i));
+    meta.storage_device = spec.OutputDevice(i);
 
     string name = spec.Output(i);
 

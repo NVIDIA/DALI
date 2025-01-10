@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,10 +45,11 @@ void TestPlugin(const std::string& backend) {
 
   dali::Pipeline pipe(3, 1, 0);
   pipe.AddExternalInput("data");
+  auto storage_dev = dali::ParseStorageDevice(backend);
   pipe.AddOperator(dali::OpSpec("CustomDummy")
                        .AddArg("device", backend)
-                       .AddInput("data", backend)
-                       .AddOutput("out", backend));
+                       .AddInput("data", storage_dev)
+                       .AddOutput("out", storage_dev));
   std::vector<std::pair<std::string, std::string>> outputs = {{"out", backend}};
 
   pipe.Build(outputs);

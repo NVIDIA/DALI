@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,32 +42,32 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
   pipe.AddOperator(
     OpSpec("Caffe2Reader")
     .AddArg("path", "/data/imagenet/train-c2lmdb-480")
-    .AddOutput("raw_jpegs", "cpu")
-    .AddOutput("labels", "cpu"));
+    .AddOutput("raw_jpegs", StorageDevice::CPU)
+    .AddOutput("labels", StorageDevice::CPU));
 
   pipe.AddOperator(
     OpSpec("ImageDecoder")
     .AddArg("device", "mixed")
     .AddArg("output_type", img_type)
     .AddArg("use_batched_decode", false)
-    .AddInput("raw_jpegs", "cpu")
-    .AddOutput("images", "gpu"));
+    .AddInput("raw_jpegs", StorageDevice::CPU)
+    .AddOutput("images", StorageDevice::GPU));
 
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
-      .AddOutput("resize", "cpu"));
+      .AddOutput("resize", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("Resize")
       .AddArg("device", "gpu")
       .AddArg("image_type", img_type)
       .AddArg("interp_type", DALI_INTERP_LINEAR)
-      .AddInput("images", "gpu")
+      .AddInput("images", StorageDevice::GPU)
       .AddArgumentInput("resize_shorter", "resize")
-      .AddOutput("resized", "gpu"));
+      .AddOutput("resized", StorageDevice::GPU));
 
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddOperator(
@@ -79,8 +79,8 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
       .AddArg("mirror_prob", 0.5f)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
-      .AddInput("resized", "gpu")
-      .AddOutput("final", "gpu"));
+      .AddInput("resized", StorageDevice::GPU)
+      .AddOutput("final", StorageDevice::GPU));
 
 // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"images", "gpu"}};

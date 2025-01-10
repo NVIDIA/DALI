@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
-      .AddInput("encoded", "cpu")
-      .AddOutput("decoded", "gpu");
+      .AddInput("encoded", StorageDevice::CPU)
+      .AddOutput("decoded", StorageDevice::GPU);
   }
 
   void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold) {
@@ -218,15 +218,15 @@ class CudaDecoderUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 0.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -261,15 +261,15 @@ class HwDecoderUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -314,8 +314,8 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
@@ -323,8 +323,8 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
                     .AddArg("hw_decoder_load", 1.f)
                     .AddArg("preallocate_width_hint", 400)
                     .AddArg("preallocate_height_hint", 600)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -367,17 +367,17 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoderSlice")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddInput("begin_data", "cpu")
-                    .AddInput("crop_data", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddInput("begin_data", StorageDevice::CPU)
+                    .AddInput("crop_data", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddExternalInput("begin_data");
     pipeline_.AddExternalInput("crop_data");
     pipeline_.AddOperator(decoder_spec, decoder_name_);
@@ -424,16 +424,16 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoderCrop")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
                     .AddArg("crop", std::vector<float>{224.0f, 224.0f})
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -476,15 +476,15 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoderRandomCrop")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -519,14 +519,14 @@ class Nvjpeg2kTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,8 +71,8 @@ void TestCopyOutput(Method method) {
   pipe.AddOperator(OpSpec("MakeContiguous")
                           .AddArg("device", "mixed")
                           .AddArg("name", cont_name)
-                          .AddInput(es_cpu_name, "cpu")
-                          .AddOutput(cont_name, "gpu"), cont_name);
+                          .AddInput(es_cpu_name, StorageDevice::CPU)
+                          .AddOutput(cont_name, StorageDevice::GPU), cont_name);
   std::vector<std::pair<std::string, std::string>> outputs = {{"pipe_out", "gpu"}};
 
   GPUHog hog;

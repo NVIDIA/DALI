@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -234,7 +234,7 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
     if (it != graph_.name2data_.end()) {
       node = it->second;
     } else {
-      auto dev = ParseStorageDevice(spec.InputDevice(i));
+      auto dev = spec.InputDevice(i);
       node = &graph_.AddData(name, dev);
     }
     node->consumers.push_back({ &op_node, i });
@@ -254,7 +254,7 @@ void OpGraph::Builder::Add(std::string instance_name, OpSpec new_spec) {
           "\n 2: ", op_node.instance_name, ", output ", o));
       }
     } else {
-      auto dev = ParseStorageDevice(spec.OutputDevice(o));
+      auto dev = spec.OutputDevice(o);
       node = &graph_.AddData(std::move(name), dev);
     }
     node->producer = { &op_node, o };

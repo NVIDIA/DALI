@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -637,7 +637,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful
-      if (node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage()) {
+      if (node.spec.OutputDevice(0) == StorageDevice::GPU && !RestrictPinnedMemUsage()) {
         pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
       }
     }
@@ -649,7 +649,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       if (graph.Tensor(tid).producer.storage_device == StorageDevice::CPU) {
-        if (node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage()) {
+        if (node.spec.OutputDevice(0) == StorageDevice::GPU && !RestrictPinnedMemUsage()) {
           pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
         }
       }

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,10 +46,10 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
  private:
   template<typename Backend>
   void RunTestImpl(
-    std::vector<std::string> &videos_paths,
-    std::vector<TestVideo> &ground_truth_videos,
-    std::string backend,
-    int device_id) {
+        std::vector<std::string> &videos_paths,
+        std::vector<TestVideo> &ground_truth_videos,
+        std::string backend,
+        int device_id) {
     const int batch_size = 4;
     const int sequence_length = 6;
     const int stride = 3;
@@ -57,6 +57,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     Pipeline pipe(batch_size, 4, device_id);
 
+    auto storage_dev = ParseStorageDevice(backend);
     pipe.AddOperator(OpSpec("experimental__readers__Video")
       .AddArg("device", backend)
       .AddArg("sequence_length", sequence_length)
@@ -66,8 +67,8 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
         "filenames",
         videos_paths)
       .AddArg("labels", std::vector<int>{0, 1})
-      .AddOutput("frames", backend)
-      .AddOutput("labels", backend));
+      .AddOutput("frames", storage_dev)
+      .AddOutput("labels", storage_dev));
 
     pipe.Build({{"frames", backend}, {"labels", backend}});
 
@@ -118,8 +119,8 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
   template<typename Backend>
   void RunShuffleTestImpl(
-    std::string backend,
-    int device_id) {
+        std::string backend,
+        int device_id) {
     const int batch_size = 1;
     const int sequence_length = 1;
     const int seed = 1;
@@ -128,6 +129,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     Pipeline pipe(batch_size, 1, device_id, seed);
 
+    auto storage_device = ParseStorageDevice(backend);
     pipe.AddOperator(OpSpec("experimental__readers__Video")
       .AddArg("device", backend)
       .AddArg("sequence_length", sequence_length)
@@ -137,8 +139,8 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
       .AddArg(
         "filenames",
         std::vector<std::string>{cfr_videos_paths_[0]})
-      .AddOutput("frames", backend)
-      .AddOutput("frame_idx", backend));
+      .AddOutput("frames", storage_device)
+      .AddOutput("frame_idx", storage_device));
 
     pipe.Build({{"frames", backend}, {"frame_idx", backend}});
 
@@ -297,8 +299,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       "filenames",
       cfr_videos_paths_)
     .AddArg("labels", std::vector<int>{0, 1})
-    .AddOutput("frames_cpu", "cpu")
-    .AddOutput("labels_cpu", "cpu"));
+    .AddOutput("frames_cpu", StorageDevice::CPU)
+    .AddOutput("labels_cpu", StorageDevice::CPU));
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "gpu")
     .AddArg("sequence_length", sequence_length)
@@ -313,8 +315,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       "filenames",
       cfr_videos_paths_)
     .AddArg("labels", std::vector<int>{0, 1})
-    .AddOutput("frames_gpu", "gpu")
-    .AddOutput("labels_gpu", "gpu"));
+    .AddOutput("frames_gpu", StorageDevice::GPU)
+    .AddOutput("labels_gpu", StorageDevice::GPU));
   pipe.AddOperator(OpSpec("readers__Video")
     .AddArg("device", "gpu")
     .AddArg("sequence_length", sequence_length)
@@ -329,8 +331,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       "filenames",
       cfr_videos_paths_)
     .AddArg("labels", std::vector<int>{0, 1})
-    .AddOutput("frames_old", "gpu")
-    .AddOutput("labels_old", "gpu"));
+    .AddOutput("frames_old", StorageDevice::GPU)
+    .AddOutput("labels_old", StorageDevice::GPU));
 
   pipe.Build({
     {"frames_cpu", "cpu"},

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
 
   for (int i = 0; i < def.input_size(); ++i) {
     if (!def.input(i).is_argument_input()) {
-      spec->AddInput(def.input(i).name(), def.input(i).device());
+      spec->AddInput(def.input(i).name(), ParseStorageDevice(def.input(i).device()));
     }
   }
 
@@ -85,7 +85,7 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
   }
 
   for (int i = 0; i < def.output_size(); ++i) {
-    spec->AddOutput(def.output(i).name(), def.output(i).device());
+    spec->AddOutput(def.output(i).name(), ParseStorageDevice(def.output(i).device()));
   }
 }
 
@@ -327,7 +327,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
       continue;
     }
     string input_name = spec.InputName(i);
-    string input_device = spec.InputDevice(i);
+    auto input_device = spec.InputDevice(i);
     auto it = edge_names_.find(input_name);
 
     DALI_ENFORCE(it != edge_names_.end(),
@@ -338,7 +338,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                   "Cannot add a Mixed operator with a GPU output, 'device_id' "
                   "should not be `CPU_ONLY_DEVICE_ID`.");
 
-    if (input_device == "gpu") {
+    if (input_device == StorageDevice::GPU) {
       ToGPU(it);
     } else {
       ToCPU(it);
@@ -372,7 +372,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
   // Verify and record the outputs of the op
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
-    string output_device = spec.OutputDevice(i);
+    auto output_device = spec.OutputDevice(i);
 
     auto it = edge_names_.find(output_name);
     DALI_ENFORCE(
@@ -381,7 +381,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                     output_name, "\" conflicts with an existing intermediate result name."));
 
     if (device == "cpu") {
-      DALI_ENFORCE(output_device == "cpu",
+      DALI_ENFORCE(output_device == StorageDevice::CPU,
                    make_string("Error while specifying ", FormatOutput(spec, i),
                                ". Only CPU operators can produce CPU outputs."));
     }
@@ -484,12 +484,12 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   vector<string> outputs;
   for (const auto &out_desc : output_descs_) {
     string name = out_desc.name;
-    string device = out_desc.device;
+    auto device = out_desc.device;
     auto it = edge_names_.find(name);
     DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +
         name + "' is not known to the pipeline.");
 
-    if (device == "cpu") {
+    if (device == StorageDevice::CPU) {
       if (!it->second.has_cpu)
         ToCPU(it);
 
@@ -501,7 +501,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
         outputs.push_back(it->first + "_cpu");
       }
 
-    } else if (device == "gpu") {
+    } else {
+      assert(device == StorageDevice::GPU);
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
                    make_string(
                      "Cannot move the data node ", name, " to the GPU "
@@ -518,9 +519,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       } else {
         outputs.push_back(it->first + "_gpu");
       }
-    } else {
-      DALI_FAIL("Invalid device argument \"" + device +
-          "\". Valid options are \"cpu\" or \"gpu\"");
     }
   }
 
@@ -651,8 +649,8 @@ void Pipeline::ToCPU(std::map<string, EdgeMeta>::iterator it) {
   OpSpec copy_to_host_spec =
     OpSpec("Copy")
     .AddArg("device", "cpu")
-    .AddInput(it->first, "gpu")
-    .AddOutput(it->first, "cpu");
+    .AddInput(it->first, StorageDevice::GPU)
+    .AddOutput(it->first, StorageDevice::CPU);
   // don't put it into op_specs_for_serialization_, only op_specs_
   AddToOpSpecs("__Copy_GpuToCpu_" + it->first, copy_to_host_spec, GetNextInternalLogicalId());
   it->second.has_cpu = true;
@@ -666,8 +664,8 @@ void Pipeline::ToGPU(std::map<string, EdgeMeta>::iterator it) {
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
     .AddArg("device", "mixed")
-    .AddInput(it->first, "cpu")
-    .AddOutput(it->first, "gpu");
+    .AddInput(it->first, StorageDevice::CPU)
+    .AddOutput(it->first, StorageDevice::GPU);
   // don't put it into op_specs_for_serialization_, only op_specs_
   AddToOpSpecs("__Copy_CpuToGpu_" + it->first, copy_to_dev_spec, GetNextInternalLogicalId());
   it->second.has_gpu = true;
@@ -710,7 +708,7 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
   for (int i = 0; i < spec.NumInput(); ++i) {
     dali_proto::InputOutput *in = op->add_input();
     in->set_name(spec.InputName(i));
-    in->set_device(spec.InputDevice(i));
+    in->set_device(to_string(spec.InputDevice(i)));
     if (spec.IsArgumentInput(i)) {
         in->set_arg_name(spec.ArgumentInputName(i));
     }
@@ -720,7 +718,7 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
   for (int i = 0; i < spec.NumOutput(); ++i) {
     dali_proto::InputOutput *out = op->add_output();
     out->set_name(spec.OutputName(i));
-    out->set_device(spec.OutputDevice(i));
+    out->set_device(to_string(spec.OutputDevice(i)));
     out->set_is_argument_input(false);
   }
 
@@ -767,7 +765,7 @@ string Pipeline::SerializeToProtobuf() const {
     dali_proto::InputOutput *out = pipe.add_pipe_outputs();
 
     out->set_name(output.name);
-    out->set_device(output.device);
+    out->set_device(to_string(output.device));
     out->set_is_argument_input(false);
     out->set_dtype(output.dtype);
     out->set_ndim(output.ndim);
@@ -899,7 +897,7 @@ const std::string &Pipeline::output_name(int id) const {
   return output_descs_[id].name;
 }
 
-const std::string &Pipeline::output_device(int id) const {
+StorageDevice Pipeline::output_device(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
   return output_descs_[id].device;
@@ -1020,8 +1018,8 @@ std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode
 
   OpSpec spec = OpSpec("MakeContiguous")
                     .AddArg("device", device)
-                    .AddInput(input_name, input_dev)
-                    .AddOutput(output_name, output_dev);
+                    .AddInput(input_name, ParseStorageDevice(input_dev))
+                    .AddOutput(output_name, ParseStorageDevice(output_dev));
   return {spec, op_name, output_name};
 }
 

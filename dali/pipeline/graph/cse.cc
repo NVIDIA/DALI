@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ std::string OpSpecCSEKey(const OpSpec &spec) {
   for (int i = 0; i < spec.NumInput(); ++i) {
     dali_proto::InputOutput *in = op.add_input();
     in->set_name(spec.InputName(i));
-    in->set_device(spec.InputDevice(i));
+    in->set_device(to_string(spec.InputDevice(i)));
     if (spec.IsArgumentInput(i)) {
         in->set_arg_name(spec.ArgumentInputName(i));
     }
@@ -43,7 +43,7 @@ std::string OpSpecCSEKey(const OpSpec &spec) {
     dali_proto::InputOutput *out = op.add_output();
     // Use a placeholder instead of the real name
     out->set_name(std::to_string(i));
-    out->set_device(spec.OutputDevice(i));
+    out->set_device(to_string(spec.OutputDevice(i)));
   }
 
   auto &schema = spec.GetSchemaOrDefault();

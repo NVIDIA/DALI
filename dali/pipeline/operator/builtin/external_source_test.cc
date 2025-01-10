@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ class ExternalSourceBasicTest : public ::testing::Test {
                     .AddArg("repeat_last", repeat_last)
                     .AddArg("device", dev_str)
                     .AddArg("name", input_name_)
-                    .AddOutput(input_name_, dev_str),
+                    .AddOutput(input_name_, is_cpu ? StorageDevice::CPU : StorageDevice::GPU),
             input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
@@ -229,13 +229,13 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         OpSpec("ExternalSource")
         .AddArg("device", "cpu")
         .AddArg("device_id", 0)
-        .AddOutput("data", "cpu")), "");
+        .AddOutput("data", StorageDevice::CPU)), "");
 
     graph_.AddOp(this->PrepareSpec(
             OpSpec("MakeContiguous")
             .AddArg("device", "mixed")
-            .AddInput("data", "cpu")
-            .AddOutput("final_images", "gpu")), "");
+            .AddInput("data", StorageDevice::CPU)
+            .AddOutput("final_images", StorageDevice::GPU)), "");
   }
 
   void BuildGPUGraph() {
@@ -243,12 +243,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "gpu")), "");
+          .AddOutput("data", StorageDevice::GPU)), "");
     graph_.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "gpu")
-          .AddInput("data", "gpu")
-          .AddOutput("final_images", "gpu")), "");
+          .AddInput("data", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU)), "");
   }
 
   ExternalSource<CPUBackend>* CreateCPUExe() {
@@ -641,7 +641,7 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
       .AddArg("device_id", 0)
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", num_threads), "");
 
@@ -660,7 +660,7 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   ASSERT_TRUE(op->inputs.empty());
   ASSERT_EQ(op->spec.SchemaName(), "ExternalSource");
   ASSERT_EQ(pipe.num_outputs(), 1);
-  ASSERT_EQ(pipe.output_device(0), dev);
+  ASSERT_EQ(pipe.output_device(0), ParseStorageDevice(dev));
   ASSERT_EQ(pipe.output_name(0), name);
   // Make Contiguous is always added at the end
   ASSERT_EQ(op->outputs.size(), 1_uz);
@@ -717,7 +717,7 @@ TEST(ExternalSourceTest, SerializeDeserializeOpSpec) {
     pipe_to_serialize.AddOperator(OpSpec("ExternalSource")
                       .AddArg("device", dev)
                       .AddArg("name", name)
-                      .AddOutput("es", dev),
+                      .AddOutput("es", ParseStorageDevice(dev)),
                   name);
     pipe_to_serialize.Build({{name, dev}});
     auto serialized = pipe_to_serialize.SerializeToProtobuf();

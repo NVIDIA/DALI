@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ class RNGCheckpointingTest : public ::testing::Test {
     for (Pipeline *pipe : {&original_pipe, &restored_pipe}) {
       pipe->AddOperator(
         OpSpec(name)
-        .AddOutput("data_out", "cpu"), "rng_op");
+        .AddOutput("data_out", StorageDevice::CPU), "rng_op");
       std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
       pipe->Build(outputs);
     }

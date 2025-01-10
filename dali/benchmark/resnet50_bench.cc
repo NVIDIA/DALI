@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,34 +48,34 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "cpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::CPU));
 
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
-      .AddOutput("uniform1", "cpu"));
+      .AddOutput("uniform1", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
-      .AddOutput("uniform2", "cpu"));
+      .AddOutput("uniform2", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
-      .AddOutput("resize", "cpu"));
+      .AddOutput("resize", StorageDevice::CPU));
 
   // Add coin flip RNG for mirror mask
   pipe.AddOperator(
       OpSpec("CoinFlip")
       .AddArg("device", "cpu")
       .AddArg("probability", 0.5f)
-      .AddOutput("mirror", "cpu"));
+      .AddOutput("mirror", StorageDevice::CPU));
 
   std::string resize_op = fast_resize ? "FastResizeCropMirror" : "ResizeCropMirror";
   // Add a resize+crop+mirror op
@@ -83,12 +83,12 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       OpSpec(resize_op)
       .AddArg("device", "cpu")
       .AddArg("crop", vector<float>{224, 224})
-      .AddInput("images", "cpu")
+      .AddInput("images", StorageDevice::CPU)
       .AddArgumentInput("mirror", "mirror")
       .AddArgumentInput("crop_pos_x", "uniform1")
       .AddArgumentInput("crop_pos_y", "uniform2")
       .AddArgumentInput("resize_shorter", "resize")
-      .AddOutput("resized", "cpu"));
+      .AddOutput("resized", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("CropMirrorNormalize")
@@ -96,8 +96,8 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       .AddArg("dtype", DALI_FLOAT16)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
-      .AddInput("resized", "gpu")
-      .AddOutput("final_batch", "gpu"));
+      .AddInput("resized", StorageDevice::GPU)
+      .AddOutput("final_batch", StorageDevice::GPU));
 
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final_batch", "gpu"}};
@@ -175,15 +175,15 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
-      .AddInput("raw_jpegs", "cpu")
-      .AddOutput("images", "gpu"));
+      .AddInput("raw_jpegs", StorageDevice::CPU)
+      .AddOutput("images", StorageDevice::GPU));
 
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
-      .AddOutput("resize", "cpu"));
+      .AddOutput("resize", StorageDevice::CPU));
 
   // Add a batched resize op
   pipe.AddOperator(
@@ -191,29 +191,29 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       .AddArg("device", "gpu")
       .AddArg("image_type", img_type)
       .AddArg("interp_type", DALI_INTERP_LINEAR)
-      .AddInput("images", "gpu")
+      .AddInput("images", StorageDevice::GPU)
       .AddArgumentInput("resize_shorter", "resize")
-      .AddOutput("resized", "gpu"));
+      .AddOutput("resized", StorageDevice::GPU));
 
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
-      .AddOutput("uniform1", "cpu"));
+      .AddOutput("uniform1", StorageDevice::CPU));
 
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
-      .AddOutput("uniform2", "cpu"));
+      .AddOutput("uniform2", StorageDevice::CPU));
 
   // Add coin flip RNG for mirror mask
   pipe.AddOperator(
       OpSpec("CoinFlip")
       .AddArg("device", "cpu")
       .AddArg("probability", 0.5f)
-      .AddOutput("mirror", "cpu"));
+      .AddOutput("mirror", StorageDevice::CPU));
 
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddOperator(
@@ -224,11 +224,11 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       .AddArg("crop", vector<float>{224, 224})
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
-      .AddInput("resized", "gpu")
+      .AddInput("resized", StorageDevice::GPU)
       .AddArgumentInput("mirror", "mirror")
       .AddArgumentInput("crop_pos_x", "uniform1")
       .AddArgumentInput("crop_pos_y", "uniform2")
-      .AddOutput("final", "gpu"));
+      .AddOutput("final", StorageDevice::GPU));
 
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final", "gpu"}};
@@ -307,15 +307,15 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
               .AddArg("device", "mixed")
               .AddArg("output_type", img_type)
               .AddArg("use_batched_decode", false)
-              .AddInput("raw_jpegs", "cpu")
-              .AddOutput("images", "gpu"));
+              .AddInput("raw_jpegs", StorageDevice::CPU)
+              .AddOutput("images", StorageDevice::GPU));
 
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
-      .AddOutput("resize", "cpu"));
+      .AddOutput("resize", StorageDevice::CPU));
 
   // Add a batched resize op
   pipe.AddOperator(
@@ -323,9 +323,9 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
       .AddArg("device", "gpu")
       .AddArg("image_type", img_type)
       .AddArg("interp_type", DALI_INTERP_LINEAR)
-      .AddInput("images", "gpu")
+      .AddInput("images", StorageDevice::GPU)
       .AddArgumentInput("resize_shorter", "resize")
-      .AddOutput("resized", "gpu"));
+      .AddOutput("resized", StorageDevice::GPU));
 
   // Add a bached crop+mirror+normalize+permute op
   pipe.AddOperator(
@@ -337,8 +337,8 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
       .AddArg("mirror_prob", 0.5f)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
-      .AddInput("resized", "gpu")
-      .AddOutput("final", "gpu"));
+      .AddInput("resized", StorageDevice::GPU)
+      .AddOutput("final", StorageDevice::GPU));
 
   // Build and run the pipeline
   vector<std::pair<string, string>> outputs = {{"final", "gpu"}};

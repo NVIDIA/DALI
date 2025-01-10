@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ TYPED_TEST(ReaderTest, SimpleTest) {
 
   pipe.AddOperator(
       OpSpec("DummyDataReader")
-      .AddOutput("data_out", "cpu"));
+      .AddOutput("data_out", StorageDevice::CPU));
 
   std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
   pipe.Build(outputs);
@@ -141,7 +141,7 @@ TYPED_TEST(ReaderTest, PrefetchQueueTest) {
 
   pipe.AddOperator(
       OpSpec("DummyDataReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("prefetch_queue_depth", 3));
 
   std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
@@ -165,14 +165,14 @@ TYPED_TEST(ReaderTest, LazyInitTest) {
 
   eager_pipe.AddOperator(
       OpSpec("DummyDataReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("prefetch_queue_depth", 3)
       .AddArg("lazy_init", false)
       .AddArg("dummyfile", filename));
 
   lazy_pipe.AddOperator(
       OpSpec("DummyDataReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("prefetch_queue_depth", 3)
       .AddArg("lazy_init", true)
       .AddArg("dummyfile", filename));
@@ -209,7 +209,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
       .AddArg("file_root", testing::dali_extra_path() + "/db/sequence/frames")
       .AddArg("sequence_length", 3)
       .AddArg("image_type", DALI_RGB)
-      .AddOutput("seq_out", "cpu"));
+      .AddOutput("seq_out", StorageDevice::CPU));
 
   std::vector<std::pair<string, string>> outputs = {{"seq_out", "cpu"}};
   pipe.Build(outputs);
@@ -278,7 +278,7 @@ class TestLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
   TestLoader tl(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 0)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", false)
@@ -319,7 +319,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
 TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard) {
   TestLoader tl(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 0)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
@@ -360,7 +360,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard) {
 TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
   TestLoader tl(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
@@ -396,7 +396,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
 TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
   TestLoader tl_even(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
@@ -407,7 +407,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
 
   TestLoader tl_odd(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 3)
       .AddArg("stick_to_shard", true)
@@ -428,7 +428,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
 TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
   TestLoader tl_even(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 2)
       .AddArg("stick_to_shard", true)
@@ -439,7 +439,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
 
   TestLoader tl_odd(
       OpSpec("FileReader")
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("shard_id", 1)
       .AddArg("num_shards", 3)
       .AddArg("stick_to_shard", true)
@@ -498,8 +498,8 @@ class FileReaderTest : public DALITest {
 
   OpSpec MakeOpSpec(bool pad_last_batch = true) {
       return OpSpec("FileReader")
-            .AddOutput("data_out", "cpu")
-            .AddOutput("labels", "cpu")
+            .AddOutput("data_out", StorageDevice::CPU)
+            .AddOutput("labels", StorageDevice::CPU)
             .AddArg("files", filepaths_)
             .AddArg("pad_last_batch", pad_last_batch);
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,8 +50,8 @@ class FileReaderFastForward : public DALIBenchmark {
         .AddArg("files", get_paths(dataset_size))
         .AddArg("initial_fill", initial_buffer_fill)
         .AddArg("random_shuffle", random_shuffle)
-        .AddOutput("jpegs", "cpu")
-        .AddOutput("labels", "cpu"));
+        .AddOutput("jpegs", StorageDevice::CPU)
+        .AddOutput("labels", StorageDevice::CPU));
 
     pipe->EnableCheckpointing();
 

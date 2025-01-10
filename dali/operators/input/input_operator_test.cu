@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
                                    .AddArg("device", "mixed")
                                    .AddArg("name", operator_name_)
                                    .AddArg("cpu_input", cpu_input_)
-                                   .AddOutput(operator_name_, "gpu"),
+                                   .AddOutput(operator_name_, StorageDevice::GPU),
                            operator_name_);
     std::vector<std::pair<std::string, std::string>> outputs = {
             {operator_name_, "gpu"},

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,10 +39,10 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
                           .AddArg("offset", offset)
                           .AddArg("scale", 300.0f)
                           .AddArg("stds", std::vector<float>({0.1f, 0.1f, 0.2f, 0.2f}))
-                          .AddInput("bboxes", "cpu")
-                          .AddInput("labels", "cpu")
-                          .AddOutput("encoded_bboxes", "cpu")
-                          .AddOutput("encoded_labels", "cpu"));
+                          .AddInput("bboxes", StorageDevice::CPU)
+                          .AddInput("labels", StorageDevice::CPU)
+                          .AddOutput("encoded_bboxes", StorageDevice::CPU)
+                          .AddOutput("encoded_labels", StorageDevice::CPU));
 
     dali::Workspace ws;
     this->RunOperator(&ws);
@@ -59,10 +59,10 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
                           .AddArg("offset", offset)
                           .AddArg("scale", 300.0f)
                           .AddArg("stds", std::vector<float>({0.1f, 0.1f, 0.2f, 0.2f}))
-                          .AddInput("bboxes", "gpu")
-                          .AddInput("labels", "gpu")
-                          .AddOutput("encoded_bboxes", "gpu")
-                          .AddOutput("encoded_labels", "gpu"));
+                          .AddInput("bboxes", StorageDevice::GPU)
+                          .AddInput("labels", StorageDevice::GPU)
+                          .AddOutput("encoded_bboxes", StorageDevice::GPU)
+                          .AddOutput("encoded_labels", StorageDevice::GPU));
 
     dali::Workspace ws;
     this->RunOperator(&ws);
