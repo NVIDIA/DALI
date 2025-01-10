@@ -94,7 +94,6 @@ def test_dali_proxy_torch_data_loader(device, include_decoder, debug=False):
     from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import torchvision.datasets as datasets
     from torch.utils import data as torchdata
-    from nvidia.dali.tensors import TensorCPU, TensorGPU
 
     batch_size = 4
     num_threads = 3

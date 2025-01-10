@@ -478,16 +478,14 @@ class Pipeline(object):
         """If True, this pipeline was restored from checkpoint."""
         return self._is_restored_from_checkpoint
 
-    # TODO(janton): this should be populated on the native side so that we can get the number
-    # of outputs on deserialized pipelines.
     @property
-    def _py_num_outputs(self):
+    def num_outputs(self) -> int:
         """
-        Number of pipeline outputs. Note that this will not be available if the pipeline was
-        not defined in Python (e.g. deserialized pipeline)
+        Number of pipeline outputs.
         """
         self.build()
-        return self._num_outputs
+        # output_dtype is a list with the dtype for each output, so we can simply take the length
+        return len(self._pipe.output_dtype())
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""

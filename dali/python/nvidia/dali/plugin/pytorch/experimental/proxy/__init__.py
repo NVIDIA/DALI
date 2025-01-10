@@ -27,7 +27,6 @@ from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 import warnings
 from inspect import Parameter, Signature
 
-
 # DALI proxy is a PyTorch specific layer that connects a multi-process PyTorch DataLoader with
 # a single DALI pipeline. This allows to run CUDA processing in a single process, avoiding the
 # problem of having multiple CUDA contexts which hurts the performance.
@@ -101,6 +100,22 @@ from inspect import Parameter, Signature
 # +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
 # | main  |   | dali_output_q |   | data_thread | | dali_input_q  |   | worker_0  | | worker_1  |
 # +-------+   +---------------+   +-------------+ +---------------+   +-----------+ +-----------+
+
+
+def _modify_signature(new_sig):
+    from functools import wraps
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            bound_args = new_sig.bind(*args, **kwargs)
+            bound_args.apply_defaults()
+            return func(*bound_args.args, **bound_args.kwargs)
+
+        wrapper.__signature__ = new_sig
+        return wrapper
+
+    return decorator
 
 
 def _external_source_node_names(pipeline):
@@ -233,7 +248,6 @@ class _DALIProxy:
         self._worker_data = None
         # Override callable signature
         self._signature = signature
-        self.__call__ = signature
         # Current batch
         self._curr_batch_params = {}
         # get num outputs
@@ -275,6 +289,9 @@ class _DALIProxy:
             worker_data.batch_sample_idx = 0
 
         for name, value in bound.arguments.items():
+            # we want to transfer only the arguments to the caller side, not the the self reference
+            if name == "self":
+                continue
             if name not in worker_data.pipe_run_ref.call_args:
                 worker_data.pipe_run_ref.call_args[name] = []
             worker_data.pipe_run_ref.call_args[name].append(value)
@@ -314,12 +331,6 @@ class _DALIProxy:
         pipe_run_ref.is_scheduled = True
         _nvtx.range_pop()
         return pipe_run_ref
-
-    def __call__(self, *args, **kwargs):
-        """
-        Returns a reference to the outputs of the pipeline run
-        """
-        return self._add_sample(self._signature.bind(*args, **kwargs))
 
 
 class DALIServer:
@@ -458,15 +469,11 @@ class DALIServer:
         if len(self._dali_input_names) == 0:
             raise RuntimeError("The provided pipeline doesn't have any inputs")
 
-        # TODO(janton): _py_num_outputs is a private member and not available on pipelines not defined in
-        # Python.
-        self._signature = Signature(
-            [
-                Parameter(input_name, Parameter.POSITIONAL_OR_KEYWORD)
-                for input_name in self._dali_input_names
-            ],
-            return_annotation=tuple(DALIOutputSampleRef for _ in range(self._pipe._py_num_outputs)),
-        )
+        parameters = [Parameter("self", Parameter.POSITIONAL_OR_KEYWORD)]
+        for input_name in self._dali_input_names:
+            parameters.append(Parameter(input_name, Parameter.POSITIONAL_OR_KEYWORD))
+        return_annotation = tuple(DALIOutputSampleRef for _ in range(self._pipe.num_outputs))
+        self._signature = Signature(parameters, return_annotation=return_annotation)
 
         # Multi-process queue used to transfer data from the pytorch workers to the main process
         self._dali_input_q = _mp.Queue()
@@ -488,7 +495,18 @@ class DALIServer:
     @property
     def proxy(self):
         if not self._proxy:
-            self._proxy = _DALIProxy(self._signature, self._dali_input_q, self._deterministic)
+
+            class _DALIProxyCallable(_DALIProxy):
+                def __init__(self, signature, dali_input_q, deterministic):
+                    super().__init__(signature, dali_input_q, deterministic)
+
+                @_modify_signature(self._signature)
+                def __call__(self, *args, **kwargs):
+                    return self._add_sample(self._signature.bind(self, *args, **kwargs))
+
+            self._proxy = _DALIProxyCallable(
+                self._signature, self._dali_input_q, self._deterministic
+            )
         return self._proxy
 
     def _get_outputs(self, pipe_run_ref: DALIPipelineRunRef):
