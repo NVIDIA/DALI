@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-{% set build_version = "0.4.0" %}
+{% set build_version = "0.4.1" %}
 
 package:
   name: nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
@@ -21,7 +21,7 @@ package:
 
 source:
   git_url: https://github.com/NVIDIA/nvImageCodec.git
-  git_rev: v0.4.0
+  git_rev: v0.4.1
 
 build:
   number: 0
