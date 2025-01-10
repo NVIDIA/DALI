@@ -24,7 +24,6 @@ from functools import partial
 from nose_utils import SkipTest, attr, nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
-from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 import test_utils
 from segmentation_test_utils import make_batch_select_masks
@@ -375,35 +374,29 @@ ops_image_custom_args = [
     (fn.ones_like, {"devices": ["cpu"]}),
 ]
 
-if check_numba_compatibility_gpu(False):
-    ops_image_custom_args.append(
-        (
-            numba_function,
-            {
-                "batch_processing": True,
-                "devices": ["cpu"],
-                "in_types": [types.UINT8],
-                "ins_ndim": [3],
-                "out_types": [types.UINT8],
-                "outs_ndim": [3],
-                "run_fn": numba_set_all_values_to_255_batch,
-                "setup_fn": numba_setup_out_shape,
-            },
-        )
-    )
+numba_compatible_devices = []
 
+if check_numba_compatibility_gpu(False):
+    numba_compatible_devices.append("gpu")
 
 if check_numba_compatibility_cpu(False):
+    numba_compatible_devices.append("cpu")
+
+if len(numba_compatible_devices) > 0:
+    from nvidia.dali.plugin.numba.fn.experimental import numba_function
+
     ops_image_custom_args.append(
         (
             numba_function,
             {
                 "batch_processing": False,
-                "devices": ["cpu"],
+                "devices": numba_compatible_devices,
                 "in_types": [types.UINT8],
                 "ins_ndim": [3],
                 "out_types": [types.UINT8],
                 "outs_ndim": [3],
+                "blocks": [32, 32, 1],
+                "threads_per_block": [32, 16, 1],
                 "run_fn": numba_set_all_values_to_255_batch,
                 "setup_fn": numba_setup_out_shape,
             },
