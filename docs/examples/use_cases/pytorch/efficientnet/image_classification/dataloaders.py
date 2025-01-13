@@ -249,8 +249,9 @@ def get_dali_val_loader():
 def fast_collate(memory_format, batch):
     imgs = [img[0] for img in batch]
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
-    w = imgs[0].size()[1]
-    h = imgs[0].size()[2]
+    # imgs is a torch tensor [c, h, w]
+    h = imgs[0].size()[1]
+    w = imgs[0].size()[2]
 
     tensor = torch.zeros((len(imgs), 3, h, w), dtype=torch.uint8).contiguous(
         memory_format=memory_format
@@ -274,6 +275,7 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
+    @classmethod
     def prefetched_loader(loader, num_classes, one_hot):
         stream = torch.cuda.Stream()
         for next_input, next_target in loader:
@@ -325,26 +327,26 @@ def get_pytorch_train_loader(
         interpolation
     ]
     traindir = os.path.join(data_path, "train")
-    transforms_list = [
+    transform_list = [
         transforms.RandomResizedCrop(image_size, interpolation=interpolation),
         transforms.RandomHorizontalFlip(),
     ]
     if augmentation == "disabled":
         pass
     elif augmentation == "autoaugment":
-        transforms_list.append(AutoaugmentImageNetPolicy())
+        transform_list.append(AutoaugmentImageNetPolicy())
     else:
         raise NotImplementedError(
             f"Automatic augmentation: '{augmentation}' is not supported"
             " for PyTorch data loader."
         )
 
-    transforms_list.append(transforms.ToTensor())
-    transforms_list.append(
+    transform_list.append(transforms.ToTensor())
+    transform_list.append(
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     )
     train_dataset = datasets.ImageFolder(
-        traindir, transforms.Compose(transforms_list)
+        traindir, transforms.Compose(transform_list)
     )
 
     if torch.distributed.is_initialized():
@@ -396,19 +398,19 @@ def get_pytorch_val_loader(
         interpolation
     ]
     valdir = os.path.join(data_path, "val")
-    transforms_list = [
+    transform_list = [
         transforms.Resize(
             image_size + crop_padding, interpolation=interpolation
         ),
         transforms.CenterCrop(image_size),
     ]
-    transforms_list.append(transforms.ToTensor())
-    transforms_list.append(
+    transform_list.append(transforms.ToTensor())
+    transform_list.append(
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     )
     val_dataset = datasets.ImageFolder(
         valdir,
-        transforms.Compose(transforms_list),
+        transforms.Compose(transform_list),
     )
 
     if torch.distributed.is_initialized():
@@ -440,6 +442,7 @@ def get_pytorch_val_loader(
 def fast_optimized_collate(memory_format, batch):
     imgs = [img[0] for img in batch]
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
+    # imgs is a PILow image [w, h]
     w = imgs[0].size[0]
     h = imgs[0].size[1]
 
@@ -458,6 +461,7 @@ def fast_optimized_collate(memory_format, batch):
 
 
 class PrefetchedOptimizedWrapper(object):
+    @classmethod
     def prefetched_loader(loader, num_classes, one_hot):
         mean = (
             torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
@@ -534,14 +538,14 @@ def get_pytorch_optimized_train_loader(
         interpolation
     ]
     traindir = os.path.join(data_path, "train")
-    transforms_list = [
+    transform_list = [
         transforms.RandomResizedCrop(image_size, interpolation=interpolation),
         transforms.RandomHorizontalFlip(),
     ]
     if augmentation == "disabled":
         pass
     elif augmentation == "autoaugment":
-        transforms_list.append(AutoaugmentImageNetPolicy())
+        transform_list.append(AutoaugmentImageNetPolicy())
     else:
         raise NotImplementedError(
             f"Automatic augmentation: '{augmentation}' is not supported"
@@ -549,7 +553,7 @@ def get_pytorch_optimized_train_loader(
         )
 
     train_dataset = datasets.ImageFolder(
-        traindir, transforms.Compose(transforms_list)
+        traindir, transforms.Compose(transform_list)
     )
 
     if torch.distributed.is_initialized():
@@ -601,7 +605,7 @@ def get_pytorch_optimize_val_loader(
         interpolation
     ]
     valdir = os.path.join(data_path, "val")
-    transforms_list = [
+    transform_list = [
         transforms.Resize(
             image_size + crop_padding, interpolation=interpolation
         ),
@@ -609,7 +613,7 @@ def get_pytorch_optimize_val_loader(
     ]
     val_dataset = datasets.ImageFolder(
         valdir,
-        transforms.Compose(transforms_list),
+        transforms.Compose(transform_list),
     )
 
     if torch.distributed.is_initialized():
