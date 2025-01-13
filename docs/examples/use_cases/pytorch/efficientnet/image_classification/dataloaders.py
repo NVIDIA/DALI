@@ -275,7 +275,7 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
-    @classmethod
+    @staticmethod
     def prefetched_loader(loader, num_classes, one_hot):
         stream = torch.cuda.Stream()
         for next_input, next_target in loader:
@@ -461,7 +461,7 @@ def fast_optimized_collate(memory_format, batch):
 
 
 class PrefetchedOptimizedWrapper(object):
-    @classmethod
+    @staticmethod
     def prefetched_loader(loader, num_classes, one_hot):
         mean = (
             torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255])
