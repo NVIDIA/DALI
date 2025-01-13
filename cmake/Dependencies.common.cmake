@@ -313,7 +313,6 @@ if(BUILD_NVIMAGECODEC)
     message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
     add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 
-    # Find the position of the substring
     if("$ENV{ARCH}" STREQUAL "aarch64-linux")
       message(STATUS "ARCH is set to aarch64-linux")
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
