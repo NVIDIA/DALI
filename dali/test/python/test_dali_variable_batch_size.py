@@ -1264,7 +1264,7 @@ def test_optical_flow():
         pipe.set_outputs(processed)
         return pipe
 
-    input_data = generate_data(5, 2, (10, 160, 80, 3), lo=0, hi=255, dtype=np.uint8)
+    input_data = generate_data(5, 2, (10, 480, 640, 3), lo=0, hi=255, dtype=np.uint8)
     check_pipeline(input_data, pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
 
 
