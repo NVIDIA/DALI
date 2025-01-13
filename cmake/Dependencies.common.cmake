@@ -313,18 +313,16 @@ if(BUILD_NVIMAGECODEC)
     message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
     add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 
-    # Find the position of the substring
-    string(FIND "aarch64-linux-gnu" "${CMAKE_PREFIX_PATH}" SUBSTRING_POSITION)
-    if(NOT SUBSTRING_POSITION EQUAL -1)
-      # Substring found
-      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
-      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-cu${CUDA_VERSION_MAJOR}")
-      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-cu${CUDA_VERSION_MAJOR}")
-    else()
-      # Substring not found
+    if("$ENV{ARCH}" STREQUAL "aarch64-linux")
+      message(STATUS "ARCH is set to aarch64-linux")
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
       set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-tegra-cu${CUDA_VERSION_MAJOR}")
       set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-tegra-cu${CUDA_VERSION_MAJOR}")
+    else()
+      message(STATUS "ARCH is not set to $ENV{ARCH}")
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
+      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-cu${CUDA_VERSION_MAJOR}")
+      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-cu${CUDA_VERSION_MAJOR}")
     endif()
 
     # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
