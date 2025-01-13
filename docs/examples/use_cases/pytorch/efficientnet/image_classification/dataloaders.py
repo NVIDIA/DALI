@@ -51,9 +51,14 @@ except ImportError as e:
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
+
 def load_jpeg_from_file(path, cuda=True):
     img_transforms = transforms.Compose(
-        [transforms.Resize(256), transforms.CenterCrop(224), transforms.ToTensor()]
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+        ]
     )
 
     img = img_transforms(Image.open(path))
@@ -74,6 +79,7 @@ def load_jpeg_from_file(path, cuda=True):
 
     return input
 
+
 class DALIWrapper(object):
 
     def gen_wrapper(dalipipeline, num_classes, one_hot, memory_format):
@@ -90,8 +96,11 @@ class DALIWrapper(object):
                 def nhwc_to_nchw(t):
                     return t[0], t[3], t[1], t[2]
 
-                input = torch.as_strided(data[0]["data"], size=nhwc_to_nchw(shape),
-                                         stride=nhwc_to_nchw(stride))
+                input = torch.as_strided(
+                    data[0]["data"],
+                    size=nhwc_to_nchw(shape),
+                    stride=nhwc_to_nchw(stride),
+                )
             else:
                 input = data[0]["data"].contiguous(memory_format=memory_format)
             target = torch.reshape(data[0]["label"], [-1]).cuda().long()
@@ -108,7 +117,10 @@ class DALIWrapper(object):
 
     def __iter__(self):
         return DALIWrapper.gen_wrapper(
-            self.dalipipeline, self.num_classes, self.one_hot, self.memory_format
+            self.dalipipeline,
+            self.num_classes,
+            self.one_hot,
+            self.memory_format,
         )
 
 
@@ -145,16 +157,23 @@ def get_dali_train_loader(dali_device="gpu"):
         traindir = os.path.join(data_path, "train")
 
         pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
+            "batch_size": batch_size,
+            "num_threads": workers,
+            "device_id": rank % torch.cuda.device_count(),
             "seed": 12 + rank % torch.cuda.device_count(),
         }
 
-        pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
-                             output_layout=output_layout, automatic_augmentation=augmentation,
-                             dali_device=dali_device, rank=rank, world_size=world_size,
-                             **pipeline_kwargs)
+        pipe = training_pipe(
+            data_dir=traindir,
+            interpolation=interpolation,
+            image_size=image_size,
+            output_layout=output_layout,
+            automatic_augmentation=augmentation,
+            dali_device=dali_device,
+            rank=rank,
+            world_size=world_size,
+            **pipeline_kwargs,
+        )
 
         train_loader = DALIClassificationIterator(
             pipe, reader_name="Reader", fill_last_batch=False
@@ -200,15 +219,20 @@ def get_dali_val_loader():
         valdir = os.path.join(data_path, "val")
 
         pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
+            "batch_size": batch_size,
+            "num_threads": workers,
+            "device_id": rank % torch.cuda.device_count(),
             "seed": 12 + rank % torch.cuda.device_count(),
         }
 
-        pipe = validation_pipe(data_dir=valdir, interpolation=interpolation,
-                               image_size=image_size + crop_padding, image_crop=image_size,
-                               output_layout=output_layout, **pipeline_kwargs)
+        pipe = validation_pipe(
+            data_dir=valdir,
+            interpolation=interpolation,
+            image_size=image_size + crop_padding,
+            image_crop=image_size,
+            output_layout=output_layout,
+            **pipeline_kwargs,
+        )
 
         val_loader = DALIClassificationIterator(
             pipe, reader_name="Reader", fill_last_batch=False
@@ -294,7 +318,8 @@ class PrefetchedWrapper(object):
 
     def __iter__(self):
         if self.dataloader.sampler is not None and isinstance(
-            self.dataloader.sampler, torch.utils.data.distributed.DistributedSampler
+            self.dataloader.sampler,
+            torch.utils.data.distributed.DistributedSampler,
         ):
 
             self.dataloader.sampler.set_epoch(self.epoch)
@@ -334,9 +359,13 @@ def get_pytorch_train_loader(
     elif augmentation == "autoaugment":
         transforms_list.append(AutoaugmentImageNetPolicy())
     else:
-        raise NotImplementedError(f"Automatic augmentation: '{augmentation}' is not supported"
-                                  " for PyTorch data loader.")
-    train_dataset = datasets.ImageFolder(traindir, transforms.Compose(transforms_list))
+        raise NotImplementedError(
+            f"Automatic augmentation: '{augmentation}' is not supported"
+            " for PyTorch data loader."
+        )
+    train_dataset = datasets.ImageFolder(
+        traindir, transforms.Compose(transforms_list)
+    )
 
     if torch.distributed.is_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -415,7 +444,9 @@ def get_pytorch_val_loader(
         prefetch_factor=prefetch_factor,
     )
 
-    return PrefetchedWrapper(val_loader, 0, num_classes, one_hot), len(val_loader)
+    return PrefetchedWrapper(val_loader, 0, num_classes, one_hot), len(
+        val_loader
+    )
 
 
 class SynteticDataLoader(object):
