@@ -333,6 +333,7 @@ void FramesDecoder::CountFrames(AvState *av_state) {
     }
     ++num_frames_.value();
   }
+  av_packet_unref(av_state->packet_);
 }
 
 IMPL_HAS_MEMBER(read_seek);
@@ -479,6 +480,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     ++next_frame_idx_;
     return true;
   }
+  av_packet_unref(av_state_->packet_);
 
   ret = avcodec_send_packet(av_state_->codec_ctx_, nullptr);
   DALI_ENFORCE(

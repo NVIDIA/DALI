@@ -288,6 +288,8 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 
 }  // namespace frame_dec_gpu_impl
 
+using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
+
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
 
@@ -547,6 +549,8 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   current_frame_output_ = data;
 
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
     if (!SendFrameToParser()) {
       continue;
     }
@@ -556,6 +560,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
       return true;
     }
   }
+  av_packet_unref(av_state_->packet_);
 
   DALI_ENFORCE(piped_pts_.size() == 1);
 
@@ -629,10 +634,13 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
     !frame_returned_ &&
     frame_to_return_index == -1) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+      // We want to make sure that we call av_packet_unref in every iteration
+      auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
       if (!SendFrameToParser()) {
         continue;
       }
     } else {
+      av_packet_unref(av_state_->packet_);
       // Handle the case, when last packet has more frames that we have empty spots
       // in the buffer.
       // If so, we need to return frame from the buffer before sending last packet.
