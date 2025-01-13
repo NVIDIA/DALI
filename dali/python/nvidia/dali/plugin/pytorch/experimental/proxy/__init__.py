@@ -559,47 +559,58 @@ class DALIServer:
                     self._cache_outputs[curr_batch_id] = curr_processed_outputs
         return req_outputs
 
-    def _produce_data_impl(self, obj, cache, visited):
+    def _produce_data_impl(self, obj, cache):
         """
         Recursive implementation of produce_data
         """
 
         # Check if the object has already been visited (to prevent infinite recursion)
         obj_id = id(obj)
-        if obj_id in visited:
-            return obj
+        if obj_id in cache:
+            return cache[obj_id]
 
-        # Mark the object as visited
-        visited.add(obj_id)
+        def convert():
+            # DALIOutputBatchRef instance, replace it with data
+            if isinstance(obj, DALIOutputBatchRef):
+                pipe_run_ref_id = id(obj.pipe_run_ref)
+                if pipe_run_ref_id not in cache:
+                    cache[pipe_run_ref_id] = self._get_outputs(obj.pipe_run_ref)
+                return cache[pipe_run_ref_id][obj.output_idx]
 
-        # If it is an instance of DALIOutputBatchRef, replace it with data
-        if isinstance(obj, DALIOutputBatchRef):
-            if obj.pipe_run_ref.batch_id not in cache:
-                cache[obj.pipe_run_ref.batch_id] = self._get_outputs(obj.pipe_run_ref)
-            return cache[obj.pipe_run_ref.batch_id][obj.output_idx]
+            # custom class, recursively call produce data on its members
+            elif hasattr(obj, "__dict__"):
+                cache[obj_id] = obj  # prevent infinite recursion
+                for attr_name, attr_value in obj.__dict__.items():
+                    setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
+                return obj
 
-        # If it is a custom class, recursively call produce data on its members
-        elif hasattr(obj, "__dict__"):
-            for attr_name, attr_value in obj.__dict__.items():
-                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache, visited))
-            return obj
+            # list, recursively apply the function to each element
+            elif isinstance(obj, list):
+                ret_list = []
+                cache[obj_id] = ret_list  # prevent infinite recursion
+                for item in obj:
+                    ret_list.append(self._produce_data_impl(item, cache))
+                return ret_list
 
-        # If it's a list, recursively apply the function to each element
-        elif isinstance(obj, list):
-            return [self._produce_data_impl(item, cache, visited) for item in obj]
+            # tuple, recursively apply the function to each element (preserving tuple type)
+            elif isinstance(obj, tuple):
+                # tuple is immutable (can't contain circular references)
+                return tuple(self._produce_data_impl(item, cache) for item in obj)
 
-        # If it's a tuple, recursively apply the function to each element (and preserve tuple type)
-        elif isinstance(obj, tuple):
-            return tuple(self._produce_data_impl(item, cache, visited) for item in obj)
+            # If it's a dictionary, apply the function to the values
+            elif isinstance(obj, dict):
+                ret_dict = {}
+                cache[obj_id] = ret_dict  # prevent infinite recursion
+                for key, value in obj.items():
+                    ret_dict[key] = self._produce_data_impl(value, cache, cache)
+                return ret_dict
 
-        # If it's a dictionary, apply the function to the values
-        elif isinstance(obj, dict):
-            return {
-                key: self._produce_data_impl(value, cache, visited) for key, value in obj.items()
-            }
+            else:  # return directly anything else
+                return obj
 
-        else:  # return directly anything else
-            return obj
+        ret = convert()
+        cache[obj_id] = ret
+        return ret
 
     def produce_data(self, obj):
         """
@@ -615,10 +626,8 @@ class DALIServer:
             data.
 
         """
-        cache = dict()
-        visited = set()
-        ret = self._produce_data_impl(obj, cache, visited)
-        del cache
+        cache = {}
+        ret = self._produce_data_impl(obj, cache)
         return ret
 
     def _get_input_batches(self, max_num_batches, timeout=None):
