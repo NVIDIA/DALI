@@ -478,6 +478,15 @@ class Pipeline(object):
         """If True, this pipeline was restored from checkpoint."""
         return self._is_restored_from_checkpoint
 
+    @property
+    def num_outputs(self) -> int:
+        """
+        Number of pipeline outputs.
+        """
+        self.build()
+        # output_dtype is a list with the dtype for each output, so we can simply take the length
+        return len(self._pipe.output_dtype())
+
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
         self.build()
@@ -854,6 +863,7 @@ class Pipeline(object):
             self._require_no_foreign_ops("The pipeline does not support checkpointing")
 
         self._graph_outputs = outputs
+        self._num_outputs = len(self._graph_outputs)
         self._setup_input_callbacks()
         self._disable_pruned_external_source_instances()
         self._py_graph_built = True

@@ -27,18 +27,27 @@ from nvidia.dali._utils.external_source_impl import (
 )
 
 
+def _get_shape(data):
+    if hasattr(data, "shape"):
+        return data.shape() if callable(data.shape) else data.shape
+    elif hasattr(data, "__array_interface__"):
+        return data.__array_interface__["shape"]
+    elif hasattr(data, "__cuda_array_interface__"):
+        return data.__cuda_array_interface__["shape"]
+    elif hasattr(data, "__array__"):
+        return data.__array__().shape
+    else:
+        raise RuntimeError(f"Don't know how to extract the shape out of {type(data)}")
+
+
 def _get_batch_shape(data):
     if isinstance(data, (list, tuple, _tensors.TensorListCPU, _tensors.TensorListGPU)):
         if len(data) == 0:
             return [], True
-        if callable(data[0].shape):
-            return [x.shape() for x in data], False
         else:
-            return [x.shape for x in data], False
+            return [_get_shape(x) for x in data], False
     else:
-        shape = data.shape
-        if callable(shape):
-            shape = data.shape()
+        shape = _get_shape(data)
         return [shape[1:]] * shape[0], True
 
 
@@ -68,6 +77,8 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
             return x.asnumpy()
         elif _types._is_torch_tensor(x):
             return x.numpy()
+        elif hasattr(x, "__array__"):
+            return x.__array__()
         else:
             return x
 
@@ -79,7 +90,7 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
         if layout is not None:
             _check_data_batch(data, batch_size, layout)
             data = type(data)(data, layout)
-    elif isinstance(data, list):
+    elif isinstance(data, (list, tuple)):
         inputs = []
         checked = False
         for datum in data:
