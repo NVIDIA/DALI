@@ -318,20 +318,24 @@ if(BUILD_NVIMAGECODEC)
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
       set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-tegra-cu${CUDA_VERSION_MAJOR}")
       set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-tegra-cu${CUDA_VERSION_MAJOR}")
+      # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
+      # TODO(janton): enable support for nvimgcodec on Tegra
+      set(DALI_INSTALL_REQUIRES_NVJPEG2K "")
+      set(DALI_INSTALL_REQUIRES_NVTIFF "")
+      set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
     else()
-      message(STATUS "ARCH is not set to $ENV{ARCH}")
+      message(STATUS "ARCH is set to $ENV{ARCH}")
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
       set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-cu${CUDA_VERSION_MAJOR}")
       set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-cu${CUDA_VERSION_MAJOR}")
+      # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
+      set(DALI_INSTALL_REQUIRES_NVJPEG2K "\'${NVJPEG2K_PACKAGE_NAME} >= ${NVJPEG2K_MIN_VERSION}, < ${NVJPEG2K_MAX_VERSION}',")
+      message(STATUS "Adding nvjpeg2k requirement as: ${DALI_INSTALL_REQUIRES_NVJPEG2K}")
+      set(DALI_INSTALL_REQUIRES_NVTIFF "\'${NVTIFF_PACKAGE_NAME} >= ${NVTIFF_MIN_VERSION}, < ${NVTIFF_MAX_VERSION}',")
+      message(STATUS "Adding nvtiff requirement as: ${DALI_INSTALL_REQUIRES_NVTIFF}")
+      set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
+      message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
     endif()
-
-    # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
-    set(DALI_INSTALL_REQUIRES_NVJPEG2K "\'${NVJPEG2K_PACKAGE_NAME} >= ${NVJPEG2K_MIN_VERSION}, < ${NVJPEG2K_MAX_VERSION}',")
-    message(STATUS "Adding nvjpeg2k requirement as: ${DALI_INSTALL_REQUIRES_NVJPEG2K}")
-    set(DALI_INSTALL_REQUIRES_NVTIFF "\'${NVTIFF_PACKAGE_NAME} >= ${NVTIFF_MIN_VERSION}, < ${NVTIFF_MAX_VERSION}',")
-    message(STATUS "Adding nvtiff requirement as: ${DALI_INSTALL_REQUIRES_NVTIFF}")
-    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
-    message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
   else()
     message(STATUS "nvImageCodec - static link")
 
