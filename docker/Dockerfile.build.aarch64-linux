@@ -1,11 +1,15 @@
-ARG AARCH64_BASE_IMAGE=nvidia/cuda:11.8.0-devel-ubuntu20.04
+ARG AARCH64_BASE_IMAGE=nvidia/cuda:12.2.0-devel-ubuntu20.04
 FROM ${AARCH64_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    CUDA_CROSS_VERSION=11-8 \
-    CUDA_CROSS_VERSION_DOT=11.8
+    CUDA_CROSS_VERSION=12-2 \
+    CUDA_CROSS_VERSION_DOT=12.2
 
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+RUN rm /etc/apt/sources.list.d/cuda.list && \
+    apt-key del 7fa2af80 && \
+    apt-get update && apt-get install -y --no-install-recommends wget && \
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb && \
     apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
     add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -44,14 +48,13 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
                        cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libnvjpeg-cross-aarch64-${CUDA_CROSS_VERSION} \
     && \
     rm -rf /var/lib/apt/lists/* && \
     PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
-    if [ "${PYTHON_VER}" = "36" ]; then \
-        curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
-    else \
-        curl -O https://bootstrap.pypa.io/get-pip.py; \
-    fi && python3 get-pip.py && rm get-pip.py && \
+    curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python3 get-pip.py && \
+    rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
     pip install clang==14.0 && pip install libclang==14.0.1 flake8 bandit "black[jupyter]"==24.8.0 && \
     rm -rf /root/.cache/pip/ && \
