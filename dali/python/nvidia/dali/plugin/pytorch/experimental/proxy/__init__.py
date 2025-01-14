@@ -557,6 +557,42 @@ class DALIServer:
                     self._cache_outputs[curr_batch_id] = curr_processed_outputs
         return req_outputs
 
+    def _needs_conversion(obj, need_conversion_cache=None):
+        """
+        True if the object or any of its members require conversion (contains a DALIOutputBatchRef)
+        """
+        if need_conversion_cache is None:
+            need_conversion_cache = {}
+
+        obj_id = id(obj)
+        if obj_id in need_conversion_cache:
+            return need_conversion_cache[obj_id]
+
+        if isinstance(obj, DALIOutputBatchRef):
+            need_conversion_cache[obj] = True
+            return True
+
+        need_conversion_cache[obj] = False  # prevent infinite recursion
+        if isinstance(obj, (list, tuple)):
+            for item in obj:
+                if DALIServer._needs_conversion(item, need_conversion_cache):
+                    need_conversion_cache[obj] = True
+                    return True
+
+        if isinstance(obj, dict):
+            for item in obj.values():
+                if DALIServer._needs_conversion(item, need_conversion_cache):
+                    need_conversion_cache[obj] = True
+                    return True
+
+        if hasattr(obj, "__dict__"):
+            for attr_value in obj.__dict__.values():
+                if DALIServer._needs_conversion(attr_value, need_conversion_cache):
+                    need_conversion_cache[obj] = True
+                    return True
+
+        return False
+
     def _produce_data_impl(self, obj, cache):
         """
         Recursive single-pass implementation of produce_data with in-place modifications.
@@ -565,19 +601,6 @@ class DALIServer:
         obj_id = id(obj)
         if obj_id in cache:  # Return cached result to prevent infinite recursion
             return cache[obj_id]
-
-        def need_conversion(obj):
-            """Detect if the object or its members need conversion."""
-            if isinstance(obj, DALIOutputBatchRef):
-                return True
-            if isinstance(obj, (list, tuple, dict)):
-                return any(
-                    need_conversion(item)
-                    for item in (obj if isinstance(obj, (list, tuple)) else obj.values())
-                )
-            if hasattr(obj, "__dict__"):
-                return any(need_conversion(value) for value in obj.__dict__.values())
-            return False
 
         # Handle DALIOutputBatchRef
         if isinstance(obj, DALIOutputBatchRef):
@@ -599,7 +622,7 @@ class DALIServer:
         # Handle tuples (regular, named, or custom)
         if isinstance(obj, tuple):
             # If no elements need conversion, return as is
-            if not need_conversion(obj):
+            if not DALIServer._needs_conversion(obj):
                 result = obj
             # Named tuple: Reconstruct using `_replace`
             elif hasattr(obj, "_replace") and hasattr(obj, "_fields"):
