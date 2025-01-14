@@ -557,43 +557,29 @@ class DALIServer:
                     self._cache_outputs[curr_batch_id] = curr_processed_outputs
         return req_outputs
 
-    def _needs_conversion(obj, need_conversion_cache=None):
-        """
-        True if the object or any of its members require conversion (contains a DALIOutputBatchRef)
-        """
-        if need_conversion_cache is None:
-            need_conversion_cache = {}
-
+    def _need_conversion(obj, need_conversion_cache):
+        """Return True if the object or any of its members need conversion."""
         obj_id = id(obj)
         if obj_id in need_conversion_cache:
             return need_conversion_cache[obj_id]
 
         if isinstance(obj, DALIOutputBatchRef):
-            need_conversion_cache[obj] = True
+            need_conversion_cache[obj_id] = True
             return True
 
-        need_conversion_cache[obj] = False  # prevent infinite recursion
-        if isinstance(obj, (list, tuple)):
-            for item in obj:
-                if DALIServer._needs_conversion(item, need_conversion_cache):
-                    need_conversion_cache[obj] = True
-                    return True
-
-        if isinstance(obj, dict):
-            for item in obj.values():
-                if DALIServer._needs_conversion(item, need_conversion_cache):
-                    need_conversion_cache[obj] = True
-                    return True
-
-        if hasattr(obj, "__dict__"):
-            for attr_value in obj.__dict__.values():
-                if DALIServer._needs_conversion(attr_value, need_conversion_cache):
-                    need_conversion_cache[obj] = True
-                    return True
+        need_conversion_cache[obj_id] = False  # Prevent infinite recursion
+        for item in (
+            obj
+            if isinstance(obj, (list, tuple))
+            else obj.values() if isinstance(obj, dict) else getattr(obj, "__dict__", {}).values()
+        ):
+            if DALIServer._need_conversion(item, need_conversion_cache):
+                need_conversion_cache[obj_id] = True
+                return True
 
         return False
 
-    def _produce_data_impl(self, obj, cache):
+    def _produce_data_impl(self, obj, cache, need_conversion_cache):
         """
         Recursive single-pass implementation of produce_data with in-place modifications.
         """
@@ -601,6 +587,11 @@ class DALIServer:
         obj_id = id(obj)
         if obj_id in cache:  # Return cached result to prevent infinite recursion
             return cache[obj_id]
+
+        # If it doesn't need conversion, return immediately
+        if not DALIServer._need_conversion(obj, need_conversion_cache):
+            cache[obj_id] = obj
+            return obj
 
         # Handle DALIOutputBatchRef
         if isinstance(obj, DALIOutputBatchRef):
@@ -616,7 +607,7 @@ class DALIServer:
         if isinstance(obj, list):
             cache[obj_id] = obj  # Cache before recursion to prevent infinite loops
             for i in range(len(obj)):
-                obj[i] = self._produce_data_impl(obj[i], cache)
+                obj[i] = self._produce_data_impl(obj[i], cache, need_conversion_cache)
             return obj
 
         # Handle tuples (regular, named, or custom)
@@ -628,13 +619,17 @@ class DALIServer:
             elif hasattr(obj, "_replace") and hasattr(obj, "_fields"):
                 result = obj._replace(
                     **{
-                        field: self._produce_data_impl(getattr(obj, field), cache)
+                        field: self._produce_data_impl(
+                            getattr(obj, field), cache, need_conversion_cache
+                        )
                         for field in obj._fields
                     }
                 )
             # Regular or custom tuple: Reconstruct using type(obj)
             else:
-                result = type(obj)(self._produce_data_impl(item, cache) for item in obj)
+                result = type(obj)(
+                    self._produce_data_impl(item, cache, need_conversion_cache) for item in obj
+                )
             cache[obj_id] = result
             return result
 
@@ -642,17 +637,21 @@ class DALIServer:
         if isinstance(obj, dict):
             cache[obj_id] = obj  # Cache before recursion to prevent infinite loops
             for key in list(obj.keys()):  # Ensure we handle dynamic changes in the dictionary
-                obj[key] = self._produce_data_impl(obj[key], cache)
+                obj[key] = self._produce_data_impl(obj[key], cache, need_conversion_cache)
             return obj
 
         # Handle custom objects with attributes (modify in place)
         if hasattr(obj, "__dict__"):
             cache[obj_id] = obj  # Cache before recursion to prevent infinite loops
             for attr_name, attr_value in obj.__dict__.items():
-                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
+                setattr(
+                    obj,
+                    attr_name,
+                    self._produce_data_impl(attr_value, cache, need_conversion_cache),
+                )
             return obj
 
-        # Default case: No conversion needed
+        # Default case (shouldn't be reached since we exited early in case of no-op)
         cache[obj_id] = obj
         return obj
 
@@ -671,7 +670,8 @@ class DALIServer:
 
         """
         cache = {}
-        ret = self._produce_data_impl(obj, cache)
+        need_conversion_cache = {}
+        ret = self._produce_data_impl(obj, cache, need_conversion_cache)
         return ret
 
     def _get_input_batches(self, max_num_batches, timeout=None):
