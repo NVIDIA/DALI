@@ -165,49 +165,7 @@ It is also possible to start and stop the server explicitly:
 
 When possible, use the ``with`` scope.
 
-**3. Data Collation and Execution**
-
-This step is usually abstracted away inside the PyTorch DataLoader and the user doesn't need to take care of it explicitly.
-The ``default_collate`` function combines processed samples into a batch. DALI executes the pipeline asynchronously when a batch is collated.
-
-.. code-block:: python
-
-   from torch.utils.data.dataloader import default_collate as default_collate
-
-   with dali_proxy.DALIServer(example_pipeline2(...)) as dali_server:
-      outs = []
-      for _ in range(10):
-         a = np.array(np.random.rand(3, 3), dtype=np.float32)
-         b = np.array(np.random.rand(3, 3), dtype=np.float32)
-         a_plus_b, b_minus_a = dali_server.proxy(a, b)
-         outs.append((a_plus_b, b_minus_a))
-
-      # Collate into a single batch run reference
-      outs = default_collate(outs)
-
-      # And we can now replace the run reference with actual data
-      outs = dali_server.produce_data(outs)
-
-**4. Integration with PyTorch Dataset**
-
-The PyTorch Dataset can directly use the proxy as a transform function. Note that we can choose to offload only part of the
-processing to DALI, while keeping some of the original data intact.
-
-.. code-block:: python
-
-   class CustomDataset(torch.utils.data.Dataset):
-       def __init__(self, transform_fn, data):
-           self.data = data
-           self.transform_fn = transform_fn
-
-       def __len__(self):
-           return len(self.data)
-
-       def __getitem__(self, idx):
-           filename, label = self.data[idx]
-           return self.transform_fn(filename), label  # Returns processed sample and the original label
-
-**5. Integration with PyTorch DataLoader**
+**3. Integration with PyTorch DataLoader**
 
 The :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DataLoader` wrapper provided by DALI Proxy simplifies the integration process.
 
@@ -232,6 +190,48 @@ If using a custom :class:`nvidia.dali.plugin.pytorch.experimental.proxy.DataLoad
          # Replaces instances of ``DALIOutputBatchRef`` with actual data
          processed_data = dali_server.produce_data(data)
          print(processed_data.shape)  # data is now ready
+
+**4. Integration with PyTorch Dataset**
+
+The PyTorch Dataset can directly use the proxy as a transform function. Note that we can choose to offload only part of the
+processing to DALI, while keeping some of the original data intact.
+
+.. code-block:: python
+
+   class CustomDataset(torch.utils.data.Dataset):
+       def __init__(self, transform_fn, data):
+           self.data = data
+           self.transform_fn = transform_fn
+
+       def __len__(self):
+           return len(self.data)
+
+       def __getitem__(self, idx):
+           filename, label = self.data[idx]
+           return self.transform_fn(filename), label  # Returns processed sample and the original label
+
+**5. Data Collation and Execution**
+
+This step is usually abstracted away inside the PyTorch DataLoader and the user doesn't need to take care of it explicitly.
+The ``default_collate`` function combines processed samples into a batch. DALI executes the pipeline asynchronously when a batch is collated.
+
+.. code-block:: python
+
+   from torch.utils.data.dataloader import default_collate as default_collate
+
+   with dali_proxy.DALIServer(example_pipeline2(...)) as dali_server:
+      outs = []
+      for _ in range(10):
+         a = np.array(np.random.rand(3, 3), dtype=np.float32)
+         b = np.array(np.random.rand(3, 3), dtype=np.float32)
+         a_plus_b, b_minus_a = dali_server.proxy(a, b)
+         outs.append((a_plus_b, b_minus_a))
+
+      # Collate into a single batch run reference
+      outs = default_collate(outs)
+
+      # And we can now replace the run reference with actual data
+      outs = dali_server.produce_data(outs)
 
 Summary
 -------

@@ -6,3 +6,4 @@ PyTorch Plugin API reference
    :undoc-members:
    :inherited-members:
    :exclude-members: TorchPythonFunction
+

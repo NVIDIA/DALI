@@ -557,6 +557,7 @@ class DALIServer:
                     self._cache_outputs[curr_batch_id] = curr_processed_outputs
         return req_outputs
 
+    @staticmethod
     def _need_conversion(obj, need_conversion_cache):
         """Return True if the object or any of its members need conversion."""
         obj_id = id(obj)
@@ -612,11 +613,8 @@ class DALIServer:
 
         # Handle tuples (regular, named, or custom)
         if isinstance(obj, tuple):
-            # If no elements need conversion, return as is
-            if not DALIServer._needs_conversion(obj):
-                result = obj
             # Named tuple: Reconstruct using `_replace`
-            elif hasattr(obj, "_replace") and hasattr(obj, "_fields"):
+            if hasattr(obj, "_replace") and hasattr(obj, "_fields"):
                 result = obj._replace(
                     **{
                         field: self._produce_data_impl(
