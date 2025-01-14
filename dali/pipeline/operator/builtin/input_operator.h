@@ -476,7 +476,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     // data from CPU to GPU. As we keep the order in tl_data_ as internal_copy_stream_, we will use
     // an actual stream for running and synchronizing with the copy. Note that the Copy can be truly
     // asynchronous if it comes from pinned memory or happens on a device with integrated memory
-    // (like Xavier) where CPU and GPU share the same memory.
+    // (like Tegra) where CPU and GPU share the same memory.
     if (!order.is_device()) {
       order = tl_elm->data.order();
     }

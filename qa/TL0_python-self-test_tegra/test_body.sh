@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
 test_py_with_framework() {
-    # we are not able to easily install this packages in xavier for aarch64 so filter it out
-    # also there is no nvJPEG on xavier so don't run any test with the ImageDecoder having
+    # we are not able to easily install this packages in tegra for aarch64 so filter it out
+    # also there is no nvJPEG on tegra so don't run any test with the ImageDecoder having
     # the device explicitly set
     EXCLUDE_PACKAGES=(
         "scipy"
