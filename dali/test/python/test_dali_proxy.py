@@ -533,26 +533,26 @@ def test_dali_proxy_rearrange_output_order_and_positional_args(device, debug=Fal
 
 
 @attr("pytorch")
-@params((False,), (True,))
-def test_dali_proxy_proxy_callable(named_arguments, debug=False):
+@params((4,))
+def test_dali_proxy_proxy_callable_2_args(batch_size, debug=False):
     from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     from torch.utils.data.dataloader import default_collate as default_collate
 
-    batch_size = 4
     with dali_proxy.DALIServer(
         pipe_2_outputs(device="cpu", batch_size=batch_size, num_threads=3, device_id=None)
     ) as dali_server:
+
+        # Positional inputs are not supported when more than one input
+        a = np.array(np.random.rand(3, 3), dtype=np.float32)
+        b = np.array(np.random.rand(3, 3), dtype=np.float32)
+        with assert_raises(ValueError, glob="*too many positional arguments*"):
+            _, _ = dali_server.proxy(a, b)
 
         outs = []
         for _ in range(batch_size):
             a = np.array(np.random.rand(3, 3), dtype=np.float32)
             b = np.array(np.random.rand(3, 3), dtype=np.float32)
-
-            if named_arguments:
-                out0, out1 = dali_server.proxy(a=a, b=b)
-            else:
-                out0, out1 = dali_server.proxy(a, b)
-
+            out0, out1 = dali_server.proxy(a=a, b=b)
             outs.append((a, b, out0, out1))
 
         outs = default_collate(outs)
@@ -601,7 +601,7 @@ def test_dali_proxy_restart_server(device, debug=False):
         for data0, data1 in iter(loader):
             np.testing.assert_array_almost_equal(data0**2, data1.cpu())
             assert dali_server._thread is not None
-        assert dali_server._thread is None
+        dali_server.stop_thread()
 
 
 @attr("pytorch")

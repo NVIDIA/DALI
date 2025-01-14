@@ -24,7 +24,6 @@ import threading
 import queue
 from queue import Empty
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
-import warnings
 from inspect import Parameter, Signature
 
 # DALI proxy is a PyTorch specific layer that connects a multi-process PyTorch DataLoader with
@@ -436,12 +435,7 @@ class DALIServer:
                     for _ in range(batch_size):
                         a = np.array(np.random.rand(3, 3), dtype=np.float32)
                         b = np.array(np.random.rand(3, 3), dtype=np.float32)
-
-                        if named_arguments:
-                            out0, out1 = dali_server.proxy(a=a, b=b)
-                        else:
-                            out0, out1 = dali_server.proxy(a, b)
-
+                        out0, out1 = dali_server.proxy(a=a, b=b)
                         outs.append((a, b, out0, out1))
 
                     outs = torch.utils.data.dataloader.default_collate(outs)
@@ -477,12 +471,16 @@ class DALIServer:
 
         # get the dali pipeline input names
         self._dali_input_names = _external_source_node_names(self._pipe)
-        if len(self._dali_input_names) == 0:
+        num_inputs = len(self._dali_input_names)
+        if num_inputs == 0:
             raise RuntimeError("The provided pipeline doesn't have any inputs")
 
         parameters = [Parameter("self", Parameter.POSITIONAL_OR_KEYWORD)]
+        parameter_kind = (
+            Parameter.POSITIONAL_OR_KEYWORD if num_inputs == 1 else Parameter.KEYWORD_ONLY
+        )
         for input_name in self._dali_input_names:
-            parameters.append(Parameter(input_name, Parameter.POSITIONAL_OR_KEYWORD))
+            parameters.append(Parameter(input_name, parameter_kind))
         return_annotation = tuple(DALIOutputSampleRef for _ in range(self._pipe.num_outputs))
         self._signature = Signature(parameters, return_annotation=return_annotation)
 
@@ -561,56 +559,79 @@ class DALIServer:
 
     def _produce_data_impl(self, obj, cache):
         """
-        Recursive implementation of produce_data
+        Recursive single-pass implementation of produce_data with in-place modifications.
         """
 
-        # Check if the object has already been visited (to prevent infinite recursion)
         obj_id = id(obj)
-        if obj_id in cache:
+        if obj_id in cache:  # Return cached result to prevent infinite recursion
             return cache[obj_id]
 
-        def convert():
-            # DALIOutputBatchRef instance, replace it with data
+        def need_conversion(obj):
+            """Detect if the object or its members need conversion."""
             if isinstance(obj, DALIOutputBatchRef):
-                pipe_run_ref_id = id(obj.pipe_run_ref)
-                if pipe_run_ref_id not in cache:
-                    cache[pipe_run_ref_id] = self._get_outputs(obj.pipe_run_ref)
-                return cache[pipe_run_ref_id][obj.output_idx]
+                return True
+            if isinstance(obj, (list, tuple, dict)):
+                return any(
+                    need_conversion(item)
+                    for item in (obj if isinstance(obj, (list, tuple)) else obj.values())
+                )
+            if hasattr(obj, "__dict__"):
+                return any(need_conversion(value) for value in obj.__dict__.values())
+            return False
 
-            # custom class, recursively call produce data on its members
-            elif hasattr(obj, "__dict__"):
-                cache[obj_id] = obj  # prevent infinite recursion
-                for attr_name, attr_value in obj.__dict__.items():
-                    setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
-                return obj
+        # Handle DALIOutputBatchRef
+        if isinstance(obj, DALIOutputBatchRef):
+            pipe_run_ref_id = id(obj.pipe_run_ref)
+            if pipe_run_ref_id not in cache:
+                cache[pipe_run_ref_id] = self._get_outputs(obj.pipe_run_ref)
+            outputs = cache[pipe_run_ref_id]
+            result = outputs[obj.output_idx]
+            cache[obj_id] = result
+            return result
 
-            # list, recursively apply the function to each element
-            elif isinstance(obj, list):
-                ret_list = []
-                cache[obj_id] = ret_list  # prevent infinite recursion
-                for item in obj:
-                    ret_list.append(self._produce_data_impl(item, cache))
-                return ret_list
+        # Handle lists (modify in place)
+        if isinstance(obj, list):
+            cache[obj_id] = obj  # Cache before recursion to prevent infinite loops
+            for i in range(len(obj)):
+                obj[i] = self._produce_data_impl(obj[i], cache)
+            return obj
 
-            # tuple, recursively apply the function to each element (preserving tuple type)
-            elif isinstance(obj, tuple):
-                # tuple is immutable (can't contain circular references)
-                return tuple(self._produce_data_impl(item, cache) for item in obj)
+        # Handle tuples (regular, named, or custom)
+        if isinstance(obj, tuple):
+            # If no elements need conversion, return as is
+            if not need_conversion(obj):
+                result = obj
+            # Named tuple: Reconstruct using `_replace`
+            elif hasattr(obj, "_replace") and hasattr(obj, "_fields"):
+                result = obj._replace(
+                    **{
+                        field: self._produce_data_impl(getattr(obj, field), cache)
+                        for field in obj._fields
+                    }
+                )
+            # Regular or custom tuple: Reconstruct using type(obj)
+            else:
+                result = type(obj)(self._produce_data_impl(item, cache) for item in obj)
+            cache[obj_id] = result
+            return result
 
-            # If it's a dictionary, apply the function to the values
-            elif isinstance(obj, dict):
-                ret_dict = {}
-                cache[obj_id] = ret_dict  # prevent infinite recursion
-                for key, value in obj.items():
-                    ret_dict[key] = self._produce_data_impl(value, cache, cache)
-                return ret_dict
+        # Handle dictionaries (modify in place)
+        if isinstance(obj, dict):
+            cache[obj_id] = obj  # Cache before recursion to prevent infinite loops
+            for key in list(obj.keys()):  # Ensure we handle dynamic changes in the dictionary
+                obj[key] = self._produce_data_impl(obj[key], cache)
+            return obj
 
-            else:  # return directly anything else
-                return obj
+        # Handle custom objects with attributes (modify in place)
+        if hasattr(obj, "__dict__"):
+            cache[obj_id] = obj  # Cache before recursion to prevent infinite loops
+            for attr_name, attr_value in obj.__dict__.items():
+                setattr(obj, attr_name, self._produce_data_impl(attr_value, cache))
+            return obj
 
-        ret = convert()
-        cache[obj_id] = ret
-        return ret
+        # Default case: No conversion needed
+        cache[obj_id] = obj
+        return obj
 
     def produce_data(self, obj):
         """
@@ -718,6 +739,9 @@ class DALIServer:
         self._thread = None
         self._thread_stop_event = None
 
+    def _is_thread_running(self):
+        return self._thread is not None
+
     def __enter__(self):
         """
         Starts the DALI pipeline thread
@@ -730,8 +754,6 @@ class DALIServer:
         Stops the DALI pipeline thread
         """
         self.stop_thread()
-        if exc_type is not None:
-            warnings.warn(f"An exception occurred: {exc_value}", category=UserWarning)
         return False  # Return False to propagate exceptions
 
 
@@ -752,13 +774,9 @@ class DataLoader(_torchdata.dataloader.DataLoader):
             self.loader = loader
 
         def _next_data(self):
-            self.loader.dali_server.start_thread()
-            try:
-                data = super()._next_data()
-                return self.loader.dali_server.produce_data(data)
-            except StopIteration:
-                self.loader.dali_server.stop_thread()
-                raise
+            self.loader.ensure_server_listening()
+            data = super()._next_data()
+            return self.loader.dali_server.produce_data(data)
 
     def __init__(self, dali_server, *args, **kwargs):
         """
@@ -766,6 +784,17 @@ class DataLoader(_torchdata.dataloader.DataLoader):
         """
         super().__init__(*args, **kwargs)
         self.dali_server = dali_server
+        self.server_started_by_loader = False
+
+    def __del__(self):
+        if self.server_started_by_loader and self.dali_server._is_thread_running():
+            print("Stop")
+            self.dali_server.stop_thread()
+
+    def ensure_server_listening(self):
+        if not self.dali_server._is_thread_running():
+            self.dali_server.start_thread()
+            self.server_started_by_loader = True
 
     def _get_iterator(self):
         return DataLoader._Iter(self)
