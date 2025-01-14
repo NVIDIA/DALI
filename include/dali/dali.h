@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,8 +67,10 @@ typedef enum {
   /** The index is out of valid range */
   DALI_ERROR_OUT_OF_RANGE,
   /** The key is not found (when getting) or is not a valid key (when setting) */
-  DALI_INVALID_KEY,
+  DALI_ERROR_INVALID_KEY,
 
+  /** An operating system routine failed. */
+  DALI_ERROR_SYSTEM,
   /** A path to a file or other OS resource is invalid */
   DALI_ERROR_PATH_NOT_FOUND,
   /** An I/O operation failed */
@@ -453,7 +455,7 @@ DALI_API daliResult_t daliPipelinePopOutputsAsync(
 DALI_API daliResult_t daliPipelineOutputsDestroy(daliPipelineOutputs_h out);
 
 typedef struct _DALIOperatorTrace {
-  const char *operator;
+  const char *operator_name;
   const char *trace;
   const char *value;
 } daliOperatorTrace_t;
