@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 import math
-from contextlib import nullcontext
+from contextlib import ExitStack
 
 import torch
 import torch.nn as nn
@@ -29,11 +29,6 @@ except ImportError:
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-
-def conditional_with(resource):
-    if hasattr(resource, '__enter__') and hasattr(resource, '__exit__'):
-        return resource
-    return nullcontext(resource)
 
 def fast_collate(batch, memory_format):
     """Based on fast_collate from the APEX example
@@ -121,23 +116,27 @@ def to_python_float(t):
         return t[0]
 
 
-@pipeline_def(exec_dynamic=True)
-def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
+def input_pipeline(data_dir, random_shuffle, shard_id=0, num_shards=1):
     if data_dir is None:
         if args.send_filepaths:
             filepaths = fn.external_source(name="images", no_copy=True)
             images = fn.io.file.read(filepaths)
         else:
             images = fn.external_source(name="images", no_copy=True)
+        return images, None
     else:
         images, labels = fn.readers.file(file_root=data_dir,
                                          shard_id=shard_id,
                                          num_shards=num_shards,
-                                         random_shuffle=is_training,
+                                         random_shuffle=random_shuffle,
                                          pad_last_batch=True,
                                          name="Reader")
+        return images, labels
 
-    dali_device = 'cpu' if dali_cpu else 'gpu'
+
+@pipeline_def(exec_dynamic=True)
+def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
+    images, labels = input_pipeline(data_dir, random_shuffle=is_training, shard_id=shard_id, num_shards=num_shards)
     decoder_device = 'cpu' if dali_cpu else 'mixed'
     # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
     preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
@@ -151,7 +150,6 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                                                random_area=[0.1, 1.0],
                                                num_attempts=100)
         images = fn.resize(images,
-                           device=dali_device,
                            resize_x=crop,
                            resize_y=crop,
                            interp_type=types.INTERP_TRIANGULAR)
@@ -161,13 +159,12 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                                    device=decoder_device,
                                    output_type=types.RGB)
         images = fn.resize(images,
-                           device=dali_device,
                            size=size,
                            mode="not_smaller",
                            interp_type=types.INTERP_TRIANGULAR)
         mirror = False
 
-    images = fn.crop_mirror_normalize(images.gpu(),
+    output = fn.crop_mirror_normalize(images.gpu(),
                                       dtype=types.FLOAT,
                                       output_layout="CHW",
                                       crop=(crop, crop),
@@ -175,11 +172,10 @@ def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=Fa
                                       std=[0.229 * 255,0.224 * 255,0.225 * 255],
                                       mirror=mirror)
 
-    if data_dir is None:
-        return images
+    if labels:
+        return output, labels.gpu()
     else:
-        labels = labels.gpu()
-        return images, labels
+        return output
 
 
 def main():
@@ -429,7 +425,12 @@ def main():
                                        enabled=args.fp16_mode)
     total_time = AverageMeter()
 
-    with conditional_with(dali_server_train), conditional_with(dali_server_val):
+    with ExitStack() as stack:
+        if dali_server_train:
+            stack.enter_context(dali_server_train)
+        if dali_server_val:
+            stack.enter_context(dali_server_val)
+
         for epoch in range(args.start_epoch, args.epochs):
             # train for one epoch
             avg_train_time = train(train_loader, model, criterion, scaler, optimizer, epoch)
@@ -517,15 +518,17 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
     # switch to train mode
     model.train()
     end = time.time()
+    normalize = not args.dali_proxy
+    pytorch_native_dataloader = args.disable_dali or args.dali_proxy
 
-    if args.disable_dali or args.dali_proxy:
-        data_iterator = data_prefetcher(train_loader, normalize=(not args.dali_proxy))
+    if pytorch_native_dataloader:
+        data_iterator = data_prefetcher(train_loader, normalize=normalize)
         data_iterator = iter(data_iterator)
     else:
         data_iterator = train_loader
 
     for i, data in enumerate(data_iterator):
-        if args.disable_dali or args.dali_proxy:
+        if pytorch_native_dataloader:
             input, target = data
             train_loader_len = len(train_loader)
         else:
@@ -538,7 +541,6 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
             torch.cuda.cudart().cudaProfilerStart()
 
         if args.data_loader_only:
-
             batch_time.update((time.time() - end)/args.print_freq)
             end = time.time()
 
@@ -646,17 +648,16 @@ def validate(val_loader, model, criterion):
 
     # switch to evaluate mode
     model.eval()
-
     end = time.time()
-
-    if args.disable_dali or args.dali_proxy:
+    pytorch_native_dataloader = args.disable_dali or args.dali_proxy
+    if pytorch_native_dataloader:
         data_iterator = data_prefetcher(val_loader, normalize=(not args.dali_proxy))
         data_iterator = iter(data_iterator)
     else:
         data_iterator = val_loader
 
     for i, data in enumerate(data_iterator):
-        if args.disable_dali or args.dali_proxy:
+        if pytorch_native_dataloader:
             input, target = data
             val_loader_len = len(val_loader)
         else:

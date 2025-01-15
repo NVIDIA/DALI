@@ -181,3 +181,34 @@ def calc_ips(batch_size, time):
     )
     tbs = world_size * batch_size
     return tbs / time
+
+def find_children_by_type_name(obj, target_type_name):
+    """
+    Recursively find all child instances of a target type by its name.
+
+    :param obj: The object to inspect.
+    :param target_type_name: The name of the target type as a string.
+    :return: A list of instances of the target type found in the object.
+    """
+    found = []
+
+    # Check if the object's type is a match
+    if type(obj).__name__ == target_type_name:
+        found.append(obj)
+
+    # If the object is a dictionary, check its values
+    elif isinstance(obj, dict):
+        for value in obj.values():
+            found.extend(find_children_by_type_name(value, target_type_name))
+
+    # If the object is a list, tuple, or set, check its elements
+    elif isinstance(obj, (list, tuple, set)):
+        for item in obj:
+            found.extend(find_children_by_type_name(item, target_type_name))
+
+    # If the object has a __dict__, check its attributes (for custom objects)
+    elif hasattr(obj, "__dict__"):
+        for attr_value in vars(obj).values():
+            found.extend(find_children_by_type_name(attr_value, target_type_name))
+
+    return found

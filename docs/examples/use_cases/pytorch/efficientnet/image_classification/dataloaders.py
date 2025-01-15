@@ -115,6 +115,31 @@ class DALIWrapper(object):
             self.dalipipeline, self.num_classes, self.one_hot, self.memory_format
         )
 
+def dali_params(batch_size, workers, interpolation_str, memory_format):
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+    else:
+        rank = 0
+        world_size = 1
+
+    interpolation = {
+        "bicubic": types.INTERP_CUBIC,
+        "bilinear": types.INTERP_LINEAR,
+        "triangular": types.INTERP_TRIANGULAR,
+    }[interpolation_str]
+
+    output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+
+    pipeline_kwargs = {
+        "batch_size" : batch_size,
+        "num_threads" : workers,
+        "device_id" : rank % torch.cuda.device_count(),
+        "seed": 12 + rank % torch.cuda.device_count(),
+    }
+
+    return rank, world_size, interpolation, output_layout, pipeline_kwargs
+
 def get_dali_train_loader(dali_device="gpu"):
     def gdtl(
         data_path,
@@ -130,30 +155,9 @@ def get_dali_train_loader(dali_device="gpu"):
         memory_format=torch.contiguous_format,
         **kwargs,
     ):
-        if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
-            world_size = torch.distributed.get_world_size()
-        else:
-            rank = 0
-            world_size = 1
-
-        interpolation = {
-            "bicubic": types.INTERP_CUBIC,
-            "bilinear": types.INTERP_LINEAR,
-            "triangular": types.INTERP_TRIANGULAR,
-        }[interpolation]
-
-        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+        rank, world_size, interpolation, output_layout, pipeline_kwargs = dali_params(batch_size, workers, interpolation, memory_format)
 
         traindir = os.path.join(data_path, "train")
-
-        pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
-            "seed": 12 + rank % torch.cuda.device_count(),
-        }
-
         pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
                              output_layout=output_layout, automatic_augmentation=augmentation,
                              dali_device=dali_device, rank=rank, world_size=world_size,
@@ -164,11 +168,9 @@ def get_dali_train_loader(dali_device="gpu"):
             pipe, reader_name="Reader", fill_last_batch=False
         )
 
-        dali_server = None
         return (
             DALIWrapper(train_loader, num_classes, one_hot, memory_format),
             int(pipe.epoch_size("Reader") / (world_size * batch_size)),
-            dali_server,
         )
 
     return gdtl
@@ -188,30 +190,9 @@ def get_dali_val_loader(dali_device="gpu"):
         memory_format=torch.contiguous_format,
         **kwargs,
     ):
-        if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
-            world_size = torch.distributed.get_world_size()
-        else:
-            rank = 0
-            world_size = 1
-
-        interpolation = {
-            "bicubic": types.INTERP_CUBIC,
-            "bilinear": types.INTERP_LINEAR,
-            "triangular": types.INTERP_TRIANGULAR,
-        }[interpolation]
-
-        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+        rank, world_size, interpolation, output_layout, pipeline_kwargs = dali_params(batch_size, workers, interpolation, memory_format)
 
         valdir = os.path.join(data_path, "val")
-
-        pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
-            "seed": 12 + rank % torch.cuda.device_count(),
-        }
-
         pipe = validation_pipe(data_dir=valdir, interpolation=interpolation,
                                image_size=image_size + crop_padding, image_crop=image_size,
                                dali_device=dali_device,
@@ -220,12 +201,9 @@ def get_dali_val_loader(dali_device="gpu"):
         val_loader = DALIClassificationIterator(
             pipe, reader_name="Reader", fill_last_batch=False
         )
-
-        dali_server = None
         return (
             DALIWrapper(val_loader, num_classes, one_hot, memory_format),
             int(pipe.epoch_size("Reader") / (world_size * batch_size)),
-            dali_server,
         )
 
     return gdvl
@@ -259,6 +237,7 @@ def expand(num_classes, dtype, tensor):
 
 
 class PrefetchedWrapper(object):
+    @staticmethod
     def prefetched_loader(loader, num_classes, one_hot, normalize, memory_format, data_layout):
         if normalize:
             mean = (
@@ -314,7 +293,6 @@ class PrefetchedWrapper(object):
         if self.dataloader.sampler is not None and isinstance(
             self.dataloader.sampler, torch.utils.data.distributed.DistributedSampler
         ):
-
             self.dataloader.sampler.set_epoch(self.epoch)
         self.epoch += 1
         return PrefetchedWrapper.prefetched_loader(
@@ -376,11 +354,9 @@ def get_pytorch_train_loader(
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
-    dali_server = None
     return (
         PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, True, memory_format, "CHW"),
         len(train_loader),
-        dali_server,
     )
 
 
@@ -433,11 +409,9 @@ def get_pytorch_val_loader(
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
     )
-    dali_server = None
     return (
         PrefetchedWrapper(val_loader, 0, num_classes, one_hot, True, memory_format, "CHW"),
         len(val_loader),
-        dali_server
     )
 
 def read_file(path):
@@ -459,30 +433,13 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
                  _worker_init_fn=None,
                  prefetch_factor=2,
                  memory_format=torch.contiguous_format):
+        _, _, interpolation, output_layout, pipeline_kwargs = dali_params(batch_size, workers, interpolation, memory_format)
+
         traindir = os.path.join(data_path, "train")
-
-        interpolation = {
-            "bicubic": types.INTERP_CUBIC,
-            "bilinear": types.INTERP_LINEAR,
-            "triangular": types.INTERP_TRIANGULAR,
-        }[interpolation]
-
-        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
-
-        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-
-        pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
-            "seed": 12 + rank % torch.cuda.device_count(),
-        }
-
         pipe = training_pipe(data_dir=None, interpolation=interpolation, image_size=image_size,
                              output_layout=output_layout, automatic_augmentation=augmentation,
                              dali_device=dali_device, prefetch_queue_depth=8, send_filepaths=send_filepaths,
                              **pipeline_kwargs)
-        pipe.build()
 
         dali_server = dali_proxy.DALIServer(pipe)
 
@@ -516,7 +473,6 @@ def get_dali_proxy_train_loader(dali_device='gpu', send_filepaths=False):
         return (
             PrefetchedWrapper(train_loader, start_epoch, num_classes, one_hot, False, memory_format, output_layout),
             len(train_loader),
-            dali_server,
         )
     return get_impl
 
@@ -532,31 +488,14 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
                  crop_padding=32,
                  memory_format=torch.contiguous_format,
                  prefetch_factor=2):
-        interpolation = {
-            "bicubic": types.INTERP_CUBIC,
-            "bilinear": types.INTERP_LINEAR,
-            "triangular": types.INTERP_TRIANGULAR,
-        }[interpolation]
-
-        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+        _, _, interpolation, output_layout, pipeline_kwargs = dali_params(batch_size, workers, interpolation, memory_format)
 
         valdir = os.path.join(data_path, "val")
-        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-
-        pipeline_kwargs = {
-            "batch_size" : batch_size,
-            "num_threads" : workers,
-            "device_id" : rank % torch.cuda.device_count(),
-            "seed": 12 + rank % torch.cuda.device_count(),
-        }
-
         pipe = validation_pipe(data_dir=None, interpolation=interpolation,
                                image_size=image_size + crop_padding, image_crop=image_size,
                                output_layout=output_layout,
                                send_filepaths=send_filepaths,
                                **pipeline_kwargs)
-
-        pipe.build()
 
         dali_server = dali_proxy.DALIServer(pipe)
         val_dataset = datasets.ImageFolder(
@@ -590,7 +529,6 @@ def get_dali_proxy_val_loader(dali_device="gpu", send_filepaths=False):
         return (
             PrefetchedWrapper(val_loader, 0, num_classes, one_hot,  False, memory_format, output_layout),
             len(val_loader),
-            dali_server,
         )
     return get_impl
 
@@ -641,7 +579,6 @@ def get_synthetic_loader(
     memory_format=torch.contiguous_format,
     **kwargs,
 ):
-    dali_server = None
     return (
         SynteticDataLoader(
             batch_size,
@@ -653,5 +590,4 @@ def get_synthetic_loader(
             memory_format=memory_format,
         ),
         -1,
-        dali_server,
     )

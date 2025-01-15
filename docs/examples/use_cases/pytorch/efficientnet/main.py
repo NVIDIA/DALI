@@ -35,8 +35,6 @@ os.environ[
 
 import argparse
 import random
-from copy import deepcopy
-from contextlib import nullcontext
 
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -61,7 +59,7 @@ from image_classification.optimizers import (
 )
 from image_classification.gpu_affinity import set_affinity, AffinityMode
 import dllogger
-
+from contextlib import ExitStack
 
 def available_models():
     models = {m.name: m for m in [efficientnet_b0]}
@@ -513,7 +511,7 @@ def prepare_for_training(args, model_args, model_arch):
         print("Bad databackend picked")
         exit(1)
 
-    train_loader, train_loader_len, dali_server_train = get_train_loader(
+    train_loader, train_loader_len = get_train_loader(
         args.data,
         image_size,
         args.batch_size,
@@ -530,7 +528,7 @@ def prepare_for_training(args, model_args, model_arch):
     if args.mixup != 0.0:
         train_loader = MixUpWrapper(args.mixup, train_loader)
 
-    val_loader, val_loader_len, dali_server_val = get_val_loader(
+    val_loader, val_loader_len = get_val_loader(
         args.data,
         image_size,
         args.batch_size,
@@ -604,19 +602,11 @@ def prepare_for_training(args, model_args, model_arch):
         lr_policy,
         train_loader,
         train_loader_len,
-        dali_server_train,
         val_loader,
-        dali_server_val,
         logger,
         start_epoch,
         best_prec1,
     )
-
-
-def conditional_with(resource):
-    if hasattr(resource, '__enter__') and hasattr(resource, '__exit__'):
-        return resource
-    return nullcontext(resource)
 
 
 def main(args, model_args, model_arch):
@@ -626,15 +616,15 @@ def main(args, model_args, model_arch):
         lr_policy,
         train_loader,
         train_loader_len,
-        dali_server_train,
         val_loader,
-        dali_server_val,
         logger,
         start_epoch,
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    with conditional_with(dali_server_train), conditional_with(dali_server_val):
+    with ExitStack() as stack:
+        for obj in find_children_by_type_name((train_loader, val_loader), "DALIServer"):
+            stack.enter_context(obj)
         train_loop(
             trainer,
             lr_policy,
@@ -658,11 +648,10 @@ def main(args, model_args, model_arch):
             topk=args.topk,
             data_loader_only=args.data_loader_only,
         )
-    exp_duration = time.time() - exp_start_time
-    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        logger.end()
-    print("Experiment ended")
-
+        exp_duration = time.time() - exp_start_time
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            logger.end()
+        print("Experiment ended")
 
 if __name__ == "__main__":
     epilog = [
