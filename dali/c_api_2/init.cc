@@ -27,8 +27,12 @@ std::atomic<bool> g_was_initialized;
 
 namespace dali::c_api {
   daliResult_t CheckInit() {
-    if (g_was_initialized <= 0)
-      return g_was_initialized ? DALI_ERROR_UNLOADING : DALI_ERROR_NOT_INITIALIZED;
+    if (g_init_count <= 0) {
+      if (g_was_initialized)
+        return DALI_ERROR_UNLOADING;
+      else
+        return daliInit();
+    }
     return DALI_SUCCESS;
   }
 }  // namespace dali::c_api
@@ -37,8 +41,8 @@ daliResult_t daliInit() {
   try {  // cannot use DALI_PROLOG in this function, since DALI isn't initialized yet
     static int init = []() {
       DALIInit(OpSpec("CPUAllocator"),
-              OpSpec("PinnedCPUAllocator"),
-              OpSpec("GPUAllocator"));
+               OpSpec("PinnedCPUAllocator"),
+               OpSpec("GPUAllocator"));
       return 0;
     }();
     (void)init;

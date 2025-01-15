@@ -75,14 +75,14 @@ typedef enum {
   DALI_ERROR_PATH_NOT_FOUND,
   /** An I/O operation failed */
   DALI_ERROR_IO_ERROR,
+  /** An operation timed out */
+  DALI_ERROR_TIMEOUT,
 
   /** A memory allocation failed */
   DALI_ERROR_OUT_OF_MEMORY = DALI_ERROR + 0x100,
 
   /** Internal error - logic error in DALI code */
   DALI_ERROR_INTERNAL = DALI_ERROR + 0x200,
-  /** The library was not properly initialized */
-  DALI_ERROR_NOT_INITIALIZED,
   /** The library is shutting down or has shut down */
   DALI_ERROR_UNLOADING,
 
@@ -160,7 +160,11 @@ DALI_API const char *daliGetErrorName(daliResult_t error);
 DALI_API const char *daliGetErrorDescription(daliResult_t error);
 
 
-/** Initializes DALI or increments initialization count. */
+/** Initializes DALI or increments initialization count.
+ *
+ * @remark If this function is not called, DALI will be initialized implicitly on the first
+ *         call to DALI APIs. When using implicit initialization, `daliShutdown` should not be used.
+ */
 DALI_API daliResult_t daliInit();
 
 /** Decrements initialization counts and shuts down the library when the count reaches 0.
@@ -783,6 +787,9 @@ DALI_API daliResult_t daliTensorListGetTensor(
   daliTensorList_h tensor_list,
   daliTensorDesc_t *out_desc,
   int sample_idx);
+
+DALI_API daliResult_t daliTensorListIncRef(daliTensorList_h tensor_list);
+DALI_API daliResult_t daliTensorListDecRef(daliTensorList_h tensor_list);
 
 #ifdef __cplusplus
 }  // extern "C"

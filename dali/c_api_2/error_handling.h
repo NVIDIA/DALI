@@ -22,8 +22,15 @@
 namespace dali {
 namespace c_api {
 
-daliResult_t HandleError(std::exception_ptr ex);
-daliResult_t CheckInit();
+DLL_PUBLIC daliResult_t HandleError(std::exception_ptr ex);
+DLL_PUBLIC daliResult_t CheckInit();
+
+class InvalidHandle : public std::invalid_argument {
+public:
+  InvalidHandle() : std::invalid_argument("The handle is invalid") {}
+  InvalidHandle(const std::string &what) : std::invalid_argument(what) {}
+  InvalidHandle(const char *what) : std::invalid_argument(what) {}
+};
 
 }  // namespace c_api
 }  // namespace dali

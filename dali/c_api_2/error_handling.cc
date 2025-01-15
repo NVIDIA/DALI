@@ -55,7 +55,6 @@ ErrorDesc GetErrorDesc(daliResult_t result) {
     ERROR_DESC(IO_ERROR, "An I/O operation failed");
     ERROR_DESC(OUT_OF_MEMORY, "Cannot allocate memory");
     ERROR_DESC(INTERNAL, "An internal error occurred");
-    ERROR_DESC(NOT_INITIALIZED, "DALI hasn't been initialized. Missing call to daliInit.");
     ERROR_DESC(UNLOADING, "DALI is unloading - either daliShutdown was called or "
                           "the process is shutting down.");
     ERROR_DESC(CUDA_ERROR, "A CUDA call has failed.");
@@ -73,6 +72,8 @@ daliResult_t SetLastError(daliResult_t result, const char *message) {
 daliResult_t HandleError(std::exception_ptr ex) {
   try {
     std::rethrow_exception(std::move(ex));
+  } catch (dali::c_api::InvalidHandle &e) {
+    return SetLastError(DALI_ERROR_INVALID_HANDLE, e.what());
   } catch (std::invalid_argument &e) {
     return SetLastError(DALI_ERROR_INVALID_ARGUMENT, e.what());
   } catch (dali::CUDAError &e) {
@@ -92,10 +93,59 @@ daliResult_t HandleError(std::exception_ptr ex) {
     return SetLastError(DALI_ERROR_INVALID_KEY, e.what());
   } catch (std::out_of_range &e) {
     return SetLastError(DALI_ERROR_OUT_OF_RANGE, e.what());
+  } catch (std::system_error &e) {
+    if (e.code().category() == std::generic_category()) {
+      daliResult_t result = [&]() {
+        switch (static_cast<std::errc>(e.code().value())) {
+        case std::errc::no_such_file_or_directory:
+        case std::errc::no_such_device:
+        case std::errc::no_such_device_or_address:
+          return DALI_ERROR_PATH_NOT_FOUND;
+        case std::errc::not_enough_memory:
+          return DALI_ERROR_OUT_OF_MEMORY;
+        case std::errc::timed_out:
+          return DALI_ERROR_TIMEOUT;
+        case std::errc::address_family_not_supported:
+        case std::errc::address_in_use:
+        case std::errc::address_not_available:
+        case std::errc::already_connected:
+        case std::errc::broken_pipe:
+        case std::errc::connection_aborted:
+        case std::errc::connection_already_in_progress:
+        case std::errc::connection_refused:
+        case std::errc::connection_reset:
+        case std::errc::device_or_resource_busy:
+        case std::errc::directory_not_empty:
+        case std::errc::file_exists:
+        case std::errc::file_too_large:
+        case std::errc::filename_too_long:
+        case std::errc::host_unreachable:
+        case std::errc::inappropriate_io_control_operation:
+        case std::errc::io_error:
+        case std::errc::is_a_directory:
+        case std::errc::message_size:
+        case std::errc::network_down:
+        case std::errc::network_reset:
+        case std::errc::network_unreachable:
+        case std::errc::no_buffer_space:
+        case std::errc::no_message:
+        case std::errc::no_space_on_device:
+        case std::errc::not_a_directory:
+        case std::errc::not_a_socket:
+        case std::errc::read_only_file_system:
+          return DALI_ERROR_IO_ERROR;
+        default:
+          return DALI_ERROR_SYSTEM;
+        }
+      }();
+      return SetLastError(result, e.what());
+    } else if (e.code().category() == std::iostream_category()) {
+      return SetLastError(DALI_ERROR_IO_ERROR, e.what());
+    } else {
+      return SetLastError(DALI_ERROR_SYSTEM, e.what());
+    }
   } catch (std::runtime_error &e) {
     return SetLastError(DALI_ERROR_INVALID_OPERATION, e.what());
-  } catch (std::system_error &e) {
-    return SetLastError(DALI_ERROR_SYSTEM, e.what());
   } catch (std::exception &e) {
     return SetLastError(DALI_ERROR_INTERNAL, e.what());
   } catch (const char *e) {  // handle strings thrown as exceptions
