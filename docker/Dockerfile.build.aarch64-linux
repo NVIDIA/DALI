@@ -111,9 +111,11 @@ RUN export PYVERS="3.8.5 3.9.0 3.10.0 3.11.0 3.12.0 3.13.0" && \
         cd / && rm -rf /tmp/Python*;                                                                      \
     done                                                                                               && \
     # hack - patch the host pythonX-config to return --extension-suffix for the target
-    find /usr/ -iname x86_64-linux-gnu-python* -exec sed -i "s/\(SO.*\)\(x86_64\)\(.*\)/\1aarch64\3/" {}  && \
+    for pythonconfig in $(ls /usr/bin/x86_64-linux-gnu-python*-config); do   \
+        sed -i "s/\(SO.*\)\(x86_64\)\(.*\)/\1aarch64\3/" ${pythonconfig};    \
+    done                                                                  && \
     # avoid fatal error: aarch64-linux-gnu/python3.8/pyconfig.h: No such file or directory
-    mkdir /usr/include/aarch64-linux-gnu/ && \
+    mkdir -p /usr/include/aarch64-linux-gnu/ && \
     cp -r /usr/include/x86_64-linux-gnu/python* /usr/include/aarch64-linux-gnu/;
 
 VOLUME /dali
