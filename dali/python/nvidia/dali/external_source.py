@@ -34,8 +34,6 @@ def _get_shape(data):
         return data.__array_interface__["shape"]
     elif hasattr(data, "__cuda_array_interface__"):
         return data.__cuda_array_interface__["shape"]
-    elif hasattr(data, "__array__"):
-        return data.__array__().shape
     else:
         raise RuntimeError(f"Don't know how to extract the shape out of {type(data)}")
 
@@ -73,14 +71,14 @@ def _check_data_batch(data, batch_size, layout):
 
 def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
     def to_numpy(x):
+        import numpy as np
+
         if _types._is_mxnet_array(x):
             return x.asnumpy()
         elif _types._is_torch_tensor(x):
             return x.numpy()
-        elif hasattr(x, "__array__"):
-            return x.__array__()
         else:
-            return x
+            return np.asarray(x)
 
     # __cuda_array_interface__ doesn't provide any way to pass the information about the device
     # where the memory is located. It is assumed that the current device is the one that
