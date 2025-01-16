@@ -11,8 +11,6 @@ leak:numba
 leak:libmxnet
 leak:libtorch
 leak:libc10
-leak:av_realloc_f
-leak:av_malloc
 # tensorflow
 leak:PyInit__pywrap_debug_events_writer
 leak:_pywrap
