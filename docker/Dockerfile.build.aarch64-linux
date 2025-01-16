@@ -1,69 +1,68 @@
-ARG AARCH64_BASE_IMAGE=nvidia/cuda:12.2.0-devel-ubuntu20.04
+ARG AARCH64_BASE_IMAGE=nvidia/cuda:12.6.3-devel-ubuntu22.04
 FROM ${AARCH64_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    CUDA_CROSS_VERSION=12-2 \
-    CUDA_CROSS_VERSION_DOT=12.2
+    CUDA_CROSS_VERSION=12-6 \
+    CUDA_CROSS_VERSION_DOT=12.6
 
-RUN rm /etc/apt/sources.list.d/cuda.list && \
-    apt-key del 7fa2af80 && \
-    apt-get update && apt-get install -y --no-install-recommends wget && \
-    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-keyring_1.0-1_all.deb && \
-    dpkg -i cuda-keyring_1.0-1_all.deb && \
+RUN apt-get update && apt-get install -y gnupg ca-certificates wget && \
     apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
+    apt-key del 7fa2af80 && \
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i cuda-keyring_1.1-1_all.deb && \
+    gpg --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC && \
+    gpg --export --armor A4B469963BF863CC | tee /etc/apt/trusted.gpg.d/nvidia.asc && \
+    add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/cross-linux-aarch64/ /' -y && \
+    apt update && apt install -y \
+        cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
+        libcufft-cross-aarch64-${CUDA_CROSS_VERSION} \
+        libcurand-cross-aarch64-${CUDA_CROSS_VERSION} \
+        libcusolver-cross-aarch64-${CUDA_CROSS_VERSION} \
+        libcublas-cross-aarch64-${CUDA_CROSS_VERSION} \
+        cuda-driver-cross-aarch64-${CUDA_CROSS_VERSION} \
+        cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
+        cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
+        libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
+        libnvjpeg-cross-aarch64-${CUDA_CROSS_VERSION} && \
     add-apt-repository ppa:deadsnakes/ppa -y && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    libssl-dev \
-    curl \
-    wget \
-    unzip \
-    git \
-    rsync \
-    libjpeg-dev \
-    dh-autoreconf \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    pkg-config \
-    libtool \
-    libtool-bin \
-    python3-distutils \
-    autogen \
-    zip \
-    python3.8 python3.8-dev \
-    python3.9 python3.9-dev \
-    python3.10 python3.10-dev \
-    python3.11 python3.11-dev \
-    python3.12 python3.12-dev \
-    python3.13 python3.13-dev && \
-    apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
-    add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/cross-linux-aarch64/ /' && \
     apt-get update && \
-    apt-get install -y cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       libcufft-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       libcurand-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       libcusolver-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       libcublas-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-driver-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       libnvjpeg-cross-aarch64-${CUDA_CROSS_VERSION} \
-    && \
-    rm -rf /var/lib/apt/lists/* && \
-    PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
-    curl -O https://bootstrap.pypa.io/get-pip.py && \
-    python3 get-pip.py && \
-    rm get-pip.py && \
-    # decouple libclang and clang installation so libclang changes are not overriden by clang
-    pip install clang==14.0 && pip install libclang==14.0.1 flake8 bandit "black[jupyter]"==24.8.0 && \
-    rm -rf /root/.cache/pip/ && \
-    cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
-    ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
-    ln -s /usr/bin/python3 /usr/bin/python && \
-    ln -s /usr/bin/python3-config /usr/bin/python-config && \
-    PYTHON_V=$(python3 -c "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')") && \
-    ln -s /usr/bin/python${PYTHON_V}-config /usr/bin/python3-config
+    apt-get install -y \
+        libssl-dev \
+        curl \
+        wget \
+        unzip \
+        git \
+        rsync \
+        libjpeg-dev \
+        dh-autoreconf \
+        gcc-aarch64-linux-gnu \
+        g++-aarch64-linux-gnu \
+        pkg-config \
+        libtool \
+        libtool-bin \
+        python3-distutils \
+        autogen \
+        zip \
+        python3.8 python3.8-dev \
+        python3.9 python3.9-dev \
+        python3.10 python3.10-dev \
+        python3.11 python3.11-dev \
+        python3.12 python3.12-dev \
+        python3.13 python3.13-dev && \
+     rm -rf /var/lib/apt/lists/* && \
+     PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
+     curl -O https://bootstrap.pypa.io/get-pip.py && \
+     python3 get-pip.py && \
+     rm get-pip.py && \
+     # decouple libclang and clang installation so libclang changes are not overriden by clang
+     pip install clang==14.0 && pip install libclang==14.0.1 flake8 bandit "black[jupyter]"==24.8.0 && \
+     rm -rf /root/.cache/pip/ && \
+     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
+     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
+     ln -s /usr/bin/python3 /usr/bin/python && \
+     ln -s /usr/bin/python3-config /usr/bin/python-config && \
+     PYTHON_V=$(python3 -c "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')") && \
+     ln -s /usr/bin/python${PYTHON_V}-config /usr/bin/python3-config
 
 RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
     wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
