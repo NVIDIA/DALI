@@ -46,7 +46,14 @@ test_body() {
   echo "PERF_RESULT3=${PERF_RESULT3}"
 
   # If nvImageCodec>=0.5.0 enforce the performance requirements. Otherwise, we check only the legacy decoder
-  NVIMGCODEC_VERSION=$(pip show nvidia-nvimgcodec-cu12 | grep ^Version: | awk '{print $2}')
+  if pip show nvidia-nvimgcodec-cu12 > /dev/null 2>&1; then
+      NVIMGCODEC_VERSION=$(pip show nvidia-nvimgcodec-cu12 | grep ^Version: | awk '{print $2}')
+  elif pip show nvidia-nvimgcodec-cu11 > /dev/null 2>&1; then
+      NVIMGCODEC_VERSION=$(pip show nvidia-nvimgcodec-cu11 | grep ^Version: | awk '{print $2}')
+  else
+      echo "Neither nvidia-nvimgcodec-cu11 nor nvidia-nvimgcodec-cu12 is installed"
+      exit 1
+  fi
   NVIMGCODEC_VERSION_WITHOUT_EXTRA=$(echo "$NVIMGCODEC_VERSION" | awk -F '.' '{print $1 "." $2 "." $3}')
   if [[ "$NVIMGCODEC_VERSION_WITHOUT_EXTRA" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
     IFS='.' read -r MAJOR MINOR PATCH <<< "$NVIMGCODEC_VERSION_WITHOUT_EXTRA"
