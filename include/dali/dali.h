@@ -788,8 +788,26 @@ DALI_API daliResult_t daliTensorListGetTensor(
   daliTensorDesc_t *out_desc,
   int sample_idx);
 
-DALI_API daliResult_t daliTensorListIncRef(daliTensorList_h tensor_list);
-DALI_API daliResult_t daliTensorListDecRef(daliTensorList_h tensor_list);
+/** Increments the reference count of the tensor list.
+ *
+ * @param tensor_list [in]  A handle to the tensor list.
+ * @param new_count   [out] If not NULL, the incremented reference count is returned in *new_count.
+ */
+DALI_API daliResult_t daliTensorListIncRef(daliTensorList_h tensor_list, int *new_count);
+
+/** Decrements the reference count of the tensor list.
+ *
+ * The handle is destroyed if the reference count reaches 0.
+ * When the client code no longer needs the handle, it must call daliTensorDecRef.
+ *
+ *
+ * @param tensor_list [in]  A handle to the tensor list.
+ * @param new_count   [out] If not NULL, the incremented reference count is returned in *new_count.
+ */
+DALI_API daliResult_t daliTensorListDecRef(daliTensorList_h tensor_list, int *new_count);
+
+/** Decrements the reference count of the tensor list */
+DALI_API daliResult_t daliTensorListRefCount(daliTensorList_h tensor_list, int *count);
 
 #ifdef __cplusplus
 }  // extern "C"
