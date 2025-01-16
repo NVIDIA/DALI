@@ -11,6 +11,8 @@ leak:numba
 leak:libmxnet
 leak:libtorch
 leak:libc10
+# we don't control FFmpegDemuxer destructor so we cannot fix that in DALI
+leak:FFmpegDemuxer
 # tensorflow
 leak:PyInit__pywrap_debug_events_writer
 leak:_pywrap

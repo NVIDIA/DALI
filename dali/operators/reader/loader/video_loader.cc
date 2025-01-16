@@ -266,6 +266,14 @@ static int64_t seek_file(void *opaque, int64_t offset, int whence) {
   }
 }
 
+void clean_avformat_context(AVFormatContext **p) {
+  if ((*p)->flags & AVFMT_FLAG_CUSTOM_IO) {
+    av_freep(&(*p)->pb->buffer);
+    av_freep(&(*p)->pb);
+  }
+  avformat_close_input(p);
+}
+
 VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
   static VideoFile empty_file = {};
   auto& file = open_files_[filename];
@@ -304,7 +312,7 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       open_files_.erase(filename);
       return empty_file;
     }
-    file.fmt_ctx_ = make_unique_av<AVFormatContext>(tmp_raw_fmt_ctx, avformat_close_input);
+    file.fmt_ctx_ = make_unique_av<AVFormatContext>(tmp_raw_fmt_ctx, clean_avformat_context);
     LOG_LINE << "File open " << filename << std::endl;
 
     LOG_LINE << "File info fetched for " << filename << std::endl;
@@ -402,6 +410,7 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     if (ret < 0) {
       DALI_WARN(make_string("Unable to read frame from file :", filename));
       open_files_.erase(filename);
+      av_packet_unref(&pkt);
       return empty_file;
     }
 
