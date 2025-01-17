@@ -64,7 +64,6 @@ __global__ void ExecuteTiledTernaryOp1D(const SampleDescGPU<3> *samples, const T
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
-  auto &out_strides = sample.output.strides;
   auto &arg0 = sample.args[0];
   auto &arg1 = sample.args[1];
   auto &arg2 = sample.args[2];
