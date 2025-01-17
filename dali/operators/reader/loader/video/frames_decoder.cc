@@ -236,6 +236,10 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
 
   int ret = avformat_open_input(&av_state_->ctx_, "", nullptr, nullptr);
   if (ret != 0) {
+    // av_state_->ctx_ is nullified so we need to free the memory here instead of the
+    // AvState destructor which cannot access it through av_state_->ctx_ anymore
+    av_freep(&av_io_context->buffer);
+    avio_context_free(&av_io_context);
     DALI_WARN(make_string("Failed to open video file \"", Filename(), "\", due to ",
                           detail::av_error_string(ret)));
     return;
@@ -284,13 +288,14 @@ void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_
     av_state->ctx_->pb = av_io_context;
 
     int ret = avformat_open_input(&av_state->ctx_, "", nullptr, nullptr);
-    DALI_ENFORCE(
-      ret == 0,
-      make_string(
-        "Failed to open video file \"",
-        Filename(),
-        "\", due to ",
-        detail::av_error_string(ret)));
+    if (ret != 0) {
+      // av_state_->ctx_ is nullified so we need to free the memory here instead of the
+      // AvState destructor which cannot access it through av_state_->ctx_ anymore
+      av_freep(&av_io_context->buffer);
+      avio_context_free(&av_io_context);
+      DALI_FAIL(make_string("Failed to open video file \"", Filename(), "\", due to ",
+                            detail::av_error_string(ret)));
+    }
     av_state->stream_id_ = av_find_best_stream(
       av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     av_state->codec_params_ = av_state->ctx_->streams[av_state->stream_id_]->codecpar;

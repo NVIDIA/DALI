@@ -267,9 +267,9 @@ static int64_t seek_file(void *opaque, int64_t offset, int whence) {
 }
 
 void clean_avformat_context(AVFormatContext **p) {
-  if ((*p)->flags & AVFMT_FLAG_CUSTOM_IO) {
-    av_freep(&(*p)->pb->buffer);
-    av_freep(&(*p)->pb);
+  if (*p && (*p)->flags & AVFMT_FLAG_CUSTOM_IO) {
+    if (*p && (*p)->pb) av_freep(&(*p)->pb->buffer);
+    avio_context_free(&(*p)->pb);
   }
   avformat_close_input(p);
 }
@@ -307,6 +307,10 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     // if avformat_open_input fails it frees raw_fmt_ctx so we can release it from unique_ptr
     int ret = avformat_open_input(&tmp_raw_fmt_ctx, NULL, NULL, NULL);
     if (ret < 0) {
+      // avio_ctx->ctx_ is nullified so we need to free the memory here instead of the
+      // AVFormatContext destructor which cannot access it through avio_ctx->ctx_ anymore
+      av_freep(&avio_ctx->buffer);
+      avio_context_free(&avio_ctx);
       DALI_WARN(make_string("Failed to open video file ", filename, " because of ",
                             av_err2str(ret)));
       open_files_.erase(filename);
@@ -406,19 +410,19 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       if (pkt.stream_index == file.vid_stream_idx_) break;
       av_packet_unref(&pkt);
     }
+    auto pkt_duration = pkt.duration;
+    av_packet_unref(&pkt);
 
     if (ret < 0) {
       DALI_WARN(make_string("Unable to read frame from file :", filename));
       open_files_.erase(filename);
-      av_packet_unref(&pkt);
       return empty_file;
     }
 
     DALI_ENFORCE(skip_vfr_check_ ||
-      almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
+      almost_equal(av_q2d(file.frame_base_), pkt_duration * av_q2d(file.stream_base_), 2),
       "Variable frame rate videos are unsupported. This heuristic can yield false positives. "
       "The check can be disabled via the skip_vfr_check flag. Check failed for file: " + filename);
-    av_packet_unref(&pkt);
     // empty the read buffer from av_read_frame to save the memory usage
     avformat_flush(file.fmt_ctx_.get());
 
