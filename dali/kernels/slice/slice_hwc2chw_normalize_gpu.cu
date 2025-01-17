@@ -130,7 +130,7 @@ __device__ __forceinline__ Tile *load_linear_tile(Tile *tile,
     aligned_tile[idx * 4 + 3] = in.w;
   }
 
-  uint32_t processed_in_main = left_after_prologue & -4;  // equivalent to (x / 4) * 4
+  uint32_t processed_in_main = left_after_prologue & ~0x3;;  // equivalent to (x / 4) * 4
   uint32_t left_after_main = left_after_prologue - processed_in_main;
 
   // epilogue
@@ -238,7 +238,7 @@ __device__ __forceinline__ Tile *slice_load_linear_tile(
       aligned_tile[idx * 4 + 3] = in.w;
     }
 
-    uint32_t processed_in_main = left_after_prologue & -4;  // equivalent to (x / 4) * 4
+    uint32_t processed_in_main = left_after_prologue & ~0x3;  // equivalent to (x / 4) * 4
     uint32_t left_after_main = left_after_prologue - processed_in_main;
 
     // epilogue
@@ -339,7 +339,7 @@ __device__ __forceinline__ void load_planar_tile(Tile tile[][kBlockSize / kStati
     tile[c][xy] = in.w;
   }
 
-  uint32_t processed_in_main = left_after_prologue & -4;  // equivalent to (x / 4) * 4
+  uint32_t processed_in_main = left_after_prologue & ~0x3;  // equivalent to (x / 4) * 4
   uint32_t left_after_main = left_after_prologue - processed_in_main;
 
   // epilogue
@@ -521,8 +521,6 @@ __device__ __forceinline__ void store_planar_hwc_pad(
   int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
-  const auto *__restrict__ fill_values = static_cast<const float16 *>(sample.fill_values);
-
   // Preload the norm values so they are accessed via registers and not from gmem via pointer.
   Compute norm_mul[kOutChannels], norm_add[kOutChannels];
 
@@ -545,7 +543,6 @@ __device__ __forceinline__ void store_planar_hwc_pad(
 
   // TODO(klecki) in the version without mirror, we can keep one offset, as we can start the
   // output pointer at the output tile.
-  auto *out_aligned = sample.out;
   auto *out_h2 = reinterpret_cast<__half2 *>(sample.out);
   uint32_t to_write = end_x_padded - start_x_padded;
 
@@ -725,8 +722,6 @@ template <typename Out, typename In, bool enable_mirror, int kBlockSize, int kSt
 __global__ void Hwc2HwcNormalizePadFp16(const Hwc2HwcChwSampleDesc<Out, In> *samples,
                                         uint32_t *first_blocks, uint32_t num_samples) {
   static_assert(std::is_same<In, uint8_t>::value, "Only uint8_t supported as input");
-
-  constexpr int kOutChannels = kStaticChannels + 1;
 
   int sample_idx = FindSampleIdx(first_blocks, num_samples);
   const auto sample = samples[sample_idx];
