@@ -57,22 +57,6 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     return exe.HasConditionals();
   }
 
-  // TODO(klecki): adjust to refactored code
-  vector<Workspace> CPUData(ExecutorBase *exe, int idx) const {
-    // return std::get<static_cast<int>(OpType::CPU)>(exe->wss_[idx].op_data);
-    return {};
-  }
-
-  vector<Workspace> MixedData(ExecutorBase *exe, int idx) const {
-    // return std::get<static_cast<int>(OpType::MIXED)>(exe->wss_[idx].op_data);
-    return {};
-  }
-
-  vector<Workspace> GPUData(ExecutorBase *exe, int idx) const {
-    // return std::get<static_cast<int>(OpType::GPU)>(exe->wss_[idx].op_data);
-    return {};
-  }
-
   bool IsSeparated() {
     return std::is_same_v<ExecutorToTest, SeparatedPipelinedExecutor>
         || std::is_same_v<ExecutorToTest, AsyncSeparatedPipelinedExecutor>;
@@ -136,64 +120,6 @@ using ExecutorSyncTypes =
     ::testing::Types<SimpleExecutor, PipelinedExecutor, SeparatedPipelinedExecutor>;
 
 TYPED_TEST_SUITE(ExecutorSyncTest, ExecutorSyncTypes);
-
-// TODO(klecki): adjust to after refactor
-TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("ExternalSource")
-          .AddArg("device", "cpu")
-          .AddArg("device_id", 0)
-          .AddOutput("data1", StorageDevice::CPU)), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("data1", StorageDevice::CPU)
-          .AddOutput("data2", StorageDevice::GPU)), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "gpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data2", StorageDevice::GPU)
-          .AddOutput("data3", StorageDevice::GPU)), "");
-
-  vector<string> outputs = {"data3_gpu"};
-  exe->Build(&graph, outputs);
-
-  // Verify the data has been setup correctly
-  for (int i = 0; i < 2; ++i) {
-    auto host_workspaces = this->CPUData(exe.get(), i);
-    ASSERT_EQ(host_workspaces.size(), 1);
-    Workspace &hws = host_workspaces[0];
-    ASSERT_EQ(hws.NumInput(), 0);
-    ASSERT_EQ(hws.NumOutput(), 1);
-    ASSERT_EQ(hws.GetRequestedBatchSize(0), this->batch_size_);
-    ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
-
-    auto mixed_workspaces = this->MixedData(exe.get(), i);
-    ASSERT_EQ(mixed_workspaces.size(), 1);
-    Workspace &mws = mixed_workspaces[0];
-    ASSERT_EQ(mws.NumInput(), 1);
-    ASSERT_EQ(mws.GetInputBatchSize(0), this->batch_size_);
-    ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
-    ASSERT_EQ(mws.NumOutput(), 1);
-    ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));
-
-    auto device_workspaces = this->GPUData(exe.get(), i);
-    ASSERT_EQ(device_workspaces.size(), 1);
-    Workspace &dws = device_workspaces[0];
-    ASSERT_EQ(dws.NumInput(), 1);
-    ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
-    ASSERT_EQ(dws.NumOutput(), 1);
-    ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
-  }
-}
 
 TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
