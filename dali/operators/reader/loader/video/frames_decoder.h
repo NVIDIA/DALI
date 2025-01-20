@@ -60,12 +60,15 @@ struct AvState {
     avcodec_free_context(&codec_ctx_);
     if (ctx_ != nullptr) {
       // if we use avio_alloc_context we need a custom deallocator for ctx_->pb
-      if (ctx_->flags & AVFMT_FLAG_CUSTOM_IO) {
-        av_freep(&ctx_->pb->buffer);
-        av_freep(&ctx_->pb);
-      }
+      auto custom_dealloc = ctx_->flags & AVFMT_FLAG_CUSTOM_IO;
+      auto custom_ctx = ctx_->pb;
+      auto custom_buffer = ctx_->pb ? ctx_->pb->buffer : nullptr;
       avformat_close_input(&ctx_);
       avformat_free_context(ctx_);
+      if (custom_dealloc) {
+        av_freep(&custom_buffer);
+        avio_context_free(&custom_ctx);
+      }
     }
 
     ctx_ = nullptr;
