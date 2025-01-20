@@ -38,11 +38,18 @@ from image_classification.autoaugment import AutoaugmentImageNetPolicy
 DATA_BACKEND_CHOICES = ["pytorch", "pytorch_optimized", "synthetic"]
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
+    from nvidia.dali.plugin.pytorch.experimental import proxy as dali_proxy
     import nvidia.dali.types as types
 
-    from image_classification.dali import training_pipe, validation_pipe
+    from image_classification.dali import (
+        training_pipe,
+        training_pipe_external_source,
+        validation_pipe,
+        validation_pipe_external_source,
+    )
 
     DATA_BACKEND_CHOICES.append("dali")
+    DATA_BACKEND_CHOICES.append("dali_proxy")
 except ImportError as e:
     print(
         "Please install DALI from https://www.github.com/NVIDIA/DALI to run this example."
@@ -303,6 +310,58 @@ class PrefetchedWrapper(object):
         self.epoch += 1
         return PrefetchedWrapper.prefetched_loader(
             self.dataloader, self.num_classes, self.one_hot
+        )
+
+    def __len__(self):
+        return len(self.dataloader)
+
+
+class DALIProxyWrapper(object):
+    @staticmethod
+    def gen_wrapper(loader, num_classes, one_hot, memory_format):
+        stream = torch.cuda.Stream()
+        for next_input, next_target in loader:
+            with torch.cuda.stream(stream):
+                if memory_format == torch.channels_last:
+                    shape = next_input.shape
+                    stride = next_input.stride()
+
+                    # permute shape and stride from NHWC to NCHW
+                    def nhwc_to_nchw(t):
+                        return t[0], t[3], t[1], t[2]
+
+                    next_input = torch.as_strided(
+                        next_input,
+                        size=nhwc_to_nchw(shape),
+                        stride=nhwc_to_nchw(stride),
+                    )
+                else:
+                    next_input = next_input.contiguous(
+                        memory_format=memory_format
+                    )
+                next_target = next_target.to(device="cuda")
+                if one_hot:
+                    next_target = expand(num_classes, torch.float, next_target)
+            yield next_input, next_target
+
+    def __init__(
+        self, dataloader, start_epoch, num_classes, one_hot, memory_format
+    ):
+        self.dataloader = dataloader
+        self.epoch = start_epoch
+        self.one_hot = one_hot
+        self.num_classes = num_classes
+        self.memory_format = memory_format
+
+    def __iter__(self):
+        if self.dataloader.sampler is not None and isinstance(
+            self.dataloader.sampler,
+            torch.utils.data.distributed.DistributedSampler,
+        ):
+            self.dataloader.sampler.set_epoch(self.epoch)
+        self.epoch += 1
+        return DALIProxyWrapper.gen_wrapper(
+            self.dataloader, self.num_classes, self.one_hot, self.memory_format
         )
 
     def __len__(self):
@@ -640,6 +699,181 @@ def get_pytorch_optimize_val_loader(
     return PrefetchedOptimizedWrapper(val_loader, 0, num_classes, one_hot), len(
         val_loader
     )
+
+
+def read_file(path):
+    return np.fromfile(path, dtype=np.uint8)
+
+
+def read_filepath(path):
+    return np.frombuffer(path.encode(), dtype=np.int8)
+
+
+def get_dali_proxy_train_loader(dali_device="gpu"):
+    def get_impl(
+        data_path,
+        image_size,
+        batch_size,
+        num_classes,
+        one_hot,
+        interpolation="bilinear",
+        augmentation=None,
+        start_epoch=0,
+        workers=5,
+        _worker_init_fn=None,
+        prefetch_factor=2,
+        memory_format=torch.contiguous_format,
+    ):
+        interpolation = {
+            "bicubic": types.INTERP_CUBIC,
+            "bilinear": types.INTERP_LINEAR,
+            "triangular": types.INTERP_TRIANGULAR,
+        }[interpolation]
+
+        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+
+        rank = (
+            torch.distributed.get_rank()
+            if torch.distributed.is_initialized()
+            else 0
+        )
+
+        pipeline_kwargs = {
+            "batch_size": batch_size,
+            "num_threads": workers,
+            "device_id": rank % torch.cuda.device_count(),
+            "seed": 12 + rank % torch.cuda.device_count(),
+        }
+
+        pipe = training_pipe_external_source(
+            interpolation=interpolation,
+            image_size=image_size,
+            output_layout=output_layout,
+            automatic_augmentation=augmentation,
+            dali_device=dali_device,
+            prefetch_queue_depth=8,
+            **pipeline_kwargs,
+        )
+
+        dali_server = dali_proxy.DALIServer(pipe)
+
+        train_dataset = datasets.ImageFolder(
+            os.path.join(data_path, "train"),
+            transform=dali_server.proxy,
+            loader=read_filepath,
+        )
+
+        if torch.distributed.is_initialized():
+            train_sampler = torch.utils.data.distributed.DistributedSampler(
+                train_dataset, shuffle=True
+            )
+        else:
+            train_sampler = None
+
+        train_loader = dali_proxy.DataLoader(
+            dali_server,
+            train_dataset,
+            sampler=train_sampler,
+            batch_size=batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=workers,
+            worker_init_fn=_worker_init_fn,
+            pin_memory=True,
+            collate_fn=None,
+            drop_last=True,
+            persistent_workers=True,
+            prefetch_factor=prefetch_factor,
+        )
+
+        return (
+            DALIProxyWrapper(
+                train_loader, start_epoch, num_classes, one_hot, memory_format
+            ),
+            len(train_loader),
+        )
+
+    return get_impl
+
+
+def get_dali_proxy_val_loader(dali_device="gpu"):
+    def get_impl(
+        data_path,
+        image_size,
+        batch_size,
+        num_classes,
+        one_hot,
+        interpolation="bilinear",
+        workers=5,
+        _worker_init_fn=None,
+        crop_padding=32,
+        memory_format=torch.contiguous_format,
+        prefetch_factor=2,
+    ):
+        interpolation = {
+            "bicubic": types.INTERP_CUBIC,
+            "bilinear": types.INTERP_LINEAR,
+            "triangular": types.INTERP_TRIANGULAR,
+        }[interpolation]
+
+        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+
+        rank = (
+            torch.distributed.get_rank()
+            if torch.distributed.is_initialized()
+            else 0
+        )
+        pipeline_kwargs = {
+            "batch_size": batch_size,
+            "num_threads": workers,
+            "device_id": rank % torch.cuda.device_count(),
+            "seed": 12 + rank % torch.cuda.device_count(),
+        }
+
+        pipe = validation_pipe_external_source(
+            interpolation=interpolation,
+            image_size=image_size + crop_padding,
+            image_crop=image_size,
+            output_layout=output_layout,
+            **pipeline_kwargs,
+        )
+
+        dali_server = dali_proxy.DALIServer(pipe)
+        val_dataset = datasets.ImageFolder(
+            os.path.join(data_path, "val"),
+            transform=dali_server.proxy,
+            loader=read_filepath,
+        )
+
+        if torch.distributed.is_initialized():
+            val_sampler = torch.utils.data.distributed.DistributedSampler(
+                val_dataset, shuffle=False
+            )
+        else:
+            val_sampler = None
+
+        val_loader = dali_proxy.DataLoader(
+            dali_server,
+            val_dataset,
+            sampler=val_sampler,
+            batch_size=batch_size,
+            shuffle=(val_sampler is None),
+            num_workers=workers,
+            worker_init_fn=_worker_init_fn,
+            pin_memory=True,
+            collate_fn=None,
+            drop_last=True,
+            persistent_workers=True,
+            prefetch_factor=prefetch_factor,
+        )
+
+        return (
+            DALIProxyWrapper(
+                val_loader, 0, num_classes, one_hot, memory_format
+            ),
+            len(val_loader),
+        )
+
+    return get_impl
 
 
 class SynteticDataLoader(object):

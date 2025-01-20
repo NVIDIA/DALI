@@ -526,6 +526,11 @@ def prepare_for_training(args, model_args, model_arch):
     elif args.data_backend == "dali":
         get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
         get_val_loader = get_dali_val_loader()
+    elif args.data_backend == "dali_proxy":
+        get_train_loader = get_dali_proxy_train_loader(
+            dali_device=args.dali_device
+        )
+        get_val_loader = get_dali_proxy_val_loader()
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
         get_train_loader = get_synthetic_loader
@@ -648,30 +653,56 @@ def main(args, model_args, model_arch):
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    train_loop(
-        trainer,
-        lr_policy,
-        train_loader,
-        train_loader_len,
-        val_loader,
-        logger,
-        start_epoch=start_epoch,
-        end_epoch=(
-            min((start_epoch + args.run_epochs), args.epochs)
-            if args.run_epochs != -1
-            else args.epochs
-        ),
-        early_stopping_patience=args.early_stopping_patience,
-        best_prec1=best_prec1,
-        prof=args.prof,
-        skip_training=args.evaluate,
-        skip_validation=args.training_only,
-        save_checkpoints=args.save_checkpoints and not args.evaluate,
-        checkpoint_dir=args.workspace,
-        checkpoint_filename=args.checkpoint_filename,
-        keep_last_n_checkpoints=args.gather_checkpoints,
-        topk=args.topk,
-    )
+    class DALIServerCtx:
+        """
+        Wrapper to serve as a context manager for all scenarios (including DALI server or not)
+        """
+
+        def __init__(self, loader):
+            self._dali_server = DALIServerCtx._find_dali_server(loader)
+
+        @staticmethod
+        def _find_dali_server(loader):
+            if isinstance(loader, dali_proxy.DataLoader):
+                return loader.dali_server
+            if hasattr(loader, "dataloader"):
+                return DALIServerCtx._find_dali_server(loader.dataloader)
+            return None
+
+        def __enter__(self):
+            if self._dali_server is not None:
+                self._dali_server.__enter__()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            if self._dali_server is not None:
+                self._dali_server.__exit__(exc_type, exc_value, traceback)
+
+    with DALIServerCtx(train_loader), DALIServerCtx(val_loader):
+        train_loop(
+            trainer,
+            lr_policy,
+            train_loader,
+            train_loader_len,
+            val_loader,
+            logger,
+            start_epoch=start_epoch,
+            end_epoch=(
+                min((start_epoch + args.run_epochs), args.epochs)
+                if args.run_epochs != -1
+                else args.epochs
+            ),
+            early_stopping_patience=args.early_stopping_patience,
+            best_prec1=best_prec1,
+            prof=args.prof,
+            skip_training=args.evaluate,
+            skip_validation=args.training_only,
+            save_checkpoints=args.save_checkpoints and not args.evaluate,
+            checkpoint_dir=args.workspace,
+            checkpoint_filename=args.checkpoint_filename,
+            keep_last_n_checkpoints=args.gather_checkpoints,
+            topk=args.topk,
+        )
     exp_duration = time.time() - exp_start_time
     if (
         not torch.distributed.is_initialized()
