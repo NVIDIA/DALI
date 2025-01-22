@@ -20,7 +20,7 @@ from nvidia.dali.pipeline.experimental import pipeline_def
 from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
 
-def processing_training_pipe(
+def resnet_processing_training(
     jpegs_input,
     interpolation,
     image_size,
@@ -28,6 +28,9 @@ def processing_training_pipe(
     automatic_augmentation,
     dali_device="gpu",
 ):
+    """
+    Image processing part of the ResNet training pipeline (excluding data loading)
+    """
     decoder_device = "mixed" if dali_device == "gpu" else "cpu"
     images = fn.decoders.image_random_crop(
         jpegs_input,
@@ -97,7 +100,7 @@ def training_pipe(
         random_shuffle=True,
         pad_last_batch=True,
     )
-    outputs = processing_training_pipe(
+    outputs = resnet_processing_training(
         jpegs,
         interpolation,
         image_size,
@@ -120,7 +123,7 @@ def training_pipe_external_source(
 ):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
-    outputs = processing_training_pipe(
+    outputs = resnet_processing_training(
         jpegs,
         interpolation,
         image_size,
@@ -131,9 +134,12 @@ def training_pipe_external_source(
     return outputs
 
 
-def processing_validation_pipe(
+def resnet_processing_validation(
     jpegs, interpolation, image_size, image_crop, output_layout
 ):
+    """
+    Image processing part of the ResNet validation pipeline (excluding data loading)
+    """
     images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
 
     images = fn.resize(
@@ -172,7 +178,7 @@ def validation_pipe(
         random_shuffle=False,
         pad_last_batch=True,
     )
-    outputs = processing_validation_pipe(
+    outputs = resnet_processing_validation(
         jpegs, interpolation, image_size, image_crop, output_layout
     )
     return outputs, label
@@ -184,7 +190,7 @@ def validation_pipe_external_source(
 ):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
-    outputs = processing_validation_pipe(
+    outputs = resnet_processing_validation(
         jpegs, interpolation, image_size, image_crop, output_layout
     )
     return outputs

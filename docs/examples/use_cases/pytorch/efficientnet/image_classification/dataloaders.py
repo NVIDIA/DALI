@@ -89,8 +89,8 @@ def load_jpeg_from_file(path, cuda=True):
 
 class DALIWrapper(object):
 
-    def gen_wrapper(dalipipeline, num_classes, one_hot, memory_format):
-        for data in dalipipeline:
+    def gen_wrapper(loader, num_classes, one_hot, memory_format):
+        for data in loader:
             if memory_format == torch.channels_last:
                 # If we requested the data in channels_last form, utilize the fact that DALI
                 # can return it as NHWC. The network expects NCHW shape with NHWC internal memory,
@@ -114,17 +114,18 @@ class DALIWrapper(object):
             if one_hot:
                 target = expand(num_classes, torch.float, target)
             yield input, target
-        dalipipeline.reset()
 
-    def __init__(self, dalipipeline, num_classes, one_hot, memory_format):
-        self.dalipipeline = dalipipeline
+        loader.reset()
+
+    def __init__(self, loader, num_classes, one_hot, memory_format):
+        self.loader = loader
         self.num_classes = num_classes
         self.one_hot = one_hot
         self.memory_format = memory_format
 
     def __iter__(self):
         return DALIWrapper.gen_wrapper(
-            self.dalipipeline,
+            self.loader,
             self.num_classes,
             self.one_hot,
             self.memory_format,
@@ -281,24 +282,48 @@ def expand(num_classes, dtype, tensor):
     return e
 
 
+def as_memory_format(next_input, memory_format):
+    if memory_format == torch.channels_last:
+        shape = next_input.shape
+        stride = next_input.stride()
+
+        # permute shape and stride from NHWC to NCHW
+        def nhwc_to_nchw(t):
+            return t[0], t[3], t[1], t[2]
+
+        next_input = torch.as_strided(
+            next_input,
+            size=nhwc_to_nchw(shape),
+            stride=nhwc_to_nchw(stride),
+        )
+    elif memory_format == torch.contiguous_format:
+        next_input = next_input.contiguous(memory_format=memory_format)
+    return next_input
+
+
 class PrefetchedWrapper(object):
     @staticmethod
-    def prefetched_loader(loader, num_classes, one_hot):
+    def prefetched_loader(loader, num_classes, one_hot, memory_format):
         stream = torch.cuda.Stream()
         for next_input, next_target in loader:
             with torch.cuda.stream(stream):
-                next_input = next_input.to(device="cuda")
+                next_input = as_memory_format(
+                    next_input, memory_format=memory_format
+                ).to(device="cuda")
                 next_target = next_target.to(device="cuda")
                 next_input = next_input.float()
                 if one_hot:
                     next_target = expand(num_classes, torch.float, next_target)
             yield next_input, next_target
 
-    def __init__(self, dataloader, start_epoch, num_classes, one_hot):
+    def __init__(
+        self, dataloader, start_epoch, num_classes, one_hot, memory_format=None
+    ):
         self.dataloader = dataloader
         self.epoch = start_epoch
-        self.one_hot = one_hot
         self.num_classes = num_classes
+        self.one_hot = one_hot
+        self.memory_format = memory_format
 
     def __iter__(self):
         if self.dataloader.sampler is not None and isinstance(
@@ -309,58 +334,6 @@ class PrefetchedWrapper(object):
             self.dataloader.sampler.set_epoch(self.epoch)
         self.epoch += 1
         return PrefetchedWrapper.prefetched_loader(
-            self.dataloader, self.num_classes, self.one_hot
-        )
-
-    def __len__(self):
-        return len(self.dataloader)
-
-
-class DALIProxyWrapper(object):
-    @staticmethod
-    def gen_wrapper(loader, num_classes, one_hot, memory_format):
-        stream = torch.cuda.Stream()
-        for next_input, next_target in loader:
-            with torch.cuda.stream(stream):
-                if memory_format == torch.channels_last:
-                    shape = next_input.shape
-                    stride = next_input.stride()
-
-                    # permute shape and stride from NHWC to NCHW
-                    def nhwc_to_nchw(t):
-                        return t[0], t[3], t[1], t[2]
-
-                    next_input = torch.as_strided(
-                        next_input,
-                        size=nhwc_to_nchw(shape),
-                        stride=nhwc_to_nchw(stride),
-                    )
-                else:
-                    next_input = next_input.contiguous(
-                        memory_format=memory_format
-                    )
-                next_target = next_target.to(device="cuda")
-                if one_hot:
-                    next_target = expand(num_classes, torch.float, next_target)
-            yield next_input, next_target
-
-    def __init__(
-        self, dataloader, start_epoch, num_classes, one_hot, memory_format
-    ):
-        self.dataloader = dataloader
-        self.epoch = start_epoch
-        self.one_hot = one_hot
-        self.num_classes = num_classes
-        self.memory_format = memory_format
-
-    def __iter__(self):
-        if self.dataloader.sampler is not None and isinstance(
-            self.dataloader.sampler,
-            torch.utils.data.distributed.DistributedSampler,
-        ):
-            self.dataloader.sampler.set_epoch(self.epoch)
-        self.epoch += 1
-        return DALIProxyWrapper.gen_wrapper(
             self.dataloader, self.num_classes, self.one_hot, self.memory_format
         )
 
@@ -786,7 +759,7 @@ def get_dali_proxy_train_loader(dali_device="gpu"):
         )
 
         return (
-            DALIProxyWrapper(
+            PrefetchedWrapper(
                 train_loader, start_epoch, num_classes, one_hot, memory_format
             ),
             len(train_loader),
@@ -867,7 +840,7 @@ def get_dali_proxy_val_loader(dali_device="gpu"):
         )
 
         return (
-            DALIProxyWrapper(
+            PrefetchedWrapper(
                 val_loader, 0, num_classes, one_hot, memory_format
             ),
             len(val_loader),

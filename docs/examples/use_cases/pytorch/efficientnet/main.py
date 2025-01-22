@@ -35,7 +35,7 @@ os.environ["KMP_AFFINITY"] = (
 
 import argparse
 import random
-from copy import deepcopy
+from contextlib import nullcontext
 
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -653,32 +653,18 @@ def main(args, model_args, model_arch):
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    class DALIServerCtx:
+    def get_ctx(loader):
         """
-        Wrapper to serve as a context manager for all scenarios (including DALI server or not)
+        Get context from a dataloader object. This is a utility so that we can run with the
+        same code for DALI iterators, PyTorch dataloader, or DALI proxy dataloader.
         """
+        if isinstance(loader, dali_proxy.DataLoader):
+            return loader.dali_server
+        if hasattr(loader, "dataloader"):
+            return get_ctx(loader.dataloader)
+        return nullcontext()
 
-        def __init__(self, loader):
-            self._dali_server = DALIServerCtx._find_dali_server(loader)
-
-        @staticmethod
-        def _find_dali_server(loader):
-            if isinstance(loader, dali_proxy.DataLoader):
-                return loader.dali_server
-            if hasattr(loader, "dataloader"):
-                return DALIServerCtx._find_dali_server(loader.dataloader)
-            return None
-
-        def __enter__(self):
-            if self._dali_server is not None:
-                self._dali_server.__enter__()
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            if self._dali_server is not None:
-                self._dali_server.__exit__(exc_type, exc_value, traceback)
-
-    with DALIServerCtx(train_loader), DALIServerCtx(val_loader):
+    with get_ctx(train_loader), get_ctx(val_loader):
         train_loop(
             trainer,
             lr_policy,
