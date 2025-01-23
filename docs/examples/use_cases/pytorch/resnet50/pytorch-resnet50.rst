@@ -77,6 +77,6 @@ Usage
    --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU
                                networks it may work better, for IO bottlenecked
                                one like RN18 GPU default should be faster
-   --disable_dali              turns off DALI and switches to the native PyTorch
-                               data processing
+   --data_loader               Select data loader: "pytorch" for native PyTorch data loader, 
+                               "dali" for DALI data loader, or "dali_proxy" for PyTorch dataloader with DALI proxy preprocessing.
    --fp16-mode                 enables mixed precision mode
