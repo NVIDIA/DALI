@@ -88,7 +88,7 @@ def load_jpeg_from_file(path, cuda=True):
 
 
 class DALIWrapper(object):
-
+    @staticmethod
     def gen_wrapper(loader, num_classes, one_hot, memory_format):
         for data in loader:
             if memory_format == torch.channels_last:

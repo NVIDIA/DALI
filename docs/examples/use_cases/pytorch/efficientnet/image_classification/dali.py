@@ -20,7 +20,7 @@ from nvidia.dali.pipeline.experimental import pipeline_def
 from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
 
-def resnet_processing_training(
+def efficientnet_processing_training(
     jpegs_input,
     interpolation,
     image_size,
@@ -100,7 +100,7 @@ def training_pipe(
         random_shuffle=True,
         pad_last_batch=True,
     )
-    outputs = resnet_processing_training(
+    outputs = efficientnet_processing_training(
         jpegs,
         interpolation,
         image_size,
@@ -123,7 +123,7 @@ def training_pipe_external_source(
 ):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
-    outputs = resnet_processing_training(
+    outputs = efficientnet_processing_training(
         jpegs,
         interpolation,
         image_size,
@@ -134,7 +134,7 @@ def training_pipe_external_source(
     return outputs
 
 
-def resnet_processing_validation(
+def efficientnet_processing_validation(
     jpegs, interpolation, image_size, image_crop, output_layout
 ):
     """
@@ -178,7 +178,7 @@ def validation_pipe(
         random_shuffle=False,
         pad_last_batch=True,
     )
-    outputs = resnet_processing_validation(
+    outputs = efficientnet_processing_validation(
         jpegs, interpolation, image_size, image_crop, output_layout
     )
     return outputs, label
@@ -190,7 +190,7 @@ def validation_pipe_external_source(
 ):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
-    outputs = resnet_processing_validation(
+    outputs = efficientnet_processing_validation(
         jpegs, interpolation, image_size, image_crop, output_layout
     )
     return outputs
