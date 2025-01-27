@@ -32,6 +32,12 @@ public:
   InvalidHandle(const char *what) : std::invalid_argument(what) {}
 };
 
+inline InvalidHandle NullHandle() { return InvalidHandle("The handle must not be NULL."); }
+
+inline InvalidHandle NullHandle(const char *what_handle) {
+  return InvalidHandle(make_string("The ", what_handle, " handle must not be NULL."));
+}
+
 }  // namespace c_api
 }  // namespace dali
 

@@ -281,6 +281,9 @@ DALI_API daliResult_t daliPipelineCreate(
   daliPipeline_h *out_pipe_handle,
   const daliPipelineParams_t *params);
 
+/** Destroys a DALI pipeline. */
+DALI_API daliResult_t daliPipelineDestroy(daliPipeline_h pipeline);
+
 /** Creates a DALI pipeline from a serialized one.
  *
  * This function creates and deserializes a pipeline. The parameters are used to override
@@ -556,6 +559,8 @@ typedef struct _DALIBufferPlacement {
 
   /** CUDA device ordinal, as returned by CUDA runtime API.
    *
+   * The value of this field is meaningful only if `device_type` is GPU or `pinned` is `true`.
+   *
    * WARNING: The device_id returned by NVML (and thus, nvidia-smi) may be different.
    */
   int                 device_id;
@@ -596,6 +601,10 @@ DALI_API daliResult_t daliTensorListResize(
  * @param num_samples     the number of samples in the list
  * @param ndim            the number of dimensions in the sample
  * @param dtype           the element type
+ * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
+ *                        if NULL, and the TensorList's number of dimensions is equal to `ndim,
+ *                        then the current layout is kept;
+ *                        if `layout` is an empty string, the tensor list's layout is cleared
  * @param shapes          the concatenated shapes of the samples;
  *                        must contain num_samples*ndim extents
  * @param data            the pointer to the data buffer
@@ -608,6 +617,7 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
   int num_samples,
   int ndim,
   daliDataType_t dtype,
+  const char *layout,
   const int64_t *shapes,
   void *data,
   const ptrdiff_t *sample_offsets,
@@ -629,6 +639,10 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  * @param dtype           the type of the element of the tensor;
  *                        if dtype is DALI_NO_TYPE, then the type is taken from samples[0].dtype;
  *                        if set, the dtype in the samples can be left at -1
+ * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
+ *                        if NULL, and the TensorList's number of dimensions is equal to `ndim,
+ *                        then the current layout is kept;
+ *                        if `layout` is an empty string, the tensor list's layout is cleared
  * @param samples         the descriptors of the tensors to be attached to the TensorList;
  *                        the `ndim` and `dtype` of the samples must match and they must match the
  *                        values of `ndim` and `dtype` parameters.
@@ -642,6 +656,7 @@ DALI_API daliResult_t daliTensorListAttachSamples(
   int num_samples,
   int ndim,
   daliDataType_t dtype,
+  const char *layout,
   const daliTensorDesc_t *samples,
   const daliDeleter_t *sample_deleters);
 
@@ -699,6 +714,7 @@ DALI_API daliResult_t daliTensorListGetReadyEvent(
  *
  * The function ensures that a readiness event is associated with the tensor list.
  * It can also get the event handle, if the output parameter pointer is not NULL.
+ * The function fails if the tensor list is not associated with a CUDA device.
  */
 DALI_API daliResult_t daliTensorListGetOrCreateReadyEvent(
   daliTensorList_h tensor_list,
