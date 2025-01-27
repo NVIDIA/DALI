@@ -49,10 +49,10 @@ echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
 # /usr/lib/aarch64-linux-gnu/libGLdispatch.so.0: cannot allocate memory in static TLS block
 # Seems there's an issue with libc:
 # https://bugzilla.redhat.com/show_bug.cgi?id=1722181
-# A fix has been proposed here: 
+# A fix has been proposed here:
 # https://sourceware.org/ml/libc-alpha/2020-01/msg00099.html
 preload_static_tls_libs() {
-    if [ "$(uname -m)" = "aarch64" ]; then
+    if [ "$(uname -m)" = "aarch64" ] && [ -f /usr/lib/aarch64-linux-gnu/libGLdispatch.so.0 ] ; then
         if [ -z "$LD_PRELOAD" ]; then
             export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libGLdispatch.so.0"
         else

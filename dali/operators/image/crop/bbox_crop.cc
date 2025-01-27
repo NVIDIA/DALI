@@ -679,7 +679,9 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     std::array<int, ndim> order;
     std::iota(order.begin(), order.end(), 0);
-    std::random_shuffle(order.begin(), order.end());
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(order.begin(), order.end(), g);
 
     float max_extent = 0.0f;
     for (int d = 0; d < ndim; d++) {
