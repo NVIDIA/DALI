@@ -35,7 +35,7 @@ os.environ["KMP_AFFINITY"] = (
 
 import argparse
 import random
-from copy import deepcopy
+from contextlib import nullcontext
 
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -526,6 +526,11 @@ def prepare_for_training(args, model_args, model_arch):
     elif args.data_backend == "dali":
         get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
         get_val_loader = get_dali_val_loader()
+    elif args.data_backend == "dali_proxy":
+        get_train_loader = get_dali_proxy_train_loader(
+            dali_device=args.dali_device
+        )
+        get_val_loader = get_dali_proxy_val_loader()
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
         get_train_loader = get_synthetic_loader
@@ -648,30 +653,42 @@ def main(args, model_args, model_arch):
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    train_loop(
-        trainer,
-        lr_policy,
-        train_loader,
-        train_loader_len,
-        val_loader,
-        logger,
-        start_epoch=start_epoch,
-        end_epoch=(
-            min((start_epoch + args.run_epochs), args.epochs)
-            if args.run_epochs != -1
-            else args.epochs
-        ),
-        early_stopping_patience=args.early_stopping_patience,
-        best_prec1=best_prec1,
-        prof=args.prof,
-        skip_training=args.evaluate,
-        skip_validation=args.training_only,
-        save_checkpoints=args.save_checkpoints and not args.evaluate,
-        checkpoint_dir=args.workspace,
-        checkpoint_filename=args.checkpoint_filename,
-        keep_last_n_checkpoints=args.gather_checkpoints,
-        topk=args.topk,
-    )
+    def get_ctx(loader):
+        """
+        Get context from a dataloader object. This is a utility so that we can run with the
+        same code for DALI iterators, PyTorch dataloader, or DALI proxy dataloader.
+        """
+        if isinstance(loader, dali_proxy.DataLoader):
+            return loader.dali_server
+        if hasattr(loader, "dataloader"):
+            return get_ctx(loader.dataloader)
+        return nullcontext()
+
+    with get_ctx(train_loader), get_ctx(val_loader):
+        train_loop(
+            trainer,
+            lr_policy,
+            train_loader,
+            train_loader_len,
+            val_loader,
+            logger,
+            start_epoch=start_epoch,
+            end_epoch=(
+                min((start_epoch + args.run_epochs), args.epochs)
+                if args.run_epochs != -1
+                else args.epochs
+            ),
+            early_stopping_patience=args.early_stopping_patience,
+            best_prec1=best_prec1,
+            prof=args.prof,
+            skip_training=args.evaluate,
+            skip_validation=args.training_only,
+            save_checkpoints=args.save_checkpoints and not args.evaluate,
+            checkpoint_dir=args.workspace,
+            checkpoint_filename=args.checkpoint_filename,
+            keep_last_n_checkpoints=args.gather_checkpoints,
+            topk=args.topk,
+        )
     exp_duration = time.time() - exp_start_time
     if (
         not torch.distributed.is_initialized()

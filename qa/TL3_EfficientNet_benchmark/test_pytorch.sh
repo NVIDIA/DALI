@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,15 +57,25 @@ export RESULT_WORKSPACE=./
 
 # synthetic benchmark
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --epochs 1 --prof 1000 --no-checkpoints --training-only --data-backend synthetic --workspace $RESULT_WORKSPACE --report-file bench_report_synthetic.json $PATH_TO_IMAGENET
+# -----
 
 # DALI without automatic augmentations
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --report-file bench_report_dali.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_dali.json $PATH_TO_IMAGENET
 
 # DALI with AutoAugment
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_aa.json $PATH_TO_IMAGENET
 
 # DALI with TrivialAugment
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --report-file bench_report_dali_ta.json $PATH_TO_IMAGENET
+
+# DALI proxy without automatic augmentations
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali_proxy --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_proxy.json $PATH_TO_IMAGENET
+
+# DALI proxy with AutoAugment
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali_proxy --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_proxy_aa.json $PATH_TO_IMAGENET
+
+# DALI proxy with TrivialAugment
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali_proxy --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --report-file bench_report_dali_proxy_ta.json $PATH_TO_IMAGENET
 
 # PyTorch without automatic augmentations
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch.json $PATH_TO_IMAGENET
@@ -79,6 +89,7 @@ python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 -
 # Optimized PyTorch with AutoAugment:
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend pytorch_optimized --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_optimized_pytorch_aa.json $PATH_TO_IMAGENET
 
+# -----
 
 # The line below finds the lines with `train.total_ips`, takes the last one (with the result we
 # want) cuts the DLLL (this is highly useful for JSON parsing) from the JSON logs, and parses it
@@ -90,6 +101,9 @@ SYNTH_THRESHOLD=38000
 DALI_NONE_THRESHOLD=32000
 DALI_AA_THRESHOLD=32000
 DALI_TA_THRESHOLD=32000
+DALI_PROXY_NONE_THRESHOLD=32000
+DALI_PROXY_AA_THRESHOLD=32000
+DALI_PROXY_TA_THRESHOLD=32000
 PYTORCH_NONE_THRESHOLD=32000
 PYTORCH_AA_THRESHOLD=32000
 
@@ -111,6 +125,9 @@ CHECK_PERF_THRESHOLD "bench_report_synthetic.json" $SYNTH_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_dali.json" $DALI_NONE_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_dali_aa.json" $DALI_AA_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_dali_ta.json" $DALI_TA_THRESHOLD
+CHECK_PERF_THRESHOLD "bench_report_dali_proxy.json" $DALI_PROXY_NONE_THRESHOLD
+CHECK_PERF_THRESHOLD "bench_report_dali_proxy_aa.json" $DALI_PROXY_AA_THRESHOLD
+CHECK_PERF_THRESHOLD "bench_report_dali_proxy_ta.json" $DALI_PROXY_TA_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_pytorch.json" $PYTORCH_NONE_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_pytorch_aa.json" $PYTORCH_AA_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_optimized_pytorch.json" $PYTORCH_NONE_THRESHOLD
