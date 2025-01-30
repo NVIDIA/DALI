@@ -18,32 +18,78 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/c_api_2/ref_counting.h"
-#include "dali/core/tensor_shape_print.h"
+#include "dali/c_api_2/validation.h"
+
 
 struct _DALITensorList {};
+struct _DALITensor {};
 
 namespace dali {
 namespace c_api {
 
-class TensorListInterface : public _DALITensorList, public RefCountedObject {
+//////////////////////////////////////////////////////////////////////////////
+// Interfaces
+//////////////////////////////////////////////////////////////////////////////
+
+class ITensor : public _DALITensor, public RefCountedObject {
  public:
-  virtual ~TensorListInterface() = default;
+  virtual ~ITensor() = default;
+
+  virtual void Resize(
+      int ndim,
+      const int64_t *shape,
+      daliDataType_t dtype,
+      const char *layout) = 0;
+
+  virtual void AttachBuffer(
+      int ndim,
+      const int64_t *shape,
+      daliDataType_t dtype,
+      const char *layout,
+      void *data,
+      daliDeleter_t deleter) = 0;
+
+  virtual daliBufferPlacement_t GetBufferPlacement() const = 0;
+
+  virtual const char *GetLayout() const = 0;
+
+  virtual void SetLayout(const char *layout) = 0;
+
+  virtual void SetStream(std::optional<cudaStream_t> stream, bool synchronize) = 0;
+
+  virtual std::optional<cudaStream_t> GetStream() const = 0;
+
+  virtual std::optional<cudaEvent_t> GetReadyEvent() const = 0;
+
+  virtual cudaEvent_t GetOrCreateReadyEvent() = 0;
+
+  virtual daliTensorDesc_t GetDesc() const = 0;
+
+  static RefCountedPtr<ITensor> Create(daliBufferPlacement_t placement);
+};
+
+
+class ITensorList : public _DALITensorList, public RefCountedObject {
+ public:
+  virtual ~ITensorList() = default;
 
   virtual void Resize(
       int num_samples,
       int ndim,
+      const int64_t *shapes,
       daliDataType_t dtype,
-      const int64_t *shapes) = 0;
+      const char *layout) = 0;
 
   virtual void AttachBuffer(
       int num_samples,
       int ndim,
+      const int64_t *shapes,
       daliDataType_t dtype,
       const char *layout,
-      const int64_t *shapes,
       void *data,
       const ptrdiff_t *sample_offsets,
       daliDeleter_t deleter) = 0;
@@ -70,8 +116,18 @@ class TensorListInterface : public _DALITensorList, public RefCountedObject {
 
   virtual cudaEvent_t GetOrCreateReadyEvent() = 0;
 
-  static RefCountedPtr<TensorListInterface> Create(daliBufferPlacement_t placement);
+  virtual daliTensorDesc_t GetTensorDesc(int sample) const = 0;
+
+  virtual RefCountedPtr<ITensor> ViewAsTensor() const = 0;
+
+  static RefCountedPtr<ITensorList> Create(daliBufferPlacement_t placement);
 };
+
+
+//////////////////////////////////////////////////////////////////////////////
+// Implementation
+//////////////////////////////////////////////////////////////////////////////
+
 
 struct BufferDeleter {
   daliDeleter_t deleter;
@@ -90,46 +146,191 @@ struct BufferDeleter {
 };
 
 template <typename Backend>
-class TensorListWrapper : public TensorListInterface {
+class TensorWrapper : public ITensor {
+ public:
+  TensorWrapper(std::shared_ptr<Tensor<Backend>> t) : t_(std::move(t)) {};
+
+  void Resize(
+      int ndim,
+      const int64_t *shape,
+      daliDataType_t dtype,
+      const char *layout) override {
+    ValidateShape(ndim, shape);
+    Validate(dtype);
+    if (layout)
+      Validate(TensorLayout(layout), ndim);
+    t_->Resize(TensorShape<>(make_cspan(shape, ndim)), dtype);
+    if (layout)
+      t_->SetLayout(layout);
+  }
+
+  void AttachBuffer(
+      int ndim,
+      const int64_t *shape,
+      daliDataType_t dtype,
+      const char *layout,
+      void *data,
+      daliDeleter_t deleter) override {
+    ValidateShape(ndim, shape);
+    Validate(dtype);
+    if (layout)
+      Validate(TensorLayout(layout), ndim);
+
+    TensorShape<> tshape(make_cspan(shape, ndim));
+    size_t num_elements = volume(tshape);
+    if (num_elements > 0 && !data)
+      throw std::invalid_argument("The data buffer must not be NULL for a non-empty tensor.");
+
+    TensorLayout new_layout = {};
+
+    if (!layout) {
+      if (ndim == t_->ndim())
+        new_layout = t_->GetLayout();
+    } else {
+      new_layout = layout;
+      Validate(new_layout, ndim);
+    }
+
+    t_->Reset();
+    auto type_info = TypeTable::GetTypeInfo(dtype);
+    auto element_size = type_info.size();
+
+    std::shared_ptr<void> buffer;
+    if (!deleter.delete_buffer && !deleter.destroy_context) {
+      buffer = std::shared_ptr<void>(data, [](void *){});
+    } else {
+      buffer = std::shared_ptr<void>(data, BufferDeleter{deleter, t_->order()});
+    }
+
+    t_->ShareData(
+      std::move(buffer),
+      num_elements * element_size,
+      t_->is_pinned(),
+      tshape,
+      dtype,
+      t_->device_id(),
+      t_->order());
+
+    if (layout)
+      t_->SetLayout(new_layout);
+  }
+
+  daliBufferPlacement_t GetBufferPlacement() const override {
+    daliBufferPlacement_t placement;
+    placement.device_id = t_->device_id();
+    StorageDevice dev = backend_to_storage_device<Backend>::value;
+    placement.device_type = static_cast<daliStorageDevice_t>(dev);
+    placement.pinned = t_->is_pinned();
+    return placement;
+  }
+
+  void SetStream(std::optional<cudaStream_t> stream, bool synchronize) override {
+    t_->set_order(stream.has_value() ? AccessOrder(*stream) : AccessOrder::host(), synchronize);
+  }
+
+  void SetLayout(const char *layout_string) {
+    if (layout_string) {
+      TensorLayout layout(layout_string);
+      Validate(layout, t_->ndim());
+      t_->SetLayout(layout);
+    } else {
+      t_->SetLayout("");
+    }
+  }
+
+  const char *GetLayout() const override {
+    auto &layout = t_->GetLayout();
+    return !layout.empty() ? layout.data() : nullptr;
+  }
+
+  std::optional<cudaStream_t> GetStream() const override {
+    auto o = t_->order();
+    if (o.is_device())
+      return o.stream();
+    else
+      return std::nullopt;
+  }
+
+  std::optional<cudaEvent_t> GetReadyEvent() const override {
+    auto &e = t_->ready_event();
+    if (e)
+      return e.get();
+    else
+      return std::nullopt;
+  }
+
+  cudaEvent_t GetOrCreateReadyEvent() override {
+    auto &e = t_->ready_event();
+    if (e)
+      return e.get();
+    int device_id = t_->device_id();
+    if (device_id < 0)
+      throw std::runtime_error("The tensor list is not associated with a CUDA device.");
+    t_->set_ready_event(CUDASharedEvent::Create(device_id));
+    return t_->ready_event().get();
+  }
+
+  daliTensorDesc_t GetDesc() const override {
+    auto &shape = t_->shape();
+    daliTensorDesc_t desc{};
+    desc.ndim = shape.sample_dim();
+    desc.data = t_->raw_mutable_data();
+    desc.dtype = t_->type();
+    desc.layout = GetLayout();
+    desc.shape = shape.data();
+    return desc;
+  }
+
+ private:
+  std::shared_ptr<Tensor<Backend>> t_;
+};
+
+template <typename Backend>
+RefCountedPtr<TensorWrapper<Backend>> Wrap(std::shared_ptr<Tensor<Backend>> tl) {
+  return RefCountedPtr<TensorWrapper<Backend>>(new TensorWrapper<Backend>(std::move(tl)));
+}
+
+template <typename Backend>
+class TensorListWrapper : public ITensorList {
  public:
   TensorListWrapper(std::shared_ptr<TensorList<Backend>> tl) : tl_(std::move(tl)) {};
 
   void Resize(
       int num_samples,
       int ndim,
+      const int64_t *shapes,
       daliDataType_t dtype,
-      const int64_t *shapes) override {
+      const char *layout) override {
+    Validate(dtype);
+    ValidateShape(num_samples, ndim, shapes);
+    if (layout)
+      Validate(TensorLayout(layout), ndim);
     std::vector<int64_t> shape_data(shapes, shapes + ndim * num_samples);
-    tl_->Resize(TensorListShape<>(shape_data, num_samples, ndim), dtype);
+    tl_->Resize(TensorListShape<>(std::move(shape_data), num_samples, ndim), dtype);
+    if (layout)
+      tl_->SetLayout(layout);
   }
 
   void AttachBuffer(
       int num_samples,
       int ndim,
+      const int64_t *shapes,
       daliDataType_t dtype,
       const char *layout,
-      const int64_t *shapes,
       void *data,
       const ptrdiff_t *sample_offsets,
       daliDeleter_t deleter) override {
+    ValidateShape(num_samples, ndim, shapes);
+    Validate(dtype);
 
-    if (num_samples < 0)
-      throw std::invalid_argument("The number of samples must not be negative.");
-    if (ndim < 0)
-      throw std::invalid_argument("The number of dimensions must not be negative.");
-    if (!shapes && ndim >= 0)
-      throw std::invalid_argument("The `shapes` are required for non-scalar (ndim>=0) samples.");
     if (!data && num_samples > 0) {
       for (int i = 0; i < num_samples; i++) {
         auto sample_shape = make_cspan(&shapes[i*ndim], ndim);
-        for (int j = 0; j < ndim; j++)
-          if (sample_shape[j] < 0)
-            throw std::invalid_argument(make_string(
-              "Negative extent encountered in the shape of sample ", i, ". Offending shape: ",
-              TensorShape<-1>(sample_shape)));
+
         if (volume(sample_shape) > 0)
           throw std::invalid_argument(
             "The pointer to the data buffer must not be null for a non-empty tensor list.");
+
         if (sample_offsets && sample_offsets[i])
           throw std::invalid_argument(
             "All sample_offsets must be zero when the data pointer is NULL.");
@@ -143,9 +344,7 @@ class TensorListWrapper : public TensorListInterface {
         new_layout = tl_->GetLayout();
     } else {
       new_layout = layout;
-      if (new_layout.ndim() != ndim)
-        throw std::invalid_argument(make_string(
-          "The layout '", new_layout, "' cannot describe ", ndim, "-dimensional data."));
+      Validate(new_layout, ndim);
     }
 
     tl_->Reset();
@@ -163,38 +362,65 @@ class TensorListWrapper : public TensorListInterface {
       buffer = std::shared_ptr<void>(data, BufferDeleter{deleter, tl_->order()});
     }
 
-    for (int i = 0; i < num_samples; i++) {
-      TensorShape<> sample_shape(make_cspan(&shapes[i*ndim], ndim));
-      void *sample_data;
-      size_t sample_bytes = volume(sample_shape) * element_size;
-      if (sample_offsets) {
-        sample_data = static_cast<char *>(data) + sample_offsets[i];
-      } else {
-        sample_data = static_cast<char *>(data) + next_offset;
-        next_offset += sample_bytes;
+    bool is_contiguous = true;
+    if (sample_offsets) {
+      for (int i = 0; i < num_samples; i++) {
+        if (sample_offsets[i] != next_offset) {
+          is_contiguous = false;
+          break;
+        }
+        auto num_elements = volume(make_cspan(&shapes[i*ndim], ndim));
+        next_offset += num_elements * element_size;
       }
-      tl_->SetSample(
-        i,
-        std::shared_ptr<void>(buffer, sample_data),
-        sample_bytes,
+    }
+
+    if (is_contiguous) {
+      std::vector<int64_t> shape_data(shapes, shapes + ndim * num_samples);
+      TensorListShape<> tl_shape(shape_data, num_samples, ndim);
+      tl_->ShareData(
+        std::move(buffer),
+        next_offset,
         tl_->is_pinned(),
-        sample_shape,
+        tl_shape,
         dtype,
         tl_->device_id(),
         tl_->order(),
         new_layout);
+    } else {
+      next_offset = 0;
+
+      for (int i = 0; i < num_samples; i++) {
+        TensorShape<> sample_shape(make_cspan(&shapes[i*ndim], ndim));
+        void *sample_data;
+        size_t sample_bytes = volume(sample_shape) * element_size;
+        if (sample_offsets) {
+          sample_data = static_cast<char *>(data) + sample_offsets[i];
+        } else {
+          sample_data = static_cast<char *>(data) + next_offset;
+          next_offset += sample_bytes;
+        }
+        tl_->SetSample(
+          i,
+          std::shared_ptr<void>(buffer, sample_data),
+          sample_bytes,
+          tl_->is_pinned(),
+          sample_shape,
+          dtype,
+          tl_->device_id(),
+          tl_->order(),
+          new_layout);
+      }
     }
   }
 
-  virtual void AttachSamples(
+  void AttachSamples(
       int num_samples,
       int ndim,
       daliDataType_t dtype,
       const char *layout,
       const daliTensorDesc_t *samples,
-      const daliDeleter_t *sample_deleters) {
-    if (num_samples < 0)
-      throw std::invalid_argument("The number of samples must not be negative.");
+      const daliDeleter_t *sample_deleters) override {
+    ValidateNumSamples(num_samples);
     if (num_samples > 0 && !samples)
       throw std::invalid_argument("The pointer to sample descriptors must not be NULL.");
     if (ndim < 0) {
@@ -204,21 +430,21 @@ class TensorListWrapper : public TensorListInterface {
       else
         ndim = samples[0].ndim;
     }
+    if (dtype == DALI_NO_TYPE) {
+      if (num_samples == 0)
+        throw std::invalid_argument(
+          "A valid data type must be provided when there's no sample to take it from.");
+      dtype = samples[0].dtype;
+    }
+    Validate(dtype);
 
     for (int i = 0; i < num_samples; i++) {
-      if (samples[i].ndim != ndim)
-        throw std::invalid_argument(make_string(
-            "Invalid `ndim` at sample ", i, ": got ", samples[i].ndim, ", expected ", ndim, "."));
       if (ndim && !samples[i].shape)
         throw std::invalid_argument(make_string("Got NULL shape in sample ", i, "."));
-
-      for (int j = 0; j < ndim; j++)
-        if (samples[i].shape[j] < 0) {
-          TensorShape<> sample_shape(make_cspan(samples[i].shape, samples[i].ndim));
-          throw std::invalid_argument(make_string(
-            "Negative extent encountered in the shape of sample ", i, ". Offending shape: ",
-            sample_shape));
-        }
+      if (samples[i].dtype != dtype)
+        throw std::invalid_argument(make_string("Unexpected data type in sample ", i, ". Got: ",
+          samples[i].dtype, ", expected ", dtype, "."));
+      ValidateSampleShape(i, make_cspan(samples[i].shape, samples[i].ndim), ndim);;
 
       if (!samples[i].data && volume(make_cspan(samples[i].shape, ndim)))
         throw std::invalid_argument(make_string(
@@ -232,9 +458,7 @@ class TensorListWrapper : public TensorListInterface {
         new_layout = tl_->GetLayout();
     } else {
       new_layout = layout;
-      if (new_layout.ndim() != ndim)
-        throw std::invalid_argument(make_string(
-          "The layout '", new_layout, "' cannot describe ", ndim, "-dimensional data."));
+      Validate(new_layout, ndim);
     }
 
     tl_->Reset();
@@ -287,9 +511,7 @@ class TensorListWrapper : public TensorListInterface {
   void SetLayout(const char *layout_string) {
     if (layout_string) {
       TensorLayout layout(layout_string);
-      if (layout.ndim() != tl_->sample_dim())
-        throw std::invalid_argument(make_string(
-          "The layout '", layout, "' cannot describe ", tl_->sample_dim(), "-dimensional data."));
+      Validate(layout, tl_->sample_dim());
       tl_->SetLayout(layout);
     } else {
       tl_->SetLayout("");
@@ -327,6 +549,46 @@ class TensorListWrapper : public TensorListInterface {
     tl_->set_ready_event(CUDASharedEvent::Create(device_id));
     return tl_->ready_event().get();
   }
+
+  daliTensorDesc_t GetTensorDesc(int sample) const override {
+    auto &shape = tl_->shape();
+    if (sample < 0 || sample >= shape.num_samples())
+      throw std::out_of_range(make_string("The sample index ", sample, " is out of range. "
+        "Valid indices are [0..", shape.num_samples() - 1, "]."));
+    daliTensorDesc_t desc{};
+    desc.ndim = shape.sample_dim();
+    desc.data = tl_->raw_mutable_tensor(sample);
+    desc.dtype = tl_->type();
+    desc.layout = GetLayout();
+    desc.shape = shape.tensor_shape_span(sample).data();
+    return desc;
+  }
+
+  RefCountedPtr<ITensor> ViewAsTensor() const override {
+    if (!tl_->IsContiguous())
+      throw std::runtime_error(
+        "The TensorList is not contiguous and cannot be viewed as a Tensor.");
+
+    auto t = std::make_shared<Tensor<Backend>>();
+    auto buf = unsafe_owner(*tl_);
+    auto &lshape = tl_->shape();
+    TensorShape<> tshape = shape_cat(lshape.num_samples(), lshape[0]);
+    t->ShareData(
+      std::move(buf),
+      tl_->nbytes(),
+      tl_->is_pinned(),
+      tshape,
+      tl_->type(),
+      tl_->device_id(),
+      tl_->order(),
+      tl_->ready_event());
+    TensorLayout layout = tl_->GetLayout();
+    if (layout.size() == tshape.sample_dim()) {
+      t->SetLayout("N" + layout);
+    }
+    return Wrap(std::move(t));
+  }
+
  private:
   std::shared_ptr<TensorList<Backend>> tl_;
 };
@@ -336,7 +598,9 @@ RefCountedPtr<TensorListWrapper<Backend>> Wrap(std::shared_ptr<TensorList<Backen
   return RefCountedPtr<TensorListWrapper<Backend>>(new TensorListWrapper<Backend>(std::move(tl)));
 }
 
-TensorListInterface *ToPointer(daliTensorList_h handle);
+
+ITensor *ToPointer(daliTensor_h handle);
+ITensorList *ToPointer(daliTensorList_h handle);
 
 }  // namespace c_api
 }  // namespace dali

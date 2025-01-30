@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"  // NOLINT
 #include <gtest/gtest.h>
 #include <stdexcept>
@@ -40,7 +41,6 @@ void CheckException(ExceptionType &&ex, daliResult_t expected_result) {
   EXPECT_EQ(daliGetLastError(), DALI_SUCCESS);
   EXPECT_STREQ(daliGetLastErrorMessage(), "");
 }
-
 
 TEST(CAPI2InternalTest, ErrorTranslation) {
   CheckException(std::runtime_error("Runtime Error"), DALI_ERROR_INVALID_OPERATION);

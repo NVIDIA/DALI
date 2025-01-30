@@ -19,6 +19,10 @@
 #error The new DALI C API is incompatible with the old one. Please do not include both headers in one translation unit.  // NOLINT
 #endif
 
+#ifndef DALI_ALLOW_NEW_C_API
+#error The new DALI C API is work in progress and incomplete.
+#endif
+
 #if (defined(__cplusplus) && __cplusplus < 201402L) || \
     (!defined(__cplusplus) && __STDC_VERSION__ < 199901L)
 #error The DALI C API requires a C99 or a C++14 compiler.
@@ -336,18 +340,6 @@ DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
  */
 DALI_API daliResult_t daliPipelineRun(daliPipeline_h pipeline);
 
-/** Executes the pipeline several times, to fill the buffer queues.
- *
- * NOTE: ExternalSource operators will need to be fet an appropriate number of times before this
- *       function can succeeed. Please check the required feed count by calling
- *       `daliPipelineFeedCount`.
- *
- * @retval DALI_SUCCESS
- * @retval DALI_ERROR_INVALID_KEY         if `input_name` is not a valid name of an input of the
- *                                        pipeline
- */
-DALI_API daliResult_t daliPipelinePrefetch(daliPipeline_h pipeline);
-
 /** Gets the required feed count for the specified input of the pipeline.
  *
  * @param pipeline        [in]  The pipeline
@@ -379,7 +371,10 @@ typedef enum _DALIFeedInputFlags {
  * @param input_data    the tensor list containing the data
  * @param data_id       an identifier of this data batch
  * @param options
- */
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_KEY         if `input_name` is not a valid name of an input of the
+ *                                        pipeline*/
 DALI_API daliResult_t daliPipelineFeedInput(
   daliPipeline_h pipeline,
   const char *input_name,
@@ -531,7 +526,7 @@ typedef struct _DALITensorDesc {
    *
    * The shape can be NULL if ndim == 0
    */
-  int64_t        *shape;
+  const int64_t  *shape;
 
   /** The type of the elements of the tensor */
   daliDataType_t  dtype;
@@ -542,7 +537,7 @@ typedef struct _DALITensorDesc {
    * correspond to the dimension in the shape. A row-major interleaved image
    * would have a layout "HWC"
    */
-  char           *layout;
+  const char     *layout;
 
   /** A pointer to the first element in the tensor.
    *
@@ -569,6 +564,10 @@ typedef struct _DALIBufferPlacement {
   daliBool            pinned;
 } daliBufferPlacement_t;
 
+/****************************************************************************/
+/*** TensorList *************************************************************/
+/****************************************************************************/
+
 /** Creates a TensorList on the specified device */
 DALI_API daliResult_t daliTensorListCreate(
   daliTensorList_h *out,
@@ -578,16 +577,21 @@ DALI_API daliResult_t daliTensorListCreate(
  *
  * @param num_samples   the number of samples in the batch
  * @param ndim          the number of dimensions of a sample
- * @param dtype         the element type
  * @param shapes        the concatenated shapes of the samples;
  *                      must contain num_samples*ndim extents
+ * @param dtype         the element type
+ * @param layout        a layout string describing the order of axes in each sample (e.g. HWC),
+ *                      if NULL, and the TensorList's number of dimensions is equal to `ndim,
+ *                      then the current layout is kept;
+ *                      if `layout` is an empty string, the tensor list's layout is cleared *
  */
 DALI_API daliResult_t daliTensorListResize(
   daliTensorList_h tensor_list,
   int num_samples,
   int ndim,
+  const int64_t *shapes,
   daliDataType_t dtype,
-  const int64_t *shapes);
+  const char *layout);
 
 /** Attaches an externally allocated buffer to a TensorList.
  *
@@ -600,25 +604,26 @@ DALI_API daliResult_t daliTensorListResize(
  * @param tensor_list     the TensorList to attach the data to
  * @param num_samples     the number of samples in the list
  * @param ndim            the number of dimensions in the sample
+ * @param shapes          the concatenated shapes of the samples;
+ *                        must contain num_samples*ndim extents
  * @param dtype           the element type
  * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
  *                        if NULL, and the TensorList's number of dimensions is equal to `ndim,
  *                        then the current layout is kept;
  *                        if `layout` is an empty string, the tensor list's layout is cleared
- * @param shapes          the concatenated shapes of the samples;
- *                        must contain num_samples*ndim extents
  * @param data            the pointer to the data buffer
  * @param sample_offsets  optional; the offsets, in bytes, of the samples in the batch from the
  *                        base pointer `data`; if NULL, the samples are assumed to be densely
  *                        packed, with the 0-th sample starting at the address `data`.
+ * @param deleter         an optional deleter called when the buffer reference count goes to zero
  */
 DALI_API daliResult_t daliTensorListAttachBuffer(
   daliTensorList_h tensor_list,
   int num_samples,
   int ndim,
+  const int64_t *shapes,
   daliDataType_t dtype,
   const char *layout,
-  const int64_t *shapes,
   void *data,
   const ptrdiff_t *sample_offsets,
   daliDeleter_t deleter);
@@ -637,8 +642,7 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  *                        if num_samples > 0, this value can be set to -1 and the number of
  *                        dimensions will be taken from samples[0].ndim
  * @param dtype           the type of the element of the tensor;
- *                        if dtype is DALI_NO_TYPE, then the type is taken from samples[0].dtype;
- *                        if set, the dtype in the samples can be left at -1
+ *                        if dtype is DALI_NO_TYPE, then the type is taken from samples[0].dtype
  * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
  *                        if NULL, and the TensorList's number of dimensions is equal to `ndim,
  *                        then the current layout is kept;
@@ -646,7 +650,7 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  * @param samples         the descriptors of the tensors to be attached to the TensorList;
  *                        the `ndim` and `dtype` of the samples must match and they must match the
  *                        values of `ndim` and `dtype` parameters.
- * @param sample_deleters the deleters, one for each sample (or NULL)
+ * @param sample_deleters optional deleters, one for each sample
  *
  * NOTE: If the sample_deleters specify the same object multiple times, its destructor must
  *       internally use reference counting to avoid multiple deletion.
@@ -661,7 +665,7 @@ DALI_API daliResult_t daliTensorListAttachSamples(
   const daliDeleter_t *sample_deleters);
 
 
-/** Associates a stream with the TensorList.
+/** Returns the placement of the TensorLists's underlying buffer.
  *
  * @param tensor_list   [in]  the TensorList whose buffer placement is queried
  * @param out_placement [out] a pointer to a place where the return value is stored.
@@ -799,7 +803,7 @@ DALI_API daliResult_t daliTensorListGetSourceInfo(
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
  * destroying, clearing or resizing the TensorList or re-attaching new data to it.
  */
-DALI_API daliResult_t daliTensorListGetTensor(
+DALI_API daliResult_t daliTensorListGetTensorDesc(
   daliTensorList_h tensor_list,
   daliTensorDesc_t *out_desc,
   int sample_idx);
@@ -824,6 +828,233 @@ DALI_API daliResult_t daliTensorListDecRef(daliTensorList_h tensor_list, int *ne
 
 /** Decrements the reference count of the tensor list */
 DALI_API daliResult_t daliTensorListRefCount(daliTensorList_h tensor_list, int *count);
+
+/** Views a TensorList as a Tensor.
+ *
+ * Creates a new Tensor that points to the same data as the TensorList. The samples in the
+ * TensorList must have a uniform shape and the data in the TensorList must be contiguous.
+ *
+ * The tensor holds a reference to the data in the TensorList - it is safe to destroy the
+ * TensorList and continue using the resulting Tensor.
+ *
+ * @retval DALI_SUCCESS on success
+ * @retval DALI_ERROR_INVALID_OPERATION if the data is not contiguous
+ * @retval DALI_ERROR_INVALID_HANDLE    the tensor list handle is invalid
+ * @return DALI_ERROR_INVALID_ARGUMENT  the tensor handle pointer is NULL
+ * @return DALI_ERROR_OUT_OF_MEMORY
+ */
+DALI_API daliResult_t daliTensorListViewAsTensor(
+  daliTensorList_h tensor_list,
+  daliTensor_h *out_tensor);
+
+/***************************************************************************/
+/*** Tensor ****************************************************************/
+/***************************************************************************/
+
+/** Creates a Tensor on the specified device */
+DALI_API daliResult_t daliTensorCreate(
+  daliTensor_h *out,
+  daliBufferPlacement_t placement);
+
+/** Changes the size of the tensor, allocating more data if necessary.
+ *
+ * @param num_samples   the number of samples in the batch
+ * @param ndim          the number of dimensions of a sample
+ * @param shape         the shape of the tensor; can be NULL if ndim == 0
+ * @param dtype         the element type
+ * @param layout        a layout string describing the order of axes in the tensor (e.g. HWC),
+ *                      if NULL, and the Tensor's number of dimensions is equal to `ndim,
+ *                      then the current layout is kept;
+ *                      if `layout` is an empty string, the tensor's layout is cleared
+ */
+DALI_API daliResult_t daliTensorResize(
+  daliTensor_h tensor,
+  int ndim,
+  const int64_t *shape,
+  daliDataType_t dtype,
+  const char *layout);
+
+/** Attaches an externally allocated buffer to a Tensor.
+ *
+ * Attaches an externally allocated buffer and a deleter to a Tensor.
+ * The deleter is called when the Tensor object is destroyed.
+ *
+ * The shape and layout are used only during this function call and may be safely
+ * disposed of after the function returns.
+ *
+ * @param tensor          the Tensor to attach the data to
+ * @param ndim            the number of dimensions in the sample
+ * @param dtype           the element type
+ * @param shape           the shape of the tensor; ndim extents; can be NULL if ndim == 0
+ * @param layout          a layout string describing the order of axes in the tensor (e.g. HWC),
+ *                        if NULL, and the Tensor's number of dimensions is equal to `ndim,
+ *                        then the current layout is kept;
+ *                        if `layout` is an empty string, the tensor's layout is cleared
+ * @param data            the pointer to the data buffer
+ * @param deleter         the deleter to be called when the tensor is destroyed
+ */
+DALI_API daliResult_t daliTensorAttachBuffer(
+  daliTensor_h tensor,
+  int ndim,
+  const int64_t *shape,
+  daliDataType_t dtype,
+  const char *layout,
+  void *data,
+  daliDeleter_t deleter);
+
+/** Returns the placement of the Tensor's underlying buffer.
+ *
+ * @param tensor        [in]  the Tensor whose buffer placement is queried
+ * @param out_placement [out] a pointer to a place where the return value is stored.
+ */
+DALI_API daliResult_t daliTensorGetBufferPlacement(
+  daliTensor_h tensor,
+  daliBufferPlacement_t *out_placement);
+
+/** Associates a stream with the Tensor.
+ *
+ * @param stream      an optional CUDA stream handle; if the handle poitner is NULL,
+ *                    host-synchronous behavior is prescribed.
+ * @param synchronize if true, the new stream (or host, if NULL), will be synchronized with the
+ *                    currently associated stream
+ */
+DALI_API daliResult_t daliTensorSetStream(
+  daliTensor_h tensor,
+  const cudaStream_t *stream,
+  daliBool synchronize
+);
+
+/** Gets the stream associated with the Tensor.
+ *
+ * @retval DALI_SUCCESS if the stream handle was stored in *out_stream
+ * @retval DALI_NO_DATA if the tensor is not associated with any stream
+ *         error code otherwise
+ */
+DALI_API daliResult_t daliTensorGetStream(
+  daliTensor_h tensor,
+  cudaStream_t *out_stream
+);
+
+/** Gets the readiness event associated with the Tensor.
+ *
+ * @param tensor      [in]  the tenosr list whose ready event is to be obtained
+ * @param out_event   [out] the pointer to the return value
+ *
+ * @retval DALI_SUCCESS if the ready event handle was stored in *out_event
+ * @retval DALI_NO_DATA if the tensor is not associated with a readiness event
+ *         error code otherwise
+ */
+DALI_API daliResult_t daliTensorGetReadyEvent(
+  daliTensor_h tensor,
+  cudaEvent_t *out_event);
+
+/** Gets the readiness event associated with the Tensor or creates a new one.
+ *
+ * @param tensor   [in]  the tensor to associate an even twith
+ * @param out_event     [out] optional, the event handle
+ *
+ * The function ensures that a readiness event is associated with the tensor.
+ * It can also get the event handle, if the output parameter pointer is not NULL.
+ * The function fails if the tensor is not associated with a CUDA device.
+ */
+DALI_API daliResult_t daliTensorGetOrCreateReadyEvent(
+  daliTensor_h tensor,
+  cudaEvent_t *out_event);
+
+
+/** Gets the shape of the tensor
+ *
+ * @param tensor          [in]  the tensor whose shape to obtain
+ * @param out_ndim        [out] optional; receives the number of dimensions
+ * @param out_shape       [out] optional; receives the the pointer to the shape (array of extents)
+ *
+ * The pointer returned in `out_shape` remains valid until the Tensor is destroyed or modified.
+ * If the caller is not intersted in some of the values, the pointers can be NULL.
+ */
+DALI_API daliResult_t daliTensorGetShape(
+  daliTensor_h tensor,
+  int *out_ndim,
+  const int64_t **out_shape);
+
+/** Gets a layout string describing the data in the Tensor.
+ *
+ * @param tensor      [in]  the tensor whose layout to obtain
+ * @param out_layout  [out] a pointer to the place where a pointer to the the layout string of
+ *                          the samples in the tensor is stored
+ *
+ * When present, the layout string consists of exactly `ndim` single-character _axis labels_.
+ * for example, an image would typically have a "HWC" layout.
+ * The axis labels can be any character except the null character '\0'.
+ * If there's no layout set, the returned pointer is NULL.
+ *
+ * The pointer remains valid until the tensor is destroyed, cleared, resized or its layout
+ * changed.
+ */
+DALI_API daliResult_t daliTensorGetLayout(
+  daliTensor_h tensor,
+  const char **out_layout);
+
+/** Sets the layout of the data in the Tensor.
+ *
+ * Sets the axis labels that describe the layout of the data in the Tensor.
+ * If the layout string is NULL or empty, the layout is cleared; otherwise it must contain exactly
+ * sample_ndim nonzero characters. The axis labels don't have to be unique.
+ */
+DALI_API daliResult_t daliTensorSetLayout(
+  daliTensor_h tensor,
+  const char *layout
+);
+
+/** Gets the "source info" metadata of a tensor.
+ *
+ * A tensor can be associated with a "source info" string, which typically is the file name,
+ * but can also contain an index in a container, key, etc.
+ *
+ * @param tensor          [in]  The tensor
+ * @param out_source_info [out] A pointer to a place where the pointer to the source_info string
+ *                              is stored. On success, `*out_source_info` contains a pointer to the
+ *                              beginning of a null-terminated string. If the sample doesn't have
+ *                              associated source info, a NULL pointer is returned.
+ *
+ * The return value is a string pointer. It is invalidated by destroying, clearing or resizing
+ * the Tensor as well as by assigning a new source info.
+ */
+DALI_API daliResult_t daliTensorGetSourceInfo(
+  daliTensor_h tensor,
+  const char **out_source_info);
+
+/** Gets the descriptor of the data in the tensor.
+ *
+ * @param tensor      [in] The tensor
+ * @param out_desc    [out] A poitner to a decriptor filled by this funciton.
+ *
+ * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
+ * destroying, clearing or resizing the Tensor or re-attaching new data to it.
+ */
+DALI_API daliResult_t daliTensorGetDesc(
+  daliTensor_h tensor,
+  daliTensorDesc_t *out_desc);
+
+/** Increments the reference count of the tensor.
+ *
+ * @param tensor [in]  A handle to the tensor.
+ * @param new_count   [out] If not NULL, the incremented reference count is returned in *new_count.
+ */
+DALI_API daliResult_t daliTensorIncRef(daliTensor_h tensor, int *new_count);
+
+/** Decrements the reference count of the tensor.
+ *
+ * The handle is destroyed if the reference count reaches 0.
+ * When the client code no longer needs the handle, it must call daliTensorDecRef.
+ *
+ *
+ * @param tensor [in]  A handle to the tensor.
+ * @param new_count   [out] If not NULL, the incremented reference count is returned in *new_count.
+ */
+DALI_API daliResult_t daliTensorDecRef(daliTensor_h tensor, int *new_count);
+
+/** Decrements the reference count of the tensor */
+DALI_API daliResult_t daliTensorRefCount(daliTensor_h tensor, int *count);
 
 #ifdef __cplusplus
 }  // extern "C"

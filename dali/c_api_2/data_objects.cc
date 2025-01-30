@@ -17,7 +17,32 @@
 
 namespace dali::c_api {
 
-RefCountedPtr<TensorListInterface> TensorListInterface::Create(daliBufferPlacement_t placement) {
+RefCountedPtr<ITensor> ITensor::Create(daliBufferPlacement_t placement) {
+  Validate(placement);
+  switch (placement.device_type) {
+    case DALI_STORAGE_CPU:
+    {
+      auto tl = std::make_shared<Tensor<CPUBackend>>();
+      tl->set_pinned(placement.pinned);
+      if (placement.pinned)
+        tl->set_device_id(placement.device_id);
+      return Wrap(std::move(tl));
+    }
+    case DALI_STORAGE_GPU:
+    {
+      auto tl = std::make_shared<Tensor<GPUBackend>>();
+      tl->set_pinned(placement.pinned);
+      tl->set_device_id(placement.device_id);
+      return Wrap(std::move(tl));
+    }
+    default:
+      assert(!"Unreachable code");
+      return {};
+  }
+}
+
+RefCountedPtr<ITensorList> ITensorList::Create(daliBufferPlacement_t placement) {
+  Validate(placement);
   switch (placement.device_type) {
     case DALI_STORAGE_CPU:
     {
@@ -35,23 +60,165 @@ RefCountedPtr<TensorListInterface> TensorListInterface::Create(daliBufferPlaceme
       return Wrap(std::move(tl));
     }
     default:
-      throw std::invalid_argument(make_string("Invalid storage device: ", placement.device_type));
+      assert(!"Unreachable code");
+      return {};
   }
 }
 
-TensorListInterface *ToPointer(daliTensorList_h handle) {
+ITensor *ToPointer(daliTensor_h handle) {
+  if (!handle)
+    throw NullHandle("Tensor");
+  return static_cast<ITensor *>(handle);
+}
+
+ITensorList *ToPointer(daliTensorList_h handle) {
   if (!handle)
     throw NullHandle("TensorList");
-  return static_cast<TensorListInterface *>(handle);
+  return static_cast<ITensorList *>(handle);
 }
 
 }  // namespace dali::c_api
 
 using namespace dali::c_api;  // NOLINT
 
+template <typename T>
+std::optional<T> ToOptional(const T *nullable) {
+  if (nullable == nullptr)
+    return std::nullopt;
+  else
+    return *nullable;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Tensor
+//////////////////////////////////////////////////////////////////////////////
+
+daliResult_t daliTensorCreate(daliTensor_h *out, daliBufferPlacement_t placement) {
+  DALI_PROLOG();
+  if (!out)
+    throw std::invalid_argument("The output parameter must not be NULL.");
+  auto t = dali::c_api::ITensor::Create(placement);
+  *out = t.release();  // no throwing allowed after this line!
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorIncRef(daliTensor_h t, int *new_ref) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(t);
+  int r = ptr->IncRef();
+  if (new_ref)
+    *new_ref = r;
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorDecRef(daliTensor_h t, int *new_ref) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(t);
+  int r = ptr->DecRef();
+  if (new_ref)
+    *new_ref = r;
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorRefCount(daliTensor_h t, int *ref) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(t);
+  int r = ptr->RefCount();
+  if (!ref)
+    throw std::invalid_argument("The output parameter must not be NULL.");
+  *ref = r;
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorAttachBuffer(
+      daliTensor_h tensor,
+      int ndim,
+      const int64_t *shape,
+      daliDataType_t dtype,
+      const char *layout,
+      void *data,
+      daliDeleter_t deleter) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  ptr->AttachBuffer(ndim, shape, dtype, layout, data, deleter);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorResize(
+      daliTensor_h tensor,
+      int ndim,
+      const int64_t *shape,
+      daliDataType_t dtype,
+      const char *layout) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  ptr->Resize(ndim, shape, dtype, layout);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorSetLayout(
+      daliTensor_h tensor,
+      const char *layout) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  ptr->SetLayout(layout);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorGetLayout(
+      daliTensor_h tensor,
+      const char **layout) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  if (!layout)
+    throw std::invalid_argument("The output parameter `layout` must not be be NULL");
+  *layout = ptr->GetLayout();
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorGetStream(
+      daliTensor_h tensor,
+      cudaStream_t *out_stream) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  if (!out_stream)
+    throw std::invalid_argument("The output parameter `out_stream` must not be NULL");
+  auto str = ptr->GetStream();
+  *out_stream = str.has_value() ? *str : cudaStream_t(-1);
+  return str.has_value() ? DALI_SUCCESS : DALI_NO_DATA;
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorSetStream(
+      daliTensor_h tensor,
+      const cudaStream_t *stream,
+      daliBool synchronize) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  ptr->SetStream(ToOptional(stream), synchronize);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorGetDesc(
+      daliTensor_h tensor,
+      daliTensorDesc_t *out_desc) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  if (!out_desc)
+    throw std::invalid_argument("The output parameter `out_desc` must not be NULL.");
+  *out_desc = ptr->GetDesc();
+  DALI_EPILOG();
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// TensorList
+//////////////////////////////////////////////////////////////////////////////
+
 daliResult_t daliTensorListCreate(daliTensorList_h *out, daliBufferPlacement_t placement) {
   DALI_PROLOG();
-  auto tl = dali::c_api::TensorListInterface::Create(placement);
+  if (!out)
+    throw std::invalid_argument("The output parameter must not be NULL.");
+  auto tl = dali::c_api::ITensorList::Create(placement);
   *out = tl.release();  // no throwing allowed after this line!
   DALI_EPILOG();
 }
@@ -84,23 +251,23 @@ daliResult_t daliTensorListRefCount(daliTensorList_h tl, int *ref) {
   DALI_EPILOG();
 }
 
-DALI_API daliResult_t daliTensorListAttachBuffer(
+daliResult_t daliTensorListAttachBuffer(
       daliTensorList_h tensor_list,
       int num_samples,
       int ndim,
+      const int64_t *shapes,
       daliDataType_t dtype,
       const char *layout,
-      const int64_t *shapes,
       void *data,
       const ptrdiff_t *sample_offsets,
       daliDeleter_t deleter) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  ptr->AttachBuffer(num_samples, ndim, dtype, layout, shapes, data, sample_offsets, deleter);
+  ptr->AttachBuffer(num_samples, ndim, shapes, dtype, layout, data, sample_offsets, deleter);
   DALI_EPILOG();
 }
 
-DALI_API daliResult_t daliTensorListAttachSamples(
+daliResult_t daliTensorListAttachSamples(
       daliTensorList_h tensor_list,
       int num_samples,
       int ndim,
@@ -118,11 +285,12 @@ daliResult_t daliTensorListResize(
       daliTensorList_h tensor_list,
       int num_samples,
       int ndim,
+      const int64_t *shapes,
       daliDataType_t dtype,
-      const int64_t *shapes) {
+      const char *layout) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  ptr->Resize(num_samples, ndim, dtype, shapes);
+  ptr->Resize(num_samples, ndim, shapes, dtype, layout);
   DALI_EPILOG();
 }
 
@@ -165,11 +333,18 @@ daliResult_t daliTensorListSetStream(
       daliBool synchronize) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  std::optional<cudaStream_t> opt_str;
-  if (stream)
-    opt_str = *stream;
-  else
-    opt_str = std::nullopt;
-  ptr->SetStream(opt_str, synchronize);
+  ptr->SetStream(ToOptional(stream), synchronize);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorListGetTensorDesc(
+      daliTensorList_h tensor_list,
+      daliTensorDesc_t *out_tensor,
+      int sample_idx) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  if (!out_tensor)
+    throw std::invalid_argument("The output parameter `out_tensor` must not be NULL.");
+  *out_tensor = ptr->GetTensorDesc(sample_idx);
   DALI_EPILOG();
 }

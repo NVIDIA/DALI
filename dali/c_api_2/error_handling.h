@@ -16,8 +16,27 @@
 #define DALI_C_API_2_ERROR_HANDLING_H_
 
 #include <stdexcept>
+#include <iostream>
+#include <string>
+#include <sstream>
+#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/error_handling.h"
+
+inline std::ostream &operator<<(std::ostream &os, daliResult_t result) {
+  const char *e = daliGetErrorName(result);
+  if (e[0] == '<')
+    os << "<unknown: " << static_cast<int>(result) << ">";
+  else
+    os << e;
+  return os;
+}
+
+inline std::string to_string(daliResult_t result) {
+  std::stringstream ss;
+  ss << result;
+  return ss.str();
+}
 
 namespace dali {
 namespace c_api {

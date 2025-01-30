@@ -15,6 +15,7 @@
 #ifndef DALI_C_API_2_MANAGED_HANDLE_H_
 #define DALI_C_API_2_MANAGED_HANDLE_H_
 
+#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/unique_handle.h"
 
@@ -115,6 +116,7 @@ class Resource##Handle \
 DALI_C_UNIQUE_HANDLE(Pipeline);
 DALI_C_UNIQUE_HANDLE(PipelineOutputs);
 DALI_C_REF_HANDLE(TensorList);
+DALI_C_REF_HANDLE(Tensor);
 
 
 }  // namespace dali::c_api
