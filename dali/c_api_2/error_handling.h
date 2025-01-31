@@ -45,10 +45,10 @@ DLL_PUBLIC daliResult_t HandleError(std::exception_ptr ex);
 DLL_PUBLIC daliResult_t CheckInit();
 
 class InvalidHandle : public std::invalid_argument {
-public:
+ public:
   InvalidHandle() : std::invalid_argument("The handle is invalid") {}
-  InvalidHandle(const std::string &what) : std::invalid_argument(what) {}
-  InvalidHandle(const char *what) : std::invalid_argument(what) {}
+  explicit InvalidHandle(const std::string &what) : std::invalid_argument(what) {}
+  explicit InvalidHandle(const char *what) : std::invalid_argument(what) {}
 };
 
 inline InvalidHandle NullHandle() { return InvalidHandle("The handle must not be NULL."); }

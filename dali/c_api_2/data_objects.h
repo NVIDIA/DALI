@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
 #define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -148,7 +150,7 @@ struct BufferDeleter {
 template <typename Backend>
 class TensorWrapper : public ITensor {
  public:
-  TensorWrapper(std::shared_ptr<Tensor<Backend>> t) : t_(std::move(t)) {};
+  explicit TensorWrapper(std::shared_ptr<Tensor<Backend>> t) : t_(std::move(t)) {}
 
   void Resize(
       int ndim,
@@ -293,7 +295,7 @@ RefCountedPtr<TensorWrapper<Backend>> Wrap(std::shared_ptr<Tensor<Backend>> tl) 
 template <typename Backend>
 class TensorListWrapper : public ITensorList {
  public:
-  TensorListWrapper(std::shared_ptr<TensorList<Backend>> tl) : tl_(std::move(tl)) {};
+  explicit TensorListWrapper(std::shared_ptr<TensorList<Backend>> tl) : tl_(std::move(tl)) {}
 
   void Resize(
       int num_samples,
@@ -351,6 +353,7 @@ class TensorListWrapper : public ITensorList {
     tl_->SetSize(num_samples);
     tl_->set_sample_dim(ndim);
     tl_->SetLayout(new_layout);
+    tl_->set_type(dtype);
     ptrdiff_t next_offset = 0;
     auto type_info = TypeTable::GetTypeInfo(dtype);
     auto element_size = type_info.size();
@@ -375,6 +378,7 @@ class TensorListWrapper : public ITensorList {
     }
 
     if (is_contiguous) {
+      tl_->SetContiguity(BatchContiguity::Contiguous);
       std::vector<int64_t> shape_data(shapes, shapes + ndim * num_samples);
       TensorListShape<> tl_shape(shape_data, num_samples, ndim);
       tl_->ShareData(
@@ -387,6 +391,7 @@ class TensorListWrapper : public ITensorList {
         tl_->order(),
         new_layout);
     } else {
+      tl_->SetContiguity(BatchContiguity::Automatic);
       next_offset = 0;
 
       for (int i = 0; i < num_samples; i++) {
@@ -583,7 +588,7 @@ class TensorListWrapper : public ITensorList {
       tl_->order(),
       tl_->ready_event());
     TensorLayout layout = tl_->GetLayout();
-    if (layout.size() == tshape.sample_dim()) {
+    if (layout.size() == lshape.sample_dim()) {
       t->SetLayout("N" + layout);
     }
     return Wrap(std::move(t));

@@ -65,7 +65,6 @@ inline auto CreateTensorList(daliBufferPlacement_t placement) {
 void TestTensorListResize(daliStorageDevice_t storage_device) {
   daliBufferPlacement_t placement{};
   placement.device_type = storage_device;
-  auto tl = CreateTensorList(placement);
   int64_t shapes[] = {
     480, 640, 3,
     600, 800, 4,
@@ -74,6 +73,7 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   };
   daliDataType_t dtype = DALI_UINT32;
 
+  auto tl = CreateTensorList(placement);
   EXPECT_EQ(daliTensorListResize(tl, 4, 3, nullptr, dtype, nullptr), DALI_ERROR_INVALID_ARGUMENT);
   EXPECT_EQ(daliTensorListResize(tl, -1, 3, shapes, dtype, nullptr), DALI_ERROR_INVALID_ARGUMENT);
   EXPECT_EQ(daliTensorListResize(tl, 4, -1, shapes, dtype, nullptr), DALI_ERROR_INVALID_ARGUMENT);
@@ -115,11 +115,39 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   }
 }
 
+struct TestDeleterCtx {
+  void *expected_data;
+  int buffer_delete_count;
+  int context_delete_count;
+};
+
+template <typename element_t>
+inline std::pair<daliDeleter_t, std::unique_ptr<TestDeleterCtx>>
+MakeTestDeleter(element_t *expected_data) {
+  auto ctx = std::unique_ptr<TestDeleterCtx>(new TestDeleterCtx{ expected_data, 0, 0 });
+  daliDeleter_t deleter = {};
+  deleter.deleter_ctx = ctx.get();
+  deleter.delete_buffer = [](void *vctx, void *data, const cudaStream_t *stream) {
+    ASSERT_NE(data, nullptr);
+    auto *ctx = static_cast<TestDeleterCtx *>(vctx);
+    EXPECT_EQ(ctx->context_delete_count, 0);
+    EXPECT_EQ(ctx->buffer_delete_count, 0);
+    EXPECT_EQ(data, ctx->expected_data);
+    ctx->buffer_delete_count++;
+    delete [] static_cast<element_t *>(data);
+  };
+  deleter.destroy_context = [](void *vctx) {
+    auto *ctx = static_cast<TestDeleterCtx *>(vctx);
+    EXPECT_EQ(ctx->context_delete_count, 0);
+    EXPECT_EQ(ctx->buffer_delete_count, 1);
+    ctx->context_delete_count++;
+  };
+  return { deleter, std::move(ctx) };
+}
 
 TEST(CAPI2_TensorListTest, AttachBuffer) {
   daliBufferPlacement_t placement{};
   placement.device_type = DALI_STORAGE_CPU;
-  auto tl = CreateTensorList(placement);
   using element_t = int;
   daliDataType_t dtype = dali::type2id<element_t>::value;
   dali::TensorListShape<> lshape({
@@ -135,30 +163,9 @@ TEST(CAPI2_TensorListTest, AttachBuffer) {
   for (int i = 1; i < 4; i++)
     offsets[i] = offsets[i - 1] + volume(lshape[i - 1]) * sizeof(element_t);
 
-  struct DeleterCtx {
-    void *expected_data;
-    int buffer_delete_count;
-    int context_delete_count;
-  };
-  DeleterCtx ctx = { data.get(), 0, 0 };
-  daliDeleter_t deleter = {};
-  deleter.deleter_ctx = &ctx;
-  deleter.delete_buffer = [](void *vctx, void *data, const cudaStream_t *stream) {
-    ASSERT_NE(data, nullptr);
-    auto *ctx = static_cast<DeleterCtx *>(vctx);
-    EXPECT_EQ(ctx->context_delete_count, 0);
-    EXPECT_EQ(ctx->buffer_delete_count, 0);
-    EXPECT_EQ(data, ctx->expected_data);
-    ctx->buffer_delete_count++;
-    delete [] static_cast<element_t *>(data);
-  };
-  deleter.destroy_context = [](void *vctx) {
-    auto *ctx = static_cast<DeleterCtx *>(vctx);
-    EXPECT_EQ(ctx->context_delete_count, 0);
-    EXPECT_EQ(ctx->buffer_delete_count, 1);
-    ctx->context_delete_count++;
-  };
+  auto [deleter, ctx] = MakeTestDeleter(data.get());
 
+  auto tl = CreateTensorList(placement);
   ASSERT_EQ(daliTensorListAttachBuffer(
       tl,
       lshape.num_samples(),
@@ -189,9 +196,113 @@ TEST(CAPI2_TensorListTest, AttachBuffer) {
 
   tl.reset();
 
-  EXPECT_EQ(ctx.buffer_delete_count, 1) << "Buffer deleter not called";
-  EXPECT_EQ(ctx.context_delete_count, 1) << "Deleter context not destroyed";
+  EXPECT_EQ(ctx->buffer_delete_count, 1) << "Buffer deleter not called";
+  EXPECT_EQ(ctx->context_delete_count, 1) << "Deleter context not destroyed";
 }
+
+
+TEST(CAPI2_TensorListTest, ViewAsTensor) {
+  daliBufferPlacement_t placement{};
+  placement.device_type = DALI_STORAGE_CPU;
+  using element_t = int;
+  daliDataType_t dtype = dali::type2id<element_t>::value;
+  dali::TensorListShape<> lshape = dali::uniform_list_shape(4, { 480, 640, 3 });
+  auto size = lshape.num_elements();
+  std::unique_ptr<element_t> data(new element_t[size]);
+
+  ptrdiff_t sample_size = volume(lshape[0]) * sizeof(element_t);
+
+  ptrdiff_t offsets[4] = {
+    0,
+    1 * sample_size,
+    2 * sample_size,
+    3 * sample_size,
+  };
+
+  auto [deleter, ctx] = MakeTestDeleter(data.get());
+
+  auto tl = CreateTensorList(placement);
+  ASSERT_EQ(daliTensorListAttachBuffer(
+      tl,
+      lshape.num_samples(),
+      lshape.sample_dim(),
+      lshape.data(),
+      dtype,
+      "HWC",
+      data.get(),
+      offsets,
+      deleter), DALI_SUCCESS);
+
+  void *data_ptr = data.release();  // the buffer is now owned by the tensor list
+
+  daliTensor_h ht = nullptr;
+  EXPECT_EQ(daliTensorListViewAsTensor(tl, &ht), DALI_SUCCESS);
+  ASSERT_NE(ht, nullptr);
+  dali::c_api::TensorHandle t(ht);
+
+  daliTensorDesc_t desc{};
+  EXPECT_EQ(daliTensorGetDesc(t, &desc), DALI_SUCCESS);
+  EXPECT_EQ(desc.data, data_ptr);
+  EXPECT_EQ(desc.shape[0], lshape.num_samples());
+  ASSERT_EQ(desc.ndim, 4);
+  ASSERT_NE(desc.shape, nullptr);
+  EXPECT_EQ(desc.shape[1], lshape[0][0]);
+  EXPECT_EQ(desc.shape[2], lshape[0][1]);
+  EXPECT_EQ(desc.shape[3], lshape[0][2]);
+  EXPECT_STREQ(desc.layout, "NHWC");
+  EXPECT_EQ(desc.dtype, dtype);
+
+  tl.reset();
+
+  EXPECT_EQ(ctx->buffer_delete_count, 0) << "Buffer prematurely destroyed";
+  EXPECT_EQ(ctx->context_delete_count, 0) << "Deleter context prematurely destroyed";
+
+  t.reset();
+
+  EXPECT_EQ(ctx->buffer_delete_count, 1) << "Buffer deleter not called";
+  EXPECT_EQ(ctx->context_delete_count, 1) << "Deleter context not destroyed";
+}
+
+
+TEST(CAPI2_TensorListTest, ViewAsTensorError) {
+  daliBufferPlacement_t placement{};
+  placement.device_type = DALI_STORAGE_CPU;
+  using element_t = int;
+  daliDataType_t dtype = dali::type2id<element_t>::value;
+  dali::TensorListShape<> lshape = dali::uniform_list_shape(4, { 480, 640, 3 });
+  auto size = lshape.num_elements();
+  std::unique_ptr<element_t> data(new element_t[size]);
+
+  ptrdiff_t sample_size = volume(lshape[0]) * sizeof(element_t);
+
+  // The samples are not in order
+  ptrdiff_t offsets[4] = {
+    0,
+    2 * sample_size,
+    1 * sample_size,
+    3 * sample_size,
+  };
+
+  auto [deleter, ctx] = MakeTestDeleter(data.get());
+
+  auto tl = CreateTensorList(placement);
+  ASSERT_EQ(daliTensorListAttachBuffer(
+      tl,
+      lshape.num_samples(),
+      lshape.sample_dim(),
+      lshape.data(),
+      dtype,
+      "HWC",
+      data.get(),
+      offsets,
+      deleter), DALI_SUCCESS);
+
+  void *data_ptr = data.release();  // the buffer is now owned by the tensor list
+
+  daliTensor_h ht = nullptr;
+  EXPECT_EQ(daliTensorListViewAsTensor(tl, &ht), DALI_ERROR_INVALID_OPERATION);
+}
+
 
 TEST(CAPI2_TensorListTest, ResizeCPU) {
   TestTensorListResize(DALI_STORAGE_CPU);

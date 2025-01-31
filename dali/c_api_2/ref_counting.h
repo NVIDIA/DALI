@@ -92,7 +92,7 @@ class RefCountedPtr {
   void reset() noexcept {
     if (ptr_)
       ptr_->DecRef();
-    ptr_= nullptr;
+    ptr_ = nullptr;
   }
 
   [[nodiscard]] T *release() noexcept {

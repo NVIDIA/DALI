@@ -348,3 +348,15 @@ daliResult_t daliTensorListGetTensorDesc(
   *out_tensor = ptr->GetTensorDesc(sample_idx);
   DALI_EPILOG();
 }
+
+daliResult_t daliTensorListViewAsTensor(
+      daliTensorList_h tensor_list,
+      daliTensor_h *out_tensor) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  if (!out_tensor)
+    throw std::invalid_argument("The output parameter `out_tensor` must not be NULL.");
+  auto t = ptr->ViewAsTensor();
+  *out_tensor = t.release();  // no throwing allowed after this line
+  DALI_EPILOG();
+}

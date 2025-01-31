@@ -15,14 +15,14 @@
 #ifndef DALI_C_API_2_VALIDATION_H_
 #define DALI_C_API_2_VALIDATION_H_
 
+#include <stdexcept>
+#include <optional>
 #define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/format.h"
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/data/types.h"
-#include <stdexcept>
-#include <optional>
 
 namespace dali::c_api {
 
