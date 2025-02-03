@@ -103,6 +103,7 @@ Data Backends
 
 - **dali_proxy**:
   Uses a DALI pipeline for preprocessing and augmentation while relying on PyTorch's data loader. DALI Proxy facilitates the transfer of data to DALI for processing.
+  See :ref:`pytorch_dali_proxy`.
 
 - **pytorch**: 
   Employs the native PyTorch data loader for data preprocessing and augmentation.

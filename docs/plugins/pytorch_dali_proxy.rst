@@ -1,3 +1,4 @@
+.. _pytorch_dali_proxy:
 PyTorch DALI Proxy
 ==================
 
