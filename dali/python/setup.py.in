@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ For more details please check the
           # the latest astunparse (1.6.3) doesn't work with any other six than
           # 1.16 on python 3.12 due to import six.moves
           'six >= 1.16, <= 1.16',
-          'dm-tree <= 0.1.8',
+          'dm-tree <= 0.1.9',
           'packaging <= 24.2',
           @DALI_INSTALL_REQUIRES_NVJPEG2K@
           @DALI_INSTALL_REQUIRES_NVTIFF@
