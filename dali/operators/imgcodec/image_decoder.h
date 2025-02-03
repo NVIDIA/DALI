@@ -552,15 +552,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
            MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
   }
 
-  /**
-   * @brief nvImageCodec up to 0.2 doesn't synchronize with the user stream before decoding.
-   * Because of that, we need to host synchronize before passing the async allocated buffer
-   * to the decoding function
-   */
-  bool need_host_sync_alloc() {
-    return !version_at_least(0, 3, 0);
-  }
-
   void PrepareOutput(SampleState &st, void *out_ptr, const ROI &roi, const Workspace &ws) {
     // Make a copy of the parsed img info. We might modify it
     // (for example, request planar vs. interleaved, etc)
@@ -794,7 +785,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
     size_t nsamples_decode = batch_images_.size();
     size_t nsamples_cache = nsamples - nsamples_decode;
 
-    if (ws.has_stream() && need_host_sync_alloc() && any_need_processing) {
+    // Ensure allocated memory is usable by the decoder's internal streams,
+    // as we are intentionally skipping pre-sync to avoid slowing down the general case.
+    if (ws.has_stream() && any_need_processing) {
       DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     }
