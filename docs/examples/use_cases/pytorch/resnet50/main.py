@@ -93,12 +93,14 @@ def parse():
                         '"dali" for DALI data loader, or "dali_proxy" for PyTorch dataloader with DALI proxy preprocessing.')
     parser.add_argument('--prof', default=-1, type=int,
                         help='Only run 10 iterations for profiling.')
-    parser.add_argument('--deterministic', action='store_true')
-
+    parser.add_argument('--deterministic', action='store_true',
+                    help='Enable deterministic behavior for reproducibility')
     parser.add_argument('--fp16-mode', default=False, action='store_true',
                         help='Enable half precision mode.')
-    parser.add_argument('--loss-scale', type=float, default=1)
-    parser.add_argument('--channels-last', type=bool, default=False)
+    parser.add_argument('--loss-scale', type=float, default=1,
+                    help='Scaling factor for loss to prevent underflow in FP16 mode.')
+    parser.add_argument('--channels-last', type=bool, default=False,
+                    help='Use channels last memory format for tensors.')
     parser.add_argument('-t', '--test', action='store_true',
                         help='Launch test mode with preset arguments')
     args = parser.parse_args()
