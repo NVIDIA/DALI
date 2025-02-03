@@ -44,6 +44,18 @@ The default learning rate schedule starts at 0.1 and decays by a factor of 10 ev
 
    python main.py -a alexnet --lr 0.01 [imagenet-folder with train and val folders]
 
+Data loaders
+------------
+
+- **dali**:
+  Leverages a DALI pipeline along with DALI's PyTorch iterator for data loading, preprocessing, and augmentation.
+
+- **dali_proxy**:
+  Uses a DALI pipeline for preprocessing and augmentation while relying on PyTorch's data loader. DALI Proxy facilitates the transfer of data to DALI for processing.
+
+- **pytorch**:
+  Employs the native PyTorch data loader for data preprocessing and augmentation.
+
 Usage
 -----
 
