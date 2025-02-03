@@ -55,7 +55,7 @@ The lower the speed, the more additional pre- and postprocessing is used to enha
 This operator produces the motion vector field at a coarser resolution than the input pixels.
 This parameter specifies the size of the pixel grid cell corresponding to one motion vector.
 For example, a value of 4 will produce one motion vector for each 4x4 pixel block. Hence, to
-use optical flow with an `output_grid` of 4 to resample a full resolution image, the flow field 
+use optical flow with an `output_grid` of 4 to resample a full resolution image, the flow field
 is upsampled *without* scaling the vector quantities.
 
 .. note::
@@ -182,13 +182,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace &ws) {
     CUDA_CALL(cudaEventRecord(sync_, of_stream));
     CUDA_CALL(cudaStreamWaitEvent(ws.stream(), sync_, 0));
   }
-}
-
-template <>
-OpticalFlow<GPUBackend>::~OpticalFlow() {
-#if NVML_ENABLED
-  nvml::Shutdown();
-#endif
 }
 
 }  // namespace dali
