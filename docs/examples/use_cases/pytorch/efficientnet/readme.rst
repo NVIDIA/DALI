@@ -89,11 +89,27 @@ You may need to adjust ``--batch-size`` parameter for your machine.
 
 You can change the data loader and automatic augmentation scheme that are used by adding:
 
-* ``--data-backend``: ``dali`` | ``pytorch`` | ``synthetic``,
+* ``--data-backend``: ``dali`` | ``dali_proxy`` | ``pytorch`` | ``synthetic``,
 * ``--automatic-augmentation``: ``disabled`` | ``autoaugment`` | ``trivialaugment`` (the last one only for DALI),
 * ``--dali-device``: ``cpu`` | ``gpu`` (only for DALI).
 
-By default DALI GPU-variant with AutoAugment is used.
+By default DALI GPU-variant with AutoAugment is used (``dali`` and ``dali_proxy`` backends).
+
+Data Backends
+-------------
+
+- **dali**:
+  Leverages a DALI pipeline along with DALI's PyTorch iterator for data loading, preprocessing, and augmentation.
+
+- **dali_proxy**:
+  Uses a DALI pipeline for preprocessing and augmentation while relying on PyTorch's data loader. DALI Proxy facilitates the transfer of data to DALI for processing.
+  See :ref:`pytorch_dali_proxy`.
+
+- **pytorch**: 
+  Employs the native PyTorch data loader for data preprocessing and augmentation.
+
+- **synthetic**: 
+  Creates synthetic data on the fly, which is useful for testing and benchmarking purposes. This backend eliminates the need for actual datasets, providing a convenient way to simulate data loading.
 
 For example to run the EfficientNet with AMP on a batch size of 128 with DALI using TrivialAugment you need to invoke:
 
@@ -160,6 +176,20 @@ To run training benchmarks with different data loaders and automatic augmentatio
                       --data-backend dali --automatic-augmentation trivialaugment
                       --workspace $RESULT_WORKSPACE
                       --report-file bench_report_dali_ta.json $PATH_TO_IMAGENET
+
+  # DALI proxy with AutoAugment
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali_proxy --automatic-augmentation autoaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali_proxy_aa.json $PATH_TO_IMAGENET
+
+  # DALI proxy with TrivialAugment
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali_proxy --automatic-augmentation trivialaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali_proxy_ta.json $PATH_TO_IMAGENET
 
   # PyTorch without automatic augmentations
   python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
