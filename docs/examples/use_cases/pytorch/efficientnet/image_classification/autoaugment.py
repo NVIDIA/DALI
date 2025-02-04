@@ -96,7 +96,7 @@ class OperationFactory:
             for i in range(256):
                 if i < threshold:
                     res = i + addition if i + addition <= 255 else 255
-                    res = int(res if res >= 0 else 0)
+                    res = res if res >= 0 else 0
                     lut.append(res)
                 else:
                     lut.append(i)

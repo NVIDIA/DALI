@@ -29,13 +29,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import os
 
-os.environ["KMP_AFFINITY"] = (
-    "disabled"  # We need to do this before importing anything else as a workaround for this bug: https://github.com/pytorch/pytorch/issues/28389
-)
+os.environ[
+    "KMP_AFFINITY"
+] = "disabled"  # We need to do this before importing anything else as a workaround for this bug: https://github.com/pytorch/pytorch/issues/28389
 
 import argparse
 import random
-from contextlib import nullcontext
+from copy import deepcopy
 
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -103,10 +103,8 @@ def add_parser_arguments(parser, skip_arch=False):
         default=4,
         type=int,
         metavar="N",
-        help=(
-            "number of data loading workers (default: 4)."
-            " The number of workers for PyTorch loader is doubled."
-        ),
+        help=("number of data loading workers (default: 4)."
+              " The number of workers for PyTorch loader is doubled."),
     )
     parser.add_argument(
         "--prefetch",
@@ -120,9 +118,7 @@ def add_parser_arguments(parser, skip_arch=False):
         default="gpu",
         type=str,
         choices=["cpu", "gpu"],
-        help=(
-            "The placement of DALI decode and random resized crop operations (default: gpu)"
-        ),
+        help=("The placement of DALI decode and random resized crop operations (default: gpu)"),
     )
     parser.add_argument(
         "--epochs",
@@ -179,19 +175,13 @@ def add_parser_arguments(parser, skip_arch=False):
         type=str,
         metavar="SCHEDULE",
         choices=["step", "linear", "cosine"],
-        help="Type of LR schedule: {}, {}, {}".format(
-            "step", "linear", "cosine"
-        ),
+        help="Type of LR schedule: {}, {}, {}".format("step", "linear", "cosine"),
     )
 
     parser.add_argument("--end-lr", default=0, type=float)
 
     parser.add_argument(
-        "--warmup",
-        default=16,
-        type=int,
-        metavar="E",
-        help="number of warmup epochs",
+        "--warmup", default=16, type=int, metavar="E", help="number of warmup epochs"
     )
 
     parser.add_argument(
@@ -265,11 +255,7 @@ def add_parser_arguments(parser, skip_arch=False):
         help="Static loss scale, positive power of 2 values can improve amp convergence.",
     )
     parser.add_argument(
-        "--prof",
-        type=int,
-        default=-1,
-        metavar="N",
-        help="Run only N iterations",
+        "--prof", type=int, default=-1, metavar="N", help="Run only N iterations"
     )
     parser.add_argument(
         "--amp",
@@ -278,10 +264,7 @@ def add_parser_arguments(parser, skip_arch=False):
     )
 
     parser.add_argument(
-        "--seed",
-        default=None,
-        type=int,
-        help="random seed used for numpy and pytorch",
+        "--seed", default=None, type=int, help="random seed used for numpy and pytorch"
     )
 
     parser.add_argument(
@@ -305,9 +288,7 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--evaluate", action="store_true", help="evaluate checkpoint/model"
     )
-    parser.add_argument(
-        "--training-only", action="store_true", help="do not evaluate"
-    )
+    parser.add_argument("--training-only", action="store_true", help="do not evaluate")
 
     parser.add_argument(
         "--no-checkpoints",
@@ -323,9 +304,7 @@ def add_parser_arguments(parser, skip_arch=False):
         help="no -> do not use torch.jit; script -> use torch.jit.script",
     )
 
-    parser.add_argument(
-        "--checkpoint-filename", default="checkpoint.pth.tar", type=str
-    )
+    parser.add_argument("--checkpoint-filename", default="checkpoint.pth.tar", type=str)
 
     parser.add_argument(
         "--workspace",
@@ -396,9 +375,7 @@ def prepare_for_training(args, model_args, model_arch):
         def _worker_init_fn(id):
             # Worker process should inherit its affinity from parent
             affinity = os.sched_getaffinity(0)
-            print(
-                f"Process {args.local_rank} Worker {id} set affinity to: {affinity}"
-            )
+            print(f"Process {args.local_rank} Worker {id} set affinity to: {affinity}")
 
             np.random.seed(seed=args.seed + args.local_rank + id)
             random.seed(args.seed + args.local_rank + id)
@@ -408,15 +385,11 @@ def prepare_for_training(args, model_args, model_arch):
         def _worker_init_fn(id):
             # Worker process should inherit its affinity from parent
             affinity = os.sched_getaffinity(0)
-            print(
-                f"Process {args.local_rank} Worker {id} set affinity to: {affinity}"
-            )
+            print(f"Process {args.local_rank} Worker {id} set affinity to: {affinity}")
 
     if args.static_loss_scale != 1.0:
         if not args.amp:
-            print(
-                "Warning: if --amp is not used, static_loss_scale will be ignored."
-            )
+            print("Warning: if --amp is not used, static_loss_scale will be ignored.")
 
     if args.optimizer_batch_size < 0:
         batch_size_multiplier = 1
@@ -438,8 +411,7 @@ def prepare_for_training(args, model_args, model_arch):
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(
-                args.resume,
-                map_location=lambda storage, loc: storage.cuda(args.gpu),
+                args.resume, map_location=lambda storage, loc: storage.cuda(args.gpu)
             )
             start_epoch = checkpoint["epoch"]
             best_prec1 = checkpoint["best_prec1"]
@@ -474,17 +446,13 @@ def prepare_for_training(args, model_args, model_arch):
         loss = lambda: LabelSmoothing(args.label_smoothing)
 
     memory_format = (
-        torch.channels_last
-        if args.memory_format == "nhwc"
-        else torch.contiguous_format
+        torch.channels_last if args.memory_format == "nhwc" else torch.contiguous_format
     )
     model = model_arch(
         **{
-            k: (
-                v
-                if k != "pretrained"
-                else v and (not args.distributed or dist.get_rank() == 0)
-            )
+            k: v
+            if k != "pretrained"
+            else v and (not args.distributed or dist.get_rank() == 0)
             for k, v in model_args.__dict__.items()
         }
     )
@@ -519,18 +487,9 @@ def prepare_for_training(args, model_args, model_arch):
         args.workers = args.workers * 2
         get_train_loader = get_pytorch_train_loader
         get_val_loader = get_pytorch_val_loader
-    elif args.data_backend == "pytorch_optimized":
-        args.workers = args.workers * 2
-        get_train_loader = get_pytorch_optimized_train_loader
-        get_val_loader = get_pytorch_optimize_val_loader
     elif args.data_backend == "dali":
         get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
         get_val_loader = get_dali_val_loader()
-    elif args.data_backend == "dali_proxy":
-        get_train_loader = get_dali_proxy_train_loader(
-            dali_device=args.dali_device
-        )
-        get_val_loader = get_dali_proxy_val_loader()
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
         get_train_loader = get_synthetic_loader
@@ -568,10 +527,7 @@ def prepare_for_training(args, model_args, model_arch):
         prefetch_factor=args.prefetch,
     )
 
-    if (
-        not torch.distributed.is_initialized()
-        or torch.distributed.get_rank() == 0
-    ):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
         logger = log.Logger(
             args.print_freq,
             [
@@ -653,47 +609,30 @@ def main(args, model_args, model_arch):
         best_prec1,
     ) = prepare_for_training(args, model_args, model_arch)
 
-    def get_ctx(loader):
-        """
-        Get context from a dataloader object. This is a utility so that we can run with the
-        same code for DALI iterators, PyTorch dataloader, or DALI proxy dataloader.
-        """
-        if isinstance(loader, dali_proxy.DataLoader):
-            return loader.dali_server
-        if hasattr(loader, "dataloader"):
-            return get_ctx(loader.dataloader)
-        return nullcontext()
-
-    with get_ctx(train_loader), get_ctx(val_loader):
-        train_loop(
-            trainer,
-            lr_policy,
-            train_loader,
-            train_loader_len,
-            val_loader,
-            logger,
-            start_epoch=start_epoch,
-            end_epoch=(
-                min((start_epoch + args.run_epochs), args.epochs)
-                if args.run_epochs != -1
-                else args.epochs
-            ),
-            early_stopping_patience=args.early_stopping_patience,
-            best_prec1=best_prec1,
-            prof=args.prof,
-            skip_training=args.evaluate,
-            skip_validation=args.training_only,
-            save_checkpoints=args.save_checkpoints and not args.evaluate,
-            checkpoint_dir=args.workspace,
-            checkpoint_filename=args.checkpoint_filename,
-            keep_last_n_checkpoints=args.gather_checkpoints,
-            topk=args.topk,
-        )
+    train_loop(
+        trainer,
+        lr_policy,
+        train_loader,
+        train_loader_len,
+        val_loader,
+        logger,
+        start_epoch=start_epoch,
+        end_epoch=min((start_epoch + args.run_epochs), args.epochs)
+        if args.run_epochs != -1
+        else args.epochs,
+        early_stopping_patience=args.early_stopping_patience,
+        best_prec1=best_prec1,
+        prof=args.prof,
+        skip_training=args.evaluate,
+        skip_validation=args.training_only,
+        save_checkpoints=args.save_checkpoints and not args.evaluate,
+        checkpoint_dir=args.workspace,
+        checkpoint_filename=args.checkpoint_filename,
+        keep_last_n_checkpoints=args.gather_checkpoints,
+        topk=args.topk,
+    )
     exp_duration = time.time() - exp_start_time
-    if (
-        not torch.distributed.is_initialized()
-        or torch.distributed.get_rank() == 0
-    ):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
         logger.end()
     print("Experiment ended")
 
