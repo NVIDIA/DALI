@@ -383,18 +383,15 @@ void FramesDecoder::BuildIndex() {
       auto codec_id = av_state_->ctx_->streams[packet->stream_index]->codecpar->codec_id;
       if (codec_id == AV_CODEC_ID_H264) {
         if (packet->size >= 5) {  // Ensure there's enough data to inspect
-          // NAL unit type is in the fifth byte for H.264
           uint8_t nal_unit_type = packet->data[4] & 0x1F;
           if (nal_unit_type == 5) {  // IDR frame for H.264
             entry.is_keyframe = true;
           }
         }
       } else if (codec_id == AV_CODEC_ID_HEVC) {
-      // Further check if it's an IDR frame for H.265
         if (packet->size >= 6) {  // Ensure there's enough data to inspect
-          // NAL unit type is in the sixth byte for H.265
           uint8_t nal_unit_type = (packet->data[4] >> 1) & 0x3F;
-          if (nal_unit_type >= 16 && nal_unit_type <= 21) {  // IDR frame types for H.265
+          if (nal_unit_type >= 16 && nal_unit_type <= 21) {
             entry.is_keyframe = true;
           }
         }
@@ -423,7 +420,6 @@ void FramesDecoder::BuildIndex() {
   std::sort(index_->begin(), index_->end(), [](const IndexEntry &a, const IndexEntry &b) {
     return a.pts < b.pts;
   });
-
   Reset();
 }
 
