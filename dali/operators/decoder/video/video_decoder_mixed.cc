@@ -19,6 +19,7 @@ namespace dali {
 bool VideoDecoderMixed::SetupImpl(
   std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   ValidateInput(ws);
+  AcquireArguments(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
   auto stream = ws.stream();
@@ -29,7 +30,8 @@ bool VideoDecoderMixed::SetupImpl(
       auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
       size_t size = sample.shape().num_elements();
       auto source_info = input.GetMeta(i).GetSourceInfo();
-      frames_decoders_[i] = std::make_unique<FramesDecoderGpu>(data, size, stream, false, -1,
+      frames_decoders_[i] = std::make_unique<FramesDecoderGpu>(data, size, stream,
+                                                               if_build_index_, -1,
                                                                source_info);
     });
   }

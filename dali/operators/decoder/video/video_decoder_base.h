@@ -23,6 +23,10 @@
 
 namespace dali {
 
+const int64_t kDefaultStartFrame = 0;
+const int64_t kDefaultStride = 1;
+const int64_t kDefaultSequenceLength = -1;
+
 template <typename Backend, typename FramesDecoder>
 class DLL_PUBLIC VideoDecoderBase {
  public:
@@ -54,7 +58,8 @@ class DLL_PUBLIC VideoDecoderBase {
     TensorListShape<4> shape(frames_decoders_.size());
     for (size_t s = 0; s < frames_decoders_.size(); ++s) {
       TensorShape<4> sample_shape;
-      sample_shape[0] = frames_decoders_[s]->NumFrames();
+      sample_shape[0] = sequence_length_[s] == -1 ? frames_decoders_[s]->NumFrames() :
+                                                      sequence_length_[s];
       sample_shape[1] = frames_decoders_[s]->Height();
       sample_shape[2] = frames_decoders_[s]->Width();
       sample_shape[3] = frames_decoders_[s]->Channels();
@@ -82,32 +87,40 @@ class DLL_PUBLIC VideoDecoderBase {
    * @param pad_value What to (optionally) pad the partial sequence with.
    * @return False, if less than `num_frames` have been decoded.
    */
-  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx, int64_t num_frames,
-                    std::optional<SampleView<OutBackend>> pad_value = std::nullopt,
+  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx,
+                    int64_t start_frame, int64_t num_frames, int64_t stride,
+                    std::optional<uint8_t> pad_value = std::nullopt,
                     std::optional<cudaStream_t> stream = std::nullopt) {
     auto &frames_decoder = *frames_decoders_[sample_idx];
     int64_t frame_size = frames_decoder.FrameSize();
 
-    DALI_ENFORCE(!pad_value.has_value() || pad_value->shape().num_elements() == frame_size,
-                 make_string("Provided pad_value has improper number of elements. Expected: ",
-                             frame_size, "; Actual: ", pad_value->shape().num_elements()));
-
     uint8_t *output_data = output.template mutable_data<uint8_t>();
 
     int64_t f = 0;
+    if (start_frame > 0) {
+      frames_decoder.SeekFrame(start_frame);
+    }
     // Work until:
     //    (a) There are no more frames, or
     //    (b) Sufficient number of frames has been decoded.
     for (; f < num_frames && frames_decoder.NextFrameIdx() != -1; f++) {
       frames_decoder.ReadNextFrame(output_data + f * frame_size);
+      for (int i = 1; i < stride && frames_decoder.NextFrameIdx() != -1; i++) {
+        frames_decoder.ReadNextFrame(nullptr, false);
+      }
     }
     assert(f <= num_frames);
     bool full_sequence_decoded = f == num_frames;
     // If there's an insufficient number of frames, pad if requested.
-    for (; f < num_frames && pad_value.has_value(); f++) {
-      kernels::copy<storage_backend_for_copy_kernel, storage_backend_for_copy_kernel>(
-              output_data + f * frame_size, pad_value->raw_data(), frame_size,
-              std::is_same_v<storage_backend_for_copy_kernel, StorageGPU> ? *stream : 0);
+    if (f < num_frames) {
+      uint8_t use_pad_value = pad_value ? *pad_value : 0;
+      auto pad_size = frame_size * (num_frames - f);
+      if (std::is_same_v<OutBackend, CPUBackend>) {
+        std::fill(output_data + f * frame_size, output_data + pad_size, use_pad_value);
+      } else {
+        cudaMemsetAsync(output_data + f * frame_size, use_pad_value, pad_size,
+                        stream ? *stream : 0);
+      }
     }
     return full_sequence_decoded;
   }
@@ -117,12 +130,16 @@ class DLL_PUBLIC VideoDecoderBase {
    * @brief Decode sample with index `idx` to `output` tensor.
    */
   void DecodeSample(SampleView<OutBackend> output, int64_t idx) {
-    int64_t num_frames = output.shape()[0];
-    DecodeFrames(output, idx, num_frames);
+    int64_t num_frames = sequence_length_[idx] == -1 ? output.shape()[0] : sequence_length_[idx];
+    DecodeFrames(output, idx, start_frame_[idx], num_frames, stride_[idx]);
   }
 
 
   std::vector<std::unique_ptr<FramesDecoder>> frames_decoders_;
+  std::vector<int64_t> start_frame_;
+  std::vector<int64_t> stride_;
+  std::vector<int64_t> sequence_length_;
+  bool if_build_index_;
 
  private:
   using storage_backend_for_copy_kernel = std::conditional_t<

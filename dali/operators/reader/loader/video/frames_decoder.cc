@@ -420,6 +420,7 @@ void FramesDecoder::BuildIndex() {
   std::sort(index_->begin(), index_->end(), [](const IndexEntry &a, const IndexEntry &b) {
     return a.pts < b.pts;
   });
+
   Reset();
 }
 

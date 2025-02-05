@@ -45,6 +45,28 @@ class VideoDecoderMixed
                  const Workspace &ws) override;
 
  private:
+  void AcquireArguments(const Workspace &ws) {
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    if (this->spec_.ArgumentDefined("start_frame")) {
+      this->GetPerSampleArgument(start_frame_, "start_frame", ws, curr_batch_size);
+      if_build_index_ = true;
+    } else {
+      start_frame_ = std::vector<int64_t>(curr_batch_size, kDefaultStartFrame);
+    }
+    if (this->spec_.ArgumentDefined("stride")) {
+      this->GetPerSampleArgument(stride_, "stride", ws, curr_batch_size);
+      if_build_index_ = true;
+    } else {
+      stride_ = std::vector<int64_t>(curr_batch_size, kDefaultStride);
+    }
+    if (this->spec_.ArgumentDefined("sequence_length")) {
+      this->GetPerSampleArgument(sequence_length_, "sequence_length", ws, curr_batch_size);
+      if_build_index_ = true;
+    } else {
+      sequence_length_ = std::vector<int64_t>(curr_batch_size, kDefaultSequenceLength);
+    }
+  }
+
   ThreadPool thread_pool_;
 };
 
