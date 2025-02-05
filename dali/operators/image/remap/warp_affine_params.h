@@ -74,7 +74,7 @@ class WarpAffineParamProvider
           M.transform(i, j) = matrix[k];
       if (invert)
         M = M.inv();
-      auto *params = this->template AllocParams<mm::memory_kind::host>();
+      auto *params = this->template AllocParams<mm::memory_kind::host>(num_samples_);
       for (int i = 0; i < num_samples_; i++)
         params[i] = M;
     }
@@ -118,7 +118,7 @@ class WarpAffineParamProvider
   void UseInputAsParams(const TensorList<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
-    auto *params = this->template AllocParams<mm::memory_kind::host>();
+    auto *params = this->template AllocParams<mm::memory_kind::host>(num_samples_);
     for (int i = 0; i < num_samples_; i++) {
       if (invert) {
         params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
@@ -137,7 +137,7 @@ class WarpAffineParamProvider
       input_mappings[i] = static_cast<const MappingParams *>(input.raw_tensor(i));
     }
     input_mappings_dev_.from_host(input_mappings, this->GetStream());
-    auto *output = this->template AllocParams<mm::memory_kind::device>();
+    auto *output = this->template AllocParams<mm::memory_kind::device>(num_samples_);
     if (invert) {
       CopyTransformsGPU<spatial_ndim, true>(output, input_mappings_dev_.data(), num_samples_,
                                             this->GetStream());

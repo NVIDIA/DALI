@@ -27,6 +27,7 @@
 #include "dali/kernels/signal/fft/fft_postprocess.cuh"
 #include "dali/core/boundary.h"
 #include "dali/test/test_sound_generator.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -233,10 +234,9 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
         EXPECT_EQ(out_shape[i], ts);
       }
 
-      ScratchpadAllocator sa;
-      sa.Reserve(req.scratch_sizes);
-      auto scratchpad = sa.GetScratchpad();
-      ctx.scratchpad = &scratchpad;
+      DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+      ctx.scratchpad = &dyn_scratchpad;
+
       auto window_gpu = window.gpu(stream)[0];
       out.reshape(convert_dim<2>(out_shape));
       stft.Run(ctx, out.gpu(stream), in.gpu(stream), window_gpu);

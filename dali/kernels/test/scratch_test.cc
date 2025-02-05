@@ -154,30 +154,6 @@ TEST(Scratch, PreallocatedScratchpad) {
   }
 }
 
-TEST(Scratch, ScratchpadAllocator) {
-  ScratchpadAllocator sa;
-  const size_t N = ScratchpadAllocator::NumMemKinds;
-  int sizes[N];
-  try {
-    for (size_t i = 0; i < N; i++) {
-      mm::memory_kind_id kind_id = mm::memory_kind_id(i);
-      sizes[i] = 1024 + 256 * i;
-      sa.Reserve(kind_id, sizes[i]);
-    }
-    auto s = sa.GetScratchpad();
-    for (size_t i = 0; i < N; i++) {
-      float margin = sa.Policy(static_cast<mm::memory_kind_id>(i)).Margin;
-      EXPECT_GE(s.allocs[i].total(), sizes[i]) << "Memory block smaller than requested";
-      EXPECT_LE(s.allocs[i].total(), sizes[i] * (1 + margin) + 64) << "Too much padding";
-      EXPECT_EQ(s.allocs[i].used(), 0) << "New scratchpad should be unused";
-    }
-  } catch (const CUDAError &e) {
-    if ((e.is_drv_api() && e.drv_error() == CUDA_ERROR_NOT_SUPPORTED) ||
-        (e.is_rt_api() && e.rt_error() == cudaErrorNotSupported)) {
-      GTEST_SKIP() << "Unified memory not supported on this platform";
-    }
-  }
-}
 
 }  // namespace kernels
 }  // namespace dali

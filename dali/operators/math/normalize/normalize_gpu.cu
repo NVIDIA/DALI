@@ -18,6 +18,7 @@
 #include "dali/kernels/normalize/normalize_gpu.h"
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/common/copy.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 
@@ -59,7 +60,6 @@ class Normalize<GPUBackend> : public NormalizeBase<GPUBackend> {
   TensorListView<StorageGPU, float> BroadcastMean(KernelContext &ctx, float value) const;
 
   AnyKernelInstance mean_kernel_, stddev_kernel_, normalize_kernel_;
-  ScratchpadAllocator alloc_;
 };
 
 
@@ -201,8 +201,6 @@ void Normalize<GPUBackend>::SetupTyped(const Workspace &ws) {
     req.scratch_sizes[static_cast<int>(mm::memory_kind_id::device)], 64);
   se.add<mm::memory_kind::managed, char>(
     req.scratch_sizes[static_cast<int>(mm::memory_kind_id::managed)], 64);
-
-  alloc_.Reserve(se.sizes);
 }
 
 template <typename OutputType, typename InputType>
@@ -217,7 +215,7 @@ void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
   int nsamples = input.num_samples();
 
   cudaStream_t stream = ws.stream();
-  DynamicScratchpad buffer_scratchpad({}, stream);;
+  DynamicScratchpad dyn_scratchpad({}, stream);;
   KernelContext ctx;
   ctx.gpu.stream = stream;
 
@@ -229,15 +227,15 @@ void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
   OutListGPU<float> mean_gpu, stddev_gpu;
 
   if (!has_scalar_mean_) {
-    mean_gpu = buffer_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
+    mean_gpu = dyn_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   } else if (ShouldCalcStdDev()) {
-    ctx.scratchpad = &buffer_scratchpad;
+    ctx.scratchpad = &dyn_scratchpad;
     mean_gpu = BroadcastMean(ctx, scalar_mean);
     ctx.scratchpad = nullptr;
   }
 
   if (!has_scalar_stddev_) {
-    stddev_gpu = buffer_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
+    stddev_gpu = dyn_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   }
 
   if (ShouldCalcMean()) {

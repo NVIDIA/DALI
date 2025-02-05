@@ -22,6 +22,7 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -91,10 +92,8 @@ TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
   auto out_shape = reqs.output_shapes[0][0];
   ASSERT_EQ(out_shape, in_view_.shape);
 
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(reqs.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  ctx.scratchpad = &dyn_scratchpad;
 
   auto out_size = volume(out_shape);
   std::vector<T> expected_out(out_size);

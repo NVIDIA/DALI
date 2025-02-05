@@ -25,6 +25,7 @@
 #include "dali/kernels/reduce/reduce_test.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -37,7 +38,6 @@ struct ReductionKernelTest {
   TestTensorList<Out> out, ref;
 
   KernelContext ctx;
-  ScratchpadAllocator sa;
   std::mt19937_64 rng{12345};
 
 
@@ -54,7 +54,6 @@ struct ReductionKernelTest {
     ASSERT_EQ(req.output_shapes.size(), 1), req;
     ASSERT_EQ(req.output_shapes[0], ref_out_shape), req;
     out.reshape(ref_out_shape);
-    sa.Reserve(req.scratch_sizes);
     return req;
   }
 
@@ -66,9 +65,9 @@ struct ReductionKernelTest {
 
   template <typename... Args>
   void Run(Args &&...args) {
-    auto scratchpad = sa.GetScratchpad();
     ctx.gpu.stream = 0;
-    ctx.scratchpad = &scratchpad;
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
     kernel.Run(ctx, out.gpu(stream()), in.gpu(stream()), std::forward<Args>(args)...);
   }
 
