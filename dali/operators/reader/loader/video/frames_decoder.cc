@@ -396,6 +396,7 @@ void FramesDecoder::BuildIndex() {
           }
         }
       } else {
+        // for other formats it is enough to check (packet->flags & AV_PKT_FLAG_KEY)
         entry.is_keyframe = true;
       }
     } else {
