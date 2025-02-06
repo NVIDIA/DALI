@@ -22,7 +22,6 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/erase/erase_args.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"

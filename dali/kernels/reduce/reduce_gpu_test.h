@@ -20,7 +20,6 @@
 #include <utility>
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/kernel_req.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/reduce/online_reducer.h"
 #include "dali/kernels/reduce/reduce_test.h"
 #include "dali/test/test_tensors.h"

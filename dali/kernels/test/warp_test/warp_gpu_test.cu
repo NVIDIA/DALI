@@ -23,7 +23,6 @@
 #include "dali/test/dump_diff.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/test/test_tensors.h"
-#include "dali/kernels/scratch.h"
 #include "dali/core/mm/memory.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/geom/transform.h"

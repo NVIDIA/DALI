@@ -19,7 +19,6 @@
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"
 #include "dali/kernels/imgproc/resample/separable_cpu.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {

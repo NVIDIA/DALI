@@ -96,10 +96,6 @@ struct SeparableResamplingGPUImpl : Interface {
     }
 
     KernelRequirements req;
-    ScratchpadEstimator se;
-
-    // Sample descriptions need to be delivered to the GPU - hence, the storage
-    se.add<mm::memory_kind::device, SampleDesc>(setup.sample_descs.size());
 
     // CPU block2sample lookup may change in size and is large enough
     // to mandate declaring it as a requirement for external allocator.
@@ -107,13 +103,6 @@ struct SeparableResamplingGPUImpl : Interface {
     for (auto x : setup.total_blocks)
       num_blocks += x;
 
-    se.add<mm::memory_kind::device, BlockDesc>(num_blocks);
-    se.add<mm::memory_kind::pinned, BlockDesc>(num_blocks);
-
-    // Request memory for intermediate storage.
-    se.add<mm::memory_kind::device, IntermediateElement>(GetTmpMemSize());
-
-    req.scratch_sizes = se.sizes;
     req.output_shapes = { setup.output_shape };
     return req;
   }

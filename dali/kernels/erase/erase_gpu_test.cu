@@ -21,7 +21,6 @@
 
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/erase/erase_gpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/test/tensor_test_utils.h"

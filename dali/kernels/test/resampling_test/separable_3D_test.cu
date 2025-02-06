@@ -28,7 +28,6 @@
 
 #include "dali/kernels/imgproc/resample/separable.h"
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"

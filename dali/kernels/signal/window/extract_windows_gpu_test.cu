@@ -18,7 +18,6 @@
 #include "dali/core/util.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/signal/window/extract_windows_gpu.cuh"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/window/window_functions.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 

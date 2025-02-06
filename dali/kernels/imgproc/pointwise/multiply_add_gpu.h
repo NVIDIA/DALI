@@ -178,15 +178,11 @@ class MultiplyAddGpu {
     auto adjusted_rois = AdjustRoi(make_cspan(rois), in.shape);
     auto nchannels = in.shape[0][ndims - 1];
     KernelRequirements req;
-    ScratchpadEstimator se;
     auto sh = ShapeFromRoi(make_cspan(adjusted_rois), nchannels);
     TensorListShape<spatial_dims> flattened_shape(multiply_add::FlattenChannels<ndims>(sh));
     block_setup_.SetupBlocks(flattened_shape, true);
     sample_descriptors_.resize(in.num_samples());
-    se.add<mm::memory_kind::device, SampleDesc>(in.num_samples());
-    se.add<mm::memory_kind::device, BlockDesc>(block_setup_.Blocks().size());
     req.output_shapes = {in.shape};
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

@@ -25,7 +25,6 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/operators/image/crop/crop_attr.h"

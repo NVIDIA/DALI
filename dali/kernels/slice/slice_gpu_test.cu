@@ -15,7 +15,6 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/slice/slice_kernel_test.h"
 #include "dali/kernels/slice/slice_gpu.cuh"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {

@@ -26,10 +26,7 @@ KernelRequirements JpegDistortionBaseGPU::Setup(KernelContext &ctx,
   horz_subsample_ = horz_subsample;
   vert_subsample_ = vert_subsample;
   KernelRequirements req;
-  ScratchpadEstimator se;
   int nsamples = in_shape.num_samples();
-  se.add<mm::memory_kind::host, SampleDesc>(nsamples);
-  se.add<mm::memory_kind::device, SampleDesc>(nsamples);
 
   chroma_shape_.resize(nsamples);
   for (int i = 0; i < nsamples; i++) {
@@ -46,9 +43,6 @@ KernelRequirements JpegDistortionBaseGPU::Setup(KernelContext &ctx,
   block_setup_.SetDefaultBlockSize({xblock, yblock});
   block_setup_.SetupBlocks(chroma_shape_, true);
   int nblocks = block_setup_.Blocks().size();
-  se.add<mm::memory_kind::device, BlockDesc>(nblocks);
-
-  req.scratch_sizes = se.sizes;
   req.output_shapes = {in_shape};
   return req;
 }

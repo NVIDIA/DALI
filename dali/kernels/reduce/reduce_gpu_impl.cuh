@@ -425,10 +425,8 @@ class ReduceImplGPU {
 
     Simplify(in_shape, axes);
 
-    ScratchpadEstimator se;
     InitStages();
-    CalculateTempBuffers(se);
-    req.scratch_sizes = se.sizes;
+    CalculateTempBuffers();
     return req;
   }
 
@@ -530,7 +528,7 @@ class ReduceImplGPU {
   /**
    * @brief Calculate the sizes of the temporary buffers required to launch all stages
    */
-  void CalculateTempBuffers(ScratchpadEstimator &se) {
+  void CalculateTempBuffers() {
     int nstages = stages_.size();
     buffer_sizes_ = {};
     for (auto &stage : stages_) {
@@ -540,12 +538,6 @@ class ReduceImplGPU {
     }
     buffer_sizes_.param_buffers = align_up(buffer_sizes_.param_buffers, 64);
     buffer_sizes_.host_param_buffers = align_up(buffer_sizes_.host_param_buffers, 64);
-
-    // Now reserve the scratchpad - it's overaligned, because the buffer is opaque
-    // and may contain any type - possibly with alignment requirements.
-    se.add<mm::memory_kind::pinned, uint8_t>(buffer_sizes_.host_param_buffers, 64);
-    se.add<mm::memory_kind::device, uint8_t>(
-      buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
 
   /**

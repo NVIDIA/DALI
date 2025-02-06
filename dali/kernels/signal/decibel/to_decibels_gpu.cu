@@ -59,11 +59,7 @@ KernelRequirements ToDecibelsGpu<T>::Setup(KernelContext &context,
                                            const InListGPU<T, DynamicDimensions> &in) {
   auto out_shape = in.shape;
   const size_t num_samples = in.size();
-  ScratchpadEstimator se;
-  se.add<mm::memory_kind::host, SampleDesc<T>>(num_samples);
-  se.add<mm::memory_kind::device, SampleDesc<T>>(num_samples);
   KernelRequirements req;
-  req.scratch_sizes = se.sizes;
   req.output_shapes = {out_shape};
   return req;
 }

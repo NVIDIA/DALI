@@ -54,7 +54,6 @@ class SliceFlipNormalizePermutePadGpu {
                            const InListGPU<InputType, Dims> &in,
                            const std::vector<Args> &args) {
     KernelRequirements req;
-    ScratchpadEstimator se;
     const size_t num_samples = in.size();
 
     norm_args_size_ = -1;
@@ -88,19 +87,8 @@ class SliceFlipNormalizePermutePadGpu {
       }
     }
 
-    if (need_normalize_) {
-      se.add<mm::memory_kind::pinned, float>(num_samples * norm_args_size_);
-      se.add<mm::memory_kind::pinned, float>(num_samples * norm_args_size_);
-      se.add<mm::memory_kind::device, float>(num_samples * norm_args_size_);
-      se.add<mm::memory_kind::device, float>(num_samples * norm_args_size_);
-    }
 
     assert(nfill_values_ > 0);
-    se.add<mm::memory_kind::pinned, OutputType>(num_samples * nfill_values_);
-    se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
-
-    se.add<mm::memory_kind::pinned, slice_impl::SampleDesc<Dims>>(num_samples);
-    se.add<mm::memory_kind::device, slice_impl::SampleDesc<Dims>>(num_samples);
 
     int blocks_per_sm_;
     CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
@@ -132,10 +120,6 @@ class SliceFlipNormalizePermutePadGpu {
       block_count_ += static_cast<size_t>(std::ceil(
         sample_size / static_cast<float>(block_size_)));
     }
-
-    se.add<mm::memory_kind::pinned, slice_impl::BlockDesc>(block_count_);
-    se.add<mm::memory_kind::device, slice_impl::BlockDesc>(block_count_);
-    req.scratch_sizes = se.sizes;
 
     auto in_shapes = in.shape;
     TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);

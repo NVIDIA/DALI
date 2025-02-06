@@ -254,7 +254,6 @@ class SliceGPU {
                            const InListGPU<InputType, Dims> &in,
                            const std::vector<SliceArgs<OutputType, Dims>> &slice_args) {
     KernelRequirements req;
-    ScratchpadEstimator se;
     auto num_samples = in.size();
 
     nfill_values_ = 0;
@@ -281,12 +280,6 @@ class SliceGPU {
       }
     }
 
-    se.add<mm::memory_kind::pinned, OutputType>(num_samples * nfill_values_);
-    se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
-
-    se.add<mm::memory_kind::pinned, slice_impl::SliceSampleDesc<Dims>>(num_samples);
-    se.add<mm::memory_kind::device, slice_impl::SliceSampleDesc<Dims>>(num_samples);
-
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
     uint64_t total_volume = 0;
@@ -311,10 +304,6 @@ class SliceGPU {
     for (auto sample_size : sample_sizes) {
       block_count_ += div_ceil(sample_size, block_size_);
     }
-
-    se.add<mm::memory_kind::pinned, slice_impl::SliceBlockDesc>(block_count_);
-    se.add<mm::memory_kind::device, slice_impl::SliceBlockDesc>(block_count_);
-    req.scratch_sizes = se.sizes;
 
     req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
     return req;

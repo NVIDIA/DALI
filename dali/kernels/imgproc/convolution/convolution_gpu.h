@@ -84,7 +84,6 @@ struct ConvolutionGpu {
   KernelRequirements Setup(KernelContext& ctx, const TensorListShape<ndim>& in_shape,
                            const TensorListShape<1>& window_size) {
     KernelRequirements req;
-    ScratchpadEstimator se;
     DALI_ENFORCE(
         in_shape.size() == window_size.size(),
         make_string(
@@ -103,10 +102,6 @@ struct ConvolutionGpu {
                    make_string("Window is too big for sample ", i, ", got: ", window_size[i][0],
                                ", expected at most: ", kMaxWindowSize / num_channels, "."));
     }
-    se.add<mm::memory_kind::host, W>(num_samples * kWindowCopyBufferSize);
-    se.add<mm::memory_kind::device, W>(num_samples * kWindowCopyBufferSize);
-    se.add<mm::memory_kind::device, typename CutlassConv::SampleParams>(num_samples);
-    req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
     return req;
   }

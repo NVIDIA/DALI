@@ -62,12 +62,7 @@ class TransformPointsGPU {
     KernelRequirements req;
     req.output_shapes = { GetOutputShape(in_shape) };
 
-    ScratchpadEstimator se;
     int N = in_shape.num_samples();
-    se.add<mm::memory_kind::pinned, SampleDesc>(N);
-    se.add<mm::memory_kind::device, SampleDesc>(N);
-
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

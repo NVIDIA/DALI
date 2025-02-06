@@ -22,7 +22,6 @@
 #include "dali/kernels/imgproc/convolution/baseline_convolution.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/dynamic_scratchpad.h"

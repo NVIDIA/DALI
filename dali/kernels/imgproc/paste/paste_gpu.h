@@ -274,15 +274,10 @@ class PasteGPU {
     paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in_shapes, samples);
 
     KernelRequirements req;
-    ScratchpadEstimator se;
     // merge width with channels
     auto flattened_shape = collapse_dim(out_shape, spatial_dims - 1);
     block_setup_.SetupBlocks(flattened_shape, true);
-    se.add<mm::memory_kind::device, SampleDesc>(sample_descriptors_.size());
-    se.add<mm::memory_kind::device, PatchDesc>(patch_descriptors_.size());
-    se.add<mm::memory_kind::device, BlockDesc>(block_setup_.Blocks().size());
     req.output_shapes = { out_shape };
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

@@ -18,7 +18,6 @@
 #include "dali/kernels/slice/slice_gpu.cuh"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {

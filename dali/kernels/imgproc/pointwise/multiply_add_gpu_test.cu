@@ -15,7 +15,6 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <tuple>
-#include "dali/kernels/scratch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/test/tensor_test_utils.h"

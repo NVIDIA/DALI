@@ -80,30 +80,6 @@ inline void MaxInPlace(ToUpdate &inout, const Other &other) {
   }
 }
 
-using scratch_sizes_t = dali::kernels::scratch_sizes_t;
-
-class ScratchpadSnapshot {
- public:
-  explicit ScratchpadSnapshot(PreallocatedScratchpad &scratch) : scratch_(scratch) {
-    for (size_t i = 0; i < ss_.size(); i++)
-      ss_[i] = scratch_.allocs[i].used();
-  }
-
-  ~ScratchpadSnapshot() {
-    restore();
-  }
-
- private:
-  void restore() {
-    scratch_.Clear();  // this doesn't clear the memory - just resets the usage counter to 0
-    for (size_t i = 0; i < ss_.size(); i++)
-      scratch_.allocs[i].alloc(ss_[i]);
-  }
-
-  scratch_sizes_t ss_;
-  PreallocatedScratchpad &scratch_;
-};
-
 template <int ndim>
 int64_t MaxSampleSize(const TensorListShape<ndim> &tls) {
   int64_t max_sample_size = 0;
@@ -150,26 +126,7 @@ void Normalize<GPUBackend>::SetupTyped(const Workspace &ws) {
   KernelContext ctx;
   ctx.gpu.stream = ws.stream();
 
-  ScratchpadEstimator se;
-
   int64_t param_volume = param_shape_.num_elements();
-
-  // estimate memory requirements for intermediate buffers
-
-  if (!has_scalar_mean_) {
-    se.add<mm::memory_kind::device, float>(param_volume);
-  } else {
-    if (ShouldCalcStdDev()) {
-      // StdDev kernel requires the mean to have the same shape as the output.
-      // We can save memory by broadcasting the mean only to the size of the largest sample
-      // and repeat the pointer for all samples.
-      se.add<mm::memory_kind::device, float>(MaxSampleSize(param_shape_));
-    }
-  }
-
-  if (!has_scalar_stddev_) {
-    se.add<mm::memory_kind::device, float>(param_volume);
-  }
 
   // setup and get memory requirements from kernels
 
@@ -183,24 +140,13 @@ void Normalize<GPUBackend>::SetupTyped(const Workspace &ws) {
     auto &mean = GetMeanKernel<float, InputType>();
     auto mean_req = mean.Setup(ctx, data_shape_, make_span(axes_), true, batch_norm_);
     assert(mean_req.output_shapes[0] == param_shape_);
-    MaxInPlace(req.scratch_sizes, mean_req.scratch_sizes);
   }
 
   if (ShouldCalcStdDev()) {
     auto &stddev = GetInvStdDevKernel<float, InputType>();
     auto stddev_req = stddev.Setup(ctx, data_shape_, make_span(axes_), true, batch_norm_);
     assert(stddev_req.output_shapes[0] == param_shape_);
-    MaxInPlace(req.scratch_sizes, stddev_req.scratch_sizes);
   }
-
-  se.add<mm::memory_kind::host, char>(
-    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::host)], 64);
-  se.add<mm::memory_kind::pinned, char>(
-    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::pinned)], 64);
-  se.add<mm::memory_kind::device, char>(
-    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::device)], 64);
-  se.add<mm::memory_kind::managed, char>(
-    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::managed)], 64);
 }
 
 template <typename OutputType, typename InputType>

@@ -20,7 +20,6 @@
 #include <complex>
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/window/window_functions.h"
 #include "dali/kernels/signal/fft/fft_test_ref.h"
 #include "dali/kernels/signal/fft/stft_gpu.h"

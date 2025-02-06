@@ -403,14 +403,7 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
 
     grid_dim = dim3(xgrid, ygrid);
 
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, SampleDesc>(N);
-    se.add<mm::memory_kind::device, BlockDesc>(xgrid);
-    se.add<mm::memory_kind::pinned, SampleDesc>(N);
-    se.add<mm::memory_kind::pinned, BlockDesc>(xgrid);
-
     KernelRequirements req;
-    req.scratch_sizes = se.sizes;
     req.output_shapes = { out_shape };
 
     return req;
@@ -584,16 +577,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
       pad_block = dim3(pad_block_x, pad_block_y, 1);
     }
 
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, SampleDesc>(N);
-    se.add<mm::memory_kind::device, BlockDesc>(grid_dim);
-    se.add<mm::memory_kind::device, PadBlock>(pad_grid.z);
-    se.add<mm::memory_kind::pinned, SampleDesc>(N);
-    se.add<mm::memory_kind::pinned, BlockDesc>(grid_dim);
-    se.add<mm::memory_kind::pinned, PadBlock>(pad_grid.z);
-
     KernelRequirements req;
-    req.scratch_sizes = se.sizes;
     req.output_shapes = { out_shape };
 
     return req;

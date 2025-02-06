@@ -142,19 +142,10 @@ struct SeparableResampleCPU  {
     TensorShape<tensor_ndim> out_shape =
       shape_cat(vec2shape(setup.desc.out_shape()), setup.desc.channels);
 
-    ScratchpadEstimator se;
-    if (out_shape.num_elements() > 0) {
-      se.add<mm::memory_kind::host, float>(setup.memory.tmp_size);
-      se.add<mm::memory_kind::host, float>(setup.memory.coeffs_size);
-      se.add<mm::memory_kind::host, int32_t>(setup.memory.indices_size);
-    }
-
     TensorListShape<> out_tls({ out_shape });
 
     KernelRequirements req;
     req.output_shapes = { out_tls };
-    req.scratch_sizes = se.sizes;
-
     return req;
   }
 

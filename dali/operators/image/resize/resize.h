@@ -26,7 +26,6 @@
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/operators/image/resize/resize_attr.h"
 #include "dali/kernels/context.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {

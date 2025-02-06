@@ -119,7 +119,6 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
                                                           span<const DctArgs> args, int axis) {
   DALI_ENFORCE(args.size() == in.num_samples());
   KernelRequirements req{};
-  ScratchpadEstimator se{};
   args_.clear();
   cos_tables_.clear();
   sample_descs_.clear();
@@ -150,7 +149,6 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
     }
     if (cos_tables_.find({n, arg}) == cos_tables_.end()) {
       cos_tables_[{n, arg}] = nullptr;
-      se.add<mm::memory_kind::device, OutputType>(n * arg.ndct);
       if (n * arg.ndct > max_cos_table_size_) {
         max_cos_table_size_ = n * arg.ndct;
       }
@@ -163,20 +161,12 @@ KernelRequirements Dct1DGpu<OutputType, InputType>::Setup(KernelContext &ctx,
     sample_shape[axis_] = arg.ndct;
     out_shape.set_tensor_shape(s, sample_shape);
   }
-  se.add<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
-  if (cos_tables_.size() > 1) {
-    se.add<mm::memory_kind::pinned, OutputType>(max_cos_table_size_);
-  }
-  se.add<mm::memory_kind::device, SampleDesc>(in.num_samples());
   if (inner_axis_) {
     block_setup_inner_.Setup(reduced_shape);
-    se.add<mm::memory_kind::device, BlockSetupInner::BlockDesc>(block_setup_inner_.Blocks().size());
   } else {
     block_setup_.SetupBlocks(reduced_shape, true);
-    se.add<mm::memory_kind::device, BlockDesc<3>>(block_setup_.Blocks().size());
   }
   req.output_shapes = {out_shape};
-  req.scratch_sizes = se.sizes;
   return req;
 }
 

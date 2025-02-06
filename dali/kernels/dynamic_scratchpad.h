@@ -146,6 +146,7 @@ class DynamicScratchpad
    * @param managed_dealloc_order Deallocation order for managed memory. Allocation is always
    *                              host-ordered. If not set, device_order is used.
    */
+  using scratch_sizes_t = std::array<size_t, static_cast<size_t>(mm::memory_kind_id::count)>;
   explicit DynamicScratchpad(scratch_sizes_t initial_sizes = {},
                              AccessOrder device_order = cudaStream_t(0),
                              AccessOrder pinned_dealloc_order = {},

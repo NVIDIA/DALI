@@ -379,11 +379,8 @@ struct ConvolutionCpu {
 
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape, int window_size) {
     KernelRequirements req;
-    ScratchpadEstimator se;
     DALI_ENFORCE(window_size % 2 == 1,
                  make_string("Kernel window should have odd length, got: ", window_size, "."));
-    se.add<mm::memory_kind::host, In>(GetInputWindowBufSize(in_shape, window_size));
-    req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(uniform_list_shape<ndim>(1, in_shape));
     return req;
   }

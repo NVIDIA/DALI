@@ -22,7 +22,6 @@
 #include "dali/core/convert.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/imgproc/convolution/baseline_convolution.h"

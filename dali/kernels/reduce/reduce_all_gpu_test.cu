@@ -19,7 +19,6 @@
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
 #include "dali/kernels/reduce/reduce_test.h"
-#include "dali/kernels/scratch.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/span.h"
 #include "dali/core/util.h"

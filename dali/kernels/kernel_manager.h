@@ -19,7 +19,6 @@
 #include <memory>
 #include <utility>
 #include <atomic>
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/dynamic_scratchpad.h"
@@ -72,9 +71,6 @@ struct AnyKernelInstance {
  */
 class DLL_PUBLIC KernelManager {
  public:
-  static constexpr size_t NumMemKinds = ScratchpadAllocator::NumMemKinds;
-  using ScratchSizes = std::array<size_t, NumMemKinds>;
-
   /**
    * @brief Creates `num_instances` slots for kernels
    *

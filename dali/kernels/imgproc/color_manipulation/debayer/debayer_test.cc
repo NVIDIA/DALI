@@ -22,7 +22,6 @@
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer_npp.h"
-#include "dali/kernels/scratch.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"

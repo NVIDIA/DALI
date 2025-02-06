@@ -20,7 +20,6 @@
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"
@@ -133,10 +132,6 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   std::vector<TensorShape<>> out_shape_cpu;
   for (int i = 0; i < N; i++) {
     auto req_tmp = kernel_cpu.Setup(ctx_cpu, in_cpu[i], params[i]);
-
-    for (size_t j = 0; j < req_cpu.scratch_sizes.size(); j++) {
-      req_cpu.scratch_sizes[j] = std::max(req_cpu.scratch_sizes[j], req_tmp.scratch_sizes[j]);
-    }
     out_shape_cpu.push_back(req_tmp.output_shapes[0][0]);
   }
   req_cpu.output_shapes.push_back(TensorListShape<>(out_shape_cpu));

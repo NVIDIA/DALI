@@ -18,7 +18,6 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/cuda_event.h"
 #include "dali/kernels/dynamic_scratchpad.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_gpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
