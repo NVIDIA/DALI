@@ -286,6 +286,15 @@ message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}"
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
 
+# Suppress a few warnings from nvcc:
+# calling a __host__ function(...) from a __host__ __device__ function(...) is not allowed
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --diag-suppress=20011")
+# 'long double' is treated as 'double' in device code
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --diag-suppress=20208")
+# unrecognized #pragma in device code
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --diag-suppress=20199")
+# overloaded virtual function "dali::Operator<dali::CPUBackend>::RunImpl" is only partially overridden in class "..."
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --diag-suppress=611")
 
 # Dependencies
 if(${ARCH} MATCHES "aarch64-linux")
