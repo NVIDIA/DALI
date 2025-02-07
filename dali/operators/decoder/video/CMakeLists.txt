@@ -15,12 +15,10 @@
 list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_base.h")
 
 if (BUILD_FFMPEG)
-  list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_cpu.h")
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_cpu.cc")
 endif (BUILD_FFMPEG)
 
 if (BUILD_NVDEC)
-  list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_mixed.h")
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_mixed.cc")
 endif (BUILD_NVDEC)
 

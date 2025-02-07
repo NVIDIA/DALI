@@ -17,18 +17,6 @@
 
 namespace dali {
 
-
-template<>
-void VideoInput<CPUBackend, dali::FramesDecoder>::CreateDecoder(const Workspace &ws) {
-  auto sample = encoded_video_[0];
-  auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-  size_t size = sample.shape().num_elements();
-  this->frames_decoders_[0] = std::make_unique<dali::FramesDecoder>(data, size, false);
-  DALI_ENFORCE(this->frames_decoders_[0]->IsValid(),
-               "Failed to create video decoder for provided video data");
-}
-
-
 DALI_SCHEMA(experimental__inputs__Video)
                 .DocStr(
                         R"code(

@@ -20,7 +20,6 @@
 #include <utility>
 #include <vector>
 #include "dali/pipeline/operator/builtin/input_operator.h"
-#include "dali/operators/decoder/video/video_decoder_base.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
@@ -82,18 +81,15 @@ using frames_decoder_t =
 static const std::string next_output_data_id_trace_name_ = "next_output_data_id";  // NOLINT
 
 
-template<typename Backend, typename FramesDecoder = frames_decoder_t<Backend>>
-class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<Backend> {
+template<typename Backend, typename FramesDecoderImpl = frames_decoder_t<Backend>>
+class VideoInput : public InputOperator<Backend> {
  public:
   static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
   using InBackend = CPUBackend;
   using OutBackend = std::conditional_t<is_cpu, CPUBackend, GPUBackend>;
-  static_assert((is_cpu && std::is_same_v<FramesDecoder, dali::FramesDecoder>) ||
-                (!is_cpu && std::is_same_v<FramesDecoder, FramesDecoderGpu>),
+  static_assert((is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoder>) ||
+                (!is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>),
                 "Incompatible FramesDecoder to a given Backend");
-
-  using VideoDecoderBase<Backend, FramesDecoder>::frames_decoders_;
-
 
   explicit VideoInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
@@ -109,7 +105,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
                            spec.GetArgument<bool>("affine"), "VideoInput<MixedBackend>");
     }
   }
-
 
 
   int NextBatchSize() override {
@@ -138,6 +133,10 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
+  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx,
+                    int64_t start_frame, int64_t sequence_length,
+                    int64_t stride, cudaStream_t stream);
+
   /**
    * Awkward RunImpl function for VideoInput operator.
    * @see VideoInputCpu & VideoInputMixed for more information.
@@ -156,8 +155,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   void LoadDataFromInputOperator(ThreadPool &thread_pool);
 
   void SetNextDataIdTrace(Workspace &ws, std::string next_data_id);
-
-  void CreateDecoder(const Workspace &ws);
 
 
   /**
@@ -199,18 +196,18 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   TensorShape<4> GetSequenceShape(int frames_per_sequence, int input_sample_idx) {
     TensorShape<4> ret;
     ret[0] = frames_per_sequence;
-    ret[1] = this->frames_decoders_[input_sample_idx]->Height();
-    ret[2] = this->frames_decoders_[input_sample_idx]->Width();
-    ret[3] = this->frames_decoders_[input_sample_idx]->Channels();
+    ret[1] = frames_decoders_[input_sample_idx]->Height();
+    ret[2] = frames_decoders_[input_sample_idx]->Width();
+    ret[3] = frames_decoders_[input_sample_idx]->Channels();
     return ret;
   }
 
 
   TensorShape<3> GetFrameShape(int input_sample_idx) {
     TensorShape<3> ret;
-    ret[0] = this->frames_decoders_[input_sample_idx]->Height();
-    ret[1] = this->frames_decoders_[input_sample_idx]->Width();
-    ret[2] = this->frames_decoders_[input_sample_idx]->Channels();
+    ret[0] = frames_decoders_[input_sample_idx]->Height();
+    ret[1] = frames_decoders_[input_sample_idx]->Width();
+    ret[2] = frames_decoders_[input_sample_idx]->Channels();
     return ret;
   }
 
@@ -224,6 +221,14 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     }
   }
 
+  std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char* data, size_t size, 
+                                                   cudaStream_t stream = 0) {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      return std::make_unique<FramesDecoderImpl>(data, size, false, true, -1);
+    } else {
+      return std::make_unique<FramesDecoderImpl>(data, size, stream, false, -1);
+    }
+  }
 
   const int sequence_length_ = {};
   const int device_id_ = {};
@@ -248,20 +253,13 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
   std::optional<ThreadPool> thread_pool_ = std::nullopt;
 
+  std::vector<std::unique_ptr<FramesDecoderImpl>> frames_decoders_;
+
   TensorLayout in_layout_ = "B";  // Byte stream.
 };
 
-
-/**
- * Checks, if the operator described by a given Schema is a VideoInput operator.
- */
-inline bool IsVideoInput(const OpSchema& schema) {
-  return schema.name() == "experimental__inputs__Video";
-}
-
-
-template<typename Backend, typename FramesDecoder>
-void VideoInput<Backend, FramesDecoder>::LoadDataFromInputOperator(ThreadPool &thread_pool) {
+template<typename Backend, typename FramesDecoderImpl>
+void VideoInput<Backend, FramesDecoderImpl>::LoadDataFromInputOperator(ThreadPool &thread_pool) {
   // By definition, the input batch size of this Operator is always 1.
   static constexpr int input_batch_size = 1;
   assert(needs_data_load_);  // Data shall not be loaded if it's not needed.
@@ -274,15 +272,14 @@ void VideoInput<Backend, FramesDecoder>::LoadDataFromInputOperator(ThreadPool &t
 }
 
 
-template<typename Backend, typename FramesDecoder>
+template<typename Backend, typename FramesDecoderImpl>
 void
-VideoInput<Backend, FramesDecoder>::SetNextDataIdTrace(Workspace &ws, std::string next_data_id) {
+VideoInput<Backend, FramesDecoderImpl>::SetNextDataIdTrace(Workspace &ws, std::string next_data_id) {
   ws.SetOperatorTrace(next_output_data_id_trace_name_, std::move(next_data_id));
 }
 
-
-template<typename Backend, typename FramesDecoder>
-bool VideoInput<Backend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &output_desc,
+template<typename Backend, typename FramesDecoderImpl>
+bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                                    const Workspace &ws) {
   if (!initialized_) {
     if (needs_data_load_) {
@@ -291,7 +288,12 @@ bool VideoInput<Backend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &outp
       LoadDataFromInputOperator(tp);
     }
 
-    CreateDecoder(ws);
+    auto sample = encoded_video_[0];
+    const char* data = reinterpret_cast<const char *>(sample.data<uint8_t>());
+    int size = sample.shape().num_elements();
+    frames_decoders_[0] = CreateDecoder(data, size, ws.has_stream() ? ws.stream() : 0);
+    DALI_ENFORCE(frames_decoders_[0]->IsValid(),
+                 "Failed to create video decoder for provided video data");
 
     assert(output_descs_.empty());
     DetermineOutputDescs(static_cast<int>(frames_decoders_[0]->NumFrames()));
@@ -310,18 +312,59 @@ bool VideoInput<Backend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &outp
 }
 
 
-template<typename Backend, typename FramesDecoder>
-void VideoInput<Backend, FramesDecoder>::VideoInputRunImpl(Workspace &ws) {
+namespace impl {
+  template<typename Backend>
+  void memset(uint8_t* dst, uint8_t value, size_t size, cudaStream_t stream) {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      std::memset(dst, value, size);
+    } else {
+      CUDA_CALL(cudaMemsetAsync(dst, value, size, stream));
+    }
+  }
+}
+
+template<typename Backend, typename FramesDecoderImpl>
+bool VideoInput<Backend, FramesDecoderImpl>::DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx,
+                                                      int64_t start_frame, int64_t sequence_length,
+                                                      int64_t stride, cudaStream_t stream) {
+    auto &frames_decoder = *frames_decoders_[sample_idx];
+    int64_t frame_size = frames_decoder.FrameSize();
+    uint8_t *output_data = output.template mutable_data<uint8_t>();
+
+    int64_t f = 0;
+    if (start_frame > 0) {
+      frames_decoder.SeekFrame(start_frame);
+    }
+
+    // Read frames with specified stride
+    for (; f < sequence_length && frames_decoder.NextFrameIdx() != -1; f++) {
+      frames_decoder.ReadNextFrame(output_data + f * frame_size);
+      for (int i = 1; i < stride && frames_decoder.NextFrameIdx() != -1; i++) {
+        frames_decoder.ReadNextFrame(nullptr, false);
+      }
+    }
+
+    // Handle padding if needed
+    if (f < sequence_length) {
+      if (last_sequence_policy_ == "partial") {
+        return false;
+      } else if (f > 0) {
+        assert(last_sequence_policy_ == "pad");
+        impl::memset<OutBackend>(output_data + f * frame_size,
+                                 pad_frame_value_, frame_size * (sequence_length - f), stream);
+      }
+    }
+    return true;
+  }
+
+template<typename Backend, typename FramesDecoderImpl>
+void VideoInput<Backend, FramesDecoderImpl>::VideoInputRunImpl(Workspace &ws) {
   auto &output = ws.Output<OutBackend>(0);
   output.SetLayout("FHWC");
 
   bool full_sequence;
   for (int64_t s = 0; s < output.num_samples(); s++) {
-    auto pad_value = last_sequence_policy_ == "pad" ? std::optional<uint8_t>{pad_frame_value_} :
-                                                      std::optional<uint8_t>{};
-    full_sequence = this->DecodeFrames(output[s], 0, 0, sequence_length_, 1, pad_value,
-                                       ws.has_stream() ? std::make_optional(ws.stream())
-                                                       : std::nullopt);
+    full_sequence = DecodeFrames(output[s], 0, 0, sequence_length_, 1, ws.has_stream() ? ws.stream() : 0);
     if (!full_sequence) {
       break;
     }

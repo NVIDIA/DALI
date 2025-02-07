@@ -111,14 +111,17 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     int batch_size = input.num_samples();
 
     // Get frame selection parameters
-    start_frame_.Acquire(spec_, ws, batch_size);
-    stride_.Acquire(spec_, ws, batch_size);
-    sequence_length_.Acquire(spec_, ws, batch_size);
+    if (start_frame_.HasValue())
+      start_frame_.Acquire(spec_, ws, batch_size);
+    if (stride_.HasValue())
+      stride_.Acquire(spec_, ws, batch_size);
+    if (sequence_length_.HasValue())
+      sequence_length_.Acquire(spec_, ws, batch_size);
 
     frames_decoders_.resize(batch_size);
 
-    bool build_index = start_frame_.HasExplicitValue() ||
-                      stride_.HasExplicitValue() ||
+    bool build_index = start_frame_.HasValue() ||
+                      stride_.HasValue() ||
                       sequence_length_.HasValue();
 
     // Create decoders in parallel
@@ -128,7 +131,8 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
         const char* data = reinterpret_cast<const char *>(input[s].data<uint8_t>());
         size_t size = input[s].shape().num_elements();
         auto source_info = input.GetMeta(s).GetSourceInfo();
-        frames_decoders_[s] = CreateDecoder(data, size, build_index, source_info, ws.stream());
+        frames_decoders_[s] = CreateDecoder(data, size, build_index, source_info,
+                                            ws.has_stream() ? ws.stream() : 0);
       });
     }
     thread_pool.RunAll();
@@ -162,11 +166,13 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     for (int s = 0; s < batch_size; ++s) {
       thread_pool.AddWork([&, s](int) {
         int64_t num_frames = output[s].shape()[0]; // It was calculated in SetupImpl
+        int stride = stride_.HasValue() ? stride_[s].data[0] : 1;
+        int start_frame = start_frame_.HasValue() ? start_frame_[s].data[0] : 0;
         DecodeFrames(output[s], s,
-                     start_frame_[s].data[0],
+                     start_frame,
                      num_frames,
-                     stride_[s].data[0],
-                     ws.stream());
+                     stride,
+                     ws.has_stream() ? ws.stream() : 0);
         frames_decoders_[s].reset();
       }, input[s].shape().num_elements());
     }
@@ -228,9 +234,9 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   uint8_t pad_value_ = 0;
 
   USE_OPERATOR_MEMBERS();
-  ArgValue<int, 1> start_frame_{"start_frame", spec_};
-  ArgValue<int, 1> stride_{"stride", spec_};
-  ArgValue<int, 1> sequence_length_{"sequence_length", spec_};
+  ArgValue<int64_t, 1> start_frame_{"start_frame", spec_};
+  ArgValue<int64_t, 1> stride_{"stride", spec_};
+  ArgValue<int64_t, 1> sequence_length_{"sequence_length", spec_};
 };
 
 }  // namespace dali

@@ -17,19 +17,6 @@
 
 namespace dali {
 
-
-template<>
-void VideoInput<MixedBackend, dali::FramesDecoderGpu>::CreateDecoder(const Workspace &ws) {
-  auto sample = encoded_video_[0];
-  auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-  size_t size = sample.shape().num_elements();
-  this->frames_decoders_[0] = std::make_unique<dali::FramesDecoderGpu>(data, size, ws.stream(),
-                                                                       false);
-  DALI_ENFORCE(this->frames_decoders_[0]->IsValid(),
-               "Failed to create video decoder for provided video data");
-}
-
-
 class VideoInputMixed : public VideoInput<MixedBackend> {
   /*
    * This awkward class originates from an API inconsistency between

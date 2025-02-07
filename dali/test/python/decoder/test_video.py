@@ -240,3 +240,67 @@ def test_error_source_info(device):
     p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
 
     assert_raises(RuntimeError, p.run)
+
+def test_video_decoder_start_frame():
+    # Get a test video file
+    filenames = glob.glob(f"{get_dali_extra_path()}/db/video/cfr/*.mp4")
+    # Filter out unsupported codecs
+    filenames = [f for f in filenames if not any(x in f for x in ["hevc", "mpeg4", "av1"])]
+    video_file = filenames[0]
+
+    # Create input data
+    with open(video_file, 'rb') as f:
+        encoded_video = np.frombuffer(f.read(), dtype=np.uint8)
+
+    def get_batch():
+        return [encoded_video]
+
+    # First decode the whole video to get reference frames
+    @pipeline_def
+    def reference_pipeline():
+        encoded = fn.external_source(source=get_batch, device="cpu")
+        decoded = fn.experimental.decoders.video(
+            encoded,
+            device="cpu")
+        return decoded
+
+    pipe = reference_pipeline(batch_size=4, num_threads=3, device_id=0)
+    reference_frames = []
+    while True:
+        try:
+            out = pipe.run()
+            reference_frames.append(out[0].at(0))
+        except StopIteration:
+            break
+
+    reference_frames = np.stack(reference_frames)
+
+    # Parameters for partial decoding test
+    start_frame = 5
+    sequence_length = 3
+
+    # Test partial decoding
+    @pipeline_def
+    def decode_pipeline():
+        encoded = fn.external_source(source=get_batch, device="cpu")
+        decoded = fn.experimental.decoders.video(
+            encoded,
+            device="cpu",
+            start_frame=start_frame,
+            sequence_length=sequence_length
+        )
+        return decoded
+
+    pipe = decode_pipeline(batch_size=1, num_threads=3, device_id=0)
+    out = pipe.run()
+    result = out[0].at(0)
+
+    # Compare with reference
+    expected = reference_frames[start_frame:start_frame + sequence_length]
+    np.testing.assert_array_equal(result, expected)
+
+
+
+
+
+

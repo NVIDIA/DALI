@@ -12,26 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if FFMPEG_ENABLED
-#include "dali/operators/input/video_input.h"
-#endif
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
+
+inline bool IsVideoInput(const OpSchema& schema) {
+#if FFMPEG_ENABLED
+  return schema.name() == "experimental__inputs__Video";
+#else
+  return false;
+#endif
+}
 
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
     return;
   }
-#if FFMPEG_ENABLED
-  // VideoInput operator has relaxed check, since it actually creates a batch, therefore
-  // the batch size might change. It is a perfectly fine behaviour.
   if (IsVideoInput(spec_.GetSchema())) {
     return;
   }
-#endif
   auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumInput(); i++) {
     DALI_ENFORCE(curr_batch_size == ws.GetInputBatchSize(i),
@@ -49,13 +50,9 @@ void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
   if (IsSplitOrMerge(spec_.GetSchema())) {
     return;
   }
-#if FFMPEG_ENABLED
-  // VideoInput operator has relaxed check, since it actually creates a batch, therefore
-  // the batch size might change. It is a perfectly fine behaviour.
   if (IsVideoInput(spec_.GetSchema())) {
     return;
   }
-#endif
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
     auto output_batch_size = ws.GetOutputBatchSize(i);

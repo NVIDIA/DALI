@@ -37,11 +37,11 @@ Each output sample is a sequence of frames with shape (F, H, W, C) where:
 
 If True, each thread in the internal thread pool will be pinned to a specific CPU core.
 If False, threads can migrate between cores based on OS scheduling.)code", true)
-    .AddOptionalArg<int>("start_frame",
-    R"code(Index of the first frame to extract from each video)code", 0, true)
-    .AddOptionalArg<int>("stride",
-    R"code(Number of frames to skip between each extracted frame)code", 1, true)
-    .AddOptionalArg<int>("sequence_length",
+    .AddOptionalArg<int64_t>("start_frame",
+    R"code(Index of the first frame to extract from each video)code", nullptr, true)
+    .AddOptionalArg<int64_t>("stride",
+    R"code(Number of frames to skip between each extracted frame)code", nullptr, true)
+    .AddOptionalArg<int64_t>("sequence_length",
     R"code(Number of frames to extract from each video. If not provided, the whole video is decoded.)code", nullptr, true)
     .AddOptionalArg<std::string>("pad_mode",
     R"code(How to handle videos with insufficient frames:
