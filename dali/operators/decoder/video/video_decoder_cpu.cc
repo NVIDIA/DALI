@@ -19,6 +19,7 @@ namespace dali {
 bool VideoDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const Workspace &ws) {
   ValidateInput(ws);
+  AcquireArguments(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
   frames_decoders_.resize(batch_size);
@@ -29,7 +30,7 @@ bool VideoDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
       auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
       size_t size = sample.shape().num_elements();
       auto source_info = input.GetMeta(i).GetSourceInfo();
-      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, false, true, -1,
+      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, if_build_index_, true, -1,
                                                             source_info);
     });
   }
@@ -71,7 +72,13 @@ The video streams can be in most of the container file formats. FFmpeg is used t
     R"code(Applies only to the mixed backend type.
 
 If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
- Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true);
+ Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true)
+    .AddOptionalArg("start_frame",
+    R"code(First frame to load from the video.)code", 0u, true)
+    .AddOptionalArg("stride",
+     R"code(Distance between consecutive frames in the sequence.)code", 1u, true)
+    .AddOptionalArg("sequence_length",
+    R"code(Frames to load per sequence.)code", 1u, true);
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
 

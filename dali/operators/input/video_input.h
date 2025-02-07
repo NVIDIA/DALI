@@ -68,54 +68,6 @@ inline auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int b
   return std::make_tuple(num_full_batches, num_full_sequences, frames_in_last_sequence);
 }
 
-
-/**
- * Helper structure to handle Pad frames.
- *
- * Pad frame is a frame, which will be used for padding incomplete sequences.
- *
- * This structure, given the value and shape, generates a pad frame on a proper device.
- *
- * @tparam OutBackend Backend, on which the pad frame will be allocated.
- * @tparam PadType Type of the pad value.
- */
-template<typename OutBackend, typename PadType>
-struct PadFrameCreator {
-  static constexpr bool is_cpu = std::is_same_v<OutBackend, CPUBackend>;
-
-  PadFrameCreator() = default;
-
-
-  PadFrameCreator(PadType value, TensorShape<3> frame_shape,
-                  std::optional<cudaStream_t> stream = std::nullopt) {
-    Initialize(value, frame_shape, stream);
-  }
-
-
-  void Initialize(PadType value, TensorShape<3> frame_shape,
-                  std::optional<cudaStream_t> stream = std::nullopt) {
-    pad_frame_data_ = std::vector<PadType>(frame_shape.num_elements(), value);
-    pad_frame_.Resize(frame_shape, TypeTable::GetTypeId<PadType>());
-    if (stream) {
-      pad_frame_.Copy(pad_frame_data_, *stream);
-    } else {
-      pad_frame_.Copy(pad_frame_data_);
-    }
-  }
-
-
-  /// Buffer with the data used for padding.
-  std::vector<PadType> pad_frame_data_;
-  /// Pad frame.
-  Tensor<OutBackend> pad_frame_;
-
-
-  SampleView<OutBackend> GetPadFrame() {
-    return sample_view(pad_frame_);
-  }
-};
-
-
 }  // namespace detail
 
 
@@ -244,11 +196,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
-  void InitializePadValue(uint8_t value, std::optional<cudaStream_t> stream) {
-    pad_frame_creator_ = {value, GetFrameShape(0), stream};
-  }
-
-
   TensorShape<4> GetSequenceShape(int frames_per_sequence, int input_sample_idx) {
     TensorShape<4> ret;
     ret[0] = frames_per_sequence;
@@ -296,7 +243,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   std::deque<OutputDesc> output_descs_;
 
   /// Used for padding incomplete sequences.
-  detail::PadFrameCreator<OutBackend, uint8_t> pad_frame_creator_;
+  uint8_t pad_frame_value_ = 0;
 
   /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
   std::optional<ThreadPool> thread_pool_ = std::nullopt;
@@ -351,7 +298,7 @@ bool VideoInput<Backend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &outp
 
     // This has to be done for every video file, since we need to know the shape of the frames.
     if (last_sequence_policy_ == "pad") {
-      InitializePadValue(0, !is_cpu ? std::make_optional(ws.stream()) : std::nullopt);
+      pad_frame_value_ = 0;
     }
 
     initialized_ = true;
@@ -370,9 +317,9 @@ void VideoInput<Backend, FramesDecoder>::VideoInputRunImpl(Workspace &ws) {
 
   bool full_sequence;
   for (int64_t s = 0; s < output.num_samples(); s++) {
-    auto pad_value = last_sequence_policy_ == "pad" ? std::optional<SampleView<OutBackend>>(
-            pad_frame_creator_.GetPadFrame()) : std::nullopt;
-    full_sequence = this->DecodeFrames(output[s], 0, sequence_length_, pad_value,
+    auto pad_value = last_sequence_policy_ == "pad" ? std::optional<uint8_t>{pad_frame_value_} :
+                                                      std::optional<uint8_t>{};
+    full_sequence = this->DecodeFrames(output[s], 0, 0, sequence_length_, 1, pad_value,
                                        ws.has_stream() ? std::make_optional(ws.stream())
                                                        : std::nullopt);
     if (!full_sequence) {
