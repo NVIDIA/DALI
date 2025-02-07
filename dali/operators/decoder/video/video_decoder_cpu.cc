@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,73 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/video/video_decoder_cpu.h"
+#include "dali/operators/decoder/video/video_decoder_base.h"
+#include "dali/operators/reader/loader/video/frames_decoder.h"
 
 namespace dali {
 
-bool VideoDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                const Workspace &ws) {
-  ValidateInput(ws);
-  AcquireArguments(ws);
-  const auto &input = ws.Input<CPUBackend>(0);
-  int batch_size = input.num_samples();
-  frames_decoders_.resize(batch_size);
-  auto &thread_pool = ws.GetThreadPool();
-  for (int i = 0; i < batch_size; ++i) {
-    thread_pool.AddWork([this, i, &input](int tid) {
-      auto sample = input[i];
-      auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-      size_t size = sample.shape().num_elements();
-      auto source_info = input.GetMeta(i).GetSourceInfo();
-      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, if_build_index_, true, -1,
-                                                            source_info);
-    });
-  }
-  thread_pool.RunAll();
-  for (auto &dec : frames_decoders_) {
-    DALI_ENFORCE(dec->IsValid(), make_string("Failed to create video decoder for \"",
-                                 dec->Filename(), "\""));
-  }
-  output_desc.resize(1);
-  output_desc[0].shape = ReadOutputShape();
-  output_desc[0].type = DALI_UINT8;
-  return true;
-}
-
-void VideoDecoderCpu::RunImpl(Workspace &ws) {
-  auto &output = ws.Output<CPUBackend>(0);
-  const auto &input = ws.Input<CPUBackend>(0);
-  int batch_size = input.num_samples();
-  auto &thread_pool = ws.GetThreadPool();
-  for (int s = 0; s < batch_size; ++s) {
-    thread_pool.AddWork([this, s, &output](int tid) {
-      DecodeSample(output[s], s);
-    }, volume(input[s].shape()));
-  }
-  thread_pool.RunAll();
-}
-
 DALI_SCHEMA(experimental__decoders__Video)
     .DocStr(
-        R"code(Decodes a video file from a memory buffer (e.g. provided by external source).
+        R"code(Decodes video files from memory buffers into sequences of frames.
 
-The video streams can be in most of the container file formats. FFmpeg is used to parse video
- containers and returns a batch of sequences of frames with shape (F, H, W, C) where F is the
- number of frames in a sequence and can differ for each sample.)code")
+The operator accepts video files in common container formats (e.g. MP4, AVI). For CPU backend,
+FFmpeg is used for decoding. For Mixed backend, NVIDIA's Video Codec SDK (NVDEC) is used.
+
+Each output sample is a sequence of frames with shape (F, H, W, C) where:
+- F is the number of frames in the sequence (can vary between samples)
+- H is the frame height in pixels
+- W is the frame width in pixels 
+- C is the number of color channels)code")
     .NumInput(1)
     .NumOutput(1)
-    .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.")
+    .InputDox(0, "buffer", "TensorList", "Memory buffer containing the encoded video file data")
     .AddOptionalArg("affine",
-    R"code(Applies only to the mixed backend type.
+    R"code(Whether to pin threads to CPU cores (mixed backend only).
 
-If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
- Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true)
-    .AddOptionalArg("start_frame",
-    R"code(First frame to load from the video.)code", 0u, true)
-    .AddOptionalArg("stride",
-     R"code(Distance between consecutive frames in the sequence.)code", 1u, true)
-    .AddOptionalArg("sequence_length",
-    R"code(Frames to load per sequence.)code", 1u, true);
+If True, each thread in the internal thread pool will be pinned to a specific CPU core.
+If False, threads can migrate between cores based on OS scheduling.)code", true)
+    .AddOptionalArg<int>("start_frame",
+    R"code(Index of the first frame to extract from each video)code", 0, true)
+    .AddOptionalArg<int>("stride",
+    R"code(Number of frames to skip between each extracted frame)code", 1, true)
+    .AddOptionalArg<int>("sequence_length",
+    R"code(Number of frames to extract from each video. If not provided, the whole video is decoded.)code", nullptr, true)
+    .AddOptionalArg<std::string>("pad_mode",
+    R"code(How to handle videos with insufficient frames:
+- none: Return shorter sequences if not enough frames
+- constant: Pad with a fixed value (specified by ``pad_value``)
+- edge: Repeat the last valid frame)code", "constant", true)
+    .AddOptionalArg<int>("pad_value",
+    R"code(Value used to pad missing frames when pad_mode='constant'. Must be in range [0, 255].)code", 0);
+
+class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoder> {
+ public:
+  explicit VideoDecoderCpu(const OpSpec &spec) :
+    VideoDecoderBase<CPUBackend, FramesDecoder>(spec) {}
+};
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
 

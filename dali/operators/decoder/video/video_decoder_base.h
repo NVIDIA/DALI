@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,30 +18,86 @@
 #include <vector>
 #include <memory>
 #include <optional>
-#include "dali/kernels/common/copy.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
-const int64_t kDefaultStartFrame = 0;
-const int64_t kDefaultStride = 1;
-const int64_t kDefaultSequenceLength = -1;
+/**
+ * Padding mode for handling missing frames in video sequences
+ */
+enum class PaddingMode {
+  kNone,      // Return shorter sequences if not enough frames
+  kConstant,  // Pad with constant value (default 0)
+  kEdge       // Repeat last valid frame
+};
 
-template <typename Backend, typename FramesDecoder>
-class DLL_PUBLIC VideoDecoderBase {
+namespace impl {
+  template<typename Backend>
+  void memcpy(uint8_t* dst, const uint8_t* src, size_t size, cudaStream_t stream) {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      std::memcpy(dst, src, size);
+    } else {
+      CUDA_CALL(cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream));
+    }
+  }
+
+  template<typename Backend>
+  void memset(uint8_t* dst, uint8_t value, size_t size, cudaStream_t stream) {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      std::memset(dst, value, size);
+    } else {
+      CUDA_CALL(cudaMemsetAsync(dst, value, size, stream));
+    }
+  }
+}
+
+template <typename Backend, typename FramesDecoderImpl>
+class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
  public:
   using InBackend = CPUBackend;
   using OutBackend = std::conditional_t<std::is_same_v<Backend, CPUBackend>,
                                         CPUBackend,
                                         GPUBackend>;
 
-  VideoDecoderBase() = default;
+  VideoDecoderBase(const OpSpec &spec) : Operator<Backend>(spec) {
+    auto pad_mode_str = spec_.template GetArgument<std::string>("pad_mode");
+    if (pad_mode_str == "none") {
+      padding_mode_ = PaddingMode::kNone;
+    } else if (pad_mode_str == "constant") {
+      padding_mode_ = PaddingMode::kConstant;
+    } else if (pad_mode_str == "edge") {
+      padding_mode_ = PaddingMode::kEdge;
+    } else {
+      DALI_FAIL(make_string("Invalid pad_mode: ", pad_mode_str));
+    }
+
+    if (padding_mode_ == PaddingMode::kConstant) {
+      pad_value_ = spec_.template GetArgument<int>("pad_value");
+      DALI_ENFORCE(pad_value_ >= 0 && pad_value_ <= 255,
+                   "pad_value must be in range [0, 255]");
+    }
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(VideoDecoderBase);
 
  protected:
-  void ValidateInput(const Workspace &ws) {
+  std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char* data, size_t size, 
+                                                   bool build_index,
+                                                   std::string_view source_info,
+                                                   cudaStream_t stream = 0) {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      return std::make_unique<FramesDecoderImpl>(data, size, build_index, true, -1, source_info);
+    } else {
+      return std::make_unique<FramesDecoderImpl>(data, size, stream, build_index, -1, source_info);
+    }
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<InBackend>(0);
+    
+    // Validate input
     DALI_ENFORCE(input.type() == DALI_UINT8,
                  "Type of the input buffer must be uint8.");
     DALI_ENFORCE(input.sample_dim() == 1,
@@ -49,104 +105,132 @@ class DLL_PUBLIC VideoDecoderBase {
     for (int64_t i = 0; i < input.num_samples(); ++i) {
       DALI_ENFORCE(input[i].shape().num_elements() > 0,
                    make_string("Incorrect sample at position: ", i, ". ",
-                               "Video decoder does not support empty input samples."));
+                             "Video decoder does not support empty input samples."));
     }
-  }
 
+    int batch_size = input.num_samples();
 
-  TensorListShape<4> ReadOutputShape() {
-    TensorListShape<4> shape(frames_decoders_.size());
-    for (size_t s = 0; s < frames_decoders_.size(); ++s) {
-      TensorShape<4> sample_shape;
-      sample_shape[0] = sequence_length_[s] == -1 ? frames_decoders_[s]->NumFrames() :
-                                                      sequence_length_[s];
+    // Get frame selection parameters
+    start_frame_.Acquire(spec_, ws, batch_size);
+    stride_.Acquire(spec_, ws, batch_size);
+    sequence_length_.Acquire(spec_, ws, batch_size);
+
+    frames_decoders_.resize(batch_size);
+
+    bool build_index = start_frame_.HasExplicitValue() ||
+                      stride_.HasExplicitValue() ||
+                      sequence_length_.HasValue();
+
+    // Create decoders in parallel
+    ThreadPool& thread_pool = GetThreadPool(ws);
+    for (int s = 0; s < batch_size; ++s) {
+      thread_pool.AddWork([&, s](int tid) {
+        const char* data = reinterpret_cast<const char *>(input[s].data<uint8_t>());
+        size_t size = input[s].shape().num_elements();
+        auto source_info = input.GetMeta(s).GetSourceInfo();
+        frames_decoders_[s] = CreateDecoder(data, size, build_index, source_info, ws.stream());
+      });
+    }
+    thread_pool.RunAll();
+
+    // Set output shape for each sample
+    TensorListShape<4> out_shape(batch_size);
+    for (int s = 0; s < batch_size; s++) {
+      auto& decoder = frames_decoders_[s];
+      DALI_ENFORCE(decoder->IsValid(), make_string("Failed to create video decoder for \"",
+                                   decoder->Filename(), "\""));
+      auto sample_shape = out_shape.tensor_shape_span(s);
+      sample_shape[0] = sequence_length_.HasValue() ? sequence_length_[s].data[0] : frames_decoders_[s]->NumFrames();
       sample_shape[1] = frames_decoders_[s]->Height();
       sample_shape[2] = frames_decoders_[s]->Width();
       sample_shape[3] = frames_decoders_[s]->Channels();
-      shape.set_tensor_shape(s, sample_shape);
     }
-    return shape;
+
+    output_desc.resize(1);
+    output_desc[0].shape = out_shape;
+    output_desc[0].type = DALI_UINT8;
+    return true;
   }
 
+  void RunImpl(Workspace &ws) override {
+    auto &output = ws.Output<OutBackend>(0);
+    const auto &input = ws.Input<InBackend>(0);
+    int batch_size = input.num_samples();
+    
+    // Decode samples in parallel
+    ThreadPool& thread_pool = GetThreadPool(ws);
+    for (int s = 0; s < batch_size; ++s) {
+      thread_pool.AddWork([&, s](int) {
+        int64_t num_frames = output[s].shape()[0]; // It was calculated in SetupImpl
+        DecodeFrames(output[s], s,
+                     start_frame_[s].data[0],
+                     num_frames,
+                     stride_[s].data[0],
+                     ws.stream());
+        frames_decoders_[s].reset();
+      }, input[s].shape().num_elements());
+    }
+    thread_pool.RunAll();
+  }
 
-  /**
-   * Decode given number of frames from a FramesDecoder.
-   *
-   * This function allows optional padding of the output data, when
-   * there's not enough frames inside FramesDecoder to fill the `num_frames` specified.
-   *
-   * The `pad_value` argument determines, with what the VideoDecoder shall pad
-   * the partial sequence. The tensor passed to the `pad_value` shall be an entire
-   * frame. This frame will be repeated at the end of partial sequence.
-   * If the `pad_value` is not provided, the padding will not happen and the DecodeFrames
-   * will return a partial sequence.
-   *
-   * @param output The SampleView in which the decoded sequence will be put.
-   * @param sample_idx Index of the encoded video that shall be decoded.
-   * @param num_frames How many frames shall be decoded.
-   * @param pad_value What to (optionally) pad the partial sequence with.
-   * @return False, if less than `num_frames` have been decoded.
-   */
+  ThreadPool &GetThreadPool(const Workspace &ws) {
+    return std::is_same<MixedBackend, Backend>::value ? *thread_pool_ : ws.GetThreadPool();
+  }
+
   bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx,
-                    int64_t start_frame, int64_t num_frames, int64_t stride,
-                    std::optional<uint8_t> pad_value = std::nullopt,
-                    std::optional<cudaStream_t> stream = std::nullopt) {
+                    int64_t start_frame, int64_t sequence_length, int64_t stride,
+                    cudaStream_t stream = 0) {
     auto &frames_decoder = *frames_decoders_[sample_idx];
     int64_t frame_size = frames_decoder.FrameSize();
-
     uint8_t *output_data = output.template mutable_data<uint8_t>();
 
     int64_t f = 0;
     if (start_frame > 0) {
       frames_decoder.SeekFrame(start_frame);
     }
-    // Work until:
-    //    (a) There are no more frames, or
-    //    (b) Sufficient number of frames has been decoded.
-    for (; f < num_frames && frames_decoder.NextFrameIdx() != -1; f++) {
+
+    // Read frames with specified stride
+    for (; f < sequence_length && frames_decoder.NextFrameIdx() != -1; f++) {
       frames_decoder.ReadNextFrame(output_data + f * frame_size);
       for (int i = 1; i < stride && frames_decoder.NextFrameIdx() != -1; i++) {
         frames_decoder.ReadNextFrame(nullptr, false);
       }
     }
-    assert(f <= num_frames);
-    bool full_sequence_decoded = f == num_frames;
-    // If there's an insufficient number of frames, pad if requested.
-    if (f < num_frames) {
-      uint8_t use_pad_value = pad_value ? *pad_value : 0;
-      auto pad_size = frame_size * (num_frames - f);
-      if (std::is_same_v<OutBackend, CPUBackend>) {
-        std::fill(output_data + f * frame_size, output_data + pad_size, use_pad_value);
-      } else {
-        cudaMemsetAsync(output_data + f * frame_size, use_pad_value, pad_size,
-                        stream ? *stream : 0);
+
+    // Handle padding if needed
+    if (f < sequence_length) {
+      switch (padding_mode_) {
+        case PaddingMode::kNone:
+          return false;
+        case PaddingMode::kEdge:
+          if (f > 0) {
+            uint8_t* last_frame = output_data + (f-1) * frame_size;
+            for (int64_t i = f; i < sequence_length; i++) {
+              impl::memcpy<OutBackend>(output_data + i * frame_size, 
+                                     last_frame, frame_size, stream);
+            }
+          }
+          break;
+        case PaddingMode::kConstant:
+        default:
+          impl::memset<OutBackend>(output_data + f * frame_size, 
+                                 pad_value_, frame_size * (sequence_length - f), stream);
+          break;
       }
     }
-    return full_sequence_decoded;
+    return true;
   }
 
+  std::vector<std::unique_ptr<FramesDecoderImpl>> frames_decoders_;
 
-  /**
-   * @brief Decode sample with index `idx` to `output` tensor.
-   */
-  void DecodeSample(SampleView<OutBackend> output, int64_t idx) {
-    int64_t num_frames = sequence_length_[idx] == -1 ? output.shape()[0] : sequence_length_[idx];
-    DecodeFrames(output, idx, start_frame_[idx], num_frames, stride_[idx]);
-  }
+  std::unique_ptr<ThreadPool> thread_pool_;  // Used only for mixed backend
+  PaddingMode padding_mode_ = PaddingMode::kConstant;
+  uint8_t pad_value_ = 0;
 
-
-  std::vector<std::unique_ptr<FramesDecoder>> frames_decoders_;
-  std::vector<int64_t> start_frame_;
-  std::vector<int64_t> stride_;
-  std::vector<int64_t> sequence_length_;
-  bool if_build_index_;
-
- private:
-  using storage_backend_for_copy_kernel = std::conditional_t<
-          std::is_same_v<OutBackend, CPUBackend>,
-          StorageCPU,
-          StorageGPU
-  >;
+  USE_OPERATOR_MEMBERS();
+  ArgValue<int, 1> start_frame_{"start_frame", spec_};
+  ArgValue<int, 1> stride_{"stride", spec_};
+  ArgValue<int, 1> sequence_length_{"sequence_length", spec_};
 };
 
 }  // namespace dali
