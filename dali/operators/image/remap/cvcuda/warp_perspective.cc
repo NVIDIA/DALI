@@ -38,8 +38,8 @@ Performs a perspective transform on the images.
     .NumInput(1, 2)
     .InputDox(0, "input", "TensorList of uint8, uint16, int16 or float",
               "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
-    .InputDox(1, "matrix_gpu", "1D TensorList of float",
-              "Transformation matrix data. Should be used to pass the GPU data. "
+    .InputDox(1, "matrix_gpu", "2D TensorList of float",
+              "3x3 Perspective transform matrix. Should be used to pass the GPU data. "
               "For CPU data, the `matrix` argument should be used.")
     .NumOutput(1)
     .InputLayout(0, {"HW", "HWC", "FHWC", "CHW", "FCHW"})
@@ -52,7 +52,7 @@ specify ``(480,640)``, not ``(480,640,3)``.
                            std::vector<float>({}), true)
     .AddOptionalArg<float>("matrix",
                            R"doc(
-  Perspective transform mapping of destination to source coordinates.
+  3x3 Perspective transform matrix of destination to source coordinates.
   If `inverse_map` argument is set to false, the matrix is interpreted
   as a source to destination coordinates mapping.
 
