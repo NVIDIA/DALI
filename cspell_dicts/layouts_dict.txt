@@ -1,0 +1,17 @@
+hwc
+chw
+nhwc
+nchw
+fhwc
+fchw
+nfhwc
+nfcwh
+dhwc
+cdhw
+fdhwc
+fcdhw
+ndhwc
+ncdhw
+nfdhwc
+nfcdhw
+
