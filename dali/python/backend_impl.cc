@@ -766,8 +766,8 @@ void ExposeTensor(py::module &m) {
       samples of a :class:`TensorListCPU` or used to wrap CPU memory that is intended
       to be passed as an input to DALI.
 
-      It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
-      and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_
+      It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_,
+      `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_
       and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 
   py::implicitly_convertible<py::buffer, Tensor<CPUBackend>>();
