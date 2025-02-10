@@ -580,7 +580,10 @@ void ExposeTensor(py::module &m) {
       "__dlpack_device__", [](const Tensor<CPUBackend> &tensor) {
         auto dev = GetDLDevice(tensor);
         return std::make_tuple(dev.device_type, dev.device_id);
-      })
+      },
+      R"code(
+      Returns device type and device ID in DLPack format.
+      )code")
     .def(
       "__dlpack__", ToDLPack<CPUBackend>,
       "stream"_a = py::none(),
@@ -764,7 +767,8 @@ void ExposeTensor(py::module &m) {
       to be passed as an input to DALI.
 
       It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
-      and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
+      and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_
+      and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 
   py::implicitly_convertible<py::buffer, Tensor<CPUBackend>>();
   py::implicitly_convertible<py::capsule&, Tensor<CPUBackend>>();
@@ -792,7 +796,10 @@ void ExposeTensor(py::module &m) {
       "__dlpack_device__", [](const Tensor<GPUBackend> &tensor) {
         auto dev = GetDLDevice(tensor);
         return std::make_tuple(dev.device_type, dev.device_id);
-      })
+      },
+      R"code(
+      Returns device type and device ID in DLPack format.
+      )code")
     .def(
       "__dlpack__", ToDLPack<GPUBackend>,
       "stream"_a = py::none(),
@@ -935,7 +942,8 @@ void ExposeTensor(py::module &m) {
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
       to be passed as an input to DALI.
 
-      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
+      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_
+      and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 }
 
 template <typename Backend>
