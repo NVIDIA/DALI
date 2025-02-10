@@ -185,7 +185,7 @@ DALI_API daliResult_t daliPreallocateDeviceMemory2(size_t bytes, int device_id);
  * memory. This will typically release the memory back to DALI's memory pool, speeding up
  * subsequent allocations.
  */
-inline daliResult_t daliPreallocateDeviceMemory(size_t bytes, int device_id) {
+static inline daliResult_t daliPreallocateDeviceMemory(size_t bytes, int device_id) {
   return daliPreallocateDeviceMemory2(bytes, device_id);
 }
 
@@ -197,7 +197,7 @@ DALI_API daliResult_t daliPreallocatePinnedMemory2(size_t bytes);
  * memory. This will typically release the memory back to DALI's memory pool, speeding up
  * subsequent allocations.
  */
-inline daliResult_t daliPreallocatePinnedMemory(size_t bytes) {
+static inline daliResult_t daliPreallocatePinnedMemory(size_t bytes) {
   return daliPreallocatePinnedMemory2(bytes);
 }
 
@@ -208,7 +208,7 @@ DALI_API daliResult_t daliReleaseUnusedMemory2();
  * NOTE: Some of the memory pool implementations allocate memory from the OS in large chunks.
  *       If the chunk is occupied by even a tiny allocation, it will not be freed by this function.
  */
-inline daliResult_t daliReleaseUnusedMemory() {
+static inline daliResult_t daliReleaseUnusedMemory() {
   return daliReleaseUnusedMemory2();
 }
 
