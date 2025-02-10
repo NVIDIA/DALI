@@ -28,26 +28,63 @@ Each output sample is a sequence of frames with shape (F, H, W, C) where:
 - F is the number of frames in the sequence (can vary between samples)
 - H is the frame height in pixels
 - W is the frame width in pixels 
-- C is the number of color channels)code")
+- C is the number of color channels
+
+.. code-block:: python
+
+    video_decoder = dali.experimental.decoders.Video(
+        frames=[0, 10, 20, 30, 40, 50, 40, 30, 20, 10, 0]
+    )
+
+Example 2: Extract a sequence of frames:
+
+.. code-block:: python
+
+    video_decoder = dali.experimental.decoders.Video(
+        start_frame=0, sequence_length=10, stride=2
+    )
+
+Example 3: Pad the sequence by repeating the last frame:
+
+.. code-block:: python
+
+    video_decoder = dali.experimental.decoders.Video(
+        start_frame=0, sequence_length=100, stride=2, pad_mode="edge"
+    )
+
+)code")
     .NumInput(1)
     .NumOutput(1)
-    .InputDox(0, "buffer", "TensorList", "Memory buffer containing the encoded video file data")
+    .InputDox(0, "encoded", "TensorList", "Encoded video stream")
     .AddOptionalArg("affine",
     R"code(Whether to pin threads to CPU cores (mixed backend only).
 
 If True, each thread in the internal thread pool will be pinned to a specific CPU core.
 If False, threads can migrate between cores based on OS scheduling.)code", true)
-    .AddOptionalArg<int64_t>("start_frame",
-    R"code(Index of the first frame to extract from each video)code", nullptr, true)
-    .AddOptionalArg<int64_t>("stride",
-    R"code(Number of frames to skip between each extracted frame)code", nullptr, true)
-    .AddOptionalArg<int64_t>("sequence_length",
-    R"code(Number of frames to extract from each video. If not provided, the whole video is decoded.)code", nullptr, true)
+    .AddOptionalArg<std::vector<int>>("frames",
+    R"code(Specifies which frames to extract from each video by their indices.
+
+The indices can be provided in any order and can include duplicates. For example, [0,10,5,10] would extract:
+- Frame 0 (first frame)
+- Frame 10
+- Frame 5 
+- Frame 10 (again)
+
+This argument cannot be used together with ``start_frame``, ``sequence_length``, ``stride`` or ``pad_mode``.)code", nullptr, true)
+    .AddOptionalArg<int>("start_frame",
+    R"code(Index of the first frame to extract from each video. Cannot be used together with frames argument.)code", nullptr, true)
+    .AddOptionalArg<int>("stride",
+    R"code(Number of frames to skip between each extracted frame. Cannot be used together with ``frames`` argument.)code", nullptr, true)
+    .AddOptionalArg<int>("sequence_length",
+    R"code(Number of frames to extract from each video. If not provided, the whole video is decoded. Cannot be used together with ``frames`` argument.)code", nullptr, true)
     .AddOptionalArg<std::string>("pad_mode",
-    R"code(How to handle videos with insufficient frames:
-- none: Return shorter sequences if not enough frames
-- constant: Pad with a fixed value (specified by ``pad_value``)
-- edge: Repeat the last valid frame)code", "constant", true)
+    R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
+- 'none': Return shorter sequences if not enough frames: ABC -> ABC
+- 'constant': Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
+- 'edge': Repeat the last valid frame: ABC -> ABCCCC
+- 'reflect_1001' or 'symmetric': Reflect padding, including the last element: ABC -> ABCCBA
+- 'reflect_101' or 'reflect': Reflect padding, not including the last element: ABC -> ABCBA
+Not relevant when using frames argument.)code", "constant", true)
     .AddOptionalArg<int>("pad_value",
     R"code(Value used to pad missing frames when pad_mode='constant'. Must be in range [0, 255].)code", 0);
 

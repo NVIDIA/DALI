@@ -467,12 +467,12 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   piped_pts_.pop();
 
   // current_pts is pts of frame that came from the decoder
-  // NextFramePts() is pts of the frame that we want to return
+  // Index(NextFrameIdx()).pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
-  if (HasIndex() && current_pts == NextFramePts()) {
+  if (HasIndex() && current_pts == Index(NextFrameIdx()).pts) {
     // Currently decoded frame is actually the one we wanted
     frame_returned_ = true;
 
@@ -530,6 +530,9 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
 
 bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
   // Check if requested frame was buffered earlier
+  if (!HasIndex()) {
+    DALI_FAIL("Functionality is unavailible when index is not built.");
+  }
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
@@ -548,9 +551,13 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   current_copy_to_output_ = copy_to_output;
   current_frame_output_ = data;
 
-  while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-    // We want to make sure that we call av_packet_unref in every iteration
+  while (true) {
+    int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
     auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+    if (ret != 0) {
+      break;  // No more frames in the file
+    }
+
     if (!SendFrameToParser()) {
       continue;
     }
@@ -560,7 +567,6 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
       return true;
     }
   }
-  av_packet_unref(av_state_->packet_);
 
   DALI_ENFORCE(piped_pts_.size() == 1);
 

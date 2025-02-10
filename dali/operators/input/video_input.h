@@ -16,12 +16,13 @@
 #define DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 
 #include <deque>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
+#include "dali/pipeline/operator/builtin/input_operator.h"
 
 namespace dali {
 
@@ -70,36 +71,32 @@ inline auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int b
 }  // namespace detail
 
 
-template<typename Backend>
+template <typename Backend>
 using frames_decoder_t =
-        std::conditional_t<
-                std::is_same<Backend, CPUBackend>::value,
-                FramesDecoder,
-                FramesDecoderGpu
-        >;
+    std::conditional_t<std::is_same<Backend, CPUBackend>::value, FramesDecoder, FramesDecoderGpu>;
 
 static const std::string next_output_data_id_trace_name_ = "next_output_data_id";  // NOLINT
 
 
-template<typename Backend, typename FramesDecoderImpl = frames_decoder_t<Backend>>
+template <typename Backend, typename FramesDecoderImpl = frames_decoder_t<Backend>>
 class VideoInput : public InputOperator<Backend> {
  public:
   static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
   using InBackend = CPUBackend;
   using OutBackend = std::conditional_t<is_cpu, CPUBackend, GPUBackend>;
   static_assert((is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoder>) ||
-                (!is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>),
+                    (!is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>),
                 "Incompatible FramesDecoder to a given Backend");
 
-  explicit VideoInput(const OpSpec &spec) :
-          InputOperator<Backend>(spec),
-          sequence_length_(spec.GetArgument<int>("sequence_length")),
-          device_id_(spec.GetArgument<int>("device_id")),
-          batch_size_(spec.GetArgument<int>("max_batch_size")),
-          last_sequence_policy_(spec.GetArgument<std::string>("last_sequence_policy")) {
-    DALI_ENFORCE(last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
-                 make_string("Provided `last_sequence_policy` is not supported: ",
-                             last_sequence_policy_));
+  explicit VideoInput(const OpSpec &spec)
+      : InputOperator<Backend>(spec),
+        sequence_length_(spec.GetArgument<int>("sequence_length")),
+        device_id_(spec.GetArgument<int>("device_id")),
+        batch_size_(spec.GetArgument<int>("max_batch_size")),
+        last_sequence_policy_(spec.GetArgument<std::string>("last_sequence_policy")) {
+    DALI_ENFORCE(
+        last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
+        make_string("Provided `last_sequence_policy` is not supported: ", last_sequence_policy_));
     if constexpr (!is_cpu) {
       thread_pool_.emplace(this->num_threads_, spec.GetArgument<int>("device_id"),
                            spec.GetArgument<bool>("affine"), "VideoInput<MixedBackend>");
@@ -112,11 +109,10 @@ class VideoInput : public InputOperator<Backend> {
   }
 
 
-  void Advance() override {
-  }
+  void Advance() override {}
 
 
-  const TensorLayout& in_layout() const override {
+  const TensorLayout &in_layout() const override {
     return in_layout_;
   }
 
@@ -133,9 +129,8 @@ class VideoInput : public InputOperator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx,
-                    int64_t start_frame, int64_t sequence_length,
-                    int64_t stride, cudaStream_t stream);
+  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx, int64_t start_frame,
+                    int64_t sequence_length, int64_t stride, cudaStream_t stream);
 
   /**
    * Awkward RunImpl function for VideoInput operator.
@@ -163,7 +158,7 @@ class VideoInput : public InputOperator<Backend> {
    */
   void DetermineOutputDescs(int num_frames) {
     auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
-            detail::DetermineBatchOutline(num_frames, sequence_length_, batch_size_);
+        detail::DetermineBatchOutline(num_frames, sequence_length_, batch_size_);
     // Initially, the Operator will return full batches of full sequences.
     for (int i = 0; i < num_full_batches; i++) {
       OutputDesc od;
@@ -179,9 +174,8 @@ class VideoInput : public InputOperator<Backend> {
     OutputDesc od;
     od.type = DALI_UINT8;
     // Then, in the last batch, first few sequences will be full.
-    od.shape = uniform_list_shape(
-            num_full_sequences + (frames_in_last_sequence == 0 ? 0 : 1),
-            GetSequenceShape(sequence_length_, 0));
+    od.shape = uniform_list_shape(num_full_sequences + (frames_in_last_sequence == 0 ? 0 : 1),
+                                  GetSequenceShape(sequence_length_, 0));
 
     // And at the end of the last batch, the last sequence will be either partial or padded,
     // depending on user setting.
@@ -221,7 +215,7 @@ class VideoInput : public InputOperator<Backend> {
     }
   }
 
-  std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char* data, size_t size, 
+  std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size,
                                                    cudaStream_t stream = 0) {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
       return std::make_unique<FramesDecoderImpl>(data, size, false, true, -1);
@@ -258,11 +252,11 @@ class VideoInput : public InputOperator<Backend> {
   TensorLayout in_layout_ = "B";  // Byte stream.
 };
 
-template<typename Backend, typename FramesDecoderImpl>
+template <typename Backend, typename FramesDecoderImpl>
 void VideoInput<Backend, FramesDecoderImpl>::LoadDataFromInputOperator(ThreadPool &thread_pool) {
   // By definition, the input batch size of this Operator is always 1.
   static constexpr int input_batch_size = 1;
-  assert(needs_data_load_);  // Data shall not be loaded if it's not needed.
+  assert(needs_data_load_);        // Data shall not be loaded if it's not needed.
   assert(this->HasDataInQueue());  // Data shall not be loaded if there's no data in queue.
   encoded_video_.Reset();
   encoded_video_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
@@ -272,15 +266,15 @@ void VideoInput<Backend, FramesDecoderImpl>::LoadDataFromInputOperator(ThreadPoo
 }
 
 
-template<typename Backend, typename FramesDecoderImpl>
-void
-VideoInput<Backend, FramesDecoderImpl>::SetNextDataIdTrace(Workspace &ws, std::string next_data_id) {
+template <typename Backend, typename FramesDecoderImpl>
+void VideoInput<Backend, FramesDecoderImpl>::SetNextDataIdTrace(Workspace &ws,
+                                                                std::string next_data_id) {
   ws.SetOperatorTrace(next_output_data_id_trace_name_, std::move(next_data_id));
 }
 
-template<typename Backend, typename FramesDecoderImpl>
+template <typename Backend, typename FramesDecoderImpl>
 bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                                   const Workspace &ws) {
+                                                       const Workspace &ws) {
   if (!initialized_) {
     if (needs_data_load_) {
       InputOperator<Backend>::HandleDataAvailability();
@@ -289,7 +283,7 @@ bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &
     }
 
     auto sample = encoded_video_[0];
-    const char* data = reinterpret_cast<const char *>(sample.data<uint8_t>());
+    const char *data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     int size = sample.shape().num_elements();
     frames_decoders_[0] = CreateDecoder(data, size, ws.has_stream() ? ws.stream() : 0);
     DALI_ENFORCE(frames_decoders_[0]->IsValid(),
@@ -313,58 +307,60 @@ bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &
 
 
 namespace impl {
-  template<typename Backend>
-  void memset(uint8_t* dst, uint8_t value, size_t size, cudaStream_t stream) {
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      std::memset(dst, value, size);
-    } else {
-      CUDA_CALL(cudaMemsetAsync(dst, value, size, stream));
-    }
+template <typename Backend>
+void memset(uint8_t *dst, uint8_t value, size_t size, cudaStream_t stream) {
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    std::memset(dst, value, size);
+  } else {
+    CUDA_CALL(cudaMemsetAsync(dst, value, size, stream));
   }
 }
+}  // namespace impl
 
-template<typename Backend, typename FramesDecoderImpl>
-bool VideoInput<Backend, FramesDecoderImpl>::DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx,
-                                                      int64_t start_frame, int64_t sequence_length,
-                                                      int64_t stride, cudaStream_t stream) {
-    auto &frames_decoder = *frames_decoders_[sample_idx];
-    int64_t frame_size = frames_decoder.FrameSize();
-    uint8_t *output_data = output.template mutable_data<uint8_t>();
+template <typename Backend, typename FramesDecoderImpl>
+bool VideoInput<Backend, FramesDecoderImpl>::DecodeFrames(SampleView<OutBackend> output,
+                                                          int64_t sample_idx, int64_t start_frame,
+                                                          int64_t sequence_length, int64_t stride,
+                                                          cudaStream_t stream) {
+  auto &frames_decoder = *frames_decoders_[sample_idx];
+  int64_t frame_size = frames_decoder.FrameSize();
+  uint8_t *output_data = output.template mutable_data<uint8_t>();
 
-    int64_t f = 0;
-    if (start_frame > 0) {
-      frames_decoder.SeekFrame(start_frame);
-    }
-
-    // Read frames with specified stride
-    for (; f < sequence_length && frames_decoder.NextFrameIdx() != -1; f++) {
-      frames_decoder.ReadNextFrame(output_data + f * frame_size);
-      for (int i = 1; i < stride && frames_decoder.NextFrameIdx() != -1; i++) {
-        frames_decoder.ReadNextFrame(nullptr, false);
-      }
-    }
-
-    // Handle padding if needed
-    if (f < sequence_length) {
-      if (last_sequence_policy_ == "partial") {
-        return false;
-      } else if (f > 0) {
-        assert(last_sequence_policy_ == "pad");
-        impl::memset<OutBackend>(output_data + f * frame_size,
-                                 pad_frame_value_, frame_size * (sequence_length - f), stream);
-      }
-    }
-    return true;
+  int64_t f = 0;
+  if (start_frame > 0) {
+    frames_decoder.SeekFrame(start_frame);
   }
 
-template<typename Backend, typename FramesDecoderImpl>
+  // Read frames with specified stride
+  for (; f < sequence_length && frames_decoder.NextFrameIdx() != -1; f++) {
+    frames_decoder.ReadNextFrame(output_data + f * frame_size);
+    for (int i = 1; i < stride && frames_decoder.NextFrameIdx() != -1; i++) {
+      frames_decoder.ReadNextFrame(nullptr, false);
+    }
+  }
+
+  // Handle padding if needed
+  if (f < sequence_length) {
+    if (last_sequence_policy_ == "partial") {
+      return false;
+    } else if (f > 0) {
+      assert(last_sequence_policy_ == "pad");
+      impl::memset<OutBackend>(output_data + f * frame_size, pad_frame_value_,
+                               frame_size * (sequence_length - f), stream);
+    }
+  }
+  return true;
+}
+
+template <typename Backend, typename FramesDecoderImpl>
 void VideoInput<Backend, FramesDecoderImpl>::VideoInputRunImpl(Workspace &ws) {
   auto &output = ws.Output<OutBackend>(0);
   output.SetLayout("FHWC");
 
   bool full_sequence;
   for (int64_t s = 0; s < output.num_samples(); s++) {
-    full_sequence = DecodeFrames(output[s], 0, 0, sequence_length_, 1, ws.has_stream() ? ws.stream() : 0);
+    full_sequence =
+        DecodeFrames(output[s], 0, 0, sequence_length_, 1, ws.has_stream() ? ws.stream() : 0);
     if (!full_sequence) {
       break;
     }

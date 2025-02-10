@@ -196,10 +196,10 @@ class DLL_PUBLIC FramesDecoder {
   int NextFrameIdx() { return next_frame_idx_; }
 
   /**
- * @brief Returns true if the index was built.
- *
- * @return Boolean indicating whether or not the index was created.
- */
+   * @brief Returns true if the index was built.
+   *
+   * @return Boolean indicating whether or not the index was created.
+   */
   bool HasIndex() const { return index_.has_value(); }
 
   FramesDecoder(FramesDecoder&&) = default;
@@ -214,12 +214,14 @@ class DLL_PUBLIC FramesDecoder {
     return is_valid_;
   }
 
+  const IndexEntry& Index(int frame_id) const {
+    return (*index_)[frame_id];
+  }
+
  protected:
   std::unique_ptr<AvState> av_state_;
 
   std::optional<std::vector<IndexEntry>> index_ = {};
-
-  const IndexEntry &Index(int frame_id) const;
 
   int next_frame_idx_ = 0;
 
@@ -267,8 +269,6 @@ class DLL_PUBLIC FramesDecoder {
   void LazyInitSwContext();
 
   bool CheckCodecSupport();
-
-  void DetectVfr();
 
   void ParseNumFrames();
 
