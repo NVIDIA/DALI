@@ -601,12 +601,13 @@ void ExposeTensor(py::module &m) {
           The CUDA stream the the caller is going to use to access the buffer.
           A synchronization event might be inserted, if necessary, into that stream.
           Special values:
-          None - any stream; wait on host
-          -1   - do not synchronize at all
-          1    - legacy default stream
-          2    - legacy per-thread stream
-          >2   - a CUDA stream handle converted to an integer
-          0    - forbidden value
+
+          * ``None`` - any stream; wait on host
+          * ``-1``   - do not synchronize at all
+          * ``1``    - legacy default stream
+          * ``2``    - legacy per-thread stream
+          * ``>2``   - a CUDA stream handle converted to an integer
+          * ``0``    - forbidden value
       )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -817,12 +818,13 @@ void ExposeTensor(py::module &m) {
           The CUDA stream the the caller is going to use to access the buffer.
           A synchronization event might be inserted, if necessary, into that stream.
           Special values:
-          None - any stream; wait on host
-          -1   - do not synchronize at all
-          1    - legacy default stream
-          2    - legacy per-thread stream
-          >2   - a CUDA stream handle converted to an integer
-          0    - forbidden value
+
+          * ``None`` - any stream; wait on host
+          * ``-1``   - do not synchronize at all
+          * ``1``    - legacy default stream
+          * ``2``    - legacy per-thread stream
+          * ``>2``   - a CUDA stream handle converted to an integer
+          * ``0``    - forbidden value
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
