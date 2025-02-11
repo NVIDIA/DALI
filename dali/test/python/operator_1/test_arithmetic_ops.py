@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1203,3 +1203,19 @@ def test_nested_datanode_error_arithm(op):
         TypeError, glob=f"input 1 of operator `{op}` must be*" "Got a `list` with nested *DataNode"
     ):
         _ = err_pipe()
+
+
+@params(("cpu",), ("gpu",))
+def test_empty_batch(device):
+    @pipeline_def(
+        device_id=0 if device == "gpu" else None,
+        batch_size=1,
+        num_threads=4,
+    )
+    def empty_input_pipe():
+        x = types.Constant(np.zeros((0, 3), dtype=np.float32), device=device)
+        return x * 42
+
+    p = empty_input_pipe()
+    (o,) = p.run()
+    assert tuple(o[0].shape()) == (0, 3)
