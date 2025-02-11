@@ -523,16 +523,13 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
 }
 
 void FramesDecoderGpu::SeekFrame(int frame_id) {
-  // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
   SendLastPacket(true);
   FramesDecoder::SeekFrame(frame_id);
 }
 
 bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
   // Check if requested frame was buffered earlier
-  if (!HasIndex()) {
-    DALI_FAIL("Functionality is unavailible when index is not built.");
-  }
+  assert(HasIndex());
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
@@ -639,14 +636,13 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
     more_frames_to_decode_ &&
     !frame_returned_ &&
     frame_to_return_index == -1) {
-    if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      // We want to make sure that we call av_packet_unref in every iteration
-      auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+    int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
+    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+    if (ret == 0) {
       if (!SendFrameToParser()) {
         continue;
       }
     } else {
-      av_packet_unref(av_state_->packet_);
       // Handle the case, when last packet has more frames that we have empty spots
       // in the buffer.
       // If so, we need to return frame from the buffer before sending last packet.
@@ -693,11 +689,14 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
     return true;
   }
 
-  copyD2D(
-    current_frame_output_,
-    frame_buffer_[frame_to_return_index].frame_.data(),
-    FrameSize(),
-    stream_);
+  if (copy_to_output) {
+    assert(current_frame_output_ != nullptr);
+    copyD2D(
+      current_frame_output_,
+      frame_buffer_[frame_to_return_index].frame_.data(),
+      FrameSize(),
+      stream_);
+  }
   LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
           std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
           ", current copy " << copy_to_output << std::endl;

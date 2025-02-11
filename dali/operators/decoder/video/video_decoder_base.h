@@ -16,15 +16,17 @@
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
 
 #include <cuda_runtime.h>
-#include <string>
-#include <utility>
 #include <cstring>  // For std::memcpy and std::memset
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 #include "dali/core/boundary.h"
 #include "dali/core/span.h"
+#include "dali/kernels/common/copy.h"
+#include "dali/kernels/common/memset.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -34,40 +36,39 @@
 
 namespace dali {
 
-namespace impl {
-template <typename Backend>
-void memcpy(uint8_t *dst, const uint8_t *src, size_t size, cudaStream_t stream) {
-  if constexpr (std::is_same_v<Backend, CPUBackend>) {
-    std::memcpy(dst, src, size);
-  } else {
-    CUDA_CALL(cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream));
-  }
-}
-
-template <typename Backend>
-void memset(uint8_t *dst, uint8_t value, size_t size, cudaStream_t stream) {
-  if constexpr (std::is_same_v<Backend, CPUBackend>) {
-    std::memset(dst, value, size);
-  } else {
-    CUDA_CALL(cudaMemsetAsync(dst, value, size, stream));
-  }
-}
-}  // namespace impl
-
 template <typename Backend, typename FramesDecoderImpl>
 class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
  private:
   struct FrameInfo {
-    FrameInfo(int frame_idx, int frame_num, bool is_constant)
-        : frame_idx(frame_idx), frame_num(frame_num), is_constant(is_constant) {}
+    FrameInfo() : frame_num(-1), frame_idx(-1), constant_value(0) {}
 
-    bool operator<(const FrameInfo &other) const {
-      return frame_idx < other.frame_idx;
+    static FrameInfo FrameIndex(int frame_idx, int frame_num) {
+      FrameInfo info;
+      info.frame_num = frame_num;
+      info.frame_idx = frame_idx;
+      info.constant_value = 0;
+      return info;
     }
 
-    int frame_idx;
+    static FrameInfo Constant(uint8_t value, int frame_num) {
+      FrameInfo info;
+      info.frame_num = frame_num;
+      info.frame_idx = -1;
+      info.constant_value = value;
+      return info;
+    }
+
+    bool operator<(const FrameInfo &other) const {
+      return frame_idx < other.frame_idx;  // sort by frame index
+    }
+
+    bool is_constant() const {
+      return frame_idx == -1;
+    }
+
     int frame_num;
-    bool is_constant = false;
+    int frame_idx;
+    uint8_t constant_value;
   };
 
  public:
@@ -75,6 +76,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   using InBackend = CPUBackend;
   using OutBackend =
       std::conditional_t<std::is_same_v<Backend, CPUBackend>, CPUBackend, GPUBackend>;
+  using OutStorage = detail::storage_tag_map_t<OutBackend>;
 
   explicit VideoDecoderBase(const OpSpec &spec) : Operator<Backend>(spec) {
     if (spec_.HasArgument("device")) {
@@ -132,6 +134,89 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     }
   }
 
+  void AcquireArguments(const Workspace &ws, int batch_size) {
+    if (start_frame_.HasValue())
+      start_frame_.Acquire(spec_, ws, batch_size);
+    if (stride_.HasValue())
+      stride_.Acquire(spec_, ws, batch_size);
+    if (sequence_length_.HasValue())
+      sequence_length_.Acquire(spec_, ws, batch_size);
+    if (frames_.HasValue())
+      frames_.Acquire(spec_, ws, batch_size);
+  }
+
+  /**
+   * @brief Get the total number of frames for a given sample
+   */
+  int GetTotalNumFrames(int sample_idx) const {
+    int num_frames = frames_decoders_[sample_idx]->NumFrames();
+    return num_frames;
+  }
+
+  /**
+   * @brief Get the stride for a given sample (default is 1)
+   */
+  int GetStride(int sample_idx) const {
+    int stride = 1;
+    if (stride_.HasValue()) {
+      stride = stride_[sample_idx].data[0];
+    }
+    return stride;
+  }
+
+  /**
+   * @brief Get the start frame for a given sample (default is 0)
+   */
+  int GetStartFrame(int sample_idx) const {
+    int start = 0;
+    if (start_frame_.HasValue()) {
+      start = start_frame_[sample_idx].data[0];
+    }
+    return start;
+  }
+
+  /**
+   * @brief Returns the number of frames that can be extracted from this video
+   *
+   * Calculates how many frames can be obtained when starting at the specified start frame
+   * and advancing by the stride value until reaching the end of the video. For example,
+   * with start_frame=2, stride=3, and a 10 frame video, this would return 3 since we can
+   * extract frames [2,5,8].
+   */
+  int GetAvailableNumFrames(int sample_idx) const {
+    int total_num_frames = GetTotalNumFrames(sample_idx);
+    int start_frame = GetStartFrame(sample_idx);
+    int stride = GetStride(sample_idx);
+    int available_frames = std::max(0, total_num_frames - start_frame);
+    int available_strided_frames = (available_frames + stride - 1) / stride;
+    return available_strided_frames;
+  }
+
+  /**
+   * @brief Returns the number of frames to be decoded for a given sample
+   *
+   * The sequence length is determined by the following priority:
+   * 1. If `frames` argument exists, use its length
+   * 2. If `sequence_length` argument exists, use its value, capped by available frames if boundary
+   * type is ISOLATED, and taking into account the start frame and stride,
+   * 3. Otherwise, use the total number of available frames (taking into account the start frame and
+   * stride)
+   */
+  int GetSequenceLength(int sample_idx) const {
+    int sequence_len;
+    if (frames_.HasValue()) {
+      sequence_len = frames_[sample_idx].shape[0];
+    } else if (sequence_length_.HasValue()) {
+      sequence_len = sequence_length_[sample_idx].data[0];
+      if (boundary_type_ == boundary::BoundaryType::ISOLATED) {
+        sequence_len = std::min(sequence_len, GetAvailableNumFrames(sample_idx));
+      }
+    } else {
+      sequence_len = GetAvailableNumFrames(sample_idx);
+    }
+    return sequence_len;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<InBackend>(0);
 
@@ -145,21 +230,8 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     }
 
     int batch_size = input.num_samples();
-
-    // Get frame selection parameters
-    if (start_frame_.HasValue())
-      start_frame_.Acquire(spec_, ws, batch_size);
-    if (stride_.HasValue())
-      stride_.Acquire(spec_, ws, batch_size);
-    if (sequence_length_.HasValue())
-      sequence_length_.Acquire(spec_, ws, batch_size);
-    if (frames_.HasValue())
-      frames_.Acquire(spec_, ws, batch_size);
-
+    AcquireArguments(ws, batch_size);
     frames_decoders_.resize(batch_size);
-
-    bool build_index = start_frame_.HasValue() || stride_.HasValue() ||
-                       sequence_length_.HasValue() || frames_.HasValue();
 
     // Create decoders in parallel
     ThreadPool &thread_pool = GetThreadPool(ws);
@@ -171,15 +243,34 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             const char *data = reinterpret_cast<const char *>(input[s].data<uint8_t>());
             size_t size = input[s].shape().num_elements();
             auto source_info = input.GetMeta(s).GetSourceInfo();
+
+            int first_frame = GetStartFrame(s);
+            if (frames_.HasValue()) {
+              first_frame = frames_[s].data[0];
+              for (int f = 0; f < frames_[s].shape[0]; f++) {
+                first_frame = std::min(first_frame, frames_[s].data[f]);
+              }
+            }
+            bool build_index = first_frame > 0;
             frames_decoders_[s] = CreateDecoder(data, size, build_index, source_info,
                                                 ws.has_stream() ? ws.stream() : 0);
             DALI_ENFORCE(frames_decoders_[s]->IsValid(),
                          make_string("Failed to create video decoder for \"",
                                      frames_decoders_[s]->Filename(), "\""));
             auto sample_shape = out_shape.tensor_shape_span(s);
-            int num_frames = frames_.HasValue()          ? frames_[s].shape[0] :
-                             sequence_length_.HasValue() ? sequence_length_[s].data[0] :
-                                                           frames_decoders_[s]->NumFrames();
+            int num_frames;
+            if (GetStartFrame(s) >= GetTotalNumFrames(s)) {
+              throw std::runtime_error("Start frame " + std::to_string(GetStartFrame(s)) +
+                                       " is out of bounds for sample #" + std::to_string(s) +
+                                       ", expected range [0, " +
+                                       std::to_string(GetTotalNumFrames(s)) + ")");
+            }
+
+            if (frames_.HasValue()) {
+              num_frames = frames_[s].shape[0];
+            } else {
+              num_frames = GetSequenceLength(s);
+            }
             sample_shape[0] = num_frames;
             sample_shape[1] = frames_decoders_[s]->Height();
             sample_shape[2] = frames_decoders_[s]->Width();
@@ -206,52 +297,60 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       thread_pool.AddWork(
           [&, s](int tid) {
             int64_t num_frames = output[s].shape()[0];  // It was calculated in SetupImpl
-
+            int orig_num_frames = frames_decoders_[s]->NumFrames();
             auto &ctx = ctx_[tid];
             ctx.frame_infos.clear();
             ctx.frame_infos.reserve(num_frames);
 
             if (frames_.HasValue()) {
               for (int64_t frame_num = 0; frame_num < num_frames; frame_num++) {
-                ctx.frame_infos.emplace_back(frames_[s].data[frame_num], frame_num, false);
+                if (frames_[s].data[frame_num] >= orig_num_frames) {
+                  throw std::runtime_error("Unexpected out-of-bounds frame index " +
+                                           std::to_string(frames_[s].data[frame_num]) +
+                                           " for sample #" + std::to_string(s) +
+                                           ", containing only " + std::to_string(orig_num_frames) +
+                                           " frames");
+                }
+                ctx.frame_infos.push_back(
+                    FrameInfo::FrameIndex(frames_[s].data[frame_num], frame_num));
               }
             } else {
-              int stride = stride_.HasValue() ? stride_[s].data[0] : 1;
-              int start_frame = start_frame_.HasValue() ? start_frame_[s].data[0] : 0;
-              int orig_num_frames = frames_decoders_[s]->NumFrames();
+              int stride = GetStride(s);
+              int start_frame = GetStartFrame(s);
               for (int64_t frame_num = 0, frame_idx = start_frame; frame_num < num_frames;
                    frame_num++, frame_idx += stride) {
                 if (frame_idx >= orig_num_frames) {
                   switch (boundary_type_) {
                     case boundary::BoundaryType::CLAMP:
-                      ctx.frame_infos.emplace_back(orig_num_frames - 1, frame_num, false);
+                      ctx.frame_infos.push_back(
+                          FrameInfo::FrameIndex(orig_num_frames - 1, frame_num));
                       break;
                     case boundary::BoundaryType::REFLECT_1001:
-                      ctx.frame_infos.emplace_back(
-                          boundary::idx_reflect_1001<int>(static_cast<int>(frame_idx),
-                                                          orig_num_frames),
-                          frame_num, false);
+                      ctx.frame_infos.push_back(
+                          FrameInfo::FrameIndex(boundary::idx_reflect_1001<int>(
+                                                    static_cast<int>(frame_idx), orig_num_frames),
+                                                frame_num));
                       break;
                     case boundary::BoundaryType::REFLECT_101:
-                      ctx.frame_infos.emplace_back(
-                          boundary::idx_reflect_101<int>(static_cast<int>(frame_idx),
-                                                         orig_num_frames),
-                          frame_num, false);
+                      ctx.frame_infos.push_back(
+                          FrameInfo::FrameIndex(boundary::idx_reflect_101<int>(
+                                                    static_cast<int>(frame_idx), orig_num_frames),
+                                                frame_num));
                       break;
                     case boundary::BoundaryType::CONSTANT:
-                      ctx.frame_infos.emplace_back(-1, frame_num, true);
+                      ctx.frame_infos.push_back(FrameInfo::Constant(pad_value_, frame_num));
                       break;
                     default:
                     case boundary::BoundaryType::ISOLATED:
-                      throw std::runtime_error("Unexpected out-of-bounds frame index: " +
-                                               std::to_string(frame_idx));
-                      break;
+                      break;  // will result in a shorter sequence than requested
                   }
                 } else {
-                  ctx.frame_infos.emplace_back(frame_idx, frame_num, false);
+                  ctx.frame_infos.push_back(FrameInfo::FrameIndex(frame_idx, frame_num));
                 }
               }
             }
+            // Sort the frame indices so that we can decode them in natural order
+            // to avoid unnecessary seeking when possible
             std::sort(ctx.frame_infos.begin(), ctx.frame_infos.end());
             DecodeFrames(make_cspan(ctx.frame_infos), output[s], s,
                          ws.has_stream() ? ws.stream() : 0);
@@ -266,47 +365,38 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     return std::is_same<MixedBackend, Backend>::value ? *thread_pool_ : ws.GetThreadPool();
   }
 
-  bool DecodeFrames(span<const FrameInfo> frame_infos, SampleView<OutBackend> output,
+  void DecodeFrames(span<const FrameInfo> frame_infos, SampleView<OutBackend> output,
                     int64_t sample_idx, cudaStream_t stream = 0) {
     auto &frames_decoder = *frames_decoders_[sample_idx];
     int64_t frame_size = frames_decoder.FrameSize();
     uint8_t *output_data = output.template mutable_data<uint8_t>();
 
-    // Sort the frame indices so that we can decode them in natural order
-    // to avoid unnecessary seeking when possible
-    FrameInfo last_frame(-1, -1, false);
+    FrameInfo last_frame;
     for (auto &frame : frame_infos) {
-      if (frame.is_constant) {
-        impl::memset<OutBackend>(output_data + frame.frame_num * frame_size, pad_value_, frame_size,
-                                 stream);
+      if (frame.is_constant()) {
+        kernels::memset<OutStorage>(output_data + frame.frame_num * frame_size,
+                                    frame.constant_value, frame_size, stream);
         continue;
       } else if (frame.frame_idx == last_frame.frame_idx) {
-        impl::memcpy<OutBackend>(output_data + frame.frame_num * frame_size,
-                                 output_data + last_frame.frame_num * frame_size, frame_size,
-                                 stream);
+        kernels::copy<OutStorage, OutStorage>(output_data + frame.frame_num * frame_size,
+                                              output_data + last_frame.frame_num * frame_size,
+                                              frame_size, stream);
         continue;
       }
       // Only seek if frame is not close to current position
       int current_frame = frames_decoder.NextFrameIdx();
       int frames_to_skip = frame.frame_idx - current_frame;
-
-      if (frames_to_skip < 0 || frames_to_skip > SEEK_THRESHOLD) {
-        // Frame is too far ahead or behind, need to seek
-        frames_decoder.SeekFrame(frame.frame_idx);
-      } else {
-        for (int skip = 0; skip < frames_to_skip; skip++) {
-          frames_decoder.ReadNextFrame(nullptr, false);
-        }
+      if (frames_to_skip < 0) {
+        throw std::logic_error("Frame indices should be sorted");
       }
 
-      if (frames_decoder.NextFrameIdx() == frame.frame_idx) {
-        frames_decoder.ReadNextFrame(output_data + frame.frame_num * frame_size);
-      } else {
-        return false;
+      frames_decoder.SeekFrame(frame.frame_idx);
+      if (frames_decoder.NextFrameIdx() != frame.frame_idx) {
+        throw std::runtime_error("Failed to seek to frame " + std::to_string(frame.frame_idx));
       }
+      frames_decoder.ReadNextFrame(output_data + frame.frame_num * frame_size);
       last_frame = frame;
     }
-    return true;
   }
 
   std::vector<std::unique_ptr<FramesDecoderImpl>> frames_decoders_;

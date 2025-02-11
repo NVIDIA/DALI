@@ -80,7 +80,10 @@ int64_t seek_memory_video_file(void *data_ptr, int64_t new_position, int origin)
 using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
-    AVCodecID::AV_CODEC_ID_H264, AVCodecID::AV_CODEC_ID_HEVC, AVCodecID::AV_CODEC_ID_MPEG4};
+    AVCodecID::AV_CODEC_ID_H264,
+    AVCodecID::AV_CODEC_ID_HEVC,
+    AVCodecID::AV_CODEC_ID_MPEG4
+};
 
 int64_t FramesDecoder::NumFrames() const {
   if (num_frames_.has_value()) {
@@ -213,9 +216,14 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
 
   uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
 
-  AVIOContext *av_io_context =
-      avio_alloc_context(av_io_buffer, default_av_buffer_size, 0, &memory_video_file_.value(),
-                         detail::read_memory_video_file, nullptr, detail::seek_memory_video_file);
+  AVIOContext *av_io_context = avio_alloc_context(
+    av_io_buffer,
+    default_av_buffer_size,
+    0,
+    &memory_video_file_.value(),
+    detail::read_memory_video_file,
+    nullptr,
+    detail::seek_memory_video_file);
 
   av_state_->ctx_->pb = av_io_context;
 
@@ -257,9 +265,14 @@ void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_
 
   uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
 
-  AVIOContext *av_io_context =
-      avio_alloc_context(av_io_buffer, default_av_buffer_size, 0, &memory_video_file_.value(),
-                         detail::read_memory_video_file, nullptr, detail::seek_memory_video_file);
+  AVIOContext *av_io_context = avio_alloc_context(
+      av_io_buffer,
+      default_av_buffer_size,
+      0,
+      &memory_video_file_.value(),
+      detail::read_memory_video_file,
+      nullptr,
+      detail::seek_memory_video_file);
 
   av_state->ctx_->pb = av_io_context;
 
@@ -304,16 +317,17 @@ void FramesDecoder::ParseNumFrames() {
 
 void FramesDecoder::CountFrames(AvState *av_state) {
   num_frames_ = 0;
-  while (av_read_frame(av_state->ctx_, av_state->packet_) >= 0) {
-    // We want to make sure that we call av_packet_unref in every iteration
+  while (true) {
+    int ret = av_read_frame(av_state->ctx_, av_state->packet_);
     auto packet = AVPacketScope(av_state->packet_, av_packet_unref);
+    if (ret != 0)
+      break;  // End of file
 
     if (packet->stream_index != av_state->stream_id_) {
       continue;
     }
     ++num_frames_.value();
   }
-  av_packet_unref(av_state->packet_);
 }
 
 IMPL_HAS_MEMBER(read_seek);
@@ -339,7 +353,7 @@ bool FramesDecoder::IsFormatSeekable() {
 }
 
 void FramesDecoder::BuildIndex() {
-  index_ = vector<IndexEntry>();
+  index_ = std::vector<IndexEntry>();
 
   int last_keyframe = -1;
 
@@ -354,7 +368,7 @@ void FramesDecoder::BuildIndex() {
     }
     IndexEntry entry;
     if (packet->flags & AV_PKT_FLAG_KEY) {
-      if (index_->size() == 0) {
+      if (index_->empty()) {
         entry.is_keyframe = true;
       }
       auto codec_id = av_state_->ctx_->streams[packet->stream_index]->codecpar->codec_id;
@@ -408,8 +422,6 @@ void FramesDecoder::BuildIndex() {
       }
     }
   }
-
-
   Reset();
 }
 
@@ -419,8 +431,14 @@ void FramesDecoder::CopyToOutput(uint8_t *data) {
   uint8_t *dest[4] = {data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {av_state_->frame_->width * Channels(), 0, 0, 0};
 
-  int ret = sws_scale(av_state_->sws_ctx_, av_state_->frame_->data, av_state_->frame_->linesize, 0,
-                      av_state_->frame_->height, dest, dest_linesize);
+  int ret = sws_scale(
+    av_state_->sws_ctx_,
+    av_state_->frame_->data,
+    av_state_->frame_->linesize,
+    0,
+    av_state_->frame_->height,
+    dest,
+    dest_linesize);
 
   DALI_ENFORCE(ret >= 0,
                make_string("Could not convert frame data to RGB: ", detail::av_error_string(ret)));
@@ -428,23 +446,32 @@ void FramesDecoder::CopyToOutput(uint8_t *data) {
 
 void FramesDecoder::LazyInitSwContext() {
   if (av_state_->sws_ctx_ == nullptr) {
-    av_state_->sws_ctx_ =
-        sws_getContext(Width(), Height(), av_state_->codec_ctx_->pix_fmt, Width(), Height(),
-                       AV_PIX_FMT_RGB24, SWS_BILINEAR, nullptr, nullptr, nullptr);
+    av_state_->sws_ctx_ = sws_getContext(
+      Width(),
+      Height(),
+      av_state_->codec_ctx_->pix_fmt,
+      Width(),
+      Height(),
+      AV_PIX_FMT_RGB24,
+      SWS_BILINEAR,
+      nullptr,
+      nullptr,
+      nullptr);
     DALI_ENFORCE(av_state_->sws_ctx_, "Could not create sw context");
   }
 }
 
 bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
-  while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-    // We want to make sure that we call av_packet_unref in every iteration
+  while (true) {
+    ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
     auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
-
+    if (ret != 0) {
+      break;  // End of file
+    }
     if (packet->stream_index != av_state_->stream_id_) {
       continue;
     }
-
     ret = avcodec_send_packet(av_state_->codec_ctx_, packet.get());
     DALI_ENFORCE(ret >= 0,
                  make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
@@ -471,7 +498,6 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     ++next_frame_idx_;
     return true;
   }
-  av_packet_unref(av_state_->packet_);
 
   ret = avcodec_send_packet(av_state_->codec_ctx_, nullptr);
   DALI_ENFORCE(ret >= 0,
@@ -506,31 +532,49 @@ void FramesDecoder::SeekFrame(int frame_id) {
       frame_id >= 0 && frame_id < NumFrames(),
       make_string("Invalid seek frame id. frame_id = ", frame_id, ", num_frames = ", NumFrames()));
 
-  if (!HasIndex()) {
-    DALI_FAIL("Functionality is unavailible when index is not built.");
-  }
-  auto &frame_entry = Index(frame_id);
-  int keyframe_id = frame_entry.last_keyframe_id;
-  auto &keyframe_entry = Index(keyframe_id);
-
-  LOG_LINE << "Seeking to frame " << frame_id << " timestamp " << frame_entry.pts << std::endl;
-
-  // Seeking clears av buffers, so reset flush state info
-  if (flush_state_) {
-    while (ReadFlushFrame(nullptr, false)) {}
-    flush_state_ = false;
+  if (frame_id == next_frame_idx_) {
+    return;  // No need to seek
   }
 
-  int ret =
-      av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
-  DALI_ENFORCE(ret >= 0,
-               make_string("Failed to seek to frame ", frame_id, "with keyframe", keyframe_id,
-                           "in video \"", Filename(), "\" due to ", detail::av_error_string(ret)));
+  // If we have an index, we can seek to the nearest keyframe first
+  if (HasIndex()) {
+    const auto &current_frame = Index(next_frame_idx_);
+    const auto &requested_frame = Index(frame_id);
+    auto keyframe_id = requested_frame.last_keyframe_id;
+    if (current_frame.last_keyframe_id != keyframe_id) {
+      // We are seeking to a different keyframe than the current frame,
+      // so we need to seek to the keyframe first
+      auto &keyframe_entry = Index(keyframe_id);
+      LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts 
+               << " for requested frame " << frame_id << " timestamp " << requested_frame.pts << std::endl;
 
-  avcodec_flush_buffers(av_state_->codec_ctx_);
-  next_frame_idx_ = keyframe_id;
+      // Seeking clears av buffers, so reset flush state info
+      if (flush_state_) {
+        while (ReadFlushFrame(nullptr, false)) {}
+        flush_state_ = false;
+      }
 
-  for (int i = 0; i < (frame_id - keyframe_id); ++i) {
+      int ret =
+        av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
+      DALI_ENFORCE(ret >= 0,
+                make_string("Failed to seek to keyframe", keyframe_id,
+                            "in video \"", Filename(), "\" due to ", detail::av_error_string(ret)));
+      avcodec_flush_buffers(av_state_->codec_ctx_);
+      next_frame_idx_ = keyframe_id;
+    }
+  } else if (frame_id < next_frame_idx_) {
+    LOG_LINE << "Seeking to start of stream since requested frame " << frame_id << " is before current frame " << next_frame_idx_ << " and no index is available" << std::endl;
+    int ret =
+      av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_BACKWARD);
+    DALI_ENFORCE(ret >= 0,
+                 make_string("Failed to seek to the first frame in video \"", Filename(),
+                             "\" due to ", detail::av_error_string(ret)));
+    avcodec_flush_buffers(av_state_->codec_ctx_);
+    next_frame_idx_ = 0;
+  }
+
+  // Skip all frames between the current frame and the requested frame
+  while (next_frame_idx_ < frame_id) {
     ReadNextFrame(nullptr, false);
   }
 }

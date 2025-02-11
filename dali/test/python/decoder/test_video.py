@@ -19,6 +19,7 @@ import cv2
 import nvidia.dali.types as types
 import glob
 import os
+import random
 from itertools import cycle
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nose2.tools import params
@@ -242,65 +243,145 @@ def test_error_source_info(device):
     assert_raises(RuntimeError, p.run)
 
 
-cfr_files = [f"{get_dali_extra_path()}/db/video/cfr/test_2.mp4"]
+cfr_files = [
+    f"{get_dali_extra_path()}/db/video/cfr/test_1.mp4",
+    f"{get_dali_extra_path()}/db/video/cfr/test_2.mp4",
+]
 vfr_files = [
     f"{get_dali_extra_path()}/db/video/vfr/test_1.mp4",
     f"{get_dali_extra_path()}/db/video/vfr/test_2.mp4",
 ]
 
 
+def idx_reflect_101(idx, lo, hi):
+    """Reflects out-of-range indices until fits in range.
+
+    Args:
+        idx: The index to reflect
+        lo: Low (inclusive) bound
+        hi: High (exclusive) bound
+
+    Returns:
+        Reflected index value
+    """
+    if hi - lo < 2:
+        return hi - 1  # make it obviously wrong if hi <= lo
+
+    while True:
+        if idx < lo:
+            idx = 2 * lo - idx
+        elif idx >= hi:
+            idx = 2 * hi - 2 - idx
+        else:
+            break
+
+    return idx
+
+
+def idx_reflect_1001(idx, lo, hi):
+    """Reflects out-of-range indices until fits in range.
+
+    Args:
+        idx: The index to reflect
+        lo: Low (inclusive) bound
+        hi: High (exclusive) bound
+
+    Returns:
+        Reflected index value
+
+    This reflect flavor repeats the first and last element:
+
+    lo--v     v--hi
+         ABCDEF           is padded as
+    DCBAABCDEFFEDCBAABCD
+    """
+    if hi - lo < 1:
+        return hi - 1  # make it obviously wrong if hi <= lo
+
+    while True:
+        if idx < lo:
+            idx = 2 * lo - 1 - idx
+        elif idx >= hi:
+            idx = 2 * hi - 1 - idx
+        else:
+            break
+
+    return idx
+
+
 @params(
     # Test case 1: Constant frame rate video, start_frame = 5, sequence_length = 3, stride = 1
-    *[(device, cfr_files, 5, 3, 1, None) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, 5, 3, 1, None) for device in ["cpu", "mixed"]],
     # Test case 2: Variable frame rate video, start_frame = 0, sequence_length = 4, stride = 2
-    *[(device, vfr_files, 0, 4, 2, None) for device in ["cpu", "mixed"]],
+    *[(device, 3, vfr_files, 0, 4, 2, None) for device in ["cpu", "mixed"]],
     # Test case 3: Constant frame rate video, start_frame = 0, sequence_length = 100, stride = 11
     # pad_mode = "constant", "edge", "symmetric", "reflect"
     *[
-        (device, cfr_files, 0, 10, 11, pad_mode)
+        (device, 3, cfr_files, 0, 10, 11, pad_mode)
         for device in ["cpu", "mixed"]
         for pad_mode in ["constant", "edge", "symmetric", "reflect"]
     ],
+    # Test case 4: Constant frame rate video, start_frame = sequence_length = stride = "random"
+    *[(device, 3, cfr_files, "random", "random", "random", None) for device in ["cpu", "mixed"]],
 )
 def test_video_decoder_frame_start_end_stride(
-    device, filenames, start_frame, sequence_length, stride, pad_mode
+    device, batch_size, filenames, start_frame, sequence_length, stride, pad_mode
 ):
     num_iters = 1
     batch = []
-    batch_size = len(filenames)
     pad_value = 111
     for i in range(batch_size):
         with open(filenames[i % len(filenames)], "rb") as f:
             batch.append(np.frombuffer(f.read(), dtype=np.uint8))
 
     def get_batch():
+        random.shuffle(batch)
         return batch
 
-    # First decode the whole video to get reference frames
     @pipeline_def
     def test_pipeline():
         encoded = fn.external_source(source=get_batch, device="cpu")
         reference = fn.experimental.decoders.video(encoded, device=device)
+
+        start_frame_arg = (
+            fn.random.uniform(range=(0, 5), dtype=types.INT32)
+            if start_frame == "random"
+            else start_frame
+        )
+        sequence_length_arg = (
+            fn.random.uniform(range=(3, 6), dtype=types.INT32)
+            if sequence_length == "random"
+            else sequence_length
+        )
+        stride_arg = (
+            fn.random.uniform(range=(1, 4), dtype=types.INT32) if stride == "random" else stride
+        )
+
         decoded = fn.experimental.decoders.video(
             encoded,
             device=device,
-            start_frame=start_frame,
-            sequence_length=sequence_length,
-            stride=stride,
+            start_frame=start_frame_arg,
+            sequence_length=sequence_length_arg,
+            stride=stride_arg,
             pad_mode=pad_mode,
             pad_value=pad_value,
         )
 
-        return (reference, decoded)
+        return (reference, decoded, start_frame_arg, sequence_length_arg, stride_arg)
 
     pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=0)
 
     for _ in range(num_iters):
-        out0, out1 = (o.as_cpu() for o in pipe.run())
+        out0, out1, start_frame_arg, sequence_length_arg, stride_arg = (
+            o.as_cpu() for o in pipe.run()
+        )
         # Verify each sample in the batch
         for i in range(batch_size):
             out_reference_full = out0.at(i)
             out = out1.at(i)
+            start_frame = start_frame_arg.at(i)
+            sequence_length = sequence_length_arg.at(i)
+            stride = stride_arg.at(i)
             orig_F, H, W, C = tuple(out_reference_full.shape)
 
             def constant_padding():
@@ -316,12 +397,10 @@ def test_video_decoder_frame_start_end_stride(
                         frame_indices.append(orig_F - 1)  # Repeat last frame
                     elif pad_mode == "symmetric":
                         # Reflect including boundary: abcd -> abccba
-                        f = 2 * orig_F - 1 - f
-                        frame_indices.append(f)
+                        frame_indices.append(idx_reflect_1001(f, 0, orig_F))
                     elif pad_mode == "reflect":
                         # Reflect excluding boundary: abcd -> abcdcb
-                        f = 2 * orig_F - 2 - f
-                        frame_indices.append(f)
+                        frame_indices.append(idx_reflect_101(f, 0, orig_F))
                     elif pad_mode == "constant":
                         frame_indices.append(-1)  # Special index for constant padding
                     else:
@@ -335,24 +414,18 @@ def test_video_decoder_frame_start_end_stride(
 
 @params(
     # Test single constant frame rate video with simple frame indices
-    *[(device, cfr_files, [0, 5, 10]) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, [0, 5, 10]) for device in ["cpu", "mixed"]],
     # Test multiple variable frame rate videos with non-sequential frames
-    *[
-        (
-            device,
-            vfr_files,
-            [2, 4, 8],
-        )
-        for device in ["cpu", "mixed"]
-    ],
+    *[(device, 3, vfr_files, [2, 4, 8]) for device in ["cpu", "mixed"]],
     # Test single constant frame rate video with non-monotonic frame indices
-    *[(device, cfr_files, [0, 5, 10, 8, 7, 6]) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, [0, 5, 10, 8, 7, 6]) for device in ["cpu", "mixed"]],
     # Test single constant frame rate video with repeated frame indices
-    *[(device, cfr_files, [0, 5, 10, 8, 10, 5, 0, 0]) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, [0, 5, 10, 8, 10, 5, 0, 0]) for device in ["cpu", "mixed"]],
+    # Test multiple constant frame rate videos with random indices
+    *[(device, 3, cfr_files, None) for device in ["cpu", "mixed"]],
 )
-def test_video_decoder_frame_indices(device, filenames, frames):
+def test_video_decoder_frame_indices(device, batch_size, filenames, frames):
     num_iters = 1
-    batch_size = len(filenames)
     batch = []
     for i in range(batch_size):
         with open(filenames[i % len(filenames)], "rb") as f:
@@ -365,16 +438,109 @@ def test_video_decoder_frame_indices(device, filenames, frames):
     def test_pipeline():
         encoded = fn.external_source(source=get_batch, device="cpu")
         reference = fn.experimental.decoders.video(encoded, device=device)
-        decoded = fn.experimental.decoders.video(encoded, device=device, frames=frames)
-        return (reference, decoded)
+        if frames is None:
+            frames_shape = fn.random.uniform(range=(1, 10), shape=(1,), dtype=types.INT32)
+            frames_arg = fn.random.uniform(range=(0, 10), shape=frames_shape, dtype=types.INT32)
+        else:
+            frames_arg = frames
+        decoded = fn.experimental.decoders.video(encoded, device=device, frames=frames_arg)
+        return (reference, decoded, frames_arg)
 
     pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=0)
     for _ in range(num_iters):
-        out0, out1 = (o.as_cpu() for o in pipe.run())
+        out0, out1, frames_arg = (o.as_cpu() for o in pipe.run())
         # Verify each sample in the batch
         for i in range(batch_size):
             out_reference = out0.at(i)
             out = out1.at(i)
+            frames = frames_arg.at(i)
             # Get frames at specified indices for reference
             out_reference = out_reference[frames]
             np.testing.assert_array_equal(out_reference, out)
+
+
+@params(
+    # Test single constant frame rate video with start_frame near the end
+    *[(device, 3, cfr_files, 1, 1000) for device in ["cpu", "mixed"]],
+    # Test multiple variable frame rate videos with large stride
+    *[(device, 3, vfr_files, 2, 1000) for device in ["cpu", "mixed"]],
+)
+def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequence_length):
+    batch = []
+    for i in range(batch_size):
+        with open(filenames[i % len(filenames)], "rb") as f:
+            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+
+    def get_batch():
+        return batch
+
+    @pipeline_def
+    def test_pipeline():
+        encoded = fn.external_source(source=get_batch, device="cpu")
+        # Get full video first as reference
+        reference = fn.experimental.decoders.video(encoded, device=device, stride=stride)
+        # Request frames that would exceed video length
+        decoded = fn.experimental.decoders.video(
+            encoded,
+            device=device,
+            stride=stride,
+            sequence_length=sequence_length,
+            pad_mode="none",
+        )
+        return (reference, decoded)
+
+    pipe = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    out_ref, out = (o.as_cpu() for o in pipe.run())
+
+    # Verify each sample in the batch
+    for i in range(batch_size):
+        ref = out_ref.at(i)
+        actual = out.at(i)
+        np.testing.assert_array_equal(ref, actual)
+
+
+@params("cpu", "mixed")
+def test_incompatible_args(device):
+    batch = []
+    with open(cfr_files[0], "rb") as f:
+        batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+
+    def get_batch():
+        random.shuffle(batch)
+        return batch
+
+    @pipeline_def
+    def test_pipeline(frames=None, start_frame=None, stride=None, sequence_length=None):
+        encoded = fn.external_source(source=get_batch, device="cpu")
+        decoded = fn.experimental.decoders.video(
+            encoded,
+            device=device,
+            frames=frames,
+            start_frame=start_frame,
+            stride=stride,
+            sequence_length=sequence_length,
+        )
+        return decoded
+
+    # Test that frames argument is incompatible with start_frame and stride
+    for frames, start_frame, stride, sequence_length in [
+        ([0, 1, 2], 0, None, None),
+        ([0, 1, 2], None, 1, None),
+        ([0, 1, 2], None, None, 3),
+        ([0, 1, 2], 0, 1, 3),
+    ]:
+        with assert_raises(
+            RuntimeError,
+            glob="Cannot specify both `frames` and any of `start_frame`, "
+            "`sequence_length`, `stride` arguments",
+        ):
+            pipe = test_pipeline(
+                batch_size=1,
+                num_threads=3,
+                device_id=0,
+                frames=frames,
+                start_frame=start_frame,
+                stride=stride,
+                sequence_length=sequence_length,
+            )
+            pipe.build()

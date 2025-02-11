@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "dali/kernels/common/memset.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
@@ -128,9 +129,6 @@ class VideoInput : public InputOperator<Backend> {
 
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
-
-  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx, int64_t start_frame,
-                    int64_t sequence_length, int64_t stride, cudaStream_t stream);
 
   /**
    * Awkward RunImpl function for VideoInput operator.
@@ -305,64 +303,34 @@ bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &
   return true;
 }
 
-
-namespace impl {
-template <typename Backend>
-void memset(uint8_t *dst, uint8_t value, size_t size, cudaStream_t stream) {
-  if constexpr (std::is_same_v<Backend, CPUBackend>) {
-    std::memset(dst, value, size);
-  } else {
-    CUDA_CALL(cudaMemsetAsync(dst, value, size, stream));
-  }
-}
-}  // namespace impl
-
-template <typename Backend, typename FramesDecoderImpl>
-bool VideoInput<Backend, FramesDecoderImpl>::DecodeFrames(SampleView<OutBackend> output,
-                                                          int64_t sample_idx, int64_t start_frame,
-                                                          int64_t sequence_length, int64_t stride,
-                                                          cudaStream_t stream) {
-  auto &frames_decoder = *frames_decoders_[sample_idx];
-  int64_t frame_size = frames_decoder.FrameSize();
-  uint8_t *output_data = output.template mutable_data<uint8_t>();
-
-  int64_t f = 0;
-  if (start_frame > 0) {
-    frames_decoder.SeekFrame(start_frame);
-  }
-
-  // Read frames with specified stride
-  for (; f < sequence_length && frames_decoder.NextFrameIdx() != -1; f++) {
-    frames_decoder.ReadNextFrame(output_data + f * frame_size);
-    for (int i = 1; i < stride && frames_decoder.NextFrameIdx() != -1; i++) {
-      frames_decoder.ReadNextFrame(nullptr, false);
-    }
-  }
-
-  // Handle padding if needed
-  if (f < sequence_length) {
-    if (last_sequence_policy_ == "partial") {
-      return false;
-    } else if (f > 0) {
-      assert(last_sequence_policy_ == "pad");
-      impl::memset<OutBackend>(output_data + f * frame_size, pad_frame_value_,
-                               frame_size * (sequence_length - f), stream);
-    }
-  }
-  return true;
-}
-
 template <typename Backend, typename FramesDecoderImpl>
 void VideoInput<Backend, FramesDecoderImpl>::VideoInputRunImpl(Workspace &ws) {
   auto &output = ws.Output<OutBackend>(0);
   output.SetLayout("FHWC");
 
   bool full_sequence;
+  auto &frames_decoder = *frames_decoders_[0];
+  auto stream = ws.has_stream() ? ws.stream() : 0;
+  int64_t frame_size = frames_decoder.FrameSize();
+  bool input_sample_depleted = false;
   for (int64_t s = 0; s < output.num_samples(); s++) {
-    full_sequence =
-        DecodeFrames(output[s], 0, 0, sequence_length_, 1, ws.has_stream() ? ws.stream() : 0);
-    if (!full_sequence) {
-      break;
+    uint8_t *output_data = output.template mutable_tensor<uint8_t>(s);
+    int64_t f = 0;
+    for (; f < sequence_length_ && frames_decoder.NextFrameIdx() != -1; f++) {
+      frames_decoder.ReadNextFrame(output_data + f * frame_size);
+    }
+
+    // Handle padding if needed
+    if (f < sequence_length_) {
+      if (last_sequence_policy_ == "partial") {
+        input_sample_depleted = true;
+        break;
+      } else if (f > 0) {
+        assert(last_sequence_policy_ == "pad");
+        auto padding_size = frame_size * (sequence_length_ - f);
+        kernels::memset<detail::storage_tag_map_t<OutBackend>>(
+            output_data + f * frame_size, pad_frame_value_, padding_size, stream);
+      }
     }
   }
 
@@ -370,7 +338,7 @@ void VideoInput<Backend, FramesDecoderImpl>::VideoInputRunImpl(Workspace &ws) {
   bool will_return_next = true;
 
   // There won't be any more output using the current input.
-  bool input_sample_depleted = !full_sequence || frames_decoders_[0]->NextFrameIdx() == -1;
+  input_sample_depleted |= frames_decoders_[0]->NextFrameIdx() == -1;
 
   if (input_sample_depleted) {
     Invalidate();
