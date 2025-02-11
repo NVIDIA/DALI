@@ -177,6 +177,7 @@ DALI_API daliResult_t daliInit();
  */
 DALI_API daliResult_t daliShutdown();
 
+/* Starts with version 2 to avoid name collision with legacy C API */
 DALI_API daliResult_t daliPreallocateDeviceMemory2(size_t bytes, int device_id);
 
 /** Allocates `bytes` bytes of device memory on device `device_id`.
@@ -189,6 +190,7 @@ static inline daliResult_t daliPreallocateDeviceMemory(size_t bytes, int device_
   return daliPreallocateDeviceMemory2(bytes, device_id);
 }
 
+/* Starts with version 2 to avoid name collision with legacy C API */
 DALI_API daliResult_t daliPreallocatePinnedMemory2(size_t bytes);
 
 /** Allocates `bytes` bytes of device-accessible host memory.
@@ -201,6 +203,7 @@ static inline daliResult_t daliPreallocatePinnedMemory(size_t bytes) {
   return daliPreallocatePinnedMemory2(bytes);
 }
 
+/* Starts with version 2 to avoid name collision with legacy C API */
 DALI_API daliResult_t daliReleaseUnusedMemory2();
 
 /** Releases unused memory from DALI memory pools to the operating system.
@@ -236,7 +239,72 @@ typedef enum _DALIExecType {
    * The dynamic executor offers more flexibility, better memory efficiency and unrestricted
    * lifetime of the pipeline outputs at the expense of more overhead in simple pipelines. */
   DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
+
+  DALI_EXEC_FORCE_INT32 = 0x7fffffff
 } daliExecType_t;
+
+typedef enum _DALIExecFlags {
+  /** If set, worker threads have CPU affinity set via NVML. */
+  DALI_EXEC_FLAGS_SET_AFFINITY         = 0x00000001,
+
+  /* TODO(michalz): Make concurrency configurable in the pipeline */
+  /** Masks the part of the flags that represent the execution concurrency type. */
+  DALI_EXEC_FLAGS_CONCURRENCY_MASK     = 0x0000000e,
+
+  /** Uses the internally defined default concurrency behavior */
+  DALI_EXEC_FLAGS_CONCURRENCY_DEFAULT  = 0,
+
+  /** Operators are not executed in parallel.
+   *
+   * NOT IMPLEMENTED!
+   * For DALI_EXEC_DYNAMIC only.
+   */
+  DALI_EXEC_FLAGS_CONCURRENCY_NONE     = 1 << 1,
+  /** Operators with different device type (cpu, gpu, mixed) can be executed concurrently.
+   * Operators with the same device are executed sequentially.
+   *
+   * For DALI_EXEC_DYNAMIC only.
+   */
+  DALI_EXEC_FLAGS_CONCURRENCY_BACKEND  = 2 << 1,
+  /** Any two operators may run in parallel.
+   *
+   * NOT IMPLEMENTED!
+   * For DALI_EXEC_DYNAMIC only.
+   */
+  DALI_EXEC_FLAGS_CONCURRENCY_FULL     = 3 << 1,
+
+  /* TODO(michalz): Make stream policy configurable in the pipeline */
+  /** Masks the part of the flags that represent the stream policy. */
+  DALI_EXEC_FLAGS_STREAM_POLICY_MASK   = 0x00000070,
+
+  /** Use the internally defined default stream policy.
+   *
+   * For DALI_EXEC_DYNAMIC only. The default policy may change with DALI version.
+   */
+  DALI_EXEC_FLAGS_STREAM_POLICY_DEFAULT = 0,
+
+  /** Use a single CUDA stream for all operators that need one.
+   *
+   * NOT IMPLEMENTED!
+   * For DALI_EXEC_DYNAMIC only.
+   */
+  DALI_EXEC_FLAGS_STREAM_POLICY_SINGLE = 1 << 4,
+
+  /** Use different CUDA streams for CPU, Mixed and GPU operators.
+   *
+   * For DALI_EXEC_DYNAMIC only.
+   */
+  DALI_EXEC_FLAGS_STREAM_POLICY_PER_BACKEND = 2 << 4,
+
+  /** Use dedicated streams for independent CUDA-enabled operators.
+   *
+   * NOT IMPLEMENTED!
+   * For DALI_EXEC_DYNAMIC only.
+   */
+  DALI_EXEC_FLAGS_STREAM_POLICY_PER_OPERATOR = 3 << 4,
+
+  DALI_EXEC_FLAGS_FORCE_INT32 = 0x7fffffff
+} daliExecFlags_t;
 
 typedef struct _DALIVersion {
   int16_t major, minor;
@@ -254,8 +322,8 @@ typedef struct _DALIPipelineParams {
     uint64_t num_threads_present    : 1;
     uint64_t device_id_present      : 1;
     uint64_t seed_present           : 1;
-    uint64_t exec_flags_present     : 1;
     uint64_t exec_type_present      : 1;
+    uint64_t exec_flags_present     : 1;
     uint64_t enable_checkpointing_present : 1;
     uint64_t enable_memory_stats_present  : 1;
   };
@@ -264,6 +332,7 @@ typedef struct _DALIPipelineParams {
   int device_id;
   int64_t seed;
   daliExecType_t exec_type;
+  daliExecFlags_t exec_flags;
   daliBool enable_checkpointing;
   daliBool enable_memory_stats;
 } daliPipelineParams_t;
@@ -362,6 +431,8 @@ typedef enum _DALIFeedInputFlags {
    * When daliTensorList_h is passed to daliFeedInput, a reference count is incremented
    */
   DALI_FEED_INPUT_NO_COPY = 1,
+
+  DALI_FEED_INPUT_FORCE_INT32 = 0x7fffffff
 } daliFeedInputFlags_t;
 
 /** Feeds the input `input_name` with data from `input_data`.
@@ -370,11 +441,14 @@ typedef enum _DALIFeedInputFlags {
  * @param input_name    the name of the input
  * @param input_data    the tensor list containing the data
  * @param data_id       an identifier of this data batch
- * @param options
+ * @param options       flags that modify the behavior of the function, see `daliFeedInputFlags_t`
+ * @param stream        the stream on which it is safe to access the data;
+ *                      if NULL, the stream associated with `input_data` is used.
  *
  * @retval DALI_SUCCESS
  * @retval DALI_ERROR_INVALID_KEY         if `input_name` is not a valid name of an input of the
- *                                        pipeline*/
+ *                                        pipeline
+ */
 DALI_API daliResult_t daliPipelineFeedInput(
   daliPipeline_h pipeline,
   const char *input_name,
@@ -386,14 +460,14 @@ DALI_API daliResult_t daliPipelineFeedInput(
 /** Gets the number of pipeline outputs.
  *
  * @param pipeline  [in]  The pipeline
- * @param out_count [out] A pointer to a place where the number of pipeline outputs is stored.
+ * @param out_count [out] A pointer to a location where the number of pipeline outputs is stored.
  */
 DALI_API daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count);
 
 /** Gets a descriptor of the specified pipeline output.
  *
  * @param pipeline  [in]  The pipeline
- * @param out_desc  [out] A pointer to the returned descriptor.
+ * @param out_desc  [out] A pointer to a location where the decriptor is written.
  * @param index     [in]  The 0-based index of the output. See `daliPipelineGetOutputCount`.
  *
  * NOTE: The names returned by this function match those specified when defining the pipeline,
@@ -581,7 +655,7 @@ DALI_API daliResult_t daliTensorListCreate(
  *                      must contain num_samples*ndim extents
  * @param dtype         the element type
  * @param layout        a layout string describing the order of axes in each sample (e.g. HWC),
- *                      if NULL, and the TensorList's number of dimensions is equal to `ndim,
+ *                      if NULL, and the TensorList's number of dimensions is equal to `ndim`,
  *                      then the current layout is kept;
  *                      if `layout` is an empty string, the tensor list's layout is cleared *
  */
@@ -608,7 +682,7 @@ DALI_API daliResult_t daliTensorListResize(
  *                        must contain num_samples*ndim extents
  * @param dtype           the element type
  * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
- *                        if NULL, and the TensorList's number of dimensions is equal to `ndim,
+ *                        if NULL, and the TensorList's number of dimensions is equal to `ndim`,
  *                        then the current layout is kept;
  *                        if `layout` is an empty string, the tensor list's layout is cleared
  * @param data            the pointer to the data buffer
@@ -644,7 +718,7 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  * @param dtype           the type of the element of the tensor;
  *                        if dtype is DALI_NO_TYPE, then the type is taken from samples[0].dtype
  * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
- *                        if NULL, and the TensorList's number of dimensions is equal to `ndim,
+ *                        if NULL, and the TensorList's number of dimensions is equal to `ndim`,
  *                        then the current layout is kept;
  *                        if `layout` is an empty string, the tensor list's layout is cleared
  * @param samples         the descriptors of the tensors to be attached to the TensorList;
@@ -668,7 +742,7 @@ DALI_API daliResult_t daliTensorListAttachSamples(
 /** Returns the placement of the TensorLists's underlying buffer.
  *
  * @param tensor_list   [in]  the TensorList whose buffer placement is queried
- * @param out_placement [out] a pointer to a place where the return value is stored.
+ * @param out_placement [out] a pointer to a location where the return value is stored.
  */
 DALI_API daliResult_t daliTensorListGetBufferPlacement(
   daliTensorList_h tensor_list,
@@ -780,7 +854,7 @@ DALI_API daliResult_t daliTensorListSetLayout(
  * but can also contain an index in a container, key, etc.
  *
  * @param tensor_list     [in]  The tensor list
- * @param out_source_info [out] A pointer to a place where the pointer to the source_info string
+ * @param out_source_info [out] A pointer to a location where the pointer to the source_info string
  *                              is stored. On success, `*out_source_info` contains a pointer to the
  *                              beginning of a null-terminated string. If the sample doesn't have
  *                              associated source info, a NULL pointer is returned.
@@ -796,9 +870,9 @@ DALI_API daliResult_t daliTensorListGetSourceInfo(
 
 /** Gets the tensor descriptor of the specified sample.
  *
- * @param tensor_list [in] The tensor list
- * @param out_desc    [out] A poitner to a decriptor filled by this funciton.
- * @param sample_idx  [in] The index of the sample, whose descriptor to get.
+ * @param tensor_list [in]  The tensor list
+ * @param out_desc    [out] A poitner to a location where the decriptor is written.
+ * @param sample_idx  [in]  The index of the sample, whose descriptor to get.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
  * destroying, clearing or resizing the TensorList or re-attaching new data to it.
@@ -867,7 +941,7 @@ DALI_API daliResult_t daliTensorCreate(
  * @param shape         the shape of the tensor; can be NULL if ndim == 0
  * @param dtype         the element type
  * @param layout        a layout string describing the order of axes in the tensor (e.g. HWC),
- *                      if NULL, and the Tensor's number of dimensions is equal to `ndim,
+ *                      if NULL, and the Tensor's number of dimensions is equal to `ndim`,
  *                      then the current layout is kept;
  *                      if `layout` is an empty string, the tensor's layout is cleared
  */
@@ -891,7 +965,7 @@ DALI_API daliResult_t daliTensorResize(
  * @param dtype           the element type
  * @param shape           the shape of the tensor; ndim extents; can be NULL if ndim == 0
  * @param layout          a layout string describing the order of axes in the tensor (e.g. HWC),
- *                        if NULL, and the Tensor's number of dimensions is equal to `ndim,
+ *                        if NULL, and the Tensor's number of dimensions is equal to `ndim`,
  *                        then the current layout is kept;
  *                        if `layout` is an empty string, the tensor's layout is cleared
  * @param data            the pointer to the data buffer
@@ -909,7 +983,7 @@ DALI_API daliResult_t daliTensorAttachBuffer(
 /** Returns the placement of the Tensor's underlying buffer.
  *
  * @param tensor        [in]  the Tensor whose buffer placement is queried
- * @param out_placement [out] a pointer to a place where the return value is stored.
+ * @param out_placement [out] a pointer to a location where the return value is stored.
  */
 DALI_API daliResult_t daliTensorGetBufferPlacement(
   daliTensor_h tensor,
@@ -1015,7 +1089,7 @@ DALI_API daliResult_t daliTensorSetLayout(
  * but can also contain an index in a container, key, etc.
  *
  * @param tensor          [in]  The tensor
- * @param out_source_info [out] A pointer to a place where the pointer to the source_info string
+ * @param out_source_info [out] A pointer to a location where the pointer to the source_info string
  *                              is stored. On success, `*out_source_info` contains a pointer to the
  *                              beginning of a null-terminated string. If the sample doesn't have
  *                              associated source info, a NULL pointer is returned.
@@ -1029,8 +1103,8 @@ DALI_API daliResult_t daliTensorGetSourceInfo(
 
 /** Gets the descriptor of the data in the tensor.
  *
- * @param tensor      [in] The tensor
- * @param out_desc    [out] A poitner to a decriptor filled by this funciton.
+ * @param tensor      [in]  The tensor
+ * @param out_desc    [out] A poitner to a location where the decriptor is written.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
  * destroying, clearing or resizing the Tensor or re-attaching new data to it.
