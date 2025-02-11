@@ -16,8 +16,8 @@
 #define DALI_OPERATORS_IMAGE_REMAP_WARP_PARAM_PROVIDER_H_
 
 #include <cassert>
-#include <vector>
 #include <string>
+#include <vector>
 #include "dali/core/dev_buffer.h"
 #include "dali/core/mm/memory.h"
 #include "dali/core/static_switch.h"
@@ -66,6 +66,7 @@ class BorderTypeProvider {
   BorderType Border() const {
     return border_;
   }
+
  protected:
   void SetBorder(const OpSpec &spec) {
     float fborder;
@@ -216,7 +217,10 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void ResetParams() {
     params_gpu_ = {};
+    params_gpu_sz_ = 0;
     params_cpu_ = {};
+    params_cpu_sz_ = 0;
+    params_count_ = 0;
   }
 
   virtual void SetParams() {
@@ -261,7 +265,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     } else {
       for (int i = 0; i < N; i++)
         for (int d = 0; d < spatial_ndim; d++)
-          out_sizes[i][d] = shape_list.data[0][i*N + d];
+          out_sizes[i][d] = shape_list.data[0][i * N + d];
     }
   }
 
@@ -320,13 +324,19 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   inline MappingParams *AllocParams(mm::memory_kind::device *, int count) {
-    params_gpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::device>(count);
+    if (count > params_gpu_sz_) {
+      params_gpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::device>(count);
+      params_gpu_sz_ = count;
+    }
     params_count_ = count;
     return params_gpu_.get();
   }
 
   inline MappingParams *AllocParams(mm::memory_kind::host *, int count) {
-    params_cpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::host>(count);
+    if (count > params_cpu_sz_) {
+      params_cpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::host>(count);
+      params_cpu_sz_ = count;
+    }
     params_count_ = count;
     return params_cpu_.get();
   }
@@ -341,7 +351,9 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   std::vector<SpatialShape> out_sizes_;
   mm::uptr<MappingParams> params_gpu_;
   mm::uptr<MappingParams> params_cpu_;
-  int params_count_ = -1;
+  int params_cpu_sz_ = 0;
+  int params_gpu_sz_ = 0;
+  int params_count_ = 0;
 };
 
 }  // namespace dali
