@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ struct InvokerUnOp {
                      dim3 block, cudaStream_t stream, bool is_flat_idx) {
     assert(is_flat_idx);  // should always be for unary ops
     ExecuteTiledUnOp<op, Result, Input><<<grid, block, 0, stream>>>(samples, tiles);
+    CUDA_CALL(cudaGetLastError());
   }
 };
 
