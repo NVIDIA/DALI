@@ -135,7 +135,11 @@ typedef struct _DALIDeleter {
 /** Returns the last error code.
  *
  * Returns the error code associate with the recent unsuccessful call in the calling thread.
- * Succesful calls do not overwrite the value.
+ * Successful calls do not overwrite the value.
+ *
+ * @retval Error code of the most recent unsuccessful DALI API call,
+ * @retval DALI_SUCCESS  if no error has occurred in the calling thread or the error
+ *                       has been cleared with a call to daliClearLastError.
  */
 DALI_API daliResult_t daliGetLastError();
 
@@ -143,7 +147,7 @@ DALI_API daliResult_t daliGetLastError();
  *
  * Returns the detailed, context-specific message associated with the recent unsuccessful call
  * in the callling thread.
- * Succesful calls do not overwrite the value.
+ * Successful calls do not overwrite the value.
  * The pointer is invalidated by intervening DALI calls in the same thread.
  */
 DALI_API const char *daliGetLastErrorMessage();
@@ -460,14 +464,14 @@ DALI_API daliResult_t daliPipelineFeedInput(
 /** Gets the number of pipeline outputs.
  *
  * @param pipeline  [in]  The pipeline
- * @param out_count [out] A pointer to a location where the number of pipeline outputs is stored.
+ * @param out_count [out] A pointer to the location where the number of pipeline outputs is stored.
  */
 DALI_API daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count);
 
 /** Gets a descriptor of the specified pipeline output.
  *
  * @param pipeline  [in]  The pipeline
- * @param out_desc  [out] A pointer to a location where the decriptor is written.
+ * @param out_desc  [out] A pointer to the location where the descriptor is written.
  * @param index     [in]  The 0-based index of the output. See `daliPipelineGetOutputCount`.
  *
  * NOTE: The names returned by this function match those specified when defining the pipeline,
@@ -525,8 +529,9 @@ DALI_API daliResult_t daliPipelinePopOutputsAsync(
  * Otherwise, the outputs must not be used after this call has been made.
  *
  * @warning When NOT using DALI_EXEC_IS_DYNAMIC, the maximum number of live daliPipelineOutputs_h
- *          obtained from a single pipeline must not exceed the prefetch_queue_depth. An attempt
- *          to run the pipeline again after the
+ *          obtained from a single pipeline must not exceed the prefetch_queue_depth. Running the
+ *          pipeline again after the maximum number of live output sets is reached is an undefined
+ *          behavior.
  */
 DALI_API daliResult_t daliPipelineOutputsDestroy(daliPipelineOutputs_h out);
 
@@ -539,7 +544,7 @@ typedef struct _DALIOperatorTrace {
 /** Gets all operator "traces" that were set when producing this set of outputs.
  *
  * @param outputs         [in]  The outputs
- * @param out_traces      [out] A return value pointer where, the a pointer to the beginning of an
+ * @param out_traces      [out] A pointer to the location where the pointer to the beginning of an
  *                              array of operator traces is stored.
  * @param out_trace_count [out] A pointer that receives the number of traces.
  *
@@ -707,8 +712,8 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  * Attaches externally allocated buffers to a TensorList.
  * If provided, the deleters are called on all buffers when the samples are destroyed.
  *
- * The shape and sample offsets are used only during this function call and may be safely
- * disposed of after the function returns.
+ * The sample descriptors are used only during this function call and may be safely disposed of
+ * after the function returns.
  *
  * @param tensor_list     the TensorList to attach the data to
  * @param num_samples     the new number of samples in the batch
@@ -742,7 +747,7 @@ DALI_API daliResult_t daliTensorListAttachSamples(
 /** Returns the placement of the TensorLists's underlying buffer.
  *
  * @param tensor_list   [in]  the TensorList whose buffer placement is queried
- * @param out_placement [out] a pointer to a location where the return value is stored.
+ * @param out_placement [out] a pointer to the location where the return value is stored.
  */
 DALI_API daliResult_t daliTensorListGetBufferPlacement(
   daliTensorList_h tensor_list,
@@ -774,7 +779,7 @@ DALI_API daliResult_t daliTensorListGetStream(
 
 /** Gets the readiness event associated with the TensorList.
  *
- * @param tensor_list [in]  the tenosr list whose ready event is to be obtained
+ * @param tensor_list [in]  the tensor list whose ready event is to be obtained
  * @param out_event   [out] the pointer to the return value
  *
  * @retval DALI_SUCCESS if the ready event handle was stored in *out_event
@@ -787,7 +792,7 @@ DALI_API daliResult_t daliTensorListGetReadyEvent(
 
 /** Gets the readiness event associated with the TensorList or creates a new one.
  *
- * @param tensor_list   [in]  the tensor list to associate an even twith
+ * @param tensor_list   [in]  the tensor list to associate an event with
  * @param out_event     [out] optional, the event handle
  *
  * The function ensures that a readiness event is associated with the tensor list.
@@ -808,7 +813,7 @@ DALI_API daliResult_t daliTensorListGetOrCreateReadyEvent(
  *                              contains (*out_num_samples) * (*out_ndim) elements
  *
  * The pointer returned in `out_shape` remains valid until the TensorList is destroyed or modified.
- * If the caller is not intersted in some of the values, the pointers can be NULL.
+ * If the caller is not interested in some of the values, the pointers can be NULL.
  */
 DALI_API daliResult_t daliTensorListGetShape(
   daliTensorList_h tensor_list,
@@ -819,7 +824,7 @@ DALI_API daliResult_t daliTensorListGetShape(
 /** Gets a layout string describing the samples in the TensorList.
  *
  * @param tensor_list [in]  the tensor list whose layout to obtain
- * @param out_layout  [out] a pointer to the place where a pointer to the the layout string of
+ * @param out_layout  [out] a pointer to the place where a pointer to the layout string of
  *                          the samples in the tensor list is stored
  *
  * When present, the layout string consists of exactly `sample_ndim` single-character _axis labels_.
@@ -854,10 +859,10 @@ DALI_API daliResult_t daliTensorListSetLayout(
  * but can also contain an index in a container, key, etc.
  *
  * @param tensor_list     [in]  The tensor list
- * @param out_source_info [out] A pointer to a location where the pointer to the source_info string
- *                              is stored. On success, `*out_source_info` contains a pointer to the
- *                              beginning of a null-terminated string. If the sample doesn't have
- *                              associated source info, a NULL pointer is returned.
+ * @param out_source_info [out] A pointer to the location where the pointer to the source_info
+ *                              string is stored. On success, `*out_source_info` contains a pointer
+ *                              to the beginning of a null-terminated string. If the sample doesn't
+ *                              have associated source info, a NULL pointer is returned.
  * @param sample_idx      [in]  The index of a sample whose source info is queried.
  *
  * The return value is a string pointer. It is invalidated by destroying, clearing or resizing
@@ -871,7 +876,7 @@ DALI_API daliResult_t daliTensorListGetSourceInfo(
 /** Gets the tensor descriptor of the specified sample.
  *
  * @param tensor_list [in]  The tensor list
- * @param out_desc    [out] A poitner to a location where the decriptor is written.
+ * @param out_desc    [out] A poitner to a location where the descriptor is written.
  * @param sample_idx  [in]  The index of the sample, whose descriptor to get.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
@@ -983,7 +988,7 @@ DALI_API daliResult_t daliTensorAttachBuffer(
 /** Returns the placement of the Tensor's underlying buffer.
  *
  * @param tensor        [in]  the Tensor whose buffer placement is queried
- * @param out_placement [out] a pointer to a location where the return value is stored.
+ * @param out_placement [out] a pointer to the location where the return value is stored.
  */
 DALI_API daliResult_t daliTensorGetBufferPlacement(
   daliTensor_h tensor,
@@ -1015,7 +1020,7 @@ DALI_API daliResult_t daliTensorGetStream(
 
 /** Gets the readiness event associated with the Tensor.
  *
- * @param tensor      [in]  the tenosr list whose ready event is to be obtained
+ * @param tensor      [in]  the tensor list whose ready event is to be obtained
  * @param out_event   [out] the pointer to the return value
  *
  * @retval DALI_SUCCESS if the ready event handle was stored in *out_event
@@ -1028,7 +1033,7 @@ DALI_API daliResult_t daliTensorGetReadyEvent(
 
 /** Gets the readiness event associated with the Tensor or creates a new one.
  *
- * @param tensor   [in]  the tensor to associate an even twith
+ * @param tensor        [in]  the tensor to associate an event with
  * @param out_event     [out] optional, the event handle
  *
  * The function ensures that a readiness event is associated with the tensor.
@@ -1042,12 +1047,12 @@ DALI_API daliResult_t daliTensorGetOrCreateReadyEvent(
 
 /** Gets the shape of the tensor
  *
- * @param tensor          [in]  the tensor whose shape to obtain
- * @param out_ndim        [out] optional; receives the number of dimensions
- * @param out_shape       [out] optional; receives the the pointer to the shape (array of extents)
+ * @param tensor      [in]  the tensor whose shape to obtain
+ * @param out_ndim    [out] optional; receives the number of dimensions
+ * @param out_shape   [out] optional; receives the pointer to the shape (array of extents)
  *
  * The pointer returned in `out_shape` remains valid until the Tensor is destroyed or modified.
- * If the caller is not intersted in some of the values, the pointers can be NULL.
+ * If the caller is not interested in some of the values, the pointers can be NULL.
  */
 DALI_API daliResult_t daliTensorGetShape(
   daliTensor_h tensor,
@@ -1057,7 +1062,7 @@ DALI_API daliResult_t daliTensorGetShape(
 /** Gets a layout string describing the data in the Tensor.
  *
  * @param tensor      [in]  the tensor whose layout to obtain
- * @param out_layout  [out] a pointer to the place where a pointer to the the layout string of
+ * @param out_layout  [out] a pointer to the place where a pointer to the layout string of
  *                          the samples in the tensor is stored
  *
  * When present, the layout string consists of exactly `ndim` single-character _axis labels_.
@@ -1089,10 +1094,10 @@ DALI_API daliResult_t daliTensorSetLayout(
  * but can also contain an index in a container, key, etc.
  *
  * @param tensor          [in]  The tensor
- * @param out_source_info [out] A pointer to a location where the pointer to the source_info string
- *                              is stored. On success, `*out_source_info` contains a pointer to the
- *                              beginning of a null-terminated string. If the sample doesn't have
- *                              associated source info, a NULL pointer is returned.
+ * @param out_source_info [out] A pointer to the location where the pointer to the source_info
+ *                              string is stored. On success, `*out_source_info` contains a pointer
+ *                              to the beginning of a null-terminated string. If the sample doesn't
+ *                              have associated source info, a NULL pointer is returned.
  *
  * The return value is a string pointer. It is invalidated by destroying, clearing or resizing
  * the Tensor as well as by assigning a new source info.
@@ -1104,7 +1109,7 @@ DALI_API daliResult_t daliTensorGetSourceInfo(
 /** Gets the descriptor of the data in the tensor.
  *
  * @param tensor      [in]  The tensor
- * @param out_desc    [out] A poitner to a location where the decriptor is written.
+ * @param out_desc    [out] A poitner to a location where the descriptor is written.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
  * destroying, clearing or resizing the Tensor or re-attaching new data to it.
