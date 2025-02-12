@@ -549,7 +549,8 @@ void FramesDecoder::SeekFrame(int frame_id) {
         // so we need to seek to the keyframe first
         auto &keyframe_entry = Index(keyframe_id);
         LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
-                << " for requested frame " << frame_id << " timestamp " << requested_frame.pts << std::endl;
+                 << " for requested frame " << frame_id << " timestamp " << requested_frame.pts
+                 << std::endl;
 
         // Seeking clears av buffers, so reset flush state info
         if (flush_state_) {
@@ -557,11 +558,10 @@ void FramesDecoder::SeekFrame(int frame_id) {
           flush_state_ = false;
         }
 
-        int ret =
-          av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
-        DALI_ENFORCE(ret >= 0,
-                  make_string("Failed to seek to keyframe", keyframe_id,
-                              "in video \"", Filename(), "\" due to ", detail::av_error_string(ret)));
+        int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts,
+                                AVSEEK_FLAG_FRAME);
+        DALI_ENFORCE(ret >= 0, make_string("Failed to seek to keyframe", keyframe_id, "in video \"",
+                                           Filename(), "\" due to ", detail::av_error_string(ret)));
         avcodec_flush_buffers(av_state_->codec_ctx_);
         next_frame_idx_ = keyframe_id;
       }

@@ -29,7 +29,7 @@ namespace kernels {
 
 template <typename Storage>
 void memset(void *out, uint8_t value, std::size_t N, cudaStream_t stream = 0) {
-  if (!is_gpu_accessible<Storage>::value) {
+  if (is_cpu_accessible<Storage>::value) {
     std::memset(out, value, N);
   } else {
     CUDA_CALL(cudaMemsetAsync(out, value, N, stream));

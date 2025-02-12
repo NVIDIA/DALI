@@ -550,7 +550,7 @@ def test_incompatible_args(device):
 def test_multichannel_fill_value(device):
     batch = []
     batch_size = 3
-    fill_value = [10, 20, 30]  # RGB fill values
+    fill_value = [118, 185, 0]  # RGB fill values
 
     for i in range(batch_size):
         with open(cfr_files[i % len(cfr_files)], "rb") as f:
@@ -565,13 +565,15 @@ def test_multichannel_fill_value(device):
         encoded = fn.external_source(source=get_batch, device="cpu")
         decoded0 = fn.experimental.decoders.video(
             encoded,
+            stride=10,
             device=device,
             pad_mode="none",
         )
         decoded1 = fn.experimental.decoders.video(
             encoded,
             device=device,
-            sequence_length=80,  # Request more frames than available
+            stride=10,
+            sequence_length=10,  # Request more frames than available
             pad_mode="constant",
             fill_value=fill_value,
         )
@@ -596,4 +598,3 @@ def test_multichannel_fill_value(device):
         padded_frame = np.full((padding, H, W, C), fill_value, dtype=np.uint8)
         np.testing.assert_array_equal(frames_padded[:F, :, :, :], frames)
         np.testing.assert_array_equal(frames_padded[F:, :, :, :], padded_frame)
-

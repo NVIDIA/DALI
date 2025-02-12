@@ -58,7 +58,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       return frame_idx == -1;
     }
 
-    int frame_num;
+    int frame_num = 0;
     int frame_idx = -1;
   };
 
@@ -115,6 +115,8 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       DALI_FAIL(make_string("Invalid pad_mode: ", pad_mode_str, "\n",
                             "Valid options are: none, constant, edge, reflect_1001, reflect_101"));
     }
+
+    build_index_ = spec_.template GetArgument<bool>("build_index");
 
     if (boundary_type_ == boundary::BoundaryType::CONSTANT) {
       auto tmp = spec_.template GetRepeatedArgument<int>("fill_value");
@@ -222,17 +224,6 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     return sequence_len;
   }
 
-  bool ShouldBuildIndex(int sample_idx) const {
-    int first_frame = GetStartFrame(sample_idx);
-    if (frames_.HasValue()) {
-      first_frame = frames_[sample_idx].data[0];
-      for (int f = 0; f < frames_[sample_idx].shape[0]; f++) {
-        first_frame = std::min(first_frame, frames_[sample_idx].data[f]);
-      }
-    }
-    return first_frame > 0;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<InBackend>(0);
 
@@ -259,7 +250,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             const char *data = reinterpret_cast<const char *>(input[s].data<uint8_t>());
             size_t size = input[s].shape().num_elements();
             auto source_info = input.GetMeta(s).GetSourceInfo();
-            frames_decoders_[s] = CreateDecoder(data, size, ShouldBuildIndex(s), source_info,
+            frames_decoders_[s] = CreateDecoder(data, size, build_index_, source_info,
                                                 ws.has_stream() ? ws.stream() : 0);
             DALI_ENFORCE(frames_decoders_[s]->IsValid(),
                          make_string("Failed to create video decoder for \"",
@@ -403,14 +394,16 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             mm::alloc_raw_unique<uint8_t, mm::memory_kind::pinned>(ctx.fill_value_frame_size);
         ctx.fill_value_frame_gpu_buffer =
             mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(ctx.fill_value_frame_size);
-        SetConstantPadding<StorageCPU>(ctx.fill_value_frame_cpu_buffer.get(), ctx.fill_value_frame_size, ctx);
+        SetConstantPadding<StorageCPU>(ctx.fill_value_frame_cpu_buffer.get(),
+                                       ctx.fill_value_frame_size, ctx);
         kernels::copy<StorageGPU, StorageCPU>(ctx.fill_value_frame_gpu_buffer.get(),
                                               ctx.fill_value_frame_cpu_buffer.get(),
                                               ctx.fill_value_frame_size, ctx.stream);
       }
       for (int64_t offset = 0; offset < output_size; offset += ctx.frames_decoder->FrameSize()) {
         assert(offset + ctx.frames_decoder->FrameSize() <= output_size);
-        kernels::copy<StorageGPU, StorageGPU>(output + offset, ctx.fill_value_frame_gpu_buffer.get(),
+        kernels::copy<StorageGPU, StorageGPU>(output + offset,
+                                              ctx.fill_value_frame_gpu_buffer.get(),
                                               ctx.frames_decoder->FrameSize(), ctx.stream);
       }
     }
@@ -422,7 +415,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     int num_fill_values = ctx.fill_value.size();
     uint8_t *output_data = output.template mutable_data<uint8_t>();
 
-    FrameInfo last_frame;
+    FrameInfo last_frame{};
     for (auto &frame : ctx.frame_infos) {
       if (frame.is_constant()) {
         SetConstantPadding<OutStorage>(output_data + frame.frame_num * frame_size, frame_size, ctx);
@@ -446,11 +439,11 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   std::unique_ptr<ThreadPool> thread_pool_;  // Used only for mixed backend
   boundary::BoundaryType boundary_type_ = boundary::BoundaryType::CONSTANT;
   std::vector<uint8_t> fill_value_;
-
   ArgValue<int> start_frame_{"start_frame", spec_};
   ArgValue<int> stride_{"stride", spec_};
   ArgValue<int> sequence_length_{"sequence_length", spec_};
   ArgValue<int, 1> frames_{"frames", spec_};
+  bool build_index_;
 
   std::vector<WorkerContext> ctx_;
 };
