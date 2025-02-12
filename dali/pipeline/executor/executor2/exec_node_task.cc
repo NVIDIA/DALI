@@ -336,7 +336,12 @@ void OpTask::SetWorkspaceInputs() {
   int ti = 0;
   assert(ws_->NumInput() + ws_->NumArgumentInput() == static_cast<int>(node_->inputs.size()));
   auto order = ws_->output_order();
+
+  // Events that are waited for in the workspace's associated stream
+  // - they come from non-metadata GPU inputs that were produced on a different stream.
   std::unordered_set<cudaEvent_t> stream_events(ws_->NumInput() + ws_->NumArgumentInput());
+  // Events that are waited for on host
+  // - they come from non-metadata CPU inputs that were produced in non-host-order
   std::unordered_set<cudaEvent_t> host_events(ws_->NumInput() + ws_->NumArgumentInput());
   auto &schema = node_->op->GetSpec().GetSchema();
 
@@ -351,7 +356,7 @@ void OpTask::SetWorkspaceInputs() {
 
     bool is_plain_host = std::is_same_v<Backend, CPUBackend> && !inp.data->is_pinned();
 
-    // metadata-only inputs && non-pinned host inputs don't need a proper stream
+    // metadata-only inputs & non-pinned host inputs don't need a proper stream
     if (inp.order == input_order || is_meta || is_plain_host) {  // use the input directly
       ws_->SetInput(i, inp.data);
     } else {  // create another TL and set its order (and layout, while we're at it)
