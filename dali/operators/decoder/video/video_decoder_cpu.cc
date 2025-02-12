@@ -57,12 +57,14 @@ Example 3: Pad the sequence by repeating the last frame:
     .NumOutput(1)
     .InputDox(0, "encoded", "TensorList", "Encoded video stream")
     .AddOptionalArg("affine",
-    R"code(Whether to pin threads to CPU cores (mixed backend only).
+                    R"code(Whether to pin threads to CPU cores (mixed backend only).
 
 If True, each thread in the internal thread pool will be pinned to a specific CPU core.
-If False, threads can migrate between cores based on OS scheduling.)code", true)
-    .AddOptionalArg<std::vector<int>>("frames",
-    R"code(Specifies which frames to extract from each video by their indices.
+If False, threads can migrate between cores based on OS scheduling.)code",
+                    true)
+    .AddOptionalArg<std::vector<int>>(
+        "frames",
+        R"code(Specifies which frames to extract from each video by their indices.
 
 The indices can be provided in any order and can include duplicates. For example, [0,10,5,10] would extract:
 - Frame 0 (first frame)
@@ -70,23 +72,38 @@ The indices can be provided in any order and can include duplicates. For example
 - Frame 5 
 - Frame 10 (again)
 
-This argument cannot be used together with ``start_frame``, ``sequence_length``, ``stride`` or ``pad_mode``.)code", nullptr, true)
-    .AddOptionalArg<int>("start_frame",
-    R"code(Index of the first frame to extract from each video. Cannot be used together with frames argument.)code", nullptr, true)
-    .AddOptionalArg<int>("stride",
-    R"code(Number of frames to skip between each extracted frame. Cannot be used together with ``frames`` argument.)code", nullptr, true)
-    .AddOptionalArg<int>("sequence_length",
-    R"code(Number of frames to extract from each video. If not provided, the whole video is decoded. Cannot be used together with ``frames`` argument.)code", nullptr, true)
-    .AddOptionalArg<std::string>("pad_mode",
-    R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
+This argument cannot be used together with ``start_frame``, ``sequence_length``, ``stride`` or ``pad_mode``.)code",
+        nullptr, true)
+    .AddOptionalArg<int>(
+        "start_frame",
+        R"code(Index of the first frame to extract from each video. Cannot be used together with frames argument.)code",
+        nullptr, true)
+    .AddOptionalArg<int>(
+        "stride",
+        R"code(Number of frames to skip between each extracted frame. Cannot be used together with ``frames`` argument.)code",
+        nullptr, true)
+    .AddOptionalArg<int>(
+        "sequence_length",
+        R"code(Number of frames to extract from each video. If not provided, the whole video is decoded. Cannot be used together with ``frames`` argument.)code",
+        nullptr, true)
+    .AddOptionalArg<std::string>(
+        "pad_mode",
+        R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 - 'none': Return shorter sequences if not enough frames: ABC -> ABC
 - 'constant': Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
 - 'edge' or 'repeat': Repeat the last valid frame: ABC -> ABCCCC
 - 'reflect_1001' or 'symmetric': Reflect padding, including the last element: ABC -> ABCCBA
 - 'reflect_101' or 'reflect': Reflect padding, not including the last element: ABC -> ABCBA
-Not relevant when using frames argument.)code", "constant", true)
-    .AddOptionalArg<int>("pad_value",
-    R"code(Value used to pad missing frames when pad_mode='constant'. Must be in range [0, 255].)code", 0);
+Not relevant when using frames argument.)code",
+        "constant", true)
+    .AddOptionalArg(
+        "fill_value",
+        R"code(Value(s) used to pad missing frames when pad_mode='constant'.
+
+Each value must be in range [0, 255].
+If a single value is provided, it will be used for all channels. 
+Otherwise, the number of values must match the number of channels in the video.)code",
+        std::vector<int>{0, });
 
 class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoder> {
  public:

@@ -329,7 +329,7 @@ def test_video_decoder_frame_start_end_stride(
 ):
     num_iters = 1
     batch = []
-    pad_value = 111
+    fill_value = 111
     for i in range(batch_size):
         with open(filenames[i % len(filenames)], "rb") as f:
             batch.append(np.frombuffer(f.read(), dtype=np.uint8))
@@ -364,7 +364,7 @@ def test_video_decoder_frame_start_end_stride(
             sequence_length=sequence_length_arg,
             stride=stride_arg,
             pad_mode=pad_mode,
-            pad_value=pad_value,
+            fill_value=fill_value,
         )
 
         return (reference, decoded, start_frame_arg, sequence_length_arg, stride_arg)
@@ -385,7 +385,7 @@ def test_video_decoder_frame_start_end_stride(
             orig_F, H, W, C = tuple(out_reference_full.shape)
 
             def constant_padding():
-                return np.full((H, W, C), pad_value, dtype=np.uint8)
+                return np.full((H, W, C), fill_value, dtype=np.uint8)
 
             # Generate indices for start:end:stride slice
             frame_indices = []
@@ -544,3 +544,56 @@ def test_incompatible_args(device):
                 sequence_length=sequence_length,
             )
             pipe.build()
+
+
+@params("cpu", "mixed")
+def test_multichannel_fill_value(device):
+    batch = []
+    batch_size = 3
+    fill_value = [10, 20, 30]  # RGB fill values
+
+    for i in range(batch_size):
+        with open(cfr_files[i % len(cfr_files)], "rb") as f:
+            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+
+    def get_batch():
+        random.shuffle(batch)
+        return batch
+
+    @pipeline_def
+    def test_pipeline():
+        encoded = fn.external_source(source=get_batch, device="cpu")
+        decoded0 = fn.experimental.decoders.video(
+            encoded,
+            device=device,
+            pad_mode="none",
+        )
+        decoded1 = fn.experimental.decoders.video(
+            encoded,
+            device=device,
+            sequence_length=80,  # Request more frames than available
+            pad_mode="constant",
+            fill_value=fill_value,
+        )
+        return decoded0, decoded1
+
+    batch_size = 3
+    pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=0)
+    pipe.build()
+    out = pipe.run()
+    out0, out1 = (o.as_cpu() for o in out)
+
+    for i in range(batch_size):
+        frames = out0.at(i)
+        frames_padded = out1.at(i)
+
+        padded_F = frames_padded.shape[0]
+        F, H, W, C = frames.shape
+        padding = padded_F - F
+        assert padding > 0
+
+        # Create expected padded frames with RGB fill values
+        padded_frame = np.full((padding, H, W, C), fill_value, dtype=np.uint8)
+        np.testing.assert_array_equal(frames_padded[:F, :, :, :], frames)
+        np.testing.assert_array_equal(frames_padded[F:, :, :, :], padded_frame)
+
