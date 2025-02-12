@@ -523,7 +523,10 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
 }
 
 void FramesDecoderGpu::SeekFrame(int frame_id) {
-  SendLastPacket(true);
+  // Will seek or reset decoder, otherwise we will only skip frames
+  if (frame_id < next_frame_idx_) {
+    SendLastPacket(true);
+  }
   FramesDecoder::SeekFrame(frame_id);
 }
 

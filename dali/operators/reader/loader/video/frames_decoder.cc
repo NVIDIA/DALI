@@ -524,8 +524,6 @@ void FramesDecoder::Reset() {
 
 void FramesDecoder::SeekFrame(int frame_id) {
   // TODO(awolant): Optimize seeking:
-  //  - when we seek next frame,
-  //  - when we seek frame with the same keyframe as the current frame
   //  - for CFR, when we know pts, but don't know keyframes
 
   DALI_ENFORCE(
@@ -536,47 +534,56 @@ void FramesDecoder::SeekFrame(int frame_id) {
     return;  // No need to seek
   }
 
-  // If we have an index, we can seek to the nearest keyframe first
-  if (HasIndex()) {
-    const auto &current_frame = Index(next_frame_idx_);
-    const auto &requested_frame = Index(frame_id);
-    auto keyframe_id = requested_frame.last_keyframe_id;
-    if (current_frame.last_keyframe_id != keyframe_id) {
-      // We are seeking to a different keyframe than the current frame,
-      // so we need to seek to the keyframe first
-      auto &keyframe_entry = Index(keyframe_id);
-      LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts 
-               << " for requested frame " << frame_id << " timestamp " << requested_frame.pts << std::endl;
+  // If we are seeking to a frame that is before the current frame,
+  // or we are seeking to a frame that is more than 10 frames away,
+  // we will to seek to the nearest keyframe first
+  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + 10) {
+    // If we have an index, we can seek to the nearest keyframe first
+    if (HasIndex()) {
+      const auto &current_frame = Index(next_frame_idx_);
+      const auto &requested_frame = Index(frame_id);
+      auto keyframe_id = requested_frame.last_keyframe_id;
+      // if we are seeking to a different keyframe than the current frame,
+      if (current_frame.last_keyframe_id != keyframe_id) {
+        // We are seeking to a different keyframe than the current frame,
+        // so we need to seek to the keyframe first
+        auto &keyframe_entry = Index(keyframe_id);
+        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
+                << " for requested frame " << frame_id << " timestamp " << requested_frame.pts << std::endl;
 
-      // Seeking clears av buffers, so reset flush state info
-      if (flush_state_) {
-        while (ReadFlushFrame(nullptr, false)) {}
-        flush_state_ = false;
+        // Seeking clears av buffers, so reset flush state info
+        if (flush_state_) {
+          while (ReadFlushFrame(nullptr, false)) {}
+          flush_state_ = false;
+        }
+
+        int ret =
+          av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
+        DALI_ENFORCE(ret >= 0,
+                  make_string("Failed to seek to keyframe", keyframe_id,
+                              "in video \"", Filename(), "\" due to ", detail::av_error_string(ret)));
+        avcodec_flush_buffers(av_state_->codec_ctx_);
+        next_frame_idx_ = keyframe_id;
       }
-
-      int ret =
-        av_seek_frame(av_state_->ctx_, av_state_->stream_id_, keyframe_entry.pts, AVSEEK_FLAG_FRAME);
-      DALI_ENFORCE(ret >= 0,
-                make_string("Failed to seek to keyframe", keyframe_id,
-                            "in video \"", Filename(), "\" due to ", detail::av_error_string(ret)));
-      avcodec_flush_buffers(av_state_->codec_ctx_);
-      next_frame_idx_ = keyframe_id;
+    } else if (frame_id < next_frame_idx_) {
+      // If we are seeking to a frame that is before the current frame and there's no index,
+      // we need to reset the decoder
+      if (IsFormatSeekable()) {
+        Reset();
+      } else {
+        memory_video_file_->Seek(0, SEEK_SET);
+        av_state_ = std::make_unique<AvState>();
+        next_frame_idx_ = 0;
+      }
     }
-  } else if (frame_id < next_frame_idx_) {
-    LOG_LINE << "Seeking to start of stream since requested frame " << frame_id << " is before current frame " << next_frame_idx_ << " and no index is available" << std::endl;
-    int ret =
-      av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_BACKWARD);
-    DALI_ENFORCE(ret >= 0,
-                 make_string("Failed to seek to the first frame in video \"", Filename(),
-                             "\" due to ", detail::av_error_string(ret)));
-    avcodec_flush_buffers(av_state_->codec_ctx_);
-    next_frame_idx_ = 0;
   }
 
-  // Skip all frames between the current frame and the requested frame
-  while (next_frame_idx_ < frame_id) {
+  // Skip all remaining frames until the requested frame
+  for (int i = next_frame_idx_; i < frame_id; i++) {
     ReadNextFrame(nullptr, false);
   }
+  // Update the current frame index
+  next_frame_idx_ = frame_id;
 }
 
 bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {

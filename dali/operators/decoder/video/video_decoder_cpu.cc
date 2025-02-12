@@ -81,7 +81,7 @@ This argument cannot be used together with ``start_frame``, ``sequence_length``,
     R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 - 'none': Return shorter sequences if not enough frames: ABC -> ABC
 - 'constant': Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
-- 'edge': Repeat the last valid frame: ABC -> ABCCCC
+- 'edge' or 'repeat': Repeat the last valid frame: ABC -> ABCCCC
 - 'reflect_1001' or 'symmetric': Reflect padding, including the last element: ABC -> ABCCBA
 - 'reflect_101' or 'reflect': Reflect padding, not including the last element: ABC -> ABCBA
 Not relevant when using frames argument.)code", "constant", true)

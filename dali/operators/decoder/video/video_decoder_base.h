@@ -31,9 +31,6 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
-// If the next frame is within this threshold, we skip samples instead of seeking
-#define SEEK_THRESHOLD 10
-
 namespace dali {
 
 template <typename Backend, typename FramesDecoderImpl>
@@ -104,7 +101,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       boundary_type_ = boundary::BoundaryType::ISOLATED;
     } else if (pad_mode_str == "constant") {
       boundary_type_ = boundary::BoundaryType::CONSTANT;
-    } else if (pad_mode_str == "edge") {
+    } else if (pad_mode_str == "edge" || pad_mode_str == "repeat") {
       boundary_type_ = boundary::BoundaryType::CLAMP;
     } else if (pad_mode_str == "reflect_1001" || pad_mode_str == "symmetric") {
       boundary_type_ = boundary::BoundaryType::REFLECT_1001;
@@ -217,6 +214,17 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     return sequence_len;
   }
 
+  bool ShouldBuildIndex(int sample_idx) const {
+    int first_frame = GetStartFrame(sample_idx);
+    if (frames_.HasValue()) {
+      first_frame = frames_[sample_idx].data[0];
+      for (int f = 0; f < frames_[sample_idx].shape[0]; f++) {
+        first_frame = std::min(first_frame, frames_[sample_idx].data[f]);
+      }
+    }
+    return first_frame > 0;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<InBackend>(0);
 
@@ -243,16 +251,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             const char *data = reinterpret_cast<const char *>(input[s].data<uint8_t>());
             size_t size = input[s].shape().num_elements();
             auto source_info = input.GetMeta(s).GetSourceInfo();
-
-            int first_frame = GetStartFrame(s);
-            if (frames_.HasValue()) {
-              first_frame = frames_[s].data[0];
-              for (int f = 0; f < frames_[s].shape[0]; f++) {
-                first_frame = std::min(first_frame, frames_[s].data[f]);
-              }
-            }
-            bool build_index = first_frame > 0;
-            frames_decoders_[s] = CreateDecoder(data, size, build_index, source_info,
+            frames_decoders_[s] = CreateDecoder(data, size, ShouldBuildIndex(s), source_info,
                                                 ws.has_stream() ? ws.stream() : 0);
             DALI_ENFORCE(frames_decoders_[s]->IsValid(),
                          make_string("Failed to create video decoder for \"",
@@ -383,16 +382,10 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
                                               frame_size, stream);
         continue;
       }
-      // Only seek if frame is not close to current position
-      int current_frame = frames_decoder.NextFrameIdx();
-      int frames_to_skip = frame.frame_idx - current_frame;
-      if (frames_to_skip < 0) {
-        throw std::logic_error("Frame indices should be sorted");
-      }
 
-      frames_decoder.SeekFrame(frame.frame_idx);
-      if (frames_decoder.NextFrameIdx() != frame.frame_idx) {
-        throw std::runtime_error("Failed to seek to frame " + std::to_string(frame.frame_idx));
+      if (frame.frame_idx != frames_decoder.NextFrameIdx()) {
+        frames_decoder.SeekFrame(frame.frame_idx);
+        assert(frames_decoder.NextFrameIdx() == frame.frame_idx);
       }
       frames_decoder.ReadNextFrame(output_data + frame.frame_num * frame_size);
       last_frame = frame;
@@ -402,7 +395,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   std::vector<std::unique_ptr<FramesDecoderImpl>> frames_decoders_;
 
   std::unique_ptr<ThreadPool> thread_pool_;  // Used only for mixed backend
-  boundary::BoundaryType boundary_type_ = boundary::BoundaryType::ISOLATED;
+  boundary::BoundaryType boundary_type_ = boundary::BoundaryType::CONSTANT;
   uint8_t pad_value_ = 0;
 
   ArgValue<int> start_frame_{"start_frame", spec_};
