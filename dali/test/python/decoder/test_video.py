@@ -36,6 +36,122 @@ filenames = filter(lambda filename: "av1" not in filename, filenames)
 files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
 
 
+cfr_files = [
+    f"{get_dali_extra_path()}/db/video/cfr/test_1.mp4",
+    f"{get_dali_extra_path()}/db/video/cfr/test_2.mp4",
+]
+vfr_files = [
+    f"{get_dali_extra_path()}/db/video/vfr/test_1.mp4",
+    f"{get_dali_extra_path()}/db/video/vfr/test_2.mp4",
+]
+
+
+def idx_reflect_101(idx, lo, hi):
+    """Reflects out-of-range indices until fits in range.
+
+    Args:
+        idx: The index to reflect
+        lo: Low (inclusive) bound
+        hi: High (exclusive) bound
+
+    Returns:
+        Reflected index value
+    """
+    if hi - lo < 2:
+        return hi - 1  # make it obviously wrong if hi <= lo
+
+    while True:
+        if idx < lo:
+            idx = 2 * lo - idx
+        elif idx >= hi:
+            idx = 2 * hi - 2 - idx
+        else:
+            break
+
+    return idx
+
+
+def idx_reflect_1001(idx, lo, hi):
+    """Reflects out-of-range indices until fits in range.
+
+    Args:
+        idx: The index to reflect
+        lo: Low (inclusive) bound
+        hi: High (exclusive) bound
+
+    Returns:
+        Reflected index value
+
+    This reflect flavor repeats the first and last element:
+
+    lo--v     v--hi
+         ABCDEF           is padded as
+    DCBAABCDEFFEDCBAABCD
+    """
+    if hi - lo < 1:
+        return hi - 1  # make it obviously wrong if hi <= lo
+
+    while True:
+        if idx < lo:
+            idx = 2 * lo - 1 - idx
+        elif idx >= hi:
+            idx = 2 * hi - 1 - idx
+        else:
+            break
+
+    return idx
+
+
+def constant_padding_frame(H, W, C, fill_value):
+    return np.full((H, W, C), fill_value, dtype=np.uint8)
+
+
+def reference_padded_video(full_video, frames, pad_mode, fill_value):
+    F, H, W, C = full_video.shape
+
+    # Generate indices for start:end:stride slice
+    frame_indices = []
+    for f in frames:
+        if f < F:
+            frame_indices.append(f)
+        else:
+            if pad_mode == "edge":
+                frame_indices.append(F - 1)  # Repeat last frame
+            elif pad_mode == "symmetric":
+                # Reflect including boundary: abcd -> abccba
+                frame_indices.append(idx_reflect_1001(f, 0, F))
+            elif pad_mode == "reflect":
+                # Reflect excluding boundary: abcd -> abcdcb
+                frame_indices.append(idx_reflect_101(f, 0, F))
+            elif pad_mode == "constant":
+                frame_indices.append(-1)  # Special index for constant padding
+            else:
+                raise ValueError(f"Invalid pad_mode: {pad_mode}")
+
+    out_reference = np.stack(
+        [
+            full_video[f] if f >= 0 else constant_padding_frame(H, W, C, fill_value)
+            for f in frame_indices
+        ]
+    )
+    return out_reference
+
+
+def compare_videos(reference, actual):
+    try:
+        np.testing.assert_array_equal(reference, actual)
+    except AssertionError:
+        # Save frames as PNG files for debugging
+        print("Videos don't match - saving frames as PNG files for debugging...")
+        for i, (ref_frame, act_frame) in enumerate(zip(reference, actual)):
+            ref_filename = f"reference_frame_{i}.png"
+            act_filename = f"actual_frame_{i}.png"
+            cv2.imwrite(ref_filename, ref_frame)
+            cv2.imwrite(act_filename, act_frame)
+            print(f"Saved frame {i} to {ref_filename} and {act_filename}")
+        raise
+
+
 @pipeline_def(device_id=0)
 def video_decoder_pipeline(source, device="cpu", module=fn.experimental):
     data = fn.external_source(source=source, dtype=types.UINT8, ndim=1)
@@ -243,72 +359,6 @@ def test_error_source_info(device):
     assert_raises(RuntimeError, p.run)
 
 
-cfr_files = [
-    f"{get_dali_extra_path()}/db/video/cfr/test_1.mp4",
-    f"{get_dali_extra_path()}/db/video/cfr/test_2.mp4",
-]
-vfr_files = [
-    f"{get_dali_extra_path()}/db/video/vfr/test_1.mp4",
-    f"{get_dali_extra_path()}/db/video/vfr/test_2.mp4",
-]
-
-
-def idx_reflect_101(idx, lo, hi):
-    """Reflects out-of-range indices until fits in range.
-
-    Args:
-        idx: The index to reflect
-        lo: Low (inclusive) bound
-        hi: High (exclusive) bound
-
-    Returns:
-        Reflected index value
-    """
-    if hi - lo < 2:
-        return hi - 1  # make it obviously wrong if hi <= lo
-
-    while True:
-        if idx < lo:
-            idx = 2 * lo - idx
-        elif idx >= hi:
-            idx = 2 * hi - 2 - idx
-        else:
-            break
-
-    return idx
-
-
-def idx_reflect_1001(idx, lo, hi):
-    """Reflects out-of-range indices until fits in range.
-
-    Args:
-        idx: The index to reflect
-        lo: Low (inclusive) bound
-        hi: High (exclusive) bound
-
-    Returns:
-        Reflected index value
-
-    This reflect flavor repeats the first and last element:
-
-    lo--v     v--hi
-         ABCDEF           is padded as
-    DCBAABCDEFFEDCBAABCD
-    """
-    if hi - lo < 1:
-        return hi - 1  # make it obviously wrong if hi <= lo
-
-    while True:
-        if idx < lo:
-            idx = 2 * lo - 1 - idx
-        elif idx >= hi:
-            idx = 2 * hi - 1 - idx
-        else:
-            break
-
-    return idx
-
-
 @params(
     # Test case 1: Constant frame rate video, start_frame = 5, sequence_length = 3, stride = 1
     *[(device, 3, cfr_files, 5, 3, 1, None) for device in ["cpu", "mixed"]],
@@ -382,49 +432,29 @@ def test_video_decoder_frame_start_end_stride(
             start_frame = start_frame_arg.at(i)
             sequence_length = sequence_length_arg.at(i)
             stride = stride_arg.at(i)
-            orig_F, H, W, C = tuple(out_reference_full.shape)
-
-            def constant_padding():
-                return np.full((H, W, C), fill_value, dtype=np.uint8)
-
-            # Generate indices for start:end:stride slice
-            frame_indices = []
-            for f in range(start_frame, start_frame + sequence_length * stride, stride):
-                if f < orig_F:
-                    frame_indices.append(f)
-                else:
-                    if pad_mode == "edge":
-                        frame_indices.append(orig_F - 1)  # Repeat last frame
-                    elif pad_mode == "symmetric":
-                        # Reflect including boundary: abcd -> abccba
-                        frame_indices.append(idx_reflect_1001(f, 0, orig_F))
-                    elif pad_mode == "reflect":
-                        # Reflect excluding boundary: abcd -> abcdcb
-                        frame_indices.append(idx_reflect_101(f, 0, orig_F))
-                    elif pad_mode == "constant":
-                        frame_indices.append(-1)  # Special index for constant padding
-                    else:
-                        raise ValueError(f"Invalid pad_mode: {pad_mode}")
-
-            out_reference = np.stack(
-                [out_reference_full[f] if f >= 0 else constant_padding() for f in frame_indices]
-            )
-            np.testing.assert_array_equal(out_reference, out)
+            frames = list(range(start_frame, start_frame + sequence_length * stride, stride))
+            out_reference = reference_padded_video(out_reference_full, frames, pad_mode, fill_value)
+            compare_videos(out_reference, out)
 
 
 @params(
     # Test single constant frame rate video with simple frame indices
-    *[(device, 3, cfr_files, [0, 5, 10]) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, [0, 5, 10], "none") for device in ["cpu", "mixed"]],
     # Test multiple variable frame rate videos with non-sequential frames
-    *[(device, 3, vfr_files, [2, 4, 8]) for device in ["cpu", "mixed"]],
+    *[(device, 3, vfr_files, [2, 4, 8], "none") for device in ["cpu", "mixed"]],
     # Test single constant frame rate video with non-monotonic frame indices
-    *[(device, 3, cfr_files, [0, 5, 10, 8, 7, 6]) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, [0, 5, 10, 8, 7, 6], "none") for device in ["cpu", "mixed"]],
     # Test single constant frame rate video with repeated frame indices
-    *[(device, 3, cfr_files, [0, 5, 10, 8, 10, 5, 0, 0]) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, [0, 5, 10, 8, 10, 5, 0, 0], "none") for device in ["cpu", "mixed"]],
     # Test multiple constant frame rate videos with random indices
-    *[(device, 3, cfr_files, None) for device in ["cpu", "mixed"]],
+    *[(device, 3, cfr_files, None, "none") for device in ["cpu", "mixed"]],
+    # Test out of bounds frame indices
+    *[
+        (device, 3, cfr_files, [0, 100, 1, 100, 2, 100, 3, 100], "constant")
+        for device in ["cpu", "mixed"]
+    ],
 )
-def test_video_decoder_frame_indices(device, batch_size, filenames, frames):
+def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_mode):
     num_iters = 1
     batch = []
     for i in range(batch_size):
@@ -433,6 +463,8 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames):
 
     def get_batch():
         return batch
+
+    fill_value = [118, 185, 0]
 
     @pipeline_def
     def test_pipeline():
@@ -443,7 +475,9 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames):
             frames_arg = fn.random.uniform(range=(0, 10), shape=frames_shape, dtype=types.INT32)
         else:
             frames_arg = frames
-        decoded = fn.experimental.decoders.video(encoded, device=device, frames=frames_arg)
+        decoded = fn.experimental.decoders.video(
+            encoded, device=device, frames=frames_arg, pad_mode=pad_mode, fill_value=fill_value
+        )
         return (reference, decoded, frames_arg)
 
     pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=0)
@@ -451,12 +485,24 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames):
         out0, out1, frames_arg = (o.as_cpu() for o in pipe.run())
         # Verify each sample in the batch
         for i in range(batch_size):
-            out_reference = out0.at(i)
+            full_video = out0.at(i)
+            F, H, W, C = full_video.shape
             out = out1.at(i)
             frames = frames_arg.at(i)
             # Get frames at specified indices for reference
-            out_reference = out_reference[frames]
-            np.testing.assert_array_equal(out_reference, out)
+            if pad_mode == "none":
+                for f in frames:
+                    assert f < full_video.shape[0]
+                out_reference = full_video[frames]
+            else:
+                padding = np.full((H, W, C), fill_value, dtype=np.uint8)
+                out_reference = np.zeros((len(frames), H, W, C), dtype=np.uint8)
+                for f in range(len(frames)):
+                    if frames[f] < F:
+                        out_reference[f] = full_video[frames[f]]
+                    else:
+                        out_reference[f] = padding
+            compare_videos(out_reference, out)
 
 
 @params(
@@ -496,7 +542,7 @@ def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequenc
     for i in range(batch_size):
         ref = out_ref.at(i)
         actual = out.at(i)
-        np.testing.assert_array_equal(ref, actual)
+        compare_videos(ref, actual)
 
 
 @params("cpu", "mixed")

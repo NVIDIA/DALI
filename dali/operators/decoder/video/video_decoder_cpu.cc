@@ -99,7 +99,7 @@ The indices can be provided in any order and can include duplicates. For example
 * Frame 5
 * Frame 10 (again)
 
-This argument cannot be used together with ``start_frame``, ``sequence_length``, ``stride`` or ``pad_mode``.)code",
+This argument cannot be used together with ``start_frame``, ``sequence_length``, ``stride``.)code",
         nullptr, true)
     .AddOptionalArg<int>(
         "start_frame",

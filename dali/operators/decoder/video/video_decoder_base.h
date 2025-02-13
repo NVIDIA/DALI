@@ -30,6 +30,7 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/core/small_vector.h"
 
 namespace dali {
 
@@ -64,7 +65,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
 
   struct WorkerContext {
     std::vector<FrameInfo> frame_infos;
-    std::vector<uint8_t> fill_value;
+    SmallVector<uint8_t, 16> fill_value;
     mm::uptr<uint8_t> fill_value_frame_cpu_buffer;
     mm::uptr<uint8_t> fill_value_frame_gpu_buffer;
     int64_t fill_value_frame_size = 0;
@@ -93,12 +94,6 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
                    (start_frame_.HasValue() || stride_.HasValue() || sequence_length_.HasValue())),
                  "Cannot specify both `frames` and any of `start_frame`, `sequence_length`, "
                  "`stride` arguments");
-
-    if (frames_.HasValue() && (spec_.HasArgument("pad_mode") || spec_.HasArgument("pad_value"))) {
-      DALI_WARN(
-          "Padding options (`pad_mode`, `pad_value`) are ignored when `frames` argument is "
-          "provided");
-    }
 
     auto pad_mode_str = spec_.template GetArgument<std::string>("pad_mode");
     if (pad_mode_str == "none" || pad_mode_str == "") {
@@ -284,6 +279,34 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     return true;
   }
 
+  void AddFrame(int frame_num, int frame_idx, int orig_num_frames, WorkerContext &ctx) const {
+    if (frame_idx >= orig_num_frames) {
+      switch (boundary_type_) {
+        case boundary::BoundaryType::CLAMP:
+          ctx.frame_infos.push_back(FrameInfo::FrameIndex(orig_num_frames - 1, frame_num));
+          break;
+        case boundary::BoundaryType::REFLECT_1001:
+          ctx.frame_infos.push_back(FrameInfo::FrameIndex(
+              boundary::idx_reflect_1001<int>(static_cast<int>(frame_idx), orig_num_frames),
+              frame_num));
+          break;
+        case boundary::BoundaryType::REFLECT_101:
+          ctx.frame_infos.push_back(FrameInfo::FrameIndex(
+              boundary::idx_reflect_101<int>(static_cast<int>(frame_idx), orig_num_frames),
+              frame_num));
+          break;
+        case boundary::BoundaryType::CONSTANT:
+          ctx.frame_infos.push_back(FrameInfo::Constant(frame_num));
+          break;
+        default:
+        case boundary::BoundaryType::ISOLATED:
+          break;  // will result in a shorter sequence than requested
+      }
+    } else {
+      ctx.frame_infos.push_back(FrameInfo::FrameIndex(frame_idx, frame_num));
+    }
+  }
+
   void RunImpl(Workspace &ws) override {
     auto &output = ws.Output<OutBackend>(0);
     const auto &input = ws.Input<InBackend>(0);
@@ -313,46 +336,21 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
 
             if (frames_.HasValue()) {
               for (int64_t frame_num = 0; frame_num < num_frames; frame_num++) {
-                DALI_ENFORCE(frames_[s].data[frame_num] < orig_num_frames,
-                             make_string("Unexpected out-of-bounds frame index ",
-                                         frames_[s].data[frame_num], " for sample #", s,
-                                         ", containing only ", orig_num_frames, " frames"));
-                ctx.frame_infos.push_back(
-                    FrameInfo::FrameIndex(frames_[s].data[frame_num], frame_num));
+                DALI_ENFORCE(
+                    boundary_type_ != boundary::BoundaryType::ISOLATED ||
+                        frames_[s].data[frame_num] < orig_num_frames,
+                    make_string("Unexpected out-of-bounds frame index ", frames_[s].data[frame_num],
+                                " for pad_mode = 'none' and sample #", s, ", containing only ",
+                                orig_num_frames, " frames. Change `pad_mode` to fill the missing "
+                                "frames."));
+                AddFrame(frame_num, frames_[s].data[frame_num], orig_num_frames, ctx);
               }
             } else {
               int stride = GetStride(s);
               int start_frame = GetStartFrame(s);
               for (int64_t frame_num = 0, frame_idx = start_frame; frame_num < num_frames;
                    frame_num++, frame_idx += stride) {
-                if (frame_idx >= orig_num_frames) {
-                  switch (boundary_type_) {
-                    case boundary::BoundaryType::CLAMP:
-                      ctx.frame_infos.push_back(
-                          FrameInfo::FrameIndex(orig_num_frames - 1, frame_num));
-                      break;
-                    case boundary::BoundaryType::REFLECT_1001:
-                      ctx.frame_infos.push_back(
-                          FrameInfo::FrameIndex(boundary::idx_reflect_1001<int>(
-                                                    static_cast<int>(frame_idx), orig_num_frames),
-                                                frame_num));
-                      break;
-                    case boundary::BoundaryType::REFLECT_101:
-                      ctx.frame_infos.push_back(
-                          FrameInfo::FrameIndex(boundary::idx_reflect_101<int>(
-                                                    static_cast<int>(frame_idx), orig_num_frames),
-                                                frame_num));
-                      break;
-                    case boundary::BoundaryType::CONSTANT:
-                      ctx.frame_infos.push_back(FrameInfo::Constant(frame_num));
-                      break;
-                    default:
-                    case boundary::BoundaryType::ISOLATED:
-                      break;  // will result in a shorter sequence than requested
-                  }
-                } else {
-                  ctx.frame_infos.push_back(FrameInfo::FrameIndex(frame_idx, frame_num));
-                }
+                AddFrame(frame_num, frame_idx, orig_num_frames, ctx);
               }
             }
             // Sort the frame indices so that we can decode them in natural order
@@ -438,7 +436,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
 
   std::unique_ptr<ThreadPool> thread_pool_;  // Used only for mixed backend
   boundary::BoundaryType boundary_type_ = boundary::BoundaryType::CONSTANT;
-  std::vector<uint8_t> fill_value_;
+  SmallVector<uint8_t, 16> fill_value_;
   ArgValue<int> start_frame_{"start_frame", spec_};
   ArgValue<int> stride_{"stride", spec_};
   ArgValue<int> sequence_length_{"sequence_length", spec_};
