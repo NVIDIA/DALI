@@ -63,13 +63,59 @@ void CompareFrameAvgError(
   ASSERT_LT(sum, eps);
 }
 
+/**
+ * @brief Utility to save decoded frame as a PNG file.
+ * Frame is saved to the folder given as an argument.
+ * Output file name is created with provaided ids of frame, sample and batch.
+ *
+ * For example:
+ *
+ * SaveFrame(ptr, 0, 1, 2, '/tmp', 800, 600)
+ *
+ * will save the frame as:
+ *
+ * /tmp/batch_002_sample_001_frame_000.png
+ *
+ * @param frame Frame data
+ * @param frame_id FrameId that will be included in output file name
+ * @param sample_id SampleId that will be included in output file name
+ * @param batch_id BatchId that will be included in output file name
+ * @param folder_path Path to a destination folder
+ * @param width Frame width in pixels
+ * @param height Frame height in pixels
+ */
+void SaveFrame(uint8_t *frame, int frame_id, int sample_id, int batch_id,
+              const std::string &prefix, int width, int height) {
+  TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{height, width, 3});
+  char str[32];
+  snprintf(str, sizeof(str), "_%03d_%03d_%03d.png", batch_id, sample_id, frame_id);
+  string full_path = prefix + string(str);
+  std::cout << "Writing " << full_path << std::endl;
+  testing::SaveImage(full_path.c_str(), tv);
+}
+
 void TestVideo::CompareFrame(int frame_id, const uint8_t *frame, int eps) {
   auto &ground_truth = frames_[frame_id];
+  bool frames_match = true;
 
   detail::parallel_for(FrameSize(), detail::ThreadCount(), [&](int start, int end, int id){
-  for (int j = start; j < end; ++j) {
-    ASSERT_NEAR(frame[j], ground_truth.data[j], eps);
-  }});
+    for (int j = start; j < end; ++j) {
+      if (std::abs(frame[j] - ground_truth.data[j]) > eps) {
+        frames_match = false;
+        break;
+      }
+    }
+  });
+
+  if (!frames_match) {
+    SaveFrame(const_cast<uint8_t *>(frame), frame_id, 0, 0, "test_frame", Width(),
+              Height());
+    SaveFrame(ground_truth.data, frame_id, 0, 0, "ground_truth", Width(),
+              Height());
+
+    FAIL() << "Frames do not match (eps=" << eps
+           << "). Debug frames saved to test_frame_*.png and ground_truth_*.png";
+  }
 }
 
 void TestVideo::CompareFrameAvgError(int frame_id, const uint8_t *frame, double eps) {
@@ -151,21 +197,6 @@ void VideoTestBase::SetUpTestSuite() {
   for (auto &folder_path : vfr_hevc_videos_frames_paths_) {
     vfr_hevc_videos_.push_back(TestVideo(folder_path, true));
   }
-}
-
-void VideoTestBase::SaveFrame(
-  uint8_t *frame,
-  int frame_id,
-  int sample_id,
-  int batch_id,
-  const std::string &folder_path,
-  int width,
-  int height) {
-  TensorView<StorageCPU, uint8_t> tv(frame, TensorShape<3>{height, width, 3});
-  char str[32];
-  snprintf(str, sizeof(str), "/batch_%03d_sample_%03d_frame_%03d", batch_id, sample_id, frame_id);
-  string full_path = folder_path + string(str) + ".png";
-  testing::SaveImage(full_path.c_str(), tv);
 }
 
 void VideoTestBase::RunFailureTest(std::function<void()> body, std::string expected_error) {

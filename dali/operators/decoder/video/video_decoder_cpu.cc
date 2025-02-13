@@ -23,12 +23,12 @@ DALI_SCHEMA(experimental__decoders__Video)
 
 The operator accepts video files in common container formats (e.g. MP4, AVI). For CPU backend,
 FFmpeg is used for decoding. For Mixed backend, NVIDIA's Video Codec SDK (NVDEC) is used.
+Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 
-Each output sample is a sequence of frames with shape (F, H, W, C) where:
-- F is the number of frames in the sequence (can vary between samples)
-- H is the frame height in pixels
-- W is the frame width in pixels 
-- C is the number of color channels
+* ``F`` is the number of frames in the sequence (can vary between samples)
+* ``H`` is the frame height in pixels
+* ``W`` is the frame width in pixels
+* ``C`` is the number of color channels
 
 Example 1: Extract a sequence of arbitrary frames:
 

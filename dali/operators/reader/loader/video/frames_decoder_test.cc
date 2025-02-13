@@ -305,12 +305,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevcNoIndex) {
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
-
   FramesDecoder decoder(memory_video.data(), memory_video.size(), false);
-
-  RunFailureTest([&]() -> void {
-    decoder.SeekFrame(10);},
-    "Functionality is unavailible when index is not built.");
+  decoder.SeekFrame(10);
+  ASSERT_EQ(decoder.NextFrameIdx(), 10);
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRateNoIndex) {

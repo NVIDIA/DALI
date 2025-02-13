@@ -18,7 +18,6 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
 
-
 namespace dali {
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
   int left_in_file = size_ - position_;
@@ -65,13 +64,11 @@ std::string av_error_string(int ret) {
 
 int read_memory_video_file(void *data_ptr, uint8_t *av_io_buffer, int av_io_buffer_size) {
   MemoryVideoFile *memory_video_file = static_cast<MemoryVideoFile *>(data_ptr);
-
   return memory_video_file->Read(av_io_buffer, av_io_buffer_size);
 }
 
 int64_t seek_memory_video_file(void *data_ptr, int64_t new_position, int origin) {
   MemoryVideoFile *memory_video_file = static_cast<MemoryVideoFile *>(data_ptr);
-
   return memory_video_file->Seek(new_position, origin);
 }
 
@@ -149,7 +146,6 @@ bool FramesDecoder::FindVideoStream(bool init_codecs) {
     av_state_->stream_id_ =
         av_find_best_stream(av_state_->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
 
-    LOG_LINE << "Best stream " << av_state_->stream_id_ << std::endl;
     if (av_state_->stream_id_ < 0) {
       DALI_WARN(make_string("Could not find a valid video stream in a file \"", Filename(), "\""));
       return false;
@@ -254,6 +250,7 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   }
 
   if (build_index) {
+    LOG_LINE << "Building index" << std::endl;
     BuildIndex();
   }
   is_valid_ = true;
@@ -320,8 +317,9 @@ void FramesDecoder::CountFrames(AvState *av_state) {
   while (true) {
     int ret = av_read_frame(av_state->ctx_, av_state->packet_);
     auto packet = AVPacketScope(av_state->packet_, av_packet_unref);
-    if (ret != 0)
+    if (ret != 0) {
       break;  // End of file
+    }
 
     if (packet->stream_index != av_state->stream_id_) {
       continue;
@@ -337,18 +335,21 @@ template <typename FormatDesc>
 bool IsFormatSeekableHelper(FormatDesc *iformat) {
   if constexpr (has_member_read_seek_v<FormatDesc>) {
     static_assert(has_member_read_seek2_v<FormatDesc>);
-    if (iformat->read_seek == nullptr && iformat->read_seek2 == nullptr)
+    if (iformat->read_seek == nullptr && iformat->read_seek2 == nullptr) {
       return false;
+    }
   } else {
-    if (iformat->flags & (AVFMT_NOBINSEARCH | AVFMT_NOGENSEARCH))
+    if (iformat->flags & (AVFMT_NOBINSEARCH | AVFMT_NOGENSEARCH)) {
       return false;
+    }
   }
   return true;
 }
 
 bool FramesDecoder::IsFormatSeekable() {
-  if (!IsFormatSeekableHelper(av_state_->ctx_->iformat))
+  if (!IsFormatSeekableHelper(av_state_->ctx_->iformat)) {
     return false;
+  }
   return av_state_->ctx_->pb->read_seek != nullptr;
 }
 
@@ -508,6 +509,8 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
 }
 
 void FramesDecoder::Reset() {
+  LOG_LINE << "Resetting decoder" << std::endl;
+
   next_frame_idx_ = 0;
 
   if (flush_state_) {
@@ -525,7 +528,6 @@ void FramesDecoder::Reset() {
 void FramesDecoder::SeekFrame(int frame_id) {
   // TODO(awolant): Optimize seeking:
   //  - for CFR, when we know pts, but don't know keyframes
-
   DALI_ENFORCE(
       frame_id >= 0 && frame_id < NumFrames(),
       make_string("Invalid seek frame id. frame_id = ", frame_id, ", num_frames = ", NumFrames()));
@@ -537,14 +539,19 @@ void FramesDecoder::SeekFrame(int frame_id) {
   // If we are seeking to a frame that is before the current frame,
   // or we are seeking to a frame that is more than 10 frames away,
   // we will to seek to the nearest keyframe first
+  LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx_=" << next_frame_idx_
+           << std::endl;
   if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + 10) {
     // If we have an index, we can seek to the nearest keyframe first
     if (HasIndex()) {
+      LOG_LINE << "Using index to find nearest keyframe" << std::endl;
       const auto &current_frame = Index(next_frame_idx_);
       const auto &requested_frame = Index(frame_id);
       auto keyframe_id = requested_frame.last_keyframe_id;
       // if we are seeking to a different keyframe than the current frame,
-      if (current_frame.last_keyframe_id != keyframe_id) {
+      // or if we are seeking to a frame that is before the current frame,
+      // we need to seek to the keyframe first
+      if (current_frame.last_keyframe_id != keyframe_id || frame_id < next_frame_idx_) {
         // We are seeking to a different keyframe than the current frame,
         // so we need to seek to the keyframe first
         auto &keyframe_entry = Index(keyframe_id);
@@ -566,6 +573,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
         next_frame_idx_ = keyframe_id;
       }
     } else if (frame_id < next_frame_idx_) {
+      LOG_LINE << "No index available and seeking backwards, resetting decoder" << std::endl;
       // If we are seeking to a frame that is before the current frame and there's no index,
       // we need to reset the decoder
       if (IsFormatSeekable()) {
@@ -577,13 +585,13 @@ void FramesDecoder::SeekFrame(int frame_id) {
       }
     }
   }
-
+  assert(next_frame_idx_ <= frame_id);
   // Skip all remaining frames until the requested frame
+  LOG_LINE << "Skipping frames from " << next_frame_idx_ << " to " << frame_id << std::endl;
   for (int i = next_frame_idx_; i < frame_id; i++) {
     ReadNextFrame(nullptr, false);
   }
-  // Update the current frame index
-  next_frame_idx_ = frame_id;
+  assert(next_frame_idx_ == frame_id);
 }
 
 bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
@@ -605,6 +613,7 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   // Or when NumFrames in unavailible
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
+    LOG_LINE << "Next frame index out of bounds, setting to -1" << std::endl;
   }
 
   return true;
