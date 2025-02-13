@@ -15,6 +15,9 @@
 #ifndef DALI_C_API_2_MANAGED_HANDLE_H_
 #define DALI_C_API_2_MANAGED_HANDLE_H_
 
+#include <cassert>
+#include <stdexcept>
+#include <utility>
 #define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/unique_handle.h"
@@ -43,8 +46,10 @@ class RefCountedHandle {
   }
 
   RefCountedHandle &operator=(const RefCountedHandle &other) {
+    if (handle_ == other.handle_)
+      return *this;
     if (other.handle_) {
-        Actual::IncRef(other.handle_);
+      Actual::IncRef(other.handle_);
     }
     reset();
     handle_ = other.handle_;
@@ -52,6 +57,8 @@ class RefCountedHandle {
   }
 
   RefCountedHandle &operator=(RefCountedHandle &&other) noexcept {
+    if (&other == this)  // cannot move to self
+      return *this;
     std::swap(handle_, other.handle_);
     other.reset();
     return *this;

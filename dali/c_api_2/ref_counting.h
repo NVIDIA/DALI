@@ -87,6 +87,7 @@ class RefCountedPtr {
       return *this;
     std::swap(ptr_, other.ptr_);
     other.reset();
+    return *this;
   }
 
   void reset() noexcept {
