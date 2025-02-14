@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -336,7 +336,13 @@ void OpTask::SetWorkspaceInputs() {
   int ti = 0;
   assert(ws_->NumInput() + ws_->NumArgumentInput() == static_cast<int>(node_->inputs.size()));
   auto order = ws_->output_order();
-  std::unordered_set<cudaEvent_t> events(ws_->NumInput() + ws_->NumArgumentInput());
+
+  // Events that are waited for in the workspace's associated stream
+  // - they come from non-metadata GPU inputs that were produced on a different stream.
+  std::unordered_set<cudaEvent_t> stream_events(ws_->NumInput() + ws_->NumArgumentInput());
+  // Events that are waited for on host
+  // - they come from non-metadata CPU inputs that were produced in non-host-order
+  std::unordered_set<cudaEvent_t> host_events(ws_->NumInput() + ws_->NumArgumentInput());
   auto &schema = node_->op->GetSpec().GetSchema();
 
   auto process_input = [&](int i, auto backend) {
@@ -344,18 +350,19 @@ void OpTask::SetWorkspaceInputs() {
     const auto &inp = TaskInput<Backend>(ti);
     bool is_meta = node_->inputs[i]->metadata;
     // metadata-only inputs don't need to be synchronized
-    if (!is_meta && inp.event() && inp.order != order)
-      events.insert(inp.event());
+    auto input_order = std::is_same_v<Backend, CPUBackend> ? AccessOrder::host() : order;
+    if (!is_meta && inp.event() && inp.order != input_order)
+      (input_order.is_host() ? host_events : stream_events).insert(inp.event());
 
     bool is_plain_host = std::is_same_v<Backend, CPUBackend> && !inp.data->is_pinned();
 
-    // metadata-only inputs && non-pinned host inputs don't need a proper stream
-    if (inp.order == order || is_meta || is_plain_host) {  // use the input directly
+    // metadata-only inputs & non-pinned host inputs don't need a proper stream
+    if (inp.order == input_order || is_meta || is_plain_host) {  // use the input directly
       ws_->SetInput(i, inp.data);
     } else {  // create another TL and set its order (and layout, while we're at it)
       auto tl = std::make_shared<TensorList<Backend>>();
       tl->ShareData(*inp.data);
-      tl->set_order(order, false);
+      tl->set_order(input_order, false);
       // this will avoid potentially one more proxy object, when adjusting layouts
       SetDefaultLayoutIfNeeded(*tl, schema, i);
       ws_->SetInput(i, std::move(tl));
@@ -374,7 +381,7 @@ void OpTask::SetWorkspaceInputs() {
   for (int i = 0; i < ws_->NumArgumentInput(); i++, ti++) {
     auto &inp = TaskInput<CPUBackend>(ti);
     if (inp.event())
-      events.insert(inp.event());
+      host_events.insert(inp.event());
     ws_->SetArgumentInput(i, inp.data);
   }
 
@@ -385,7 +392,11 @@ void OpTask::SetWorkspaceInputs() {
     task_->GetInputValue<void>(ti++);
   }
 
-  for (auto e : events)
+  for (auto e : host_events) {
+    AccessOrder::host().wait(e);
+    stream_events.erase(e);  // we've waited on host, so all streams are also synchronized
+  }
+  for (auto e : stream_events)
     ws_->output_order().wait(e);
 
   if (ws_->NumOutput()) {
