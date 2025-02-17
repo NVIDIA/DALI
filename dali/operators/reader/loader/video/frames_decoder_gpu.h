@@ -170,6 +170,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   static bool SupportsHevc();
 
+  static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
+
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
 
  private:
@@ -205,7 +207,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void InitBitStreamFilter();
 
-  cudaVideoCodec GetCodecType();
+  cudaVideoCodec GetCodecType(AVCodecID codec_id) const;
 
   void InitGpuParser();
 
@@ -216,6 +218,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool SendFrameToParser();
 
   unsigned int NumEmptySpots() const;
+
+  void CheckCodecSupport(AVCodecID codec_id) const override;
 };
 
 }  // namespace dali

@@ -292,7 +292,6 @@ using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
-
   const char* filtername = nullptr;
   switch (av_state_->codec_params_->codec_id) {
   case AVCodecID::AV_CODEC_ID_H264:
@@ -316,6 +315,11 @@ void FramesDecoderGpu::InitBitStreamFilter() {
       filtername = "mpeg4_unpack_bframes";
     }
     break;
+  case AVCodecID::AV_CODEC_ID_MJPEG:
+  case AVCodecID::AV_CODEC_ID_VP8:
+  case AVCodecID::AV_CODEC_ID_VP9:
+  case AVCodecID::AV_CODEC_ID_AV1:
+    break;  // No bit stream filter needed for MJPEG, VP8, VP9, AV1
   default:
     DALI_FAIL(make_string(
       "Could not find suitable bit stream filter for codec: ",
@@ -341,14 +345,17 @@ void FramesDecoderGpu::InitBitStreamFilter() {
     "Unable to initialize bit stream filter");
 }
 
-cudaVideoCodec FramesDecoderGpu::GetCodecType() {
-  // Code assumes av_state_->codec_->id in FramesDecoder::SupportedCodecs
-  switch (av_state_->codec_params_->codec_id) {
+cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
+  switch (codec_id) {
     case AV_CODEC_ID_HEVC: return cudaVideoCodec_HEVC;
     case AV_CODEC_ID_H264: return cudaVideoCodec_H264;
     case AV_CODEC_ID_MPEG4: return cudaVideoCodec_MPEG4;
+    case AV_CODEC_ID_VP8: return cudaVideoCodec_VP8;
+    case AV_CODEC_ID_VP9: return cudaVideoCodec_VP9;
+    case AV_CODEC_ID_MJPEG: return cudaVideoCodec_JPEG;
+    case AV_CODEC_ID_AV1: return cudaVideoCodec_AV1;
     default: {
-      DALI_FAIL(make_string("Unsupported codec type ", av_state_->codec_->id));
+      DALI_FAIL(make_string("Unsupported codec type ", avcodec_get_name(codec_id)));
       return {};
     }
   }
@@ -373,7 +380,7 @@ void FramesDecoderGpu::InitGpuParser() {
     return;
   }
 
-  auto codec_type = GetCodecType();
+  auto codec_type = GetCodecType(av_state_->codec_params_->codec_id);
 
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
@@ -409,6 +416,18 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
+void FramesDecoderGpu::CheckCodecSupport(AVCodecID codec_id) const {
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = GetCodecType(codec_id);
+  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
+  decoder_caps.nBitDepthMinus8 = 0;
+  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
+  if (!decoder_caps.bIsSupported) {
+    throw std::runtime_error(
+        make_string("Codec ", avcodec_get_name(codec_id), " is not supported by this platform."));
+  }
+}
+
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
     FramesDecoder(filename),
     frame_buffer_(num_decode_surfaces_),
@@ -417,6 +436,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     return;
   }
   InitGpuParser();
+  CheckCodecSupport(av_state_->codec_params_->codec_id);
 }
 
 FramesDecoderGpu::FramesDecoderGpu(
@@ -429,9 +449,11 @@ FramesDecoderGpu::FramesDecoderGpu(
   FramesDecoder(memory_file, memory_file_size, build_index, build_index, num_frames, source_info),
   frame_buffer_(num_decode_surfaces_), stream_(stream) {
   if (!IsValid()) {
+    DALI_WARN(make_string("Could not initialize FramesDecoderGpu from memory file."));
     return;
   }
   InitGpuParser();
+  CheckCodecSupport(av_state_->codec_params_->codec_id);
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
@@ -817,9 +839,8 @@ bool FramesDecoderGpu::SupportsHevc() {
   CUVIDDECODECAPS decoder_caps = {};
   decoder_caps.eCodecType = cudaVideoCodec_HEVC;
   decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
-  decoder_caps.nBitDepthMinus8 = 2;
+  decoder_caps.nBitDepthMinus8 = 10 - 8;  // 10-bit HEVC
   CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
-
   return decoder_caps.bIsSupported;
 }
 

@@ -127,7 +127,7 @@ Not relevant when using ``frames`` argument.)code",
         "constant", true)
     .AddOptionalArg(
         "fill_value",
-        R"code(Value(s) used to pad missing frames when ``pad_mode='constant``'.
+        R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
 
 Each value must be in range [0, 255].
 If a single value is provided, it will be used for all channels. 
@@ -136,7 +136,7 @@ Otherwise, the number of values must match the number of channels in the video.)
     .AddOptionalArg("build_index",
                     R"code(Controls whether to build a frame index during initialization.
 
-Building an index allows faster seeking to specific frames, but requires additional memory
+Building an index allows faster seeking to specific frames, but requires additional CPU memory
 to store frame metadata and longer initialization time to scan the entire video file. The index
 stores metadata, such as whether it is a key frame and the presentation timestamp (PTS).
 

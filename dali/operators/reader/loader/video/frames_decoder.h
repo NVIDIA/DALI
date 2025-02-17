@@ -28,6 +28,7 @@ extern "C" {
 #include <optional>
 
 #include "dali/core/common.h"
+#include "dali/core/span.h"
 
 namespace dali {
 struct IndexEntry {
@@ -102,8 +103,6 @@ struct MemoryVideoFile {
  */
 class DLL_PUBLIC FramesDecoder {
  public:
-  static const std::vector<AVCodecID> SupportedCodecs;
-
   /**
    * @brief Construct a new FramesDecoder object.
    *
@@ -270,7 +269,9 @@ class DLL_PUBLIC FramesDecoder {
 
   void LazyInitSwContext();
 
-  bool CheckCodecSupport();
+  virtual span<const AVCodecID> SupportedCodecs() const;
+
+  virtual void CheckCodecSupport(AVCodecID codec_id) const;
 
   void ParseNumFrames();
 
@@ -279,11 +280,6 @@ class DLL_PUBLIC FramesDecoder {
   bool IsFormatSeekable();
 
   void CountFrames(AvState *av_state);
-
-  std::string CodecName() {
-    return av_state_->codec_ ? av_state_->codec_->name :
-                               to_string(static_cast<int>(av_state_->codec_params_->codec_id));
-  }
 
   int channels_ = 3;
   bool flush_state_ = false;

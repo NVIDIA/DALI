@@ -25,7 +25,6 @@ from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nose2.tools import params
 from nose_utils import SkipTest, attr, assert_raises
 
-
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
 # filter out HEVC because some GPUs do not support it
 filenames = filter(lambda filename: "hevc" not in filename, filenames)
@@ -44,6 +43,15 @@ vfr_files = [
     f"{get_dali_extra_path()}/db/video/vfr/test_1.mp4",
     f"{get_dali_extra_path()}/db/video/vfr/test_2.mp4",
 ]
+
+codec_files = {
+    "h264": [f"{get_dali_extra_path()}/db/video/cfr/test_1.mp4"],
+    "hevc": [f"{get_dali_extra_path()}/db/video/cfr/test_1_hevc.mp4"],
+    "mpeg4": [f"{get_dali_extra_path()}/db/video/cfr/test_1_mpeg4.mp4"],
+    "av1": [f"{get_dali_extra_path()}/db/video/cfr/test_1_av1.mp4"],
+    "vp8": [f"{get_dali_extra_path()}/db/video/vp8/vp8.webm"],
+    "vp9": [f"{get_dali_extra_path()}/db/video/vp9/vp9_0.mp4"],
+}
 
 
 def idx_reflect_101(idx, lo, hi):
@@ -208,6 +216,7 @@ def ref_iter(epochs=1, device="cpu"):
 
 @params(("mixed", fn.experimental))
 def test_video_decoder(device, module):
+    skip_if_m60()
     batch_size = 3
     epochs = 3
     decoder_iter = video_decoder_iter(batch_size, epochs, device, module=module)
@@ -345,6 +354,7 @@ def test_source_info(device):
 
 @params("cpu", "mixed")
 def test_error_source_info(device):
+    skip_if_m60()
     error_file = "README.txt"
     filenames = os.path.join(get_dali_extra_path(), "db/video/cfr/", error_file)
 
@@ -377,6 +387,7 @@ def test_error_source_info(device):
 def test_video_decoder_frame_start_end_stride(
     device, batch_size, filenames, start_frame, sequence_length, stride, pad_mode
 ):
+    skip_if_m60()
     num_iters = 1
     batch = []
     fill_value = 111
@@ -455,6 +466,7 @@ def test_video_decoder_frame_start_end_stride(
     ],
 )
 def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_mode):
+    skip_if_m60()
     num_iters = 1
     batch = []
     for i in range(batch_size):
@@ -512,6 +524,7 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_
     *[(device, 3, vfr_files, 2, 1000) for device in ["cpu", "mixed"]],
 )
 def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequence_length):
+    skip_if_m60()
     batch = []
     for i in range(batch_size):
         with open(filenames[i % len(filenames)], "rb") as f:
@@ -547,6 +560,7 @@ def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequenc
 
 @params("cpu", "mixed")
 def test_incompatible_args(device):
+    skip_if_m60()
     batch = []
     with open(cfr_files[0], "rb") as f:
         batch.append(np.frombuffer(f.read(), dtype=np.uint8))
@@ -594,6 +608,7 @@ def test_incompatible_args(device):
 
 @params("cpu", "mixed")
 def test_multichannel_fill_value(device):
+    skip_if_m60()
     batch = []
     batch_size = 3
     fill_value = [118, 185, 0]  # RGB fill values
@@ -644,3 +659,122 @@ def test_multichannel_fill_value(device):
         padded_frame = np.full((padding, H, W, C), fill_value, dtype=np.uint8)
         np.testing.assert_array_equal(frames_padded[:F, :, :, :], frames)
         np.testing.assert_array_equal(frames_padded[F:, :, :, :], padded_frame)
+
+
+def extract_frames_from_video(video_path, start_frame=None, sequence_length=None, stride=None):
+    """Extracts frames from a video file using OpenCV's VideoCapture.
+
+    Args:
+        video_path: Path to the video file
+        start_frame: Starting frame index
+        sequence_length: Number of frames to extract
+        stride: Number of frames to skip between each extracted frame
+
+    Returns:
+        List of frames as numpy arrays
+    """
+    frames = []
+    cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        raise RuntimeError(f"Failed to open video file: {video_path}")
+
+    # Set starting frame
+    if start_frame is not None:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
+    frame_count = 0
+    frames_read = 0
+    while True:
+        if sequence_length is not None and frames_read >= sequence_length:
+            break
+
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Only append frames according to stride
+        if stride is None or frame_count % stride == 0:
+            # Convert BGR to RGB since OpenCV uses BGR by default
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(frame)
+            frames_read += 1
+
+        frame_count += 1
+
+    cap.release()
+    return frames
+
+
+@params(
+    *[
+        (device, codec, start_frame, sequence_length, stride)
+        for device in ["cpu", "mixed"]
+        for codec in ["h264", "hevc", "vp8", "vp9"]  # av1 and mpeg4 are not supported by now
+        for start_frame, sequence_length, stride in [(None, None, None), (5, 3, 2)]
+    ]
+)
+def test_specific_codec_support(device, codec, start_frame, sequence_length, stride):
+    skip_if_m60()
+    filenames = codec_files[codec]
+    assert len(filenames) > 0, f"No {codec} test files found"
+
+    batch_size = 1
+
+    batch = []
+    for i in range(batch_size):
+        with open(filenames[i % len(filenames)], "rb") as f:
+            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+
+    def get_batch():
+        random.shuffle(batch)
+        return batch
+
+    @pipeline_def
+    def decoder_pipeline():
+        files = fn.external_source(source=get_batch)
+        videos = fn.experimental.decoders.video(
+            files,
+            device=device,
+            sequence_length=sequence_length,
+            stride=stride,
+            start_frame=start_frame,
+        )
+        return videos
+
+    pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    pipe.build()
+    (out,) = pipe.run()
+    assert len(out) > 0, f"No output from decoder pipeline for {codec}"
+
+    for i in range(batch_size):
+        frames = out.as_cpu().at(i)
+        assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
+
+        # Get the filename for the i-th sample
+        filename = filenames[i % len(filenames)]
+        reference_frames = extract_frames_from_video(filename, start_frame, sequence_length, stride)
+
+        for frame_idx, frame in enumerate(frames):
+            # Load reference frame using zero-padded frame index
+            ref_frame = reference_frames[frame_idx]
+
+            # Compare frames
+            diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > 2)
+            total_pixels = frame.size
+            # More than 3% of the pixels differ in more than 2 steps
+            if diff_pixels / total_pixels > 0.03:
+                # Save the mismatched frames for inspection
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
+
+                output_path = f"frame_{frame_idx+1:03d}.png"
+                ref_output_path = f"ref_frame_{frame_idx+1:03d}.png"
+
+                cv2.imwrite(output_path, frame_bgr)
+                cv2.imwrite(ref_output_path, ref_frame_bgr)
+                assert False, (
+                    f"Frame {frame_idx+1} differs from reference by more than 2 steps in "
+                    + f"{diff_pixels/total_pixels*100}% of pixels. "
+                    + f"Expected {ref_frame_bgr} but got {frame_bgr}"
+                )
