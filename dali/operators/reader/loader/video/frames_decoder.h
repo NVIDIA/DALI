@@ -262,6 +262,8 @@ class DLL_PUBLIC FramesDecoder {
 
   void BuildIndex();
 
+  void DetectVariableFrameRate();
+
   void InitAvState(bool init_codecs = true);
 
   bool FindVideoStream(bool init_codecs = true);

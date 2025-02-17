@@ -353,77 +353,160 @@ bool FramesDecoder::IsFormatSeekable() {
   return av_state_->ctx_->pb->read_seek != nullptr;
 }
 
+/**
+ * @brief Reads the length of a Network Abstraction Layer (NAL) unit from a buffer.
+ *
+ * NAL units are the basic elements of H.264/AVC and H.265/HEVC video compression standards.
+ * In the Annex B byte stream format, NAL units are prefixed with a 4-byte length field
+ * that indicates the size of the following NAL unit.
+ *
+ * This function reads those 4 bytes in big-endian order to get the NAL unit length.
+ *
+ * Reference: ITU-T H.264 and H.265 specifications
+ *
+ * @param buf Pointer to the buffer containing the NAL unit length prefix
+ * @return The length of the NAL unit in bytes
+ */
+static inline uint32_t read_nal_unit_length(uint8_t *buf) {
+  uint32_t length = 0;
+  length = (buf)[0] << 24 | (buf)[1] << 16 | (buf)[2] << 8 | (buf)[3];
+  return length;
+}
+
 void FramesDecoder::BuildIndex() {
+  // Initialize empty index vector to store frame metadata
   index_ = std::vector<IndexEntry>();
 
+  // Track the position of the last keyframe seen
   int last_keyframe = -1;
 
   while (true) {
+    // Read the next frame from the video
     int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
     auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
     if (ret != 0) {
-      break;  // End of file
+      break;  // End of file reached
     }
+    // Skip packets from other streams (e.g. audio)
     if (packet->stream_index != av_state_->stream_id_) {
       continue;
     }
+
     IndexEntry entry;
+    entry.is_keyframe = false;  // Default to false, set true only if confirmed
+
+    // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
-      if (index_->empty()) {
-        entry.is_keyframe = true;
-      }
+      // Special handling for H.264 and HEVC formats
       auto codec_id = av_state_->ctx_->streams[packet->stream_index]->codecpar->codec_id;
-      if (codec_id == AV_CODEC_ID_H264) {
-        if (packet->size >= 5) {  // Ensure there's enough data to inspect
-          uint8_t nal_unit_type = packet->data[4] & 0x1F;
-          if (nal_unit_type == 5) {  // IDR frame for H.264
-            entry.is_keyframe = true;
+      if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
+        // Parse NAL units to verify if this is actually a keyframe
+        // NAL = Network Abstraction Layer, the basic unit of encoded video
+        const uint8_t *end = packet->data + packet->size;
+        uint8_t *nal_start = packet->data;
+
+        // Iterate through NAL units in the packet
+        while (nal_start + 4 < end) {
+          // Each NAL unit is prefixed with a 4-byte length
+          uint32_t nal_size = read_nal_unit_length(nal_start);
+          nal_start += 4;
+          if (nal_start + nal_size > end) {
+            break;
           }
-        }
-      } else if (codec_id == AV_CODEC_ID_HEVC) {
-        if (packet->size >= 6) {  // Ensure there's enough data to inspect
-          uint8_t nal_unit_type = (packet->data[4] >> 1) & 0x3F;
-          if (nal_unit_type >= 16 && nal_unit_type <= 21) {
-            entry.is_keyframe = true;
+
+          if (codec_id == AV_CODEC_ID_H264) {
+            // In H.264, the NAL unit type is in the lower 5 bits
+            uint8_t nal_unit_type = nal_start[0] & 0x1F;
+            // Type 5 indicates an IDR frame (Instantaneous Decoding Refresh)
+            // IDR frames are special keyframes that clear all reference buffers
+            if (nal_unit_type == 5) {
+              entry.is_keyframe = true;
+              break;
+            }
+          } else {  // AV_CODEC_ID_HEVC
+            // In HEVC/H.265, NAL unit type is in bits 1-6 of the first byte
+            uint8_t nal_unit_type = (nal_start[0] >> 1) & 0x3F;
+            // Types 16-21 are IRAP (Intra Random Access Point) pictures
+            // which serve as keyframes in HEVC
+            if (nal_unit_type >= 16 && nal_unit_type <= 21) {
+              entry.is_keyframe = true;
+              break;
+            }
           }
+          nal_start += nal_size;  // Advance to next NAL unit
         }
       } else {
-        // for other formats it is enough to check (packet->flags & AV_PKT_FLAG_KEY)
+        // For other codecs, trust the AV_PKT_FLAG_KEY flag
         entry.is_keyframe = true;
       }
-    } else {
-      entry.is_keyframe = false;
     }
+
+    // Store presentation timestamp (pts) or decode timestamp (dts) if pts not available
+    entry.pts = (packet->pts != AV_NOPTS_VALUE) ? packet->pts : packet->dts;
+    if (entry.pts == AV_NOPTS_VALUE) {
+      DALI_FAIL(make_string("Video file \"", Filename(), "\" has no valid timestamps"));
+    }
+
+    // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
       last_keyframe = index_->size();
     }
-    if (packet->pts != AV_NOPTS_VALUE) {
-      entry.pts = packet->pts;
-    } else {
-      entry.pts = packet->dts;
-    }
-    entry.is_flush_frame = false;
     entry.last_keyframe_id = last_keyframe;
+
+    // Regular frame, not a flush frame
+    entry.is_flush_frame = false;
     index_->push_back(entry);
   }
+
+  DALI_ENFORCE(!index_->empty(),
+               make_string("No valid frames found in video file \"", Filename(), "\""));
+
+  // Mark last frame as flush frame
   index_->back().is_flush_frame = true;
-  // Make sure that the index is sorted by pts as some frames may not be in the presentation
-  // order in the container
+
+  // Sort frames by presentation timestamp
+  // This is needed because frames may be stored out of order in the container
   std::sort(index_->begin(), index_->end(),
             [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; });
 
+  // After sorting, we need to update last_keyframe_id references
+  std::vector<int> keyframe_positions;
+  for (size_t i = 0; i < index_->size(); i++) {
+    if ((*index_)[i].is_keyframe) {
+      keyframe_positions.push_back(i);
+    }
+  }
+
+  DALI_ENFORCE(!keyframe_positions.empty(),
+               make_string("No keyframes found in video file \"", Filename(), "\""));
+
+  // Update last_keyframe_id for each frame after sorting
+  for (size_t i = 0; i < index_->size(); i++) {
+    // Find the last keyframe that comes before or at this frame
+    auto it = std::upper_bound(keyframe_positions.begin(), keyframe_positions.end(), i);
+    if (it == keyframe_positions.begin()) {
+      (*index_)[i].last_keyframe_id = 0;  // First keyframe
+    } else {
+      (*index_)[i].last_keyframe_id = *(--it);
+    }
+  }
+
+  // Detect if video has variable frame rate (VFR)
+  DetectVariableFrameRate();
+  Reset();
+}
+
+void FramesDecoder::DetectVariableFrameRate() {
   is_vfr_ = false;
-  auto &index = *index_;
-  if (NumFrames() > 3) {
-    int pts_step = index[1].pts - index[0].pts;
-    for (int frame_id = 2; frame_id < NumFrames(); ++frame_id) {
-      if ((index[frame_id].pts - index[frame_id - 1].pts) != pts_step) {
+  if (index_->size() > 3) {
+    int64_t pts_step = (*index_)[1].pts - (*index_)[0].pts;
+    for (size_t i = 2; i < index_->size(); i++) {
+      if (((*index_)[i].pts - (*index_)[i-1].pts) != pts_step) {
         is_vfr_ = true;
         break;
       }
     }
   }
-  Reset();
 }
 
 void FramesDecoder::CopyToOutput(uint8_t *data) {
