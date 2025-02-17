@@ -24,6 +24,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/color_space.h"
+
 namespace dali {
 
 namespace frame_dec_gpu_impl {
@@ -488,6 +489,13 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   int current_pts = piped_pts_.front();
   piped_pts_.pop();
 
+  LOG_LINE << "HandlePictureDisplay-"
+           << (picture_display_info->progressive_frame ?
+                   "I" :
+                   "NI")  // I=progressive frame, NI=interlaced
+           << ": Read frame, index " << next_frame_idx_ << ", timestamp " << std::setw(5)
+           << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
+
   // current_pts is pts of frame that came from the decoder
   // Index(NextFrameIdx()).pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
@@ -495,20 +503,16 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   // If not, we store it in the buffer for later
 
   if (HasIndex() && current_pts == Index(NextFrameIdx()).pts) {
-    // Currently decoded frame is actually the one we wanted
+    // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
-
-    LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-        std::setw(5) << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
+    LOG_LINE << "Found frame with correct display timestamp " << current_pts
+              << " for index " << next_frame_idx_ << std::endl;
 
     if (current_copy_to_output_ == false) {
       return 1;
     }
     frame_output = current_frame_output_;
   } else {
-    LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-        std::setw(5) << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
-
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts;
@@ -553,6 +557,12 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
 }
 
 bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
+  // No more frames to read
+  if (next_frame_idx_ >= NumFrames()) {
+    next_frame_idx_ = -1;
+    return false;
+  }
+
   // Check if requested frame was buffered earlier
   assert(HasIndex());
   for (auto &frame : frame_buffer_) {
@@ -560,12 +570,10 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
-      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-        std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
+      LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
       frame.pts_ = -1;
-
-      ++next_frame_idx_;
+      next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
       return true;
     }
   }
@@ -573,11 +581,14 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   current_copy_to_output_ = copy_to_output;
   current_frame_output_ = data;
 
-  while (true) {
+  while (next_frame_idx_ < NumFrames()) {
     int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
     auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
     if (ret != 0) {
-      break;  // No more frames in the file
+      LOG_LINE << "Hit EOF, sending last packet with " << piped_pts_.size()
+               << " frames in pipeline, " << NumBufferedFrames() << " buffered frames, "
+               << "next_frame_idx=" << next_frame_idx_ << " of " << NumFrames() << std::endl;
+      break;
     }
 
     if (!SendFrameToParser()) {
@@ -585,15 +596,21 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
     }
 
     if (frame_returned_) {
-      ++next_frame_idx_;
+      next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
       return true;
     }
   }
 
-  DALI_ENFORCE(piped_pts_.size() == 1);
+  // At this point we've hit EOF but might have frames still in the pipeline
+  DALI_ENFORCE(piped_pts_.size() >= 1);
 
   SendLastPacket();
-  next_frame_idx_ = -1;
+
+  // Check if we got the frame we wanted during SendLastPacket
+  if (frame_returned_) {
+    next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
+    return true;
+  }
   return true;
 }
 
@@ -749,17 +766,53 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   }
 }
 
+unsigned int FramesDecoderGpu::NumBufferedFrames() const {
+  unsigned int num_buffered = 0;
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ != -1) {
+      num_buffered++;
+    }
+  }
+  return num_buffered;
+}
+
 void FramesDecoderGpu::SendLastPacket(bool flush) {
+  LOG_LINE << "SendLastPacket: flush=" << flush << " piped_pts_size=" << piped_pts_.size()
+           << " buffered_frames=" << NumBufferedFrames() << " next_frame_idx=" << next_frame_idx_
+           << std::endl;
+
   flush_ = flush;
   CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
   memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
   packet->payload = nullptr;
   packet->payload_size = 0;
   packet->flags = CUVID_PKT_ENDOFSTREAM;
+
+  // Send end of stream and process any remaining frames
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+
+  if (!flush) {
+    // Process any remaining buffered frames in order
+    bool found_frame;
+    do {
+      found_frame = false;
+      for (auto &frame : frame_buffer_) {
+        if (frame.pts_ != -1 && HasIndex() && frame.pts_ == Index(next_frame_idx_).pts) {
+          LOG_LINE << "Processing remaining buffered frame pts=" << frame.pts_ << " for index "
+                   << next_frame_idx_ << std::endl;
+          frame.pts_ = -1;
+          ++next_frame_idx_;
+          found_frame = true;
+          break;
+        }
+      }
+    } while (found_frame && next_frame_idx_ < NumFrames());
+  }
+
   flush_ = false;
 
   if (flush) {
+    LOG_LINE << "Flushing decoder state" << std::endl;
     // Clear frames buffer
     for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].pts_ = -1;

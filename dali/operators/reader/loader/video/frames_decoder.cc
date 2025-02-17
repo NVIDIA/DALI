@@ -19,6 +19,7 @@
 #include "dali/core/util.h"
 
 namespace dali {
+
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
   int left_in_file = size_ - position_;
   if (left_in_file == 0) {
@@ -415,19 +416,27 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
 }
 
 void FramesDecoder::BuildIndex() {
+  LOG_LINE << "Starting BuildIndex()" << std::endl;
+
   // Initialize empty index vector to store frame metadata
   index_ = std::vector<IndexEntry>();
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
+  int frame_count = 0;
 
   while (true) {
     // Read the next frame from the video
     int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
     auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+
     if (ret != 0) {
-      break;  // End of file reached
+      LOG_LINE << "End of file reached after " << frame_count << " frames" << std::endl;
+      break;  // Just break when we hit EOF instead of trying to seek back
     }
+
+    frame_count++;
+
     // Skip packets from other streams (e.g. audio)
     if (packet->stream_index != av_state_->stream_id_) {
       continue;
@@ -438,6 +447,8 @@ void FramesDecoder::BuildIndex() {
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
+      LOG_LINE << "Found potential keyframe at frame " << frame_count << std::endl;
+
       // Special handling for H.264 and HEVC formats
       auto codec_id = av_state_->ctx_->streams[packet->stream_index]->codecpar->codec_id;
       if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
@@ -498,6 +509,8 @@ void FramesDecoder::BuildIndex() {
     entry.is_flush_frame = false;
     index_->push_back(entry);
   }
+
+  LOG_LINE << "Index building complete. Total frames: " << index_->size() << std::endl;
 
   DALI_ENFORCE(!index_->empty(),
                make_string("No valid frames found in video file \"", Filename(), "\""));
@@ -649,6 +662,9 @@ void FramesDecoder::Reset() {
 }
 
 void FramesDecoder::SeekFrame(int frame_id) {
+  LOG_LINE << "SeekFrame: Seeking to frame " << frame_id
+            << " (current=" << next_frame_idx_ << ")" << std::endl;
+
   // TODO(awolant): Optimize seeking:
   //  - for CFR, when we know pts, but don't know keyframes
   DALI_ENFORCE(
@@ -656,6 +672,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
       make_string("Invalid seek frame id. frame_id = ", frame_id, ", num_frames = ", NumFrames()));
 
   if (frame_id == next_frame_idx_) {
+    LOG_LINE << "Already at requested frame" << std::endl;
     return;  // No need to seek
   }
 
@@ -742,6 +759,9 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
 }
 
 bool FramesDecoder::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+  LOG_LINE << "ReadNextFrame: frame_idx=" << next_frame_idx_
+            << " copy=" << copy_to_output
+            << " flush=" << flush_state_ << std::endl;
   if (!flush_state_) {
     if (ReadRegularFrame(data, copy_to_output)) {
       return true;
