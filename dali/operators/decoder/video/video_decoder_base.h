@@ -323,6 +323,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             ctx.frames_decoder = frames_decoders_[s].get();
             ctx.stream = ws.has_stream() ? ws.stream() : 0;
             ctx.fill_value = fill_value_;
+            ctx.frame_infos.clear();
 
             if (boundary_type_ == boundary::BoundaryType::CONSTANT) {
               int nfill_values = fill_value_.size();
