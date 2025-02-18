@@ -17,8 +17,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import argparse
 import time
+from test_utils import get_dali_extra_path
+import os
 
-data_paths = ["/data/imagenet/train-jpeg"]
+data_paths = os.path.join(get_dali_extra_path(), "db", "single", "jpeg")
 
 
 class RN50Pipeline(Pipeline):
