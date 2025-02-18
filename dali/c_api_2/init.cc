@@ -51,7 +51,7 @@ daliResult_t daliInit() {
     g_was_initialized = true;
     return DALI_SUCCESS;
   } catch (...) {
-    return ::dali::c_api::HandleError(std::current_exception()); \
+    return dali::c_api::HandleError(std::current_exception());
   }
 }
 

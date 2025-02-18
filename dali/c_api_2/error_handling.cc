@@ -29,7 +29,7 @@ struct ErrorInfo {
   std::string   message;
 };
 
-thread_local ErrorInfo g_daliLastError;
+static thread_local ErrorInfo g_daliLastError;
 
 struct ErrorDesc {
   const char *name, *description;
