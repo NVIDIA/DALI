@@ -580,7 +580,10 @@ void ExposeTensor(py::module &m) {
       "__dlpack_device__", [](const Tensor<CPUBackend> &tensor) {
         auto dev = GetDLDevice(tensor);
         return std::make_tuple(dev.device_type, dev.device_id);
-      })
+      },
+      R"code(
+      Returns device type and device ID in DLPack format.
+      )code")
     .def(
       "__dlpack__", ToDLPack<CPUBackend>,
       "stream"_a = py::none(),
@@ -598,12 +601,13 @@ void ExposeTensor(py::module &m) {
           The CUDA stream the the caller is going to use to access the buffer.
           A synchronization event might be inserted, if necessary, into that stream.
           Special values:
-          None - any stream; wait on host
-          -1   - do not synchronize at all
-          1    - legacy default stream
-          2    - legacy per-thread stream
-          >2   - a CUDA stream handle converted to an integer
-          0    - forbidden value
+
+          * ``None`` - any stream; wait on host
+          * ``-1``   - do not synchronize at all
+          * ``1``    - legacy default stream
+          * ``2``    - legacy per-thread stream
+          * ``>2``   - a CUDA stream handle converted to an integer
+          * ``0``    - forbidden value
       )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -763,8 +767,9 @@ void ExposeTensor(py::module &m) {
       samples of a :class:`TensorListCPU` or used to wrap CPU memory that is intended
       to be passed as an input to DALI.
 
-      It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
-      and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
+      It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_,
+      `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_
+      and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 
   py::implicitly_convertible<py::buffer, Tensor<CPUBackend>>();
   py::implicitly_convertible<py::capsule&, Tensor<CPUBackend>>();
@@ -792,7 +797,10 @@ void ExposeTensor(py::module &m) {
       "__dlpack_device__", [](const Tensor<GPUBackend> &tensor) {
         auto dev = GetDLDevice(tensor);
         return std::make_tuple(dev.device_type, dev.device_id);
-      })
+      },
+      R"code(
+      Returns device type and device ID in DLPack format.
+      )code")
     .def(
       "__dlpack__", ToDLPack<GPUBackend>,
       "stream"_a = py::none(),
@@ -810,12 +818,13 @@ void ExposeTensor(py::module &m) {
           The CUDA stream the the caller is going to use to access the buffer.
           A synchronization event might be inserted, if necessary, into that stream.
           Special values:
-          None - any stream; wait on host
-          -1   - do not synchronize at all
-          1    - legacy default stream
-          2    - legacy per-thread stream
-          >2   - a CUDA stream handle converted to an integer
-          0    - forbidden value
+
+          * ``None`` - any stream; wait on host
+          * ``-1``   - do not synchronize at all
+          * ``1``    - legacy default stream
+          * ``2``    - legacy per-thread stream
+          * ``>2``   - a CUDA stream handle converted to an integer
+          * ``0``    - forbidden value
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
@@ -935,7 +944,8 @@ void ExposeTensor(py::module &m) {
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
       to be passed as an input to DALI.
 
-      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
+      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_
+      and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 }
 
 template <typename Backend>

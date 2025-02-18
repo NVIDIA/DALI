@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -2186,6 +2186,25 @@ def test_gpu2cpu_arg_input():
     pipe = pdef()
     (o,) = pipe.run()
     assert o[0].shape() == [42]
+
+
+def test_gpu2cpu2mixed():
+    bs = 8
+
+    @pipeline_def(batch_size=bs, num_threads=4, device_id=0, exec_dynamic=True)
+    def pdef():
+        enc, _ = fn.readers.file(file_root=jpeg_folder)
+        img = fn.decoders.image(enc, device="mixed", hw_decoder_load=0)
+        enc2 = (enc.gpu() + np.uint8(0)).cpu()
+        img2 = fn.decoders.image(enc2, device="mixed", hw_decoder_load=0)
+        return img, img2
+
+    pipe = pdef()
+    for i in range(10):
+        gpu, gpu2 = pipe.run()
+        assert isinstance(gpu, dali.backend_impl.TensorListGPU)
+        assert isinstance(gpu2, dali.backend_impl.TensorListGPU)
+        check_batch(gpu, gpu2, bs, 0, 0, "HWC")
 
 
 def test_shapes_gpu():
