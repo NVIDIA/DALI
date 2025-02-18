@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,19 +37,24 @@ inline TensorShape<> empty_tensor_shape() {
 template <typename Backend>
 class TensorTest : public DALITest {
  public:
-  TensorListShape<> GetRandShapeList() {
-    int num_tensor = this->RandInt(1, 128);
-    int dims = this->RandInt(2, 3);
-    TensorListShape<> shape(num_tensor, dims);
-    for (int i = 0; i < num_tensor; ++i) {
-      TensorShape<> tensor_shape;
-      tensor_shape.resize(dims);
-      for (int j = 0; j < dims; ++j) {
-        tensor_shape[j] = this->RandInt(1, 512);
+  TensorListShape<> GetRandShapeList(int64_t min_elements = 1_u64 << 16,
+                                     int64_t max_elements = 1_u64 << 28) {
+    for (;;) {
+      int num_tensor = this->RandInt(1, 128);
+      int dims = this->RandInt(2, 3);
+      TensorListShape<> shape(num_tensor, dims);
+      for (int i = 0; i < num_tensor; ++i) {
+        TensorShape<> tensor_shape;
+        tensor_shape.resize(dims);
+        for (int j = 0; j < dims; ++j) {
+          tensor_shape[j] = this->RandInt(1, 512);
+        }
+        shape.set_tensor_shape(i, tensor_shape);
       }
-      shape.set_tensor_shape(i, tensor_shape);
+      int64_t n = shape.num_elements();
+      if (n >= min_elements && n <= max_elements)
+        return shape;
     }
-    return shape;
   }
 
 
