@@ -29,7 +29,7 @@
 namespace dali {
 
 // Note: this is setup for the binary to be executed from "build"
-const string image_folder = testing::dali_extra_path() + "db/single/jpeg";  // NOLINT
+static const string image_folder = testing::dali_extra_path() + "db/single/jpeg";  // NOLINT
 
 class DALIBenchmark : public benchmark::Fixture {
  public:
