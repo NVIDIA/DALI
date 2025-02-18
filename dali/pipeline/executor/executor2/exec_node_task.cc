@@ -349,8 +349,8 @@ void OpTask::SetWorkspaceInputs() {
     using Backend = decltype(backend);
     const auto &inp = TaskInput<Backend>(ti);
     bool is_meta = node_->inputs[i]->metadata;
-    // metadata-only inputs don't need to be synchronized
     auto input_order = std::is_same_v<Backend, CPUBackend> ? AccessOrder::host() : order;
+    // metadata-only inputs don't need to be synchronized
     if (!is_meta && inp.event() && inp.order != input_order)
       (input_order.is_host() ? host_events : stream_events).insert(inp.event());
 
@@ -362,7 +362,9 @@ void OpTask::SetWorkspaceInputs() {
     } else {  // create another TL and set its order (and layout, while we're at it)
       auto tl = std::make_shared<TensorList<Backend>>();
       tl->ShareData(*inp.data);
-      tl->set_order(input_order, false);
+      // Use the workspace's order, not input order to avoid host synchronization
+      // when clearing the workspace.
+      tl->set_order(order, false);
       // this will avoid potentially one more proxy object, when adjusting layouts
       SetDefaultLayoutIfNeeded(*tl, schema, i);
       ws_->SetInput(i, std::move(tl));
