@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <stdexcept>
+#include <system_error>
 #include <string>
 #include <utility>
 #include "dali/c_api_2/error_handling.h"
@@ -29,7 +30,21 @@ struct ErrorInfo {
   std::string   message;
 };
 
-static thread_local ErrorInfo g_daliLastError;
+namespace {
+thread_local ErrorInfo g_daliLastError;
+
+// A workaround for category comparison acros shared object boundary
+inline bool CategoryEqual(const std::error_category &c1, const std::error_category &c2) {
+  if (c1 == c2)  // we might get false negatives here...
+    return true;
+  // ...so we compare names - it's not foolproof, but should work for builtin categories,
+  // which is all we're intersted in.
+  const char *n1 = c1.name();
+  const char *n2 = c2.name();
+  return n1 == n2 || !strcmp(n1, n2);
+}
+
+}  // namespace
 
 struct ErrorDesc {
   const char *name, *description;
@@ -94,7 +109,8 @@ daliResult_t HandleError(std::exception_ptr ex) {
   } catch (std::out_of_range &e) {
     return SetLastError(DALI_ERROR_OUT_OF_RANGE, e.what());
   } catch (std::system_error &e) {
-    if (e.code().category() == std::generic_category()) {
+    // compare by name to work around DLL issues
+    if (CategoryEqual(e.code().category(), std::generic_category())) {
       daliResult_t result = [&]() {
         switch (static_cast<std::errc>(e.code().value())) {
         case std::errc::no_such_file_or_directory:
@@ -139,7 +155,7 @@ daliResult_t HandleError(std::exception_ptr ex) {
         }
       }();
       return SetLastError(result, e.what());
-    } else if (e.code().category() == std::iostream_category()) {
+    } else if (CategoryEqual(e.code().category(), std::iostream_category())) {
       return SetLastError(DALI_ERROR_IO_ERROR, e.what());
     } else {
       return SetLastError(DALI_ERROR_SYSTEM, e.what());
