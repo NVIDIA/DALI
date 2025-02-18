@@ -81,11 +81,11 @@ span<const AVCodecID> FramesDecoder::SupportedCodecs() const {
   static constexpr std::array<AVCodecID, 7> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
     AVCodecID::AV_CODEC_ID_HEVC,
-    // TODO(janton): AVCodecID::AV_CODEC_ID_MPEG4, -> not supported by current FFmpeg build
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
-    // TODO(janton): AVCodecID::AV_CODEC_ID_AV1, -> not supported by most platforms
     AVCodecID::AV_CODEC_ID_MJPEG,
+    // TODO(janton): AVCodecID::AV_CODEC_ID_AV1,
+    // TODO(janton): AVCodecID::AV_CODEC_ID_MPEG4,
   };
   return make_cspan(codecs);
 }
@@ -124,90 +124,69 @@ void FramesDecoder::InitAvState(bool init_codecs) {
 }
 
 bool FramesDecoder::FindVideoStream(bool init_codecs) {
-  // First try to find stream info if not already present
-  if (av_state_->ctx_->nb_streams == 0) {
-    if (avformat_find_stream_info(av_state_->ctx_, nullptr) < 0) {
-      LOG_LINE << "Could not find any streams in \"" << Filename() << "\"" << std::endl;
-      return false;
-    }
-  }
-
-  av_state_->stream_id_ = -1;
   if (init_codecs) {
-    // Search through all streams for a valid video stream with a supported codec
     size_t i = 0;
+
     for (i = 0; i < av_state_->ctx_->nb_streams; ++i) {
       av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
-
-      // Skip if not a video stream
-      if (av_state_->codec_params_->codec_type != AVMEDIA_TYPE_VIDEO) {
-        LOG_LINE << "Stream " << i << " is not a video stream" << std::endl;
+      av_state_->codec_ = avcodec_find_decoder(av_state_->codec_params_->codec_id);
+      if (av_state_->codec_ == nullptr) {
         continue;
       }
-
-      // Try to find decoder for this codec
-      av_state_->codec_ = avcodec_find_decoder(av_state_->codec_params_->codec_id);
-      if (av_state_->codec_ != nullptr) {
+      if (av_state_->codec_->type == AVMEDIA_TYPE_VIDEO) {
+        LOG_LINE << "Found video stream " << i << " with codec " << av_state_->codec_->name
+                 << std::endl;
         av_state_->stream_id_ = i;
-        LOG_LINE << "Found video stream " << i << " with codec "
-                 << avcodec_get_name(av_state_->codec_params_->codec_id) << std::endl;
         break;
       }
+    }
 
-      LOG_LINE << "Found video stream but no decoder available for codec "
-               << avcodec_get_name(av_state_->codec_params_->codec_id) << std::endl;
+    if (i >= av_state_->ctx_->nb_streams) {
+      DALI_WARN(make_string("Could not find a valid video stream in a file ", Filename()));
+      return false;
     }
   } else {
-    // Use FFmpeg's stream finding function
-    av_state_->stream_id_ =
-        av_find_best_stream(av_state_->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-    if (av_state_->stream_id_ != -1) {
-      LOG_LINE << "Found video stream " << av_state_->stream_id_ << " with codec "
-               << avcodec_get_name(
-                      av_state_->ctx_->streams[av_state_->stream_id_]->codecpar->codec_id)
-               << std::endl;
-      av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
+    av_state_->stream_id_ = av_find_best_stream(av_state_->ctx_, AVMEDIA_TYPE_VIDEO,
+                                                -1, -1, nullptr, 0);
+
+    LOG_LINE << "Best stream " << av_state_->stream_id_ << std::endl;
+    if (av_state_->stream_id_ < 0) {
+      DALI_WARN(make_string("Could not find a valid video stream in a file ", Filename()));
+      return false;
     }
-  }
 
-  if (av_state_->stream_id_ == -1) {
-    LOG_LINE << "Could not find a video stream in \"" << Filename()
-             << "\". File may be corrupted or not contain video." << std::endl;
-    return false;
+    av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
   }
-
-  // Verify we can get valid dimensions
   if (Height() == 0 || Width() == 0) {
     if (avformat_find_stream_info(av_state_->ctx_, nullptr) < 0) {
-      LOG_LINE << "Could not find stream information in \"" << Filename() << "\"" << std::endl;
+      DALI_WARN(make_string("Could not find stream information in ", Filename()));
       return false;
     }
     if (Height() == 0 || Width() == 0) {
-      LOG_LINE << "Found video stream but couldn't determine dimensions in \"" << Filename() << "\""
-               << std::endl;
+      DALI_WARN("Couldn't load video size info.");
       return false;
     }
   }
   return true;
 }
 
-void FramesDecoder::CheckCodecSupport(AVCodecID codec_id) const {
+bool FramesDecoder::CheckCodecSupport(AVCodecID codec_id) const {
   if (std::find(SupportedCodecs().begin(), SupportedCodecs().end(), codec_id) ==
       SupportedCodecs().end()) {
-    throw std::runtime_error(make_string("Codec ", avcodec_get_name(codec_id),
-                                         " is not supported by this DALI operator."));
+    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                          " is not supported by this DALI operator."));
+    return false;
   }
-
   void *iter = NULL;
   const AVCodec *codec = NULL;
   while ((codec = av_codec_iterate(&iter))) {
     if (codec->id == codec_id && av_codec_is_decoder(codec)) {
-      return;
+      return true;
     }
   }
-  throw std::runtime_error(
-      make_string("Codec ", avcodec_get_name(codec_id),
-                  " is not supported by the FFMPEG version provided by DALI."));
+  DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                        " is not supported by the FFMPEG version provided by DALI."));
+  return false;
 }
 
 FramesDecoder::FramesDecoder(const std::string &filename)
@@ -225,10 +204,11 @@ FramesDecoder::FramesDecoder(const std::string &filename)
   }
 
   if (!FindVideoStream()) {
-    DALI_WARN(make_string("Could not find a video stream in the file."));
     return;
   }
-  CheckCodecSupport(av_state_->codec_params_->codec_id);
+  if (!CheckCodecSupport(av_state_->codec_params_->codec_id)) {
+    return;
+  }
   InitAvState();
   BuildIndex();
   is_valid_ = true;
@@ -275,13 +255,11 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   }
 
   if (!FindVideoStream(init_codecs || build_index)) {
-    DALI_WARN(make_string("Could not find a video stream in the memory file."));
     return;
   }
 
-  // If init_codecs is true, check if all the expected codecs are supported
-  if (init_codecs) {
-    CheckCodecSupport(av_state_->codec_params_->codec_id);
+  if (!CheckCodecSupport(av_state_->codec_params_->codec_id)) {
+    return;
   }
 
   InitAvState(init_codecs || build_index);
@@ -678,10 +656,11 @@ void FramesDecoder::SeekFrame(int frame_id) {
 
   // If we are seeking to a frame that is before the current frame,
   // or we are seeking to a frame that is more than 10 frames away,
+  // or the current frame index is invalid (e.g. end of file),
   // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx_=" << next_frame_idx_
            << std::endl;
-  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + 10) {
+  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + 10 || next_frame_idx_ < 0) {
     // If we have an index, we can seek to the nearest keyframe first
     if (HasIndex()) {
       LOG_LINE << "Using index to find nearest keyframe" << std::endl;

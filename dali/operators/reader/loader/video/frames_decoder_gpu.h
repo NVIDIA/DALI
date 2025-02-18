@@ -219,7 +219,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   unsigned int NumEmptySpots() const;
 
-  void CheckCodecSupport(AVCodecID codec_id) const override;
+  bool CheckCodecSupport(AVCodecID codec_id) const override;
 
   unsigned int NumBufferedFrames() const;
 };

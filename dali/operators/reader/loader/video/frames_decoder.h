@@ -231,6 +231,10 @@ class DLL_PUBLIC FramesDecoder {
 
   std::optional<bool> zero_latency_ = {};
 
+  virtual bool CheckCodecSupport(AVCodecID codec_id) const;
+
+  virtual span<const AVCodecID> SupportedCodecs() const;
+
  private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns
@@ -268,10 +272,6 @@ class DLL_PUBLIC FramesDecoder {
   bool FindVideoStream(bool init_codecs = true);
 
   void LazyInitSwContext();
-
-  virtual span<const AVCodecID> SupportedCodecs() const;
-
-  virtual void CheckCodecSupport(AVCodecID codec_id) const;
 
   void ParseNumFrames();
 

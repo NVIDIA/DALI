@@ -417,16 +417,22 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
-void FramesDecoderGpu::CheckCodecSupport(AVCodecID codec_id) const {
+bool FramesDecoderGpu::CheckCodecSupport(AVCodecID codec_id) const {
+  if (!FramesDecoder::CheckCodecSupport(codec_id)) {
+    return false;
+  }
+
   CUVIDDECODECAPS decoder_caps = {};
   decoder_caps.eCodecType = GetCodecType(codec_id);
   decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
   decoder_caps.nBitDepthMinus8 = 0;
   CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
   if (!decoder_caps.bIsSupported) {
-    throw std::runtime_error(
+    DALI_WARN(
         make_string("Codec ", avcodec_get_name(codec_id), " is not supported by this platform."));
+    return false;
   }
+  return true;
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
@@ -437,7 +443,9 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     return;
   }
   InitGpuParser();
-  CheckCodecSupport(av_state_->codec_params_->codec_id);
+  if (!CheckCodecSupport(av_state_->codec_params_->codec_id)) {
+    return;
+  }
 }
 
 FramesDecoderGpu::FramesDecoderGpu(
@@ -454,7 +462,9 @@ FramesDecoderGpu::FramesDecoderGpu(
     return;
   }
   InitGpuParser();
-  CheckCodecSupport(av_state_->codec_params_->codec_id);
+  if (!CheckCodecSupport(av_state_->codec_params_->codec_id)) {
+    return;
+  }
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
