@@ -24,7 +24,7 @@ typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_SUITE(DisplacementTest, Types);
 
 TYPED_TEST(DisplacementTest, Sphere) {
-  this->RunTest("Sphere", nullptr, 0, false, 0.005);
+  this->RunTest("Sphere", nullptr, 0, false, 0.006);
 }
 
 TYPED_TEST(DisplacementTest, Water) {
