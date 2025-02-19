@@ -328,10 +328,11 @@ typedef struct _DALIPipelineParams {
     uint64_t seed_present           : 1;
     uint64_t exec_type_present      : 1;
     uint64_t exec_flags_present     : 1;
+    uint64_t prefetch_queue_depth_present : 1;
     uint64_t enable_checkpointing_present : 1;
     uint64_t enable_memory_stats_present  : 1;
   };
-  int batch_size;
+  int max_batch_size;
   int num_threads;
   int device_id;
   int64_t seed;
@@ -339,6 +340,7 @@ typedef struct _DALIPipelineParams {
   daliExecFlags_t exec_flags;
   daliBool enable_checkpointing;
   daliBool enable_memory_stats;
+  int prefetch_queue_depth;
 } daliPipelineParams_t;
 
 /** Describes an output of a DALI Pipeline */
