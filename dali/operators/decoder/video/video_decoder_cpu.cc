@@ -13,16 +13,30 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/video/video_decoder_base.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/frames_decoder_cpu.h"
 
 namespace dali {
 
 DALI_SCHEMA(experimental__decoders__Video)
     .DocStr(
-        R"code(Decodes video files from memory buffers into sequences of frames.
+        R"code(Decodes videos from in-memory streams.
 
-The operator accepts video files in common container formats (e.g. MP4, AVI). For CPU backend,
-FFmpeg is used for decoding. For Mixed backend, NVIDIA's Video Codec SDK (NVDEC) is used.
+The operator supports most common video container formats using libavformat (FFmpeg).
+The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
+
+The following video codecs are supported by both CPU and Mixed backends:
+
+* H.264/AVC
+* H.265/HEVC
+* VP8
+* VP9
+* MJPEG
+
+The following codecs are supported by the Mixed backend only:
+
+* AV1
+* MPEG-4
+
 Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 
 * ``F`` is the number of frames in the sequence (can vary between samples)
@@ -144,10 +158,10 @@ Building an index is particularly useful when decoding a small number of frames 
 apart or starting playback from a frame deep into the video)code",
                     true);
 
-class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoder> {
+class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
  public:
   explicit VideoDecoderCpu(const OpSpec &spec) :
-    VideoDecoderBase<CPUBackend, FramesDecoder>(spec) {}
+    VideoDecoderBase<CPUBackend, FramesDecoderCpu>(spec) {}
 };
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);

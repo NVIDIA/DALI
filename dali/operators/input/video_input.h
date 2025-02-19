@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 #include "dali/kernels/common/memset.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/frames_decoder_cpu.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
 
@@ -73,8 +73,8 @@ inline auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int b
 
 
 template <typename Backend>
-using frames_decoder_t =
-    std::conditional_t<std::is_same<Backend, CPUBackend>::value, FramesDecoder, FramesDecoderGpu>;
+using frames_decoder_t = std::conditional_t<std::is_same<Backend, CPUBackend>::value,
+                                            FramesDecoderCpu, FramesDecoderGpu>;
 
 static const std::string next_output_data_id_trace_name_ = "next_output_data_id";  // NOLINT
 
@@ -85,7 +85,7 @@ class VideoInput : public InputOperator<Backend> {
   static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
   using InBackend = CPUBackend;
   using OutBackend = std::conditional_t<is_cpu, CPUBackend, GPUBackend>;
-  static_assert((is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoder>) ||
+  static_assert((is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoderCpu>) ||
                     (!is_cpu && std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>),
                 "Incompatible FramesDecoder to a given Backend");
 

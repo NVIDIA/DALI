@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/frames_decoder_cpu.h"
 #include "dali/operators/reader/loader/video/video_loader_decoder_base.h"
 
 
@@ -47,7 +47,7 @@ class VideoLoaderDecoderCpu
  private:
   void Reset(bool wrap_to_shard) override;
 
-  std::vector<FramesDecoder> video_files_;
+  std::vector<FramesDecoderCpu> video_files_;
 };
 
 }  // namespace dali

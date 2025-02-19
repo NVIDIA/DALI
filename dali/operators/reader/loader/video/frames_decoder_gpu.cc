@@ -417,8 +417,45 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
-bool FramesDecoderGpu::CheckCodecSupport(AVCodecID codec_id) const {
-  if (!FramesDecoder::CheckCodecSupport(codec_id)) {
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
+    FramesDecoderBase(filename),
+    frame_buffer_(num_decode_surfaces_),
+    stream_(stream) {
+  if (is_valid_ && CanDecode(av_state_->codec_params_->codec_id)) {
+    InitGpuParser();
+  } else {
+    is_valid_ = false;
+  }
+}
+
+FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
+                                   cudaStream_t stream, bool build_index, int num_frames,
+                                   std::string_view source_info)
+    : FramesDecoderBase(memory_file, memory_file_size, build_index, build_index, num_frames,
+                        source_info),
+      frame_buffer_(num_decode_surfaces_),
+      stream_(stream) {
+  if (is_valid_ && CanDecode(av_state_->codec_params_->codec_id)) {
+    InitGpuParser();
+  } else {
+    is_valid_ = false;
+  }
+}
+
+
+bool FramesDecoderGpu::CanDecode(AVCodecID codec_id) const {
+  static constexpr std::array<AVCodecID, 7> codecs = {
+    AVCodecID::AV_CODEC_ID_H264,
+    AVCodecID::AV_CODEC_ID_HEVC,
+    AVCodecID::AV_CODEC_ID_VP8,
+    AVCodecID::AV_CODEC_ID_VP9,
+    AVCodecID::AV_CODEC_ID_MJPEG,
+    AVCodecID::AV_CODEC_ID_AV1,
+    AVCodecID::AV_CODEC_ID_MPEG4,
+  };
+  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
+    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                          " is not supported by this DALI operator."));
     return false;
   }
 
@@ -435,37 +472,6 @@ bool FramesDecoderGpu::CheckCodecSupport(AVCodecID codec_id) const {
   return true;
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
-    FramesDecoder(filename),
-    frame_buffer_(num_decode_surfaces_),
-    stream_(stream) {
-  if (!IsValid()) {
-    return;
-  }
-  InitGpuParser();
-  if (!CheckCodecSupport(av_state_->codec_params_->codec_id)) {
-    return;
-  }
-}
-
-FramesDecoderGpu::FramesDecoderGpu(
-  const char *memory_file,
-  int memory_file_size,
-  cudaStream_t stream,
-  bool build_index,
-  int num_frames,
-  std::string_view source_info):
-  FramesDecoder(memory_file, memory_file_size, build_index, build_index, num_frames, source_info),
-  frame_buffer_(num_decode_surfaces_), stream_(stream) {
-  if (!IsValid()) {
-    DALI_WARN(make_string("Could not initialize FramesDecoderGpu from memory file."));
-    return;
-  }
-  InitGpuParser();
-  if (!CheckCodecSupport(av_state_->codec_params_->codec_id)) {
-    return;
-  }
-}
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
@@ -563,7 +569,7 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   if (frame_id < next_frame_idx_) {
     SendLastPacket(true);
   }
-  FramesDecoder::SeekFrame(frame_id);
+  FramesDecoderBase::SeekFrame(frame_id);
 }
 
 bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
@@ -890,7 +896,7 @@ void FramesDecoderGpu::Reset() {
   SendLastPacket(true);
   more_frames_to_decode_ = true;
   frame_index_if_no_pts_ = 0;
-  FramesDecoder::Reset();
+  FramesDecoderBase::Reset();
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
