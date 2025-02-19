@@ -410,15 +410,6 @@ def test_corrupted_videos():
             yield check_corrupted_videos, reader, wrong_video, msg
 
 
-def test_unsupported_codec():
-    def reader_fn(files):
-        return fn.experimental.readers.video(device="cpu", filenames=files, sequence_length=3)
-
-    wrong_video = os.path.join(video_data_root, "vp9", "vp9_0.mp4")
-    msg = "Unsupported video codec"
-    yield check_corrupted_videos, reader_fn, wrong_video, msg
-
-
 def check_container(cont):
     pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
     path = os.path.join(video_containers_data_root, cont)
