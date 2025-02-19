@@ -432,11 +432,17 @@ DALI_API daliResult_t daliPipelineGetFeedCount(
   const char *input_name);
 
 typedef enum _DALIFeedInputFlags {
-  /** Do not make a copy of the input, use it directly instead.
-   *
-   * When daliTensorList_h is passed to daliFeedInput, a reference count is incremented
-   */
-  DALI_FEED_INPUT_NO_COPY = 1,
+  /** Wait for the copy to complete. */
+  DALI_FEED_INPUT_SYNC = 1,
+  /** Force a copy. */
+  DALI_FEED_INPUT_FORCE_COPY = 2,
+  /** Do not make a copy of the input, use it directly instead. */
+  DALI_FEED_INPUT_NO_COPY = 4,
+
+  DALI_FEED_INPUT_COPY_MASK = 6,
+
+  /** GPU-only: If set, the copy is performed by a CUDA kernel instead of cudaMemcpy */
+  DALI_FEED_INPUT_USE_COPY_KERNEL = 8,
 
   DALI_FEED_INPUT_FORCE_INT32 = 0x7fffffff
 } daliFeedInputFlags_t;

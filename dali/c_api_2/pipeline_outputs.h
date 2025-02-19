@@ -15,8 +15,11 @@
 #ifndef DALI_C_API_2_PIPELINE_OUTPUTS_H_
 #define DALI_C_API_2_PIPELINE_OUTPUTS_H_
 
+#include <string>
+#include <vector>
+#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
-#include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/c_api_2/data_objects.h"
 
 struct _DALIPipelineOutputs {
@@ -29,11 +32,7 @@ namespace dali::c_api {
 
 class PipelineOutputs : public _DALIPipelineOutputs {
  public:
-  explicit PipelineOutputs(Pipeline *pipe, AccessOrder order = AccessOrder::host()) {
-    ws_.set_output_order(order);
-    pipe->ShareOutputs(&ws_);
-    output_wrappers_.resize(ws_.NumOutput());
-  }
+  explicit PipelineOutputs(Pipeline *pipe, AccessOrder order = AccessOrder::host());
 
   RefCountedPtr<ITensorList> GetOutput(int index) {
     ValidateOutputIdx(index);
@@ -85,6 +84,8 @@ class PipelineOutputs : public _DALIPipelineOutputs {
   // Use optional to implement lazy access with potentially empty result.
   std::optional<std::vector<daliOperatorTrace_t>> traces_;
 };
+
+PipelineOutputs *ToPointer(daliPipelineOutputs_h handle);
 
 }  // namespace dali::c_api
 

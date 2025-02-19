@@ -15,14 +15,19 @@
 #ifndef DALI_C_API_2_PIPELINE_H_
 #define DALI_C_API_2_PIPELINE_H_
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/c_api_2/pipeline_outputs.h"
 
 struct _DALIPipeline {
  protected:
- _DALIPipeline() = default;
- ~_DALIPipeline() = default;
+  _DALIPipeline() = default;
+  ~_DALIPipeline() = default;
 };
 
 namespace dali::c_api {
@@ -32,7 +37,7 @@ namespace dali::c_api {
 
 class PipelineWrapper : public _DALIPipeline {
  public:
-  PipelineWrapper(const daliPipelineParams_t &params) {
+  explicit PipelineWrapper(const daliPipelineParams_t &params) {
     bool pipelined = true, async = true, dynamic = false, set_affinity = false;
     if (params.exec_type_present) {
       pipelined = params.exec_type & DALI_EXEC_IS_PIPELINED;
@@ -76,8 +81,7 @@ class PipelineWrapper : public _DALIPipeline {
       dynamic,
       0,
       set_affinity,
-      GET_OR_DEFAULT(params, seed, -1_i64)
-    );
+      GET_OR_DEFAULT(params, seed, -1_i64));
   }
 
   std::unique_ptr<PipelineOutputs> PopOutputs(AccessOrder order = AccessOrder::host()) {
@@ -106,7 +110,6 @@ class PipelineWrapper : public _DALIPipeline {
       std::optional<std::string_view> data_id,
       daliFeedInputFlags_t options,
       std::optional<cudaStream_t> stream) {
-
     assert(input_data);
     if (input_data->GetBufferPlacement().device_type == DALI_STORAGE_CPU) {
       FeedInputImpl(
@@ -146,20 +149,22 @@ class PipelineWrapper : public _DALIPipeline {
     }
 
     pipeline_->SetExternalInput(
-      input_name,
+      std::string(input_name),  // TODO(michalz): switch setting input to string_view
       tl,
       stream.has_value() ? AccessOrder(*stream) : tl.order(),
       options & DALI_FEED_INPUT_SYNC,
       options & DALI_FEED_INPUT_USE_COPY_KERNEL,
       copy_mode,
-      data_id ? std::optional<std::string>(std::in_place, *data_id) : nullopt);
+      data_id ? std::optional<std::string>(std::in_place, *data_id) : std::nullopt);
   }
 
  private:
   std::unique_ptr<Pipeline> pipeline_;
 };
 
+PipelineWrapper *ToPointer(daliPipeline_h handle);
+
 }  // namespace dali::c_api
 
 
-#endif  // DALI_C_API_2_PIPELINE__H_
+#endif  // DALI_C_API_2_PIPELINE_H_

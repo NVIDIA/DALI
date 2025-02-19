@@ -13,20 +13,28 @@
 // limitations under the License.
 
 #include "dali/c_api_2/pipeline.h"
+#include "dali/c_api_2/pipeline_outputs.h"
 #include "dali/c_api_2/error_handling.h"
 
 namespace dali::c_api {
 
-Pipeline *ToPointer(daliPipeline_h handle) {
+PipelineWrapper *ToPointer(daliPipeline_h handle) {
   if (!handle)
     throw NullHandle("Pipeline");
-  return static_cast<Pipeline *>(handle);
+  return static_cast<PipelineWrapper *>(handle);
 }
 
 PipelineOutputs *ToPointer(daliPipelineOutputs_h handle) {
   if (!handle)
     throw NullHandle("PipelineOutputs");
   return static_cast<PipelineOutputs *>(handle);
+}
+
+
+PipelineOutputs::PipelineOutputs(Pipeline *pipe, AccessOrder order) {
+  ws_.set_output_order(order);
+  pipe->ShareOutputs(&ws_);
+  output_wrappers_.resize(ws_.NumOutput());
 }
 
 }  // namespace dali::c_api
