@@ -71,6 +71,10 @@ class ITensor : public _DALITensor, public RefCountedObject {
 
   virtual daliTensorDesc_t GetDesc() const = 0;
 
+
+  template <typename Backend>
+  const std::shared_ptr<Tensor<Backend>> &Unwrap() const &;
+
   static RefCountedPtr<ITensor> Create(daliBufferPlacement_t placement);
 };
 
@@ -121,6 +125,9 @@ class ITensorList : public _DALITensorList, public RefCountedObject {
   virtual daliTensorDesc_t GetTensorDesc(int sample) const = 0;
 
   virtual RefCountedPtr<ITensor> ViewAsTensor() const = 0;
+
+  template <typename Backend>
+  const std::shared_ptr<TensorList<Backend>> &Unwrap() const &;
 
   static RefCountedPtr<ITensorList> Create(daliBufferPlacement_t placement);
 };
@@ -230,7 +237,7 @@ class TensorWrapper : public ITensor {
     t_->set_order(stream.has_value() ? AccessOrder(*stream) : AccessOrder::host(), synchronize);
   }
 
-  void SetLayout(const char *layout_string) {
+  void SetLayout(const char *layout_string) override {
     if (layout_string) {
       TensorLayout layout(layout_string);
       Validate(layout, t_->ndim());
@@ -281,6 +288,10 @@ class TensorWrapper : public ITensor {
     desc.layout = GetLayout();
     desc.shape = shape.data();
     return desc;
+  }
+
+  const auto &NativePtr() const & {
+    return t_;
   }
 
  private:
@@ -513,7 +524,7 @@ class TensorListWrapper : public ITensorList {
     tl_->set_order(stream.has_value() ? AccessOrder(*stream) : AccessOrder::host(), synchronize);
   }
 
-  void SetLayout(const char *layout_string) {
+  void SetLayout(const char *layout_string) override {
     if (layout_string) {
       TensorLayout layout(layout_string);
       Validate(layout, tl_->sample_dim());
@@ -594,6 +605,10 @@ class TensorListWrapper : public ITensorList {
     return Wrap(std::move(t));
   }
 
+  const auto &NativePtr() const & {
+    return tl_;
+  }
+
  private:
   std::shared_ptr<TensorList<Backend>> tl_;
 };
@@ -603,6 +618,15 @@ RefCountedPtr<TensorListWrapper<Backend>> Wrap(std::shared_ptr<TensorList<Backen
   return RefCountedPtr<TensorListWrapper<Backend>>(new TensorListWrapper<Backend>(std::move(tl)));
 }
 
+template <typename Backend>
+const std::shared_ptr<Tensor<Backend>> &ITensor::Unwrap() const & {
+  return dynamic_cast<const TensorWrapper<Backend> *>(this)->NativePtr();
+}
+
+template <typename Backend>
+const std::shared_ptr<TensorList<Backend>> &ITensorList::Unwrap() const & {
+  return dynamic_cast<const TensorListWrapper<Backend> *>(this)->NativePtr();
+}
 
 ITensor *ToPointer(daliTensor_h handle);
 ITensorList *ToPointer(daliTensorList_h handle);
