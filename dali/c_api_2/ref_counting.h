@@ -108,6 +108,8 @@ class RefCountedPtr {
 
   constexpr T *get() const & noexcept { return ptr_; }
 
+  explicit constexpr operator bool() const noexcept { return ptr_ != nullptr; }
+
  private:
   template <typename U>
   friend class RefCountedPtr;
