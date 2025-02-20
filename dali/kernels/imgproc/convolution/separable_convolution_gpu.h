@@ -137,7 +137,6 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
                            bool enforce_intermediate = false) {
     KernelRequirements req;
     use_out_as_intermediate_ = !enforce_intermediate && outFitsIntermediate;
-    int intermediate_count = use_out_as_intermediate_ ? 1 : 2;
     req.output_shapes.push_back(in_shape);
 
     auto req_inner = conv_innermost_.Setup(ctx, in_shape, window_sizes[2]);

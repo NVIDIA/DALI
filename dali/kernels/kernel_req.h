@@ -32,19 +32,6 @@ namespace kernels {
  */
 struct KernelRequirements {
   std::vector<TensorListShape<DynamicDimensions>> output_shapes;
-
-  /**
-   * @param reuse_scratch  - if true, scratch size is taken to be maximum from that for
-   *                         all input sets, otherwise it's the sum
-   * @param new_req        - requirements for the new input set, to be merged with this one
-   * @return               - *this, for chaining
-   */
-  KernelRequirements &AddInputSet(const KernelRequirements &new_req, bool reuse_scratch,
-                                  int alignment = 64) {
-    auto &r = new_req;
-    append(output_shapes, r.output_shapes);
-    return *this;
-  }
 };
 
 }  // namespace kernels
