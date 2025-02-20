@@ -71,6 +71,7 @@ class ITensor : public _DALITensor, public RefCountedObject {
 
   virtual daliTensorDesc_t GetDesc() const = 0;
 
+  virtual const TensorShape<> &GetShape() const & = 0;
 
   template <typename Backend>
   const std::shared_ptr<Tensor<Backend>> &Unwrap() const &;
@@ -123,6 +124,8 @@ class ITensorList : public _DALITensorList, public RefCountedObject {
   virtual cudaEvent_t GetOrCreateReadyEvent() = 0;
 
   virtual daliTensorDesc_t GetTensorDesc(int sample) const = 0;
+
+  virtual const TensorListShape<> &GetShape() const & = 0;
 
   virtual RefCountedPtr<ITensor> ViewAsTensor() const = 0;
 
@@ -288,6 +291,10 @@ class TensorWrapper : public ITensor {
     desc.layout = GetLayout();
     desc.shape = shape.data();
     return desc;
+  }
+
+  const TensorShape<> &GetShape() const & override {
+    return t_->shape();
   }
 
   const auto &NativePtr() const & {
@@ -578,6 +585,10 @@ class TensorListWrapper : public ITensorList {
     desc.layout = GetLayout();
     desc.shape = shape.tensor_shape_span(sample).data();
     return desc;
+  }
+
+  const TensorListShape<> &GetShape() const & override {
+    return tl_->shape();
   }
 
   RefCountedPtr<ITensor> ViewAsTensor() const override {

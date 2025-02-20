@@ -87,6 +87,20 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
 
   size_t element_size = dali::TypeTable::GetTypeInfo(dtype).size();
 
+  EXPECT_EQ(daliTensorListGetShape(tl, nullptr, nullptr, nullptr), DALI_SUCCESS);
+  {
+    int nsamples = -1, ndim = -1;
+    const int64_t *shape_data = nullptr;
+    EXPECT_EQ(daliTensorListGetShape(tl, &nsamples, &ndim, &shape_data), DALI_SUCCESS);
+    ASSERT_NE(shape_data, nullptr);
+    EXPECT_EQ(nsamples, 4);
+    EXPECT_EQ(ndim, 3);
+    for (int i = 0, k = 0; i < 4; i++)
+      for (int d = 0; d < 3; d++, k++) {
+        EXPECT_EQ(shapes[k], shape_data[k]) << " @ sample " << i << " dim " << d;
+      }
+  }
+
   ptrdiff_t offset = 0;
   const char *base;
   for (int i = 0; i < 4; i++) {
@@ -251,6 +265,12 @@ TEST(CAPI2_TensorListTest, ViewAsTensor) {
   EXPECT_EQ(desc.shape[3], lshape[0][2]);
   EXPECT_STREQ(desc.layout, "NHWC");
   EXPECT_EQ(desc.dtype, dtype);
+  EXPECT_EQ(daliTensorGetShape(t, nullptr, nullptr), DALI_SUCCESS);
+  int ndim = -1;
+  const int64_t *shape = nullptr;
+  EXPECT_EQ(daliTensorGetShape(t, &ndim, &shape), DALI_SUCCESS);
+  EXPECT_EQ(ndim, 4);
+  EXPECT_EQ(shape, desc.shape);
 
   tl.reset();
 
