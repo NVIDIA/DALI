@@ -14,6 +14,7 @@
 
 #include "dali/c_api_2/data_objects.h"
 #include "dali/c_api_2/error_handling.h"
+#include "dali/c_api_2/utils.h"
 
 namespace dali::c_api {
 
@@ -81,22 +82,13 @@ ITensorList *ToPointer(daliTensorList_h handle) {
 
 using namespace dali::c_api;  // NOLINT
 
-template <typename T>
-std::optional<T> ToOptional(const T *nullable) {
-  if (nullable == nullptr)
-    return std::nullopt;
-  else
-    return *nullable;
-}
-
 //////////////////////////////////////////////////////////////////////////////
 // Tensor
 //////////////////////////////////////////////////////////////////////////////
 
 daliResult_t daliTensorCreate(daliTensor_h *out, daliBufferPlacement_t placement) {
   DALI_PROLOG();
-  if (!out)
-    throw std::invalid_argument("The output parameter must not be NULL.");
+  CHECK_OUTPUT(out);
   auto t = dali::c_api::ITensor::Create(placement);
   *out = t.release();  // no throwing allowed after this line!
   DALI_EPILOG();
@@ -124,8 +116,7 @@ daliResult_t daliTensorRefCount(daliTensor_h t, int *ref) {
   DALI_PROLOG();
   auto *ptr = ToPointer(t);
   int r = ptr->RefCount();
-  if (!ref)
-    throw std::invalid_argument("The output parameter must not be NULL.");
+  CHECK_OUTPUT(ref);
   *ref = r;
   DALI_EPILOG();
 }
@@ -170,8 +161,7 @@ daliResult_t daliTensorGetLayout(
       const char **layout) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor);
-  if (!layout)
-    throw std::invalid_argument("The output parameter `layout` must not be be NULL");
+  CHECK_OUTPUT(layout);
   *layout = ptr->GetLayout();
   DALI_EPILOG();
 }
@@ -181,8 +171,7 @@ daliResult_t daliTensorGetStream(
       cudaStream_t *out_stream) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor);
-  if (!out_stream)
-    throw std::invalid_argument("The output parameter `out_stream` must not be NULL");
+  CHECK_OUTPUT(out_stream);
   auto str = ptr->GetStream();
   *out_stream = str.has_value() ? *str : cudaStream_t(-1);
   return str.has_value() ? DALI_SUCCESS : DALI_NO_DATA;
@@ -204,8 +193,7 @@ daliResult_t daliTensorGetDesc(
       daliTensorDesc_t *out_desc) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor);
-  if (!out_desc)
-    throw std::invalid_argument("The output parameter `out_desc` must not be NULL.");
+  CHECK_OUTPUT(out_desc);
   *out_desc = ptr->GetDesc();
   DALI_EPILOG();
 }
@@ -216,8 +204,7 @@ daliResult_t daliTensorGetDesc(
 
 daliResult_t daliTensorListCreate(daliTensorList_h *out, daliBufferPlacement_t placement) {
   DALI_PROLOG();
-  if (!out)
-    throw std::invalid_argument("The output parameter must not be NULL.");
+  CHECK_OUTPUT(out);
   auto tl = dali::c_api::ITensorList::Create(placement);
   *out = tl.release();  // no throwing allowed after this line!
   DALI_EPILOG();
@@ -244,8 +231,7 @@ daliResult_t daliTensorListDecRef(daliTensorList_h tl, int *new_ref) {
 daliResult_t daliTensorListRefCount(daliTensorList_h tl, int *ref) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tl);
-  if (!ref)
-    throw std::invalid_argument("The output pointer must not be NULL.");
+  CHECK_OUTPUT(ref);
   int r = ptr->RefCount();
   *ref = r;
   DALI_EPILOG();
@@ -308,8 +294,7 @@ daliResult_t daliTensorListGetLayout(
       const char **layout) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  if (!layout)
-    throw std::invalid_argument("The output parameter `layout` must not be be NULL");
+  CHECK_OUTPUT(layout);
   *layout = ptr->GetLayout();
   DALI_EPILOG();
 }
@@ -319,8 +304,7 @@ daliResult_t daliTensorListGetStream(
       cudaStream_t *out_stream) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  if (!out_stream)
-    throw std::invalid_argument("The output parameter `out_stream` must not be NULL");
+  CHECK_OUTPUT(out_stream);
   auto str = ptr->GetStream();
   *out_stream = str.has_value() ? *str : cudaStream_t(-1);
   return str.has_value() ? DALI_SUCCESS : DALI_NO_DATA;
@@ -343,8 +327,7 @@ daliResult_t daliTensorListGetTensorDesc(
       int sample_idx) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  if (!out_tensor)
-    throw std::invalid_argument("The output parameter `out_tensor` must not be NULL.");
+  CHECK_OUTPUT(out_tensor);
   *out_tensor = ptr->GetTensorDesc(sample_idx);
   DALI_EPILOG();
 }
@@ -354,8 +337,7 @@ daliResult_t daliTensorListViewAsTensor(
       daliTensor_h *out_tensor) {
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
-  if (!out_tensor)
-    throw std::invalid_argument("The output parameter `out_tensor` must not be NULL.");
+  CHECK_OUTPUT(out_tensor);
   auto t = ptr->ViewAsTensor();
   *out_tensor = t.release();  // no throwing allowed after this line
   DALI_EPILOG();
