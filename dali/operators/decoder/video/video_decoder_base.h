@@ -90,10 +90,13 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       }
     }
 
-    DALI_ENFORCE(!(frames_.HasValue() &&
-                   (start_frame_.HasValue() || stride_.HasValue() || sequence_length_.HasValue())),
+    DALI_ENFORCE(!(frames_.HasValue() && (start_frame_.HasValue() || stride_.HasValue() ||
+                                          sequence_length_.HasValue() || end_frame_.HasValue())),
                  "Cannot specify both `frames` and any of `start_frame`, `sequence_length`, "
-                 "`stride` arguments");
+                 "`stride`, `end_frame` arguments");
+
+    DALI_ENFORCE(!(sequence_length_.HasValue() && end_frame_.HasValue()),
+                 "Cannot specify both `sequence_length` and `end_frame` arguments");
 
     auto pad_mode_str = spec_.template GetArgument<std::string>("pad_mode");
     if (pad_mode_str == "none" || pad_mode_str == "") {
@@ -143,6 +146,8 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       stride_.Acquire(spec_, ws, batch_size);
     if (sequence_length_.HasValue())
       sequence_length_.Acquire(spec_, ws, batch_size);
+    if (end_frame_.HasValue())
+      end_frame_.Acquire(spec_, ws, batch_size);
     if (frames_.HasValue())
       frames_.Acquire(spec_, ws, batch_size);
   }
@@ -178,6 +183,17 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   }
 
   /**
+   * @brief Get the end frame for a given sample (default is the total number of frames)
+   */
+  int GetEndFrame(int sample_idx) const {
+    int end = GetTotalNumFrames(sample_idx);
+    if (end_frame_.HasValue()) {
+      end = end_frame_[sample_idx].data[0];
+    }
+    return end;
+  }
+
+  /**
    * @brief Returns the number of frames that can be extracted from this video
    *
    * Calculates how many frames can be obtained when starting at the specified start frame
@@ -199,10 +215,16 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
    *
    * The sequence length is determined by the following priority:
    * 1. If `frames` argument exists, use its length
-   * 2. If `sequence_length` argument exists, use its value, capped by available frames if boundary
-   * type is ISOLATED, and taking into account the start frame and stride,
-   * 3. Otherwise, use the total number of available frames (taking into account the start frame and
-   * stride)
+   * 2. If `end_frame` exists, calculate length from start_frame, end_frame and stride, capped by
+   *    available frames if boundary type is ISOLATED
+   * 3. If `sequence_length` argument exists, use its value, capped by available frames if boundary
+   *    type is ISOLATED, and taking into account the start frame and stride
+   * 4. Otherwise, use the total number of available frames (taking into account the start frame and
+   *    stride)
+   *
+   * @remark When using `end_frame`, the sequence length is calculated as ceil((end - start) /
+   * stride) to ensure all frames in [start, end) are included. For example, with start=0, end=10,
+   * stride=3, the frames [0,3,6,9] will be extracted, resulting in a sequence length of 4.
    */
   int GetSequenceLength(int sample_idx) const {
     int sequence_len;
@@ -213,6 +235,19 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
       if (boundary_type_ == boundary::BoundaryType::ISOLATED) {
         sequence_len = std::min(sequence_len, GetAvailableNumFrames(sample_idx));
       }
+    } else if (end_frame_.HasValue()) {
+      int start = GetStartFrame(sample_idx);
+      int end = GetEndFrame(sample_idx);
+      if (boundary_type_ == boundary::BoundaryType::ISOLATED) {
+        int end_of_video = GetTotalNumFrames(sample_idx);
+        end = std::min(end, end_of_video);
+      }
+      int stride = GetStride(sample_idx);
+      DALI_ENFORCE(end > start,
+                   make_string("end_frame (", end, ") must be greater than start_frame (", start,
+                               "), for sample #", sample_idx));
+      sequence_len =
+          (end - start + stride - 1) / stride;  // Round up to include all frames in [start,end)
     } else {
       sequence_len = GetAvailableNumFrames(sample_idx);
     }
@@ -441,6 +476,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   ArgValue<int> start_frame_{"start_frame", spec_};
   ArgValue<int> stride_{"stride", spec_};
   ArgValue<int> sequence_length_{"sequence_length", spec_};
+  ArgValue<int> end_frame_{"end_frame", spec_};
   ArgValue<int, 1> frames_{"frames", spec_};
   bool build_index_;
 

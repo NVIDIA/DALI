@@ -370,22 +370,35 @@ def test_error_source_info(device):
 
 
 @params(
-    # Test case 1: Constant frame rate video, start_frame = 5, sequence_length = 3, stride = 1
-    *[(device, 3, cfr_files, 5, 3, 1, None) for device in ["cpu", "mixed"]],
-    # Test case 2: Variable frame rate video, start_frame = 0, sequence_length = 4, stride = 2
-    *[(device, 3, vfr_files, 0, 4, 2, None) for device in ["cpu", "mixed"]],
-    # Test case 3: Constant frame rate video, start_frame = 0, sequence_length = 100, stride = 11
-    # pad_mode = "constant", "edge", "symmetric", "reflect"
+    # Test case 1: Constant frame rate video with sequence_length
+    *[(device, 3, cfr_files, 5, 3, 1, None, True) for device in ["cpu", "mixed"]],
+    # Test case 2: Variable frame rate video with sequence_length
+    *[(device, 3, vfr_files, 0, 4, 2, None, True) for device in ["cpu", "mixed"]],
+    # Test case 3: Constant frame rate video with sequence_length and padding
     *[
-        (device, 3, cfr_files, 0, 10, 11, pad_mode)
+        (device, 3, cfr_files, 0, 10, 11, pad_mode, True)
         for device in ["cpu", "mixed"]
         for pad_mode in ["constant", "edge", "symmetric", "reflect"]
     ],
-    # Test case 4: Constant frame rate video, start_frame = sequence_length = stride = "random"
-    *[(device, 3, cfr_files, "random", "random", "random", None) for device in ["cpu", "mixed"]],
+    # Test case 4: Constant frame rate video with end_frame
+    *[(device, 3, cfr_files, 5, 8, 1, None, False) for device in ["cpu", "mixed"]],
+    # Test case 5: Variable frame rate video with end_frame
+    *[(device, 3, vfr_files, 0, 8, 2, None, False) for device in ["cpu", "mixed"]],
+    # Test case 6: Constant frame rate video with end_frame and padding
+    *[
+        (device, 3, cfr_files, 0, 110, 11, pad_mode, False)
+        for device in ["cpu", "mixed"]
+        for pad_mode in ["constant", "edge", "symmetric", "reflect"]
+    ],
+    # Test case 7: Random parameters for both sequence_length and end_frame
+    *[
+        (device, 3, cfr_files, "random", "random", "random", None, use_seq_len)
+        for device in ["cpu", "mixed"]
+        for use_seq_len in [True, False]
+    ],
 )
 def test_video_decoder_frame_start_end_stride(
-    device, batch_size, filenames, start_frame, sequence_length, stride, pad_mode
+    device, batch_size, filenames, start_frame, length_or_end, stride, pad_mode, use_sequence_length
 ):
     skip_if_m60()
     num_iters = 1
@@ -409,11 +422,15 @@ def test_video_decoder_frame_start_end_stride(
             if start_frame == "random"
             else start_frame
         )
-        sequence_length_arg = (
-            fn.random.uniform(range=(3, 6), dtype=types.INT32)
-            if sequence_length == "random"
-            else sequence_length
-        )
+
+        if length_or_end == "random":
+            if use_sequence_length:
+                length_or_end_arg = fn.random.uniform(range=(3, 6), dtype=types.INT32)
+            else:
+                length_or_end_arg = fn.random.uniform(range=(6, 10), dtype=types.INT32)
+        else:
+            length_or_end_arg = length_or_end
+
         stride_arg = (
             fn.random.uniform(range=(1, 4), dtype=types.INT32) if stride == "random" else stride
         )
@@ -422,18 +439,19 @@ def test_video_decoder_frame_start_end_stride(
             encoded,
             device=device,
             start_frame=start_frame_arg,
-            sequence_length=sequence_length_arg,
+            sequence_length=length_or_end_arg if use_sequence_length else None,
+            end_frame=None if use_sequence_length else length_or_end_arg,
             stride=stride_arg,
             pad_mode=pad_mode,
             fill_value=fill_value,
         )
 
-        return (reference, decoded, start_frame_arg, sequence_length_arg, stride_arg)
+        return (reference, decoded, start_frame_arg, length_or_end_arg, stride_arg)
 
     pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=0)
 
     for _ in range(num_iters):
-        out0, out1, start_frame_arg, sequence_length_arg, stride_arg = (
+        out0, out1, start_frame_arg, length_or_end_arg, stride_arg = (
             o.as_cpu() for o in pipe.run()
         )
         # Verify each sample in the batch
@@ -441,10 +459,15 @@ def test_video_decoder_frame_start_end_stride(
             out_reference_full = out0.at(i)
             out = out1.at(i)
             start_frame = start_frame_arg.at(i)
-            sequence_length = sequence_length_arg.at(i)
+            length_or_end = length_or_end_arg.at(i)
             stride = stride_arg.at(i)
-            frames = list(range(start_frame, start_frame + sequence_length * stride, stride))
+
+            if use_sequence_length:
+                frames = list(range(start_frame, start_frame + length_or_end * stride, stride))
+            else:
+                frames = list(range(start_frame, length_or_end, stride))
             out_reference = reference_padded_video(out_reference_full, frames, pad_mode, fill_value)
+
             compare_videos(out_reference, out)
 
 
@@ -570,29 +593,50 @@ def test_incompatible_args(device):
         return batch
 
     @pipeline_def
-    def test_pipeline(frames=None, start_frame=None, stride=None, sequence_length=None):
+    def test_pipeline(
+        frames=None, start_frame=None, stride=None, sequence_length=None, end_frame=None
+    ):
         encoded = fn.external_source(source=get_batch, device="cpu")
         decoded = fn.experimental.decoders.video(
             encoded,
             device=device,
             frames=frames,
             start_frame=start_frame,
-            stride=stride,
+            end_frame=end_frame,
             sequence_length=sequence_length,
+            stride=stride,
         )
         return decoded
 
-    # Test that frames argument is incompatible with start_frame and stride
-    for frames, start_frame, stride, sequence_length in [
-        ([0, 1, 2], 0, None, None),
-        ([0, 1, 2], None, 1, None),
-        ([0, 1, 2], None, None, 3),
-        ([0, 1, 2], 0, 1, 3),
+    err_msg_0 = (
+        "Cannot specify both `frames` and any of `start_frame`, "
+        "`sequence_length`, `stride`, `end_frame` arguments"
+    )
+    err_msg_1 = "Cannot specify both `sequence_length` and `end_frame` arguments"
+
+    # Test that frames argument is incompatible with start_frame, stride, sequence_length
+    # and end_frame
+    for frames, start_frame, stride, sequence_length, end_frame, err_msg in [
+        # Test `frames` with `start_frame`
+        ([0, 1, 2], 0, None, None, None, err_msg_0),
+        # Test `frames` with `stride`
+        ([0, 1, 2], None, 1, None, None, err_msg_0),
+        # Test `frames` with `sequence_length`
+        ([0, 1, 2], None, None, 3, None, err_msg_0),
+        # Test `frames` with multiple incompatible args
+        ([0, 1, 2], 0, 1, 3, None, err_msg_0),
+        # Test `frames` with `end_frame`
+        ([0, 1, 2], None, None, None, 5, err_msg_0),
+        # Test `frames` with `start_frame` and `end_frame`
+        ([0, 1, 2], 0, None, None, 5, err_msg_0),
+        # Test `frames` with `stride` and `end_frame`
+        ([0, 1, 2], None, 1, None, 5, err_msg_0),
+        # Test `sequence_length` and `end_frame`
+        (None, None, None, 10, 10, err_msg_1),
     ]:
         with assert_raises(
             RuntimeError,
-            glob="Cannot specify both `frames` and any of `start_frame`, "
-            "`sequence_length`, `stride` arguments",
+            glob=err_msg,
         ):
             pipe = test_pipeline(
                 batch_size=1,
@@ -602,6 +646,7 @@ def test_incompatible_args(device):
                 start_frame=start_frame,
                 stride=stride,
                 sequence_length=sequence_length,
+                end_frame=end_frame,
             )
             pipe.build()
 
@@ -661,13 +706,16 @@ def test_multichannel_fill_value(device):
         np.testing.assert_array_equal(frames_padded[F:, :, :, :], padded_frame)
 
 
-def extract_frames_from_video(video_path, start_frame=None, sequence_length=None, stride=None):
+def extract_frames_from_video(
+    video_path, start_frame=None, sequence_length=None, end_frame=None, stride=None
+):
     """Extracts frames from a video file using OpenCV's VideoCapture.
 
     Args:
         video_path: Path to the video file
         start_frame: Starting frame index
-        sequence_length: Number of frames to extract
+        sequence_length: Number of frames to extract (cannot be used together with end_frame)
+        end_frame: Ending frame index (exclusive) (cannot be used together with sequence_length)
         stride: Number of frames to skip between each extracted frame
 
     Returns:
@@ -679,6 +727,9 @@ def extract_frames_from_video(video_path, start_frame=None, sequence_length=None
     if not cap.isOpened():
         raise RuntimeError(f"Failed to open video file: {video_path}")
 
+    if sequence_length is not None and end_frame is not None:
+        raise ValueError("Cannot specify both sequence_length and end_frame")
+
     # Set starting frame
     if start_frame is not None:
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -687,6 +738,8 @@ def extract_frames_from_video(video_path, start_frame=None, sequence_length=None
     frames_read = 0
     while True:
         if sequence_length is not None and frames_read >= sequence_length:
+            break
+        if end_frame is not None and frame_count + (start_frame or 0) >= end_frame:
             break
 
         ret, frame = cap.read()
@@ -708,13 +761,17 @@ def extract_frames_from_video(video_path, start_frame=None, sequence_length=None
 
 @params(
     *[
-        (device, codec, start_frame, sequence_length, stride)
+        (device, codec, start_frame, sequence_length, end_frame, stride)
         for device in ["cpu", "mixed"]
         for codec in ["h264", "hevc", "vp8", "vp9"]  # av1 and mpeg4 are not supported by now
-        for start_frame, sequence_length, stride in [(None, None, None), (5, 3, 2)]
+        for start_frame, sequence_length, end_frame, stride in [
+            (None, None, None, None),  # Default case
+            (5, 3, None, 2),  # start_frame, sequence_length and stride
+            (5, None, 10, 2),  # start_frame, end_frame and stride
+        ]
     ]
 )
-def test_specific_codec_support(device, codec, start_frame, sequence_length, stride):
+def test_specific_codec_support(device, codec, start_frame, sequence_length, end_frame, stride):
     skip_if_m60()
     filenames = codec_files[codec]
     assert len(filenames) > 0, f"No {codec} test files found"
@@ -736,9 +793,10 @@ def test_specific_codec_support(device, codec, start_frame, sequence_length, str
         videos = fn.experimental.decoders.video(
             files,
             device=device,
+            start_frame=start_frame,
+            end_frame=end_frame,
             sequence_length=sequence_length,
             stride=stride,
-            start_frame=start_frame,
         )
         return videos
 
@@ -753,7 +811,9 @@ def test_specific_codec_support(device, codec, start_frame, sequence_length, str
 
         # Get the filename for the i-th sample
         filename = filenames[i % len(filenames)]
-        reference_frames = extract_frames_from_video(filename, start_frame, sequence_length, stride)
+        reference_frames = extract_frames_from_video(
+            filename, start_frame, sequence_length, end_frame, stride
+        )
 
         for frame_idx, frame in enumerate(frames):
             # Load reference frame using zero-padded frame index

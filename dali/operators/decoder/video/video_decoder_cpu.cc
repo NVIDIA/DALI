@@ -44,6 +44,40 @@ Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 * ``W`` is the frame width in pixels
 * ``C`` is the number of color channels
 
+The operator provides several ways to select which frames to extract from the video:
+
+* Using no frame selection arguments:
+
+  * When no frame selection arguments are provided, all frames in the video are decoded
+  * Frames are extracted sequentially from start to end with stride=1
+  * For example, a 10-frame video would extract frames [0,1,2,3,4,5,6,7,8,9]
+
+* Using the ``frames`` argument:
+
+  * Accepts a list of frame indices to extract from the video
+  * Frame indices can be specified in any order and can repeat frames 
+  * Each index must be non-negative and may exceed the bounds of the video, if the ``pad_mode`` is not ``none``
+
+* Using ``start_frame``, ``end_frame`` and ``stride``:
+
+  * ``start_frame``: First frame to extract (default: 0)
+  * ``end_frame``: Last frame to extract (exclusive)
+  * ``stride``: Number of frames to skip between each extracted frame (default: 1)
+  * Extracts frames in the range [start_frame, end_frame) advancing by stride
+  * For example, with start_frame=0, end_frame=10, stride=2 extracts frames [0,2,4,6,8]
+
+* Using ``start_frame``, ``sequence_length`` and ``stride``:
+
+  * ``start_frame``: First frame to extract (default: 0)
+  * ``sequence_length``: Number of frames to extract
+  * ``stride``: Number of frames to skip between each extracted frame (default: 1) 
+  * Extracts sequence_length frames starting at start_frame, advancing by stride
+  * For example, with start_frame=0, sequence_length=5, stride=2 extracts frames [0,2,4,6,8]
+
+If the requested frames exceed the bounds of the video, the behavior depends on
+``pad_mode``. If pad_mode is ``none``, it causes an error. Otherwise, the sequence is padded according to the
+``pad_mode`` argument (see ``pad_mode`` for details).
+
 Example 1: Extract a sequence of arbitrary frames:
 
 .. code-block:: python
@@ -55,13 +89,13 @@ Example 1: Extract a sequence of arbitrary frames:
     )
 
 Example 2: Extract a sequence of evenly spaced frames, starting from frame 0,
-with a stride of 2, until 10 frames are reached:
+with a stride of 2, until frame 20 (exclusive):
 
 .. code-block:: python
 
     video_decoder = dali.experimental.decoders.Video(
         encoded=encoded_video,
-        start_frame=0, sequence_length=10, stride=2
+        start_frame=0, end_frame=20, stride=2
         ...,
     )
 
@@ -125,7 +159,11 @@ This argument cannot be used together with ``start_frame``, ``sequence_length``,
         nullptr, true)
     .AddOptionalArg<int>(
         "sequence_length",
-        R"code(Number of frames to extract from each video. If not provided, the whole video is decoded. Cannot be used together with ``frames`` argument.)code",
+        R"code(Number of frames to extract from each video. Cannot be used together with ``frames`` or ``end_frame`` arguments.)code",
+        nullptr, true)
+    .AddOptionalArg<int>(
+        "end_frame",
+        R"code(Last frame to extract from each video (exclusive). Cannot be used with ``frames`` or ``sequence_length``.)code",
         nullptr, true)
     .AddOptionalArg<std::string>(
         "pad_mode",
@@ -139,14 +177,13 @@ This argument cannot be used together with ``start_frame``, ``sequence_length``,
 
 Not relevant when using ``frames`` argument.)code",
         "constant", true)
-    .AddOptionalArg(
-        "fill_value",
-        R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
+    .AddOptionalArg("fill_value",
+                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
 
 Each value must be in range [0, 255].
 If a single value is provided, it will be used for all channels. 
 Otherwise, the number of values must match the number of channels in the video.)code",
-        std::vector<int>{0, })
+                    std::vector<int>{0, })
     .AddOptionalArg("build_index",
                     R"code(Controls whether to build a frame index during initialization.
 
