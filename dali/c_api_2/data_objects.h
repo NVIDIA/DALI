@@ -452,6 +452,7 @@ class TensorListWrapper : public ITensorList {
           "The number of dimensions must not be negative when num_samples is 0.");
       else
         ndim = samples[0].ndim;
+      ValidateNDim(ndim);
     }
     if (dtype == DALI_NO_TYPE) {
       if (num_samples == 0)
@@ -461,6 +462,20 @@ class TensorListWrapper : public ITensorList {
     }
     Validate(dtype);
 
+    TensorLayout new_layout = {};
+
+    if (!layout) {
+      if (num_samples > 0) {
+        new_layout = samples[0].layout;
+        Validate(new_layout, ndim);
+      } else if (ndim == tl_->sample_dim()) {
+        new_layout = tl_->GetLayout();
+      }
+    } else {
+      new_layout = layout;
+      Validate(new_layout, ndim);
+    }
+
     for (int i = 0; i < num_samples; i++) {
       if (ndim && !samples[i].shape)
         throw std::invalid_argument(make_string("Got NULL shape in sample ", i, "."));
@@ -468,24 +483,18 @@ class TensorListWrapper : public ITensorList {
         throw std::invalid_argument(make_string("Unexpected data type in sample ", i, ". Got: ",
           samples[i].dtype, ", expected ", dtype, "."));
       ValidateSampleShape(i, make_cspan(samples[i].shape, samples[i].ndim), ndim);;
+      if (samples[i].layout && new_layout != samples[i].layout)
+        throw std::invalid_argument(make_string("Unexpected layout \"", samples[i].layout,
+            "\" in sample ", i, ". Expected: \"", new_layout, "\"."));
 
       if (!samples[i].data && volume(make_cspan(samples[i].shape, ndim)))
         throw std::invalid_argument(make_string(
             "Got NULL data pointer in a non-empty sample ", i, "."));
     }
 
-    TensorLayout new_layout = {};
-
-    if (!layout) {
-      if (ndim == tl_->sample_dim())
-        new_layout = tl_->GetLayout();
-    } else {
-      new_layout = layout;
-      Validate(new_layout, ndim);
-    }
-
     tl_->Reset();
     tl_->SetSize(num_samples);
+    tl_->set_type(dtype);
     tl_->set_sample_dim(ndim);
     tl_->SetLayout(new_layout);
 
