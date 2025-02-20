@@ -198,6 +198,20 @@ daliResult_t daliTensorGetDesc(
   DALI_EPILOG();
 }
 
+daliResult_t daliTensorGetShape(
+      daliTensor_h tensor,
+      int *out_ndim,
+      const int64_t **out_shape) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  auto &shape = ptr->GetShape();
+  if (out_ndim)
+    *out_ndim = shape.sample_dim();
+  if (out_shape)
+    *out_shape = shape.data();
+  DALI_EPILOG();
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // TensorList
 //////////////////////////////////////////////////////////////////////////////
@@ -318,6 +332,23 @@ daliResult_t daliTensorListSetStream(
   DALI_PROLOG();
   auto *ptr = ToPointer(tensor_list);
   ptr->SetStream(ToOptional(stream), synchronize);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorListGetShape(
+      daliTensorList_h tensor,
+      int *out_num_samples,
+      int *out_ndim,
+      const int64_t **out_shape) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  auto &shape = ptr->GetShape();
+  if (out_ndim)
+    *out_ndim = shape.sample_dim();
+  if (out_num_samples)
+    *out_num_samples = shape.num_samples();
+  if (out_shape)
+    *out_shape = shape.shapes.data();
   DALI_EPILOG();
 }
 
