@@ -723,12 +723,13 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  * @param dtype           the type of the element of the tensor;
  *                        if dtype is DALI_NO_TYPE, then the type is taken from samples[0].dtype
  * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
- *                        if NULL, and the TensorList's number of dimensions is equal to `ndim`,
- *                        then the current layout is kept;
+ *                        if NULL, the layout is taken from samples[0].layout; if it's still NULL,
+ *                        the current layout is kept, if possible;
  *                        if `layout` is an empty string, the tensor list's layout is cleared
  * @param samples         the descriptors of the tensors to be attached to the TensorList;
  *                        the `ndim` and `dtype` of the samples must match and they must match the
- *                        values of `ndim` and `dtype` parameters.
+ *                        values of `ndim` and `dtype` parameters; the layout must be either NULL
+ *                        or match the `layout` argument (if provided).
  * @param sample_deleters optional deleters, one for each sample
  *
  * NOTE: If the sample_deleters specify the same object multiple times, its destructor must
