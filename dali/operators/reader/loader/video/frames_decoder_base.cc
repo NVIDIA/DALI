@@ -22,7 +22,7 @@ namespace dali {
 
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
   int left_in_file = size_ - position_;
-  if (left_in_file == 0) {
+  if (left_in_file <= 0) {
     return AVERROR_EOF;
   }
 
