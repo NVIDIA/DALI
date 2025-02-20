@@ -41,7 +41,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
 
   pipe.AddOperator(
     OpSpec("Caffe2Reader")
-    .AddArg("path", "/data/imagenet/train-c2lmdb-480")
+    .AddArg("path", testing::dali_extra_path() + "db/c2lmdb")
     .AddOutput("raw_jpegs", StorageDevice::CPU)
     .AddOutput("labels", StorageDevice::CPU));
 

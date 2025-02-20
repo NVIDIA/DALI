@@ -550,7 +550,10 @@ all_packages = [
                     python_min_ver="3.8",
                     python_max_ver="3.12",
                 )
-            ]
+            ],
+            # skip tests for CUDA 12 as PaddlePaddle doesn't support this CUDA yet
+            # and we may hit a runner that requires it
+            "120": [],
         },
         links_index="https://www.paddlepaddle.org.cn/" "whl/linux/mkl/avx/stable.html",
     ),
