@@ -28,48 +28,22 @@ struct _DALIPipelineOutputs {
   ~_DALIPipelineOutputs() = default;
 };
 
+namespace dali {
+class Pipeline;
+}  // namespace dali
+
 namespace dali::c_api {
 
 class PipelineOutputs : public _DALIPipelineOutputs {
  public:
   explicit PipelineOutputs(Pipeline *pipe, AccessOrder order = AccessOrder::host());
 
-  RefCountedPtr<ITensorList> GetOutput(int index) {
-    ValidateOutputIdx(index);
+  RefCountedPtr<ITensorList> Get(int index);
 
-    if (!output_wrappers_[index]) {
-      if (ws_.OutputIsType<CPUBackend>(index))
-        output_wrappers_[index] = Wrap(ws_.OutputPtr<CPUBackend>(index));
-      else if (ws_.OutputIsType<GPUBackend>(index))
-        output_wrappers_[index] = Wrap(ws_.OutputPtr<GPUBackend>(index));
-      else
-        assert(!"Impossible output backend encountered.");
-    }
-    return output_wrappers_[index];
-  }
+  span<daliOperatorTrace_t> GetTraces();
 
-  span<daliOperatorTrace_t> GetTraces() {
-    if (!traces_.has_value()) {
-      traces_.emplace();
-      if (auto iter_data = ws_.GetIterationData()) {
-        auto trace_map = iter_data->operator_traces.GetCopy();
-        for (auto &[op, traces] : trace_map) {
-          for (auto &[name, value] : traces) {
-            traces_->push_back({ op.c_str(), name.c_str(), value.c_str() });
-          }
-        }
-      }
-    }
-    return make_span(*traces_);
-  }
-
-  std::optional<std::string_view> GetTrace(std::string_view op_name, std::string trace_name) const {
-    auto &t = ws_.GetOperatorTraces(op_name);
-    auto it = t.find(trace_name);
-    if (it != t.end())
-      return it->second;
-    return std::nullopt;
-  }
+  std::optional<std::string_view>
+  GetTrace(std::string_view op_name, std::string_view trace_name) const;
 
  private:
   void ValidateOutputIdx(int idx) {
