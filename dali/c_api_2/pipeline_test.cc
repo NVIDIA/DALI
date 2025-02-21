@@ -15,13 +15,23 @@
 #include <gtest/gtest.h>
 #include "dali/c_api_2/pipeline.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
 
 namespace dali {
 
+OpSpec CounterOp() {
+  return OpSpec(exec2::test::kCounterOpName);
+}
+
+OpSpec TestOp(std::string_view device) {
+  return OpSpec(exec2::test::kTestOpName).AddArg("device", device);
+}
+
 std::string GetCPUOnlyPipeline(int max_batch_size, int num_threads, int device_id) {
   Pipeline p(max_batch_size, num_threads, device_id);
-  p.AddExternalInput("in1");
-  p.
+  p.AddOperator(CounterOp(), "ctr");
+  p.AddOperator(TestOp("cpu").AddInput("ctr", StorageDevice::CPU), "op1");
+  p.AddOperator(TestOp("gpu").AddInput("ctr", StorageDevice::CPU), "op2");
 }
 
 namespace c_api {
