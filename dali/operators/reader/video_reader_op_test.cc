@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <cstring>
-
+#include <fstream>
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/nvml_wrap.h"
@@ -423,13 +423,25 @@ TEST_F(VideoReaderTest, FrameLabels) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
+  char file_list_path_template[] = "/tmp/video_reader_test_XXXXXX";
+  int fd = mkstemp(file_list_path_template);
+  close(fd);
+  std::string file_list_path(file_list_path_template);
+  auto cleanup = std::unique_ptr<void, std::function<void(void*)>>(
+      nullptr, [file_list_path](void*) { std::remove(file_list_path.c_str()); });
+  std::ofstream file_list(file_list_path);
+  file_list << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test.mp4 0 0 99\n"
+            << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test.mp4 1 100 199\n"
+            << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test.mp4 2 200 256\n";
+  file_list.close();
+
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("random_shuffle", false)
                        .AddArg("sequence_length", sequence_length)
                        .AddArg("enable_frame_num", true)
                        .AddArg("image_type", DALI_YCbCr)
-                       .AddArg("file_list", "/tmp/file_list.txt")
+                       .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
                        .AddOutput("frame_num", StorageDevice::GPU));
@@ -559,6 +571,21 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
+  char file_list_path_template[] = "/tmp/video_reader_test_XXXXXX";
+  int fd = mkstemp(file_list_path_template);
+  close(fd);
+  std::string file_list_path(file_list_path_template);
+  auto cleanup = std::unique_ptr<void, std::function<void(void*)>>(
+      nullptr, [file_list_path](void*) { std::remove(file_list_path.c_str()); });
+  std::ofstream file_list(file_list_path);
+  file_list << testing::dali_extra_path()
+            << "/db/video/frame_num_timestamp/test_25fps.mp4 0 0 49\n"
+            << testing::dali_extra_path()
+            << "/db/video/frame_num_timestamp/test_25fps.mp4 1 50 99\n"
+            << testing::dali_extra_path()
+            << "/db/video/frame_num_timestamp/test_25fps.mp4 2 100 149\n";
+  file_list.close();
+
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("random_shuffle", false)
@@ -567,7 +594,7 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
                        .AddArg("enable_timestamps", true)
                        .AddArg("file_list_frame_num", true)
                        .AddArg("image_type", DALI_YCbCr)
-                       .AddArg("file_list", "/tmp/file_list_frame_num.txt")
+                       .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
                        .AddOutput("frame_num", StorageDevice::GPU)
@@ -613,6 +640,9 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
         FAIL() << "Unexpected label";
     }
   }
+
+  // Cleanup temporary files
+  std::remove(file_list_path.c_str());
 }
 
 TEST_F(VideoReaderTest, TimestampLabels) {
@@ -621,6 +651,18 @@ TEST_F(VideoReaderTest, TimestampLabels) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
+  char file_list_path_template[] = "/tmp/video_reader_test_XXXXXX";
+  int fd = mkstemp(file_list_path_template);
+  close(fd);
+  std::string file_list_path(file_list_path_template);
+  auto cleanup = std::unique_ptr<void, std::function<void(void*)>>(
+      nullptr, [file_list_path](void*) { std::remove(file_list_path.c_str()); });
+  std::ofstream file_list(file_list_path);
+  file_list << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test_25fps.mp4 0 0 1\n"
+            << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test_25fps.mp4 1 2 3\n"
+            << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test_25fps.mp4 2 4 5\n";
+  file_list.close();
+
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("random_shuffle", false)
@@ -628,7 +670,7 @@ TEST_F(VideoReaderTest, TimestampLabels) {
                        .AddArg("enable_timestamps", true)
                        .AddArg("enable_frame_num", true)
                        .AddArg("image_type", DALI_YCbCr)
-                       .AddArg("file_list", "/tmp/file_list_timestamp.txt")
+                       .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
                        .AddOutput("frame_num", StorageDevice::GPU)
@@ -660,6 +702,9 @@ TEST_F(VideoReaderTest, TimestampLabels) {
 
     ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0] * 25);
   }
+
+  // Cleanup temporary files
+  std::remove(file_list_path.c_str());
 }
 
 TEST_F(VideoReaderTest, StartEndLabels) {
@@ -668,13 +713,25 @@ TEST_F(VideoReaderTest, StartEndLabels) {
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
+  char file_list_path_template[] = "/tmp/video_reader_test_XXXXXX";
+  int fd = mkstemp(file_list_path_template);
+  close(fd);
+  std::string file_list_path(file_list_path_template);
+  auto cleanup = std::unique_ptr<void, std::function<void(void*)>>(
+      nullptr, [file_list_path](void*) { std::remove(file_list_path.c_str()); });
+  std::ofstream file_list(file_list_path);
+  file_list << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test.mp4 0 0 99\n"
+            << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test.mp4 1 100 199\n"
+            << testing::dali_extra_path() << "/db/video/frame_num_timestamp/test.mp4 2 200 256\n";
+  file_list.close();
+
   pipe.AddOperator(OpSpec("VideoReader")
                        .AddArg("device", "gpu")
                        .AddArg("random_shuffle", false)
                        .AddArg("sequence_length", sequence_length)
                        .AddArg("enable_timestamps", true)
                        .AddArg("image_type", DALI_YCbCr)
-                       .AddArg("file_list", "/tmp/file_list.txt")
+                       .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
                        .AddOutput("timestamp", StorageDevice::GPU));
@@ -702,6 +759,8 @@ TEST_F(VideoReaderTest, StartEndLabels) {
 
     ASSERT_EQ(*label, std::floor(timestamps[0] / 100));
   }
+
+  std::remove(file_list_path.c_str());
 }
 
 TEST_F(VideoReaderTest, MultipleFrameRates) {
