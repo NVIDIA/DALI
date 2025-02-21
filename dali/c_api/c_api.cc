@@ -93,17 +93,17 @@ int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
  *
  * @param flags Flags typically specified in daliSetExternalInput* functions.
  */
-dali::InputOperatorNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
-  dali::InputOperatorNoCopyMode no_copy_mode = dali::InputOperatorNoCopyMode::DEFAULT;
+dali::InputOperatorCopyMode GetExternalSourceCopyMode(unsigned int flags) {
+  dali::InputOperatorCopyMode copy_mode = dali::InputOperatorCopyMode::DEFAULT;
   DALI_ENFORCE(!((flags & DALI_ext_force_copy) && (flags & DALI_ext_force_no_copy)),
                "External Source cannot be forced to use DALI_ext_force_copy and "
                "DALI_ext_force_no_copy at the same time.");
   if (flags & DALI_ext_force_copy) {
-    no_copy_mode = dali::InputOperatorNoCopyMode::FORCE_COPY;
+    copy_mode = dali::InputOperatorCopyMode::FORCE_COPY;
   } else if (flags & DALI_ext_force_no_copy) {
-    no_copy_mode = dali::InputOperatorNoCopyMode::FORCE_NO_COPY;
+    copy_mode = dali::InputOperatorCopyMode::FORCE_NO_COPY;
   }
-  return no_copy_mode;
+  return copy_mode;
 }
 
 template <typename Backend>

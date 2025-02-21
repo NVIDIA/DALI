@@ -1111,7 +1111,7 @@ void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
           node.last_input,
           node.data_id,
           node.last_input.order(),
-          InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+          InputOperatorSettingMode{false, false, InputOperatorCopyMode::FORCE_NO_COPY},
           true);
   }
 }

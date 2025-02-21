@@ -2085,10 +2085,10 @@ PYBIND11_MODULE(backend_impl, m) {
         "set_affinity"_a = false
         )
     .def("AddOperator",
-         static_cast<int (Pipeline::*)(const OpSpec &, const std::string &)>
+         static_cast<int (Pipeline::*)(const OpSpec &, std::string_view)>
                                       (&Pipeline::AddOperator))
     .def("AddOperator",
-         static_cast<int (Pipeline::*)(const OpSpec &, const std::string &, int)>
+         static_cast<int (Pipeline::*)(const OpSpec &, std::string_view, int)>
                                       (&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",

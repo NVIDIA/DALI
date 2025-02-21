@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,14 +76,14 @@ struct InputQueueItem {
 
 
 /**
- * @brief Option used to override the InputOperator ``no_copy`` parameter
+ * @brief Option used to override the InputOperator's copy mode, defined by ``no_copy`` parameter.
  *
  * It allows to:
  *  * DEFAULT - leave the default (the ``no_copy`` parameter is used),
  *  * FORCE_COPY - always make a copy,
  *  * FORCE_NO_COPY - always share the data without copy.
  */
-enum class InputOperatorNoCopyMode {
+enum class InputOperatorCopyMode {
   DEFAULT,
   FORCE_COPY,
   FORCE_NO_COPY
@@ -110,7 +110,7 @@ struct InputOperatorSettingMode {
    * @brief Select whether to use the parameter defined in the External Source or
    *  override the mode of operation forcing the copy or no-copy
    */
-  InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT;
+  InputOperatorCopyMode copy_mode = InputOperatorCopyMode::DEFAULT;
 };
 
 
@@ -214,11 +214,11 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    */
   virtual DALIDataType in_dtype() const = 0;
 
-  bool WouldCopy(InputOperatorNoCopyMode no_copy) const {
-    switch (no_copy) {
-      case InputOperatorNoCopyMode::FORCE_COPY:
+  bool WouldCopy(InputOperatorCopyMode mode) const {
+    switch (mode) {
+      case InputOperatorCopyMode::FORCE_COPY:
         return true;
-      case InputOperatorNoCopyMode::FORCE_NO_COPY:
+      case InputOperatorCopyMode::FORCE_NO_COPY:
         return false;
       default:
         return !no_copy_;
@@ -509,11 +509,11 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     // pass anything as it is ignored.
 
     bool actual_no_copy = no_copy_;
-    switch (ext_src_setting_mode.no_copy_mode) {
-      case InputOperatorNoCopyMode::FORCE_COPY:
+    switch (ext_src_setting_mode.copy_mode) {
+      case InputOperatorCopyMode::FORCE_COPY:
         actual_no_copy = false;
         break;
-      case InputOperatorNoCopyMode::FORCE_NO_COPY:
+      case InputOperatorCopyMode::FORCE_NO_COPY:
         actual_no_copy = true;
         break;
       default:

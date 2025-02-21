@@ -185,16 +185,16 @@ class DLL_PUBLIC Pipeline {
    * @param order synchronization order (CUDA stream or host)
    * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
    *             to the internal buffer
-   * @param no_copy_mode Select whether to use the parameter defined in the External Source or
-   *                     override the mode of operation forcing the copy or no-copy
+   * @param copy_mode Select whether to use the parameter defined in the External Source or
+   *                  override the mode of operation forcing the copy or no-copy
    */
   template<typename Backend>
   DLL_PUBLIC void
   SetExternalInput(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
                    bool sync = false, bool use_copy_kernel = false,
-                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT,
+                   InputOperatorCopyMode copy_mode = InputOperatorCopyMode::DEFAULT,
                    std::optional<std::string> data_id = std::nullopt) {
-    InputOperatorSettingMode mode{sync, use_copy_kernel, no_copy_mode};
+    InputOperatorSettingMode mode{sync, use_copy_kernel, copy_mode};
     // if SetLast succeeds, the data will be forcibly _shared_ (zero copy) upon Refeed
     SetExternalInputHelper(name, tl, std::move(data_id), order, mode, false);
   }
@@ -779,7 +779,7 @@ class DLL_PUBLIC Pipeline {
       };
 
       if constexpr (std::is_same_v<OperatorBackend, DataBackend>) {
-        if (inp.WouldCopy(ext_src_setting_mode.no_copy_mode)) {
+        if (inp.WouldCopy(ext_src_setting_mode.copy_mode)) {
           do_copy();
         } else {
           node.last_input.ShareData(data);
