@@ -844,13 +844,7 @@ def test_specific_codec_support(device, codec, start_frame, sequence_length, end
     *[
         (device, codec)
         for device in ["cpu", "gpu"]
-        for codec in [
-            "h264",
-            "hevc",
-            "vp8",
-            "vp9",
-            "mpeg4",
-        ]  # av1 and mpeg4 are not supported by now
+        for codec in ["h264", "hevc", "vp8", "vp9", "mpeg4", "av1"]
     ]
 )
 def test_specific_codec_support_files(device, codec, sequence_length=3, stride=2):
@@ -872,7 +866,7 @@ def test_specific_codec_support_files(device, codec, sequence_length=3, stride=2
         return videos, frame_no
 
     pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
-    if device == "cpu" and codec == "mpeg4":
+    if device == "cpu" and codec in ["mpeg4", "av1"]:
         with assert_raises(
             RuntimeError, glob="The number of input samples: 0, needs to be at least equal to"
         ):
