@@ -85,7 +85,7 @@ OpSpec &OpSpec::AddInput(std::string name, StorageDevice device, bool regular_in
       "\" for a named input \"", name, "\". All named inputs must be on CPU."));
   }
 
-  inputs_.push_back({std::move(name), device});
+  inputs_.push_back({std::string(name), device});
   return *this;
 }
 

@@ -188,6 +188,10 @@ class DLL_PUBLIC OpSpec {
    */
   OpSpec &AddInput(std::string name, StorageDevice device, bool regular_input = true);
 
+  OpSpec &AddInput(std::string_view name, StorageDevice device, bool regular_input = true) {
+    return AddInput(std::string(name), device, regular_input);
+  }
+
   /**
    * @brief Specifies the argument input to the op.
    * Argument inputs are named inputs that are treated as
@@ -195,6 +199,10 @@ class DLL_PUBLIC OpSpec {
    * corresponding argument exists in the schema.
    */
   OpSpec &AddArgumentInput(std::string arg_name, std::string inp_name);
+
+  OpSpec &AddArgumentInput(std::string_view arg_name, std::string_view inp_name) {
+    return AddArgumentInput(std::string(arg_name), std::string(inp_name));
+  }
 
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
@@ -206,6 +214,10 @@ class DLL_PUBLIC OpSpec {
    * which the Operator will receive them.
    */
   OpSpec &AddOutput(std::string name, StorageDevice device);
+
+  OpSpec &AddOutput(std::string_view name, StorageDevice device) {
+    return AddOutput(std::string(name), device);
+  }
 
   int NumInput() const { return inputs_.size(); }
 
