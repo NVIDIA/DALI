@@ -38,12 +38,14 @@ bool FramesDecoderCpu::CanDecode(AVCodecID codec_id) const {
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
     AVCodecID::AV_CODEC_ID_MJPEG,
-    // TODO(janton): AVCodecID::AV_CODEC_ID_AV1,
-    // TODO(janton): AVCodecID::AV_CODEC_ID_MPEG4,
+    // Those are not supported by our compiled version of libavcodec, but they might be
+    // supported if using a custom libavcodec build.
+    AVCodecID::AV_CODEC_ID_AV1,
+    AVCodecID::AV_CODEC_ID_MPEG4,
   };
   if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", avcodec_get_name(av_state_->codec_params_->codec_id),
-                    " is not supported by this DALI operator."));
+    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                          ") is not supported by the CPU variant of this operator."));
     return false;
   }
 
@@ -54,8 +56,10 @@ bool FramesDecoderCpu::CanDecode(AVCodecID codec_id) const {
       return true;
     }
   }
-  DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                        " is not supported by the FFMPEG version provided by DALI."));
+  DALI_WARN(
+      make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                  ") is not supported by the libavcodec version provided by DALI, and therefore "
+                  "cannot be decoded on the CPU."));
   return false;
 }
 

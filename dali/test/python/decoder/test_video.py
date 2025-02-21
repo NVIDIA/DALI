@@ -24,6 +24,7 @@ from itertools import cycle
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nose2.tools import params
 from nose_utils import SkipTest, attr, assert_raises
+import tempfile
 
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
 # filter out HEVC because some GPUs do not support it
@@ -759,11 +760,33 @@ def extract_frames_from_video(
     return frames
 
 
+def compare_frames(frame, ref_frame, frame_idx, diff_step=2, threshold=0.03):
+    # Compare frames
+    diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > diff_step)
+    total_pixels = frame.size
+    # More than 3% of the pixels differ in more than 2 steps
+    if diff_pixels / total_pixels > threshold:
+        # Save the mismatched frames for inspection
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
+
+        output_path = f"frame_{frame_idx+1:03d}.png"
+        ref_output_path = f"ref_frame_{frame_idx+1:03d}.png"
+
+        cv2.imwrite(output_path, frame_bgr)
+        cv2.imwrite(ref_output_path, ref_frame_bgr)
+        assert False, (
+            f"Frame {frame_idx+1} differs from reference by more than {diff_step} steps in "
+            + f"{diff_pixels/total_pixels*100}% of pixels. "
+            + f"Expected {ref_frame_bgr} but got {frame_bgr}"
+        )
+
+
 @params(
     *[
         (device, codec, start_frame, sequence_length, end_frame, stride)
         for device in ["cpu", "mixed"]
-        for codec in ["h264", "hevc", "vp8", "vp9"]  # av1 and mpeg4 are not supported by now
+        for codec in ["h264", "hevc", "vp8", "vp9", "av1", "mpeg4"]
         for start_frame, sequence_length, end_frame, stride in [
             (None, None, None, None),  # Default case
             (5, 3, None, 2),  # start_frame, sequence_length and stride
@@ -771,12 +794,20 @@ def extract_frames_from_video(
         ]
     ]
 )
-def test_specific_codec_support(device, codec, start_frame, sequence_length, end_frame, stride):
+def test_decoder_operator_codec_support(
+    device, codec, start_frame, sequence_length, end_frame, stride
+):
     skip_if_m60()
     filenames = codec_files[codec]
     assert len(filenames) > 0, f"No {codec} test files found"
 
+    if device == "cpu" and codec == "mpeg4":
+        raise SkipTest(f"Codec {codec} is not supported by the CPU decoder.")
+    if codec == "av1":
+        raise SkipTest(f"Codec {codec} is only supported by Ampere+ GPUs, skipping test for now.")
+
     batch_size = 1
+    diff_step = 5 if codec == "mpeg4" else 2
 
     batch = []
     for i in range(batch_size):
@@ -808,36 +839,15 @@ def test_specific_codec_support(device, codec, start_frame, sequence_length, end
     for i in range(batch_size):
         frames = out.as_cpu().at(i)
         assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
-
         # Get the filename for the i-th sample
         filename = filenames[i % len(filenames)]
         reference_frames = extract_frames_from_video(
             filename, start_frame, sequence_length, end_frame, stride
         )
-
         for frame_idx, frame in enumerate(frames):
-            # Load reference frame using zero-padded frame index
-            ref_frame = reference_frames[frame_idx]
-
-            # Compare frames
-            diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > 2)
-            total_pixels = frame.size
-            # More than 3% of the pixels differ in more than 2 steps
-            if diff_pixels / total_pixels > 0.03:
-                # Save the mismatched frames for inspection
-                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
-
-                output_path = f"frame_{frame_idx+1:03d}.png"
-                ref_output_path = f"ref_frame_{frame_idx+1:03d}.png"
-
-                cv2.imwrite(output_path, frame_bgr)
-                cv2.imwrite(ref_output_path, ref_frame_bgr)
-                assert False, (
-                    f"Frame {frame_idx+1} differs from reference by more than 2 steps in "
-                    + f"{diff_pixels/total_pixels*100}% of pixels. "
-                    + f"Expected {ref_frame_bgr} but got {frame_bgr}"
-                )
+            compare_frames(
+                frame, reference_frames[frame_idx], frame_idx, diff_step=diff_step, threshold=0.03
+            )
 
 
 @params(
@@ -847,12 +857,18 @@ def test_specific_codec_support(device, codec, start_frame, sequence_length, end
         for codec in ["h264", "hevc", "vp8", "vp9", "mpeg4", "av1"]
     ]
 )
-def test_specific_codec_support_files(device, codec, sequence_length=3, stride=2):
+def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=2):
     skip_if_m60()
     filenames = codec_files[codec]
     assert len(filenames) > 0, f"No {codec} test files found"
 
+    if device == "cpu" and codec == "mpeg4":
+        raise SkipTest(f"Codec {codec} is not supported by the CPU decoder.")
+    if codec == "av1":
+        raise SkipTest(f"Codec {codec} is only supported by Ampere+ GPUs, skipping test for now.")
+
     batch_size = 1
+    diff_step = 5 if codec == "mpeg4" else 2
 
     @pipeline_def
     def decoder_pipeline():
@@ -866,48 +882,75 @@ def test_specific_codec_support_files(device, codec, sequence_length=3, stride=2
         return videos, frame_no
 
     pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
-    if device == "cpu" and codec in ["mpeg4", "av1"]:
-        with assert_raises(
-            RuntimeError, glob="The number of input samples: 0, needs to be at least equal to"
-        ):
-            pipe.run()
-    else:
-        (out, frame_no) = pipe.run()
-        assert len(out) > 0, f"No output from decoder pipeline for {codec}"
+    (out, frame_no) = pipe.run()
+    assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
-        for i in range(batch_size):
-            frames = out.as_cpu().at(i)
-            frame_no_cpu = int(frame_no.as_cpu().at(i))
-            assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
+    for i in range(batch_size):
+        frames = out.as_cpu().at(i)
+        frame_no_cpu = int(frame_no.as_cpu().at(i))
+        assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
 
-            # Get the filename for the i-th sample
-            filename = filenames[i % len(filenames)]
-            reference_frames = extract_frames_from_video(
-                filename, frame_no_cpu, sequence_length, None, stride
+        # Get the filename for the i-th sample
+        filename = filenames[i % len(filenames)]
+        reference_frames = extract_frames_from_video(
+            filename, frame_no_cpu, sequence_length, None, stride
+        )
+        for frame_idx, frame in enumerate(frames):
+            compare_frames(
+                frame, reference_frames[frame_idx], frame_idx, diff_step=diff_step, threshold=0.03
             )
 
-            for frame_idx, frame in enumerate(frames):
-                # Load reference frame using zero-padded frame index
-                ref_frame = reference_frames[frame_idx]
 
-                # Compare frames
-                diff_pixels = np.count_nonzero(
-                    np.abs(np.float32(frame) - np.float32(ref_frame)) > 2
-                )
-                total_pixels = frame.size
-                # More than 3% of the pixels differ in more than 2 steps
-                if diff_pixels / total_pixels > 0.03:
-                    # Save the mismatched frames for inspection
-                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
+def create_video_all_black_frames(
+    container, codec_fourcc, width=320, height=240, fps=30, duration=1
+):
+    black_frame = np.zeros((height, width, 3), dtype=np.uint8)
+    encoded = None
+    with tempfile.NamedTemporaryFile(suffix=f".{container}", delete=True) as f:
+        fourcc = cv2.VideoWriter_fourcc(*codec_fourcc)
+        out = cv2.VideoWriter(f.name, fourcc, fps, (width, height))
+        for _ in range(int(fps * duration)):
+            out.write(black_frame)
+        out.release()
+        with open(f.name, "rb") as f:
+            encoded = np.frombuffer(f.read(), dtype=np.uint8)
+    assert isinstance(encoded, np.ndarray)
+    return encoded
 
-                    output_path = f"frame_{frame_idx+1:03d}.png"
-                    ref_output_path = f"ref_frame_{frame_idx+1:03d}.png"
 
-                    cv2.imwrite(output_path, frame_bgr)
-                    cv2.imwrite(ref_output_path, ref_frame_bgr)
-                    assert False, (
-                        f"Frame {frame_idx+1} differs from reference by more than 2 steps in "
-                        + f"{diff_pixels/total_pixels*100}% of pixels. "
-                        + f"Expected {ref_frame_bgr} but got {frame_bgr}"
-                    )
+def test_mp4v_video_all_black_frames():
+    skip_if_m60()
+    device = "mixed"
+    container, codec_fourcc = "mp4", "mp4v"
+    height, width = 240, 320
+    encoded = create_video_all_black_frames(
+        container, codec_fourcc, width=width, height=height, fps=30, duration=1
+    )
+
+    @pipeline_def
+    def test_pipeline():
+        return fn.experimental.decoders.video(encoded, device=device)
+
+    pipe = test_pipeline(batch_size=1, num_threads=1, device_id=0)
+    pipe.build()
+
+    if device == "cpu":
+        with assert_raises(RuntimeError, glob='Failed to create video decoder for "memory file"'):
+            pipe.run()
+    else:
+        (output,) = pipe.run()
+        frames = output.as_cpu().at(0)
+
+        # Verify dimensions
+        assert frames.shape[1:] == (
+            height,
+            width,
+            3,
+        ), f"Expected frame dimensions {(height, width, 3)}, got {frames.shape[1:]}"
+
+        # Verify all frames are black
+        expected_frame = np.zeros((height, width, 3), dtype=np.uint8)
+        for i, frame in enumerate(frames):
+            np.testing.assert_array_equal(
+                frame, expected_frame, err_msg=f"Frame {i} is not completely black"
+            )

@@ -107,9 +107,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Initialize the decoder from a file.
    *
    * @param filename Path to a video file.
-   * @param init_codecs If set to false CPU codec part is not initalized, only parser
    */
-  explicit FramesDecoderBase(const std::string &filename, bool init_codecs = true);
+  explicit FramesDecoderBase(const std::string &filename);
 
   /**
    * @brief Initialize the decoder from a memory buffer.
@@ -166,13 +165,12 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   /**
-   * @brief Reads next frame of the video and copies it to the provided buffer, if copy_to_output is True.
+   * @brief Reads next frame of the video.
    *
-   * @param data Output buffer to copy data to.
-   * @param copy_to_output Whether copy the data to the output.
+   * @param data Output buffer to copy data to. If nullptr, the frame will be effectively skipped.
    * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
-  virtual bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
+  virtual bool ReadNextFrame(uint8_t *data);
 
   /**
    * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
@@ -237,24 +235,22 @@ class DLL_PUBLIC FramesDecoderBase {
    * After this method returns false, there might be more frames to read. Call `ReadFlushFrame` until
    * it returns false, to get all of the frames from the video file.
    *
-   * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
-   * @param copy_to_output Whether copy the frame to provided output.
+   * @param data Output buffer to copy data to. If nullptr, the frame will be effectively skipped.
    *
    * @returns True, if the read was succesful, or false, when all regular frames were consumed.
    *
    */
-  bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
+  bool ReadRegularFrame(uint8_t *data);
 
   /**
    * @brief Reads frames from the last packet. This packet can hold
    * multiple frames. This method will read all of them one by one.
    *
-   * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
-   * @param copy_to_output Whether copy the frame to provided output.
+   * @param data Output buffer to copy data to. If nullptr, the frame will be effectively skipped.
    *
    * @returns True, if the read was succesful, or false, when ther are no more frames in last the packet.
    */
-  bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
+  bool ReadFlushFrame(uint8_t *data);
 
   void CopyToOutput(uint8_t *data);
 
@@ -275,6 +271,8 @@ class DLL_PUBLIC FramesDecoderBase {
   bool IsFormatSeekable();
 
   void CountFrames(AvState *av_state);
+
+  std::string GetAllStreamInfo() const;
 
   int channels_ = 3;
   bool flush_state_ = false;
