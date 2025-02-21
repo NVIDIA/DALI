@@ -29,6 +29,13 @@ std::optional<T> ToOptional(const T *nullable) {
     return *nullable;
 }
 
+constexpr std::optional<std::string_view> ToOptionalString(const char *nullable) {
+  if (nullable == nullptr)
+    return std::nullopt;
+  else
+    return nullable;
+}
+
 }  // namespace dali::c_api
 
 #endif  // DALI_C_API_2_UTILS_H_

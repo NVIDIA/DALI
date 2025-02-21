@@ -57,6 +57,10 @@ class PipelineWrapper : public _DALIPipeline {
       daliFeedInputFlags_t options,
       std::optional<cudaStream_t> stream);
 
+  int GetOutputCount() const;
+
+  daliPipelineOutputDesc_t GetOutputDesc(int idx) const;
+
  private:
   template <typename Backend>
   void FeedInputImpl(
