@@ -108,7 +108,7 @@ class DLL_PUBLIC OpSpec {
 
   /** Add an argument with the given name and value. */
   template <typename T>
-  OpSpec &AddArg(const std::string &name, const T &val) {
+  OpSpec &AddArg(std::string_view name, const T &val) {
     EnforceNoAliasWithDeprecated(name);
     DALI_ENFORCE(argument_idxs_.find(name) == argument_idxs_.end(),
                  make_string("AddArg failed. Argument with name \"", name, "\" already exists. "));
@@ -117,7 +117,7 @@ class DLL_PUBLIC OpSpec {
 
   /** Add an argument with the given name and value if it doesn't exist already. */
   template <typename T>
-  OpSpec &AddArgIfNotExisting(const std::string &name, const T &val) {
+  OpSpec &AddArgIfNotExisting(std::string_view name, const T &val) {
     if (argument_idxs_.find(name) != argument_idxs_.end()) {
       return *this;
     }
@@ -126,22 +126,25 @@ class DLL_PUBLIC OpSpec {
 
   /** Sets or adds an argument with the given name and value. */
   template <typename T>
-  OpSpec &SetArg(const std::string &name, const T &val) {
+  OpSpec &SetArg(std::string_view name, const T &val) {
     using S = argument_storage_t<T>;
-    return SetInitializedArg(name, Argument::Store<S>(name, static_cast<S>(val)));
+    return SetInitializedArg(name, Argument::Store<S>(std::string(name), static_cast<S>(val)));
   }
 
   /** Sets or adds an argument with the given name and value. */
   template <typename T>
-  OpSpec &SetArg(const std::string &name, const std::vector<T> &val) {
+  OpSpec &SetArg(std::string_view name, const std::vector<T> &val) {
     using S = argument_storage_t<T>;
     using V = std::vector<S>;
-    return SetInitializedArg(name, Argument::Store<V>(name, detail::convert_vector<S>(val)));
+    return SetInitializedArg(
+        name,
+        Argument::Store<V>(std::string(name),
+        detail::convert_vector<S>(val)));
   }
 
 
   /** Add an instantiated argument with given name */
-  OpSpec &AddInitializedArg(const std::string &name, std::shared_ptr<Argument> arg) {
+  OpSpec &AddInitializedArg(std::string_view name, std::shared_ptr<Argument> arg) {
     EnforceNoAliasWithDeprecated(name);
     DALI_ENFORCE(argument_idxs_.find(name) == argument_idxs_.end(),
                  make_string("AddArg failed. Argument with name \"", name, "\" already exists. "));
@@ -153,20 +156,25 @@ class DLL_PUBLIC OpSpec {
    *
    * @remarks Deprecated arguments are renamed (or dropped, if no longer used).
    */
-  OpSpec &SetInitializedArg(const std::string &arg_name, std::shared_ptr<Argument> arg);
+  OpSpec &SetInitializedArg(std::string_view arg_name, std::shared_ptr<Argument> arg);
 
   /** Check if the `arg_name` was already set through a deprecated argument */
   void EnforceNoAliasWithDeprecated(std::string_view arg_name);
 
   // Forward to string implementation
-  template <unsigned N>
-  OpSpec &SetArg(const std::string &name, const char (&c_str)[N]) {
-    return this->SetArg<std::string>(name, c_str);
+  template <size_t N>
+  OpSpec &SetArg(std::string_view name, const char (&c_str)[N]) {
+    return this->SetArg(name, std::string(c_str));
   }
 
   // Forward to string implementation
-  OpSpec &SetArg(const std::string &name, const char *c_str) {
-    return this->SetArg<std::string>(name, c_str);
+  OpSpec &SetArg(std::string_view name, const char *c_str) {
+    return this->SetArg(name, std::string(c_str));
+  }
+
+  // Forward to string implementation
+  OpSpec &SetArg(std::string_view name, const std::string_view &str) {
+    return this->SetArg(name, std::string(str));
   }
 
   /**
@@ -180,6 +188,10 @@ class DLL_PUBLIC OpSpec {
    */
   OpSpec &AddInput(std::string name, StorageDevice device, bool regular_input = true);
 
+  OpSpec &AddInput(std::string_view name, StorageDevice device, bool regular_input = true) {
+    return AddInput(std::string(name), device, regular_input);
+  }
+
   /**
    * @brief Specifies the argument input to the op.
    * Argument inputs are named inputs that are treated as
@@ -187,6 +199,10 @@ class DLL_PUBLIC OpSpec {
    * corresponding argument exists in the schema.
    */
   OpSpec &AddArgumentInput(std::string arg_name, std::string inp_name);
+
+  OpSpec &AddArgumentInput(std::string_view arg_name, std::string_view inp_name) {
+    return AddArgumentInput(std::string(arg_name), std::string(inp_name));
+  }
 
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
@@ -198,6 +214,10 @@ class DLL_PUBLIC OpSpec {
    * which the Operator will receive them.
    */
   OpSpec &AddOutput(std::string name, StorageDevice device);
+
+  OpSpec &AddOutput(std::string_view name, StorageDevice device) {
+    return AddOutput(std::string(name), device);
+  }
 
   int NumInput() const { return inputs_.size(); }
 

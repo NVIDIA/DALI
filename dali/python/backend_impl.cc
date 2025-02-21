@@ -2198,7 +2198,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("device_id", &Pipeline::device_id)
     .def("output_dtype",
          [](Pipeline *p) {
-             auto descs = p->output_descs();
+             auto &descs = p->output_descs();
              std::vector<DALIDataType> ret(descs.size());
              for (size_t i = 0; i < descs.size(); i++) {
                ret[i] = descs[i].dtype;
@@ -2207,7 +2207,7 @@ PYBIND11_MODULE(backend_impl, m) {
          })
     .def("output_ndim",
          [](Pipeline *p) {
-           auto descs = p->output_descs();
+             auto &descs = p->output_descs();
              std::vector<int> ret(descs.size());
              for (size_t i = 0; i < descs.size(); i++) {
                ret[i] = descs[i].ndim;

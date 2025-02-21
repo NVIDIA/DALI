@@ -85,7 +85,7 @@ OpSpec &OpSpec::AddInput(std::string name, StorageDevice device, bool regular_in
       "\" for a named input \"", name, "\". All named inputs must be on CPU."));
   }
 
-  inputs_.push_back({std::move(name), device});
+  inputs_.push_back({std::string(name), device});
   return *this;
 }
 
@@ -118,7 +118,7 @@ OpSpec &OpSpec::AddArgumentInput(std::string arg_name, std::string inp_name) {
   return *this;
 }
 
-OpSpec &OpSpec::SetInitializedArg(const std::string &arg_name, std::shared_ptr<Argument> arg) {
+OpSpec &OpSpec::SetInitializedArg(std::string_view arg_name, std::shared_ptr<Argument> arg) {
   if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
     const auto &deprecation_meta = schema_->DeprecatedArgInfo(arg_name);
     // Argument was removed, and we can discard it
@@ -137,7 +137,7 @@ OpSpec &OpSpec::SetInitializedArg(const std::string &arg_name, std::shared_ptr<A
       if (arg->has_name()) {
         arg->set_name(new_arg_name);
       }
-      auto [it, inserted] = argument_idxs_.insert({new_arg_name, arguments_.size()});
+      auto [it, inserted] = argument_idxs_.emplace(new_arg_name, arguments_.size());
       if (inserted)
         arguments_.push_back(std::move(arg));
       else
@@ -146,7 +146,7 @@ OpSpec &OpSpec::SetInitializedArg(const std::string &arg_name, std::shared_ptr<A
     }
   }
   EnforceNoAliasWithDeprecated(arg_name);
-  auto [it, inserted] = argument_idxs_.insert({arg_name, arguments_.size()});
+  auto [it, inserted] = argument_idxs_.emplace(arg_name, arguments_.size());
   if (inserted)
     arguments_.push_back(std::move(arg));
   else

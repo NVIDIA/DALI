@@ -154,7 +154,7 @@ class DLL_PUBLIC Pipeline {
                               bool is_refeeding = false) {
     auto *node = GetInputOperatorNode(name);
     if (node == nullptr)
-      DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
+      throw invalid_key(make_string("Could not find an input operator with name \"", name, "\""));
     OperatorBase *op_ptr = executor_->GetOperator(name);
     assert(op_ptr != nullptr);
 
@@ -212,13 +212,13 @@ class DLL_PUBLIC Pipeline {
    *
    * @return logical_id of added operator, so it can be used for further calls
    */
-  DLL_PUBLIC int AddOperator(const OpSpec &spec, const std::string& inst_name, int logical_id);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, std::string_view inst_name, int logical_id);
 
   /**
    * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
    * a separate logical_id based on internal state of the pipeline.
    */
-  DLL_PUBLIC int AddOperator(const OpSpec &spec, const std::string& inst_name);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, std::string_view inst_name);
 
   /**
    * @brief Adds an unnamed Operator with the input specification to the pipeline.
@@ -552,7 +552,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns output descriptors for all outputs.
    */
-  DLL_PUBLIC std::vector<PipelineOutputDesc> output_descs() const;
+  DLL_PUBLIC const std::vector<PipelineOutputDesc> &output_descs() const &;
 
   /**
    * Checks, if a provided pipeline can be deserialized, according to the Pipeline protobuf
@@ -608,7 +608,7 @@ class DLL_PUBLIC Pipeline {
    * Does the internal processing allowing the errors to be processed once.
    * Assumes that Build() has not been called.
    */
-  int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
+  int AddOperatorImpl(const OpSpec &spec, std::string_view inst_name, int logical_id);
 
   void ToCPU(std::map<string, EdgeMeta>::iterator it);
   void ToGPU(std::map<string, EdgeMeta>::iterator it);
@@ -630,7 +630,7 @@ class DLL_PUBLIC Pipeline {
 
   void PropagateMemoryHint(graph::OpNode &node);
 
-  inline void AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id);
+  inline void AddToOpSpecs(std::string_view inst_name, const OpSpec &spec, int logical_id);
 
   int GetNextLogicalId();
   int GetNextInternalLogicalId();
@@ -660,8 +660,11 @@ class DLL_PUBLIC Pipeline {
    * @return std::tuple<OpSpec, string, string> Operator OpSpec, Operator Name, Output Name
    */
   std::tuple<OpSpec, std::string, std::string> PrepareMakeContiguousNode(
-      EdgeMeta &meta, const std::string &input_name, const std::string &input_dev,
-      const std::string &device, const std::string &output_dev);
+      EdgeMeta &meta,
+      std::string_view input_name,
+      StorageDevice input_dev,
+      std::string_view device,
+      StorageDevice output_dev);
 
   /**
    * @brief Add new MakeContiguous node (if one does not exist yet) for the requested output Edge
@@ -677,9 +680,11 @@ class DLL_PUBLIC Pipeline {
    *  * "gpu" -> "gpu"
    * @return The name of the output of the MakeContiguous node that replaces the requested output.
    */
-  std::string AddMakeContiguousNode(EdgeMeta &meta, const std::string &input_name,
-                                    const std::string &input_dev, const std::string &device,
-                                    const std::string &output_dev);
+  std::string AddMakeContiguousNode(EdgeMeta &meta,
+                                    std::string_view input_name,
+                                    StorageDevice input_dev,
+                                    std::string_view device,
+                                    StorageDevice output_dev);
 
   /**
    * Traverses the Operator graph and collects all operators that are Input Operators.
@@ -728,7 +733,7 @@ class DLL_PUBLIC Pipeline {
 
   std::vector<OpDefinition> op_specs_;
   std::vector<OpDefinition> op_specs_for_serialization_;
-  std::set<std::string> instance_names_;
+  std::set<std::string, std::less<>> instance_names_;
 
   std::vector<PipelineOutputDesc> output_descs_;
 
@@ -753,7 +758,7 @@ class DLL_PUBLIC Pipeline {
     void FindNodes(const graph::OpGraph &graph, ExecutorBase &exec);
 
     template <typename OperatorBackend, typename DataBackend>
-    bool SetLast(const std::string &name, const TensorList<DataBackend> &data,
+    bool SetLast(std::string_view name, const TensorList<DataBackend> &data,
                  const std::optional<std::string> &data_id,
                  AccessOrder order,
                  InputOperatorSettingMode ext_src_setting_mode) {
