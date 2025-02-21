@@ -203,7 +203,6 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename)
   bool init_codecs = video_stream_found;
   bool build_index = true;
   if (!video_stream_found) {
-    build_index = false;  // try to continue without building the index
     video_stream_found = FindVideoStream(false);
     if (video_stream_found) {
         LOG_LINE << "No available CPU codec found for video stream " << av_state_->stream_id_
@@ -233,12 +232,9 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, int memory_file_si
                                      std::string_view source_info)
     : av_state_(std::make_unique<AvState>()) {
   av_log_set_level(AV_LOG_ERROR);
+
   filename_ = source_info;
   memory_video_file_.emplace(memory_file, memory_file_size);
-
-  DALI_ENFORCE(init_codecs || !build_index,
-               "FramesDecoderBase doesn't support index without CPU codecs");
-  av_log_set_level(AV_LOG_ERROR);
 
   if (num_frames != -1) {
     num_frames_ = num_frames;
@@ -271,17 +267,11 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, int memory_file_si
     return;
   }
 
-  if (build_index) {
-    init_codecs = true;  // for the sake of build_index, we need to init the codecs
-  }
-
   bool video_stream_found = false;
   if (init_codecs) {
     // Try with CPU codecs if needed/requested
-    video_stream_found = FindVideoStream(true);
+    video_stream_found = init_codecs = FindVideoStream(true);
     if (!video_stream_found) {
-      init_codecs = false;  // try to continue without CPU codecs
-      build_index = false;  // try to continue without building the index
       // Try one more time without codecs if we haven't yet
       video_stream_found = FindVideoStream(false);
       if (video_stream_found) {
@@ -304,12 +294,8 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, int memory_file_si
   InitAvState(init_codecs);
 
   if (build_index) {
-    if (!init_codecs) {
-      DALI_WARN(make_string("Can't build index without CPU codecs, skipping"));
-    } else {
-      LOG_LINE << "Building index" << std::endl;
-      BuildIndex();
-    }
+    LOG_LINE << "Building index" << std::endl;
+    BuildIndex();
   } else if (NumFrames() == 0) {
     ParseNumFrames();
     LOG_LINE << "Parsed number of frames: " << NumFrames() << std::endl;
