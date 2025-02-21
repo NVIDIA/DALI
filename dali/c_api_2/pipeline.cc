@@ -125,6 +125,28 @@ void PipelineWrapper::FeedInput(
   }
 }
 
+int PipelineWrapper::GetOutputCount() const {
+  return pipeline_->output_descs().size();
+}
+
+daliPipelineOutputDesc_t PipelineWrapper::GetOutputDesc(int idx) const {
+  auto &outputs = pipeline_->output_descs();
+  int nout = outputs.size();
+  if (idx < 0 || idx >= nout)
+    throw std::out_of_range(make_string(
+        "The output index ", idx, " is out of range. "
+        "Valid range is [0..", nout-1, "]."));
+  auto &out = outputs[idx];
+  daliPipelineOutputDesc_t desc{};
+  desc.device         = static_cast<daliStorageDevice_t>(out.device);
+  desc.dtype          = out.dtype;
+  desc.dtype_present  = out.dtype != DALI_NO_TYPE;
+  desc.name           = out.name.c_str();
+  desc.ndim           = out.ndim;
+  desc.ndim_present   = out.ndim >= 0;
+  return desc;
+}
+
 template <typename Backend>
 void PipelineWrapper::FeedInputImpl(
       std::string_view input_name,
@@ -225,7 +247,30 @@ daliResult_t daliPipelineFeedInput(
   DALI_PROLOG();
   auto pipe = ToPointer(pipeline);
   NOT_NULL(input_name);
-  auto data = ToPointer(input_data);
-  auto data_id_view = ToOptional(data_id);
+  pipe->FeedInput(
+    input_name,
+    ToPointer(input_data),
+    ToOptionalString(data_id),
+    options,
+    ToOptional(stream));
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out_count);
+  *out_count = pipe->GetOutputCount();
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineGetOutputCount(
+      daliPipeline_h pipeline,
+      daliPipelineOutputDesc_t *out_desc,
+      int index) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out_desc);
+  *out_desc = pipe->GetOutputDesc(index);
   DALI_EPILOG();
 }
