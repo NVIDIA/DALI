@@ -24,7 +24,6 @@ from itertools import cycle
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nose2.tools import params
 from nose_utils import SkipTest, attr, assert_raises
-import tempfile
 
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
 # filter out HEVC because some GPUs do not support it
