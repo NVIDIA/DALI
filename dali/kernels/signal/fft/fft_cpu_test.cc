@@ -136,7 +136,7 @@ TEST_P(ComplexFft1DCpuTest, FftTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
@@ -200,7 +200,7 @@ TEST_P(PowerSpectrum1DCpuTest, FftTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
@@ -291,7 +291,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   auto expected_out_shape = in_shape;

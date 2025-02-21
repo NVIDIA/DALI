@@ -302,7 +302,7 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
     Kernel kernel;
 
     auto req = kernel.Setup(ctx, in_.shape, k_win_.num_elements());
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
     ctx.scratchpad = &dyn_scratchpad;
 
     testing::BaselineConvolve(baseline_out_, baseline_in_, k_win_, T::axis, T::window_size / 2);

@@ -161,7 +161,7 @@ void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
   int nsamples = input.num_samples();
 
   cudaStream_t stream = ws.stream();
-  DynamicScratchpad dyn_scratchpad({}, stream);;
+  DynamicScratchpad dyn_scratchpad(stream);;
   KernelContext ctx;
   ctx.gpu.stream = stream;
 
@@ -185,7 +185,7 @@ void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
   }
 
   if (ShouldCalcMean()) {
-    DynamicScratchpad scratchpad({}, stream);
+    DynamicScratchpad scratchpad(stream);
     ctx.scratchpad = &scratchpad;
     auto &mean_kernel = GetMeanKernel<float, InputType>();
     mean_kernel.Run(ctx, mean_gpu, in_view);
@@ -195,7 +195,7 @@ void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
   }
 
   if (ShouldCalcStdDev()) {
-    DynamicScratchpad scratchpad({}, stream);
+    DynamicScratchpad scratchpad(stream);
     ctx.scratchpad = &scratchpad;
     auto &stddev_kernel = GetInvStdDevKernel<float, InputType>();
     stddev_kernel.Run(ctx, stddev_gpu, in_view, mean_gpu, degrees_of_freedom_, epsilon_);
@@ -206,7 +206,7 @@ void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
 
   // finally, run the normalize kernel
   {
-    DynamicScratchpad scratchpad({}, stream);
+    DynamicScratchpad scratchpad(stream);
     ctx.scratchpad = &scratchpad;
     auto &norm_kernel = GetNormalizeKernel<OutputType, InputType>();
 

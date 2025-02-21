@@ -191,7 +191,7 @@ class DLL_PUBLIC KernelManager {
            "Kernel instance index (instance_idx) out of range");
     auto &inst = instances[instance_idx];
     if (!context.scratchpad) {
-      DynamicScratchpad scratchpad({}, AccessOrder(context.gpu.stream));
+      DynamicScratchpad scratchpad(AccessOrder(context.gpu.stream));
       context.scratchpad = &scratchpad;
       auto finally = AtScopeExit([&]() {
         context.scratchpad = nullptr;

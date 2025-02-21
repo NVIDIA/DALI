@@ -76,7 +76,7 @@ class SliceBenchGPU : public DALIBenchmark {
 
       auto req = kernel.Setup(ctx, in_tv, args_vec);
 
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+      kernels::DynamicScratchpad dyn_scratchpad(ctx.gpu.stream);
       ctx.scratchpad = &dyn_scratchpad;
 
       kernel.Run(ctx, out_tv, in_tv, args_vec);

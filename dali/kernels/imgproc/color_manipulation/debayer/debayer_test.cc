@@ -133,7 +133,7 @@ class DebayerGpuTest : public ::testing::Test {
     Kernel kernel{0};
     KernelContext ctx;
     ctx.gpu.stream = cuda_stream;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
     auto in_view = in_.gpu(cuda_stream);
     auto out_view = out_.gpu(cuda_stream);

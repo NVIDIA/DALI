@@ -337,7 +337,7 @@ struct FilterGPUTest : public ::testing::Test {
   void RunTest() {
     KernelContext ctx_gpu;
     ctx_gpu.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx_gpu.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx_gpu.gpu.stream));
     ctx_gpu.scratchpad = &dyn_scratchpad;
     Kernel kernel_gpu;
 

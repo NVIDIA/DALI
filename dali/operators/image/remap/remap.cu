@@ -47,7 +47,7 @@ class RemapGpu : public Remap<GPUBackend> {
     km_.Resize<Kernel>(1, spec_.template GetArgument<int>("device_id"));
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    dali::kernels::DynamicScratchpad scratchpad({}, ws.stream());
+    dali::kernels::DynamicScratchpad scratchpad(ws.stream());
     ctx.scratchpad = &scratchpad;
 
     TensorList<B> mapx_shifted, mapy_shifted;

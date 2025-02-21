@@ -43,7 +43,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     KernelType kernel;
     KernelRequirements req = kernel.Setup(ctx, test_data.gpu(), slice_args);
 
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     TensorListShape<> output_shapes = req.output_shapes[0];

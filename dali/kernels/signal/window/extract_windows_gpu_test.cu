@@ -132,7 +132,7 @@ void TestBatchedExtract(
   ASSERT_EQ(req.output_shapes.size(), 1u);
   ASSERT_EQ(req.output_shapes[0].num_samples(), concatenate ? 1 : N);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
 

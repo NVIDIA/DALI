@@ -144,7 +144,7 @@ struct LaplacianCpuKernelTest : public ::testing::Test {
     KernelContext ctx = {};
 
     auto req = kernel.Setup(ctx, in_.shape, lapl_params_.window_sizes);
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
     ctx.scratchpad = &dyn_scratchpad;
 
     kernel.Run(ctx, out_, in_, lapl_params_.tensor_windows, uniform_array<axes>(1.f));
@@ -284,7 +284,7 @@ struct LaplacianCpuTest : public ::testing::Test {
     auto vol = volume(shape_);
     for (int axis = 0; axis < axes; axis++) {
       auto req = kernel.Setup(ctx, shape_, lapl_params_.window_sizes[axis]);
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       ctx.scratchpad = &dyn_scratchpad;
       kernel.Run(ctx, intermediate_, in_, lapl_params_.tensor_windows[axis]);
       for (int i = 0; i < vol; i++) {
@@ -317,7 +317,7 @@ struct LaplacianCpuTest : public ::testing::Test {
     Kernel kernel;
     KernelContext ctx = {};
     auto req = kernel.Setup(ctx, in_.shape, lapl_params_.window_sizes);
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
     ctx.scratchpad = &dyn_scratchpad;
     kernel.Run(ctx, out_, in_, lapl_params_.tensor_windows, weights_);
     RunBaseline();

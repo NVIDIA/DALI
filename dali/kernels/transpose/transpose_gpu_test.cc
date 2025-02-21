@@ -76,7 +76,7 @@ TEST(TransposeGPU, Test4DAll) {
     out.reshape(out_shape);
     ref.reshape(out_shape);
 
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     auto in_gpu  = in.gpu();
@@ -129,7 +129,7 @@ void RunPerfTest(RNG &rng, const TensorListShape<> &shape, span<const int> perm)
   out.reshape(out_shape);
   ref.reshape(out_shape);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   auto in_gpu  = in.gpu();

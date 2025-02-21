@@ -235,7 +235,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   resampling.Run(ctx, out_tlv, in_tlv, make_span(params));
@@ -316,7 +316,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_tlv, in_tlv, make_span(params));

@@ -135,13 +135,13 @@ struct LaplacianGpuBase<Out, In, W, 2, has_channels, is_sequence> {
       std::array<span<const float>, axes> scale) {
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       dy_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
     }
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       dx_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
     }
@@ -178,19 +178,19 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
       std::array<span<const float>, axes> scale) {
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       dz_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
     }
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       dy_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
     }
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       dx_kernel_.Run(sub_ctx, out, in, windows[2], {scale[2], 1.f});
     }

@@ -77,7 +77,7 @@ void ConvertGPUImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIIma
                     ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
                     cudaStream_t stream, const ROI &roi, nvimgcodecOrientation_t orientation,
                     float multiplier) {
-  kernels::DynamicScratchpad scratchpad({}, AccessOrder(stream));
+  auto scratchpad = kernels::DynamicScratchpad(AccessOrder(stream));
   kernels::KernelContext ctx;
   ctx.gpu.stream = stream;
   ctx.scratchpad = &scratchpad;

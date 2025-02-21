@@ -158,7 +158,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
 
   auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   OutListGPU<typename TypeParam::Out, kNDims> out(
@@ -184,7 +184,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
                            make_cspan(this->vmat_), make_cspan(this->vvec_),
                            make_cspan(this->rois_));
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   OutListGPU<typename TypeParam::Out, kNDims> out(

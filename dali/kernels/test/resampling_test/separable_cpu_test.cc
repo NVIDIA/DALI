@@ -57,7 +57,7 @@ TEST_P(ResamplingTestCPU, Impl) {
   auto out_mat = MatWithShape<uint8_t>(req.output_shapes[0].tensor_shape<3>(0));
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_mat);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   context.scratchpad = &dyn_scratchpad;
 
   resample.Run(context, out_tensor, in_tensor, param.params);
@@ -76,7 +76,7 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
   Kernel kernel;
   KernelContext context;
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   context.scratchpad = &dyn_scratchpad;
 
   FilterDesc filter(ResamplingFilterType::Nearest);

@@ -65,7 +65,7 @@ struct ReductionKernelTest {
   template <typename... Args>
   void Run(Args &&...args) {
     ctx.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
     kernel.Run(ctx, out.gpu(stream()), in.gpu(stream()), std::forward<Args>(args)...);
   }

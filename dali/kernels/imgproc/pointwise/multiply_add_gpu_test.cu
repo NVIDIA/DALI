@@ -152,7 +152,7 @@ TYPED_TEST(MultiplyAddGpuTest, run_test) {
 
   auto reqs = kernel.Setup(ctx, in, this->addends_, this->multipliers_);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out, in, this->addends_, this->multipliers_);

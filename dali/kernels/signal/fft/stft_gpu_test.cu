@@ -233,7 +233,7 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
         EXPECT_EQ(out_shape[i], ts);
       }
 
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
       ctx.scratchpad = &dyn_scratchpad;
 
       auto window_gpu = window.gpu(stream)[0];

@@ -181,7 +181,7 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
-    kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+    kernels::DynamicScratchpad scratchpad(AccessOrder(ws.stream()));
 
     nvcv::Tensor matrix{};
     if (ws.NumInput() > 1) {

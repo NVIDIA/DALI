@@ -55,7 +55,7 @@ TEST(SeparableConvolutionTest, Axes1WithChannels) {
 
   auto req = kernel.Setup(ctx, data_shape[0], window_dims);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_v, in_v,
@@ -93,7 +93,7 @@ TEST(SeparableConvolutionTest, Axes1NoChannels) {
 
   auto req = kernel.Setup(ctx, data_shape[0].first<1>(), window_dims);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_v, in_v,
@@ -140,7 +140,7 @@ TEST(SeparableConvolutionTest, Axes2WithChannels) {
 
   auto req = kernel.Setup(ctx, data_shape[0], window_dims);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_v, in_v, {kernel_window_0_v, kernel_window_1_v});
@@ -188,7 +188,7 @@ TEST(SeparableConvolutionTest, Axes2NoChannels) {
 
   auto req = kernel.Setup(ctx, data_shape[0].first<2>(), window_dims);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_v, in_v, {kernel_window_0_v, kernel_window_1_v});
@@ -241,7 +241,7 @@ TEST(SeparableConvolutionTest, Axes3WithChannels) {
 
   auto req = kernel.Setup(ctx, data_shape[0], window_dims);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_v, in_v, {kernel_window_0_v, kernel_window_1_v, kernel_window_2_v});
@@ -296,7 +296,7 @@ TEST(SeparableConvolutionTest, Axes3NoChannels) {
 
   auto req = kernel.Setup(ctx, data_shape[0].first<3>(), window_dims);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   kernel.Run(ctx, out_v, in_v, {kernel_window_0_v, kernel_window_1_v, kernel_window_2_v});

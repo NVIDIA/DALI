@@ -124,13 +124,13 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 2, has_channels> {
            const std::array<float, axes>& scale, const T& transform) {
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       dy_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     }
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       dx_kernel_.Run(sub_ctx, out, in, windows[1], transform);
     }
@@ -169,21 +169,21 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
            const std::array<float, axes>& scale, const T& transform) {
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       dz_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     }
 
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       dy_kernel_.Run(sub_ctx, acc, in, windows[1], scale[1]);
     }
 
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       dx_kernel_.Run(sub_ctx, out, in, windows[2], transform);
     }

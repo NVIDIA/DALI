@@ -107,13 +107,13 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
 
     {
       KernelContext sub_ctx = ctx;
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_innermost_.Run(sub_ctx, intermediate, in, windows[1], anchors[1]);
     }
     {
       KernelContext sub_ctx = ctx;
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], anchors[0], conv_epilogue);
     }
@@ -163,25 +163,25 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
     }
 
     KernelContext sub_ctx = ctx;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
     sub_ctx.scratchpad = &dyn_scratchpad;
 
     // Clear the scratchpad for sub-kernels to reuse memory
     {
       KernelContext sub_ctx = ctx;
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_innermost_.Run(sub_ctx, intermediate_inner, in, windows[2], anchors[2]);
     }
     {
       KernelContext sub_ctx = ctx;
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_middle_.Run(sub_ctx, intermediate_outer, intermediate_inner, windows[1], anchors[1]);
     }
     {
       KernelContext sub_ctx = ctx;
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(sub_ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_outermost_.Run(sub_ctx, out, intermediate_outer, windows[0], anchors[0], conv_epilogue);
     }

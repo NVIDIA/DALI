@@ -174,7 +174,7 @@ void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, ScatterGatherGPU::Me
     size_t num_blocks, size_per_block;
     std::tie(num_blocks, size_per_block) = BlockCountAndSize(ranges_);
     if (num_blocks > kMaxRangesByVal) {
-      kernels::DynamicScratchpad scratchpad({}, stream);
+      kernels::DynamicScratchpad scratchpad(stream);
       auto *blocks_pinned = scratchpad.Allocate<mm::memory_kind::pinned, CopyRange>(num_blocks);
       auto blocks = make_span(blocks_pinned, num_blocks);
       ScatterGatherBase::MakeBlocks(blocks, ranges_, size_per_block);

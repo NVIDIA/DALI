@@ -97,13 +97,13 @@ struct SeparableConvolutionCpu<Out, In, W, 2, has_channels, T> {
 
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_innermost_.Run(sub_ctx, intermediate, in, windows[1]);
     }
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], transform);
     }
@@ -140,21 +140,21 @@ struct SeparableConvolutionCpu<Out, In, W, 3, has_channels, T> {
 
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_innermost_.Run(sub_ctx, intermediate, in, windows[2]);
     }
 
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_middle_.Run(sub_ctx, intermediate, intermediate, windows[1]);
     }
 
     {
       KernelContext sub_ctx = ctx;
-      kernels::DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
       sub_ctx.scratchpad = &dyn_scratchpad;
       conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], transform);
     }

@@ -41,7 +41,7 @@ class EqualizeLutGpuTest : public ::testing::Test {
     LutKernelGpu kernel;
     KernelContext ctx;
     ctx.gpu.stream = cuda_stream;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
     auto out_view = out_.gpu(cuda_stream);
     auto in_view = in_.gpu(cuda_stream);

@@ -231,7 +231,7 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
 
   auto req = kernel.Setup(ctx, in_view_gpu);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   ASSERT_EQ(req.output_shapes[0], out_shape);

@@ -66,7 +66,7 @@ class MovingMeanSquareGPU : public ::testing::Test {
   void RunTest() {
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     auto out_batch = out_.gpu().to_static<1>();
@@ -154,7 +154,7 @@ TEST(MovingMeanSquareGPU, DISABLED_Benchmark) {
   for (int i = 0; i < n_iters; ++i) {
     CUDA_CALL(cudaDeviceSynchronize());
 
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     CUDA_CALL(cudaEventRecord(start));

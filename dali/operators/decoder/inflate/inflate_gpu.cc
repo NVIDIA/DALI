@@ -130,7 +130,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     SetupOutChunks(output);
     auto stream = ws.stream();
 
-    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::DynamicScratchpad scratchpad(stream);
     size_t *actual_out_sizes = scratchpad.AllocateGPU<size_t>(total_chunks_num);
 
     auto [in_sizes, in, out_sizes, out] = scratchpad.ToContiguousGPU(

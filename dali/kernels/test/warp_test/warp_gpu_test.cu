@@ -89,7 +89,7 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1});
@@ -180,7 +180,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1}, 255);
@@ -249,7 +249,7 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   warp.Run(ctx, out.gpu(0), in_list, mappings, make_span(out_shapes_hw), {&interp, 1}, 255);

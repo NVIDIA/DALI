@@ -91,7 +91,7 @@ TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
   auto out_shape = reqs.output_shapes[0][0];
   ASSERT_EQ(out_shape, in_view_.shape);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   auto out_size = volume(out_shape);

@@ -646,7 +646,7 @@ struct TensorListShapeBase {
     constexpr bool is_scalar = sample_ndim == 0 || rhs_sample_ndim == 0;
     assert(sample >= 0 && sample < nsamples && "Sample index out of range");
     assert(static_cast<int>(dali::size(sample_shape)) == static_cast<int>(sample_dim()));
-    assert(shapes.size() == nsamples * sample_dim() && "shapes size mismatch");
+    assert(static_cast<int>(shapes.size()) == nsamples * sample_dim() && "shapes size mismatch");
     if constexpr (!is_scalar) {
       int64_t base = sample_dim() * sample;
       for (int i = 0; i < sample_dim(); i++) {

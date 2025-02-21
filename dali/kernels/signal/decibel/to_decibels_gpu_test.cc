@@ -80,7 +80,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
   kernels::signal::ToDecibelsGpu<T> kernel;
   auto req = kernel.Setup(ctx, in_.gpu());
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
   ctx.scratchpad = &dyn_scratchpad;
 
   ASSERT_EQ(data_shape_, req.output_shapes[0]);

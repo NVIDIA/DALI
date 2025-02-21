@@ -83,7 +83,7 @@ void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
   auto stream = ws.stream();
-  kernels::DynamicScratchpad scratch({}, AccessOrder(stream));
+  auto scratch = kernels::DynamicScratchpad(AccessOrder(stream));
   auto samples_cpu = scratch.Allocate<mm::memory_kind::pinned, SampleDesc>(curr_batch_size);
   for (int sample_idx = 0; sample_idx < curr_batch_size; sample_idx++) {
     auto &sample = samples_cpu[sample_idx];

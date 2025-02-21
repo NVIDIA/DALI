@@ -271,7 +271,7 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     auto req = res_xy.Setup(ctx, in_slices, make_span(params_xy));
@@ -289,7 +289,7 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     auto req = res_z.Setup(ctx, tmp_z, make_span(params_z));
@@ -435,7 +435,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
 
       auto out_gpu = out.template gpu<4>(stream);
 
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
       ctx.scratchpad = &dyn_scratchpad;
 
       kernel.Run(ctx, out_gpu, in.template gpu<4>(stream), make_span(params));
@@ -492,7 +492,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
         ASSERT_EQ(req.output_shapes.size(), 1u) << "Expected only 1 output";
         ASSERT_EQ(req.output_shapes[0][0], out_shape[i]) << "Unexpected output shape";
 
-        DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+        DynamicScratchpad dyn_scratchpad(AccessOrder::host());
         ctx.scratchpad = &dyn_scratchpad;
 
         kernel.Run(ctx, out_cpu[i], in_cpu[i], params[i]);

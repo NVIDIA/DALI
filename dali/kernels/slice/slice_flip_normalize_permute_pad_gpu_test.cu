@@ -44,7 +44,7 @@ class SliceFlipNormalizePermutePadGpuTest : public SliceFlipNormalizePermutePadT
     KernelType kernel;
     KernelRequirements req = kernel.Setup(ctx, test_data.gpu(), args);
 
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     TensorListShape<> output_shapes = req.output_shapes[0];

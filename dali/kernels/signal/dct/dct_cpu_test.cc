@@ -89,7 +89,7 @@ TEST_P(Dct1DCpuTest, DctTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args, axis_);
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;

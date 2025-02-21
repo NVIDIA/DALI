@@ -202,7 +202,7 @@ struct EraseGpuKernelTest :
     EraseGpu<T, ndim, channel_dim> kernel;
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     CreateRegions();

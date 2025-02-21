@@ -57,7 +57,7 @@ __global__ void Sum(int *out, const int **ins, int nbuf, int buf_size) {
 }
 
 void DummyOpGPU::RunImpl(Workspace &ws) {
-  kernels::DynamicScratchpad scratch({}, ws.stream());
+  kernels::DynamicScratchpad scratch(ws.stream());
   int N = ws.GetRequestedBatchSize(0);
   addend_.Acquire(spec_, ws, N);
   scratch.Allocate<mm::memory_kind::device, int>(N);

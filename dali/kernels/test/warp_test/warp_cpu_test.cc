@@ -58,7 +58,7 @@ TEST(WarpCPU, Affine_Transpose_Single) {
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
 
-  DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
   ctx.scratchpad = &dyn_scratchpad;
 
   warp.Run(ctx, out.cpu(0)[0], cpu_img, mapping_cpu, out_shape, interp);
@@ -119,7 +119,7 @@ TEST(WarpCPU, Affine_RotateScale) {
     TestTensorList<uint8_t, 3> out;
     out.reshape(req.output_shapes[0].to_static<3>());
 
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder::host());
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
     ctx.scratchpad = &dyn_scratchpad;
 
     warp.Run(ctx, out.cpu(0)[0], cpu_img, mapping_cpu, out_shape, interp, 255);

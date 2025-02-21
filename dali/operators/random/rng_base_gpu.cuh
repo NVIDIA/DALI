@@ -177,7 +177,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend)
       blockdesc_max_sz = block_sz;
   }
 
-  kernels::DynamicScratchpad scratch({}, ws.stream());
+  kernels::DynamicScratchpad scratch(ws.stream());
 
   auto dists_cpu = make_span(scratch.Allocate<mm::memory_kind::host, Dist>(nsamples), nsamples);
   bool use_default_dist = !This().template SetupDists<T>(dists_cpu.data(), ws, nsamples);
