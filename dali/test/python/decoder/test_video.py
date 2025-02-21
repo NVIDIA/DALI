@@ -838,3 +838,82 @@ def test_specific_codec_support(device, codec, start_frame, sequence_length, end
                     + f"{diff_pixels/total_pixels*100}% of pixels. "
                     + f"Expected {ref_frame_bgr} but got {frame_bgr}"
                 )
+
+
+@params(
+    *[
+        (device, codec)
+        for device in ["cpu", "gpu"]
+        for codec in [
+            "h264",
+            "hevc",
+            "vp8",
+            "vp9",
+            "mpeg4",
+        ]  # av1 and mpeg4 are not supported by now
+    ]
+)
+def test_specific_codec_support_files(device, codec, sequence_length=3, stride=2):
+    skip_if_m60()
+    filenames = codec_files[codec]
+    assert len(filenames) > 0, f"No {codec} test files found"
+
+    batch_size = 1
+
+    @pipeline_def
+    def decoder_pipeline():
+        videos, frame_no = fn.experimental.readers.video(
+            filenames=filenames,
+            device=device,
+            sequence_length=sequence_length,
+            stride=stride,
+            enable_frame_num=True,
+        )
+        return videos, frame_no
+
+    pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    if device == "cpu" and codec == "mpeg4":
+        with assert_raises(
+            RuntimeError, glob="The number of input samples: 0, needs to be at least equal to"
+        ):
+            pipe.run()
+    else:
+        (out, frame_no) = pipe.run()
+        assert len(out) > 0, f"No output from decoder pipeline for {codec}"
+
+        for i in range(batch_size):
+            frames = out.as_cpu().at(i)
+            frame_no_cpu = int(frame_no.as_cpu().at(i))
+            assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
+
+            # Get the filename for the i-th sample
+            filename = filenames[i % len(filenames)]
+            reference_frames = extract_frames_from_video(
+                filename, frame_no_cpu, sequence_length, None, stride
+            )
+
+            for frame_idx, frame in enumerate(frames):
+                # Load reference frame using zero-padded frame index
+                ref_frame = reference_frames[frame_idx]
+
+                # Compare frames
+                diff_pixels = np.count_nonzero(
+                    np.abs(np.float32(frame) - np.float32(ref_frame)) > 2
+                )
+                total_pixels = frame.size
+                # More than 3% of the pixels differ in more than 2 steps
+                if diff_pixels / total_pixels > 0.03:
+                    # Save the mismatched frames for inspection
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
+
+                    output_path = f"frame_{frame_idx+1:03d}.png"
+                    ref_output_path = f"ref_frame_{frame_idx+1:03d}.png"
+
+                    cv2.imwrite(output_path, frame_bgr)
+                    cv2.imwrite(ref_output_path, ref_frame_bgr)
+                    assert False, (
+                        f"Frame {frame_idx+1} differs from reference by more than 2 steps in "
+                        + f"{diff_pixels/total_pixels*100}% of pixels. "
+                        + f"Expected {ref_frame_bgr} but got {frame_bgr}"
+                    )

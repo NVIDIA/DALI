@@ -158,7 +158,7 @@ bool FramesDecoderBase::FindVideoStream(bool init_codecs) {
   return true;
 }
 
-FramesDecoderBase::FramesDecoderBase(const std::string &filename)
+FramesDecoderBase::FramesDecoderBase(const std::string &filename, bool init_codecs)
     : av_state_(std::make_unique<AvState>()) {
   av_log_set_level(AV_LOG_ERROR);
   filename_ = filename;
@@ -172,11 +172,11 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename)
     return;
   }
 
-  if (!FindVideoStream()) {
+  if (!FindVideoStream(init_codecs)) {
     return;
   }
 
-  InitAvState();
+  InitAvState(init_codecs);
   BuildIndex();
   is_valid_ = true;
 }

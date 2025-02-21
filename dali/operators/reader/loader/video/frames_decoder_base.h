@@ -107,8 +107,9 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Initialize the decoder from a file.
    *
    * @param filename Path to a video file.
+   * @param init_codecs If set to false CPU codec part is not initalized, only parser
    */
-  explicit FramesDecoderBase(const std::string &filename);
+  explicit FramesDecoderBase(const std::string &filename, bool init_codecs = true);
 
   /**
    * @brief Initialize the decoder from a memory buffer.

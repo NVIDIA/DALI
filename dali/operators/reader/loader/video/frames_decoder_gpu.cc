@@ -418,7 +418,7 @@ void FramesDecoderGpu::InitGpuParser() {
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
-    FramesDecoderBase(filename),
+    FramesDecoderBase(filename, false),
     frame_buffer_(num_decode_surfaces_),
     stream_(stream) {
   if (is_valid_ && CanDecode(av_state_->codec_params_->codec_id)) {
