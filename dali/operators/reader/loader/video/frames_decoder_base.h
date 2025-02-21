@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_BASE_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_BASE_H_
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -26,8 +26,9 @@ extern "C" {
 #include <string>
 #include <memory>
 #include <optional>
-
+#include <string_view>
 #include "dali/core/common.h"
+#include "dali/core/span.h"
 
 namespace dali {
 struct IndexEntry {
@@ -100,32 +101,28 @@ struct MemoryVideoFile {
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
  */
-class DLL_PUBLIC FramesDecoder {
+class DLL_PUBLIC FramesDecoderBase {
  public:
-  static const std::vector<AVCodecID> SupportedCodecs;
-
   /**
-   * @brief Construct a new FramesDecoder object.
+   * @brief Initialize the decoder from a file.
    *
    * @param filename Path to a video file.
    */
-  explicit FramesDecoder(const std::string &filename);
-
+  explicit FramesDecoderBase(const std::string &filename);
 
   /**
-   * @brief Construct a new FramesDecoder object.
+   * @brief Initialize the decoder from a memory buffer.
    *
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
    * @param build_index If set to false index will not be build and some features are unavailable.
    * @param init_codecs If set to false CPU codec part is not initalized, only parser
    * @param num_frames If set, number of frames in the video.
-   *
-   * @note This constructor assumes that the `memory_file` and
-   * `memory_file_size` arguments cover the entire video file, including the header.
+   * @param source_info Source information for the video file.
    */
-  FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true,
-                bool init_codecs = true, int num_frames = -1, std::string_view source_info = {});
+  FramesDecoderBase(const char *memory_file, int memory_file_size, bool build_index = true,
+                    bool init_codecs = true, int num_frames = -1,
+                    std::string_view source_info = {});
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -196,15 +193,15 @@ class DLL_PUBLIC FramesDecoder {
   int NextFrameIdx() { return next_frame_idx_; }
 
   /**
- * @brief Returns true if the index was built.
- *
- * @return Boolean indicating whether or not the index was created.
- */
+   * @brief Returns true if the index was built.
+   *
+   * @return Boolean indicating whether or not the index was created.
+   */
   bool HasIndex() const { return index_.has_value(); }
 
-  FramesDecoder(FramesDecoder&&) = default;
+  FramesDecoderBase(FramesDecoderBase&&) = default;
 
-  virtual ~FramesDecoder() = default;
+  virtual ~FramesDecoderBase() = default;
 
   std::string Filename() {
     return filename_.size() ? filename_ : "memory file";
@@ -214,12 +211,14 @@ class DLL_PUBLIC FramesDecoder {
     return is_valid_;
   }
 
+  const IndexEntry& Index(int frame_id) const {
+    return (*index_)[frame_id];
+  }
+
  protected:
   std::unique_ptr<AvState> av_state_;
 
   std::optional<std::vector<IndexEntry>> index_ = {};
-
-  const IndexEntry &Index(int frame_id) const;
 
   int next_frame_idx_ = 0;
 
@@ -260,15 +259,13 @@ class DLL_PUBLIC FramesDecoder {
 
   void BuildIndex();
 
+  void DetectVariableFrameRate();
+
   void InitAvState(bool init_codecs = true);
 
   bool FindVideoStream(bool init_codecs = true);
 
   void LazyInitSwContext();
-
-  bool CheckCodecSupport();
-
-  void DetectVfr();
 
   void ParseNumFrames();
 
@@ -278,16 +275,11 @@ class DLL_PUBLIC FramesDecoder {
 
   void CountFrames(AvState *av_state);
 
-  std::string CodecName() {
-    return av_state_->codec_ ? av_state_->codec_->name :
-                               to_string(static_cast<int>(av_state_->codec_params_->codec_id));
-  }
-
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
 
-  const std::string filename_ = {};
+  std::string filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
 
   std::optional<int> num_frames_ = {};
@@ -298,4 +290,4 @@ class DLL_PUBLIC FramesDecoder {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_BASE_H_

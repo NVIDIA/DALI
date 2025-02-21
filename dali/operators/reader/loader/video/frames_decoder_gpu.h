@@ -15,7 +15,7 @@
 #ifndef DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 #define DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_GPU_H_
 
-#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/frames_decoder_base.h"
 
 extern "C" {
 #include <libavcodec/bsf.h>
@@ -125,7 +125,7 @@ struct BufferedFrame {
   int pts_;
 };
 
-class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
+class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
  public:
   /**
    * @brief Construct a new FramesDecoder object.
@@ -146,21 +146,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
  */
-  FramesDecoderGpu(
-    const char *memory_file,
-    int memory_file_size,
-    cudaStream_t stream = 0,
-    bool build_index = true,
-    int num_frames = -1,
-    std::string_view = {});
+  FramesDecoderGpu(const char *memory_file, size_t memory_file_size, cudaStream_t stream = 0,
+                   bool build_index = true, int num_frames = -1, std::string_view = {});
 
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
   void SeekFrame(int frame_id) override;
 
   void Reset() override;
-
-  int NextFramePts() { return Index(NextFrameIdx()).pts; }
 
   int ProcessPictureDecode(CUVIDPICPARAMS *picture_params);
 
@@ -172,7 +165,17 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   static bool SupportsHevc();
 
+  static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
+
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
+
+  /**
+   * @brief Check if a codec is supported by the particular implementation.
+   *
+   * @param codec_id Codec ID to check.
+   * @return True if the codec is supported, false otherwise.
+   */
+  bool CanDecode(AVCodecID codec_id) const;
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
@@ -207,7 +210,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void InitBitStreamFilter();
 
-  cudaVideoCodec GetCodecType();
+  cudaVideoCodec GetCodecType(AVCodecID codec_id) const;
 
   void InitGpuParser();
 
@@ -218,6 +221,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool SendFrameToParser();
 
   unsigned int NumEmptySpots() const;
+
+  unsigned int NumBufferedFrames() const;
 };
 
 }  // namespace dali

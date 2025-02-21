@@ -59,16 +59,36 @@ inline int VideoReaderDecoderOutputFn(const OpSpec &spec) {
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoderCpu, CPU);
 
 DALI_SCHEMA(experimental__readers__Video)
-  .DocStr(R"code(Loads and decodes video files using FFmpeg.
+  .DocStr(R"code(Loads and decodes video files from disk.
 
-The video streams can be in most of the container file formats. FFmpeg is used to parse video
-containers and returns a batch of sequences of `sequence_length` frames with shape
-``(N, F, H, W, C)``, where ``N`` is the batch size, and ``F`` is the number of frames).
+The operator supports most common video container formats using libavformat (FFmpeg).
+The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
 
+The following video codecs are supported by both CPU and Mixed backends:
+
+* H.264/AVC
+* H.265/HEVC
+* VP8
+* VP9
+* MJPEG
+
+The following codecs are supported by the Mixed backend only:
+
+* AV1
+* MPEG-4
+
+Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
+
+* ``F`` is the number of frames in the sequence (can vary between samples)
+* ``H`` is the frame height in pixels
+* ``W`` is the frame width in pixels
+* ``C`` is the number of color channels
+  
 .. note::
   Containers which do not support indexing, like MPEG, require DALI to build the index.
 DALI will go through the video and mark keyframes to be able to seek effectively,
-even in the variable frame rate scenario.)code")
+even in the variable frame rate scenario.
+)code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderDecoderOutputFn)
   .AddOptionalArg("filenames",
