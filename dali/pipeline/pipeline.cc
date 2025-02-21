@@ -1029,7 +1029,7 @@ std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode
 
   OpSpec spec = OpSpec("MakeContiguous")
                     .AddArg("device", device)
-                    .AddInput(input_name, input_dev)
+                    .AddInput(std::string(input_name), input_dev)
                     .AddOutput(output_name, output_dev);
   return {spec, op_name, output_name};
 }
