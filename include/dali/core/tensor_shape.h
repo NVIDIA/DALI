@@ -641,17 +641,12 @@ struct TensorListShapeBase {
    */
   template <typename SampleShape>
   void set_tensor_shape(int64_t sample, const SampleShape &sample_shape) {
-    constexpr int rhs_sample_ndim = compile_time_size<SampleShape>::value;
-    detail::check_compatible_ndim<sample_ndim, rhs_sample_ndim>();
-    constexpr bool is_scalar = sample_ndim == 0 || rhs_sample_ndim == 0;
-    assert(sample >= 0 && sample < nsamples && "Sample index out of range");
+    detail::check_compatible_ndim<sample_ndim, compile_time_size<SampleShape>::value>();
     assert(static_cast<int>(dali::size(sample_shape)) == static_cast<int>(sample_dim()));
-    assert(static_cast<int>(shapes.size()) == nsamples * sample_dim() && "shapes size mismatch");
-    if constexpr (!is_scalar) {
-      int64_t base = sample_dim() * sample;
-      for (int i = 0; i < sample_dim(); i++) {
-        shapes[base + i] = sample_shape[i];
-      }
+    assert(sample >= 0 && sample < nsamples && "Sample index out of range");
+    int64_t base = sample_dim() * sample;
+    for (int i = 0; i < sample_dim(); i++) {
+      shapes[base + i] = sample_shape[i];
     }
   }
 
