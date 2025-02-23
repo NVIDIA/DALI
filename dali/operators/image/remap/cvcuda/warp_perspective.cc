@@ -257,7 +257,7 @@ public:
       fill_value_arg_(spec.GetArgument<std::vector<float>>("fill_value")),
       inverse_map_(spec.GetArgument<bool>("inverse_map")),
       ocv_pixel_(OCVCompatArg(spec.GetArgument<std::string>("pixel_origin"))) {
-      }
+  }
 
 private:
   cv::BorderTypes GetBorderMode(std::string_view border_mode)
@@ -315,6 +315,8 @@ private:
     const auto chIdx = input_layout.find('C');
     if (chIdx == -1 && ws.GetInputDim(0) > 2) {
       DALI_FAIL("Layout not specified and number of dims > 2, can't determine channel count.");
+    } else if (chIdx != -1 && chIdx != input_layout.size() - 1) {
+      DALI_FAIL("Channel dimension must be the last one.");
     }
 
     int channels = (chIdx != -1) ? input_shape[0][chIdx] : -1;
@@ -339,6 +341,29 @@ private:
     return true;
   }
 
+  bool ShouldExpandChannels(int input_idx) const override {
+    return true;
+  }
+
+  /**
+   * @brief Converts OpenGL perspective warp format to OpenCV format
+   * @param matrix 3x3 matrix to convert inplace
+   */
+  void ConvertOpenGLtoOpenCVFormat(cv::Matx33f& matrix) {
+    // clang-format off
+    const cv::Matx33f shift = {
+      1, 0, 0.5,
+      0, 1, 0.5,
+      0, 0, 1,
+    };
+    const cv::Matx33f shiftBack = {
+      1, 0, -0.5,
+      0, 1, -0.5,
+      0, 0, 1,
+    };
+    // clang-format on
+    matrix = shiftBack * (matrix * shift);
+  }
 
   /**
    * @brief Convert DALI data type to OpenCV matrix type
@@ -370,32 +395,39 @@ private:
     auto &output = ws.Output<CPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
-    std::vector<cv::Mat> matrices;
+    const int num_samples = ws.GetInputBatchSize(0);
+    std::vector<cv::Matx33f> matrices(num_samples);
     if (ws.NumInput() > 1) {
       DALI_ENFORCE(!matrix_arg_.HasExplicitValue(),
                    "Matrix input and `matrix` argument should not be provided at the same time.");
       auto &matrix_input = ws.Input<CPUBackend>(1);
       DALI_ENFORCE(matrix_input.shape() ==
-                     uniform_list_shape(matrix_input.num_samples(), TensorShape<2>(3, 3)),
+                     uniform_list_shape(num_samples, TensorShape<2>(3, 3)),
                    make_string("Expected a uniform list of 3x3 matrices. "
                                "Instead got data with shape: ",
                                matrix_input.shape()));
       
-      // Construct views of underlying data
-      for (int i = 0; i < matrix_input.num_samples(); i++) {
-        matrices.emplace_back(3, 3, CV_32F, const_cast<void*>(matrix_input.raw_tensor(i)));
+      for (int i = 0; i < num_samples; i++) {
+        std::memcpy(matrices[i].val, matrix_input.raw_tensor(i), sizeof(cv::Matx33f));
       }
     } else {
-      for (int i = 0; i < ws.GetInputBatchSize(0); ++i) {
-        matrices.emplace_back(3, 3, CV_32F, const_cast<float*>(matrix_arg_[i].data));
+      matrix_arg_.Acquire(spec_, ws, num_samples, TensorShape<2>(3,3));
+      for (int i = 0; i < num_samples; ++i) {
+        std::memcpy(matrices[i].val, matrix_arg_[i].data, sizeof(cv::Matx33f));
       }
     }
     if (!ocv_pixel_) {
-      DALI_FAIL("Only OpenCV pixel origin is supported on CPU.");
+      for (auto& matrix : matrices) {
+        ConvertOpenGLtoOpenCVFormat(matrix);
+      }
     }
 
     auto& tPool = ws.GetThreadPool();
-    for (int i = 0; i < input.num_samples(); ++i) {
+    int warpFlags = interp_type_;
+    if (inverse_map_) {
+      warpFlags |= cv::WARP_INVERSE_MAP;
+    }
+    for (int i = 0; i < num_samples; ++i) {
       tPool.AddWork([&, i](int){
         const auto inImage = input[i];
         auto outImage = output[i];
@@ -410,11 +442,10 @@ private:
           dtype, outImage.raw_mutable_data());
 
         cv::warpPerspective(inMat, outMat, matrices[i], cv::Size(outMat.cols, outMat.rows),
-          interp_type_ | inverse_map_, border_mode_, fill_value_);
+          warpFlags, border_mode_, fill_value_);
       });
     }
-    tPool.WaitForWork();
-
+    tPool.RunAll();
   }
 
   USE_OPERATOR_MEMBERS();

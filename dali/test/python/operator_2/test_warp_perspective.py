@@ -12,45 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
-import nvidia.dali.fn as fn
+import multiprocessing as mp
+
 import cv2
 import numpy as np
-import multiprocessing as mp
 import test_utils
-from nose2.tools import params
-import nvidia.dali.types as types
+from nose2.tools import cartesian_params
 from nose_utils import raises
+from nvidia.dali import fn, types
+from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali.types import DALIInterpType
 
 NUM_THREADS = mp.cpu_count()
 DEV_ID = 0
 SEED = 1316
 
 
-def ocv_border_mode(border_mode):
-    if border_mode == "constant":
-        return cv2.BORDER_CONSTANT
-    elif border_mode == "replicate":
-        return cv2.BORDER_REPLICATE
-    elif border_mode == "reflect":
-        return cv2.BORDER_REFLECT
-    elif border_mode == "reflect_101":
-        return cv2.BORDER_REFLECT_101
-    elif border_mode == "wrap":
-        return cv2.BORDER_WRAP
-    else:
-        raise ValueError("Invalid border mode")
+def ocv_border_mode(border_mode: str):
+    try:
+        return {
+            "constant": cv2.BORDER_CONSTANT,
+            "replicate": cv2.BORDER_REPLICATE,
+            "reflect": cv2.BORDER_REFLECT,
+            "reflect_101": cv2.BORDER_REFLECT_101,
+            "wrap": cv2.BORDER_WRAP,
+        }[border_mode]
+    except KeyError as err:
+        raise ValueError("Invalid border mode") from err
 
 
-def ocv_interp_type(interp_type):
-    if interp_type == types.DALIInterpType.INTERP_NN:
-        return cv2.INTER_NEAREST
-    elif interp_type == types.DALIInterpType.INTERP_LINEAR:
-        return cv2.INTER_LINEAR
-    elif interp_type == types.DALIInterpType.INTERP_CUBIC:
-        return cv2.INTER_CUBIC
-    else:
-        raise ValueError("Invalid interpolation type")
+def ocv_interp_type(interp_type: DALIInterpType):
+    try:
+        return {
+            DALIInterpType.INTERP_NN: cv2.INTER_NEAREST,
+            DALIInterpType.INTERP_LINEAR: cv2.INTER_LINEAR,
+            DALIInterpType.INTERP_CUBIC: cv2.INTER_CUBIC,
+        }[interp_type]
+    except KeyError as err:
+        raise ValueError("Invalid interpolation type") from err
 
 
 def ToCVMatrix(matrix):
@@ -74,7 +73,7 @@ def cv2_warp_perspective(
     if layout[-1] == "C":
         dsize = (dst.shape[1], dst.shape[0])
         if not isinstance(fill_value, tuple):
-            fill_value = tuple([fill_value for c in range(dst.shape[2])])
+            fill_value = tuple(fill_value for c in range(dst.shape[2]))
         dst[:, :, :] = cv2.warpPerspective(
             img, M=matrix, dsize=dsize, flags=flags, borderMode=border_mode, borderValue=fill_value
         ).reshape(dst.shape)
@@ -117,7 +116,7 @@ def ref_func(img, matrix, size, layout, border_mode, interp_type, inverse_map, f
     return dst
 
 
-@dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
+@pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def reference_pipe(
     data_src, matrix_src, size_src, layout, border_mode, interp_type, inverse_map, fill_value
 ):
@@ -176,11 +175,19 @@ def size_source(batch_size, seed, constant=False):
             yield [gen_size() for _ in range(batch_size)]
 
 
-@dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
+@pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def warp_perspective_pipe_const_matrix(
-    data_src, layout, matrix, size_src, border_mode, interp_type, inverse_map, fill_value
+    data_src,
+    layout,
+    matrix,
+    size_src,
+    border_mode,
+    interp_type,
+    inverse_map,
+    fill_value,
+    device="gpu",
 ):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
+    img = fn.external_source(source=data_src, batch=True, layout=layout, device=device)
     size = fn.external_source(source=size_src, batch=True)
     return fn.experimental.warp_perspective(
         img,
@@ -193,11 +200,19 @@ def warp_perspective_pipe_const_matrix(
     )
 
 
-@dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
+@pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def warp_perspective_pipe_arg_inp_matrix(
-    data_src, matrix_src, size_src, layout, border_mode, interp_type, inverse_map, fill_value
+    data_src,
+    matrix_src,
+    size_src,
+    layout,
+    border_mode,
+    interp_type,
+    inverse_map,
+    fill_value,
+    device="gpu",
 ):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
+    img = fn.external_source(source=data_src, batch=True, layout=layout, device=device)
     matrix = fn.external_source(source=matrix_src, batch=True)
     if isinstance(size_src, tuple) or size_src is None:
         size = size_src
@@ -215,12 +230,20 @@ def warp_perspective_pipe_arg_inp_matrix(
     )
 
 
-@dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
-def warp_perspective_pipe_gpu_inp_matrix(
-    data_src, matrix_src, layout, size_src, border_mode, interp_type, inverse_map, fill_value
+@pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
+def warp_perspective_pipe_arg1_matrix(
+    data_src,
+    matrix_src,
+    layout,
+    size_src,
+    border_mode,
+    interp_type,
+    inverse_map,
+    fill_value,
+    device="gpu",
 ):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
-    matrix = fn.external_source(source=matrix_src, batch=True, device="gpu")
+    img = fn.external_source(source=data_src, batch=True, layout=layout, device=device)
+    matrix = fn.external_source(source=matrix_src, batch=True, device=device)
     size = fn.external_source(source=size_src, batch=True)
     return fn.experimental.warp_perspective(
         img,
@@ -259,18 +282,20 @@ def compare_pipelines(pipe1, pipe2, bs, dtype):
     test_utils.compare_pipelines(pipe1, pipe2, batch_size=bs, N_iterations=10, eps=eps)
 
 
-@params(
-    (32, "HWC", np.uint8, 3, "constant", types.DALIInterpType.INTERP_NN, False, (100, 50, 25)),
-    (32, "HWC", np.uint8, 3, "constant", types.DALIInterpType.INTERP_LINEAR, False, 77),
-    (32, "CHW", np.float32, 1, "replicate", types.DALIInterpType.INTERP_CUBIC, False, None),
-    (4, "FCHW", np.uint8, 1, "reflect", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "CHW", np.float32, 4, "constant", types.DALIInterpType.INTERP_NN, False, 55),
-    (8, "FHWC", np.int16, 3, "reflect_101", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "HWC", np.uint16, 4, "constant", types.DALIInterpType.INTERP_CUBIC, False, None),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (32, "HWC", np.uint8, 3, "constant", DALIInterpType.INTERP_NN, False, (100, 50, 25)),
+        (32, "HWC", np.uint8, 3, "constant", DALIInterpType.INTERP_LINEAR, False, 77),
+        (32, "CHW", np.float32, 1, "replicate", DALIInterpType.INTERP_CUBIC, False, None),
+        (4, "FCHW", np.uint8, 1, "reflect", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "CHW", np.float32, 4, "constant", DALIInterpType.INTERP_NN, False, 55),
+        (8, "FHWC", np.int16, 3, "reflect_101", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "HWC", np.uint16, 4, "constant", DALIInterpType.INTERP_CUBIC, False, None),
+    ),
 )
-def test_warp_perspective_const_matrix_vs_ocv(
-    bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value
-):
+def test_warp_perspective_const_matrix_vs_ocv(device, args):
+    bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value = args
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -288,6 +313,7 @@ def test_warp_perspective_const_matrix_vs_ocv(
         fill_value,
         batch_size=bs,
         prefetch_queue_depth=1,
+        device=device,
     )
 
     size_src2 = size_source(bs, SEED + 1, False)
@@ -306,18 +332,20 @@ def test_warp_perspective_const_matrix_vs_ocv(
     compare_pipelines(pipe1, pipe2, bs, dtype)
 
 
-@params(
-    (32, "HWC", np.uint8, 3, "constant", types.DALIInterpType.INTERP_NN, False, (100, 50, 25)),
-    (32, "HWC", np.uint8, 3, "constant", types.DALIInterpType.INTERP_LINEAR, False, 77),
-    (32, "CHW", np.float32, 1, "replicate", types.DALIInterpType.INTERP_CUBIC, False, None),
-    (4, "FCHW", np.uint8, 1, "reflect", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "CHW", np.float32, 4, "constant", types.DALIInterpType.INTERP_NN, False, 55),
-    (8, "FHWC", np.int16, 3, "reflect_101", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "HWC", np.uint16, 4, "constant", types.DALIInterpType.INTERP_CUBIC, False, None),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (32, "HWC", np.uint8, 3, "constant", DALIInterpType.INTERP_NN, False, (100, 50, 25)),
+        (32, "HWC", np.uint8, 3, "constant", DALIInterpType.INTERP_LINEAR, False, 77),
+        (32, "CHW", np.float32, 1, "replicate", DALIInterpType.INTERP_CUBIC, False, None),
+        (4, "FCHW", np.uint8, 1, "reflect", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "CHW", np.float32, 4, "constant", DALIInterpType.INTERP_NN, False, 55),
+        (8, "FHWC", np.int16, 3, "reflect_101", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "HWC", np.uint16, 4, "constant", DALIInterpType.INTERP_CUBIC, False, None),
+    ),
 )
-def test_warp_perspective_arg_inp_matrix_vs_ocv(
-    bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value
-):
+def test_warp_perspective_arg_inp_matrix_vs_ocv(device, args):
+    bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value = args
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -334,6 +362,7 @@ def test_warp_perspective_arg_inp_matrix_vs_ocv(
         fill_value,
         batch_size=bs,
         prefetch_queue_depth=1,
+        device=device,
     )
 
     matrix_src2 = matrix_source(bs, SEED + 2, False)
@@ -353,48 +382,30 @@ def test_warp_perspective_arg_inp_matrix_vs_ocv(
     compare_pipelines(pipe1, pipe2, bs, dtype)
 
 
-@params(
+@cartesian_params(
+    ("cpu", "gpu"),
     (
-        32,
-        "HWC",
-        np.uint8,
-        3,
-        None,
-        "constant",
-        types.DALIInterpType.INTERP_NN,
-        False,
-        (100, 50, 25),
+        (32, "HWC", np.uint8, 3, None, "constant", DALIInterpType.INTERP_NN, False, (100, 50, 25)),
+        (32, "HWC", np.uint8, 3, (200, 300), "constant", DALIInterpType.INTERP_LINEAR, False, 77),
+        (
+            32,
+            "CHW",
+            np.float32,
+            1,
+            (150, 150),
+            "replicate",
+            DALIInterpType.INTERP_CUBIC,
+            False,
+            None,
+        ),
+        (4, "FCHW", np.uint8, 1, None, "reflect", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "CHW", np.float32, 4, None, "constant", DALIInterpType.INTERP_NN, False, 55),
+        (8, "FHWC", np.int16, 3, (20, 30), "reflect_101", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "HWC", np.uint16, 4, None, "constant", DALIInterpType.INTERP_CUBIC, False, None),
     ),
-    (32, "HWC", np.uint8, 3, (200, 300), "constant", types.DALIInterpType.INTERP_LINEAR, False, 77),
-    (
-        32,
-        "CHW",
-        np.float32,
-        1,
-        (150, 150),
-        "replicate",
-        types.DALIInterpType.INTERP_CUBIC,
-        False,
-        None,
-    ),
-    (4, "FCHW", np.uint8, 1, None, "reflect", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "CHW", np.float32, 4, None, "constant", types.DALIInterpType.INTERP_NN, False, 55),
-    (
-        8,
-        "FHWC",
-        np.int16,
-        3,
-        (20, 30),
-        "reflect_101",
-        types.DALIInterpType.INTERP_LINEAR,
-        True,
-        None,
-    ),
-    (32, "HWC", np.uint16, 4, None, "constant", types.DALIInterpType.INTERP_CUBIC, False, None),
 )
-def test_warp_perspective_const_size_vs_ocv(
-    bs, layout, dtype, channels, size, border_mode, interp_type, inverse_map, fill_value
-):
+def test_warp_perspective_const_size_vs_ocv(device, args):
+    bs, layout, dtype, channels, size, border_mode, interp_type, inverse_map, fill_value = args
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -410,6 +421,7 @@ def test_warp_perspective_const_size_vs_ocv(
         fill_value,
         batch_size=bs,
         prefetch_queue_depth=1,
+        device=device,
     )
 
     matrix_src2 = matrix_source(bs, SEED + 2, False)
@@ -438,24 +450,26 @@ def test_warp_perspective_const_size_vs_ocv(
     compare_pipelines(pipe1, pipe2, bs, dtype)
 
 
-@params(
-    (32, "HWC", np.uint8, 3, "constant", types.DALIInterpType.INTERP_NN, False, (100, 50, 25)),
-    (32, "HWC", np.uint8, 3, "constant", types.DALIInterpType.INTERP_LINEAR, False, 77),
-    (32, "CHW", np.float32, 1, "replicate", types.DALIInterpType.INTERP_CUBIC, False, None),
-    (4, "FCHW", np.uint8, 1, "reflect", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "CHW", np.float32, 4, "constant", types.DALIInterpType.INTERP_NN, False, 55),
-    (8, "FHWC", np.int16, 3, "reflect_101", types.DALIInterpType.INTERP_LINEAR, True, None),
-    (32, "HWC", np.uint16, 4, "constant", types.DALIInterpType.INTERP_CUBIC, False, None),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (32, "HWC", np.uint8, 3, "constant", DALIInterpType.INTERP_NN, False, (100, 50, 25)),
+        (32, "HWC", np.uint8, 3, "constant", DALIInterpType.INTERP_LINEAR, False, 77),
+        (32, "CHW", np.float32, 1, "replicate", DALIInterpType.INTERP_CUBIC, False, None),
+        (4, "FCHW", np.uint8, 1, "reflect", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "CHW", np.float32, 4, "constant", DALIInterpType.INTERP_NN, False, 55),
+        (8, "FHWC", np.int16, 3, "reflect_101", DALIInterpType.INTERP_LINEAR, True, None),
+        (32, "HWC", np.uint16, 4, "constant", DALIInterpType.INTERP_CUBIC, False, None),
+    ),
 )
-def test_warp_perspective_gpu_inp_matrix_vs_ocv(
-    bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value
-):
+def test_warp_perspective_gpu_inp_matrix_vs_ocv(device, args):
+    bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value = args
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
     matrix_src1 = matrix_source(bs, SEED + 3, False)
     size_src1 = size_source(bs, SEED + 3, False)
-    pipe1 = warp_perspective_pipe_gpu_inp_matrix(
+    pipe1 = warp_perspective_pipe_arg1_matrix(
         data1,
         matrix_src1,
         layout,
@@ -466,6 +480,7 @@ def test_warp_perspective_gpu_inp_matrix_vs_ocv(
         fill_value,
         batch_size=bs,
         prefetch_queue_depth=1,
+        device=device,
     )
 
     matrix_src2 = matrix_source(bs, SEED + 3, False)
@@ -485,7 +500,7 @@ def test_warp_perspective_gpu_inp_matrix_vs_ocv(
     compare_pipelines(pipe1, pipe2, bs, dtype)
 
 
-@dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
+@pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def warp_affine_pipe(data_src, matrix_src, layout, size, inverse_map, fill_value):
     img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
     matrix = fn.external_source(source=matrix_src, batch=True)[0:2, :]
@@ -493,7 +508,7 @@ def warp_affine_pipe(data_src, matrix_src, layout, size, inverse_map, fill_value
         img,
         matrix=matrix,
         size=size,
-        interp_type=types.DALIInterpType.INTERP_LINEAR,
+        interp_type=DALIInterpType.INTERP_LINEAR,
         inverse_map=inverse_map,
         fill_value=fill_value,
     )
@@ -522,14 +537,16 @@ def affine_matrix_src(bs, seed):
         yield [gen_matrix() for _ in range(bs)]
 
 
-@params(
-    (32, "HWC", np.float32, 3, None, False, 0),
-    (32, "HWC", np.uint8, 3, (400, 400), True, 77),
-    (4, "FHWC", np.uint8, 1, (200, 300), True, None),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (32, "HWC", np.float32, 3, None, False, 0),
+        (32, "HWC", np.uint8, 3, (400, 400), True, 77),
+        (4, "FHWC", np.uint8, 1, (200, 300), True, None),
+    ),
 )
-def test_warp_perspective_const_matrix_vs_warp_affine(
-    bs, layout, dtype, channels, size, inverse_map, fill_value
-):
+def test_warp_perspective_const_matrix_vs_warp_affine(device, args):
+    bs, layout, dtype, channels, size, inverse_map, fill_value = args
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -544,11 +561,12 @@ def test_warp_perspective_const_matrix_vs_warp_affine(
         size,
         layout,
         border_mode,
-        types.DALIInterpType.INTERP_LINEAR,
+        DALIInterpType.INTERP_LINEAR,
         inverse_map,
         fill_value,
         batch_size=bs,
         prefetch_queue_depth=1,
+        device=device,
     )
 
     matrix_src = affine_matrix_src(bs, SEED)
@@ -569,7 +587,7 @@ def test_warp_perspective_const_matrix_vs_warp_affine(
     RuntimeError, glob="*Expected a uniform list of 3x3 matrices. Instead got data with shape: *"
 )
 def test_invalid_shape():
-    pipe1 = dali.Pipeline(1, 1, 0)
+    pipe1 = Pipeline(1, 1, 0)
     with pipe1:
         pipe1.set_outputs(
             fn.experimental.warp_perspective(
@@ -585,7 +603,7 @@ def test_invalid_shape():
     glob="*Matrix input and `matrix` argument should not be provided at the same time*",
 )
 def test_clashing_args():
-    pipe1 = dali.Pipeline(1, 1, 0)
+    pipe1 = Pipeline(1, 1, 0)
     with pipe1:
         pipe1.set_outputs(
             fn.experimental.warp_perspective(
@@ -599,7 +617,7 @@ def test_clashing_args():
 
 @raises(RuntimeError, glob="*Transformation matrix can be provided only as float32 values.*")
 def test_invalid_matrix_type():
-    pipe1 = dali.Pipeline(1, 1, 0)
+    pipe1 = Pipeline(1, 1, 0)
     with pipe1:
         pipe1.set_outputs(
             fn.experimental.warp_perspective(
@@ -612,7 +630,7 @@ def test_invalid_matrix_type():
 
 @raises(RuntimeError, glob="*Unknown border mode: foo*")
 def test_invalid_border_mode():
-    pipe1 = dali.Pipeline(1, 1, 0)
+    pipe1 = Pipeline(1, 1, 0)
     with pipe1:
         pipe1.set_outputs(
             fn.experimental.warp_perspective(
