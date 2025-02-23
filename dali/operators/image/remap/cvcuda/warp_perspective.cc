@@ -434,7 +434,6 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
   USE_OPERATOR_MEMBERS();
   ArgValue<float, 2> matrix_arg_{"matrix", spec_};
   ArgValue<float, 1> size_arg_{"size", spec_};
-  int op_batch_size_ = 0;
   int channels_ = 1;
   cv::BorderTypes border_mode_ = cv::BorderTypes::BORDER_CONSTANT;
   cv::InterpolationFlags interp_type_ = cv::InterpolationFlags::INTER_LINEAR;
@@ -442,7 +441,6 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
   cv::Scalar fill_value_{};
   bool inverse_map_ = false;
   bool ocv_pixel_ = true;
-  std::optional<cvcuda::WarpPerspective> warp_perspective_;
 };
 
 DALI_REGISTER_OPERATOR(experimental__WarpPerspective, WarpPerspectiveCPU, CPU);
