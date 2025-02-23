@@ -40,7 +40,7 @@ Performs a perspective transform on the images.
     .InputDox(0, "input", "TensorList of uint8, uint16, int16 or float",
               "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
     .InputDox(1, "matrix", "2D TensorList of float",
-              "3x3 Perspective transform matrix for per sample homography, should be on same device as input.")
+              "3x3 Perspective transform matrix for per sample homography, same device as input.")
     .NumOutput(1)
     .InputLayout(0, {"HW", "HWC", "FHWC", "CHW", "FCHW"})
     .AddOptionalArg<float>("size",
@@ -108,11 +108,9 @@ T GetFillValue(const std::vector<float>& fill_value_arg, int channels) {
       T fill_value{0, 0, 0, 0};
       if constexpr (std::is_same<T, float4>::value) {
         std::memcpy(&fill_value, fill_value_arg.data(), fill_value_arg.size() * sizeof(float));
-      }
-      else if constexpr (std::is_same<T, cv::Scalar>::value) {
+      } else if constexpr (std::is_same<T, cv::Scalar>::value) {
         std::copy(fill_value_arg.begin(), fill_value_arg.end(), fill_value.val);
-      }
-      else {
+      } else {
         static_assert(false, "Unsupported type");
       }
       return fill_value;
@@ -247,9 +245,8 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
 DALI_REGISTER_OPERATOR(experimental__WarpPerspective, WarpPerspective, GPU);
 
 
-class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator>
-{
-public: 
+class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator> {
+ public:
   explicit WarpPerspectiveCPU(const OpSpec& spec)
     : SequenceOperator(spec),
       border_mode_(GetBorderMode(spec.GetArgument<std::string>("border_mode"))),
@@ -259,39 +256,25 @@ public:
       ocv_pixel_(OCVCompatArg(spec.GetArgument<std::string>("pixel_origin"))) {
   }
 
-private:
-  cv::BorderTypes GetBorderMode(std::string_view border_mode)
-  {
-    if (border_mode == "constant")
-    {
+ private:
+  cv::BorderTypes GetBorderMode(std::string_view border_mode) {
+    if (border_mode == "constant") {
       return cv::BorderTypes::BORDER_CONSTANT;
-    }
-    else if (border_mode == "replicate")
-    {
+    } else if (border_mode == "replicate") {
       return cv::BorderTypes::BORDER_REPLICATE;
-    }
-    else if (border_mode == "reflect")
-    {
+    } else if (border_mode == "reflect") {
       return cv::BorderTypes::BORDER_REFLECT;
-    }
-    else if (border_mode == "reflect_101")
-    {
+    } else if (border_mode == "reflect_101") {
       return cv::BorderTypes::BORDER_REFLECT_101;
-    }
-    else if (border_mode == "wrap")
-    {
+    } else if (border_mode == "wrap") {
       return cv::BorderTypes::BORDER_WRAP;
-    }
-    else
-    {
+    } else {
       DALI_FAIL(make_string("Invalid border_mode argument: ", border_mode));
     }
   }
 
-  cv::InterpolationFlags GetInterpolationType(DALIInterpType interpolation_type)
-  {
-    switch (interpolation_type)
-    {
+  cv::InterpolationFlags GetInterpolationType(DALIInterpType interpolation_type) {
+    switch (interpolation_type) {
     case DALIInterpType::DALI_INTERP_NN:
       return cv::InterpolationFlags::INTER_NEAREST;
     case DALIInterpType::DALI_INTERP_LINEAR:
@@ -322,7 +305,7 @@ private:
     int channels = (chIdx != -1) ? input_shape[0][chIdx] : -1;
     if (channels > 4)
       DALI_FAIL("Images with more than 4 channels are not supported.");
-    
+
     fill_value_ = GetFillValue<cv::Scalar>(fill_value_arg_, channels);
     if (size_arg_.HasExplicitValue()) {
       size_arg_.Acquire(spec_, ws, input_shape.size(), TensorShape<1>(2));
@@ -335,7 +318,7 @@ private:
       }
     }
 
-    channels_ = std::max(1, channels); // If channels not specified in layout (-1) then must be 1
+    channels_ = std::max(1, channels);  // If channels not specified in layout (-1) then must be 1
 
     output_desc[0] = {output_shape, input.type()};
     return true;
@@ -368,7 +351,7 @@ private:
   /**
    * @brief Convert DALI data type to OpenCV matrix type
    */
-  int matTypeFromDALI(DALIDataType dtype){
+  int matTypeFromDALI(DALIDataType dtype) {
     switch (dtype) {
       case DALI_UINT8:
         return CV_8U;
@@ -386,7 +369,7 @@ private:
   /**
    * @brief Construct a full OpenCV matrix type from DALI data type and number of channels
    */
-  int fullMatTypeFromDALI(DALIDataType dtype, int channels){
+  int fullMatTypeFromDALI(DALIDataType dtype, int channels) {
     return CV_MAKETYPE(matTypeFromDALI(dtype), channels);
   }
 
@@ -406,12 +389,12 @@ private:
                    make_string("Expected a uniform list of 3x3 matrices. "
                                "Instead got data with shape: ",
                                matrix_input.shape()));
-      
+
       for (int i = 0; i < num_samples; i++) {
         std::memcpy(matrices[i].val, matrix_input.raw_tensor(i), sizeof(cv::Matx33f));
       }
     } else {
-      matrix_arg_.Acquire(spec_, ws, num_samples, TensorShape<2>(3,3));
+      matrix_arg_.Acquire(spec_, ws, num_samples, TensorShape<2>(3, 3));
       for (int i = 0; i < num_samples; ++i) {
         std::memcpy(matrices[i].val, matrix_arg_[i].data, sizeof(cv::Matx33f));
       }
@@ -432,7 +415,7 @@ private:
         const auto inImage = input[i];
         auto outImage = output[i];
         const int dtype = fullMatTypeFromDALI(inImage.type(), channels_);
-        
+
         const auto& inShape = inImage.shape();
         const cv::Mat inMat(static_cast<int>(inShape[0]), static_cast<int>(inShape[1]),
           dtype, const_cast<void*>(inImage.raw_data()));
