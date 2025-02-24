@@ -73,6 +73,10 @@ class ITensor : public _DALITensor, public RefCountedObject {
 
   virtual const TensorShape<> &GetShape() const & = 0;
 
+  virtual const char *GetSourceInfo() const & = 0;
+
+  virtual void SetSourceInfo(const char *source_info) = 0;
+
   template <typename Backend>
   const std::shared_ptr<Tensor<Backend>> &Unwrap() const &;
 
@@ -128,6 +132,10 @@ class ITensorList : public _DALITensorList, public RefCountedObject {
   virtual const TensorListShape<> &GetShape() const & = 0;
 
   virtual RefCountedPtr<ITensor> ViewAsTensor() const = 0;
+
+  virtual const char *GetSourceInfo(int sample) const & = 0;
+
+  virtual void SetSourceInfo(int sample, const char *source_info) = 0;
 
   template <typename Backend>
   const std::shared_ptr<TensorList<Backend>> &Unwrap() const &;
@@ -295,6 +303,17 @@ class TensorWrapper : public ITensor {
 
   const TensorShape<> &GetShape() const & override {
     return t_->shape();
+  }
+
+  const char *GetSourceInfo() const & override {
+    const char *info = t_->GetMeta().GetSourceInfo().c_str();
+    if (info && !*info)
+      return nullptr;
+    return info;
+  }
+
+  void SetSourceInfo(const char *source_info) override {
+    t_->SetSourceInfo(source_info ? source_info : "");
   }
 
   const auto &NativePtr() const & {
@@ -583,11 +602,9 @@ class TensorListWrapper : public ITensorList {
   }
 
   daliTensorDesc_t GetTensorDesc(int sample) const override {
-    auto &shape = tl_->shape();
-    if (sample < 0 || sample >= shape.num_samples())
-      throw std::out_of_range(make_string("The sample index ", sample, " is out of range. "
-        "Valid indices are [0..", shape.num_samples() - 1, "]."));
+    ValidateSampleIdx(sample);
     daliTensorDesc_t desc{};
+    auto &shape = tl_->shape();
     desc.ndim = shape.sample_dim();
     desc.data = tl_->raw_mutable_tensor(sample);
     desc.dtype = tl_->type();
@@ -598,6 +615,19 @@ class TensorListWrapper : public ITensorList {
 
   const TensorListShape<> &GetShape() const & override {
     return tl_->shape();
+  }
+
+  const char *GetSourceInfo(int sample) const & override {
+    ValidateSampleIdx(sample);
+    const char *info = tl_->GetMeta(sample).GetSourceInfo().c_str();
+    if (info && !*info)
+      return nullptr;  // return empty string as NULL
+    return info;
+  }
+
+  void SetSourceInfo(int sample, const char *source_info) override {
+    ValidateSampleIdx(sample);
+    tl_->SetSourceInfo(sample, source_info ? source_info : "");
   }
 
   RefCountedPtr<ITensor> ViewAsTensor() const override {
@@ -627,6 +657,12 @@ class TensorListWrapper : public ITensorList {
 
   const auto &NativePtr() const & {
     return tl_;
+  }
+
+  inline void ValidateSampleIdx(int idx) const {
+    if (idx < 0 || idx >= tl_->num_samples())
+    throw std::out_of_range(make_string("The sample index ", idx, " is out of range. "
+      "Valid indices are [0..", tl_->num_samples() - 1, "]."));
   }
 
  private:

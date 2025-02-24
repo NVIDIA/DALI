@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include "dali/c_api_2/managed_handle.h"
 #include "dali/core/span.h"
+#include "dali/core/device_guard.h"
 
 TEST(CAPI2_TensorListTest, NullHandle) {
   daliTensorList_h h = nullptr;
@@ -65,6 +66,7 @@ inline auto CreateTensorList(daliBufferPlacement_t placement) {
 void TestTensorListResize(daliStorageDevice_t storage_device) {
   daliBufferPlacement_t placement{};
   placement.device_type = storage_device;
+  placement.pinned = true;
   int64_t shapes[] = {
     480, 640, 3,
     600, 800, 4,
@@ -74,6 +76,13 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   daliDataType_t dtype = DALI_UINT32;
 
   auto tl = CreateTensorList(placement);
+
+  daliBufferPlacement_t test_placement{};
+  EXPECT_EQ(daliTensorListGetBufferPlacement(tl, &test_placement), DALI_SUCCESS);
+  EXPECT_EQ(test_placement.device_type, placement.device_type);
+  EXPECT_EQ(test_placement.device_id, placement.device_id);
+  EXPECT_EQ(test_placement.pinned, placement.pinned);
+
   EXPECT_EQ(daliTensorListResize(tl, 4, 3, nullptr, dtype, nullptr), DALI_ERROR_INVALID_ARGUMENT);
   EXPECT_EQ(daliTensorListResize(tl, -1, 3, shapes, dtype, nullptr), DALI_ERROR_INVALID_ARGUMENT);
   EXPECT_EQ(daliTensorListResize(tl, 4, -1, shapes, dtype, nullptr), DALI_ERROR_INVALID_ARGUMENT);
@@ -289,8 +298,14 @@ TEST(CAPI2_TensorListTest, AttachSamples) {
 
 
 TEST(CAPI2_TensorListTest, ViewAsTensor) {
+  int num_dev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_dev));
+  // use the last device
+  dali::DeviceGuard dg(num_dev - 1);
+
   daliBufferPlacement_t placement{};
   placement.device_type = DALI_STORAGE_CPU;
+  placement.pinned = true;
   using element_t = int;
   daliDataType_t dtype = dali::type2id<element_t>::value;
   dali::TensorListShape<> lshape = dali::uniform_list_shape(4, { 480, 640, 3 });
@@ -326,6 +341,12 @@ TEST(CAPI2_TensorListTest, ViewAsTensor) {
   EXPECT_EQ(daliTensorListViewAsTensor(tl, &ht), DALI_SUCCESS) << daliGetLastErrorMessage();
   ASSERT_NE(ht, nullptr);
   dali::c_api::TensorHandle t(ht);
+
+  daliBufferPlacement_t tensor_placement{};
+  EXPECT_EQ(daliTensorGetBufferPlacement(ht, &tensor_placement), DALI_SUCCESS);
+  EXPECT_EQ(tensor_placement.device_type, placement.device_type);
+  EXPECT_EQ(tensor_placement.device_id, placement.device_id);
+  EXPECT_EQ(tensor_placement.pinned, placement.pinned);
 
   daliTensorDesc_t desc{};
   EXPECT_EQ(daliTensorGetDesc(t, &desc), DALI_SUCCESS) << daliGetLastErrorMessage();
@@ -506,4 +527,39 @@ TEST(CAPI2_TensorTest, ResizeCPU) {
 
 TEST(CAPI2_TensorTest, ResizeGPU) {
   TestTensorResize(DALI_STORAGE_GPU);
+}
+
+TEST(CAPI2_TensorTest, SourceInfo) {
+  auto t = CreateTensor({});
+  const char *out_src_info = "junk";
+  EXPECT_EQ(daliTensorGetSourceInfo(t, &out_src_info), DALI_SUCCESS);
+  EXPECT_EQ(out_src_info, nullptr);
+
+  EXPECT_EQ(daliTensorSetSourceInfo(t, "source_info"), DALI_SUCCESS);
+  EXPECT_EQ(daliTensorGetSourceInfo(t, &out_src_info), DALI_SUCCESS);
+  EXPECT_STREQ(out_src_info, "source_info");
+}
+
+TEST(CAPI2_TensorListTest, SourceInfo) {
+  auto t = CreateTensorList({});
+  ASSERT_EQ(daliTensorListResize(t, 5, 0, nullptr, DALI_UINT8, nullptr), DALI_SUCCESS);
+
+  const char *out_src_info = "junk";
+  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 0), DALI_SUCCESS);
+  EXPECT_EQ(out_src_info, nullptr);
+
+  EXPECT_EQ(daliTensorListSetSourceInfo(t, 0, "quick"), DALI_SUCCESS);
+  EXPECT_EQ(daliTensorListSetSourceInfo(t, 2, "brown"), DALI_SUCCESS);
+  EXPECT_EQ(daliTensorListSetSourceInfo(t, 4, "fox"), DALI_SUCCESS);
+
+  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 0), DALI_SUCCESS);
+  EXPECT_STREQ(out_src_info, "quick");
+  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 1), DALI_SUCCESS);
+  EXPECT_EQ(out_src_info, nullptr);
+  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 2), DALI_SUCCESS);
+  EXPECT_STREQ(out_src_info, "brown");
+  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 3), DALI_SUCCESS);
+  EXPECT_EQ(out_src_info, nullptr);
+  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 4), DALI_SUCCESS);
+  EXPECT_STREQ(out_src_info, "fox");
 }

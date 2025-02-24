@@ -147,6 +147,16 @@ daliResult_t daliTensorResize(
   DALI_EPILOG();
 }
 
+daliResult_t daliTensorGetBufferPlacement(
+      daliTensor_h tensor,
+      daliBufferPlacement_t *out_placement) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  CHECK_OUTPUT(out_placement);
+  *out_placement = ptr->GetBufferPlacement();
+  DALI_EPILOG();
+}
+
 daliResult_t daliTensorSetLayout(
       daliTensor_h tensor,
       const char *layout) {
@@ -209,6 +219,24 @@ daliResult_t daliTensorGetShape(
     *out_ndim = shape.sample_dim();
   if (out_shape)
     *out_shape = shape.data();
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorGetSourceInfo(
+      daliTensor_h tensor,
+      const char **out_source_info) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  CHECK_OUTPUT(out_source_info);
+  *out_source_info = ptr->GetSourceInfo();
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorSetSourceInfo(
+      daliTensor_h tensor,
+      const char *source_info) {
+  DALI_PROLOG();
+  ToPointer(tensor)->SetSourceInfo(source_info);
   DALI_EPILOG();
 }
 
@@ -294,6 +322,17 @@ daliResult_t daliTensorListResize(
   DALI_EPILOG();
 }
 
+daliResult_t daliTensorListGetBufferPlacement(
+      daliTensorList_h tensor_list,
+      daliBufferPlacement_t *out_placement) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  CHECK_OUTPUT(out_placement);
+  *out_placement = ptr->GetBufferPlacement();
+  DALI_EPILOG();
+}
+
+
 daliResult_t daliTensorListSetLayout(
       daliTensorList_h tensor_list,
       const char *layout) {
@@ -360,6 +399,26 @@ daliResult_t daliTensorListGetTensorDesc(
   auto *ptr = ToPointer(tensor_list);
   CHECK_OUTPUT(out_tensor);
   *out_tensor = ptr->GetTensorDesc(sample_idx);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorListGetSourceInfo(
+      daliTensorList_h tensor_list,
+      const char **out_source_info,
+      int sample_idx) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  CHECK_OUTPUT(out_source_info);
+  *out_source_info = ptr->GetSourceInfo(sample_idx);
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorListSetSourceInfo(
+      daliTensorList_h tensor_list,
+      int sample_idx,
+      const char *source_info) {
+  DALI_PROLOG();
+  ToPointer(tensor_list)->SetSourceInfo(sample_idx, source_info);
   DALI_EPILOG();
 }
 
