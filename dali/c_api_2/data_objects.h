@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 #define DALI_ALLOW_NEW_C_API
@@ -660,9 +661,14 @@ class TensorListWrapper : public ITensorList {
   }
 
   inline void ValidateSampleIdx(int idx) const {
-    if (idx < 0 || idx >= tl_->num_samples())
-    throw std::out_of_range(make_string("The sample index ", idx, " is out of range. "
-      "Valid indices are [0..", tl_->num_samples() - 1, "]."));
+    if (idx < 0 || idx >= tl_->num_samples()) {
+      std::string message = make_string("The sample index ", idx, " is out of range.");
+      if (tl_->num_samples() == 0)
+        message += " The TensorList is empty.";
+      else
+        message += make_string("Valid indices are [0..", tl_->num_samples() - 1, "].");
+      throw std::out_of_range(std::move(message));
+    }
   }
 
  private:
