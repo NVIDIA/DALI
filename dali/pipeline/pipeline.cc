@@ -235,7 +235,7 @@ static bool has_prefix(const std::string &operator_name, const std::string& pref
                     prefix.begin());
 }
 
-int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
+int Pipeline::AddOperator(const OpSpec &spec, std::string_view inst_name) {
   return AddOperator(spec, inst_name, GetNextLogicalId());
 }
 
@@ -256,7 +256,7 @@ int Pipeline::AddOperator(const OpSpec &spec) {
   return AddOperator(spec, GetNextLogicalId());
 }
 
-int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name, int logical_id) {
+int Pipeline::AddOperator(const OpSpec &const_spec, std::string_view inst_name, int logical_id) {
   DALI_ENFORCE(!built_,
                "Alterations to the pipeline after \"Build()\" has been called are not allowed");
 
@@ -278,14 +278,15 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
   return result;
 }
 
-int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_name,
+int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
+                              std::string_view inst_name,
                               int logical_id) {
   assert(!built_ && "Already checked by AddOperator()");
 
   DALI_ENFORCE(0 <= logical_id,
                "Logical id of the node must be positive, got " + std::to_string(logical_id) + ".");
 
-  DALI_ENFORCE(instance_names_.insert(inst_name).second,
+  DALI_ENFORCE(instance_names_.insert(std::string(inst_name)).second,
                make_string("Duplicate operator instance name: \"", inst_name, "\"."));
 
   if (logical_id > next_logical_id_) {
@@ -304,7 +305,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     spec.SetArg("preserve_name", true);  // ExternalSource must not be collapsed in CSE
 
   // Take a copy of the passed OpSpec for serialization purposes before any modification
-  this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
+  this->op_specs_for_serialization_.push_back({std::string(inst_name), spec, logical_id});
 
   DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
                "Cannot add a GPU operator. Pipeline 'device_id' should not be equal to "
@@ -403,7 +404,7 @@ bool Pipeline::IsLogicalIdUsed(int logical_id) const {
   return logical_ids_.find(logical_id) != logical_ids_.end();
 }
 
-void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id) {
+void Pipeline::AddToOpSpecs(std::string_view inst_name, const OpSpec &spec, int logical_id) {
   auto& logical_group = logical_ids_[logical_id];
   if (logical_group.size() > 0) {
     const auto &group_name = op_specs_[logical_group.front()].spec.SchemaName();
@@ -414,7 +415,7 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
             " which is already assigned to " + group_name + ".");
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
   }
-  op_specs_.push_back({inst_name, spec, logical_id});
+  op_specs_.push_back({std::string(inst_name), spec, logical_id});
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);
 }
 
@@ -495,7 +496,12 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
       if (!it->second.has_contiguous_cpu) {
         // Add a make contiguous op to produce this output - we need pipeline outputs to be dense.
-        auto output_name = AddMakeContiguousNode(it->second, name, "cpu", "cpu", "cpu");
+        auto output_name = AddMakeContiguousNode(
+            it->second,
+            name,
+            StorageDevice::CPU,
+            "cpu",
+            StorageDevice::CPU);
         outputs.push_back(output_name);
       } else {
         outputs.push_back(it->first + "_cpu");
@@ -514,7 +520,12 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
         ToGPU(it);
 
       if (!it->second.has_contiguous_gpu) {
-        auto output_name = AddMakeContiguousNode(it->second, name, "gpu", "gpu", "gpu");
+        auto output_name = AddMakeContiguousNode(
+            it->second,
+            name,
+            StorageDevice::GPU,
+            "gpu",
+            StorageDevice::GPU);
         outputs.push_back(output_name);
       } else {
         outputs.push_back(it->first + "_gpu");
@@ -934,7 +945,7 @@ int Pipeline::num_outputs() const {
   return output_descs_.size();
 }
 
-std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
+const std::vector<PipelineOutputDesc> &Pipeline::output_descs() const & {
   return output_descs_;
 }
 
@@ -987,8 +998,8 @@ void Pipeline::Shutdown() {
 }
 
 std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode(
-    EdgeMeta &meta, const std::string &input_name, const std::string &input_dev,
-    const std::string &device, const std::string &output_dev) {
+    EdgeMeta &meta, std::string_view input_name, StorageDevice input_dev,
+    std::string_view device, StorageDevice output_dev) {
   // Prefix for the output name to be generated, so it is distinct after being made contiguous.
   const char *cpu_to_cpu_out = "contiguous_cpu_to_cpu_";
   const char *gpu_to_gpu_out = "contiguous_gpu_to_gpu_";
@@ -1002,10 +1013,10 @@ std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode
   const char *output_prefix = nullptr;
   const char *op_name_prefix = nullptr;
 
-  if (input_dev == "cpu" && output_dev == "cpu") {
+  if (input_dev == StorageDevice::CPU && output_dev == StorageDevice::CPU) {
     output_prefix = cpu_to_cpu_out;
     op_name_prefix = cpu_to_cpu_name;
-  } else if (input_dev == "cpu" && output_dev == "gpu") {
+  } else if (input_dev == StorageDevice::CPU && output_dev == StorageDevice::GPU) {
     output_prefix = cpu_to_gpu_out;
     op_name_prefix = cpu_to_gpu_name;
   } else {
@@ -1013,26 +1024,28 @@ std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode
     op_name_prefix = gpu_to_gpu_name;
   }
 
-  std::string output_name = output_prefix + input_name;
-  std::string op_name = op_name_prefix + input_name;
+  std::string output_name = make_string(output_prefix, input_name);
+  std::string op_name = make_string(op_name_prefix, input_name);
 
   OpSpec spec = OpSpec("MakeContiguous")
                     .AddArg("device", device)
-                    .AddInput(input_name, ParseStorageDevice(input_dev))
-                    .AddOutput(output_name, ParseStorageDevice(output_dev));
+                    .AddInput(std::string(input_name), input_dev)
+                    .AddOutput(output_name, output_dev);
   return {spec, op_name, output_name};
 }
 
 
-std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &input_name,
-                                            const std::string &input_dev, const std::string &device,
-                                            const std::string &output_dev) {
+std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta,
+                                            std::string_view input_name,
+                                            StorageDevice input_dev,
+                                            std::string_view device,
+                                            StorageDevice output_dev) {
   auto [spec, op_name, output_name] =
       PrepareMakeContiguousNode(meta, input_name, input_dev, device, output_dev);
-  std::string output_name_and_device =  output_name + "_" + output_dev;
+  std::string output_name_and_device =  make_string(output_name, "_", output_dev);
 
-  if ((output_dev == "cpu" && meta.has_make_contiguous_cpu) ||
-      (output_dev == "gpu" && meta.has_make_contiguous_gpu)) {
+  if ((output_dev == StorageDevice::CPU && meta.has_make_contiguous_cpu) ||
+      (output_dev == StorageDevice::GPU && meta.has_make_contiguous_gpu)) {
     return output_name_and_device;
   }
 
@@ -1040,10 +1053,10 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
   auto id = GetNextInternalLogicalId();
   AddToOpSpecs(op_name, std::move(spec), id);
 
-  if (output_dev == "cpu") {
+  if (output_dev == StorageDevice::CPU) {
     meta.has_make_contiguous_cpu = true;
   }
-  if (output_dev == "gpu") {
+  if (output_dev == StorageDevice::GPU) {
     meta.has_make_contiguous_gpu = true;
   }
   return output_name_and_device;
@@ -1098,7 +1111,7 @@ void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
           node.last_input,
           node.data_id,
           node.last_input.order(),
-          InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+          InputOperatorSettingMode{false, false, InputOperatorCopyMode::FORCE_NO_COPY},
           true);
   }
 }

@@ -577,7 +577,7 @@ def test_external_source_fail_missing_output():
 
     batch_size = 3
     pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
-    assert_raises(RuntimeError, pipe.run, regex=r"Could not find an input operator with name .*")
+    assert_raises(KeyError, pipe.run, regex=r"Could not find an input operator with name .*")
 
 
 def external_data_veri(external_data, batch_size):
