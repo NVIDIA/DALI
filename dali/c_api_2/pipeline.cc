@@ -154,15 +154,15 @@ void PipelineWrapper::FeedInputImpl(
       std::optional<std::string_view> data_id,
       daliFeedInputFlags_t options,
       std::optional<cudaStream_t> stream) {
-  InputOperatorNoCopyMode copy_mode = InputOperatorNoCopyMode::DEFAULT;
+  InputOperatorCopyMode copy_mode = InputOperatorCopyMode::DEFAULT;
 
   if (options & DALI_FEED_INPUT_FORCE_COPY) {
     if (options & DALI_FEED_INPUT_NO_COPY)
       throw std::invalid_argument("DALI_FEED_INPUT_FORCE_COPY and DALI_FEED_INPUT_NO_COPY"
                                   " must notbe used together.");
-    copy_mode = InputOperatorNoCopyMode::FORCE_COPY;
+    copy_mode = InputOperatorCopyMode::FORCE_COPY;
   } else if (options & DALI_FEED_INPUT_NO_COPY) {
-    copy_mode = InputOperatorNoCopyMode::FORCE_NO_COPY;
+    copy_mode = InputOperatorCopyMode::FORCE_NO_COPY;
   }
 
   pipeline_->SetExternalInput(
