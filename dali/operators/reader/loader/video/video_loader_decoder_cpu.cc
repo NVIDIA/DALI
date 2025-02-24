@@ -15,6 +15,7 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
 
 namespace dali {
+
 void VideoLoaderDecoderCpu::PrepareEmpty(VideoSample<CPUBackend> &sample) {
   sample = {};
   sample.data_.set_pinned(false);
@@ -37,7 +38,6 @@ void VideoLoaderDecoderCpu::ReadSample(VideoSample<CPUBackend> &sample) {
 
   // TODO(awolant): Extract decoding outside of ReadSample (ReaderDecoder abstraction)
   for (int i = 0; i < sequence_len_; ++i) {
-    // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
     video_file.SeekFrame(sample_span.start_ + i * sample_span.stride_);
     video_file.ReadNextFrame(data + i * video_file.FrameSize());
   }
@@ -63,7 +63,10 @@ void VideoLoaderDecoderCpu::PrepareMetadataImpl() {
   for (auto &filename : filenames_) {
     video_files_.emplace_back(filename);
     if (!video_files_.back().IsValid()) {
+      LOG_LINE << "Invalid video file: " << filename << std::endl;
       video_files_.pop_back();
+    } else {
+      LOG_LINE << "Valid video file: " << filename << std::endl;
     }
   }
 

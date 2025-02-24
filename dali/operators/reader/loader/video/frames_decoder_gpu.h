@@ -149,7 +149,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   FramesDecoderGpu(const char *memory_file, size_t memory_file_size, cudaStream_t stream = 0,
                    bool build_index = true, int num_frames = -1, std::string_view = {});
 
-  bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
+  bool ReadNextFrame(uint8_t *data) override;
 
   void SeekFrame(int frame_id) override;
 
@@ -214,9 +214,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void InitGpuParser();
 
-  bool ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output);
+  bool ReadNextFrameWithIndex(uint8_t *data);
 
-  bool ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output);
+  bool ReadNextFrameWithoutIndex(uint8_t *data);
 
   bool SendFrameToParser();
 

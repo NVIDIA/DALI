@@ -192,7 +192,11 @@ to store frame metadata and longer initialization time to scan the entire video 
 stores metadata, such as whether it is a key frame and the presentation timestamp (PTS).
 
 Building an index is particularly useful when decoding a small number of frames spaced far
-apart or starting playback from a frame deep into the video)code",
+apart or starting playback from a frame deep into the video.
+
+Note: Building an index requires that the video codec is supported by the libavcodec version
+provided with DALI. For video formats where CPU codec support is not available, this option
+will be ignored and no index will be built.)code",
                     true);
 
 class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {

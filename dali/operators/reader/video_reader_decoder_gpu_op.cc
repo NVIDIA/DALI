@@ -39,7 +39,7 @@ bool VideoReaderDecoderGpu::SetupImpl(
   std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>::SetupImpl(output_desc, ws);
 
-  output_desc.resize(has_labels_ ? 2 : 1);
+  output_desc.resize(1 + has_labels_ + has_frame_idx_);
   int batch_size = GetCurrBatchSize();
 
   TensorListShape<4> video_shape(batch_size);

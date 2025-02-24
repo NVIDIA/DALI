@@ -454,8 +454,8 @@ bool FramesDecoderGpu::CanDecode(AVCodecID codec_id) const {
     AVCodecID::AV_CODEC_ID_MPEG4,
   };
   if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                          " is not supported by this DALI operator."));
+    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                          ") is not supported by the GPU variant of this operator."));
     return false;
   }
 
@@ -465,8 +465,8 @@ bool FramesDecoderGpu::CanDecode(AVCodecID codec_id) const {
   decoder_caps.nBitDepthMinus8 = 0;
   CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
   if (!decoder_caps.bIsSupported) {
-    DALI_WARN(
-        make_string("Codec ", avcodec_get_name(codec_id), " is not supported by this platform."));
+    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                          " is not supported by NVDEC on this platform."));
     return false;
   }
   return true;
@@ -510,7 +510,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
                    "I" :
                    "NI")  // I=progressive frame, NI=interlaced
            << ": Read frame, index " << next_frame_idx_ << ", timestamp " << std::setw(5)
-           << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
+           << current_pts << ", copy_to_output=" << current_copy_to_output_ << std::endl;
 
   // current_pts is pts of frame that came from the decoder
   // Index(NextFrameIdx()).pts is pts of the frame that we want to return
@@ -572,7 +572,9 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   FramesDecoderBase::SeekFrame(frame_id);
 }
 
-bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
+bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
+  bool copy_to_output = data != nullptr;
+
   // No more frames to read
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
@@ -666,8 +668,8 @@ bool FramesDecoderGpu::SendFrameToParser() {
   return true;
 }
 
-bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output) {
-  current_copy_to_output_ = copy_to_output;
+bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
+  current_copy_to_output_ = data != nullptr;
   current_frame_output_ = data;
 
   int frame_to_return_index = -1;
@@ -747,7 +749,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
     return true;
   }
 
-  if (copy_to_output) {
+  if (current_copy_to_output_) {
     assert(current_frame_output_ != nullptr);
     copyD2D(
       current_frame_output_,
@@ -757,7 +759,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   }
   LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
           std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
-          ", current copy " << copy_to_output << std::endl;
+          ", copy_to_output=" << current_copy_to_output_ << std::endl;
   ++next_frame_idx_;
 
   frame_buffer_[frame_to_return_index].pts_ = -1;
@@ -769,16 +771,16 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   return true;
 }
 
-bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+bool FramesDecoderGpu::ReadNextFrame(uint8_t *data) {
   // No more frames in the file
   if (next_frame_idx_ == -1) {
     return false;
   }
 
   if (HasIndex()) {
-    return ReadNextFrameWithIndex(data, copy_to_output);
+    return ReadNextFrameWithIndex(data);
   } else {
-    return ReadNextFrameWithoutIndex(data, copy_to_output);
+    return ReadNextFrameWithoutIndex(data);
   }
 }
 
