@@ -38,6 +38,11 @@ namespace c_api {
 // Interfaces
 //////////////////////////////////////////////////////////////////////////////
 
+
+/** A DALI C API Tensor interface
+ *
+ * Please refer to the relevant C API documentation - e.g. for Resize, see daliTensorResize.
+ */
 class ITensor : public _DALITensor, public RefCountedObject {
  public:
   virtual ~ITensor() = default;
@@ -78,6 +83,11 @@ class ITensor : public _DALITensor, public RefCountedObject {
 
   virtual void SetSourceInfo(const char *source_info) = 0;
 
+  /** Retrieves the underlying DALI Tensor<Backend> pointer.
+   *
+   * Returns a shared pointer to the underlying DALI object. If the backend doesn't match,
+   * a null pointer is returned.
+   */
   template <typename Backend>
   const std::shared_ptr<Tensor<Backend>> &Unwrap() const &;
 
@@ -85,6 +95,10 @@ class ITensor : public _DALITensor, public RefCountedObject {
 };
 
 
+/** A DALI C API TensorList interface
+ *
+ * Please refer to the relevant C API documentation - e.g. for Resize, see daliTensorListResize.
+ */
 class ITensorList : public _DALITensorList, public RefCountedObject {
  public:
   virtual ~ITensorList() = default;
@@ -138,6 +152,11 @@ class ITensorList : public _DALITensorList, public RefCountedObject {
 
   virtual void SetSourceInfo(int sample, const char *source_info) = 0;
 
+  /** Retrieves the underlying DALI TensorList<Backend> pointer.
+   *
+   * Returns a shared pointer to the underlying DALI object. If the backend doesn't match,
+   * a null pointer is returned.
+   */
   template <typename Backend>
   const std::shared_ptr<TensorList<Backend>> &Unwrap() const &;
 
@@ -682,12 +701,18 @@ RefCountedPtr<TensorListWrapper<Backend>> Wrap(std::shared_ptr<TensorList<Backen
 
 template <typename Backend>
 const std::shared_ptr<Tensor<Backend>> &ITensor::Unwrap() const & {
-  return dynamic_cast<const TensorWrapper<Backend> *>(this)->NativePtr();
+  if (auto *self = dynamic_cast<const TensorWrapper<Backend> *>(this))
+    return self->NativePtr();
+  else
+    return nullptr;
 }
 
 template <typename Backend>
 const std::shared_ptr<TensorList<Backend>> &ITensorList::Unwrap() const & {
-  return dynamic_cast<const TensorListWrapper<Backend> *>(this)->NativePtr();
+  if (auto *self = dynamic_cast<const TensorListWrapper<Backend> *>(this))
+    return self->NativePtr();
+  else
+    return nullptr;
 }
 
 ITensor *ToPointer(daliTensor_h handle);
