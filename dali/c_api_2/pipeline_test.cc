@@ -32,12 +32,12 @@ std::string GetCPUOnlyPipeline(int max_batch_size, int num_threads, int device_i
   p.AddOperator(CounterOp(), "ctr");
   p.AddOperator(TestOp("cpu").AddInput("ctr", StorageDevice::CPU), "op1");
   p.AddOperator(TestOp("gpu").AddInput("ctr", StorageDevice::CPU), "op2");
+  return p.SerializeToProtobuf();
 }
 
 namespace c_api {
 
 TEST(CAPI2_PipelineTest, Deserialize) {
-
 }
 
 }  // namespace c_api
