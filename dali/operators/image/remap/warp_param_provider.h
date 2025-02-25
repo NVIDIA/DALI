@@ -325,7 +325,8 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   inline MappingParams *AllocParams(mm::memory_kind::device *, int count) {
     if (count > params_gpu_sz_) {
-      params_gpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::device>(count);
+      params_gpu_ = mm::alloc_raw_async_unique<MappingParams, mm::memory_kind::device>(
+                      count, GetStream(), GetStream());
       params_gpu_sz_ = count;
     }
     params_count_ = count;
@@ -334,7 +335,12 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   inline MappingParams *AllocParams(mm::memory_kind::host *, int count) {
     if (count > params_cpu_sz_) {
-      params_cpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::host>(count);
+      if constexpr (std::is_same_v<Backend, CPUBackend>) {
+        params_cpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::host>(count);
+       } else {
+        params_cpu_ = mm::alloc_raw_async_unique<MappingParams, mm::memory_kind::pinned>(
+            count, mm::host_sync, GetStream());
+       }
       params_cpu_sz_ = count;
     }
     params_count_ = count;
@@ -349,8 +355,11 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   int num_samples_ = 0;
 
   std::vector<SpatialShape> out_sizes_;
-  mm::uptr<MappingParams> params_gpu_;
-  mm::uptr<MappingParams> params_cpu_;
+  mm::async_uptr<MappingParams> params_gpu_;
+  std::conditional_t<
+      std::is_same_v<Backend, CPUBackend>,
+      mm::uptr<MappingParams>,
+      mm::async_uptr<MappingParams>> params_cpu_;
   int params_cpu_sz_ = 0;
   int params_gpu_sz_ = 0;
   int params_count_ = 0;
