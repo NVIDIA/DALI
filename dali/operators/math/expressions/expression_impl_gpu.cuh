@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ inline dim3 GetGridLayout(int extent, int tiles) {
 template <typename Invoker, int NumArgs>
 void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
                  span<const TileDesc> tiles) {
-  kernels::DynamicScratchpad s({}, ctx.stream);
+  kernels::DynamicScratchpad s(ctx.stream);
 
   assert(samples.size() > 0);
   int ndim = samples[0].output.shape.sample_dim();

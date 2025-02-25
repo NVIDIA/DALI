@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
     ASSERT_EQ(req_gpu.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
-  DynamicScratchpad dyn_scratchpad_gpu({}, AccessOrder(ctx_gpu.gpu.stream));
+  DynamicScratchpad dyn_scratchpad_gpu(AccessOrder(ctx_gpu.gpu.stream));
   ctx_gpu.scratchpad = &dyn_scratchpad_gpu;
 
   kernel_gpu.Run(ctx_gpu, out_gpu, in_gpu, make_span(params));
@@ -171,7 +171,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
     auto out_tensor = out_cpu[i];
     auto in_tensor = in_cpu[i];
 
-    DynamicScratchpad dyn_scratchpad_cpu({}, AccessOrder::host());
+    DynamicScratchpad dyn_scratchpad_cpu(AccessOrder::host());
     ctx_cpu.scratchpad = &dyn_scratchpad_cpu;
 
     kernel_cpu.Run(ctx_cpu, out_tensor, in_tensor, params[i]);

@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
   int batch_size = GetCurrBatchSize();
   TensorList<CPUBackend> sample_list_cpu;
 
-  kernels::DynamicScratchpad s({}, ws.stream());
+  kernels::DynamicScratchpad s(ws.stream());
 
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
     auto &output = ws.Output<GPUBackend>(output_idx);
