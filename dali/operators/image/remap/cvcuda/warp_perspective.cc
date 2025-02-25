@@ -26,8 +26,8 @@
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
-#include "dali/operators/nvcvop/nvcvop.h"
 #include "dali/operators/image/remap/cvcuda/matrix_adjust.h"
+#include "dali/operators/nvcvop/nvcvop.h"
 
 namespace dali {
 
@@ -73,7 +73,8 @@ analog to the ``WARP_INVERSE_MAP`` flag.
 
 Determines the meaning of (0, 0) coordinates - "corner" places the origin at the top-left corner of
 the top-left pixel (like in OpenGL); "center" places (0, 0) in the center of
-the top-left pixel (like in OpenCV).))doc", "corner")
+the top-left pixel (like in OpenCV).))doc",
+                    "corner")
     .AddOptionalArg<float>("fill_value",
                            "Value used to fill areas that are outside the source image when the "
                            "\"constant\" border_mode is chosen.",
@@ -82,9 +83,10 @@ the top-left pixel (like in OpenCV).))doc", "corner")
                           "If set to true (default), the matrix is interpreted as "
                           "destination to source coordinates mapping. "
                           "Otherwise it's interpreted as source to destination "
-                          "coordinates mapping.", true);
+                          "coordinates mapping.",
+                          true);
 
-bool OCVCompatArg(const std::string &arg) {
+bool OCVCompatArg(std::string_view arg) {
   if (arg == "corner") {
     return false;
   } else if (arg == "center") {
@@ -94,8 +96,8 @@ bool OCVCompatArg(const std::string &arg) {
   }
 }
 
-template<typename T>
-T GetFillValue(const std::vector<float>& fill_value_arg, int channels) {
+template <typename T>
+T GetFillValue(const std::vector<float> &fill_value_arg, int channels) {
   if (fill_value_arg.size() > 1) {
     if (channels > 0) {
       if (channels != static_cast<int>(fill_value_arg.size())) {
@@ -108,10 +110,9 @@ T GetFillValue(const std::vector<float>& fill_value_arg, int channels) {
       T fill_value{0, 0, 0, 0};
       if constexpr (std::is_same<T, float4>::value) {
         std::memcpy(&fill_value, fill_value_arg.data(), fill_value_arg.size() * sizeof(float));
-      } else if constexpr (std::is_same<T, cv::Scalar>::value) {
-        std::copy(fill_value_arg.begin(), fill_value_arg.end(), fill_value.val);
       } else {
-        static_assert(false, "Unsupported type");
+        static_assert(std::is_same<T, cv::Scalar>::value, "Unsupported fill value type.");
+        std::copy(fill_value_arg.begin(), fill_value_arg.end(), fill_value.val);
       }
       return fill_value;
     } else {
@@ -126,11 +127,11 @@ T GetFillValue(const std::vector<float>& fill_value_arg, int channels) {
   }
 }
 
-template<typename Backend>
+template <typename Backend>
 void ValidateTypes(const Workspace &ws) {
   auto inp_type = ws.Input<Backend>(0).type();
   DALI_ENFORCE(inp_type == DALI_UINT8 || inp_type == DALI_INT16 || inp_type == DALI_UINT16 ||
-               inp_type == DALI_FLOAT,
+                   inp_type == DALI_FLOAT,
                "The operator accepts the following input types: "
                "uint8, int16, uint16, float.");
   if (ws.NumInput() > 1) {
@@ -197,7 +198,7 @@ class WarpPerspective : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
                    "Matrix input and `matrix` argument should not be provided at the same time.");
       auto &matrix_input = ws.Input<GPUBackend>(1);
       DALI_ENFORCE(matrix_input.shape() ==
-                     uniform_list_shape(matrix_input.num_samples(), TensorShape<2>(3, 3)),
+                       uniform_list_shape(matrix_input.num_samples(), TensorShape<2>(3, 3)),
                    make_string("Expected a uniform list of 3x3 matrices. "
                                "Instead got data with shape: ",
                                matrix_input.shape()));
@@ -247,14 +248,13 @@ DALI_REGISTER_OPERATOR(experimental__WarpPerspective, WarpPerspective, GPU);
 
 class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator> {
  public:
-  explicit WarpPerspectiveCPU(const OpSpec& spec)
-    : SequenceOperator(spec),
-      border_mode_(GetBorderMode(spec.GetArgument<std::string>("border_mode"))),
-      interp_type_(GetInterpolationType(spec.GetArgument<DALIInterpType>("interp_type"))),
-      fill_value_arg_(spec.GetArgument<std::vector<float>>("fill_value")),
-      inverse_map_(spec.GetArgument<bool>("inverse_map")),
-      ocv_pixel_(OCVCompatArg(spec.GetArgument<std::string>("pixel_origin"))) {
-  }
+  explicit WarpPerspectiveCPU(const OpSpec &spec)
+      : SequenceOperator(spec),
+        border_mode_(GetBorderMode(spec.GetArgument<std::string>("border_mode"))),
+        interp_type_(GetInterpolationType(spec.GetArgument<DALIInterpType>("interp_type"))),
+        fill_value_arg_(spec.GetArgument<std::vector<float>>("fill_value")),
+        inverse_map_(spec.GetArgument<bool>("inverse_map")),
+        ocv_pixel_(OCVCompatArg(spec.GetArgument<std::string>("pixel_origin"))) {}
 
  private:
   cv::BorderTypes GetBorderMode(std::string_view border_mode) {
@@ -275,14 +275,15 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
 
   cv::InterpolationFlags GetInterpolationType(DALIInterpType interpolation_type) {
     switch (interpolation_type) {
-    case DALIInterpType::DALI_INTERP_NN:
-      return cv::InterpolationFlags::INTER_NEAREST;
-    case DALIInterpType::DALI_INTERP_LINEAR:
-      return cv::InterpolationFlags::INTER_LINEAR;
-    case DALIInterpType::DALI_INTERP_CUBIC:
-      return cv::InterpolationFlags::INTER_CUBIC;
-    default:
-      DALI_FAIL(make_string("Unknown interpolation type: ", static_cast<int>(interpolation_type)));
+      case DALIInterpType::DALI_INTERP_NN:
+        return cv::InterpolationFlags::INTER_NEAREST;
+      case DALIInterpType::DALI_INTERP_LINEAR:
+        return cv::InterpolationFlags::INTER_LINEAR;
+      case DALIInterpType::DALI_INTERP_CUBIC:
+        return cv::InterpolationFlags::INTER_CUBIC;
+      default:
+        DALI_FAIL(
+            make_string("Unknown interpolation type: ", static_cast<int>(interpolation_type)));
     }
   }
 
@@ -332,7 +333,7 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
    * @brief Converts OpenGL perspective warp format to OpenCV format
    * @param matrix 3x3 matrix to convert inplace
    */
-  void ConvertOpenGLtoOpenCVFormat(cv::Matx33f& matrix) {
+  void ConvertOpenGLtoOpenCVFormat(cv::Matx33f &matrix) {
     // clang-format off
     const cv::Matx33f shift = {
       1, 0, 0.5,
@@ -384,8 +385,7 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
       DALI_ENFORCE(!matrix_arg_.HasExplicitValue(),
                    "Matrix input and `matrix` argument should not be provided at the same time.");
       auto &matrix_input = ws.Input<CPUBackend>(1);
-      DALI_ENFORCE(matrix_input.shape() ==
-                     uniform_list_shape(num_samples, TensorShape<2>(3, 3)),
+      DALI_ENFORCE(matrix_input.shape() == uniform_list_shape(num_samples, TensorShape<2>(3, 3)),
                    make_string("Expected a uniform list of 3x3 matrices. "
                                "Instead got data with shape: ",
                                matrix_input.shape()));
@@ -400,32 +400,32 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
       }
     }
     if (!ocv_pixel_) {
-      for (auto& matrix : matrices) {
+      for (auto &matrix : matrices) {
         ConvertOpenGLtoOpenCVFormat(matrix);
       }
     }
 
-    auto& tPool = ws.GetThreadPool();
+    auto &tPool = ws.GetThreadPool();
     int warpFlags = interp_type_;
     if (inverse_map_) {
       warpFlags |= cv::WARP_INVERSE_MAP;
     }
     for (int i = 0; i < num_samples; ++i) {
-      tPool.AddWork([&, i](int){
+      tPool.AddWork([&, i](int) {
         const auto inImage = input[i];
         auto outImage = output[i];
         const int dtype = fullMatTypeFromDALI(inImage.type(), channels_);
 
-        const auto& inShape = inImage.shape();
-        const cv::Mat inMat(static_cast<int>(inShape[0]), static_cast<int>(inShape[1]),
-          dtype, const_cast<void*>(inImage.raw_data()));
+        const auto &inShape = inImage.shape();
+        const cv::Mat inMat(static_cast<int>(inShape[0]), static_cast<int>(inShape[1]), dtype,
+                            const_cast<void *>(inImage.raw_data()));
 
-        const auto& outShape = outImage.shape();
-        cv::Mat outMat(static_cast<int>(outShape[0]), static_cast<int>(outShape[1]),
-          dtype, outImage.raw_mutable_data());
+        const auto &outShape = outImage.shape();
+        cv::Mat outMat(static_cast<int>(outShape[0]), static_cast<int>(outShape[1]), dtype,
+                       outImage.raw_mutable_data());
 
         cv::warpPerspective(inMat, outMat, matrices[i], cv::Size(outMat.cols, outMat.rows),
-          warpFlags, border_mode_, fill_value_);
+                            warpFlags, border_mode_, fill_value_);
       });
     }
     tPool.RunAll();
