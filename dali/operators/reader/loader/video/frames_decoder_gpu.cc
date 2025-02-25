@@ -509,8 +509,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
            << (picture_display_info->progressive_frame ?
                    "I" :
                    "NI")  // I=progressive frame, NI=interlaced
-           << ": Read frame, index " << next_frame_idx_ << ", timestamp " << std::setw(5)
-           << current_pts << ", copy_to_output=" << current_copy_to_output_ << std::endl;
+           << ": " << (current_copy_to_output_ ? "Read" : "Skip") << " frame, index "
+           << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts << std::endl;
 
   // current_pts is pts of frame that came from the decoder
   // Index(NextFrameIdx()).pts is pts of the frame that we want to return
@@ -757,9 +757,11 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
       FrameSize(),
       stream_);
   }
-  LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-          std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
-          ", copy_to_output=" << current_copy_to_output_ << std::endl;
+
+  LOG_LINE << (current_copy_to_output_ ? "Read" : "Skip") << " frame, index " << next_frame_idx_
+           << ", timestamp " << std::setw(5) << frame_buffer_[frame_to_return_index].pts_
+           << std::endl;
+
   ++next_frame_idx_;
 
   frame_buffer_[frame_to_return_index].pts_ = -1;

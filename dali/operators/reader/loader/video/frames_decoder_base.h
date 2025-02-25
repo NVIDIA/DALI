@@ -185,6 +185,15 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void Reset();
 
   /**
+   * @brief Seeks to the frame given by id using avformat_seek_file
+   *
+   * @param frame_id Id of the frame to seek to
+   *
+   * @return Boolean indicating whether the seek was successful
+   */
+  virtual bool AvSeekFrame(int64_t timestamp, int frame_id);
+
+  /**
    * @brief Returns index of the frame that will be returned by the next call of ReadNextFrame
    *
    * @return int Index of the next frame to be read
@@ -258,15 +267,17 @@ class DLL_PUBLIC FramesDecoderBase {
 
   void DetectVariableFrameRate();
 
-  void InitAvState(bool init_codecs = true);
+  void InitAvState();
 
-  bool FindVideoStream(bool init_codecs = true);
+  bool InitAvCodec();
 
-  void LazyInitSwContext();
+  bool FindVideoStream(bool require_available_avcodec = true);
+
+  bool SelectVideoStream(int stream_id, bool require_available_avcodec);
+
+  bool CheckDimensions();
 
   void ParseNumFrames();
-
-  void CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs);
 
   bool IsFormatSeekable();
 
@@ -282,6 +293,7 @@ class DLL_PUBLIC FramesDecoderBase {
   std::optional<MemoryVideoFile> memory_video_file_ = {};
 
   std::optional<int> num_frames_ = {};
+  std::optional<bool> is_seekable_ = {};
 
   // Default size of the buffer used to load video files from memory to FFMPEG
   const int default_av_buffer_size = (1 << 15);
