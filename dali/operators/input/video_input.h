@@ -216,7 +216,7 @@ class VideoInput : public InputOperator<Backend> {
   std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size,
                                                    cudaStream_t stream = 0) {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      return std::make_unique<FramesDecoderImpl>(data, size, false, true, -1);
+      return std::make_unique<FramesDecoderImpl>(data, size, false, -1);
     } else {
       return std::make_unique<FramesDecoderImpl>(data, size, stream, false, -1);
     }

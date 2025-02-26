@@ -25,7 +25,6 @@ extern "C" {
 #include <vector>
 #include <string>
 #include <memory>
-#include <optional>
 #include <string_view>
 #include "dali/core/common.h"
 #include "dali/core/span.h"
@@ -36,50 +35,6 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
-};
-
-struct AvState {
-  AVFormatContext *ctx_ = nullptr;
-  const AVCodec *codec_ = nullptr;
-  AVCodecParameters *codec_params_ = nullptr;
-  AVCodecContext *codec_ctx_ = nullptr;
-  AVFrame *frame_ = nullptr;
-  AVPacket *packet_ = nullptr;
-  SwsContext  *sws_ctx_ = nullptr;
-  int stream_id_ = -1;
-
-  ~AvState() {
-    sws_freeContext(sws_ctx_);
-    if (packet_ != nullptr) {
-      av_packet_unref(packet_);
-      av_packet_free(&packet_);
-    }
-    if (frame_ != nullptr) {
-      av_frame_unref(frame_);
-      av_frame_free(&frame_);
-    }
-    avcodec_free_context(&codec_ctx_);
-    if (ctx_ != nullptr) {
-      // if we use avio_alloc_context we need a custom deallocator for ctx_->pb
-      auto custom_dealloc = ctx_->flags & AVFMT_FLAG_CUSTOM_IO;
-      auto custom_ctx = ctx_->pb;
-      auto custom_buffer = ctx_->pb ? ctx_->pb->buffer : nullptr;
-      avformat_close_input(&ctx_);
-      avformat_free_context(ctx_);
-      if (custom_dealloc) {
-        av_freep(&custom_buffer);
-        avio_context_free(&custom_ctx);
-      }
-    }
-
-    ctx_ = nullptr;
-    codec_ = nullptr;
-    codec_params_ = nullptr;
-    codec_ctx_ = nullptr;
-    frame_ = nullptr;
-    packet_ = nullptr;
-    sws_ctx_ = nullptr;
-  }
 };
 
 /**
@@ -98,6 +53,64 @@ struct MemoryVideoFile {
   int64_t position_;
 };
 
+struct AvState {
+  AVFormatContext *ctx_ = nullptr;
+  const AVCodec *codec_ = nullptr;
+  AVCodecParameters *codec_params_ = nullptr;
+  AVCodecContext *codec_ctx_ = nullptr;
+  AVFrame *frame_ = nullptr;
+  AVPacket *packet_ = nullptr;
+  SwsContext  *sws_ctx_ = nullptr;
+  int stream_id_ = -1;
+  bool is_file_open_ = false;
+
+  int OpenFile(const std::string& filename);
+
+  int OpenMemoryFile(MemoryVideoFile& memory_video_file);
+
+  void CloseInput() {
+    if (ctx_ != nullptr) {
+      // if we use avio_alloc_context we need a custom deallocator for ctx_->pb
+      auto custom_dealloc = ctx_->flags & AVFMT_FLAG_CUSTOM_IO;
+      auto custom_ctx = ctx_->pb;
+      auto custom_buffer = ctx_->pb ? ctx_->pb->buffer : nullptr;
+      avformat_close_input(&ctx_);
+      avformat_free_context(ctx_);
+      if (custom_dealloc) {
+        av_freep(&custom_buffer);
+        avio_context_free(&custom_ctx);
+      }
+      ctx_ = nullptr;
+    }
+  }
+
+  ~AvState() {
+    sws_freeContext(sws_ctx_);
+    sws_ctx_ = nullptr;
+
+    if (packet_ != nullptr) {
+      av_packet_unref(packet_);
+      av_packet_free(&packet_);
+      packet_ = nullptr;
+    }
+
+    if (frame_ != nullptr) {
+      av_frame_unref(frame_);
+      av_frame_free(&frame_);
+      frame_ = nullptr;
+    }
+
+    avcodec_free_context(&codec_ctx_);
+    codec_ctx_ = nullptr;
+
+    CloseInput();
+
+    codec_ = nullptr;
+    codec_params_ = nullptr;
+  }
+};
+
+
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
  */
@@ -107,8 +120,11 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Initialize the decoder from a file.
    *
    * @param filename Path to a video file.
+   * @param build_index If set to false index will not be build and some features are unavailable.
+   * @param init_codecs If set to false CPU codec part is not initalized, only parser
    */
-  explicit FramesDecoderBase(const std::string &filename);
+  explicit FramesDecoderBase(const std::string &filename, bool build_index = true,
+                             bool init_codecs = true);
 
   /**
    * @brief Initialize the decoder from a memory buffer.
@@ -205,11 +221,11 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * @return Boolean indicating whether or not the index was created.
    */
-  bool HasIndex() const { return index_.has_value(); }
-
-  FramesDecoderBase(FramesDecoderBase&&) = default;
+  bool HasIndex() const { return !index_.empty(); }
 
   virtual ~FramesDecoderBase() = default;
+  FramesDecoderBase(FramesDecoderBase&&) = default;
+  FramesDecoderBase& operator=(FramesDecoderBase&&) = default;
 
   std::string Filename() {
     return filename_.size() ? filename_ : "memory file";
@@ -220,13 +236,13 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   const IndexEntry& Index(int frame_id) const {
-    return (*index_)[frame_id];
+    return index_[frame_id];
   }
 
  protected:
   std::unique_ptr<AvState> av_state_;
 
-  std::optional<std::vector<IndexEntry>> index_ = {};
+  std::vector<IndexEntry> index_;
 
   int next_frame_idx_ = 0;
 
@@ -234,8 +250,6 @@ class DLL_PUBLIC FramesDecoderBase {
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
-
-  std::optional<bool> zero_latency_ = {};
 
  private:
    /**
@@ -267,9 +281,9 @@ class DLL_PUBLIC FramesDecoderBase {
 
   void DetectVariableFrameRate();
 
-  void InitAvState();
+  void InitAvCodecContext();
 
-  bool InitAvCodec();
+  bool OpenAvCodec();
 
   bool FindVideoStream(bool require_available_avcodec = true);
 
@@ -281,22 +295,20 @@ class DLL_PUBLIC FramesDecoderBase {
 
   bool IsFormatSeekable();
 
-  void CountFrames(AvState *av_state);
+  void CountFrames();
 
   std::string GetAllStreamInfo() const;
+
 
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
 
   std::string filename_ = {};
-  std::optional<MemoryVideoFile> memory_video_file_ = {};
+  std::unique_ptr<MemoryVideoFile> memory_video_file_;
 
-  std::optional<int> num_frames_ = {};
-  std::optional<bool> is_seekable_ = {};
-
-  // Default size of the buffer used to load video files from memory to FFMPEG
-  const int default_av_buffer_size = (1 << 15);
+  int num_frames_ = -1;
+  bool can_seek_ = true;  // at first, we assume that the video is seekable
 };
 
 }  // namespace dali

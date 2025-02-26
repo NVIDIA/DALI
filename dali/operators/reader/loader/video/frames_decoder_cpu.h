@@ -17,6 +17,8 @@
 
 #include "dali/operators/reader/loader/video/frames_decoder_base.h"
 #include <string>
+#include <string_view>
+
 namespace dali {
 
 class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
@@ -25,9 +27,9 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @brief Construct a new FramesDecoder object.
    *
    * @param filename Path to a video file.
-   * @param stream Stream used for decode processing.
+   * @param build_index If set to false index will not be build and some features are unavailable.
    */
-  explicit FramesDecoderCpu(const std::string &filename);
+  explicit FramesDecoderCpu(const std::string &filename, bool build_index = true);
 
   /**
  * @brief Construct a new FramesDecoder object.
@@ -35,14 +37,13 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
  * @param memory_file Pointer to memory with video file data.
  * @param memory_file_size Size of memory_file in bytes.
  * @param build_index If set to false index will not be build and some features are unavailable.
- * @param init_codecs If set to false CPU codec part is not initalized, only parser
  * @param num_frames If set, number of frames in the video.
  *
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
  */
   FramesDecoderCpu(const char *memory_file, size_t memory_file_size, bool build_index = true,
-                   bool init_codecs = true, int num_frames = -1, std::string_view = {});
+                   int num_frames = -1, std::string_view = {});
 
   FramesDecoderCpu(FramesDecoderCpu&&) = default;
 

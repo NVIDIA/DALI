@@ -53,7 +53,8 @@ class FramesDecoderTestBase : public VideoTestBase {
     RunSequentialForwardTest(decoder, ground_truth, eps);
   }
 
-  virtual void RunTest(FramesDecoderBase &decoder, TestVideo &ground_truth, bool has_index = true, double eps = 1.0) {
+  virtual void RunTest(FramesDecoderBase &decoder, TestVideo &ground_truth, bool has_index = true,
+                       double eps = 1.0) {
     ASSERT_EQ(decoder.Height(), ground_truth.Height());
     ASSERT_EQ(decoder.Width(), ground_truth.Width());
     ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
@@ -124,7 +125,8 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
   }
 
   // due to difference in CPU postprocessing on different CPUs eps is 10
-  void RunTest(FramesDecoderBase &decoder, TestVideo &ground_truth, bool has_index = true, double eps = 10.0) {
+  void RunTest(FramesDecoderBase &decoder, TestVideo &ground_truth, bool has_index = true,
+               double eps = 10.0) {
     FramesDecoderTestBase::RunTest(decoder, ground_truth, has_index, eps);
   }
 
@@ -162,7 +164,8 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     FramesDecoderTestBase::RunSequentialTest(decoder, ground_truth, eps);
   }
 
-  void RunTest(FramesDecoderBase &decoder, TestVideo &ground_truth, bool has_index = true, double eps = 1.5) {
+  void RunTest(FramesDecoderBase &decoder, TestVideo &ground_truth, bool has_index = true,
+               double eps = 1.5) {
     FramesDecoderTestBase::RunTest(decoder, ground_truth, has_index, eps);
   }
 
