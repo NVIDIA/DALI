@@ -283,7 +283,7 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, bool build_ind
 
   int ret = av_state_->OpenFile(filename);
   if (ret < 0) {
-    DALI_WARN(make_string("Could not open video file \"", Filename(), "\", due to ",
+    DALI_WARN(make_string("Failed to open video file \"", Filename(), "\", due to ",
                           detail::av_error_string(ret)));
     return;
   }
@@ -327,7 +327,7 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, int memory_file_si
   memory_video_file_ = std::make_unique<MemoryVideoFile>(memory_file, memory_file_size);
   int ret = av_state_->OpenMemoryFile(*memory_video_file_);
   if (ret < 0) {
-    DALI_WARN(make_string("Could not open video file from memory buffer due to: ",
+    DALI_WARN(make_string("Failed to open video file from memory buffer due to: ",
                           detail::av_error_string(ret)));
     return;
   }
