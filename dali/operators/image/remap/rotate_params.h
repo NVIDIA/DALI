@@ -230,7 +230,7 @@ class RotateParamProvider
     assert(input_shape_.num_samples() == num_samples_);
     assert(static_cast<int>(out_sizes_.size()) == num_samples_);
 
-    auto *params = this->template AllocParams<mm::memory_kind::host>();
+    auto *params = this->template AllocParams<mm::memory_kind::host>(num_samples_);
     for (int i = 0; i < num_samples_; i++) {
       ivec2 in_size = shape2vec(skip_dim<2>(input_shape_[i]));
       ivec2 out_size = shape2vec(out_sizes_[i]);
@@ -247,7 +247,7 @@ class RotateParamProvider
     assert(input_shape_.num_samples() == num_samples_);
     assert(static_cast<int>(out_sizes_.size()) == num_samples_);
 
-    auto *params = this->template AllocParams<mm::memory_kind::host>();
+    auto *params = this->template AllocParams<mm::memory_kind::host>(num_samples_);
     for (int i = 0; i < num_samples_; i++) {
       ivec3 in_size = shape2vec(skip_dim<3>(input_shape_[i]));
       ivec3 out_size = shape2vec(out_sizes_[i]);

@@ -304,7 +304,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     }
   }
 
-  void Setup(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
+  void Setup(const TensorListShape<> &in_shape) {
     inner_fft_ = true;
     for (int s = 0; s < in_shape.size(); s++) {
       inner_fft_ &= volume(in_shape.tensor_shape_span(s).begin() + args_.axis + 1,
@@ -312,16 +312,9 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     }
     nfft_ = in_shape.tensor_shape_span(0)[args_.axis];
     if (inner_fft_) {
-      SetupBlockDescsInnerFft(se, in_shape);
-      se.add<mm::memory_kind::device, T>(weights_down_norm_.size());
-      se.add<mm::memory_kind::device, T>(weights_up_norm_.size());
-      se.add<mm::memory_kind::device, int>(interval_ends_.size());
+      SetupBlockDescsInnerFft(in_shape);
     } else {
-      SetupBlockDescsOuterFft(se, in_shape);
-      se.add<mm::memory_kind::device, int>(interval_ends_.size());
-      se.add<mm::memory_kind::device, T>(weights_down_.size());
-      if (args_.normalize)
-        se.add<mm::memory_kind::device, T>(norm_factors_.size());
+      SetupBlockDescsOuterFft(in_shape);
     }
   }
 
@@ -392,7 +385,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   using MelFilterImplBase<T>::Args;
 
  private:
-  void SetupBlockDescsOuterFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
+  void SetupBlockDescsOuterFft(const TensorListShape<> &in_shape) {
     nframes_.clear();
     nwindows_.clear();
     block_descs_outer_.clear();
@@ -408,10 +401,9 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
         }
       }
     }
-    se.add<mm::memory_kind::device, BlockDescOuter<T>>(block_descs_outer_.size());
   }
 
-  void SetupBlockDescsInnerFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
+  void SetupBlockDescsInnerFft(const TensorListShape<> &in_shape) {
     nframes_.clear();
     nwindows_.clear();
     block_descs_inner_.clear();
@@ -486,7 +478,6 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
         block_descs_inner_.emplace_back(start, start + count);
       }
     }
-    se.add<mm::memory_kind::device, BlockDescInner<T>>(block_descs_inner_.size());
   }
 
   void FillBlockDescsOuterFft(T *const *out_list, const T *const *in_list) {
@@ -547,7 +538,6 @@ KernelRequirements MelFilterBankGpu<T>::Setup(KernelContext &context,
     DALI_ENFORCE(in.shape.tensor_shape_span(s)[args.axis] == nfft,
         "All samples should have the same FFT dimension");
   }
-  ScratchpadEstimator se;
   args.nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[0][args.axis] - 1);
   args.freq_high = args.freq_high > 0 ? args.freq_high : args.sample_rate / 2;
   if (!impl_ || impl_->Args() != args) {
@@ -562,8 +552,7 @@ KernelRequirements MelFilterBankGpu<T>::Setup(KernelContext &context,
         break;
     }
   }
-  impl_->Setup(se, in.shape);
-  req.scratch_sizes = se.sizes;
+  impl_->Setup(in.shape);
   return req;
 }
 

@@ -23,16 +23,11 @@ namespace tensor_join {
 template <typename T, bool new_axis>
 void TensorJoinImplGPU<T, new_axis>::Setup(
         TensorListShape<> &output_shape,
-        ScratchpadEstimator &se,
         const std::function<const TensorListShape<> *(int)> &get_input_shape,
         int num_inputs,
         int axis) {
   JoinedShape(output_shape, get_input_shape, num_inputs, axis, new_axis);
   int N = output_shape.num_samples();
-  se.add<mm::memory_kind::device, OutputDesc<T>>(N);
-  se.add<mm::memory_kind::device, InputDesc<T>>(num_inputs * N);
-  se.add<mm::memory_kind::pinned, OutputDesc<T>>(N);
-  se.add<mm::memory_kind::pinned, InputDesc<T>>(num_inputs * N);
   axis_ = axis;
 }
 

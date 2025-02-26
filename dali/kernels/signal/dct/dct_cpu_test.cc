@@ -17,11 +17,11 @@
 #include <complex>
 #include <tuple>
 #include <vector>
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/signal/dct/dct_test.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -89,10 +89,8 @@ TEST_P(Dct1DCpuTest, DctTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args, axis_);
 
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(reqs.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  ctx.scratchpad = &dyn_scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
 

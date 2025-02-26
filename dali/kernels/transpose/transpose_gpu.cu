@@ -160,14 +160,6 @@ class TransposeGPU::Impl {
 
     KernelRequirements req;
     req.output_shapes = { out_shape_ };
-    ScratchpadEstimator se;
-
-    se.add<mm::memory_kind::device, TiledTransposeDesc<T>>(tiled_descs_.size());
-    se.add<mm::memory_kind::device, DeinterleaveDesc<T>>(deinterleave_descs_.size());
-    se.add<mm::memory_kind::device, GenericTransposeDesc<T>>(generic_descs_.size());
-
-    req.scratch_sizes = se.sizes;
-
     return req;
   }
 

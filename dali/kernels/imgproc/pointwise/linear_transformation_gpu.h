@@ -124,13 +124,9 @@ class LinearTransformationGpu {
     }
     auto adjusted_rois = AdjustRoi(rois, in.shape);
     KernelRequirements req;
-    ScratchpadEstimator se;
     TensorListShape<ndims_> output_shape(ShapeFromRoi(make_cspan(adjusted_rois), channels_out));
     block_setup_.SetupBlocks(output_shape, true);
-    se.add<mm::memory_kind::device, SampleDescriptor>(in.num_samples());
-    se.add<mm::memory_kind::device, BlockDesc>(block_setup_.Blocks().size());
     req.output_shapes = {output_shape};
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

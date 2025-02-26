@@ -27,13 +27,6 @@ void StftImplGPU::Reset() {
   post_real_.reset();
 }
 
-inline void add_scratch(ScratchpadEstimator &se, scratch_sizes_t &sizes) {
-  constexpr size_t kScratchpadAlignment = 64;
-  for (size_t i = 0; i < sizes.size(); i++) {
-    se.sizes[i] = align_up(se.sizes[i], kScratchpadAlignment) + sizes[i];
-  }
-}
-
 KernelRequirements StftImplGPU::Setup(
     KernelContext &ctx, span<const int64_t> lengths, const StftArgs &args) {
   if (args != args_) {
@@ -66,42 +59,36 @@ KernelRequirements StftImplGPU::Setup(
   total_windows_ = windows;
 
   KernelRequirements req;
-  ScratchpadEstimator se;
 
-  SetupWindowExtraction(ctx, se, lengths);
+  SetupWindowExtraction(ctx, lengths);
   CreatePlans(windows);
-  ReserveTempStorage(se);
-  SetupPostprocessing(ctx, se);
+  ReserveTempStorage();
+  SetupPostprocessing(ctx);
 
   req.output_shapes = { shape };
-  req.scratch_sizes = se.sizes;
   return req;
 }
 
 void StftImplGPU::SetupWindowExtraction(
     KernelContext &ctx,
-    ScratchpadEstimator &se,
     span<const int64_t> input_lengths) {
   ExtractWindowsBatchedArgs extract_args;
   static_cast<ExtractWindowsArgs &>(extract_args) = static_cast<ExtractWindowsArgs &>(args_);
   extract_args.output_window_length = transform_in_size();  // include padding, if necessary
 
   KernelRequirements extract_req = window_extractor_.Setup(ctx, input_lengths, extract_args);
-  add_scratch(se, extract_req.scratch_sizes);
 }
 
-void StftImplGPU::SetupPostprocessing(KernelContext &ctx, ScratchpadEstimator &se) {
+void StftImplGPU::SetupPostprocessing(KernelContext &ctx) {
   if (args_.spectrum_type == FFT_SPECTRUM_COMPLEX) {
     post_real_.reset();
     post_complex_ = fft_postprocess::GetSTFTPostprocessor(args_.time_major_layout);
     auto req = post_complex_->Setup(ctx, transform_out_.shape);
-    add_scratch(se, req.scratch_sizes);
   } else {
     post_complex_.reset();
     post_real_ = fft_postprocess::GetSpectrogramPostprocessor(
         args_.time_major_layout, args_.spectrum_type);
     auto req = post_real_->Setup(ctx, transform_out_.shape);
-    add_scratch(se, req.scratch_sizes);
   }
 }
 
@@ -150,13 +137,9 @@ void StftImplGPU::CreateStreams(int new_num_streams) {
   }
 }
 
-void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
+void StftImplGPU::ReserveTempStorage() {
   // TODO(michalz) - try in-place transform to reduce memory footprint
   // extracted windows
-  se.add<mm::memory_kind::device, float>(num_temp_windows() * transform_in_size(),
-                                         alignof(float2));
-  // transform output
-  se.add<mm::memory_kind::device, float2>(num_temp_windows() * transform_out_size());
 
   int windows_left = total_windows_;
   int max_plan = num_temp_windows();
@@ -173,10 +156,6 @@ void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
   }
 
   max_work_size_ = max_work;
-
-  for (size_t i = 0; i < streams_.size(); i++)
-    // make each allocation aligned to a complex number
-    se.add<mm::memory_kind::device, char>(max_work, alignof(double2));
 }
 
 void StftImplGPU::ValidateParams(ExecutionContext &ctx) {

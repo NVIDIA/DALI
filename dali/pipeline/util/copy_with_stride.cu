@@ -248,7 +248,7 @@ bool IsAligned(const StridedCopyDesc &sample) {
 template <int ElementSize, typename MismatchedNdimT>
 void CopyBatchTyped(span<StridedCopyDesc> sample_descs, MismatchedNdimT mismatched_ndim,
                     cudaStream_t stream) {
-  kernels::DynamicScratchpad scratchpad({}, stream);
+  kernels::DynamicScratchpad scratchpad(stream);
   using T = ElementType<ElementSize>;
   constexpr unsigned int kMaxBlockSize = 1024u;
   static constexpr int kBlockSize = 128;

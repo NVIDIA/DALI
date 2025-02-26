@@ -17,7 +17,6 @@
 #include <vector>
 #include <complex>
 #include <cmath>
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
 #include "dali/kernels/signal/window/window_functions.h"
 #include "dali/kernels/common/utils.h"

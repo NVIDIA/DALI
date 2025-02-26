@@ -21,7 +21,6 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/kernels/scratch.h"
 #include "dali/operators/image/crop/crop_attr.h"
 #include "dali/operators/generic/slice/slice_base.h"
 #include "dali/pipeline/operator/common.h"

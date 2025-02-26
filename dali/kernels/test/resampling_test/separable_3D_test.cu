@@ -28,7 +28,6 @@
 
 #include "dali/kernels/imgproc/resample/separable.h"
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"
@@ -36,6 +35,7 @@
 #include "dali/test/cv_mat_utils.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 using std::cout;
 using std::endl;
@@ -266,17 +266,16 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
   auto tmp_slices = GetSliceImages(tmp_view);
   assert(in_slices.num_samples() == tmp_slices.num_samples());
 
-  ScratchpadAllocator sa_xy, sa_z;
-
   {
     ResampleGPU<float, In, 2> res_xy;
+
     KernelContext ctx;
     ctx.gpu.stream = stream;
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
     auto req = res_xy.Setup(ctx, in_slices, make_span(params_xy));
-    sa_xy.Reserve(req.scratch_sizes);
-    auto scratch = sa_xy.GetScratchpad();
-    ctx.scratchpad = &scratch;
+
     assert(req.output_shapes[0] == tmp_slices.shape);
     res_xy.Run(ctx, tmp_slices, in_slices, make_span(params_xy));
   }
@@ -290,10 +289,10 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
+
     auto req = res_z.Setup(ctx, tmp_z, make_span(params_z));
-    sa_z.Reserve(req.scratch_sizes);
-    auto scratch = sa_z.GetScratchpad();
-    ctx.scratchpad = &scratch;
     assert(req.output_shapes[0] == out_z.shape);
     res_z.Run(ctx, out_z, tmp_z, make_span(params_z));
   }
@@ -406,7 +405,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
     ResampleGPU<Out, In, 3> kernel;
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    ScratchpadAllocator sa;
+
     TestDataGenerator<In> tdg;
     TestTensorList<In> in;
     TestTensorList<Out> out, ref;
@@ -434,10 +433,11 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
       CUDA_CALL(
         cudaMemsetAsync(out.gpu(stream).data[0], 0, sizeof(Out)*out_shape.num_elements(), stream));
 
-      sa.Reserve(req.scratch_sizes);
-      auto scratchpad = sa.GetScratchpad();
-      ctx.scratchpad = &scratchpad;
       auto out_gpu = out.template gpu<4>(stream);
+
+      DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+      ctx.scratchpad = &dyn_scratchpad;
+
       kernel.Run(ctx, out_gpu, in.template gpu<4>(stream), make_span(params));
 
       auto out_cpu = out.cpu(stream);
@@ -457,7 +457,7 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
 
     ResampleCPU<Out, In, 3> kernel;
     KernelContext ctx;
-    ScratchpadAllocator sa;
+
     TestDataGenerator<In> tdg;
     TestTensorList<In> in;
     TestTensorList<Out> out, ref;
@@ -492,9 +492,9 @@ class Resample3DTest<ResamplingTestParams<Out, In, interp>>
         ASSERT_EQ(req.output_shapes.size(), 1u) << "Expected only 1 output";
         ASSERT_EQ(req.output_shapes[0][0], out_shape[i]) << "Unexpected output shape";
 
-        sa.Reserve(req.scratch_sizes);
-        auto scratchpad = sa.GetScratchpad();
-        ctx.scratchpad = &scratchpad;
+        DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+        ctx.scratchpad = &dyn_scratchpad;
+
         kernel.Run(ctx, out_cpu[i], in_cpu[i], params[i]);
 
         if (interp == ResamplingFilterType::Nearest) {

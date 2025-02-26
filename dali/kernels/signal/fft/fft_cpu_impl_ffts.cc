@@ -76,11 +76,6 @@ KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
   KernelRequirements req;
   auto out_shape = in.shape;
 
-  ScratchpadEstimator se;
-  se.add<mm::memory_kind::host, float>(size_in_buf(nfft),  32);
-  se.add<mm::memory_kind::host, float>(size_out_buf(nfft), 32);
-  req.scratch_sizes = se.sizes;
-
   out_shape[transform_axis_] = nfft / 2 + 1;
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
 

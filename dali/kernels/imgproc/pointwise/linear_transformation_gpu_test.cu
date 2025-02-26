@@ -16,7 +16,6 @@
 #include <vector>
 #include <tuple>
 #include "dali/core/geom/mat.h"
-#include "dali/kernels/scratch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/test/mat2tensor.h"
@@ -25,6 +24,7 @@
 #include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
 #include "dali/test/cv_mat_utils.h"
 #include "dali/kernels/imgproc/roi.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -158,10 +158,8 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
 
   auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
 
-  ScratchpadAllocator sa;
-  sa.Reserve(reqs.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
 
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
@@ -186,10 +184,8 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
                            make_cspan(this->vmat_), make_cspan(this->vvec_),
                            make_cspan(this->rois_));
 
-  ScratchpadAllocator sa;
-  sa.Reserve(reqs.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
 
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());

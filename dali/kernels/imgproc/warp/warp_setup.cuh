@@ -63,11 +63,7 @@ class WarpSetup : public BlockSetup<spatial_ndim, spatial_ndim> {
     SetupBlocks(output_shape, force_variable_size);
 
     KernelRequirements req = {};
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, SampleDesc>(output_shape.num_samples());
-    se.add<mm::memory_kind::device, BlockDesc>(Blocks().size());
     req.output_shapes = { output_shape };
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

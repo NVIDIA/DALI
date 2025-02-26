@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "dali/kernels/common/utils.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 

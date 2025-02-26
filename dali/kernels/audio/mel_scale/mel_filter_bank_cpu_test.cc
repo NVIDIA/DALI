@@ -18,7 +18,6 @@
 #include <complex>
 #include <cmath>
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_test.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/audio/mel_scale/mel_scale.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu.h"
 #include "dali/kernels/common/utils.h"

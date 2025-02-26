@@ -26,7 +26,6 @@
 #include "dali/kernels/imgproc/convolution/convolution_gpu.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/scratch.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 
@@ -126,11 +125,6 @@ struct LaplacianGpuBase<Out, In, W, 2, has_channels, is_sequence> {
 
     auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[0]);
     auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[1]);
-
-    // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
-    req.scratch_sizes = sub_scratch_sizes_;
-
     return req;
   }
 
@@ -139,26 +133,20 @@ struct LaplacianGpuBase<Out, In, W, 2, has_channels, is_sequence> {
       const TensorListView<StorageGPU, const In, ndim>& in,
       const std::array<std::array<TensorListView<StorageCPU, const W, 1>, axes>, axes>& windows,
       std::array<span<const float>, axes> scale) {
-    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
-    // TODO(michalz): Get rid of this run-time memory kind dispatch
-    PreallocatedScratchpad sub_scratch;
-    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
-      auto sz = sub_scratch_sizes_[i];
-      auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] =
-          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dy_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
     }
-
-    KernelContext sub_ctx = ctx;
-    sub_ctx.scratchpad = &sub_scratch;
-
-    // Clear the scratchpad for sub-kernels to reuse memory
-    dy_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
-    sub_scratch.Clear();
-    dx_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dx_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
+    }
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   DyKernel dy_kernel_;
   DxKernel dx_kernel_;
 };
@@ -180,12 +168,6 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
     auto req_dz = dz_kernel_.Setup(ctx, in_shape, window_sizes[0]);
     auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[2]);
-
-    // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
-    sub_scratch_sizes_ = MaxScratchSize(sub_scratch_sizes_, req_dz.scratch_sizes);
-    req.scratch_sizes = sub_scratch_sizes_;
-
     return req;
   }
 
@@ -194,28 +176,26 @@ struct LaplacianGpuBase<Out, In, W, 3, has_channels, is_sequence> {
       const TensorListView<StorageGPU, const In, ndim>& in,
       const std::array<std::array<TensorListView<StorageCPU, const W, 1>, axes>, axes>& windows,
       std::array<span<const float>, axes> scale) {
-    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
-    // TODO(michalz): Get rid of this run-time memory kind dispatch
-    PreallocatedScratchpad sub_scratch;
-    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
-      auto sz = sub_scratch_sizes_[i];
-      auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] =
-          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dz_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
     }
-
-    KernelContext sub_ctx = ctx;
-    sub_ctx.scratchpad = &sub_scratch;
-
-    // Clear the scratchpad for sub-kernels to reuse memory
-    dz_kernel_.Run(sub_ctx, out, in, windows[0], {scale[0]});
-    sub_scratch.Clear();
-    dy_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
-    sub_scratch.Clear();
-    dx_kernel_.Run(sub_ctx, out, in, windows[2], {scale[2], 1.f});
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dy_kernel_.Run(sub_ctx, out, in, windows[1], {scale[1], 1.f});
+    }
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dx_kernel_.Run(sub_ctx, out, in, windows[2], {scale[2], 1.f});
+    }
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   DzKernel dz_kernel_;
   DyKernel dy_kernel_;
   DxKernel dx_kernel_;

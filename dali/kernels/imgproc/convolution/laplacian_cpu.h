@@ -22,7 +22,6 @@
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/scratch.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
@@ -115,11 +114,6 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 2, has_channels> {
 
     auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[0]);
     auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[1]);
-
-    // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
-    req.scratch_sizes = sub_scratch_sizes_;
-
     return req;
   }
 
@@ -128,26 +122,20 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 2, has_channels> {
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale, const T& transform) {
-    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
-    // TODO(michalz): Get rid of this run-time memory kind dispatch
-    PreallocatedScratchpad sub_scratch;
-    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
-      auto sz = sub_scratch_sizes_[i];
-      auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] =
-          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dy_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     }
-
-    KernelContext sub_ctx = ctx;
-    sub_ctx.scratchpad = &sub_scratch;
-
-    // Clear the scratchpad for sub-kernels to reuse memory
-    dy_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
-    sub_scratch.Clear();
-    dx_kernel_.Run(sub_ctx, out, in, windows[1], transform);
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dx_kernel_.Run(sub_ctx, out, in, windows[1], transform);
+    }
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   DyKernel dy_kernel_;
   DxKernel dx_kernel_;
 };
@@ -171,12 +159,6 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
     auto req_dz = dz_kernel_.Setup(ctx, in_shape, window_sizes[0]);
     auto req_dy = dy_kernel_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_dx = dx_kernel_.Setup(ctx, in_shape, window_sizes[2]);
-
-    // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = MaxScratchSize(req_dx.scratch_sizes, req_dy.scratch_sizes);
-    sub_scratch_sizes_ = MaxScratchSize(sub_scratch_sizes_, req_dz.scratch_sizes);
-    req.scratch_sizes = sub_scratch_sizes_;
-
     return req;
   }
 
@@ -185,28 +167,28 @@ struct LaplacianCpuBase<T, Intermediate, Out, In, W, 3, has_channels> {
            const TensorView<StorageCPU, const In, ndim>& in,
            const std::array<std::array<TensorView<StorageCPU, const W, 1>, axes>, axes>& windows,
            const std::array<float, axes>& scale, const T& transform) {
-    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
-    // TODO(michalz): Get rid of this run-time memory kind dispatch
-    PreallocatedScratchpad sub_scratch;
-    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
-      auto sz = sub_scratch_sizes_[i];
-      auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] =
-          BumpAllocator(static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dz_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
     }
 
-    KernelContext sub_ctx = ctx;
-    sub_ctx.scratchpad = &sub_scratch;
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dy_kernel_.Run(sub_ctx, acc, in, windows[1], scale[1]);
+    }
 
-    // Clear the scratchpad for sub-kernels to reuse memory
-    dz_kernel_.Run(sub_ctx, acc, in, windows[0], scale[0]);
-    sub_scratch.Clear();
-    dy_kernel_.Run(sub_ctx, acc, in, windows[1], scale[1]);
-    sub_scratch.Clear();
-    dx_kernel_.Run(sub_ctx, out, in, windows[2], transform);
+    {
+      KernelContext sub_ctx = ctx;
+      kernels::DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      dx_kernel_.Run(sub_ctx, out, in, windows[2], transform);
+    }
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   DzKernel dz_kernel_;
   DyKernel dy_kernel_;
   DxKernel dx_kernel_;
@@ -255,9 +237,6 @@ struct LaplacianCpu<Intermediate, Out, In, W, axes, has_channels,
   KernelRequirements Setup(KernelContext& ctx, const TensorShape<ndim>& in_shape,
                            const std::array<std::array<int, axes>, axes>& window_sizes) {
     auto req = Base::Setup(ctx, in_shape, window_sizes);
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::host, Intermediate>(volume(in_shape));
-    req.scratch_sizes = AppendScratchSize(se.sizes, req.scratch_sizes);
     return req;
   }
 

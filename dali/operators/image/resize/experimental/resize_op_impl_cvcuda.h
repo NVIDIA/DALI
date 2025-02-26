@@ -157,7 +157,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     PrepareOutput(out_frames);
 
 
-    kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+    kernels::DynamicScratchpad scratchpad(AccessOrder(ws.stream()));
 
     auto workspace_mem = op_workspace_.Allocate(workspace_reqs_, scratchpad);
 

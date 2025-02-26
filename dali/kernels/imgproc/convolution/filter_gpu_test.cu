@@ -23,7 +23,6 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/kernels/imgproc/convolution/filter_gpu.cuh"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 
@@ -338,7 +337,7 @@ struct FilterGPUTest : public ::testing::Test {
   void RunTest() {
     KernelContext ctx_gpu;
     ctx_gpu.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx_gpu.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx_gpu.gpu.stream));
     ctx_gpu.scratchpad = &dyn_scratchpad;
     Kernel kernel_gpu;
 

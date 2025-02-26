@@ -19,7 +19,6 @@
 #include <memory>
 #include <utility>
 #include <atomic>
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/dynamic_scratchpad.h"
@@ -72,9 +71,6 @@ struct AnyKernelInstance {
  */
 class DLL_PUBLIC KernelManager {
  public:
-  static constexpr size_t NumMemKinds = ScratchpadAllocator::NumMemKinds;
-  using ScratchSizes = std::array<size_t, NumMemKinds>;
-
   /**
    * @brief Creates `num_instances` slots for kernels
    *
@@ -195,7 +191,7 @@ class DLL_PUBLIC KernelManager {
            "Kernel instance index (instance_idx) out of range");
     auto &inst = instances[instance_idx];
     if (!context.scratchpad) {
-      DynamicScratchpad scratchpad({}, AccessOrder(context.gpu.stream));
+      DynamicScratchpad scratchpad(AccessOrder(context.gpu.stream));
       context.scratchpad = &scratchpad;
       auto finally = AtScopeExit([&]() {
         context.scratchpad = nullptr;

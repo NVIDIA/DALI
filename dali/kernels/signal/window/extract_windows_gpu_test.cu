@@ -18,8 +18,8 @@
 #include "dali/core/util.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/signal/window/extract_windows_gpu.cuh"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/window/window_functions.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -103,8 +103,6 @@ void TestBatchedExtract(
     int out_win_len = -1) {
   bool vertical = extract->IsVertical();
 
-  ScratchpadAllocator sa;
-
   int N = lengths.num_samples();
 
 
@@ -134,9 +132,9 @@ void TestBatchedExtract(
   ASSERT_EQ(req.output_shapes.size(), 1u);
   ASSERT_EQ(req.output_shapes[0].num_samples(), concatenate ? 1 : N);
 
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
 
   TestTensorList<float, 2> out;
   mm::uptr<float> gpu_win;

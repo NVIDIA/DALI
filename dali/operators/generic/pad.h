@@ -23,7 +23,6 @@
 
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/scratch.h"
 #include "dali/operators/util/axis_args.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"

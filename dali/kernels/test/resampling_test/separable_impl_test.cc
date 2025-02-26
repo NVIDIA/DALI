@@ -21,9 +21,9 @@
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 using std::cout;
 using std::endl;
@@ -193,9 +193,9 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     params[i] = batch[i].params;
   }
 
-  ScratchpadAllocator scratch_alloc;
   KernelContext ctx;
   ctx.gpu.stream = 0;
+
   SeparableResamplingGPUImpl<uint8_t, uint8_t, 2> resampling;
   TestTensorList<uint8_t, 3> input, output;
 
@@ -218,8 +218,6 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
-  scratch_alloc.Reserve(req.scratch_sizes);
-
   output.reshape(req.output_shapes[0].to_static<3>());
   OutListGPU<uint8_t, 3> out_tlv = output.gpu();
   for (int i = 0; i < out_tlv.num_samples(); i++) {
@@ -237,8 +235,9 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
   resampling.Run(ctx, out_tlv, in_tlv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
@@ -275,9 +274,9 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     params[i] = batch[i].params;
   }
 
-  ScratchpadAllocator scratch_alloc;
   KernelContext ctx;
   ctx.gpu.stream = 0;
+
   using Kernel = ResampleGPU<uint8_t, uint8_t>;
   Kernel kernel;
   TestTensorList<uint8_t, 3> input, output;
@@ -301,8 +300,6 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
-  scratch_alloc.Reserve(req.scratch_sizes);
-
   output.reshape(req.output_shapes[0].to_static<3>());
   OutListGPU<uint8_t, 3> out_tlv = output.gpu();
   for (int i = 0; i < out_tlv.num_samples(); i++) {
@@ -319,8 +316,9 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
   kernel.Run(ctx, out_tlv, in_tlv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);

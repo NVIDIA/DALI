@@ -16,7 +16,6 @@
 #include <random>
 #include <utility>
 #include "dali/kernels/reduce/reduce_gpu_impl.cuh"
-#include "dali/kernels/scratch.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/tensor_shape_print.h"

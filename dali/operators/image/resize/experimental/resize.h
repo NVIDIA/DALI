@@ -24,7 +24,6 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/imgproc/resample/params.h"
-#include "dali/kernels/scratch.h"
 #include "dali/operators/image/resize/experimental/resize_op_impl_cvcuda.h"
 #include "dali/operators/image/resize/resize_attr.h"
 #include "dali/operators/image/resize/resize_base.h"

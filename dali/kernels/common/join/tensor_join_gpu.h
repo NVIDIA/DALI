@@ -61,12 +61,9 @@ class TensorJoinGPU : public tensor_join::TensorJoinImplGPU<type_of_size<sizeof(
                            const std::function<const TensorListShape<> *(int)> &get_input_shape,
                            int num_inputs,
                            int axis) {
-    ScratchpadEstimator se;
     KernelRequirements req;
     req.output_shapes.resize(1);
-    se.add<mm::memory_kind::pinned, const InListU *>(num_inputs);
-    Base::Setup(req.output_shapes[0], se, get_input_shape, num_inputs, axis);
-    req.scratch_sizes = se.sizes;
+    Base::Setup(req.output_shapes[0], get_input_shape, num_inputs, axis);
     return req;
   }
 

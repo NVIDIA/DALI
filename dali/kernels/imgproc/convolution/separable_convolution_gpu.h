@@ -21,8 +21,8 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_gpu.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/scratch.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -61,11 +61,7 @@ struct SeparableConvolutionGpu<Out, In, W, 1, has_channels, is_sequence> {
     (void)enforce_intermediate;  // It's relevant only if `axes >= 3`
     KernelRequirements req;
     req.output_shapes.push_back(in_shape);
-
     auto req_conv = conv_.Setup(ctx, in_shape, window_sizes[0]);
-
-    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, req_conv.scratch_sizes);
-
     return req;
   }
 
@@ -93,19 +89,10 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
                            bool enforce_intermediate = false) {
     (void)enforce_intermediate;  // It's relevant only if `axes >= 3`
     KernelRequirements req;
-
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements());
-    req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
 
     auto req_inner = conv_innermost_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
-
-    // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = MaxScratchSize(req_inner.scratch_sizes, req_outer.scratch_sizes);
-    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, sub_scratch_sizes_);
-
     return req;
   }
 
@@ -118,26 +105,20 @@ struct SeparableConvolutionGpu<Out, In, W, 2, has_channels, is_sequence> {
 
     auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
 
-    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
-    // TODO(michalz): Get rid of this run-time memory kind dispatch
-    PreallocatedScratchpad sub_scratch;
-    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
-      auto sz = sub_scratch_sizes_[i];
-      auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] = BumpAllocator(
-        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
+    {
+      KernelContext sub_ctx = ctx;
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      conv_innermost_.Run(sub_ctx, intermediate, in, windows[1], anchors[1]);
     }
-
-    KernelContext sub_ctx = ctx;
-    sub_ctx.scratchpad = &sub_scratch;
-
-    // Clear the scratchpad for sub-kernels to reuse memory
-    conv_innermost_.Run(sub_ctx, intermediate, in, windows[1], anchors[1]);
-    sub_scratch.Clear();
-    conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], anchors[0], conv_epilogue);
+    {
+      KernelContext sub_ctx = ctx;
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      conv_outermost_.Run(sub_ctx, out, intermediate, windows[0], anchors[0], conv_epilogue);
+    }
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 1, has_channels> conv_innermost_;
   ConvolutionGpu<Out, Intermediate, W, ndim, sequence_axes + 0, has_channels> conv_outermost_;
 };
@@ -155,22 +136,12 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
                            const std::array<TensorListShape<1>, axes>& window_sizes,
                            bool enforce_intermediate = false) {
     KernelRequirements req;
-    ScratchpadEstimator se;
     use_out_as_intermediate_ = !enforce_intermediate && outFitsIntermediate;
-    int intermediate_count = use_out_as_intermediate_ ? 1 : 2;
-    se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements() * intermediate_count);
-    req.scratch_sizes = se.sizes;
     req.output_shapes.push_back(in_shape);
 
     auto req_inner = conv_innermost_.Setup(ctx, in_shape, window_sizes[2]);
     auto req_middle = conv_middle_.Setup(ctx, in_shape, window_sizes[1]);
     auto req_outer = conv_outermost_.Setup(ctx, in_shape, window_sizes[0]);
-
-    // Calculate max scratch memory required by sub-kernels
-    sub_scratch_sizes_ = MaxScratchSize(req_inner.scratch_sizes, req_middle.scratch_sizes);
-    sub_scratch_sizes_ = MaxScratchSize(sub_scratch_sizes_, req_outer.scratch_sizes);
-    req.scratch_sizes = AppendScratchSize(req.scratch_sizes, sub_scratch_sizes_);
-
     return req;
   }
 
@@ -191,28 +162,31 @@ struct SeparableConvolutionGpu<Out, In, W, 3, has_channels, is_sequence> {
       intermediate_outer = {tmp + in.shape.num_elements(), in.shape};
     }
 
-    // Prepare the scratchpad with all the remaining memory requested by sub-kernels
-    // TODO(michalz): Get rid of this run-time memory kind dispatch
-    PreallocatedScratchpad sub_scratch;
-    for (size_t i = 0; i < sub_scratch_sizes_.size(); i++) {
-      auto sz = sub_scratch_sizes_[i];
-      auto kind_id = static_cast<mm::memory_kind_id>(i);
-      sub_scratch.allocs[i] = BumpAllocator(
-        static_cast<char*>(ctx.scratchpad->Alloc(kind_id, sz, 64)), sz);
-    }
-
     KernelContext sub_ctx = ctx;
-    sub_ctx.scratchpad = &sub_scratch;
+    DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+    sub_ctx.scratchpad = &dyn_scratchpad;
 
     // Clear the scratchpad for sub-kernels to reuse memory
-    conv_innermost_.Run(sub_ctx, intermediate_inner, in, windows[2], anchors[2]);
-    sub_scratch.Clear();
-    conv_middle_.Run(sub_ctx, intermediate_outer, intermediate_inner, windows[1], anchors[1]);
-    sub_scratch.Clear();
-    conv_outermost_.Run(sub_ctx, out, intermediate_outer, windows[0], anchors[0], conv_epilogue);
+    {
+      KernelContext sub_ctx = ctx;
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      conv_innermost_.Run(sub_ctx, intermediate_inner, in, windows[2], anchors[2]);
+    }
+    {
+      KernelContext sub_ctx = ctx;
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      conv_middle_.Run(sub_ctx, intermediate_outer, intermediate_inner, windows[1], anchors[1]);
+    }
+    {
+      KernelContext sub_ctx = ctx;
+      DynamicScratchpad dyn_scratchpad(AccessOrder(sub_ctx.gpu.stream));
+      sub_ctx.scratchpad = &dyn_scratchpad;
+      conv_outermost_.Run(sub_ctx, out, intermediate_outer, windows[0], anchors[0], conv_epilogue);
+    }
   }
 
-  scratch_sizes_t sub_scratch_sizes_;
   bool use_out_as_intermediate_;
   ConvolutionGpu<Intermediate, In, W, ndim, sequence_axes + 2, has_channels> conv_innermost_;
   ConvolutionGpu<Intermediate, Intermediate, W, ndim, sequence_axes + 1, has_channels> conv_middle_;

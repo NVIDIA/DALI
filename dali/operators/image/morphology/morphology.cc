@@ -29,7 +29,7 @@ void Morphology::RunImpl(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
-  kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+  kernels::DynamicScratchpad scratchpad(AccessOrder(ws.stream()));
   auto mask = AcquireTensorArgument<int32_t>(ws, scratchpad, mask_arg_,
                                              TensorShape<1>(2), nvcvop::GetDataType<int32_t>(2));
   auto anchor = AcquireTensorArgument<int32_t>(ws, scratchpad, anchor_arg_,

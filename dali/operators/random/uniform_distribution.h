@@ -156,7 +156,7 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
         per_sample_values_.resize(values_.size());
         per_sample_nvalues_.resize(values_.size());
         if (std::is_same<Backend, GPUBackend>::value) {
-          kernels::DynamicScratchpad scratch({}, ws.stream());
+          kernels::DynamicScratchpad scratch(ws.stream());
           int64_t nvalues = values_.get().shape.num_elements();
 
           auto values_cpu =

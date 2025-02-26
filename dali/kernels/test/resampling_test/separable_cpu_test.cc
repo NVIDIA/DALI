@@ -19,7 +19,7 @@
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"
 #include "dali/kernels/imgproc/resample/separable_cpu.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
-#include "dali/kernels/scratch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -47,18 +47,18 @@ TEST_P(ResamplingTestCPU, Impl) {
   auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
 
   SeparableResampleCPU<uint8_t, uint8_t, 2> resample;
+
   KernelContext context;
-  ScratchpadAllocator scratch_alloc;
 
   FilterDesc filter(ResamplingFilterType::Nearest);
 
   auto req = resample.Setup(context, in_tensor, param.params);
-  scratch_alloc.Reserve(req.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  context.scratchpad = &scratchpad;
 
   auto out_mat = MatWithShape<uint8_t>(req.output_shapes[0].tensor_shape<3>(0));
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_mat);
+
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  context.scratchpad = &dyn_scratchpad;
 
   resample.Run(context, out_tensor, in_tensor, param.params);
 
@@ -75,14 +75,13 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
   using Kernel = ResampleCPU<uint8_t, uint8_t>;
   Kernel kernel;
   KernelContext context;
-  ScratchpadAllocator scratch_alloc;
+
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  context.scratchpad = &dyn_scratchpad;
 
   FilterDesc filter(ResamplingFilterType::Nearest);
 
   auto req = kernel.Setup(context, in_tensor, param.params);
-  scratch_alloc.Reserve(req.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  context.scratchpad = &scratchpad;
 
   auto out_mat = MatWithShape<uint8_t>(req.output_shapes[0].tensor_shape<3>(0));
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_mat);

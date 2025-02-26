@@ -51,7 +51,7 @@ TEST(DynamicScratchpad, BasicTest) {
   for (int attempt = 0; attempt < max_attempts; attempt++) {
     char *pinned;
     {
-      DynamicScratchpad scratch({}, AccessOrder(stream.get()));
+      DynamicScratchpad scratch(AccessOrder(stream.get()));
       pinned = scratch.Allocate<mm::memory_kind::pinned, char>(N);
       memcpy(pinned, in.data(), N);
       CUDA_CALL(cudaMemcpyAsync(dev.get(), pinned, N, cudaMemcpyHostToDevice, stream));

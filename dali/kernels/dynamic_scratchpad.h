@@ -137,19 +137,20 @@ class DynamicScratchpad
   /**
    * @brief Constructs a dynamically allocated scratchpad
    *
-   * @param initial_sizes   Sizes, in bytes, of the initial buffers. Note that these buffers
-   *                        are allocated lazily, so nothing is allocated if there's no request
-   *                        for memory of any given kind.
-   * @param device_order    Allocation and deallocation order for device memory.
+   * @param device_order          Allocation and deallocation order for device memory.
    * @param pinned_dealloc_order  Deallocation order for pinned memory. Allocation is always
    *                              host-ordered. If not set, device_order is used.
    * @param managed_dealloc_order Deallocation order for managed memory. Allocation is always
    *                              host-ordered. If not set, device_order is used.
+   * @param initial_sizes         Sizes, in bytes, of the initial buffers. Note that these buffers
+   *                              are allocated lazily, so nothing is allocated if there's no request
+   *                              for memory of any given kind.
    */
-  explicit DynamicScratchpad(scratch_sizes_t initial_sizes = {},
-                             AccessOrder device_order = cudaStream_t(0),
+  using scratch_sizes_t = std::array<size_t, static_cast<size_t>(mm::memory_kind_id::count)>;
+  explicit DynamicScratchpad(AccessOrder device_order = cudaStream_t(0),
                              AccessOrder pinned_dealloc_order = {},
-                             AccessOrder managed_dealloc_order = {}) {
+                             AccessOrder managed_dealloc_order = {},
+                             scratch_sizes_t initial_sizes = {}) {
     initial_sizes_ = initial_sizes;
     for (auto &s : initial_sizes_) {
       if (s == 0)

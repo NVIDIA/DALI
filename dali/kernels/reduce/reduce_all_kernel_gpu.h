@@ -42,8 +42,6 @@ class DLL_PUBLIC ReduceAllGPU {
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InListGPU<In, DynamicDimensions> &in) {
     auto num_samples = in.size();
-    ScratchpadEstimator se;
-
     int64_t max_sample_size = 0;
     for (int i = 0; i < num_samples; i++) {
       max_sample_size = std::max(max_sample_size, volume(in.tensor_shape(i)));
@@ -54,15 +52,9 @@ class DLL_PUBLIC ReduceAllGPU {
       blocks_per_sample_ = static_cast<int>(std::sqrt(max_sample_size));
     }
 
-    se.add<mm::memory_kind::pinned, const In*>(num_samples);
-    se.add<mm::memory_kind::pinned, int64_t>(num_samples);
-    se.add<mm::memory_kind::device, const In*>(num_samples);
-    se.add<mm::memory_kind::device, int64_t>(num_samples);
     tmp_buffer_size_ = num_samples * blocks_per_sample_;
-    se.add<mm::memory_kind::device, Out>(tmp_buffer_size_);
 
     KernelRequirements req;
-    req.scratch_sizes = se.sizes;
     req.output_shapes = {TensorListShape<0>(num_samples)};
     return req;
   }

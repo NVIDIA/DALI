@@ -68,7 +68,7 @@ class MedianBlur : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
-    kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+    kernels::DynamicScratchpad scratchpad(AccessOrder(ws.stream()));
     auto ksize = AcquireTensorArgument<int32_t>(ws, scratchpad, ksize_arg_,
                                                 TensorShape<1>(2),
                                                 nvcvop::GetDataType<int32_t>(), "W");

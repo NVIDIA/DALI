@@ -284,32 +284,6 @@ class NormalizeImplGPU {
 
     KernelRequirements req;
     req.output_shapes = { data_shape };
-    ScratchpadEstimator se;
-
-    if (scalar_scale_) {
-      // scale is a scalar - it will be corrected before launch, in host code
-      if (scalar_base_) {
-        SetupImpl<Op_Scalar>(se);
-      } else {
-        SetupImpl<Op_ScalarScale>(se);
-      }
-    } else {
-      if (scale_is_stddev_) {
-        if (scalar_base_) {
-          SetupImpl<Op_InvStdDevScalarBase>(se);
-        } else {
-          SetupImpl<Op_InvStdDevNonScalar>(se);
-        }
-      } else {
-        if (scalar_base_) {
-          SetupImpl<Op_ScalarBase>(se);
-        } else {
-          SetupImpl<Op_NonScalar>(se);
-        }
-      }
-    }
-
-    req.scratch_sizes = se.sizes;
     return req;
   }
 
@@ -486,12 +460,6 @@ class NormalizeImplGPU {
     }
     ss << "}";
     return ss.str();
-  }
-
-  template <typename Desc>
-  void SetupImpl(ScratchpadEstimator &se) {
-    se.add<mm::memory_kind::pinned, Desc>(num_samples_);
-    se.add<mm::memory_kind::device, Desc>(num_samples_);
   }
 
   template <typename Desc>
