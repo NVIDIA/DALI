@@ -152,8 +152,8 @@ bool FramesDecoderBase::OpenAvCodec() {
     return false;
   }
   av_state_->frame_ = av_frame_alloc();
-  if (ret != 0) {
-    DALI_WARN(make_string("Could not allocate the av frame: ", detail::av_error_string(ret)));
+  if (av_state_->frame_ == nullptr) {
+    DALI_WARN("Could not allocate the av frame");
     return false;
   }
   return true;
