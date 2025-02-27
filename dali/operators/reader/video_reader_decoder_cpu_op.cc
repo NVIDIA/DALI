@@ -87,7 +87,7 @@ Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 .. note::
   Containers which do not support indexing, like MPEG, require DALI to build the index.
 DALI will go through the video and mark keyframes to be able to seek effectively,
-even in the variable frame rate scenario.
+even in the constant frame rate scenario.
 )code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderDecoderOutputFn)
