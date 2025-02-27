@@ -59,7 +59,7 @@ class DebayerCPU : public Debayer<CPUBackend> {
                       const_cast<void *>(inImage.raw_data()));
         cv::Mat outImg(height, width, OCVMatTypeForDALIData(outImage.type(), 3),
                        outImage.raw_mutable_data());
-        cv::cvtColor(inImg, outImg, toOpenCVColorConversionCode(pattern_[i]));
+        cv::demosaicing(inImg, outImg, toOpenCVColorConversionCode(pattern_[i]));
       });
     }
     tPool.RunAll();
