@@ -19,14 +19,15 @@
 
 namespace dali {
 
-FramesDecoderCpu::FramesDecoderCpu(const std::string &filename) : FramesDecoderBase(filename) {
+FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, bool build_index)
+    : FramesDecoderBase(filename, build_index, true) {
   is_valid_ = is_valid_ && CanDecode(av_state_->codec_params_->codec_id);
 }
 
 FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size,
-                                   bool build_index, bool init_codecs, int num_frames,
+                                   bool build_index, int num_frames,
                                    std::string_view source_info)
-    : FramesDecoderBase(memory_file, memory_file_size, build_index, init_codecs, num_frames,
+    : FramesDecoderBase(memory_file, memory_file_size, build_index, true, num_frames,
                         source_info) {
   is_valid_ = is_valid_ && CanDecode(av_state_->codec_params_->codec_id);
 }
