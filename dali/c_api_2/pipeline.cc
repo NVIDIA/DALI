@@ -77,6 +77,7 @@ PipelineWrapper::PipelineWrapper(
     GET_OR_DEFAULT(params, seed, -1_i64));
 }
 
+PipelineWrapper::~PipelineWrapper() = default;
 
 std::unique_ptr<PipelineOutputs>
 PipelineWrapper::PopOutputs(AccessOrder order) {
@@ -190,6 +191,12 @@ daliResult_t daliPipelineCreate(
   DALI_EPILOG();
 }
 
+daliResult_t daliPipelineDestroy(daliPipeline_h pipeline) {
+  DALI_PROLOG();
+  delete ToPointer(pipeline);
+  DALI_EPILOG();
+}
+
 daliResult_t daliPipelineDeserialize(
       daliPipeline_h *out_pipe_handle,
       const void *serialized_pipeline,
@@ -272,5 +279,24 @@ daliResult_t daliPipelineGetOutputCount(
   auto pipe = ToPointer(pipeline);
   CHECK_OUTPUT(out_desc);
   *out_desc = pipe->GetOutputDesc(index);
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutputs_h *out) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out);
+  *out = pipe->PopOutputs().release();
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelinePopOutputsAsync(
+        daliPipeline_h pipeline,
+        daliPipelineOutputs_h *out,
+        cudaStream_t stream) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out);
+  *out = pipe->PopOutputs(stream).release();
   DALI_EPILOG();
 }

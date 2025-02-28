@@ -89,8 +89,8 @@ daliResult_t HandleError(std::exception_ptr ex) {
     std::rethrow_exception(std::move(ex));
   } catch (dali::c_api::InvalidHandle &e) {
     return SetLastError(DALI_ERROR_INVALID_HANDLE, e.what());
-  } catch (std::invalid_argument &e) {
-    return SetLastError(DALI_ERROR_INVALID_ARGUMENT, e.what());
+  } catch (dali::invalid_key &e) {
+    return SetLastError(DALI_ERROR_INVALID_KEY, e.what());
   } catch (dali::CUDAError &e) {
     if (e.is_rt_api()) {
       if (e.rt_error() == cudaErrorNotReady)
@@ -104,10 +104,10 @@ daliResult_t HandleError(std::exception_ptr ex) {
     return SetLastError(DALI_ERROR_OUT_OF_MEMORY, e.what());
   } catch (std::bad_alloc &e) {
     return SetLastError(DALI_ERROR_OUT_OF_MEMORY, e.what());
-  } catch (dali::invalid_key &e) {
-    return SetLastError(DALI_ERROR_INVALID_KEY, e.what());
   } catch (std::out_of_range &e) {
     return SetLastError(DALI_ERROR_OUT_OF_RANGE, e.what());
+  } catch (std::invalid_argument &e) {
+    return SetLastError(DALI_ERROR_INVALID_ARGUMENT, e.what());
   } catch (std::system_error &e) {
     // compare by name to work around DLL issues
     if (CategoryEqual(e.code().category(), std::generic_category())) {
