@@ -38,6 +38,8 @@ class PipelineOutputs : public _DALIPipelineOutputs {
  public:
   explicit PipelineOutputs(Pipeline *pipe, AccessOrder order = AccessOrder::host());
 
+  ~PipelineOutputs();
+
   RefCountedPtr<ITensorList> Get(int index);
 
   span<daliOperatorTrace_t> GetTraces();
@@ -57,17 +59,11 @@ class PipelineOutputs : public _DALIPipelineOutputs {
   std::vector<RefCountedPtr<ITensorList>> output_wrappers_;
   // Use optional to implement lazy access with potentially empty result.
   std::optional<std::vector<daliOperatorTrace_t>> traces_;
+  // Needed for the legacy executor
+  Pipeline *producer_ = nullptr;
 };
 
 PipelineOutputs *ToPointer(daliPipelineOutputs_h handle);
-
-struct PipelineOutputsHandle : dali::UniqueHandle<daliPipelineOutputs_h, PipelineOutputsHandle> {
-  using dali::UniqueHandle<daliPipelineOutputs_h, PipelineOutputsHandle>::UniqueHandle;
-  static void DestroyHandle(daliPipelineOutputs_h h) {
-    if (h)
-      daliPipelineOutputsDestroy(h);
-  }
-};
 
 }  // namespace dali::c_api
 

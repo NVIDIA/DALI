@@ -80,14 +80,6 @@ class PipelineWrapper : public _DALIPipeline {
 
 PipelineWrapper *ToPointer(daliPipeline_h handle);
 
-struct PipelineHandle : dali::UniqueHandle<daliPipeline_h, PipelineHandle> {
-  using dali::UniqueHandle<daliPipeline_h, PipelineHandle>::UniqueHandle;
-  static void DestroyHandle(daliPipeline_h h) {
-    if (h)
-      daliPipelineDestroy(h);
-  }
-};
-
 }  // namespace dali::c_api
 
 #endif  // DALI_C_API_2_PIPELINE_H_

@@ -29,7 +29,13 @@ PipelineOutputs *ToPointer(daliPipelineOutputs_h handle) {
 PipelineOutputs::PipelineOutputs(Pipeline *pipe, AccessOrder order) {
   ws_.set_output_order(order);
   pipe->ShareOutputs(&ws_);
+  producer_ = pipe;
   output_wrappers_.resize(ws_.NumOutput());
+}
+
+PipelineOutputs::~PipelineOutputs() {
+  if (producer_)
+    producer_->ReleaseOutputs();
 }
 
 span<daliOperatorTrace_t> PipelineOutputs::GetTraces() {

@@ -16,6 +16,8 @@
 #include "dali/c_api_2/pipeline.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
+#include "dali/c_api_2/test_utils.h"
+#include "dali/c_api_2/managed_handle.h"
 
 namespace dali {
 
@@ -85,42 +87,86 @@ TEST(CAPI2_PipelineTest, Deserialize) {
 
   daliPipelineParams_t params{};
   daliPipeline_h h = nullptr;
-  EXPECT_EQ(daliPipelineDeserialize(&h, proto.c_str(), proto.length(), &params), DALI_SUCCESS)
-    << daliGetLastErrorMessage();
+  CHECK_DALI(daliPipelineDeserialize(&h, proto.c_str(), proto.length(), &params));
   ASSERT_NE(h, nullptr);
-  EXPECT_EQ(daliPipelineBuild(h), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliPipelineBuild(h));
   EXPECT_EQ(GetPipeline(h)->output_descs().size(), 2);
-  EXPECT_EQ(daliPipelineDestroy(h), DALI_SUCCESS);
+  CHECK_DALI(daliPipelineDestroy(h));
 }
 
-void CheckSequence(daliTensorList_h tl, int start, int stride) {
-  // TODO
+template <typename T = int>
+void CheckScalarSequence(daliTensorList_h tl, int start, int stride) {
+  int num_samples = 0, ndim = -1;
+  CHECK_DALI(daliTensorListGetShape(tl, &num_samples, &ndim, nullptr));
+  ASSERT_EQ(ndim, 0);
+  daliBufferPlacement_t placement{};
+  CHECK_DALI(daliTensorListGetBufferPlacement(tl, &placement));
+
+  cudaStream_t stream = 0;
+  if (auto result = daliTensorListGetStream(tl, &stream)) {
+    ASSERT_EQ(result, DALI_NO_DATA) << daliGetLastErrorMessage();
+  }
+
+  for (int i = 0; i < num_samples; i++) {
+    daliTensorDesc_t desc{};
+    CHECK_DALI(daliTensorListGetTensorDesc(tl, &desc, i));
+    ASSERT_EQ(desc.dtype, type2id<T>::value);
+    T value;
+    if (placement.device_type == DALI_STORAGE_CPU)
+      value = *static_cast<const T *>(desc.data);
+    else {
+      ASSERT_EQ(placement.device_type, DALI_STORAGE_GPU);
+      CUDA_CALL(cudaMemcpyAsync(&value, desc.data, sizeof(T), cudaMemcpyHostToDevice, stream));
+      AccessOrder::host().wait(stream);
+      value = *static_cast<const T *>(desc.data);
+    }
+    EXPECT_EQ(value, static_cast<T>(start + i * stride));
+  }
+}
+
+inline PipelineHandle Deserialize(std::string_view s, const daliPipelineParams_t &params) {
+  daliPipeline_h h = nullptr;
+  CHECK_DALI(daliPipelineDeserialize(&h, s.data(), s.length(), &params));
+  return PipelineHandle(h);
+}
+
+inline TensorListHandle GetOutput(daliPipelineOutputs_h h, int idx) {
+  daliTensorList_h tl = nullptr;
+  CHECK_DALI(daliPipelineOutputsGet(h, &tl, idx));
+  return TensorListHandle(tl);
 }
 
 TEST(CAPI2_PipelineTest, Run) {
-  std::string proto = GetCPUOnlyPipelineProto(4, 4, 0);
+  std::string proto = GetCPUOnlyPipelineProto(1, 4, 0);
 
   daliPipelineParams_t params{};
+  params.max_batch_size_present = true;
+  params.max_batch_size = 4;
   params.prefetch_queue_depth_present = true;
-  params.prefetch_queue_depth = 2;
+  params.prefetch_queue_depth = 3;
   params.enable_checkpointing_present = true;
   params.enable_checkpointing = 2;
-  params.exec_type_present = true;
-  params.exec_type = DALI_EXEC_DYNAMIC;
 
-  daliPipeline_h raw_h = nullptr;
-  EXPECT_EQ(daliPipelineDeserialize(&raw_h, proto.c_str(), proto.length(), &params), DALI_SUCCESS)
-    << daliGetLastErrorMessage();
-  ASSERT_NE(raw_h, nullptr);
-  PipelineHandle h(raw_h);
+  PipelineHandle h = Deserialize(proto, params);
 
-  EXPECT_EQ(daliPipelineBuild(h), DALI_SUCCESS) << daliGetLastErrorMessage();
-  EXPECT_EQ(daliPipelinePrefetch(h), DALI_SUCCESS) << daliGetLastErrorMessage();
-  daliPipelineOutputs_h raw_out_h;
-  EXPECT_EQ(daliPipelinePopOutputs(h, &raw_out_h), DALI_SUCCESS);
-  ASSERT_NE(raw_out_h, nullptr);
-  PipelineOutputsHandle out_h(raw_out_h);
-  EXPECT_EQ(daliPipelineOutputsDestroy(out_h.release()), DALI_SUCCESS);
+  CHECK_DALI(daliPipelineBuild(h));
+  for (int iter = 0; iter < 5; iter++) {
+    if (iter == 0) {
+      CHECK_DALI(daliPipelinePrefetch(h));
+    } else {
+      CHECK_DALI(daliPipelineRun(h));
+    }
+
+    daliPipelineOutputs_h raw_out_h;
+    CHECK_DALI(daliPipelinePopOutputs(h, &raw_out_h));
+    ASSERT_NE(raw_out_h, nullptr);
+    PipelineOutputsHandle out_h(raw_out_h);
+    auto o1 = GetOutput(out_h, 0);
+    auto o2 = GetOutput(out_h, 1);
+    CheckScalarSequence(o1, 1000 + iter * params.max_batch_size, 2);
+    CheckScalarSequence(o2, 2000 + iter * params.max_batch_size, 2);
+    CHECK_DALI(daliPipelineOutputsDestroy(out_h.release()));
+  }
 }
 
 }  // namespace test
