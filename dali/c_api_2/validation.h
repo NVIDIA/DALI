@@ -15,8 +15,9 @@
 #ifndef DALI_C_API_2_VALIDATION_H_
 #define DALI_C_API_2_VALIDATION_H_
 
-#include <stdexcept>
 #include <optional>
+#include <stdexcept>
+#include <string>
 #define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/format.h"
@@ -106,6 +107,23 @@ inline void Validate(const daliBufferPlacement_t &placement) {
   if (placement.device_type == DALI_STORAGE_GPU || placement.pinned)
     ValidateDeviceId(placement.device_id, placement.pinned);
 }
+
+inline void CheckArg(bool assertion, const std::string &what) {
+  if (!assertion)
+    throw std::invalid_argument(what);
+}
+
+template <typename T>
+void CheckNotNull(T *x, std::string_view what) {
+  CheckArg(x != nullptr, make_string(what, " must not be NULL."));
+}
+
+#define CHECK_OUTPUT(output_param) \
+  ::dali::c_api::CheckNotNull(output_param, "The output parameter `" #output_param "`");
+
+#define NOT_NULL(param) \
+  ::dali::c_api::CheckNotNull(param, "The parameter `" #param "`");
+
 
 }  // namespace dali::c_api
 

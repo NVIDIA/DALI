@@ -723,12 +723,13 @@ DALI_API daliResult_t daliTensorListAttachBuffer(
  * @param dtype           the type of the element of the tensor;
  *                        if dtype is DALI_NO_TYPE, then the type is taken from samples[0].dtype
  * @param layout          a layout string describing the order of axes in each sample (e.g. HWC),
- *                        if NULL, and the TensorList's number of dimensions is equal to `ndim`,
- *                        then the current layout is kept;
+ *                        if NULL, the layout is taken from samples[0].layout; if it's still NULL,
+ *                        the current layout is kept, if possible;
  *                        if `layout` is an empty string, the tensor list's layout is cleared
  * @param samples         the descriptors of the tensors to be attached to the TensorList;
  *                        the `ndim` and `dtype` of the samples must match and they must match the
- *                        values of `ndim` and `dtype` parameters.
+ *                        values of `ndim` and `dtype` parameters; the layout must be either NULL
+ *                        or match the `layout` argument (if provided).
  * @param sample_deleters optional deleters, one for each sample
  *
  * NOTE: If the sample_deleters specify the same object multiple times, its destructor must
@@ -872,6 +873,22 @@ DALI_API daliResult_t daliTensorListGetSourceInfo(
   daliTensorList_h tensor_list,
   const char **out_source_info,
   int sample_idx);
+
+/** Sets the "source info" metadata of a tensor in a list.
+ *
+ * A tensor can be associated with a "source info" string, which typically is the file name,
+ * but can also contain an index in a container, key, etc.
+ *
+ * @param tensor_list [in]  The tensor list
+ * @param sample_idx  [in]  The index of the sample, whose source info will is being set.
+ * @param source_info [in]  A source info string (e.g. filename) to associate with the tensor.
+ *                          Passing NULL is equivalent to passing an empty string.
+ */
+DALI_API daliResult_t daliTensorListSetSourceInfo(
+  daliTensorList_h tensor_list,
+  int sample_idx,
+  const char *source_info);
+
 
 /** Gets the tensor descriptor of the specified sample.
  *
@@ -1105,6 +1122,19 @@ DALI_API daliResult_t daliTensorSetLayout(
 DALI_API daliResult_t daliTensorGetSourceInfo(
   daliTensor_h tensor,
   const char **out_source_info);
+
+/** Sets the "source info" metadata of a tensor.
+ *
+ * A tensor can be associated with a "source info" string, which typically is the file name,
+ * but can also contain an index in a container, key, etc.
+ *
+ * @param tensor      [in]  The tensor
+ * @param source_info [in]  A source info string (e.g. filename) to associate with the tensor.
+ *                          Passing NULL is equivalent to passing an empty string.
+ */
+DALI_API daliResult_t daliTensorSetSourceInfo(
+  daliTensor_h tensor,
+  const char *source_info);
 
 /** Gets the descriptor of the data in the tensor.
  *
