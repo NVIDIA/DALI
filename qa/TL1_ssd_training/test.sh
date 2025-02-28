@@ -7,7 +7,7 @@ test_body() {
     NUM_GPUS=$(nvidia-smi -L | wc -l)
     export DATA_DIR=/data/coco/coco-2017/coco2017/
     export IS_TMP_DIR=0
-    if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg" ] && [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
+    if [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
         apt update && apt install -y unzip
         export DATA_DIR=$(mktemp -d)
         export IS_TMP_DIR=1
@@ -22,7 +22,7 @@ test_body() {
         wait
         popd
     fi
-    torchrun --nproc_per_node=${NUM_GPUS} main.py --backbone resnet50 --warmup 300 --bs 64 --eval-batch-size 8 --epochs 4 --data ${DATA_DIR} --data_pipeline dali --target 0.085
+    torchrun --nproc_per_node=${NUM_GPUS} main.py --backbone resnet50 --warmup 300 --bs 256 --eval-batch-size 8 --epochs 4 --data ${DATA_DIR} --data_pipeline dali --target 0.085
     ((IS_TMP_DIR)) && rm -rf ${DATA_DIR}
 }
 
