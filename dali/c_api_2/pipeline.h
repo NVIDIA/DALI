@@ -61,6 +61,11 @@ class PipelineWrapper : public _DALIPipeline {
 
   daliPipelineOutputDesc_t GetOutputDesc(int idx) const;
 
+  /** Retrieves the underlying DALI Pipeline object */
+  dali::Pipeline *Unwrap() const & {
+    return pipeline_.get();
+  }
+
  private:
   template <typename Backend>
   void FeedInputImpl(
@@ -75,7 +80,14 @@ class PipelineWrapper : public _DALIPipeline {
 
 PipelineWrapper *ToPointer(daliPipeline_h handle);
 
-}  // namespace dali::c_api
+struct PipelineHandle : dali::UniqueHandle<daliPipeline_h, PipelineHandle> {
+  using dali::UniqueHandle<daliPipeline_h, PipelineHandle>::UniqueHandle;
+  static void DestroyHandle(daliPipeline_h h) {
+    if (h)
+      daliPipelineDestroy(h);
+  }
+};
 
+}  // namespace dali::c_api
 
 #endif  // DALI_C_API_2_PIPELINE_H_
