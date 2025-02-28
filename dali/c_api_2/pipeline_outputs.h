@@ -61,6 +61,14 @@ class PipelineOutputs : public _DALIPipelineOutputs {
 
 PipelineOutputs *ToPointer(daliPipelineOutputs_h handle);
 
+struct PipelineOutputsHandle : dali::UniqueHandle<daliPipelineOutputs_h, PipelineOutputsHandle> {
+  using dali::UniqueHandle<daliPipelineOutputs_h, PipelineOutputsHandle>::UniqueHandle;
+  static void DestroyHandle(daliPipelineOutputs_h h) {
+    if (h)
+      daliPipelineOutputsDestroy(h);
+  }
+};
+
 }  // namespace dali::c_api
 
 #endif  // DALI_C_API_2_PIPELINE_OUTPUTS_H_
