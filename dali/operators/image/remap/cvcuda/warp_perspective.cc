@@ -25,6 +25,7 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/util/ocv.h"
 
 #include "dali/operators/image/remap/cvcuda/matrix_adjust.h"
 #include "dali/operators/nvcvop/nvcvop.h"
@@ -349,31 +350,6 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
     matrix = shiftBack * (matrix * shift);
   }
 
-  /**
-   * @brief Convert DALI data type to OpenCV matrix type
-   */
-  int matTypeFromDALI(DALIDataType dtype) {
-    switch (dtype) {
-      case DALI_UINT8:
-        return CV_8U;
-      case DALI_INT16:
-        return CV_16S;
-      case DALI_UINT16:
-        return CV_16U;
-      case DALI_FLOAT:
-        return CV_32F;
-      default:
-        DALI_FAIL("Unsupported input type");
-    }
-  }
-
-  /**
-   * @brief Construct a full OpenCV matrix type from DALI data type and number of channels
-   */
-  int fullMatTypeFromDALI(DALIDataType dtype, int channels) {
-    return CV_MAKETYPE(matTypeFromDALI(dtype), channels);
-  }
-
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
@@ -414,7 +390,7 @@ class WarpPerspectiveCPU : public SequenceOperator<CPUBackend, StatelessOperator
       tPool.AddWork([&, i](int) {
         const auto inImage = input[i];
         auto outImage = output[i];
-        const int dtype = fullMatTypeFromDALI(inImage.type(), channels_);
+        const int dtype = OCVMatTypeForDALIData(inImage.type(), channels_);
 
         const auto &inShape = inImage.shape();
         const cv::Mat inMat(static_cast<int>(inShape[0]), static_cast<int>(inShape[1]), dtype,
