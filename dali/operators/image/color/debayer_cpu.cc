@@ -25,13 +25,13 @@ using namespace dali::kernels::debayer;
 [[nodiscard]] cv::ColorConversionCodes toOpenCVColorConversionCode(DALIBayerPattern pattern) {
   switch (pattern) {
     case DALIBayerPattern::DALI_BAYER_BG:
-      return cv::COLOR_BayerBG2RGB;
+      return cv::COLOR_BayerBG2RGB_EA;
     case DALIBayerPattern::DALI_BAYER_GB:
-      return cv::COLOR_BayerGB2RGB;
+      return cv::COLOR_BayerGB2RGB_EA;
     case DALIBayerPattern::DALI_BAYER_GR:
-      return cv::COLOR_BayerGR2RGB;
+      return cv::COLOR_BayerGR2RGB_EA;
     case DALIBayerPattern::DALI_BAYER_RG:
-      return cv::COLOR_BayerRG2RGB;
+      return cv::COLOR_BayerRG2RGB_EA;
     default:
       DALI_FAIL("Unsupported bayer pattern code " + to_string(pattern));
   }
