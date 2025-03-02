@@ -21,6 +21,8 @@ import glob
 import argparse
 import time
 from test_utils import get_dali_extra_path, AverageMeter
+from subprocess import call
+import tempfile
 
 
 class CommonPipeline(Pipeline):
@@ -179,6 +181,21 @@ class TFRecordPipeline(CommonPipeline):
         super(TFRecordPipeline, self).__init__(**kwargs)
         tfrecord = sorted(glob.glob(kwargs["data_paths"][0]))
         tfrecord_idx = sorted(glob.glob(kwargs["data_paths"][1]))
+        if len(tfrecord_idx) == 0:
+            # generate indices
+            tfrecord_files = [
+                os.path.join(tfrecord, f)
+                for f in os.listdir(tfrecord)
+                if os.path.isfile(os.path.join(tfrecord, f)) and not f.endswith(".idx")
+            ]
+            self.temp_dir = tempfile.TemporaryDirectory()
+            tfrecord_idxs = [
+                f"{self.temp_dir.name}/{os.path.basename(f)}.idx" for f in tfrecord_files
+            ]
+            for tfrecord_file, tfrecord_idx_file in zip(tfrecord_files, tfrecord_idxs):
+                print(f"Generating index file for {tfrecord_file}")
+                call(["tfrecord2idx", tfrecord_file, tfrecord_idx_file])
+            tfrecord_idx = self.temp_dir.name()
         cache_enabled = kwargs["decoder_cache_params"]["cache_enabled"]
         self.input = ops.readers.TFRecord(
             path=tfrecord,
@@ -240,23 +257,13 @@ class WebdatasetPipeline(CommonPipeline):
 
 
 test_data = {
+    # RecordIO & LMDB are not that frequently used any more so we won't test full datasets,
+    # just a small ones
     FileReadPipeline: [["/data/imagenet/train-jpeg"], ["/data/imagenet/val-jpeg"]],
-    MXNetReaderPipeline: [
-        [
-            "/data/imagenet/train-480-val-256-recordio/train.rec",
-            "/data/imagenet/train-480-val-256-recordio/train.idx",
-        ],
-        [
-            "/data/imagenet/train-480-val-256-recordio/val.rec",
-            "/data/imagenet/train-480-val-256-recordio/val.idx",
-        ],
-    ],
-    CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"], ["/data/imagenet/val-lmdb-256x256"]],
-    Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"], ["/data/imagenet/val-c2lmdb-256"]],
     TFRecordPipeline: [
         [
-            "/data/imagenet/train-val-tfrecord-480/train-*",
-            "/data/imagenet/train-val-tfrecord-480.idx/train-*",
+            "/data/imagenet/train-val-tfrecord/train-*",
+            "/data/imagenet/train-val-tfrecord.idx/train-*",
         ]
     ],
 }
@@ -617,4 +624,4 @@ for pipe_name in test_data.keys():
                     )
                 end = time.time()
 
-        print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))
+        print("OK {0}/{1}: {2}".format(i, data_set_len, pipe_name.__name__))

@@ -60,9 +60,9 @@ do_once() {
     # TF is already available and we can set env variables
     install_pip_pkg "pip install --force-reinstall horovod==0.28.1 -f /pip-packages"
 
-    for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
+    for file in $(ls /data/imagenet/train-val-tfrecord-small);
     do
-        python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-480-subset/${file} \
+        python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-small/${file} \
             idx-files/${file}.idx &
     done
     wait
@@ -78,7 +78,7 @@ test_body() {
     # test code
     mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
         python -u resnet.py \
-        --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
+        --data_dir=/data/imagenet/train-val-tfrecord-small --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
         --batch=64 --use_xla --dali_mode="GPU" --log_dir=./
 }
