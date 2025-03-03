@@ -701,18 +701,12 @@ RefCountedPtr<TensorListWrapper<Backend>> Wrap(std::shared_ptr<TensorList<Backen
 
 template <typename Backend>
 const std::shared_ptr<Tensor<Backend>> &ITensor::Unwrap() const & {
-  if (auto *self = dynamic_cast<const TensorWrapper<Backend> *>(this))
-    return self->NativePtr();
-  else
-    return nullptr;
+  return dynamic_cast<const TensorWrapper<Backend> &>(*this).NativePtr();
 }
 
 template <typename Backend>
 const std::shared_ptr<TensorList<Backend>> &ITensorList::Unwrap() const & {
-  if (auto *self = dynamic_cast<const TensorListWrapper<Backend> *>(this))
-    return self->NativePtr();
-  else
-    return nullptr;
+  return dynamic_cast<const TensorListWrapper<Backend> &>(*this).NativePtr();
 }
 
 ITensor *ToPointer(daliTensor_h handle);
