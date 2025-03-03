@@ -75,7 +75,8 @@ class RefCountedPtr {
       return *this;
     if (other.ptr_)
       other.ptr_->IncRef();
-    ptr_->DecRef();
+    if (ptr_)
+      ptr_->DecRef();
     ptr_ = other.ptr_;
     return *this;
   }
