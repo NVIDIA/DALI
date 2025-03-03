@@ -17,8 +17,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import argparse
 import time
+from test_utils import get_dali_extra_path
+import os
 
-data_paths = ["/data/imagenet/train-jpeg"]
+data_paths = os.path.join(get_dali_extra_path(), "db", "single", "jpeg")
 
 
 class RN50Pipeline(Pipeline):
@@ -28,9 +30,7 @@ class RN50Pipeline(Pipeline):
         super(RN50Pipeline, self).__init__(
             batch_size, num_threads, device_id, prefetch_queue_depth=prefetch
         )
-        self.input = ops.readers.File(
-            file_root=data_paths[0], shard_id=device_id, num_shards=num_gpus
-        )
+        self.input = ops.readers.File(file_root=data_paths, shard_id=device_id, num_shards=num_gpus)
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
 

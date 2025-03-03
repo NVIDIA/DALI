@@ -24,7 +24,7 @@ For the full training on 8 GPUs::
 
     mpiexec --allow-run-as-root --bind-to socket -np 8 \
       python resnet.py --num_iter=90 --iter_unit=epoch \
-      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --data_dir=/data/imagenet/train-val-tfrecord/ \
       --precision=fp16 --display_every=100 \
       --export_dir=/tmp --dali_mode="GPU"
 
@@ -32,7 +32,7 @@ For the benchmark training on 8 GPUs::
 
     mpiexec --allow-run-as-root --bind-to socket -np 8 \
       python resnet.py --num_iter=400 --iter_unit=batch \
-      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --data_dir=/data/imagenet/train-val-tfrecord/ \
       --precision=fp16 --display_every=100 --dali_mode="GPU"
 
 
@@ -49,7 +49,7 @@ For the full training on 8 GPUs::
 
     mpiexec --allow-run-as-root --bind-to socket -np 8 \
       python resnet_ctl.py --num_iter=90 --iter_unit=epoch \
-      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --data_dir=/data/imagenet/train-val-tfrecord/ \
       --precision=fp16 --display_every=100 \
       --export_dir=/tmp --dali_mode="GPU"
 
@@ -57,7 +57,7 @@ For the benchmark training on 8 GPUs::
 
     mpiexec --allow-run-as-root --bind-to socket -np 8 \
       python resnet_ctl.py --num_iter=400 --iter_unit=batch \
-      --data_dir=/data/imagenet/train-val-tfrecord-480/ \
+      --data_dir=/data/imagenet/train-val-tfrecord/ \
       --precision=fp16 --display_every=100 --dali_mode="GPU"
 
 Predicting in CTL (Custom Training Loop) mode

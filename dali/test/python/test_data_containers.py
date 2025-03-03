@@ -19,6 +19,9 @@ import nvidia.dali.tfrecord as tfrec
 import nvidia.dali.types as types
 import os
 from nvidia.dali.pipeline import Pipeline
+from subprocess import call
+import tempfile
+import ast
 
 from test_utils import get_dali_extra_path
 
@@ -96,6 +99,21 @@ class TFRecordPipeline(CommonPipeline):
         super(TFRecordPipeline, self).__init__(batch_size, num_threads, device_id)
         tfrecord = sorted(glob.glob(data_paths[0]))
         tfrecord_idx = sorted(glob.glob(data_paths[1]))
+        if len(tfrecord_idx) == 0:
+            # generate indices
+            tfrecord_files = [
+                os.path.join(tfrecord, f)
+                for f in os.listdir(tfrecord)
+                if os.path.isfile(os.path.join(tfrecord, f)) and not f.endswith(".idx")
+            ]
+            self.temp_dir = tempfile.TemporaryDirectory()
+            tfrecord_idxs = [
+                f"{self.temp_dir.name}/{os.path.basename(f)}.idx" for f in tfrecord_files
+            ]
+            for tfrecord_file, tfrecord_idx_file in zip(tfrecord_files, tfrecord_idxs):
+                print(f"Generating index file for {tfrecord_file}")
+                call(["tfrecord2idx", tfrecord_file, tfrecord_idx_file])
+            tfrecord_idx = self.temp_dir.name()
         self.input = ops.readers.TFRecord(
             path=tfrecord,
             index_path=tfrecord_idx,
@@ -132,23 +150,13 @@ class COCOReaderPipeline(CommonPipeline):
 
 
 test_data = {
+    # RecordIO & LMDB are not that frequently used any more so we won't test full datasets,
+    # just a small ones
     FileReadPipeline: [["/data/imagenet/train-jpeg"], ["/data/imagenet/val-jpeg"]],
-    MXNetReaderPipeline: [
-        [
-            "/data/imagenet/train-480-val-256-recordio/train.rec",
-            "/data/imagenet/train-480-val-256-recordio/train.idx",
-        ],
-        [
-            "/data/imagenet/train-480-val-256-recordio/val.rec",
-            "/data/imagenet/train-480-val-256-recordio/val.idx",
-        ],
-    ],
-    CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"], ["/data/imagenet/val-lmdb-256x256"]],
-    Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"], ["/data/imagenet/val-c2lmdb-256"]],
     TFRecordPipeline: [
         [
-            "/data/imagenet/train-val-tfrecord-480/train-*",
-            "/data/imagenet/train-val-tfrecord-480.idx/train-*",
+            "/data/imagenet/train-val-tfrecord/train-*",
+            "/data/imagenet/train-val-tfrecord.idx/train-*",
         ]
     ],
     COCOReaderPipeline: [
@@ -189,6 +197,28 @@ small_test_data = {
     ],
 }
 
+
+def parse_nested_square_brackets(string):
+    """Parse a string containing nested square brackets into a list of lists."""
+    try:
+        parsed_list = ast.literal_eval(string)
+        if isinstance(parsed_list, list):
+            return parsed_list
+        else:
+            raise ValueError("The provided string does not represent a list.")
+    except (ValueError, SyntaxError) as e:
+        raise ValueError("Invalid input string. Ensure it is a valid list format.") from e
+
+
+def parse_key_value_pairs(pairs):
+    """Convert a list of key=value strings into a dictionary."""
+    result = {}
+    for pair in pairs:
+        key, value = pair.split("=", 1)
+        result[key] = parse_nested_square_brackets(value)
+    return result
+
+
 parser = argparse.ArgumentParser(description="ImageDecoder RN50 dataset test")
 parser.add_argument(
     "-g", "--gpus", default=1, type=int, metavar="N", help="number of GPUs (default: 1)"
@@ -203,7 +233,16 @@ parser.add_argument(
     "-s", "--small", action="store_true", help="use small dataset, DALI_EXTRA_PATH needs to be set"
 )
 parser.add_argument("-n", "--no-mmap", action="store_true", help="don't mmap files from data set")
+parser.add_argument(
+    "datasets",
+    metavar="KEY=VALUE",
+    type=str,
+    nargs="*",
+    help="Pipeline_name=datasets list of keys that can replace build-in data paths",
+)
 args = parser.parse_args()
+
+updated_datasets = parse_key_value_pairs(args.datasets)
 
 N = args.gpus  # number of GPUs
 BATCH_SIZE = args.batch  # batch size
@@ -218,6 +257,10 @@ print(
 
 if SMALL_DATA_SET:
     test_data = small_test_data
+
+for k in test_data:
+    if k.__name__ in updated_datasets:
+        test_data[k] = updated_datasets[k.__name__]
 
 for pipe_name in test_data.keys():
     data_set_len = len(test_data[pipe_name])
