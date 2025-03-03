@@ -90,40 +90,33 @@ int FramesDecoderBase::OpenFile(const std::string& filename) {
 
 int FramesDecoderBase::OpenMemoryFile(MemoryVideoFile &memory_video_file) {
   LOG_LINE << "Opening memory file" << std::endl;
-  ctx_.reset();
+  ctx_.reset(avformat_alloc_context());
+  DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
   static constexpr int DEFAULT_AV_BUFFER_SIZE = (1 << 15);
-  using AvioContextBufferPtr = std::unique_ptr<uint8_t, decltype(&av_freep)>;
-  AvioContextBufferPtr avio_ctx_buffer_ptr{
-      static_cast<uint8_t*>(av_malloc(DEFAULT_AV_BUFFER_SIZE)),
-      av_freep};
-  DALI_ENFORCE(avio_ctx_buffer_ptr, "Could not alloc avio context buffer");
+  uint8_t* buffer = static_cast<uint8_t*>(av_malloc(DEFAULT_AV_BUFFER_SIZE));
+  DALI_ENFORCE(buffer, "Could not alloc avio context buffer");
 
   auto avio_ctx = avio_alloc_context(
-    avio_ctx_buffer_ptr.get(),
+    buffer,
     DEFAULT_AV_BUFFER_SIZE,
     0,
     &memory_video_file,
     detail::read_memory_video_file,
     nullptr,
     detail::seek_memory_video_file);
-  DALI_ENFORCE(avio_ctx, "Could not alloc avio context");
 
-  using AVIOContextPtr = std::unique_ptr<AVIOContext *, decltype(&avio_context_free)>;
-  AVIOContextPtr avio_ctx_ptr{&avio_ctx, avio_context_free};  // RAII for avio_ctx
-
-  ctx_.reset(avformat_alloc_context());
-  DALI_ENFORCE(ctx_, "Could not alloc avformat context");
+  if (!avio_ctx) {
+    av_freep(&buffer);
+    DALI_FAIL("Could not alloc avio context");
+  }
 
   ctx_->pb = avio_ctx;
 
   int ret = avformat_open_input(&ctx_, "", nullptr, nullptr);
   if (ret < 0) {
+    DestroyAvObject(&avio_ctx);
     ctx_.reset();
-  } else {
-    // ctx_ owns avio_ctx_buffer and avio_ctx now
-    avio_ctx_ptr.release();  // do not free avio_ctx at scope exit
-    avio_ctx_buffer_ptr.release();  // do not free avio_ctx_buffer at scope exit
   }
   return ret;
 }

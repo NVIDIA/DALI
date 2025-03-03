@@ -28,6 +28,7 @@ extern "C" {
 #include <string_view>
 #include "dali/core/common.h"
 #include "dali/core/span.h"
+#include "dali/core/unique_handle.h"
 
 namespace dali {
 struct IndexEntry {
@@ -53,69 +54,57 @@ struct MemoryVideoFile {
   int64_t position_;
 };
 
-/**
- * @brief RAII wrapper for unique pointers to AV objects. Av objects destructor functions usually
- * take a pointer to a pointer to the object.
- * @tparam T Type of the pointer.
- * @tparam D Deleter type.
- */
-template <typename T, typename D>
-struct AvUniquePtr {
-  T *raw_ptr;
-  std::unique_ptr<T *, D> uptr;
-
-  AvUniquePtr(T *ptr, D deleter) : raw_ptr(ptr), uptr(&raw_ptr, deleter) {}
-  ~AvUniquePtr() = default;
-  AvUniquePtr(AvUniquePtr &&) = default;
-  AvUniquePtr &operator=(AvUniquePtr &&) = default;
-  AvUniquePtr(const AvUniquePtr &) = delete;
-  AvUniquePtr &operator=(const AvUniquePtr &) = delete;
-
-  operator bool() const {
-    return raw_ptr != nullptr;
-  }
-
-  T** operator&() {  // NOLINT(runtime/operator)
-    return &raw_ptr;
-  }
-
-  operator T*() const {
-    return raw_ptr;
-  }
-
-  T* operator->() const {
-    return raw_ptr;
-  }
-
-  void reset(T *ptr = nullptr) {
-    // reset the unique pointer before we assign raw_ptr since it can have effects to raw_ptr
-    uptr.reset();
-    raw_ptr = ptr;
-    uptr.reset(&raw_ptr);
-  }
-
-  T* release() {
-    T* ptr = raw_ptr;
-    raw_ptr = nullptr;
-    uptr.release();
-    return ptr;
-  }
-};
-
-static void avformat_context_deleter(AVFormatContext **ctx) {
-  if (*ctx == nullptr) {
-    return;
-  }
-  auto custom_dealloc = (*ctx)->flags & AVFMT_FLAG_CUSTOM_IO;
-  auto custom_ctx = (*ctx)->pb;
-  auto custom_buffer = (*ctx)->pb ? (*ctx)->pb->buffer : nullptr;
-  avformat_close_input(ctx);
-  avformat_free_context(*ctx);
-  if (custom_dealloc) {
-    av_freep(&custom_buffer);
-    avio_context_free(&custom_ctx);
+static void DestroyAvObject(AVIOContext **ctx) {
+  assert(*ctx != nullptr);
+  uint8_t *buffer = (*ctx)->buffer;
+  avio_context_free(ctx);
+  if (buffer) {
+    av_freep(&buffer);
   }
 }
+
+static void DestroyAvObject(AVFormatContext **ctx) {
+  assert(*ctx != nullptr);
+  auto custom_dealloc = (*ctx)->flags & AVFMT_FLAG_CUSTOM_IO;
+  auto avio_ctx = (*ctx)->pb;
+  avformat_close_input(ctx);
+  if (custom_dealloc && avio_ctx) {
+    DestroyAvObject(&avio_ctx);
+  }
+}
+
+static void DestroyAvObject(AVCodecContext **ctx) {
+  assert(*ctx != nullptr);
+  avcodec_free_context(ctx);
+}
+
+static void DestroyAvObject(AVFrame **frame) {
+  assert(*frame != nullptr);
+  av_frame_free(frame);
+}
+
+static void DestroyAvObject(AVPacket **packet) {
+  assert(*packet != nullptr);
+  av_packet_free(packet);
+}
+
+template <typename T>
+class AVUniquePtr : public UniqueHandle<T *, AVUniquePtr<T>> {
+ public:
+  using Base = UniqueHandle<T *, AVUniquePtr<T>>;
+  using Base::Base;
+  using Base::handle_;
+
+  static void DestroyHandle(T *&handle) {
+    assert(handle != nullptr);
+    DestroyAvObject(&handle);
+  }
+  static constexpr T *null_handle() { return nullptr; }
+
+  T *operator->() const { return Base::get(); }
+  T &operator*() const { return *Base::get(); }
+  T **operator&() { return &handle_; }  // NOLINT(runtime/operator)
+};
 
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
@@ -246,14 +235,10 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
  protected:
-  AvUniquePtr<AVFormatContext, decltype(&avformat_context_deleter)> ctx_{
-    nullptr, avformat_context_deleter};
-  AvUniquePtr<AVCodecContext, decltype(&avcodec_free_context)> codec_ctx_{
-    nullptr, avcodec_free_context};
-  AvUniquePtr<AVFrame, decltype(&av_frame_free)> frame_{
-    nullptr, av_frame_free};
-  AvUniquePtr<AVPacket, decltype(&av_packet_free)> packet_{
-    nullptr, av_packet_free};
+  AVUniquePtr<AVFormatContext> ctx_;
+  AVUniquePtr<AVCodecContext> codec_ctx_;
+  AVUniquePtr<AVFrame> frame_;
+  AVUniquePtr<AVPacket> packet_;
   std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
     nullptr, sws_freeContext};
 
