@@ -100,8 +100,10 @@ struct AvState {
       frame_ = nullptr;
     }
 
-    avcodec_free_context(&codec_ctx_);
-    codec_ctx_ = nullptr;
+    if (codec_ctx_ != nullptr) {
+      avcodec_free_context(&codec_ctx_);
+      codec_ctx_ = nullptr;
+    }
 
     CloseInput();
 

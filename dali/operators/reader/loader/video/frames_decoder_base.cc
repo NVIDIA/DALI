@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <memory>
 #include "dali/core/error_handling.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 
@@ -79,8 +80,10 @@ int64_t seek_memory_video_file(void *data_ptr, int64_t new_position, int origin)
 int AvState::OpenFile(const std::string& filename) {
   LOG_LINE << "Opening file " << filename << std::endl;
   CloseInput();
+
   ctx_ = avformat_alloc_context();
   DALI_ENFORCE(ctx_, "Could not alloc avformat context");
+
   int ret = avformat_open_input(&ctx_, filename.c_str(), nullptr, nullptr);
   if (ret < 0) {
     CloseInput();
@@ -91,30 +94,43 @@ int AvState::OpenFile(const std::string& filename) {
 int AvState::OpenMemoryFile(MemoryVideoFile &memory_video_file) {
   LOG_LINE << "Opening memory file" << std::endl;
   CloseInput();
-  ctx_ = avformat_alloc_context();
-  DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
   static constexpr int DEFAULT_AV_BUFFER_SIZE = (1 << 15);
-  uint8_t *avio_buffer = static_cast<uint8_t *>(av_malloc(DEFAULT_AV_BUFFER_SIZE));
-  DALI_ENFORCE(avio_buffer, "Could not allocate avio buffer");
+  auto avio_ctx_buffer = std::unique_ptr<uint8_t, void(*)(void*)>(
+      static_cast<uint8_t*>(av_malloc(DEFAULT_AV_BUFFER_SIZE)),
+      av_freep);
+  DALI_ENFORCE(avio_ctx_buffer, "Could not alloc avio context buffer");
 
   auto avio_ctx = avio_alloc_context(
-    avio_buffer,
+    avio_ctx_buffer.get(),
     DEFAULT_AV_BUFFER_SIZE,
     0,
     &memory_video_file,
     detail::read_memory_video_file,
     nullptr,
     detail::seek_memory_video_file);
-  if (avio_ctx == nullptr) {
-    av_free(avio_buffer);
-    DALI_FAIL("Could not allocate avio context");
-  }
+  DALI_ENFORCE(avio_ctx, "Could not alloc avio context");
+
+  auto cleanup_avio_ctx = AtScopeExit([&] {
+    // will be nullptr if we transferred ownership to ctx_->pb
+    if (avio_ctx) {
+      avio_context_free(&avio_ctx);
+    }
+  });
+
+  ctx_ = avformat_alloc_context();
+  DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
   ctx_->pb = avio_ctx;
+
   int ret = avformat_open_input(&ctx_, "", nullptr, nullptr);
   if (ret < 0) {
     CloseInput();
+    // at scope exit will cleanup ctx and avio_ctx
+  } else {
+    // ctx_ owns avio_ctx_buffer and avio_ctx now
+    avio_ctx_buffer.release();  // do not free avio_ctx_buffer at scope exit
+    avio_ctx = nullptr;  // do not free avio_ctx at scope exit
   }
   return ret;
 }
@@ -134,15 +150,25 @@ int64_t FramesDecoderBase::NumFrames() const {
 }
 
 void FramesDecoderBase::InitAvCodecContext() {
-  av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
-  DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
+  auto codec_ctx = avcodec_alloc_context3(av_state_->codec_);
+  DALI_ENFORCE(codec_ctx, "Could not alloc av codec context");
+  auto cleanup = AtScopeExit([&] {
+    // will be nullptr if we transferred ownership to av_state_->codec_ctx_
+    if (codec_ctx) {
+      avcodec_free_context(&codec_ctx);
+    }
+  });
+  DALI_ENFORCE(codec_ctx, "Could not alloc av codec context");
 
-  int ret = avcodec_parameters_to_context(av_state_->codec_ctx_, av_state_->codec_params_);
+  int ret = avcodec_parameters_to_context(codec_ctx, av_state_->codec_params_);
   DALI_ENFORCE(ret >= 0, make_string("Could not fill the codec based on parameters: ",
                                      detail::av_error_string(ret)));
 
   av_state_->packet_ = av_packet_alloc();
   DALI_ENFORCE(av_state_->packet_, "Could not allocate av packet");
+
+  av_state_->codec_ctx_ = codec_ctx;
+  codec_ctx = nullptr;  // transfer ownership to av_state_->codec_ctx_
 }
 
 bool FramesDecoderBase::OpenAvCodec() {
