@@ -16,6 +16,10 @@
 
 # The headers here are private and should not be installed.
 # collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+# The tests from this directory go to dali_test.
 
 collect_sources(DALI_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
+
+# This subdirectory contains tests that need non-builtin operators
+add_subdirectory(op_test)
