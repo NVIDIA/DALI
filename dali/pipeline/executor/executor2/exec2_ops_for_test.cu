@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ __global__ void Sum(int *out, const int **ins, int nbuf, int buf_size) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   if (x >= buf_size)
     return;
-  out[x] = 0;
+  out[x] = x;
   for (int i = 0; i < nbuf; i++)
     out[x] += ins[i][x];
 }

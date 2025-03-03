@@ -36,7 +36,6 @@ OpSpec TestOp(std::string_view name, std::string_view device) {
 
 std::string GetCPUOnlyPipelineProto(int max_batch_size, int num_threads, int device_id) {
   Pipeline p(max_batch_size, num_threads, device_id);
-
   OpSpec op1 = TestOp("op1", "cpu")
     .AddInput("ctr", StorageDevice::CPU)
     .AddOutput("op1", StorageDevice::CPU)
@@ -70,10 +69,31 @@ std::string GetCPU2GPUPipelineProto(int max_batch_size, int num_threads, int dev
   p.AddOperator(CounterOp("ctr"), "ctr");
   p.AddOperator(op1, "op1");
   p.AddOperator(op2, "op2");
-  p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "cpu"} });
+  p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "gpu"} });
 
   return p.SerializeToProtobuf();
 }
+
+std::string GetGPU2CPUPipelineProto(int max_batch_size, int num_threads, int device_id) {
+  Pipeline p(max_batch_size, num_threads, device_id);
+  OpSpec op1 = TestOp("op1", "cpu")
+    .AddInput("ctr", StorageDevice::CPU)
+    .AddOutput("op1", StorageDevice::CPU)
+    .AddArg("addend", 1000);
+
+  OpSpec op2 = TestOp("op2", "gpu")
+    .AddInput("ctr", StorageDevice::GPU)
+    .AddOutput("op2", StorageDevice::GPU)
+    .AddArg("addend", 2000);
+
+  p.AddOperator(CounterOp("ctr"), "ctr");
+  p.AddOperator(op1, "op1");
+  p.AddOperator(op2, "op2");
+  p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "gpu"} });
+
+  return p.SerializeToProtobuf();
+}
+
 
 namespace c_api {
 namespace test {
@@ -95,10 +115,11 @@ TEST(CAPI2_PipelineTest, Deserialize) {
 }
 
 template <typename T = int>
-void CheckScalarSequence(daliTensorList_h tl, int start, int stride) {
+void CheckScalarSequence(daliTensorList_h tl, int expected_batch_size, int start, int stride) {
   int num_samples = 0, ndim = -1;
   CHECK_DALI(daliTensorListGetShape(tl, &num_samples, &ndim, nullptr));
   ASSERT_EQ(ndim, 0);
+  EXPECT_EQ(num_samples, expected_batch_size);
   daliBufferPlacement_t placement{};
   CHECK_DALI(daliTensorListGetBufferPlacement(tl, &placement));
 
@@ -116,11 +137,10 @@ void CheckScalarSequence(daliTensorList_h tl, int start, int stride) {
       value = *static_cast<const T *>(desc.data);
     else {
       ASSERT_EQ(placement.device_type, DALI_STORAGE_GPU);
-      CUDA_CALL(cudaMemcpyAsync(&value, desc.data, sizeof(T), cudaMemcpyHostToDevice, stream));
+      CUDA_CALL(cudaMemcpyAsync(&value, desc.data, sizeof(T), cudaMemcpyDeviceToHost, stream));
       AccessOrder::host().wait(stream);
-      value = *static_cast<const T *>(desc.data);
     }
-    EXPECT_EQ(value, static_cast<T>(start + i * stride));
+    EXPECT_EQ(value, static_cast<T>(start + i * stride)) << " in sample " << i;
   }
 }
 
@@ -136,8 +156,27 @@ inline TensorListHandle GetOutput(daliPipelineOutputs_h h, int idx) {
   return TensorListHandle(tl);
 }
 
-TEST(CAPI2_PipelineTest, Run) {
-  std::string proto = GetCPUOnlyPipelineProto(1, 4, 0);
+enum PipelineType {
+  CPUOnly,
+  CPU2GPU,
+  GPU2CPU
+};
+
+void TestPipelineRun(PipelineType p) {
+  std::string proto;
+  switch (p) {
+    case CPUOnly:
+      proto = GetCPUOnlyPipelineProto(1, 4, CPU_ONLY_DEVICE_ID);
+      break;
+      case CPU2GPU:
+      proto = GetCPU2GPUPipelineProto(1, 4, 0);
+      break;
+    case GPU2CPU:
+      proto = GetGPU2CPUPipelineProto(1, 4, 0);
+      break;
+    default:
+      FAIL() << "Invalid pipeline type.";
+  }
 
   daliPipelineParams_t params{};
   params.max_batch_size_present = true;
@@ -146,6 +185,10 @@ TEST(CAPI2_PipelineTest, Run) {
   params.prefetch_queue_depth = 3;
   params.enable_checkpointing_present = true;
   params.enable_checkpointing = 2;
+  if (p == GPU2CPU) {
+    params.exec_type_present = true;
+    params.exec_type = DALI_EXEC_DYNAMIC;
+  }
 
   PipelineHandle h = Deserialize(proto, params);
 
@@ -163,10 +206,22 @@ TEST(CAPI2_PipelineTest, Run) {
     PipelineOutputsHandle out_h(raw_out_h);
     auto o1 = GetOutput(out_h, 0);
     auto o2 = GetOutput(out_h, 1);
-    CheckScalarSequence(o1, 1000 + iter * params.max_batch_size, 2);
-    CheckScalarSequence(o2, 2000 + iter * params.max_batch_size, 2);
+    CheckScalarSequence(o1, params.max_batch_size, 1000 + iter * params.max_batch_size, 2);
+    CheckScalarSequence(o2, params.max_batch_size, 2000 + iter * params.max_batch_size, 2);
     CHECK_DALI(daliPipelineOutputsDestroy(out_h.release()));
   }
+}
+
+TEST(CAPI2_PipelineTest, RunCPUOnly) {
+  TestPipelineRun(CPUOnly);
+}
+
+TEST(CAPI2_PipelineTest, RunCPU2GPU) {
+  TestPipelineRun(GPU2CPU);
+}
+
+TEST(CAPI2_PipelineTest, RunGPU2CPU) {
+  TestPipelineRun(CPU2GPU);
 }
 
 }  // namespace test
