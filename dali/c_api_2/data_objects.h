@@ -521,7 +521,7 @@ class TensorListWrapper : public ITensorList {
       if (samples[i].dtype != dtype)
         throw std::invalid_argument(make_string("Unexpected data type in sample ", i, ". Got: ",
           samples[i].dtype, ", expected ", dtype, "."));
-      ValidateSampleShape(i, make_cspan(samples[i].shape, samples[i].ndim), ndim);;
+      ValidateSampleShape(i, make_cspan(samples[i].shape, samples[i].ndim), ndim);
       if (samples[i].layout && new_layout != samples[i].layout)
         throw std::invalid_argument(make_string("Unexpected layout \"", samples[i].layout,
             "\" in sample ", i, ". Expected: \"", new_layout, "\"."));

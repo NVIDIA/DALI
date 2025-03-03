@@ -202,7 +202,7 @@ TEST(CAPI2_TensorListTest, AttachBuffer) {
       "HWC",
       data.get(),
       offsets,
-      deleter), DALI_SUCCESS) << daliGetLastErrorMessage();;
+      deleter), DALI_SUCCESS) << daliGetLastErrorMessage();
 
   // The deleter doesn't actually delete - we still own the data.
 
