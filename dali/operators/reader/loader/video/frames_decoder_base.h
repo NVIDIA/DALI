@@ -117,28 +117,6 @@ static void avformat_context_deleter(AVFormatContext **ctx) {
   }
 }
 
-struct AvState {
-  AvUniquePtr<AVFormatContext, decltype(&avformat_context_deleter)> ctx_{
-    nullptr, avformat_context_deleter};
-  AvUniquePtr<AVCodecContext, decltype(&avcodec_free_context)> codec_ctx_{
-    nullptr, avcodec_free_context};
-  AvUniquePtr<AVFrame, decltype(&av_frame_free)> frame_{
-    nullptr, av_frame_free};
-  AvUniquePtr<AVPacket, decltype(&av_packet_free)> packet_{
-    nullptr, av_packet_free};
-  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
-    nullptr, sws_freeContext};
-
-  const AVCodec *codec_ = nullptr;
-  AVCodecParameters *codec_params_ = nullptr;
-  int stream_id_ = -1;
-  bool is_file_open_ = false;
-
-  int OpenFile(const std::string& filename);
-  int OpenMemoryFile(MemoryVideoFile& memory_video_file);
-};
-
-
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
  */
@@ -177,14 +155,14 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Width of a video frame in pixels
    */
   int Width() const {
-    return av_state_->codec_params_->width;
+    return codec_params_->width;
   }
 
   /**
    * @brief Height of a video frame in pixels
    */
   int Height() const {
-    return av_state_->codec_params_->height;
+    return codec_params_->height;
   }
 
   /**
@@ -268,7 +246,24 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
  protected:
-  std::unique_ptr<AvState> av_state_;
+  AvUniquePtr<AVFormatContext, decltype(&avformat_context_deleter)> ctx_{
+    nullptr, avformat_context_deleter};
+  AvUniquePtr<AVCodecContext, decltype(&avcodec_free_context)> codec_ctx_{
+    nullptr, avcodec_free_context};
+  AvUniquePtr<AVFrame, decltype(&av_frame_free)> frame_{
+    nullptr, av_frame_free};
+  AvUniquePtr<AVPacket, decltype(&av_packet_free)> packet_{
+    nullptr, av_packet_free};
+  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
+    nullptr, sws_freeContext};
+
+  const AVCodec *codec_ = nullptr;
+  AVCodecParameters *codec_params_ = nullptr;
+  int stream_id_ = -1;
+  bool is_file_open_ = false;
+
+  int OpenFile(const std::string& filename);
+  int OpenMemoryFile(MemoryVideoFile& memory_video_file);
 
   std::vector<IndexEntry> index_;
 
