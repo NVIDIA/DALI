@@ -53,63 +53,89 @@ struct MemoryVideoFile {
   int64_t position_;
 };
 
+/**
+ * @brief RAII wrapper for unique pointers to AV objects. Av objects destructor functions usually
+ * take a pointer to a pointer to the object.
+ * @tparam T Type of the pointer.
+ * @tparam D Deleter type.
+ */
+template <typename T, typename D>
+struct AvUniquePtr {
+  T *raw_ptr;
+  std::unique_ptr<T *, D> uptr;
+
+  AvUniquePtr(T *ptr, D deleter) : raw_ptr(ptr), uptr(&raw_ptr, deleter) {}
+  ~AvUniquePtr() = default;
+  AvUniquePtr(AvUniquePtr &&) = default;
+  AvUniquePtr &operator=(AvUniquePtr &&) = default;
+  AvUniquePtr(const AvUniquePtr &) = delete;
+  AvUniquePtr &operator=(const AvUniquePtr &) = delete;
+
+  operator bool() const {
+    return raw_ptr != nullptr;
+  }
+
+  T** operator&() {  // NOLINT(runtime/operator)
+    return &raw_ptr;
+  }
+
+  operator T*() const {
+    return raw_ptr;
+  }
+
+  T* operator->() const {
+    return raw_ptr;
+  }
+
+  void reset(T *ptr = nullptr) {
+    // reset the unique pointer before we assign raw_ptr since it can have effects to raw_ptr
+    uptr.reset();
+    raw_ptr = ptr;
+    uptr.reset(&raw_ptr);
+  }
+
+  T* release() {
+    T* ptr = raw_ptr;
+    raw_ptr = nullptr;
+    uptr.release();
+    return ptr;
+  }
+};
+
+static void avformat_context_deleter(AVFormatContext **ctx) {
+  if (*ctx == nullptr) {
+    return;
+  }
+  auto custom_dealloc = (*ctx)->flags & AVFMT_FLAG_CUSTOM_IO;
+  auto custom_ctx = (*ctx)->pb;
+  auto custom_buffer = (*ctx)->pb ? (*ctx)->pb->buffer : nullptr;
+  avformat_close_input(ctx);
+  avformat_free_context(*ctx);
+  if (custom_dealloc) {
+    av_freep(&custom_buffer);
+    avio_context_free(&custom_ctx);
+  }
+}
+
 struct AvState {
-  AVFormatContext *ctx_ = nullptr;
+  AvUniquePtr<AVFormatContext, decltype(&avformat_context_deleter)> ctx_{
+    nullptr, avformat_context_deleter};
+  AvUniquePtr<AVCodecContext, decltype(&avcodec_free_context)> codec_ctx_{
+    nullptr, avcodec_free_context};
+  AvUniquePtr<AVFrame, decltype(&av_frame_free)> frame_{
+    nullptr, av_frame_free};
+  AvUniquePtr<AVPacket, decltype(&av_packet_free)> packet_{
+    nullptr, av_packet_free};
+  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
+    nullptr, sws_freeContext};
+
   const AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
-  AVCodecContext *codec_ctx_ = nullptr;
-  AVFrame *frame_ = nullptr;
-  AVPacket *packet_ = nullptr;
-  SwsContext  *sws_ctx_ = nullptr;
   int stream_id_ = -1;
   bool is_file_open_ = false;
 
   int OpenFile(const std::string& filename);
-
   int OpenMemoryFile(MemoryVideoFile& memory_video_file);
-
-  void CloseInput() {
-    if (ctx_ != nullptr) {
-      // if we use avio_alloc_context we need a custom deallocator for ctx_->pb
-      auto custom_dealloc = ctx_->flags & AVFMT_FLAG_CUSTOM_IO;
-      auto custom_ctx = ctx_->pb;
-      auto custom_buffer = ctx_->pb ? ctx_->pb->buffer : nullptr;
-      avformat_close_input(&ctx_);
-      avformat_free_context(ctx_);
-      if (custom_dealloc) {
-        av_freep(&custom_buffer);
-        avio_context_free(&custom_ctx);
-      }
-      ctx_ = nullptr;
-    }
-  }
-
-  ~AvState() {
-    sws_freeContext(sws_ctx_);
-    sws_ctx_ = nullptr;
-
-    if (packet_ != nullptr) {
-      av_packet_unref(packet_);
-      av_packet_free(&packet_);
-      packet_ = nullptr;
-    }
-
-    if (frame_ != nullptr) {
-      av_frame_unref(frame_);
-      av_frame_free(&frame_);
-      frame_ = nullptr;
-    }
-
-    if (codec_ctx_ != nullptr) {
-      avcodec_free_context(&codec_ctx_);
-      codec_ctx_ = nullptr;
-    }
-
-    CloseInput();
-
-    codec_ = nullptr;
-    codec_params_ = nullptr;
-  }
 };
 
 
