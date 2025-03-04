@@ -21,7 +21,7 @@ namespace dali {
 
 FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, bool build_index)
     : FramesDecoderBase(filename, build_index, true) {
-  is_valid_ = is_valid_ && CanDecode(av_state_->codec_params_->codec_id);
+  is_valid_ = is_valid_ && CanDecode(codec_params_->codec_id);
 }
 
 FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size,
@@ -29,7 +29,7 @@ FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_s
                                    std::string_view source_info)
     : FramesDecoderBase(memory_file, memory_file_size, build_index, true, num_frames,
                         source_info) {
-  is_valid_ = is_valid_ && CanDecode(av_state_->codec_params_->codec_id);
+  is_valid_ = is_valid_ && CanDecode(codec_params_->codec_id);
 }
 
 bool FramesDecoderCpu::CanDecode(AVCodecID codec_id) const {

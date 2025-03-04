@@ -294,25 +294,25 @@ using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
   const char* filtername = nullptr;
-  switch (av_state_->codec_params_->codec_id) {
+  switch (codec_params_->codec_id) {
   case AVCodecID::AV_CODEC_ID_H264:
-    if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "raw H.264 video")) {
+    if  (!strcmp(ctx_->iformat->long_name, "QuickTime / MOV") ||
+         !strcmp(ctx_->iformat->long_name, "FLV (Flash Video)") ||
+         !strcmp(ctx_->iformat->long_name, "Matroska / WebM") ||
+         !strcmp(ctx_->iformat->long_name, "raw H.264 video")) {
       filtername = "h264_mp4toannexb";
     }
     break;
   case AVCodecID::AV_CODEC_ID_HEVC:
-    if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "raw HEVC video")) {
+    if  (!strcmp(ctx_->iformat->long_name, "QuickTime / MOV") ||
+         !strcmp(ctx_->iformat->long_name, "FLV (Flash Video)") ||
+         !strcmp(ctx_->iformat->long_name, "Matroska / WebM") ||
+         !strcmp(ctx_->iformat->long_name, "raw HEVC video")) {
       filtername = "hevc_mp4toannexb";
     }
     break;
   case AVCodecID::AV_CODEC_ID_MPEG4:
-    if  (!strcmp(av_state_->ctx_->iformat->name, "avi")) {
+    if  (!strcmp(ctx_->iformat->name, "avi")) {
       filtername = "mpeg4_unpack_bframes";
     }
     break;
@@ -324,7 +324,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   default:
     DALI_FAIL(make_string(
       "Could not find suitable bit stream filter for codec: ",
-      av_state_->codec_->name));
+      codec_->name));
   }
 
   if (filtername != nullptr) {
@@ -339,7 +339,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
 
   DALI_ENFORCE(
     avcodec_parameters_copy(bsfc_->par_in,
-                            av_state_->ctx_->streams[av_state_->stream_id_]->codecpar) >= 0,
+                            ctx_->streams[stream_id_]->codecpar) >= 0,
     "Unable to copy bit stream filter parameters");
   DALI_ENFORCE(
     av_bsf_init(bsfc_) >= 0,
@@ -381,7 +381,7 @@ void FramesDecoderGpu::InitGpuParser() {
     return;
   }
 
-  auto codec_type = GetCodecType(av_state_->codec_params_->codec_id);
+  auto codec_type = GetCodecType(codec_params_->codec_id);
 
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
@@ -395,8 +395,8 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
   parser_info.pfnDisplayPicture = nullptr;
 
-  auto extradata = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar->extradata;
-  auto extradata_size = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar->extradata_size;
+  auto extradata = ctx_->streams[stream_id_]->codecpar->extradata;
+  auto extradata_size = ctx_->streams[stream_id_]->codecpar->extradata_size;
 
   memset(&parser_extinfo, 0, sizeof(parser_extinfo));
   parser_info.pExtVideoInfo = &parser_extinfo;
@@ -421,7 +421,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     FramesDecoderBase(filename, true, false),
     frame_buffer_(num_decode_surfaces_),
     stream_(stream) {
-  if (is_valid_ && CanDecode(av_state_->codec_params_->codec_id)) {
+  if (is_valid_ && CanDecode(codec_params_->codec_id)) {
     InitGpuParser();
   } else {
     is_valid_ = false;
@@ -435,7 +435,7 @@ FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_s
                         source_info),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
-  if (is_valid_ && CanDecode(av_state_->codec_params_->codec_id)) {
+  if (is_valid_ && CanDecode(codec_params_->codec_id)) {
     InitGpuParser();
   } else {
     is_valid_ = false;
@@ -600,8 +600,8 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   current_frame_output_ = data;
 
   while (next_frame_idx_ < NumFrames()) {
-    int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
-    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+    int ret = av_read_frame(ctx_, packet_);
+    auto packet = AVPacketScope(packet_, av_packet_unref);
     if (ret != 0) {
       LOG_LINE << "Hit EOF, sending last packet with " << piped_pts_.size()
                << " frames in pipeline, " << NumBufferedFrames() << " buffered frames, "
@@ -633,14 +633,14 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
 }
 
 bool FramesDecoderGpu::SendFrameToParser() {
-  if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+  if (packet_->stream_index != stream_id_) {
     return false;
   }
 
   // Store pts from current packet to indicate,
   // that this frame is in the decoder
-  if (av_state_->packet_->pts != AV_NOPTS_VALUE) {
-    piped_pts_.push(av_state_->packet_->pts);
+  if (packet_->pts != AV_NOPTS_VALUE) {
+    piped_pts_.push(packet_->pts);
   } else {
     piped_pts_.push(frame_index_if_no_pts_);
     frame_index_if_no_pts_++;
@@ -651,7 +651,7 @@ bool FramesDecoderGpu::SendFrameToParser() {
     av_packet_unref(filtered_packet_);
   }
 
-  DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
+  DALI_ENFORCE(av_bsf_send_packet(bsfc_, packet_) >= 0);
   DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
 
   // Prepare nv packet
@@ -696,8 +696,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     more_frames_to_decode_ &&
     !frame_returned_ &&
     frame_to_return_index == -1) {
-    int ret = av_read_frame(av_state_->ctx_, av_state_->packet_);
-    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+    int ret = av_read_frame(ctx_, packet_);
+    auto packet = AVPacketScope(packet_, av_packet_unref);
     if (ret == 0) {
       if (!SendFrameToParser()) {
         continue;

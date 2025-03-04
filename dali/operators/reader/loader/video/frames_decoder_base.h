@@ -28,6 +28,7 @@ extern "C" {
 #include <string_view>
 #include "dali/core/common.h"
 #include "dali/core/span.h"
+#include "dali/core/unique_handle.h"
 
 namespace dali {
 struct IndexEntry {
@@ -53,63 +54,57 @@ struct MemoryVideoFile {
   int64_t position_;
 };
 
-struct AvState {
-  AVFormatContext *ctx_ = nullptr;
-  const AVCodec *codec_ = nullptr;
-  AVCodecParameters *codec_params_ = nullptr;
-  AVCodecContext *codec_ctx_ = nullptr;
-  AVFrame *frame_ = nullptr;
-  AVPacket *packet_ = nullptr;
-  SwsContext  *sws_ctx_ = nullptr;
-  int stream_id_ = -1;
-  bool is_file_open_ = false;
-
-  int OpenFile(const std::string& filename);
-
-  int OpenMemoryFile(MemoryVideoFile& memory_video_file);
-
-  void CloseInput() {
-    if (ctx_ != nullptr) {
-      // if we use avio_alloc_context we need a custom deallocator for ctx_->pb
-      auto custom_dealloc = ctx_->flags & AVFMT_FLAG_CUSTOM_IO;
-      auto custom_ctx = ctx_->pb;
-      auto custom_buffer = ctx_->pb ? ctx_->pb->buffer : nullptr;
-      avformat_close_input(&ctx_);
-      avformat_free_context(ctx_);
-      if (custom_dealloc) {
-        av_freep(&custom_buffer);
-        avio_context_free(&custom_ctx);
-      }
-      ctx_ = nullptr;
-    }
+static void DestroyAvObject(AVIOContext **ctx) {
+  assert(*ctx != nullptr);
+  uint8_t *buffer = (*ctx)->buffer;
+  avio_context_free(ctx);
+  if (buffer) {
+    av_freep(&buffer);
   }
+}
 
-  ~AvState() {
-    sws_freeContext(sws_ctx_);
-    sws_ctx_ = nullptr;
-
-    if (packet_ != nullptr) {
-      av_packet_unref(packet_);
-      av_packet_free(&packet_);
-      packet_ = nullptr;
-    }
-
-    if (frame_ != nullptr) {
-      av_frame_unref(frame_);
-      av_frame_free(&frame_);
-      frame_ = nullptr;
-    }
-
-    avcodec_free_context(&codec_ctx_);
-    codec_ctx_ = nullptr;
-
-    CloseInput();
-
-    codec_ = nullptr;
-    codec_params_ = nullptr;
+static void DestroyAvObject(AVFormatContext **ctx) {
+  assert(*ctx != nullptr);
+  auto custom_dealloc = (*ctx)->flags & AVFMT_FLAG_CUSTOM_IO;
+  auto avio_ctx = (*ctx)->pb;
+  avformat_close_input(ctx);
+  if (custom_dealloc && avio_ctx) {
+    DestroyAvObject(&avio_ctx);
   }
+}
+
+static void DestroyAvObject(AVCodecContext **ctx) {
+  assert(*ctx != nullptr);
+  avcodec_free_context(ctx);
+}
+
+static void DestroyAvObject(AVFrame **frame) {
+  assert(*frame != nullptr);
+  av_frame_free(frame);
+}
+
+static void DestroyAvObject(AVPacket **packet) {
+  assert(*packet != nullptr);
+  av_packet_free(packet);
+}
+
+template <typename T>
+class AVUniquePtr : public UniqueHandle<T *, AVUniquePtr<T>> {
+ public:
+  using Base = UniqueHandle<T *, AVUniquePtr<T>>;
+  using Base::Base;
+  using Base::handle_;
+
+  static void DestroyHandle(T *&handle) {
+    assert(handle != nullptr);
+    DestroyAvObject(&handle);
+  }
+  static constexpr T *null_handle() { return nullptr; }
+
+  T *operator->() const { return Base::get(); }
+  T &operator*() const { return *Base::get(); }
+  T **operator&() { return &handle_; }  // NOLINT(runtime/operator)
 };
-
 
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
@@ -149,14 +144,14 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Width of a video frame in pixels
    */
   int Width() const {
-    return av_state_->codec_params_->width;
+    return codec_params_->width;
   }
 
   /**
    * @brief Height of a video frame in pixels
    */
   int Height() const {
-    return av_state_->codec_params_->height;
+    return codec_params_->height;
   }
 
   /**
@@ -240,7 +235,20 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
  protected:
-  std::unique_ptr<AvState> av_state_;
+  AVUniquePtr<AVFormatContext> ctx_;
+  AVUniquePtr<AVCodecContext> codec_ctx_;
+  AVUniquePtr<AVFrame> frame_;
+  AVUniquePtr<AVPacket> packet_;
+  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
+    nullptr, sws_freeContext};
+
+  const AVCodec *codec_ = nullptr;
+  AVCodecParameters *codec_params_ = nullptr;
+  int stream_id_ = -1;
+  bool is_file_open_ = false;
+
+  int OpenFile(const std::string& filename);
+  int OpenMemoryFile(MemoryVideoFile& memory_video_file);
 
   std::vector<IndexEntry> index_;
 
