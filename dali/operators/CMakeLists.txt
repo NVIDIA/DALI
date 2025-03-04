@@ -22,7 +22,6 @@ add_subdirectory(decoder)
 add_subdirectory(generic)
 add_subdirectory(image)
 add_subdirectory(imgcodec)
-add_subdirectory(input)
 add_subdirectory(io)
 add_subdirectory(math)
 add_subdirectory(random)
@@ -38,6 +37,9 @@ if (BUILD_CVCUDA)
 endif()
 if (BUILD_PYTHON)
   add_subdirectory(python_function)
+endif()
+if (BUILD_NVDEC)
+  add_subdirectory(video)
 endif()
 
 # Get all the source files and dump test files
@@ -65,7 +67,7 @@ if (NOT OPERATOR_SRCS_PATTERN STREQUAL "" OR
   # Those are needed for operators.cc to have all symbols
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/util/npp.cc")
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/decoder/nvjpeg/nvjpeg_helper.cc")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/reader/nvdecoder/dynlink_nvcuvid.cc")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/video/dynlink_nvcuvid/dynlink_nvcuvid.cc")
 
   list(APPEND OPERATOR_SRCS_PATTERN_EXCLUDE "*test*")
   custom_filter(CMAKE_CURRENT_SOURCE_DIR

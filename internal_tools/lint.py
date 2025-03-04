@@ -41,9 +41,7 @@ import subprocess
 # Specifies, which files are to be excluded
 # These filters are regexes, not typical unix-like path specification
 negative_filters = [
-    ".*operators/reader/nvdecoder/nvcuvid.h",
-    ".*operators/reader/nvdecoder/cuviddec.h",
-    ".*operators/reader/loader/video/nvdecode/*",
+    ".*operators/video/*",
     ".*operators/sequence/optical_flow/optical_flow_impl/nvOpticalFlowCuda.h",
     ".*operators/sequence/optical_flow/optical_flow_impl/nvOpticalFlowCommon.h",
     ".*python/dummy.cu",

@@ -1,8 +1,8 @@
 {
    "extra_include":[
       "<cuda.h>",
-      "\"dali/operators/reader/nvdecoder/cuviddec.h\"",
-      "\"dali/operators/reader/nvdecoder/nvcuvid.h\""
+      "\"dali/operators/video/dynlink_nvcuvid/cuviddec.h\"",
+      "\"dali/operators/video/dynlink_nvcuvid/nvcuvid.h\""
    ],
    "return_type":"CUresult",
    "calling_conv":"CUDAAPI",
