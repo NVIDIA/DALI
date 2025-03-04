@@ -184,7 +184,7 @@ TEST(CAPI2_TensorListTest, AttachBuffer) {
     { 1080, 1920, 3 }
   });
   auto size = lshape.num_elements();
-  std::unique_ptr<element_t> data(new element_t[size]);
+  std::unique_ptr<element_t[]> data(new element_t[size]);
 
   ptrdiff_t offsets[4] = {};
   for (int i = 1; i < 4; i++)
@@ -242,7 +242,7 @@ TEST(CAPI2_TensorListTest, AttachSamples) {
   });
   auto size = lshape.num_elements();
   int N = lshape.num_samples();
-  std::vector<std::unique_ptr<element_t>> data(N);
+  std::vector<std::unique_ptr<element_t[]>> data(N);
 
   for (int i = 0; i < N; i++) {
     data[i].reset(new element_t[size]);
@@ -310,7 +310,7 @@ TEST(CAPI2_TensorListTest, ViewAsTensor) {
   daliDataType_t dtype = dali::type2id<element_t>::value;
   dali::TensorListShape<> lshape = dali::uniform_list_shape(4, { 480, 640, 3 });
   auto size = lshape.num_elements();
-  std::unique_ptr<element_t> data(new element_t[size]);
+  std::unique_ptr<element_t[]> data(new element_t[size]);
 
   ptrdiff_t sample_size = volume(lshape[0]) * sizeof(element_t);
 
@@ -385,7 +385,7 @@ TEST(CAPI2_TensorListTest, ViewAsTensorError) {
   daliDataType_t dtype = dali::type2id<element_t>::value;
   dali::TensorListShape<> lshape = dali::uniform_list_shape(4, { 480, 640, 3 });
   auto size = lshape.num_elements();
-  std::unique_ptr<element_t> data(new element_t[size]);
+  std::unique_ptr<element_t[]> data(new element_t[size]);
 
   ptrdiff_t sample_size = volume(lshape[0]) * sizeof(element_t);
 
