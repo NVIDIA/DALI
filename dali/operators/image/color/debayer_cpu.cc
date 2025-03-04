@@ -22,24 +22,81 @@ namespace dali {
 
 using namespace dali::kernels::debayer;
 
-[[nodiscard]] cv::ColorConversionCodes toOpenCVColorConversionCode(DALIBayerPattern pattern) {
-  switch (pattern) {
-    case DALIBayerPattern::DALI_BAYER_BG:
-      return cv::COLOR_BayerBG2RGB_EA;
-    case DALIBayerPattern::DALI_BAYER_GB:
-      return cv::COLOR_BayerGB2RGB_EA;
-    case DALIBayerPattern::DALI_BAYER_GR:
-      return cv::COLOR_BayerGR2RGB_EA;
-    case DALIBayerPattern::DALI_BAYER_RG:
-      return cv::COLOR_BayerRG2RGB_EA;
+[[nodiscard]] cv::ColorConversionCodes toOpenCVColorConversionCode(DALIBayerPattern pattern,
+                                                                   DALIDebayerAlgorithm algo) {
+  switch (algo) {
+    // OpenCV Bilinear
+    case DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_OCV:
+      switch (pattern) {
+        case DALIBayerPattern::DALI_BAYER_BG:
+          return cv::COLOR_BayerBG2RGB;
+        case DALIBayerPattern::DALI_BAYER_GB:
+          return cv::COLOR_BayerGB2RGB;
+        case DALIBayerPattern::DALI_BAYER_GR:
+          return cv::COLOR_BayerGR2RGB;
+        case DALIBayerPattern::DALI_BAYER_RG:
+          return cv::COLOR_BayerRG2RGB;
+        default:
+          break;
+      }
+    // OpenCV Edge-aware
+    case DALIDebayerAlgorithm::DALI_DEBAYER_EDGEAWARE_OCV:
+      switch (pattern) {
+        case DALIBayerPattern::DALI_BAYER_BG:
+          return cv::COLOR_BayerBG2RGB_EA;
+        case DALIBayerPattern::DALI_BAYER_GB:
+          return cv::COLOR_BayerGB2RGB_EA;
+        case DALIBayerPattern::DALI_BAYER_GR:
+          return cv::COLOR_BayerGR2RGB_EA;
+        case DALIBayerPattern::DALI_BAYER_RG:
+          return cv::COLOR_BayerRG2RGB_EA;
+        default:
+          break;
+      }
+    // OpenCV VNG
+    case DALIDebayerAlgorithm::DALI_DEBAYER_VNG_OCV:
+      switch (pattern) {
+        case DALIBayerPattern::DALI_BAYER_BG:
+          return cv::COLOR_BayerBG2RGB_VNG;
+        case DALIBayerPattern::DALI_BAYER_GB:
+          return cv::COLOR_BayerGB2RGB_VNG;
+        case DALIBayerPattern::DALI_BAYER_GR:
+          return cv::COLOR_BayerGR2RGB_VNG;
+        case DALIBayerPattern::DALI_BAYER_RG:
+          return cv::COLOR_BayerRG2RGB_VNG;
+        default:
+          break;
+      }
+    // OpenCV Gray
+    case DALIDebayerAlgorithm::DALI_DEBAYER_GRAY_OCV:
+      switch (pattern) {
+        case DALIBayerPattern::DALI_BAYER_BG:
+          return cv::COLOR_BayerBG2GRAY;
+        case DALIBayerPattern::DALI_BAYER_GB:
+          return cv::COLOR_BayerGB2GRAY;
+        case DALIBayerPattern::DALI_BAYER_GR:
+          return cv::COLOR_BayerGR2GRAY;
+        case DALIBayerPattern::DALI_BAYER_RG:
+          return cv::COLOR_BayerRG2GRAY;
+        default:
+          break;
+      }
     default:
-      DALI_FAIL("Unsupported bayer pattern code " + to_string(pattern));
+      break;
   }
+  DALI_FAIL("Unsupported bayer pattern code " + to_string(pattern) + "and algorithm code " +
+            to_string(algo) + " combination for OpenCV debayering.");
 }
 
 class DebayerCPU : public Debayer<CPUBackend> {
  public:
   explicit DebayerCPU(const OpSpec &spec) : Debayer<CPUBackend>(spec) {}
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+    DALI_ENFORCE(alg_ != debayer::DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP,
+                 "bilinear_npp algorithm is not supported on CPU.");
+    return Debayer<CPUBackend>::SetupImpl(output_desc, ws);
+  }
 
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
@@ -59,7 +116,7 @@ class DebayerCPU : public Debayer<CPUBackend> {
                       const_cast<void *>(inImage.raw_data()));
         cv::Mat outImg(height, width, OCVMatTypeForDALIData(outImage.type(), 3),
                        outImage.raw_mutable_data());
-        cv::demosaicing(inImg, outImg, toOpenCVColorConversionCode(pattern_[i]));
+        cv::demosaicing(inImg, outImg, toOpenCVColorConversionCode(pattern_[i], alg_));
       });
     }
     tPool.RunAll();

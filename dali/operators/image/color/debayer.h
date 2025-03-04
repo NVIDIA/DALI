@@ -37,7 +37,8 @@ constexpr static const char *kAlgArgName = "algorithm";
 constexpr static const char *kBluePosArgName = "blue_position";
 
 template <int ndim>
-TensorListShape<3> infer_output_shape(const TensorListShape<ndim> &input_shapes) {
+TensorListShape<3> infer_output_shape(const TensorListShape<ndim> &input_shapes,
+                                      DALIDebayerAlgorithm alg) {
   int sample_dim = input_shapes.sample_dim();
   int batch_size = input_shapes.num_samples();
   DALI_ENFORCE(
@@ -66,7 +67,8 @@ TensorListShape<3> infer_output_shape(const TensorListShape<ndim> &input_shapes)
                  make_string("The height and width of the image to debayer must be even. However, "
                              "the sample at idx ",
                              sample_idx, " has shape ", input_shapes[sample_idx], "."));
-    TensorShape<3> out_shape{height, width, 3};
+    const auto out_channels = alg == DALIDebayerAlgorithm::DALI_DEBAYER_GRAY_OCV ? 1 : 3;
+    TensorShape<3> out_shape{height, width, out_channels};
     out_shapes.set_tensor_shape(sample_idx, out_shape);
   }
   return out_shapes;
@@ -122,7 +124,7 @@ class Debayer : public SequenceOperator<Backend, StatelessOperator> {
     output_desc.resize(1);
     const auto &input_shape = ws.GetInputShape(0);
     output_desc[0].type = ws.GetInputDataType(0);
-    output_desc[0].shape = debayer::infer_output_shape(input_shape);
+    output_desc[0].shape = debayer::infer_output_shape(input_shape, alg_);
     AcquirePatternArgument(ws, input_shape.num_samples());
     return true;
   }
