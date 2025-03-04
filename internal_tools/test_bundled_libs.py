@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import subprocess
-from sys import argv
+import sys
 
 
 def get_list_elm_match(value, elms):
@@ -55,7 +55,7 @@ def main():
         ]
     }
 
-    bundled_libs = argv[1:]
+    bundled_libs = sys.argv[1:]
 
     # Gather all names of bundled libs without path
     bundled_lib_names = []
@@ -64,6 +64,7 @@ def main():
         bundled_lib_names.append(lib[beg + 1 :])
 
     print("Checking bundled libs linkage:")
+    failing = False
     for lib_path, lib_name in zip(bundled_libs, bundled_lib_names):
         print(f"- {lib_name}")
         ldd = subprocess.Popen(["ldd", lib_path], stdout=subprocess.PIPE)
@@ -73,9 +74,14 @@ def main():
             if not check_ldd_out(lib_name, linked_lib, bundled_lib_names, allowed_libs):
                 print(
                     f"Library: '{linked_lib}' should be bundled in whl "
-                    f"or removed from the dynamic link dependency"
+                    f"or removed from the dynamic link dependency",
+                    file=sys.stderr,
                 )
-                exit(1)
+                failing = True
+
+    if failing:
+        sys.exit(1)
+
     print("-> OK")
 
 
