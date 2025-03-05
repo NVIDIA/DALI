@@ -38,6 +38,7 @@ extern "C" {
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/video/legacy/reader/nvdecoder/nvdecoder.h"
 #include "dali/operators/video/legacy/reader/nvdecoder/sequencewrapper.h"
+#include "dali/operators/video/video_utils.h"
 #include "dali/pipeline/util/worker_thread.h"
 
 template<typename T>
@@ -54,24 +55,6 @@ auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
 #else
 auto codecpar(AVStream* stream) -> decltype(stream->codec);
 #endif
-
-struct file_meta {
-  std::string video_file;
-  int label;
-  float start_time;
-  float end_time;
-  bool operator< (const file_meta& right) {
-    return video_file < right.video_file;
-  }
-};
-
-namespace filesystem {
-
-std::vector<dali::file_meta> get_file_label_pair(const std::string& path,
-    const std::vector<std::string>& filenames, bool use_labels,
-    const std::vector<int>& labels, const std::string& file_list);
-
-}  // namespace filesystem
 
 struct VideoFileDesc {
   FILE *file_stream = nullptr;
@@ -181,8 +164,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
     }
 
     bool use_labels = spec.TryGetRepeatedArgument(labels_, "labels");
-    file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, use_labels, labels_,
-                                                 file_list_);
+    file_info_ = GetVideoFiles(file_root_, filenames_, use_labels, labels_, file_list_);
     DALI_ENFORCE(!file_info_.empty(), "No files were read.");
 
     auto ret = cuvidInitChecked();
@@ -295,16 +277,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
 
       int s;
       for (s = start_frame; s < end_frame && s + total_count <= end_frame; s += step_) {
-        frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
-                                   codecpar(stream)->height, codecpar(stream)->width,
-                                   count_});
+        frame_starts_.emplace_back(sequence_meta{
+            i, s, file_info_[i].label, codecpar(stream)->height, codecpar(stream)->width, count_});
       }
       if (pad_sequences_ && s < end_frame) {
         for (; s < end_frame; s += step_) {
           int fcount = 1 + (end_frame - 1 - s) / stride_;
           frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
-                                     codecpar(stream)->height, codecpar(stream)->width,
-                                     fcount});
+                                                   codecpar(stream)->height,
+                                                   codecpar(stream)->width, fcount});
         }
       }
     }
@@ -383,7 +364,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
   Index current_frame_idx_;
 
   volatile bool stop_;
-  std::vector<file_meta> file_info_;
+  std::vector<VideoFileMeta> file_info_;
 };
 
 }  // namespace dali
