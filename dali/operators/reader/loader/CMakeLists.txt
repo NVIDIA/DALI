@@ -16,10 +16,6 @@ if (BUILD_LIBTAR)
   add_subdirectory(webdataset)
 endif()
 
-if (BUILD_FFMPEG)
-  add_subdirectory(video)
-endif()
-
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
@@ -48,11 +44,6 @@ endif()
 if (BUILD_LIBSND)
   set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
     "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader.cc")
-endif()
-
-if (BUILD_NVDEC)
-  set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
-    "${CMAKE_CURRENT_SOURCE_DIR}/video_loader.cc")
 endif()
 
 set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
