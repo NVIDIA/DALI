@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import cv2
 import numpy as np
 from scipy.signal import convolve2d
 
@@ -177,3 +178,18 @@ def debayer_bilinear_npp_pattern_seq(seq, patterns):
     seq_masks = [bayer_masks[pattern] for pattern in patterns]
     reds, greens, blues = [np.stack(channel) for channel in zip(*seq_masks)]
     return debayer_bilinear_npp_masks(seq, (reds, greens, blues))
+
+
+def debayer_opencv(img: np.ndarray, pattern: BayerPattern, algorithm: str):
+    """Debayer image with OpenCV."""
+    if pattern is not BayerPattern.BGGR:
+        raise NotImplementedError("Only BGGR pattern is supported by at the moment.")
+    if algorithm == "bilinear_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2RGB)
+    if algorithm == "edgeaware_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2RGB_EA)
+    if algorithm == "vng_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2RGB_VNG)
+    if algorithm == "gray_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2GRAY)[..., None]  # Make HWC
+    raise ValueError(f"Unknown algorithm: {algorithm}")
