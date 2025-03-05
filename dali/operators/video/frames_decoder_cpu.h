@@ -53,7 +53,7 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @param codec_id Codec ID to check.
    * @return True if the codec is supported, false otherwise.
    */
-  bool CanDecode(AVCodecID codec_id) const;
+  bool CanDecode(AVCodecID codec_id) const override;
 };
 
 }  // namespace dali

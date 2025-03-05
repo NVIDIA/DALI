@@ -218,6 +218,15 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   bool HasIndex() const { return !index_.empty(); }
 
+
+  /**
+   * @brief Check if a codec is supported by the particular implementation.
+   *
+   * @param codec_id Codec ID to check.
+   * @return True if the codec is supported, false otherwise.
+   */
+  virtual bool CanDecode(AVCodecID codec_id) const = 0;
+
   virtual ~FramesDecoderBase() = default;
   FramesDecoderBase(FramesDecoderBase&&) = default;
   FramesDecoderBase& operator=(FramesDecoderBase&&) = default;
@@ -231,6 +240,7 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   const IndexEntry& Index(int frame_id) const {
+    assert(HasIndex());
     return index_[frame_id];
   }
 

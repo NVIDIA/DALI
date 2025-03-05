@@ -135,7 +135,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
       return std::make_unique<FramesDecoderImpl>(data, size, build_index, -1, source_info);
     } else {
-      return std::make_unique<FramesDecoderImpl>(data, size, stream, build_index, -1, source_info);
+      return std::make_unique<FramesDecoderImpl>(data, size, build_index, -1, source_info, stream);
     }
   }
 
