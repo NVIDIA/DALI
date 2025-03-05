@@ -190,6 +190,14 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   virtual void SeekFrame(int frame_id);
 
+
+  /**
+   * @brief Returns the timebase of the video
+   */
+  AVRational GetTimebase() const {
+    return ctx_->streams[stream_id_]->time_base;
+  }
+
   /**
    * @brief Returns the index of the frame that has the given timestamp
    *
@@ -197,14 +205,6 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
    */
   virtual int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false);
-
-  /**
-   * @brief Returns the index of the frame that has the given time in seconds
-   *
-   * @param seconds Time in seconds to seek to
-   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
-   */
-  virtual int GetFrameIdxByTimeInSeconds(float seconds, bool inclusive = false);
 
   /**
    * @brief Seeks to the first frame
@@ -233,15 +233,6 @@ class DLL_PUBLIC FramesDecoderBase {
    * @return Boolean indicating whether or not the index was created.
    */
   bool HasIndex() const { return !index_.empty(); }
-
-
-  /**
-   * @brief Check if a codec is supported by the particular implementation.
-   *
-   * @param codec_id Codec ID to check.
-   * @return True if the codec is supported, false otherwise.
-   */
-  virtual bool CanDecode(AVCodecID codec_id) const = 0;
 
   virtual ~FramesDecoderBase() = default;
   FramesDecoderBase(FramesDecoderBase&&) = default;

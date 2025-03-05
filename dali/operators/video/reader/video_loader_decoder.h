@@ -23,6 +23,7 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/video_reader_utils.h"
+#include "libavutil/rational.h"
 namespace dali {
 
 struct VideoSampleDesc {
@@ -47,7 +48,7 @@ struct VideoSample : public VideoSampleDesc {
 
   // to be filled by Prefetch
   Tensor<Backend> data_;
-  int64_t start_timestamp_ = -1;
+  std::vector<float> timestamps_;
 };
 
 enum class FileListFormat {
@@ -70,8 +71,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     if ((spec.HasArgument("file_list") || spec.HasArgument("file_root") || spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
     }
-    has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
-    if (has_labels_) {
+    bool has_labels = spec.TryGetRepeatedArgument(labels_, "labels");
+    if (has_labels) {
       DALI_ENFORCE(
           labels_.size() == filenames_.size(),
           make_string(
@@ -79,7 +80,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
               filenames_.size(), " files and ", labels_.size(), " labels."));
     }
 
-    video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels_, labels_, file_list_);
+    video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
 
     if (!file_list_.empty()) {
@@ -116,10 +117,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   }
 
   void PrepareMetadataImpl() override {
-    std::unique_ptr<FramesDecoderImpl> decoder;
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
-      decoder = std::make_unique<FramesDecoderImpl>(entry.video_file, true);
+      std::unique_ptr<FramesDecoderImpl> decoder;
+      if constexpr(std::is_same_v<Backend, CPUBackend>) {
+        decoder = std::make_unique<FramesDecoderImpl>(entry.video_file, true);
+      } else {
+        decoder = std::make_unique<FramesDecoderImpl>(entry.video_file, true, cuda_stream_);
+      }
       if (!decoder->IsValid()) {
         LOG_LINE << "Invalid video file: " << entry.video_file << std::endl;
         continue;
@@ -133,12 +138,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             end_frame = entry.end_time;
             break;
           case FileListFormat::kTimestamp:
-            start_frame = decoder->GetFrameIdxByTimeInSeconds(entry.start_time, false);
-            end_frame = decoder->GetFrameIdxByTimeInSeconds(entry.end_time, true);
+            start_frame = decoder->GetFrameIdxByTimestamp(
+                SecondsToTimestamp(decoder->GetTimebase(), entry.start_time), false);
+            end_frame = decoder->GetFrameIdxByTimestamp(
+                SecondsToTimestamp(decoder->GetTimebase(), entry.end_time), true);
             break;
           case FileListFormat::kTimestampInclusive:
-            start_frame = decoder->GetFrameIdxByTimeInSeconds(entry.start_time, true);
-            end_frame = decoder->GetFrameIdxByTimeInSeconds(entry.end_time, false);
+            start_frame = decoder->GetFrameIdxByTimestamp(
+                SecondsToTimestamp(decoder->GetTimebase(), entry.start_time), true);
+            end_frame = decoder->GetFrameIdxByTimestamp(
+                SecondsToTimestamp(decoder->GetTimebase(), entry.end_time), false);
             break;
           default:
             DALI_FAIL("Invalid file_list_format");
@@ -153,10 +162,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
       for (int start = start_frame; start + stride_ * sequence_len_ <= end_frame;
            start += step_) {
-        LOG_LINE << "Sample #" << samples_.size() << ": " << entry.video_file << " " << entry.label << " "
-                 << start << ".." << start + stride_ * sequence_len_ << std::endl;
-        samples_.emplace_back(
-          entry.video_file, entry.label, start, start + stride_ * sequence_len_, stride_);
+        samples_.emplace_back(entry.video_file, entry.label, start, start + stride_ * sequence_len_,
+                              stride_);
       }
     }
 
@@ -195,7 +202,6 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   std::string file_list_;
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
-  bool has_labels_ = false;
 
   FileListFormat file_list_format_ = FileListFormat::kTimestamp;
 

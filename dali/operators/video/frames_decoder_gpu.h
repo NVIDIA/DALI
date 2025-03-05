@@ -176,7 +176,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param codec_id Codec ID to check.
    * @return True if the codec is supported, false otherwise.
    */
-  bool CanDecode(AVCodecID codec_id) const override;
+  bool CanDecode(AVCodecID codec_id) const;
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;

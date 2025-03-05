@@ -277,16 +277,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
 
       int s;
       for (s = start_frame; s < end_frame && s + total_count <= end_frame; s += step_) {
-        frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
-                                   codecpar(stream)->height, codecpar(stream)->width,
-                                   count_});
+        frame_starts_.emplace_back(sequence_meta{
+            i, s, file_info_[i].label, codecpar(stream)->height, codecpar(stream)->width, count_});
       }
       if (pad_sequences_ && s < end_frame) {
         for (; s < end_frame; s += step_) {
           int fcount = 1 + (end_frame - 1 - s) / stride_;
           frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
-                                     codecpar(stream)->height, codecpar(stream)->width,
-                                     fcount});
+                                                   codecpar(stream)->height,
+                                                   codecpar(stream)->width, fcount});
         }
       }
     }

@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include "dali/core/error_handling.h"
+#include "libavutil/rational.h"
 
 namespace dali {
 
@@ -31,6 +32,16 @@ struct VideoFileMeta {
     return video_file < right.video_file;
   }
 };
+
+inline float TimestampToSeconds(AVRational timebase, int64_t timestamp) {
+  return static_cast<float>(
+    static_cast<double>(timestamp) * timebase.num / timebase.den);
+}
+
+inline int64_t SecondsToTimestamp(AVRational timebase, float seconds) {
+  return static_cast<int64_t>(
+    static_cast<double>(seconds) * timebase.den / timebase.num);
+}
 
 std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
                                          const std::vector<std::string>& filenames, bool use_labels,

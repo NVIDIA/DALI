@@ -14,6 +14,7 @@
 
 #include <string>
 #include <vector>
+#include "dali/core/span.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
@@ -39,11 +40,14 @@ class VideoReaderDecoder
 
   explicit VideoReaderDecoder(const OpSpec &spec)
       : Base(spec),
-        has_labels_(spec.HasArgument("labels")),
         has_frame_idx_(spec.GetArgument<bool>("enable_frame_num")),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
+
+    has_labels_ = spec.HasArgument("labels") ||
+                  !spec.GetArgument<std::string>("file_list").empty() ||
+                  !spec.GetArgument<std::string>("file_root").empty();
 
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
 #if NVML_ENABLED
@@ -71,35 +75,44 @@ class VideoReaderDecoder
     output_desc.reserve(4);
     int batch_size = GetCurrBatchSize();
     TensorListShape<4> video_shape(batch_size);
+    TensorListShape<1> timestamps_shape(batch_size);
+    TensorListShape<1> label_shape = uniform_list_shape<1>(batch_size, {1});
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
       video_shape.set_tensor_shape(sample_id, sample.data_.shape());
+      timestamps_shape.set_tensor_shape(sample_id, {sample.data_.shape()[0]});
     }
     output_desc.push_back({video_shape, DALI_UINT8});
-
     if (has_labels_) {
-      output_desc.push_back({uniform_list_shape<1>(batch_size, {1}), DALI_INT32});
+      output_desc.push_back({label_shape, DALI_INT32});
     }
     if (has_frame_idx_) {
-      output_desc.push_back({uniform_list_shape<1>(batch_size, {1}), DALI_INT32});
+      output_desc.push_back({label_shape, DALI_INT32});
     }
     if (has_timestamps_) {
-      output_desc.push_back({uniform_list_shape<1>(batch_size, {1}), DALI_INT64});
+      output_desc.push_back({timestamps_shape, DALI_FLOAT});
     }
     return true;
   }
 
   template <typename T>
   void OutputMetadata(Workspace &ws, int out_idx,
-                      std::function<T(const VideoSample<Backend> &)> get_value) {
+                      std::function<span<const T>(const VideoSample<Backend>&)> get_values) {
     auto &output = ws.Output<Backend>(out_idx);
     int batch_size = output.num_samples();
+    DALI_ENFORCE(output.IsContiguousInMemory(), "Output must be contiguous in memory");
+    auto output_as_tensor = output.AsTensor();
     SmallVector<T, 32> values;
-    values.resize(batch_size);
+    Tensor<CPUBackend> tmp;
+    tmp.set_pinned(true);
+    tmp.Resize(output_as_tensor.shape(), output_as_tensor.type());
+    int64_t i = 0;
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      values[sample_id] = get_value(GetSample(sample_id));
+      for (auto &elem : get_values(GetSample(sample_id))) {
+        tmp.mutable_data<T>()[i++] = elem;
+      }
     }
-    MemCopy(output.AsTensor().raw_mutable_data(), values.data(), batch_size * sizeof(T),
+    MemCopy(output_as_tensor.raw_mutable_data(), tmp.raw_data(), tmp.nbytes(),
             ws.has_stream() ? ws.stream() : 0);
   }
 
@@ -119,13 +132,19 @@ class VideoReaderDecoder
     // Copy optional metadata outputs
     int out_index = 1;
     if (has_labels_) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) { return s.label_; });
+      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
+        return make_cspan(&s.label_, 1);
+      });
     }
     if (has_frame_idx_) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) { return s.start_; });
+      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
+        return make_cspan(&s.start_, 1);
+      });
     }
     if (has_timestamps_) {
-      OutputMetadata<int64_t>(ws, out_index++, [](auto &s) { return s.start_timestamp_; });
+      OutputMetadata<float>(ws, out_index++, [](auto &s) {
+        return make_cspan(s.timestamps_);
+      });
     }
   }
 
@@ -136,30 +155,50 @@ class VideoReaderDecoder
   void Prefetch() override {
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
+
+    // keeping one decoder open. In case the next sample belongs to the same file,
+    // we reuse the same decoder.
+    std::unique_ptr<FramesDecoderImpl> decoder;
+
+    int i = 0;
     for (auto &sample : current_batch) {
-      if (!decoder_ || decoder_->Filename() != sample->filename_) {
+      auto prev_filename = decoder ? decoder->Filename() : "";
+      if (!decoder || decoder->Filename() != sample->filename_) {
         if constexpr (std::is_same_v<Backend, CPUBackend>) {
-          decoder_ = std::make_unique<FramesDecoderImpl>(sample->filename_, true);
+          decoder = std::make_unique<FramesDecoderImpl>(sample->filename_, true);
         } else {
-          decoder_ = std::make_unique<FramesDecoderImpl>(sample->filename_, true);
+          decoder = std::make_unique<FramesDecoderImpl>(sample->filename_, true, cuda_stream_);
         }
-        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
+        LOG_LINE << "Initialized decoder to " << decoder->Filename() << " ptr: " << decoder.get()
+                 << " num_frames: " << decoder->NumFrames() << std::endl;
+      } else {
+        LOG_LINE << "Reusing decoder for " << decoder->Filename() << " ptr: " << decoder.get()
+                 << " num_frames: " << decoder->NumFrames() << std::endl;
       }
-      sample->start_timestamp_ = decoder_->Index(sample->start_).pts;
+      DALI_ENFORCE(decoder->IsValid(),
+                   make_string("Invalid decoder for filename ", sample->filename_));
 
       int64_t num_frames = (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_;
+      if (has_timestamps_) {
+        sample->timestamps_.reserve(num_frames);
+      }
+
       sample->data_.Resize(
-          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
-      sample->data_.SetSourceInfo(decoder_->Filename());
+          {num_frames, decoder->Height(), decoder->Width(), decoder->Channels()}, DALI_UINT8);
+      sample->data_.SetSourceInfo(decoder->Filename());
       sample->data_.SetLayout("FHWC");
 
-      int64_t frame_size = decoder_->FrameSize();
+      int64_t frame_size = decoder->FrameSize();
       uint8_t *data = sample->data_.template mutable_data<uint8_t>();
-      for (int64_t pos = sample->start_; pos < sample->end_; pos += sample->stride_) {
-        decoder_->SeekFrame(pos);
-        decoder_->ReadNextFrame(data);
-        data += frame_size;
+      int64_t pts_0 = decoder->Index(0).pts;
+      int64_t pos = sample->start_;
+      for (; pos < sample->end_; pos += sample->stride_, data += frame_size) {
+        decoder->SeekFrame(pos);
+        if (has_timestamps_) {
+          sample->timestamps_.push_back(
+              TimestampToSeconds(decoder->GetTimebase(), decoder->Index(pos).pts - pts_0));
+        }
+        decoder->ReadNextFrame(data);
       }
     }
     if (cuda_stream_) {
@@ -171,11 +210,6 @@ class VideoReaderDecoder
   bool has_labels_ = false;
   bool has_frame_idx_ = false;
   bool has_timestamps_ = false;
-
-  // keeping one decoder open. In case the next sample belongs to the same file,
-  // we reuse the same decoder.
-  std::unique_ptr<FramesDecoderImpl> decoder_;
-
   CUDAStreamLease cuda_stream_;
 };
 
@@ -198,21 +232,21 @@ The following codecs are supported by the Mixed backend only:
 * AV1
 * MPEG-4
 
-Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
+The outputs of the operator are: video, [labels], [frame_idx], [timestamp].
 
-* ``F`` is the number of frames in the sequence (can vary between samples)
-* ``H`` is the frame height in pixels
-* ``W`` is the frame width in pixels
-* ``C`` is the number of color channels
-  
-.. note::
-  Containers which do not support indexing, like MPEG, require DALI to build the index.
-DALI will go through the video and mark keyframes to be able to seek effectively,
-even in the constant frame rate scenario.
+* ``video``: A sequence of frames with shape ``(F, H, W, C)`` where ``F`` is the number of frames in the sequence
+  (can vary between samples), ``H`` is the frame height in pixels, ``W`` is the frame width in pixels, and ``C`` is
+  the number of color channels.
+* ``labels``: Label associated with the sample. Only available when using ``labels`` with ``filenames``, or when
+  using ``file_list`` or ``file_root``.
+* ``frame_idx``: Index of first frame in sequence. Only available when ``enable_frame_num=True``.
+* ``timestamp``: Time in seconds of first frame in sequence. Only available when ``enable_timestamps=True``.
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
-      return 1 + spec.HasArgument("labels") + spec.GetArgument<bool>("enable_frame_num") +
+      bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
+                        spec.HasArgument("file_root");
+      return 1 + has_labels + spec.GetArgument<bool>("enable_frame_num") +
              spec.GetArgument<bool>("enable_timestamps");
     })
     .AddOptionalArg("filenames",
@@ -239,15 +273,15 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
 
 The following policies are supported:
 
-- ``frame_index``: The values are interpreted as the exact frame number to start or end the video.
+* ``frame_index``: The values are interpreted as the exact frame number to start or end the video.
   In case of negative values, they are interpreted as a number of frames from the end of the video.
   In case of floating point values, the start frame number will be rounded up and the end frame number will be rounded down.
   Frame numbers start from 0.
 
-- ``timestamp``: The values are interpreted as the timestamp of the frame to start or end the video.
+* ``timestamp``: The values are interpreted as the timestamp of the frame to start or end the video.
   When no exact timestamp is found, the start timestamp is rounded up to the next available frame and the end timestamp is rounded down.
 
-- ``timestamp_inclusive``: The values are interpreted as the timestamp of the frame to start or end the video.
+* ``timestamp_inclusive``: The values are interpreted as the timestamp of the frame to start or end the video.
   When no exact timestamp is found, the start timestamp is rounded down to the next available frame and the end timestamp is rounded up.
 
 The default policy is ``timestamp``.)code",

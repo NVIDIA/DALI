@@ -659,12 +659,7 @@ bool FramesDecoderBase::AvSeekFrame(int64_t timestamp, int frame_id) {
 }
 
 void FramesDecoderBase::Reset() {
-  if (AvSeekFrame(0, 0)) {
-    LOG_LINE << "Reset: Seeked to first frame." << std::endl;
-    return;
-  }
-
-  LOG_LINE << "Reset: Failed to seek to first frame. Reopening stream." << std::endl;
+  LOG_LINE << "Reset: Reopening stream." << std::endl;
   bool require_available_avcodec = codec_ != nullptr;
   int stream_id = stream_id_;
 
@@ -779,14 +774,6 @@ int FramesDecoderBase::GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive)
     assert(index_[frame_idx].pts <= timestamp);
   }
   return frame_idx;
-}
-
-int FramesDecoderBase::GetFrameIdxByTimeInSeconds(float seconds, bool inclusive) {
-  DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
-  // Convert seconds to PTS (presentation time stamp) units
-  auto timebase = ctx_->streams[stream_id_]->time_base;
-  int64_t timestamp = static_cast<int64_t>(seconds * timebase.den / timebase.num);
-  return GetFrameIdxByTimestamp(timestamp, inclusive);
 }
 
 bool FramesDecoderBase::ReadFlushFrame(uint8_t *data) {
