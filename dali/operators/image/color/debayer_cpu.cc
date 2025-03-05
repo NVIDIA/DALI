@@ -95,6 +95,10 @@ class DebayerCPU : public Debayer<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
     DALI_ENFORCE(alg_ != debayer::DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP,
                  "bilinear_npp algorithm is not supported on CPU.");
+    if (alg_ == debayer::DALIDebayerAlgorithm::DALI_DEBAYER_VNG_OCV) {
+      DALI_ENFORCE(ws.Input<CPUBackend>(0).type() == DALI_UINT8,
+                   "VNG debayering only supported with UINT8.");
+    }
     return Debayer<CPUBackend>::SetupImpl(output_desc, ws);
   }
 
@@ -109,12 +113,13 @@ class DebayerCPU : public Debayer<CPUBackend> {
         const auto inImage = input[i];
         auto outImage = output[i];
 
-        const auto &inShape = inImage.shape();
-        const auto height = static_cast<int>(inShape[0]);
-        const auto width = static_cast<int>(inShape[1]);
+        const auto &oShape = outImage.shape();
+        const auto height = static_cast<int>(oShape[0]);
+        const auto width = static_cast<int>(oShape[1]);
+        const auto outChannels = static_cast<int>(oShape[2]);
         cv::Mat inImg(height, width, OCVMatTypeForDALIData(inImage.type(), 1),
                       const_cast<void *>(inImage.raw_data()));
-        cv::Mat outImg(height, width, OCVMatTypeForDALIData(outImage.type(), 3),
+        cv::Mat outImg(height, width, OCVMatTypeForDALIData(outImage.type(), outChannels),
                        outImage.raw_mutable_data());
         cv::demosaicing(inImg, outImg, toOpenCVColorConversionCode(pattern_[i], alg_));
       });

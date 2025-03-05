@@ -17,20 +17,21 @@ import os
 import unittest
 
 import numpy as np
-
-from nvidia.dali import pipeline_def, fn, types
-from test_utils import get_dali_extra_path
-from nose_utils import assert_raises
-from nose2.tools import params, cartesian_params
 from debayer_test_utils import (
+    BayerPattern,
     bayer_patterns,
     blue_position,
     blue_position2pattern,
-    rgb2bayer,
-    rgb2bayer_seq,
     debayer_bilinear_npp_pattern,
     debayer_bilinear_npp_pattern_seq,
+    debayer_opencv,
+    rgb2bayer,
+    rgb2bayer_seq,
 )
+from nose2.tools import cartesian_params, params
+from nose_utils import assert_raises
+from nvidia.dali import fn, pipeline_def, types
+from test_utils import get_dali_extra_path
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
@@ -226,6 +227,52 @@ class DebayerTest(unittest.TestCase):
             for img_debayered, pattern, idx in zip(debayered_imgs, patterns, idxs):
                 baseline = npp_baseline[pattern][idx]
                 assert compare_image_equality(img_debayered, baseline, device)
+
+    @cartesian_params(
+        ("bilinear_ocv", "edgeaware_ocv", "vng_ocv", "gray_ocv"), (np.uint8, np.uint16)
+    )
+    def test_cpu_algorithms(self, algorithm: str, dtype: np.dtype):
+        if algorithm == "vng_ocv" and dtype == np.uint16:
+            # VNG algorithm is not supported for uint16
+            return
+
+        num_iterations = 3
+        batch_size = 1
+        bayered_imgs, _ = self.get_test_data(dtype)
+
+        pattern = BayerPattern.BGGR
+
+        def source(sample_info):
+            idx = sample_info.idx_in_epoch % self.num_samples
+            return (
+                bayered_imgs[pattern][idx],
+                np.array(idx, dtype=np.int32),
+            )
+
+        @pipeline_def
+        def debayer_pipeline():
+            bayer_imgs, idxs = fn.external_source(source=source, batch=False, num_outputs=2)
+            debayered_imgs = fn.experimental.debayer(
+                bayer_imgs, blue_position=blue_position(pattern), algorithm=algorithm
+            )
+            return debayered_imgs, idxs
+
+        pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
+
+        out_batches = []
+        for _ in range(num_iterations):
+            debayered_imgs_dev, idxs = pipe.run()
+            assert debayered_imgs_dev.layout() == "HWC"
+            out_batches.append(
+                (list(map(np.array, debayered_imgs_dev.as_cpu())), list(map(np.array, idxs)))
+            )
+
+        for debayered_imgs, idxs in out_batches:
+            assert len(debayered_imgs) == len(idxs)
+            for img_debayered, idx in zip(debayered_imgs, idxs):
+                baseline = bayered_imgs[pattern][idx]
+                baseline = debayer_opencv(baseline, pattern, algorithm)
+                assert np.all(img_debayered == baseline)
 
 
 class DebayerVideoTest(unittest.TestCase):

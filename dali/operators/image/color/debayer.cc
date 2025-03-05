@@ -101,13 +101,13 @@ Different algorithms are supported on the GPU and CPU.
 
 **GPU Algorithms:**
 
- - ``bilinear_npp`` - - uses bilinear interpolation with chroma correlation for green values.
+ - ``bilinear_npp`` - - bilinear interpolation with chroma correlation for green values.
 
 **CPU Algorithms:**
 
- - ``bilinear_ocv`` - uses bilinear interpolation.
- - ``edgeaware_ocv`` - uses edge-aware interpolation.
- - ``vng_ocv`` - uses Variable Number of Gradients (VNG) interpolation.
+ - ``bilinear_ocv`` - bilinear interpolation.
+ - ``edgeaware_ocv`` - edge-aware interpolation.
+ - ``vng_ocv`` - Variable Number of Gradients (VNG) interpolation (only ``uint8_t`` supported).
  - ``gray_ocv`` - converts the image to grayscale with bilinear interpolation.)code",
             DALI_STRING)
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
