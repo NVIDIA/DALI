@@ -124,7 +124,6 @@ class VideoPipeRoot(Pipeline):
 def test_simple_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES)
     for i in range(ITER):
-        print("Iter " + str(i))
         out = pipe.run()
         assert out[0].layout() == "FHWC"
     del pipe
@@ -139,7 +138,6 @@ def test_wrong_length_sequence_videopipeline():
 def check_videopipeline_supported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     for i in range(ITER):
-        print("Iter " + str(i))
         _ = pipe.run()
     del pipe
 
@@ -167,7 +165,6 @@ def test_simple_videopipeline_not_supported_types():
 def test_file_list_videopipeline():
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=FILE_LIST)
     for i in range(ITER):
-        print("Iter " + str(i))
         _ = pipe.run()
     del pipe
 
@@ -324,7 +321,6 @@ def test_file_list_empty_range():
 def test_step_video_pipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, step=1)
     for i in range(ITER):
-        print("Iter " + str(i))
         _ = pipe.run()
     del pipe
 
@@ -332,7 +328,6 @@ def test_step_video_pipeline():
 def test_stride_video_pipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, stride=3)
     for i in range(ITER):
-        print("Iter " + str(i))
         _ = pipe.run()
     del pipe
 
@@ -341,7 +336,6 @@ def test_multiple_resolution_videopipeline():
     pipe = VideoPipeRoot(batch_size=BATCH_SIZE, data=MUTLIPLE_RESOLUTION_ROOT)
     try:
         for i in range(ITER):
-            print("Iter " + str(i))
             _ = pipe.run()
     except Exception as e:
         if str(e) == "Decoder reconfigure feature not supported":
@@ -371,15 +365,17 @@ def test_plenty_of_video_files():
     )
     iters = math.ceil(len(os.listdir(PLENTY_VIDEO_DIRECTORY)) / BATCH_SIZE)
     for i in range(iters):
-        print("Iter " + str(i))
         pipe.run()
 
 
-def check_corrupted_videos(reader, wrong_video, msg):
-    good_video = os.path.join(video_data_root, "cfr", "test_2.mp4")
+def check_corrupted_videos(reader_op, reader_args, corrupted_video, msg):
+    good_video_path = os.path.join(video_data_root, "cfr", "test_2.mp4")
+    corrupted_video_path = os.path.join(corrupted_video_data_root, corrupted_video)
+    reader_args["filenames"] = [corrupted_video_path, good_video_path]
+    reader_args["sequence_length"] = 3
     pipe = Pipeline(batch_size=BATCH_SIZE, num_threads=4, device_id=0)
     with pipe:
-        vid = reader([wrong_video, good_video])
+        vid = reader_op(**reader_args)
         pipe.set_outputs(vid)
     with check_output_pattern(pattern=msg):
         pipe.run()
@@ -387,27 +383,18 @@ def check_corrupted_videos(reader, wrong_video, msg):
 
 def test_corrupted_videos():
     corrupted_videos = [
-        (
-            os.path.join(corrupted_video_data_root, "moov_atom_not_found.mp4"),
-            "Failed to open video file",
-        ),
-        (
-            os.path.join(corrupted_video_data_root, "audio_only.mp4"),
-            "Could not find a valid video stream in a file",
-        ),
+        ("moov_atom_not_found.mp4", "Failed to open video file"),
+        ("audio_only.mp4", "Could not find a valid video stream in a file"),
     ]
-    readers = [
-        lambda files: fn.readers.video(device="gpu", filenames=files, sequence_length=3),
-        lambda files: fn.experimental.readers.video(
-            device="gpu", filenames=files, sequence_length=3
-        ),
-        lambda files: fn.experimental.readers.video(
-            device="cpu", filenames=files, sequence_length=3
-        ),
+
+    reader_opts = [
+        (fn.readers.video, {"device": "gpu"}),
+        (fn.experimental.readers.video, {"device": "gpu"}),
+        (fn.experimental.readers.video, {"device": "cpu"}),
     ]
-    for reader in readers:
+    for reader_op, reader_args in reader_opts:
         for wrong_video, msg in corrupted_videos:
-            yield check_corrupted_videos, reader, wrong_video, msg
+            yield check_corrupted_videos, reader_op, reader_args, wrong_video, msg
 
 
 def check_container(cont):
