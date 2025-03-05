@@ -305,7 +305,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRateNoIndex) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, vfr_videos_[0], false);
 }
 
@@ -314,57 +314,57 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
     GTEST_SKIP();
   }
   auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, vfr_hevc_videos_[1], false);
 }
 
 TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4NoIndex) {
   auto memory_video = MemoryVideo(cfr_mpeg4_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, cfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4NoIndex) {
   auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, vfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndex) {
   auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
   FramesDecoderGpu decoder(
-    memory_video.data(), memory_video.size(), 0, false, cfr_videos_[0].NumFrames());
+    memory_video.data(), memory_video.size(), false, cfr_videos_[0].NumFrames());
   RunTest(decoder, cfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
   auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, cfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndex) {
   auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
   FramesDecoderGpu decoder(
-    memory_video.data(), memory_video.size(), 0, false, vfr_videos_[1].NumFrames());
+    memory_video.data(), memory_video.size(), false, vfr_videos_[1].NumFrames());
   RunTest(decoder, vfr_videos_[1], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
   auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, vfr_videos_[1], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, RawH264) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, cfr_videos_[1], false, 1.5);
 }
 
 TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), false);
   RunTest(decoder, cfr_videos_[0], false, 1.5);
 }
 

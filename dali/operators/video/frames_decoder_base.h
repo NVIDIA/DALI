@@ -190,6 +190,22 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   virtual void SeekFrame(int frame_id);
 
+
+  /**
+   * @brief Returns the timebase of the video
+   */
+  AVRational GetTimebase() const {
+    return ctx_->streams[stream_id_]->time_base;
+  }
+
+  /**
+   * @brief Returns the index of the frame that has the given timestamp
+   *
+   * @param timestamp Timestamp of the frame to seek to
+   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   */
+  virtual int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false);
+
   /**
    * @brief Seeks to the first frame
    */
@@ -231,6 +247,7 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   const IndexEntry& Index(int frame_id) const {
+    assert(HasIndex());
     return index_[frame_id];
   }
 

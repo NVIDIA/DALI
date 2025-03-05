@@ -659,12 +659,7 @@ bool FramesDecoderBase::AvSeekFrame(int64_t timestamp, int frame_id) {
 }
 
 void FramesDecoderBase::Reset() {
-  if (AvSeekFrame(0, 0)) {
-    LOG_LINE << "Reset: Seeked to first frame." << std::endl;
-    return;
-  }
-
-  LOG_LINE << "Reset: Failed to seek to first frame. Reopening stream." << std::endl;
+  LOG_LINE << "Reset: Reopening stream." << std::endl;
   bool require_available_avcodec = codec_ != nullptr;
   int stream_id = stream_id_;
 
@@ -760,6 +755,25 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After skipping: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ == frame_id);
+}
+
+int FramesDecoderBase::GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive) {
+  // TODO(janton): Optimize for CFR videos (no need to iterate over the index)
+  DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
+  int frame_idx = 0;
+  for (size_t i = 1; i < index_.size(); i++) {
+    if (index_[i].pts >= timestamp) {
+      frame_idx = i;
+      break;
+    }
+  }
+  if (inclusive) {
+    if (frame_idx > 0 && index_[frame_idx-1].pts <= timestamp) {
+      frame_idx--;
+    }
+    assert(index_[frame_idx].pts <= timestamp);
+  }
+  return frame_idx;
 }
 
 bool FramesDecoderBase::ReadFlushFrame(uint8_t *data) {
