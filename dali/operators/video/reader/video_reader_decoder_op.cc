@@ -14,28 +14,28 @@
 
 #include <string>
 #include <vector>
-#include "dali/operators/reader/reader_op.h"
-#include "dali/operators/video/reader/video_loader_decoder.h"
-#include "dali/operators/video/frames_decoder_gpu.h"
-#include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/operators/reader/reader_op.h"
+#include "dali/operators/video/frames_decoder_cpu.h"
+#include "dali/operators/video/frames_decoder_gpu.h"
+#include "dali/operators/video/reader/video_loader_decoder.h"
 
 namespace dali {
 
 template <typename Backend>
-class VideoReaderDecoder : public DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true> {
+class VideoReaderDecoder
+    : public DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true> {
  public:
-  using FramesDecoderImpl = std::conditional_t<std::is_same_v<Backend, GPUBackend>,
-                                         FramesDecoderGpu,
-                                         FramesDecoderCpu>;
+  using FramesDecoderImpl =
+      std::conditional_t<std::is_same_v<Backend, GPUBackend>, FramesDecoderGpu, FramesDecoderCpu>;
   using VideoLoaderImpl = VideoLoaderDecoder<Backend, FramesDecoderImpl>;
   using Base = DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true>;
-  using Base::loader_;
-  using Base::prefetched_batch_queue_;
   using Base::curr_batch_producer_;
-  using Base::Prefetch;
   using Base::GetCurrBatchSize;
   using Base::GetSample;
+  using Base::loader_;
+  using Base::Prefetch;
+  using Base::prefetched_batch_queue_;
 
   explicit VideoReaderDecoder(const OpSpec &spec)
       : Base(spec),
@@ -90,7 +90,8 @@ class VideoReaderDecoder : public DataReader<Backend, VideoSample<Backend>, Vide
   }
 
   template <typename T>
-  void OutputMetadata(Workspace &ws, int out_idx, std::function<T(const VideoSample<Backend>&)> get_value) {
+  void OutputMetadata(Workspace &ws, int out_idx,
+                      std::function<T(const VideoSample<Backend> &)> get_value) {
     auto &output = ws.Output<Backend>(out_idx);
     int batch_size = output.num_samples();
     SmallVector<T, 32> values;
@@ -98,8 +99,8 @@ class VideoReaderDecoder : public DataReader<Backend, VideoSample<Backend>, Vide
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       values[sample_id] = get_value(GetSample(sample_id));
     }
-    MemCopy(output.AsTensor().raw_mutable_data(), values.data(),
-            batch_size * sizeof(T), ws.has_stream() ? ws.stream() : 0);
+    MemCopy(output.AsTensor().raw_mutable_data(), values.data(), batch_size * sizeof(T),
+            ws.has_stream() ? ws.stream() : 0);
   }
 
   void RunImpl(Workspace &ws) override {
@@ -118,17 +119,19 @@ class VideoReaderDecoder : public DataReader<Backend, VideoSample<Backend>, Vide
     // Copy optional metadata outputs
     int out_index = 1;
     if (has_labels_) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto& s) { return s.label_; });
+      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) { return s.label_; });
     }
     if (has_frame_idx_) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto& s) { return s.start_; });
+      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) { return s.start_; });
     }
     if (has_timestamps_) {
-      OutputMetadata<int64_t>(ws, out_index++, [](auto& s) { return s.start_timestamp_; });
+      OutputMetadata<int64_t>(ws, out_index++, [](auto &s) { return s.start_timestamp_; });
     }
   }
 
-  bool HasContiguousOutputs() const override { return true; }
+  bool HasContiguousOutputs() const override {
+    return true;
+  }
 
   void Prefetch() override {
     Base::Prefetch();
@@ -140,21 +143,19 @@ class VideoReaderDecoder : public DataReader<Backend, VideoSample<Backend>, Vide
         } else {
           decoder_ = std::make_unique<FramesDecoderImpl>(sample->filename_, true);
         }
-        LOG_LINE << "Initialized decoder to " << decoder_->Filename()
-                 << " ptr: " << decoder_.get() << " num_frames: " << decoder_->NumFrames()
-                 << std::endl;
+        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
+                 << " num_frames: " << decoder_->NumFrames() << std::endl;
       }
       sample->start_timestamp_ = decoder_->Index(sample->start_).pts;
 
       int64_t num_frames = (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_;
       sample->data_.Resize(
-          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()},
-          DALI_UINT8);
+          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
       sample->data_.SetSourceInfo(decoder_->Filename());
       sample->data_.SetLayout("FHWC");
 
       int64_t frame_size = decoder_->FrameSize();
-      uint8_t* data = sample->data_.template mutable_data<uint8_t>();
+      uint8_t *data = sample->data_.template mutable_data<uint8_t>();
       for (int64_t pos = sample->start_; pos < sample->end_; pos += sample->stride_) {
         decoder_->SeekFrame(pos);
         decoder_->ReadNextFrame(data);
@@ -168,16 +169,18 @@ class VideoReaderDecoder : public DataReader<Backend, VideoSample<Backend>, Vide
 
  private:
   bool has_labels_ = false;
-  bool has_frame_idx_  = false;
+  bool has_frame_idx_ = false;
   bool has_timestamps_ = false;
 
+  // keeping one decoder open. In case the next sample belongs to the same file,
+  // we reuse the same decoder.
   std::unique_ptr<FramesDecoderImpl> decoder_;
 
   CUDAStreamLease cuda_stream_;
 };
 
 DALI_SCHEMA(experimental__readers__Video)
-  .DocStr(R"code(Loads and decodes video files from disk.
+    .DocStr(R"code(Loads and decodes video files from disk.
 
 The operator supports most common video container formats using libavformat (FFmpeg).
 The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
@@ -207,37 +210,68 @@ Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 DALI will go through the video and mark keyframes to be able to seek effectively,
 even in the constant frame rate scenario.
 )code")
-  .NumInput(0)
-  .OutputFn([](const OpSpec &spec) {
-    return 1
-        + spec.HasArgument("labels")
-        + spec.GetArgument<bool>("enable_frame_num") 
-        + spec.GetArgument<bool>("enable_timestamps");
-  })
-  .AddOptionalArg("filenames",
-      R"code(Absolute paths to the video files to load.)code",
-      std::vector<std::string>{})
+    .NumInput(0)
+    .OutputFn([](const OpSpec &spec) {
+      return 1 + spec.HasArgument("labels") + spec.GetArgument<bool>("enable_frame_num") +
+             spec.GetArgument<bool>("enable_timestamps");
+    })
+    .AddOptionalArg("filenames",
+                    R"code(Absolute paths to the video files to load.
+
+This option is mutually exclusive with `file_root` and `file_list`.)code",
+                    std::vector<std::string>{})
+    .AddOptionalArg("file_root",
+                    R"code(Path to a directory that contains the data files.
+
+This option is mutually exclusive with `filenames` and `file_list`.)code",
+                    std::string())
+    .AddOptionalArg("file_list",
+                    R"code(Path to the file with a list of ``file label [start [end]]`` values.
+
+``start`` and ``end`` are optional and can be used to specify the start and end of the video to load.
+The values can be interpreted differently depending on the ``file_list_format``.
+
+This option is mutually exclusive with `filenames` and `file_root`.)code",
+                    std::string())
+    .AddOptionalArg(
+        "file_list_format",
+        R"code(Policy to interpret the ``start`` and ``end`` values, when using ``file_list`` argument.
+
+The following policies are supported:
+
+- ``frame_index``: The values are interpreted as the exact frame number to start or end the video.
+  In case of negative values, they are interpreted as a number of frames from the end of the video.
+  In case of floating point values, the start frame number will be rounded up and the end frame number will be rounded down.
+  Frame numbers start from 0.
+
+- ``timestamp``: The values are interpreted as the timestamp of the frame to start or end the video.
+  When no exact timestamp is found, the start timestamp is rounded up to the next available frame and the end timestamp is rounded down.
+
+- ``timestamp_inclusive``: The values are interpreted as the timestamp of the frame to start or end the video.
+  When no exact timestamp is found, the start timestamp is rounded down to the next available frame and the end timestamp is rounded up.
+
+The default policy is ``timestamp``.)code",
+        "timestamp")
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-`filenames` argument. If not provided, no labels will be yielded.)", nullptr)
-  .AddArg("sequence_length",
-      R"code(Frames to load per sequence.)code",
-      DALI_INT32)
-  .AddOptionalArg("enable_frame_num",
-      R"code(If set, returns the index of the first frame in the decoded sequence
+`filenames` argument. If not provided, no labels will be yielded.)",
+                                 nullptr)
+    .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
+    .AddOptionalArg("enable_frame_num",
+                    R"code(If set, returns the index of the first frame in the decoded sequence
 as an additional output.)code",
-      false)
-  .AddOptionalArg("enable_timestamps",
-      R"code(If set, returns the timestamp of the frames in the decoded sequence
+                    false)
+    .AddOptionalArg("enable_timestamps",
+                    R"code(If set, returns the timestamp of the frames in the decoded sequence
 as an additional output.)code",
-      false)
-  .AddOptionalArg("step",
-      R"code(Frame interval between each sequence.
+                    false)
+    .AddOptionalArg("step",
+                    R"code(Frame interval between each sequence.
 
 When the value is less than 0, `step` is set to `sequence_length`.)code",
-      -1)
-  .AddOptionalArg("stride",
-      R"code(Distance between consecutive frames in the sequence.)code", 1u, false)
-  .AddParent("LoaderBase");
+                    -1)
+    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
+                    false)
+    .AddParent("LoaderBase");
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<GPUBackend>, GPU);

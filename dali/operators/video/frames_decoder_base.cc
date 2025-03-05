@@ -762,6 +762,33 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ == frame_id);
 }
 
+int FramesDecoderBase::GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive) {
+  // TODO(janton): Optimize for CFR videos (no need to iterate over the index)
+  DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
+  int frame_idx = 0;
+  for (size_t i = 1; i < index_.size(); i++) {
+    if (index_[i].pts >= timestamp) {
+      frame_idx = i;
+      break;
+    }
+  }
+  if (inclusive) {
+    if (frame_idx > 0 && index_[frame_idx-1].pts <= timestamp) {
+      frame_idx--;
+    }
+    assert(index_[frame_idx].pts <= timestamp);
+  }
+  return frame_idx;
+}
+
+int FramesDecoderBase::GetFrameIdxByTimeInSeconds(float seconds, bool inclusive) {
+  DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
+  // Convert seconds to PTS (presentation time stamp) units
+  auto timebase = ctx_->streams[stream_id_]->time_base;
+  int64_t timestamp = static_cast<int64_t>(seconds * timebase.den / timebase.num);
+  return GetFrameIdxByTimestamp(timestamp, inclusive);
+}
+
 bool FramesDecoderBase::ReadFlushFrame(uint8_t *data) {
   bool copy_to_output = data != nullptr;
   if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
