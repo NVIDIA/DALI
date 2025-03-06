@@ -102,18 +102,22 @@ class VideoReaderDecoder
     int batch_size = output.num_samples();
     DALI_ENFORCE(output.IsContiguousInMemory(), "Output must be contiguous in memory");
     auto output_as_tensor = output.AsTensor();
-    SmallVector<T, 32> values;
-    Tensor<CPUBackend> tmp;
-    tmp.set_pinned(true);
-    tmp.Resize(output_as_tensor.shape(), output_as_tensor.type());
-    int64_t i = 0;
-    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      for (auto &elem : get_values(GetSample(sample_id))) {
-        tmp.mutable_data<T>()[i++] = elem;
-      }
+
+    auto copy_data = [&](T* data) {
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id)
+        for (auto &elem : get_values(GetSample(sample_id)))
+          *data++ = elem;
+    };
+
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      Tensor<CPUBackend> tmp;
+      tmp.set_pinned(true);
+      tmp.Resize(output_as_tensor.shape(), output_as_tensor.type());
+      copy_data(tmp.mutable_data<T>());
+      output_as_tensor.Copy(tmp, ws.stream());
+    } else {
+      copy_data(output_as_tensor.template mutable_data<T>());
     }
-    MemCopy(output_as_tensor.raw_mutable_data(), tmp.raw_data(), tmp.nbytes(),
-            ws.has_stream() ? ws.stream() : 0);
   }
 
   void RunImpl(Workspace &ws) override {
@@ -121,12 +125,10 @@ class VideoReaderDecoder
     int batch_size = GetCurrBatchSize();
 
     video_output.SetLayout("FHWC");
-    // Copy video data and set source info
+    AccessOrder order = std::is_same_v<Backend, GPUBackend> ? ws.stream() : AccessOrder::host();
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
-      MemCopy(video_output.raw_mutable_tensor(sample_id), sample.data_.raw_data(),
-              sample.data_.size(), ws.has_stream() ? ws.stream() : 0);
-      video_output.SetSourceInfo(sample_id, sample.data_.GetSourceInfo());
+      video_output.CopySample(sample_id, sample.data_, order);
     }
 
     // Copy optional metadata outputs
@@ -183,6 +185,7 @@ class VideoReaderDecoder
         sample->timestamps_.reserve(num_frames);
       }
 
+      sample->data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
       sample->data_.Resize(
           {num_frames, decoder->Height(), decoder->Width(), decoder->Channels()}, DALI_UINT8);
       sample->data_.SetSourceInfo(decoder->Filename());
