@@ -21,17 +21,59 @@
 
 namespace dali {
 
+namespace {
+
+template <typename Backend>
+class TestOpWithTrace : public Operator<Backend> {
+ public:
+  explicit TestOpWithTrace(const OpSpec &spec) : Operator<Backend>(spec) {
+    prefix_ = spec.GetArgument<std::string>("prefix") + "_";
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
+    outs.resize(1);
+    outs[0].shape = ws.GetInputShape(0);
+    outs[0].type = ws.GetInputDataType(0);
+    return true;
+  }
+
+  void RunImpl(Workspace &ws) override {
+    ws.Output<Backend>(0).Copy(ws.Input<Backend>(0));
+    ws.SetOperatorTrace("trace", make_string(prefix_, iter_++));
+  }
+
+ private:
+  int iter_ = 0;
+  std::string prefix_;
+};
+
+DALI_SCHEMA(TestOpWithTrace)
+  .NumInput(1)
+  .NumOutput(1)
+  .AddOptionalArg("prefix", "trace prefix", "value");
+
+DALI_REGISTER_OPERATOR(TestOpWithTrace, TestOpWithTrace<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(TestOpWithTrace, TestOpWithTrace<GPUBackend>, GPU);
+
+}  // namespace
+
 OpSpec CounterOp(const std::string &name) {
   return OpSpec(exec2::test::kCounterOpName)
     .AddArg(name, string(name))
     .AddOutput(name, StorageDevice::CPU);
-
 }
 
 OpSpec TestOp(std::string_view name, std::string_view device) {
   return OpSpec(exec2::test::kTestOpName)
       .AddArg("name", name)
       .AddArg("device", device);
+}
+
+OpSpec TraceOp(std::string_view name, std::string_view device, std::string_view prefix) {
+  return OpSpec("TestOpWithTrace")
+      .AddArg("name", name)
+      .AddArg("device", device)
+      .AddArg("prefix", prefix);
 }
 
 std::string GetCPUOnlyPipelineProto(int max_batch_size, int num_threads, int device_id) {
@@ -89,11 +131,28 @@ std::string GetGPU2CPUPipelineProto(int max_batch_size, int num_threads, int dev
   p.AddOperator(CounterOp("ctr"), "ctr");
   p.AddOperator(op1, "op1");
   p.AddOperator(op2, "op2");
-  p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "gpu"} });
+  p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "cpu"} });
 
   return p.SerializeToProtobuf();
 }
 
+std::string GetPipelineWithTraces(int max_batch_size, int num_threads, int device_id) {
+  Pipeline p(max_batch_size, num_threads, device_id);
+  OpSpec op1 = TraceOp("op1", "cpu", "t1")
+    .AddInput("ctr", StorageDevice::CPU)
+    .AddOutput("op1", StorageDevice::CPU);
+
+  OpSpec op2 = TraceOp("op1", "gpu", "t2")
+    .AddInput("ctr", StorageDevice::GPU)
+    .AddOutput("op2", StorageDevice::GPU);
+
+  p.AddOperator(CounterOp("ctr"), "ctr");
+  p.AddOperator(op1, "op1");
+  p.AddOperator(op2, "op2");
+  p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "cpu"} });
+
+  return p.SerializeToProtobuf();
+}
 
 namespace c_api {
 namespace test {
@@ -133,9 +192,9 @@ void CheckScalarSequence(daliTensorList_h tl, int expected_batch_size, int start
     CHECK_DALI(daliTensorListGetTensorDesc(tl, &desc, i));
     ASSERT_EQ(desc.dtype, type2id<T>::value);
     T value;
-    if (placement.device_type == DALI_STORAGE_CPU)
+    if (placement.device_type == DALI_STORAGE_CPU) {
       value = *static_cast<const T *>(desc.data);
-    else {
+    } else {
       ASSERT_EQ(placement.device_type, DALI_STORAGE_GPU);
       CUDA_CALL(cudaMemcpyAsync(&value, desc.data, sizeof(T), cudaMemcpyDeviceToHost, stream));
       AccessOrder::host().wait(stream);
@@ -222,6 +281,70 @@ TEST(CAPI2_PipelineTest, RunCPU2GPU) {
 
 TEST(CAPI2_PipelineTest, RunGPU2CPU) {
   TestPipelineRun(CPU2GPU);
+}
+
+TEST(CAPI2_PipelineTest, IncompatibleExec) {
+  auto proto = GetGPU2CPUPipelineProto(1, 4, 0);
+  daliPipelineParams_t params{};
+  params.max_batch_size_present = true;
+  params.max_batch_size = 4;
+  params.prefetch_queue_depth_present = true;
+  params.prefetch_queue_depth = 3;
+  params.enable_checkpointing_present = true;
+  params.enable_checkpointing = 2;
+  params.exec_type_present = true;
+
+  params.exec_type = DALI_EXEC_ASYNC_PIPELINED;
+  auto deserialize_and_build = [&]() {
+    daliClearLastError();
+    auto h = Deserialize(proto, params);
+    if (h) {
+      return daliPipelineBuild(h);
+    }
+    return daliGetLastError();
+  };
+  EXPECT_EQ(deserialize_and_build(), DALI_ERROR_INVALID_OPERATION);
+  params.exec_type = DALI_EXEC_SIMPLE;
+  EXPECT_EQ(deserialize_and_build(), DALI_ERROR_INVALID_OPERATION);
+  params.exec_type = DALI_EXEC_DYNAMIC;
+  EXPECT_EQ(deserialize_and_build(), DALI_SUCCESS);
+}
+
+TEST(CAPI2_PipelineTest, Traces) {
+  auto proto = GetPipelineWithTraces(4, 4, 0);
+  daliPipelineParams_t params{};
+  params.exec_type_present = true;
+  params.exec_type = DALI_EXEC_DYNAMIC;
+
+  auto h = Deserialize(proto, params);
+  CHECK_DALI(daliPipelineBuild(h));
+  for (int i = 0; i < 3; i++) {
+    CHECK_DALI(daliPipelineRun(h));
+    daliPipelineOutputs_h raw_out_h;
+    CHECK_DALI(daliPipelinePopOutputs(h, &raw_out_h));
+    ASSERT_NE(raw_out_h, nullptr);
+    PipelineOutputsHandle out_h(raw_out_h);
+
+    // Check individual trace queries
+    const char *t = nullptr;
+    CHECK_DALI(daliPipelineOutputsGetTrace(out_h, &t, "op1", "trace"));
+    auto ref_t1 = make_string("t1_", i);
+    auto ref_t2 = make_string("t2_", i);
+    EXPECT_EQ(t, ref_t1);
+    CHECK_DALI(daliPipelineOutputsGetTrace(out_h, &t, "op2", "trace"));
+    EXPECT_EQ(t, ref_t2);
+    const daliOperatorTrace_t *traces = nullptr;
+    int n;
+    // Check bulk trace query
+    CHECK_DALI(daliPipelineOutputsGetTraces(out_h, &traces, &n));
+    ASSERT_EQ(n, 2);
+    EXPECT_STREQ(traces[0].operator_name, "op1");
+    EXPECT_STREQ(traces[0].trace, "trace");
+    EXPECT_EQ(traces[0].value, ref_t1);
+    EXPECT_STREQ(traces[1].operator_name, "op2");
+    EXPECT_STREQ(traces[1].trace, "trace");
+    EXPECT_EQ(traces[1].value, ref_t2);
+  }
 }
 
 }  // namespace test
