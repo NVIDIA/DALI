@@ -20,10 +20,12 @@
 
 namespace dali {
 
-using namespace dali::kernels::debayer;
+using DALIBayerPattern = dali::kernels::debayer::DALIBayerPattern;
 
-[[nodiscard]] cv::ColorConversionCodes toOpenCVColorConversionCode(DALIBayerPattern pattern,
-                                                                   DALIDebayerAlgorithm algo) {
+using DALIDebayerAlgorithm = dali::kernels::debayer::DALIDebayerAlgorithm;
+
+cv::ColorConversionCodes toOpenCVColorConversionCode(DALIBayerPattern pattern,
+                                                     DALIDebayerAlgorithm algo) {
   switch (algo) {
     // OpenCV Bilinear
     case DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_OCV:

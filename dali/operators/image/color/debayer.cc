@@ -24,7 +24,7 @@ Converts single-channel image to RGB using specified color filter array.
 The supported input types are ``uint8_t`` and ``uint16_t``.
 The input images must be 2D tensors (``HW``) or 3D tensors (``HWC``) where the number of channels is 1.
 The operator supports sequence of images/video-like inputs (layout ``FHW``).
-The output of the operator is always ``HWC``.
+The output of the operator is always ``HWC`` (or ``FHWC`` for sequences).
 
 For example, the following snippet presents debayering of batch of image sequences::
 
