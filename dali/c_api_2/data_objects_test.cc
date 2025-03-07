@@ -351,9 +351,9 @@ TEST(CAPI2_TensorListTest, ViewAsTensor) {
   daliTensorDesc_t desc{};
   EXPECT_EQ(daliTensorGetDesc(t, &desc), DALI_SUCCESS) << daliGetLastErrorMessage();
   EXPECT_EQ(desc.data, data.get());
+  ASSERT_NE(desc.shape, nullptr);
   EXPECT_EQ(desc.shape[0], lshape.num_samples());
   ASSERT_EQ(desc.ndim, 4);
-  ASSERT_NE(desc.shape, nullptr);
   EXPECT_EQ(desc.shape[1], lshape[0][0]);
   EXPECT_EQ(desc.shape[2], lshape[0][1]);
   EXPECT_EQ(desc.shape[3], lshape[0][2]);
