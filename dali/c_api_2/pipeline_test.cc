@@ -16,8 +16,7 @@
 #include "dali/c_api_2/pipeline.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
-#include "dali/c_api_2/test_utils.h"
-#include "dali/c_api_2/managed_handle.h"
+#include "dali/c_api_2/pipeline_test_utils.h"
 
 namespace dali {
 
@@ -203,18 +202,6 @@ void CheckScalarSequence(daliTensorList_h tl, int expected_batch_size, int start
   }
 }
 
-inline PipelineHandle Deserialize(std::string_view s, const daliPipelineParams_t &params) {
-  daliPipeline_h h = nullptr;
-  CHECK_DALI(daliPipelineDeserialize(&h, s.data(), s.length(), &params));
-  return PipelineHandle(h);
-}
-
-inline TensorListHandle GetOutput(daliPipelineOutputs_h h, int idx) {
-  daliTensorList_h tl = nullptr;
-  CHECK_DALI(daliPipelineOutputsGet(h, &tl, idx));
-  return TensorListHandle(tl);
-}
-
 enum PipelineType {
   CPUOnly,
   CPU2GPU,
@@ -250,6 +237,7 @@ void TestPipelineRun(PipelineType p) {
   }
 
   PipelineHandle h = Deserialize(proto, params);
+  ASSERT_NE(h, nullptr);
 
   CHECK_DALI(daliPipelineBuild(h));
   for (int iter = 0; iter < 5; iter++) {
@@ -259,10 +247,8 @@ void TestPipelineRun(PipelineType p) {
       CHECK_DALI(daliPipelineRun(h));
     }
 
-    daliPipelineOutputs_h raw_out_h;
-    CHECK_DALI(daliPipelinePopOutputs(h, &raw_out_h));
-    ASSERT_NE(raw_out_h, nullptr);
-    PipelineOutputsHandle out_h(raw_out_h);
+    auto out_h = PopOutputs(h);
+    ASSERT_NE(out_h, nullptr);
     auto o1 = GetOutput(out_h, 0);
     auto o2 = GetOutput(out_h, 1);
     CheckScalarSequence(o1, params.max_batch_size, 1000 + iter * params.max_batch_size, 2);
@@ -317,13 +303,12 @@ TEST(CAPI2_PipelineTest, Traces) {
   params.exec_type = DALI_EXEC_DYNAMIC;
 
   auto h = Deserialize(proto, params);
+  ASSERT_NE(h, nullptr);
   CHECK_DALI(daliPipelineBuild(h));
   for (int i = 0; i < 3; i++) {
     CHECK_DALI(daliPipelineRun(h));
-    daliPipelineOutputs_h raw_out_h;
-    CHECK_DALI(daliPipelinePopOutputs(h, &raw_out_h));
-    ASSERT_NE(raw_out_h, nullptr);
-    PipelineOutputsHandle out_h(raw_out_h);
+    auto out_h = PopOutputs(h);
+    ASSERT_NE(out_h, nullptr);
 
     // Check individual trace queries
     const char *t = nullptr;
