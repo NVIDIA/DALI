@@ -357,7 +357,6 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
     case AV_CODEC_ID_AV1: return cudaVideoCodec_AV1;
     default: {
       DALI_FAIL(make_string("Unsupported codec type ", avcodec_get_name(codec_id)));
-      return {};
     }
   }
 }
