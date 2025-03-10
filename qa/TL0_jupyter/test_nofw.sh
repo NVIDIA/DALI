@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy matplotlib<3.5.3 pillow opencv-python librosa simpleaudio'
+pip_packages='jupyter numpy matplotlib pillow opencv-python librosa simpleaudio'
 target_dir=./docs/examples
 
 do_once() {
