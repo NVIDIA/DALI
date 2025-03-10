@@ -13,7 +13,7 @@ test_body() {
         python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
             --workers 3 --prefetch 2 --epochs 3
     done
-    if [ $(stat /data/imagenet --format="%T" -f) != "ext2/ext3" ]; then
+    if [ $(stat /data/imagenet/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
         echo "Not available locally, skipping the test"
         return 0
     fi
