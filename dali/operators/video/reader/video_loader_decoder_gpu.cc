@@ -89,7 +89,7 @@ Index VideoLoaderDecoderGpu::SizeImpl() {
 void VideoLoaderDecoderGpu::PrepareMetadataImpl() {
   video_files_.reserve(filenames_.size());
   for (auto &filename : filenames_) {
-    video_files_.emplace_back(filename, cuda_stream_);
+    video_files_.emplace_back(filename, DALI_RGB, DALI_UINT8, true, cuda_stream_);
     if (!video_files_.back().IsValid()) {
       video_files_.pop_back();
     } else {
