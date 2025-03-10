@@ -271,7 +271,7 @@ daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *out_count)
   DALI_EPILOG();
 }
 
-daliResult_t daliPipelineGetOutputCount(
+daliResult_t daliPipelineGetOutputDesc(
       daliPipeline_h pipeline,
       daliPipelineOutputDesc_t *out_desc,
       int index) {

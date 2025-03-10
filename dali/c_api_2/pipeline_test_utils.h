@@ -43,6 +43,12 @@ inline PipelineOutputsHandle PopOutputs(daliPipeline_h h) {
   return PipelineOutputsHandle(raw_out_h);
 }
 
+inline PipelineOutputsHandle PopOutputsAsync(daliPipeline_h h, cudaStream_t stream) {
+  daliPipelineOutputs_h raw_out_h;
+  CHECK_DALI(daliPipelinePopOutputsAsync(h, &raw_out_h, stream));
+  return PipelineOutputsHandle(raw_out_h);
+}
+
 template <typename Backend>
 auto &Unwrap(daliTensorList_h h) {
   return static_cast<ITensorList *>(h)->Unwrap<Backend>();

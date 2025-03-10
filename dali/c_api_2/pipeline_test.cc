@@ -226,9 +226,9 @@ enum PipelineType {
   GPU2CPU
 };
 
-void TestPipelineRun(PipelineType p) {
+void TestPipelineRun(PipelineType ptype) {
   std::string proto;
-  switch (p) {
+  switch (ptype) {
     case CPUOnly:
       proto = GetCPUOnlyPipelineProto(1, 4, CPU_ONLY_DEVICE_ID);
       break;
@@ -249,7 +249,7 @@ void TestPipelineRun(PipelineType p) {
   params.prefetch_queue_depth = 3;
   params.enable_checkpointing_present = true;
   params.enable_checkpointing = 2;
-  if (p == GPU2CPU) {
+  if (ptype == GPU2CPU) {
     params.exec_type_present = true;
     params.exec_type = DALI_EXEC_DYNAMIC;
   }
@@ -258,6 +258,18 @@ void TestPipelineRun(PipelineType p) {
   ASSERT_NE(h, nullptr);
 
   CHECK_DALI(daliPipelineBuild(h));
+
+  int count;
+  CHECK_DALI(daliPipelineGetOutputCount(h, &count));
+  ASSERT_EQ(count, 2);
+  daliPipelineOutputDesc_t desc{};
+  CHECK_DALI(daliPipelineGetOutputDesc(h, &desc, 0));
+  EXPECT_STREQ(desc.name, "op1");
+  EXPECT_EQ(desc.device, DALI_STORAGE_CPU);
+  CHECK_DALI(daliPipelineGetOutputDesc(h, &desc, 1));
+  EXPECT_STREQ(desc.name, "op2");
+  EXPECT_EQ(desc.device, ptype == CPU2GPU ? DALI_STORAGE_GPU : DALI_STORAGE_CPU);
+
   for (int iter = 0; iter < 5; iter++) {
     if (iter == 0) {
       CHECK_DALI(daliPipelinePrefetch(h));
@@ -418,6 +430,8 @@ void TestFeedInput() {
   params.max_batch_size = 8;
   params.prefetch_queue_depth_present = true;
   params.prefetch_queue_depth = 3;
+  params.exec_type_present = true;
+  params.exec_type = DALI_EXEC_DYNAMIC;
   auto h = Deserialize(proto, params);
   ASSERT_NE(h, nullptr);
   CHECK_DALI(daliPipelineBuild(h));
@@ -445,9 +459,10 @@ void TestFeedInput() {
     cudaStream_t s = stream.get();
     CHECK_DALI(daliPipelineFeedInput(h, "ext", tl_h, "data", {}, &s));
   }
+  CUDA_CALL(cudaDeviceSynchronize());
   CHECK_DALI(daliPipelinePrefetch(h));
   for (int i = 0; i < count; i++) {
-    auto outs = PopOutputs(h);
+    auto outs = PopOutputsAsync(h, stream.get());
     ASSERT_NE(outs, nullptr);
     auto out_tl = GetOutput(outs, 0);
     CompareTensorLists(*cpp_tls[i], *Unwrap<Backend>(out_tl));
@@ -461,8 +476,6 @@ TEST(CAPI2_PipelineTest, FeedInputCPU) {
 TEST(CAPI2_PipelineTest, FeedInputGPU) {
   TestFeedInput<GPUBackend>();
 }
-
-
 
 }  // namespace test
 }  // namespace c_api
