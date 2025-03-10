@@ -130,23 +130,33 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @brief Construct a new FramesDecoder object.
    *
    * @param filename Path to a video file.
-   * @param stream Stream used for decode processing.
+   * @param image_type Image type of the video.
+   * @param dtype Data type of the video.
+   * @param build_index If set to false index will not be build and some features are unavailable.
+   * @param stream CUDA stream to use for decoding.
    */
-  explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0);
+  explicit FramesDecoderGpu(const std::string &filename,
+                            DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
+                            bool build_index = true, cudaStream_t stream = 0);
 
   /**
  * @brief Construct a new FramesDecoder object.
  *
  * @param memory_file Pointer to memory with video file data.
  * @param memory_file_size Size of memory_file in bytes.
+ * @param image_type Image type of the video.
+ * @param dtype Data type of the video.
  * @param build_index If set to false index will not be build and some features are unavailable.
  * @param num_frames If set, number of frames in the video.
+ * @param stream CUDA stream to use for decoding.
  *
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
  */
-  FramesDecoderGpu(const char *memory_file, size_t memory_file_size, cudaStream_t stream = 0,
-                   bool build_index = true, int num_frames = -1, std::string_view = {});
+  FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
+                   DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
+                   bool build_index = true,
+                   int num_frames = -1, std::string_view = {}, cudaStream_t stream = 0);
 
   bool ReadNextFrame(uint8_t *data) override;
 
@@ -176,9 +186,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    */
   bool CanDecode(AVCodecID codec_id) const;
 
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
-  uint8_t *current_frame_output_ = nullptr;
+  void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
   bool flush_ = false;
@@ -197,7 +209,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   std::queue<int> piped_pts_;
 
-  cudaStream_t stream_;
+  cudaStream_t stream_ = 0;
 
   void SendLastPacket(bool flush = false);
 

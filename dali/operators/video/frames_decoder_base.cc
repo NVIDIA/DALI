@@ -16,6 +16,8 @@
 #include <iomanip>
 #include <memory>
 #include "dali/core/error_handling.h"
+#include "dali/core/small_vector.h"
+#include "dali/operators/video/video_utils.h"
 
 namespace dali {
 
@@ -277,10 +279,12 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
-FramesDecoderBase::FramesDecoderBase(const std::string &filename, bool build_index,
-                                     bool init_codecs) {
+FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type, DALIDataType dtype,
+                                     bool build_index, bool init_codecs) {
   av_log_set_level(AV_LOG_ERROR);
   filename_ = filename;
+  image_type_ = image_type;
+  dtype_ = dtype;
 
   int ret = OpenFile(filename);
   if (ret < 0) {
@@ -316,13 +320,16 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, bool build_ind
   next_frame_idx_ = 0;
 }
 
-FramesDecoderBase::FramesDecoderBase(const char *memory_file, int memory_file_size,
+FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size,
+                                     DALIImageType image_type, DALIDataType dtype,
                                      bool build_index, bool init_codecs, int num_frames,
                                      std::string_view source_info) {
   av_log_set_level(AV_LOG_ERROR);
 
   filename_ = source_info;
   num_frames_ = num_frames;
+  image_type_ = image_type;
+  dtype_ = dtype;
 
   memory_video_file_ = std::make_unique<MemoryVideoFile>(memory_file, memory_file_size);
   int ret = OpenMemoryFile(*memory_video_file_);
@@ -659,12 +666,7 @@ bool FramesDecoderBase::AvSeekFrame(int64_t timestamp, int frame_id) {
 }
 
 void FramesDecoderBase::Reset() {
-  if (AvSeekFrame(0, 0)) {
-    LOG_LINE << "Reset: Seeked to first frame." << std::endl;
-    return;
-  }
-
-  LOG_LINE << "Reset: Failed to seek to first frame. Reopening stream." << std::endl;
+  LOG_LINE << "Reset: Reopening stream." << std::endl;
   bool require_available_avcodec = codec_ != nullptr;
   int stream_id = stream_id_;
 
@@ -762,6 +764,25 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ == frame_id);
 }
 
+int FramesDecoderBase::GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive) {
+  // TODO(janton): Optimize for CFR videos (no need to iterate over the index)
+  DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
+  int frame_idx = 0;
+  for (size_t i = 1; i < index_.size(); i++) {
+    if (index_[i].pts >= timestamp) {
+      frame_idx = i;
+      break;
+    }
+  }
+  if (inclusive) {
+    if (frame_idx > 0 && index_[frame_idx-1].pts <= timestamp) {
+      frame_idx--;
+    }
+    assert(index_[frame_idx].pts <= timestamp);
+  }
+  return frame_idx;
+}
+
 bool FramesDecoderBase::ReadFlushFrame(uint8_t *data) {
   bool copy_to_output = data != nullptr;
   if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
@@ -797,6 +818,103 @@ bool FramesDecoderBase::ReadNextFrame(uint8_t *data) {
     }
   }
   return ReadFlushFrame(data);
+}
+
+void FramesDecoderBase::DecodeFrames(uint8_t *data, span<const int> frame_ids,
+                                     boundary::BoundaryType boundary_type,
+                                     const uint8_t *constant_frame,
+                                     span<float> out_timestamps) {
+  LOG_LINE << "DecodeFrames: " << frame_ids.size() << " frames, boundary_type="
+           << boundary::to_string(boundary_type) << std::endl;
+
+  DALI_ENFORCE(boundary_type == boundary::BoundaryType::CLAMP ||
+                   boundary_type == boundary::BoundaryType::CONSTANT ||
+                   boundary_type == boundary::BoundaryType::REFLECT_1001 ||
+                   boundary_type == boundary::BoundaryType::REFLECT_101 ||
+                   boundary_type == boundary::BoundaryType::ISOLATED,
+               make_string("Invalid boundary type: ", boundary::to_string(boundary_type)));
+  DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
+               make_string("Constant frame must be provided if boundary type is CONSTANT"));
+
+  SmallVector<std::pair<int, int>, 32> sorted_frame_ids;
+  size_t num_frames = frame_ids.size();
+  sorted_frame_ids.reserve(num_frames);
+  for (int i = 0; i < static_cast<int>(frame_ids.size()); i++) {
+    if (frame_ids[i] >= NumFrames()) {
+      LOG_LINE << "Frame " << frame_ids[i] << " is out of bounds (max=" << NumFrames() - 1
+               << "), handling with boundary mode" << std::endl;
+      switch (boundary_type) {
+        case boundary::BoundaryType::CLAMP:
+          sorted_frame_ids.push_back({NumFrames() - 1, i});
+          break;
+        case boundary::BoundaryType::CONSTANT:
+          sorted_frame_ids.push_back({-1, i});
+          break;
+        case boundary::BoundaryType::REFLECT_1001:
+          sorted_frame_ids.push_back(
+              {boundary::idx_reflect_1001<int>(frame_ids[i], NumFrames()), i});
+          break;
+        case boundary::BoundaryType::REFLECT_101:
+          sorted_frame_ids.push_back(
+              {boundary::idx_reflect_101<int>(frame_ids[i], NumFrames()), i});
+          break;
+        case boundary::BoundaryType::ISOLATED:
+        default:
+          DALI_ENFORCE(frame_ids[i] < NumFrames(),
+                       make_string("Unexpected out-of-bounds frame index ", frame_ids[i],
+                                   " for pad_mode = 'none' and sample #", i, ", containing only ",
+                                   NumFrames(),
+                                   " frames. Change `pad_mode` to fill the missing "
+                                   "frames."));
+      }
+    } else {
+      sorted_frame_ids.push_back({frame_ids[i], i});
+    }
+  }
+  std::sort(sorted_frame_ids.begin(), sorted_frame_ids.end());
+
+  int last_decoded_frame_id = -1;
+  for (auto &[frame_id, i] : sorted_frame_ids) {
+    if (frame_id >= 0 && frame_id < NumFrames()) {
+      LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;
+      SeekFrame(frame_id);
+      ReadNextFrame(data + i * FrameSize());
+      last_decoded_frame_id = i;
+    } else if (frame_id < 0) {
+      LOG_LINE << "Copying constant frame to position " << i << std::endl;
+      CopyFrame(data + i * FrameSize(), constant_frame);
+    } else {
+      LOG_LINE << "Copying last decoded frame " << last_decoded_frame_id << " to position " << i
+               << std::endl;
+      CopyFrame(data + i * FrameSize(), data + last_decoded_frame_id * FrameSize());
+    }
+  }
+
+  if (!out_timestamps.empty()) {
+    LOG_LINE << "Computing timestamps for " << out_timestamps.size() << " frames" << std::endl;
+    int64_t pts_0 = Index(0).pts;
+    for (auto& [frame_idx, i] : sorted_frame_ids) {
+      if (frame_idx >= 0) {
+        out_timestamps[i] = TimestampToSeconds(GetTimebase(), Index(frame_idx).pts - pts_0);
+      } else {
+        out_timestamps[i] = -1.0f;
+      }
+    }
+  }
+}
+
+void FramesDecoderBase::DecodeFrames(uint8_t *data, int start_frame, int end_frame, int stride,
+                                     boundary::BoundaryType boundary_type,
+                                     const uint8_t *constant_frame,
+                                     span<float> out_timestamps) {
+  LOG_LINE << "DecodeFrames: start=" << start_frame << ", end=" << end_frame
+           << ", stride=" << stride << std::endl;
+  SmallVector<int, 32> frame_ids;
+  frame_ids.reserve((end_frame - start_frame + stride - 1) / stride);
+  for (int i = start_frame; i < end_frame; i += stride) {
+    frame_ids.push_back(i);
+  }
+  DecodeFrames(data, make_cspan(frame_ids), boundary_type, constant_frame, out_timestamps);
 }
 
 }  // namespace dali

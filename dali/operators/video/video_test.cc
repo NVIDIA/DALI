@@ -27,6 +27,7 @@
 namespace dali {
 
 namespace detail {
+
 static void parallel_for(
   int elements_count, int thread_count, std::function<void(int start, int end, int id)> func) {
   std::vector<std::thread> threads(thread_count);
@@ -44,25 +45,8 @@ int ThreadCount() {
   int num_thread_hint = std::thread::hardware_concurrency();
   return num_thread_hint == 0 ? 8 : num_thread_hint;
 }
+
 }  // namespace detail
-
-void CompareFrameAvgError(
-  const uint8_t *ground_truth, const uint8_t *frame, int frame_size, double eps) {
-  std::vector<double> sums(detail::ThreadCount(), 0.0);
-
-  detail::parallel_for(frame_size, detail::ThreadCount(), [&](int start, int end, int id){
-    double sum = 0.0;
-    for (int j = start; j < end; ++j) {
-      sum += std::abs(frame[j] - ground_truth[j]);
-    }
-    sums[id] = sum;
-  });
-
-  double sum = std::accumulate(sums.begin(), sums.end(), 0.0);
-  sum /= frame_size;
-
-  ASSERT_LT(sum, eps);
-}
 
 /**
  * @brief Utility to save decoded frame as a PNG file.
@@ -119,10 +103,25 @@ void TestVideo::CompareFrame(int frame_id, const uint8_t *frame, int eps) {
   }
 }
 
-void TestVideo::CompareFrameAvgError(int frame_id, const uint8_t *frame, double eps) {
-  auto &ground_truth = frames_[frame_id];
+void CompareFrameAvgError(int frame_id, size_t frame_size, size_t width, size_t height,
+                          const uint8_t *frame, const uint8_t *ground_truth, double eps) {
+  std::vector<double> sums(detail::ThreadCount(), 0.0);
+  detail::parallel_for(frame_size, detail::ThreadCount(), [&](int start, int end, int id) {
+    double sum = 0.0;
+    for (int j = start; j < end; ++j) {
+      sum += std::abs(frame[j] - ground_truth[j]);
+    }
+    sums[id] = sum;
+  });
+  double sum = std::accumulate(sums.begin(), sums.end(), 0.0);
+  sum /= frame_size;
 
-  dali::CompareFrameAvgError(ground_truth.data, frame, FrameSize(), eps);
+  if (sum >= eps) {
+    SaveFrame(const_cast<uint8_t *>(frame), frame_id, 0, 0, "test_frame", width, height);
+    SaveFrame(const_cast<uint8_t *>(ground_truth), frame_id, 0, 0, "ground_truth", width, height);
+    throw std::runtime_error("Frame average error is too high");
+  }
+  ASSERT_LT(sum, eps);
 }
 
 std::vector<std::string> VideoTestBase::cfr_videos_frames_paths_{

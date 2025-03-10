@@ -22,13 +22,17 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
+#include "dali/core/boundary.h"
 #include "dali/core/common.h"
 #include "dali/core/span.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/core/unique_handle.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/operators/video/color_space.h"
 
 namespace dali {
 struct IndexEntry {
@@ -115,25 +119,31 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Initialize the decoder from a file.
    *
    * @param filename Path to a video file.
+   * @param image_type Image type of the video.
+   * @param dtype Data type of the video.
    * @param build_index If set to false index will not be build and some features are unavailable.
    * @param init_codecs If set to false CPU codec part is not initalized, only parser
    */
-  explicit FramesDecoderBase(const std::string &filename, bool build_index = true,
-                             bool init_codecs = true);
+  explicit FramesDecoderBase(const std::string &filename,
+                             DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
+                             bool build_index = true, bool init_codecs = true);
 
   /**
    * @brief Initialize the decoder from a memory buffer.
    *
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
+   * @param image_type Image type of the video.
+   * @param dtype Data type of the video.
    * @param build_index If set to false index will not be build and some features are unavailable.
    * @param init_codecs If set to false CPU codec part is not initalized, only parser
    * @param num_frames If set, number of frames in the video.
    * @param source_info Source information for the video file.
    */
-  FramesDecoderBase(const char *memory_file, int memory_file_size, bool build_index = true,
-                    bool init_codecs = true, int num_frames = -1,
-                    std::string_view source_info = {});
+  explicit FramesDecoderBase(const char *memory_file, size_t memory_file_size,
+                             DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
+                             bool build_index = true, bool init_codecs = true, int num_frames = -1,
+                             std::string_view source_info = {});
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -168,6 +178,14 @@ class DLL_PUBLIC FramesDecoderBase {
     return Channels() * Width() * Height();
   }
 
+  TensorShape<3> FrameShape() const {
+    return {Height(), Width(), Channels()};
+  }
+
+  TensorShape<4> Shape(int num_frames) const {
+    return {num_frames, Height(), Width(), Channels()};
+  }
+
   /**
    * @brief Is video variable frame rate
    */
@@ -189,6 +207,79 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param frame_id Id of the frame to seek to
    */
   virtual void SeekFrame(int frame_id);
+
+  /**
+   * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
+   * (what to do when sampling out of bounds).
+   *
+   * ISOLATED: sampling out of bounds will result in a failure.
+   * CLAMP: sampling out of bounds will result in the last frame being repeated.
+   * CONSTANT: sampling out of bounds will result in a constant frame being repeated (constant_frame must be provided).
+   * REFLECT_1001: sampling out of bounds will result in 1001 reflection.
+   * REFLECT_101: sampling out of bounds will result in 101 reflection.
+   *
+   * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
+   * @param frame_ids Frame indices to decode.
+   * @param boundary_type Boundary type to apply
+   * @param constant_frame Constant frame data to repeat when sampling out of bounds.
+   * @param out_timestamps Output buffer to store timestamps of the decoded frames. If empty, timestamps will not be computed.
+   */
+  void DecodeFrames(
+    uint8_t *data,
+    span<const int> frame_ids,
+    boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED,
+    const uint8_t *constant_frame = nullptr,
+    span<float> out_timestamps = {});
+
+  /**
+   * @brief Decodes a range of evenly spaced frames, applying a boundary type
+   * (what to do when sampling out of bounds).
+   *
+   * ISOLATED: sampling out of bounds will result in a failure.
+   * CLAMP: sampling out of bounds will result in the last frame being repeated.
+   * CONSTANT: sampling out of bounds will result in a constant frame being repeated (constant_frame must be provided).
+   * REFLECT_1001: sampling out of bounds will result in 1001 reflection.
+   * REFLECT_101: sampling out of bounds will result in 101 reflection.
+   *
+   * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
+   * @param start_frame Start frame index.
+   * @param end_frame End frame index.
+   * @param stride Stride between frames.
+   * @param boundary_type Boundary type to apply
+   * @param constant_frame Constant frame data to repeat when sampling out of bounds.
+   * @param out_timestamps Output buffer to store timestamps of the decoded frames. If empty, timestamps will not be computed.
+   */
+  void DecodeFrames(
+    uint8_t *data,
+    int start_frame,
+    int end_frame,
+    int stride,
+    boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED,
+    const uint8_t *constant_frame = nullptr,
+    span<float> out_timestamps = {});
+
+  /**
+   * @brief Copies a frame from one buffer to another.
+   *
+   * @param dst Destination buffer.
+   * @param src Source buffer.
+   */
+  virtual void CopyFrame(uint8_t *dst, const uint8_t *src) = 0;
+
+  /**
+   * @brief Returns the timebase of the video
+   */
+  AVRational GetTimebase() const {
+    return ctx_->streams[stream_id_]->time_base;
+  }
+
+  /**
+   * @brief Returns the index of the frame that has the given timestamp
+   *
+   * @param timestamp Timestamp of the frame to seek to
+   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   */
+  virtual int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false);
 
   /**
    * @brief Seeks to the first frame
@@ -231,6 +322,7 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   const IndexEntry& Index(int frame_id) const {
+    assert(HasIndex());
     return index_[frame_id];
   }
 
@@ -254,7 +346,9 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int next_frame_idx_ = 0;
 
-  bool is_full_range_ = false;
+  DALIImageType image_type_ = DALI_RGB;
+  DALIDataType dtype_ = DALI_UINT8;
+  VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;

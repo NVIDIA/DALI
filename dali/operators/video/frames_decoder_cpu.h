@@ -27,22 +27,30 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @brief Construct a new FramesDecoder object.
    *
    * @param filename Path to a video file.
+   * @param image_type Image type of the video.
+   * @param dtype Data type of the video.
    * @param build_index If set to false index will not be build and some features are unavailable.
    */
-  explicit FramesDecoderCpu(const std::string &filename, bool build_index = true);
+  explicit FramesDecoderCpu(const std::string &filename,
+                            DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
+                            bool build_index = true);
 
   /**
  * @brief Construct a new FramesDecoder object.
  *
  * @param memory_file Pointer to memory with video file data.
  * @param memory_file_size Size of memory_file in bytes.
+ * @param image_type Image type of the video.
+ * @param dtype Data type of the video.
  * @param build_index If set to false index will not be build and some features are unavailable.
  * @param num_frames If set, number of frames in the video.
  *
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
  */
-  FramesDecoderCpu(const char *memory_file, size_t memory_file_size, bool build_index = true,
+  FramesDecoderCpu(const char *memory_file, size_t memory_file_size, 
+                   DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
+                   bool build_index = true,
                    int num_frames = -1, std::string_view = {});
 
   FramesDecoderCpu(FramesDecoderCpu&&) = default;
@@ -54,6 +62,8 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @return True if the codec is supported, false otherwise.
    */
   bool CanDecode(AVCodecID codec_id) const;
+
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 };
 
 }  // namespace dali

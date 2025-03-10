@@ -16,19 +16,21 @@
 #include <algorithm>
 #include <string>
 #include "dali/core/error_handling.h"
+#include <cstring>
 
 namespace dali {
 
-FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, bool build_index)
-    : FramesDecoderBase(filename, build_index, true) {
+FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType image_type,
+                                   DALIDataType dtype, bool build_index)
+    : FramesDecoderBase(filename, image_type, dtype, build_index, true) {
   is_valid_ = is_valid_ && CanDecode(codec_params_->codec_id);
 }
 
 FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size,
-                                   bool build_index, int num_frames,
-                                   std::string_view source_info)
-    : FramesDecoderBase(memory_file, memory_file_size, build_index, true, num_frames,
-                        source_info) {
+                                   DALIImageType image_type, DALIDataType dtype, bool build_index,
+                                   int num_frames, std::string_view source_info)
+    : FramesDecoderBase(memory_file, memory_file_size, image_type, dtype, build_index, true,
+                        num_frames, source_info) {
   is_valid_ = is_valid_ && CanDecode(codec_params_->codec_id);
 }
 
@@ -61,6 +63,10 @@ bool FramesDecoderCpu::CanDecode(AVCodecID codec_id) const {
                   ") is not supported by the libavcodec version provided by DALI, and therefore "
                   "cannot be decoded on the CPU."));
   return false;
+}
+
+void FramesDecoderCpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
+  std::memcpy(dst, src, FrameSize());
 }
 
 }  // namespace dali

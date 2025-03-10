@@ -24,6 +24,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 
@@ -357,13 +358,18 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
     case AV_CODEC_ID_AV1: return cudaVideoCodec_AV1;
     default: {
       DALI_FAIL(make_string("Unsupported codec type ", avcodec_get_name(codec_id)));
+      return {};
     }
   }
 }
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
-    is_full_range_ = video_format->video_signal_description.video_full_range_flag;
+    bool is_full_range = video_format->video_signal_description.video_full_range_flag;
+    conversion_type_ = image_type_ == DALI_RGB ?
+                           is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE :
+                                           VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :
+                           VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
     nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
   }
 }
@@ -416,22 +422,9 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
-    FramesDecoderBase(filename, true, false),
-    frame_buffer_(num_decode_surfaces_),
-    stream_(stream) {
-  if (is_valid_ && CanDecode(codec_params_->codec_id)) {
-    InitGpuParser();
-  } else {
-    is_valid_ = false;
-  }
-}
-
-FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
-                                   cudaStream_t stream, bool build_index, int num_frames,
-                                   std::string_view source_info)
-    : FramesDecoderBase(memory_file, memory_file_size, build_index, false, num_frames,
-                        source_info),
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, DALIImageType image_type, DALIDataType dtype,
+                                   bool build_index, cudaStream_t stream)
+    : FramesDecoderBase(filename, image_type, dtype, build_index, false),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   if (is_valid_ && CanDecode(codec_params_->codec_id)) {
@@ -441,6 +434,20 @@ FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_s
   }
 }
 
+FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
+                                   DALIImageType image_type, DALIDataType dtype, bool build_index,
+                                   int num_frames, std::string_view source_info,
+                                   cudaStream_t stream)
+    : FramesDecoderBase(memory_file, memory_file_size, image_type, dtype, build_index, false,
+                        num_frames, source_info),
+      frame_buffer_(num_decode_surfaces_),
+      stream_(stream) {
+  if (is_valid_ && CanDecode(codec_params_->codec_id)) {
+    InitGpuParser();
+  } else {
+    is_valid_ = false;
+  }
+}
 
 bool FramesDecoderGpu::CanDecode(AVCodecID codec_id) const {
   static constexpr std::array<AVCodecID, 7> codecs = {
@@ -498,8 +505,6 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
-  uint8_t *frame_output = nullptr;
-
   // Take pts of the currently decoded frame
   int current_pts = piped_pts_.front();
   piped_pts_.pop();
@@ -517,6 +522,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
+  void *frame_output = nullptr;
   if (HasIndex() && current_pts == Index(NextFrameIdx()).pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
@@ -544,16 +550,17 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     &pitch,
     &videoProcessingParameters));
 
-  // TODO(awolant): Benchmark, if copy would be faster
-  yuv_to_rgb(
-    reinterpret_cast<uint8_t *>(frame),
-    pitch,
-    frame_output,
-    Width()* 3,
-    Width(),
-    Height(),
-    is_full_range_,
-    stream_);
+  TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
+    VideoColorSpaceConversion(
+      reinterpret_cast<OutType *>(frame_output), Width() * 3,
+      reinterpret_cast<const uint8_t *>(frame), static_cast<int>(pitch),
+      Height(),
+      Width(),
+      conversion_type_,
+      false,  // normalized_range_,
+      stream_);
+  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
+
   // TODO(awolant): Alterantive is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when
   // the benchmark is ready.
@@ -750,10 +757,14 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
 
   if (current_copy_to_output_) {
     assert(current_frame_output_ != nullptr);
+    int64_t total_size = FrameSize();
+    if (dtype_ == DALI_FLOAT) {
+      total_size *= 4;
+    }
     copyD2D(
-      current_frame_output_,
+      static_cast<uint8_t *>(current_frame_output_),
       frame_buffer_[frame_to_return_index].frame_.data(),
-      FrameSize(),
+      total_size,
       stream_);
   }
 
@@ -914,6 +925,10 @@ bool FramesDecoderGpu::SupportsHevc() {
   decoder_caps.nBitDepthMinus8 = 10 - 8;  // 10-bit HEVC
   CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
   return decoder_caps.bIsSupported;
+}
+
+void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
+  CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
 }
 
 }  // namespace dali
