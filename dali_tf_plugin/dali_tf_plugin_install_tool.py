@@ -391,6 +391,13 @@ class InstallerHelper:
             cmd += dali_lflags.split()
             cmd += tf_lflags.split()
             cmd += cuda_lflags.split()
+            tf_versions = dict(
+                zip(
+                    ["TF_MAJOR_VERSION", "TF_MINOR_VERSION", "TF_PATCH_VERSION"],
+                    self.tf_version.split("."),
+                )
+            )
+            cmd += [f"-D{ver}={tf_versions[ver]}" for ver in tf_versions]
             cmd += ["-O2"]
 
             cmd = list(filter(lambda x: len(x) != 0, cmd))

@@ -516,16 +516,16 @@ all_packages = [
             ],
             "120": [
                 PckgVer(
-                    "2.16.2",
-                    python_min_ver="3.9",
-                    alias="tensorflow",
-                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.16"],
-                ),
-                PckgVer(
-                    "2.17.0",
+                    "2.17.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
                     dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.17"],
+                ),
+                PckgVer(
+                    "2.18.0",
+                    python_min_ver="3.9",
+                    alias="tensorflow[and-cuda]",
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18"],
                 ),
             ],
         },
