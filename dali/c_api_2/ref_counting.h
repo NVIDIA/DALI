@@ -57,6 +57,11 @@ class RefCountedPtr {
     reset();
   }
 
+  RefCountedPtr(const RefCountedPtr<T> &other) noexcept : ptr_(other.ptr_) {
+    if (ptr_)
+      ptr_->IncRef();
+  }
+
   template <typename U, std::enable_if_t<std::is_convertible_v<U *, T *>, int> = 0>
   RefCountedPtr(const RefCountedPtr<U> &other) noexcept : ptr_(other.ptr_) {
     if (ptr_)
@@ -67,6 +72,11 @@ class RefCountedPtr {
   RefCountedPtr(RefCountedPtr<U> &&other) noexcept : ptr_(other.ptr_) {
     other.ptr_ = nullptr;
   }
+
+  RefCountedPtr &operator=(const RefCountedPtr &other) noexcept {
+    return this->operator= <T>(other);
+  }
+
 
   template <typename U>
   std::enable_if_t<std::is_convertible_v<U *, T *>, RefCountedPtr> &
@@ -79,6 +89,10 @@ class RefCountedPtr {
       ptr_->DecRef();
     ptr_ = other.ptr_;
     return *this;
+  }
+
+  RefCountedPtr &operator=(RefCountedPtr &&other) noexcept {
+    return this->operator= <T>(std::move(other));
   }
 
   template <typename U>

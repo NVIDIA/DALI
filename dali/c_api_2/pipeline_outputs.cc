@@ -73,6 +73,7 @@ RefCountedPtr<ITensorList> PipelineOutputs::Get(int index) {
     else
       assert(!"Impossible output backend encountered.");
   }
+  assert(output_wrappers_[index]->RefCount() >= 1);
   return output_wrappers_[index];
 }
 
@@ -93,6 +94,7 @@ daliResult_t daliPipelineOutputsGet(daliPipelineOutputs_h outputs, daliTensorLis
     throw std::invalid_argument("The output parameter must not be NULL.");
   auto ptr = outs->Get(idx);
   *tl = ptr.release();  // no throwing beyond this point
+  assert(static_cast<ITensorList *>(*tl)->RefCount() > 1);
   DALI_EPILOG();
 }
 

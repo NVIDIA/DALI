@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <limits>
+#include <random>
 #include "dali/c_api_2/pipeline.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
@@ -150,6 +152,22 @@ std::string GetPipelineWithTraces(int max_batch_size, int num_threads, int devic
   p.AddOperator(op2, "op2");
   p.SetOutputDescs({ {"op1", "cpu" }, {"op2", "cpu"} });
 
+  return p.SerializeToProtobuf();
+}
+
+std::string GetPipelineWithExternalSource(
+      StorageDevice dev_type,
+      int max_batch_size,
+      int num_threads,
+      int device_id) {
+  Pipeline p(max_batch_size, num_threads, device_id);
+  OpSpec src = OpSpec("ExternalSource")
+    .AddOutput("out", dev_type)
+    .AddArg("device", dev_type == StorageDevice::CPU ? "cpu" : "gpu")
+    .AddArg("name", "ext")
+    .AddArg("batch_size", max_batch_size);
+  p.AddOperator(src, "ext");
+  p.SetOutputDescs({ {"out", to_string(dev_type)} });
   return p.SerializeToProtobuf();
 }
 
@@ -331,6 +349,120 @@ TEST(CAPI2_PipelineTest, Traces) {
     EXPECT_EQ(traces[1].value, ref_t2);
   }
 }
+
+TensorShape<> MakeRandomShape(
+      std::mt19937_64 &rng,
+      const TensorShape<> &min_shape,
+      const TensorShape<> &max_shape) {
+  assert(min_shape.size() == max_shape.size());
+  TensorShape<> shape;
+  shape.resize(min_shape.size());
+  for (int i = 0; i < min_shape.size(); i++) {
+    shape[i] = std::uniform_int_distribution<int>(min_shape[i], max_shape[i])(rng);
+  }
+  return shape;
+}
+
+TensorListShape<> MakeRandomShape(
+      std::mt19937_64 &rng,
+      const TensorShape<> &min_shape,
+      const TensorShape<> &max_shape,
+      int batch_size) {
+  TensorListShape<> shape;
+  shape.resize(batch_size, min_shape.size());
+  for (int i = 0; i < batch_size; i++) {
+    shape.set_tensor_shape(i, MakeRandomShape(rng, min_shape, max_shape));
+  }
+  return shape;
+}
+
+template <typename T>
+void FillTensorList(TensorList<CPUBackend> &tl, std::mt19937_64 &rng) {
+  auto dist = std::uniform_int_distribution<T>(0, std::numeric_limits<T>::max());
+  for (int i = 0; i < tl.num_samples(); i++) {
+    auto sample = tl[i];
+    int64_t n = volume(sample.shape());
+    auto buf = sample.mutable_data<T>();
+    for (int64_t j = 0; j < n; j++) {
+      buf[j] = dist(rng);
+    }
+  }
+}
+
+template <typename T, typename Backend>
+void FillRandomTensorList(
+      TensorList<Backend> &tl,
+      std::mt19937_64 &rng,
+      const TensorShape<> &min_shape,
+      const TensorShape<> &max_shape,
+      int batch_size) {
+  auto shape = MakeRandomShape(rng, min_shape, max_shape, batch_size);
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    tl.Resize(shape, DALI_UINT8);
+    FillTensorList<T>(tl, rng);
+  } else {
+    TensorList<CPUBackend> cpu_tl;
+    cpu_tl.Resize(shape, DALI_UINT8);
+    FillTensorList<T>(cpu_tl, rng);
+    tl.Copy(cpu_tl, tl.order());
+  }
+}
+
+template <typename Backend>
+void TestFeedInput() {
+  StorageDevice storage_backend = std::is_same_v<Backend, CPUBackend>
+      ? StorageDevice::CPU : StorageDevice::GPU;
+  auto proto = GetPipelineWithExternalSource(storage_backend, 4, 4, 0);
+  daliPipelineParams_t params{};
+  params.max_batch_size_present = true;
+  params.max_batch_size = 8;
+  params.prefetch_queue_depth_present = true;
+  params.prefetch_queue_depth = 3;
+  auto h = Deserialize(proto, params);
+  ASSERT_NE(h, nullptr);
+  CHECK_DALI(daliPipelineBuild(h));
+  int count = 0;
+  CHECK_DALI(daliPipelineGetFeedCount(h, &count, "ext"));
+  ASSERT_EQ(count, params.prefetch_queue_depth)
+    << "Feed count should be equal to prefetch queue depth.";
+
+  std::mt19937_64 rng(1234);
+  std::uniform_int_distribution<int> bs_dist(1, params.max_batch_size);
+
+  CUDAStreamLease stream = CUDAStreamPool::instance().Get();
+
+  std::vector<std::shared_ptr<TensorList<Backend>>> cpp_tls;
+  for (int i = 0; i < count; i++) {
+    std::shared_ptr<TensorList<Backend>> cpp_tl = std::make_shared<TensorList<Backend>>();
+    cpp_tls.push_back(cpp_tl);
+    cpp_tl->set_order(stream.get());
+
+    int bs = bs_dist(rng);
+    FillRandomTensorList<uint8_t>(*cpp_tl, rng, { 240, 320, 1 }, { 1080, 1920, 3 }, bs);
+
+    auto tl = Wrap(cpp_tl);
+    daliTensorList_h tl_h = tl.get();
+    cudaStream_t s = stream.get();
+    CHECK_DALI(daliPipelineFeedInput(h, "ext", tl_h, "data", {}, &s));
+  }
+  CHECK_DALI(daliPipelinePrefetch(h));
+  for (int i = 0; i < count; i++) {
+    auto outs = PopOutputs(h);
+    ASSERT_NE(outs, nullptr);
+    auto out_tl = GetOutput(outs, 0);
+    CompareTensorLists(*cpp_tls[i], *Unwrap<Backend>(out_tl));
+  }
+}
+
+TEST(CAPI2_PipelineTest, FeedInputCPU) {
+  TestFeedInput<CPUBackend>();
+}
+
+TEST(CAPI2_PipelineTest, FeedInputGPU) {
+  TestFeedInput<GPUBackend>();
+}
+
+
 
 }  // namespace test
 }  // namespace c_api
