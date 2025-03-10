@@ -8,7 +8,7 @@ do_once() {
 }
 
 test_body() {
-    if [ $(stat  /mnt/data/ --format="%T" -f) != "ext2/ext3" ]; then
+    if [ $(stat /data/imagenet--format="%T" -f) != "ext2/ext3" ]; then
         echo "Not available locally, skipping the test"
         return 0
     fi

@@ -13,10 +13,10 @@ cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 if [ ! -d "val" ]; then
-   ln -sf /data_raid/imagenet/val-jpeg/ val
+   ln -sf /data/imagenet/val-jpeg/ val
 fi
 if [ ! -d "train" ]; then
-   ln -sf /data_raid/imagenet/train-jpeg/ train
+   ln -sf /data/imagenet/train-jpeg/ train
 fi
 
 LOG=dali.log
