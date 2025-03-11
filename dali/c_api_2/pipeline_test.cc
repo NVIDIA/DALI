@@ -300,6 +300,12 @@ TEST(CAPI2_PipelineTest, RunGPU2CPU) {
 }
 
 TEST(CAPI2_PipelineTest, IncompatibleExec) {
+  // Skip this test when DALI_USE_EXEC2 is set
+  const char *env = getenv("DALI_USE_EXEC2");
+  if (env && atoi(env)) {
+    GTEST_SKIP() << "This test cannot work when the use of Dynamic Executor is forced.";
+  }
+
   auto proto = GetGPU2CPUPipelineProto(1, 4, 0);
   daliPipelineParams_t params{};
   params.max_batch_size_present = true;
