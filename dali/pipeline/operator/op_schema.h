@@ -20,6 +20,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -791,7 +792,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool is_internal_ = false;
   bool is_doc_hidden_ = false;
   bool is_doc_partially_hidden_ = false;
-  bool is_stateful_ = false;
+  mutable std::optional<bool> is_stateful_;
 
   /// Custom docstring, if not empty should be used in place of input_dox_ descriptions
   std::string call_dox_ = {};

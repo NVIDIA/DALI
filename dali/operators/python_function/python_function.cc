@@ -33,6 +33,7 @@ DALI_SCHEMA(PythonFunctionBase)
 This argument can be a list that contains a distinct layout for each output. If the list has
 fewer than num_outputs elements, only the first outputs have the layout set and the rest of the
 outputs have no layout assigned.)code", nullptr)
+    .MakeStateful()
     .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)

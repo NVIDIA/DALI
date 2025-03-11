@@ -814,7 +814,16 @@ bool OpSchema::IsSerializable() const {
 
 
 bool OpSchema::IsStateful() const {
-  return is_stateful_;
+  if (!is_stateful_) {
+    for (auto &parent : GetParents()) {
+      if (parent->IsStateful()) {
+        is_stateful_ = true;
+        return true;
+      }
+    }
+    is_stateful_ = false;
+  }
+  return *is_stateful_;
 }
 
 
