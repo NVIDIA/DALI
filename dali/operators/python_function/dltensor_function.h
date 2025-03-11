@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
 namespace dali {
@@ -146,12 +146,14 @@ class StreamSynchronizer<CPUBackend> {
 
 }  // namespace detail
 
-
+// NOTE: This operator isn't really stateless - we just ignore
+//       the state of the underlying python function and allow
+//       it to be checkpointed.
 template <typename Backend>
-class DLTensorPythonFunctionImpl : public Operator<Backend> {
+class DLTensorPythonFunctionImpl : public StatelessOperator<Backend> {
  public:
   inline explicit DLTensorPythonFunctionImpl(const OpSpec &spec)
-      : Operator<Backend>(spec)
+      : StatelessOperator<Backend>(spec)
       , python_function(py::reinterpret_borrow<py::object>(
           reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {
     synchronize_stream_ = spec.GetArgument<bool>("synchronize_stream");
@@ -228,7 +230,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  using Operator<Backend>::RunImpl;
+  using StatelessOperator<Backend>::RunImpl;
 
   py::object python_function;
   py::object output_o_;
