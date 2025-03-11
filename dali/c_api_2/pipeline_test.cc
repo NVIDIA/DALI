@@ -420,6 +420,8 @@ void FillRandomTensorList(
     FillTensorList<T>(tl, rng);
   } else {
     TensorList<CPUBackend> cpu_tl;
+    cpu_tl.set_order(tl.order());
+    cpu_tl.set_pinned(true);
     cpu_tl.Resize(shape, DALI_UINT8);
     FillTensorList<T>(cpu_tl, rng);
     tl.Copy(cpu_tl, tl.order());
@@ -427,7 +429,7 @@ void FillRandomTensorList(
 }
 
 template <typename Backend>
-void TestFeedInput() {
+void TestFeedInput(daliFeedInputFlags_t flags) {
   StorageDevice storage_backend = std::is_same_v<Backend, CPUBackend>
       ? StorageDevice::CPU : StorageDevice::GPU;
   auto proto = GetPipelineWithExternalSource(storage_backend, 4, 4, 0);
@@ -449,26 +451,29 @@ void TestFeedInput() {
   std::mt19937_64 rng(1234);
   std::uniform_int_distribution<int> bs_dist(1, params.max_batch_size);
 
-  CUDAStreamLease stream = CUDAStreamPool::instance().Get();
+  CUDAStreamLease stream1 = CUDAStreamPool::instance().Get();
+  CUDAStreamLease stream2;
+  if (flags & DALI_FEED_INPUT_SYNC)
+    stream2 = CUDAStreamPool::instance().Get();
 
   std::vector<std::shared_ptr<TensorList<Backend>>> cpp_tls;
   for (int i = 0; i < count; i++) {
     std::shared_ptr<TensorList<Backend>> cpp_tl = std::make_shared<TensorList<Backend>>();
     cpp_tls.push_back(cpp_tl);
-    cpp_tl->set_order(stream.get());
+    cpp_tl->set_order(stream1.get());
 
     int bs = bs_dist(rng);
     FillRandomTensorList<uint8_t>(*cpp_tl, rng, { 240, 320, 1 }, { 1080, 1920, 3 }, bs);
 
     auto tl = Wrap(cpp_tl);
     daliTensorList_h tl_h = tl.get();
-    cudaStream_t s = stream.get();
-    CHECK_DALI(daliPipelineFeedInput(h, "ext", tl_h, "data", {}, &s));
+    cudaStream_t s = stream2 ? stream2.get() : stream1.get();
+    CHECK_DALI(daliPipelineFeedInput(h, "ext", tl_h, "data", flags, &s));
   }
   CUDA_CALL(cudaDeviceSynchronize());
   CHECK_DALI(daliPipelinePrefetch(h));
   for (int i = 0; i < count; i++) {
-    auto outs = PopOutputsAsync(h, stream.get());
+    auto outs = PopOutputsAsync(h, stream1.get());
     ASSERT_NE(outs, nullptr);
     auto out_tl = GetOutput(outs, 0);
     CompareTensorLists(*cpp_tls[i], *Unwrap<Backend>(out_tl));
@@ -476,12 +481,18 @@ void TestFeedInput() {
 }
 
 TEST(CAPI2_PipelineTest, FeedInputCPU) {
-  TestFeedInput<CPUBackend>();
+  TestFeedInput<CPUBackend>({});
 }
 
-TEST(CAPI2_PipelineTest, FeedInputGPU) {
-  TestFeedInput<GPUBackend>();
+TEST(CAPI2_PipelineTest, FeedInputGPUSync) {
+  TestFeedInput<GPUBackend>(DALI_FEED_INPUT_SYNC);
 }
+
+TEST(CAPI2_PipelineTest, FeedInputGPUAsync) {
+  TestFeedInput<GPUBackend>({});
+}
+
+
 
 }  // namespace test
 }  // namespace c_api
