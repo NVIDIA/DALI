@@ -491,12 +491,16 @@ def test_remap_stateless():
     check_is_pipeline_stateless(pipeline_factory)
 
 
+@params("cpu", "gpu")
 @stateless_signed_off("experimental.debayer")
-def test_debayer_stateless():
+def test_debayer_stateless(device):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
-        return fn.experimental.debayer(data.gpu(), blue_position=[0, 0])
+        if device == "gpu":
+            data = data.gpu()
+        algorithm = {"gpu":"bilinear_npp", "cpu": "bilinear_ocv"}[device]
+        return fn.experimental.debayer(data, algorithm=algorithm, blue_position=[0, 0])
 
     check_is_pipeline_stateless(pipeline_factory)
 

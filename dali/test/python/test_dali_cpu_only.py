@@ -1401,6 +1401,7 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_slice",
     "decoders.image_random_crop",
+    "experimental.debayer",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
@@ -1583,7 +1584,6 @@ excluded_methods = [
     "optical_flow",  # not supported for CPU
     "paste",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
-    "experimental.debayer",  # not supported for CPU
     "experimental.equalize",  # not supported for CPU
     "experimental.filter",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU

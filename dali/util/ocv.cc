@@ -31,13 +31,18 @@ static cv::ColorConversionCodes GetOpenCvColorConversionCode(DALIImageType input
                                                              DALIImageType output_type) {
   using ColorConversionPair = std::pair<DALIImageType, DALIImageType>;
   using ColorConversionMap = std::map<ColorConversionPair, cv::ColorConversionCodes>;
+  // clang-format off
   static const ColorConversionMap color_conversion_map = {
-      {{DALI_RGB, DALI_BGR}, cv::COLOR_RGB2BGR},   {{DALI_RGB, DALI_GRAY}, cv::COLOR_RGB2GRAY},
+    { {DALI_RGB, DALI_BGR},  cv::COLOR_RGB2BGR },
+    { {DALI_RGB, DALI_GRAY}, cv::COLOR_RGB2GRAY },
 
-      {{DALI_BGR, DALI_RGB}, cv::COLOR_BGR2RGB},   {{DALI_BGR, DALI_GRAY}, cv::COLOR_BGR2GRAY},
+    { {DALI_BGR, DALI_RGB},  cv::COLOR_BGR2RGB },
+    { {DALI_BGR, DALI_GRAY}, cv::COLOR_BGR2GRAY },
 
-      {{DALI_GRAY, DALI_RGB}, cv::COLOR_GRAY2RGB}, {{DALI_GRAY, DALI_BGR}, cv::COLOR_GRAY2BGR},
+    { {DALI_GRAY, DALI_RGB}, cv::COLOR_GRAY2RGB },
+    { {DALI_GRAY, DALI_BGR}, cv::COLOR_GRAY2BGR },
   };
+  // clang-format on
 
   const ColorConversionPair color_conversion_pair{input_type, output_type};
   const auto it = color_conversion_map.find(color_conversion_pair);
