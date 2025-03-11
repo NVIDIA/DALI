@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -321,6 +321,17 @@ OpSchema &OpSchema::MakeInternal() {
 }
 
 
+OpSchema &OpSchema::MakeStateless() {
+  is_stateful_ = false;
+  return *this;
+}
+
+OpSchema &OpSchema::MakeStateful() {
+  is_stateful_ = true;
+  return *this;
+}
+
+
 OpSchema &OpSchema::MakeDocHidden() {
   is_doc_hidden_ = true;
   return *this;
@@ -499,6 +510,7 @@ OpSchema &OpSchema::AddRandomSeedArg() {
   AddOptionalArg<int>("seed",
                       "Random seed; if not set, one will be assigned automatically.",
                       -1);
+  MakeStateful();
   return *this;
 }
 
@@ -798,6 +810,11 @@ bool OpSchema::IsNoPrune() const {
 
 bool OpSchema::IsSerializable() const {
   return serializable_;
+}
+
+
+bool OpSchema::IsStateful() const {
+  return is_stateful_;
 }
 
 

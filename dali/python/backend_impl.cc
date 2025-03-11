@@ -2429,6 +2429,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
     .def("SupportsVolumetric", &OpSchema::SupportsVolumetric)
+    .def("IsStateful", &OpSchema::IsStateful)
     .def("IsInternal", &OpSchema::IsInternal)
     .def("IsDocHidden", &OpSchema::IsDocHidden)
     .def("IsDocPartiallyHidden", &OpSchema::IsDocPartiallyHidden)

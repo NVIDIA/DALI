@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -273,6 +273,12 @@ class DLL_PUBLIC OpSchema {
 
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
   OpSchema &MakeDocHidden();
+
+  /** Notes that this operator doesn't have a state. */
+  OpSchema &MakeStateless();
+
+  /** Notes that this operator is stateful. */
+  OpSchema &MakeStateful();
 
   /**
    * @brief Notes that for this operator only the doc_str should be visible, but not the docs for
@@ -564,6 +570,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /**  Whether this operator is internal to DALI backend (and shouldn't be exposed in Python API) */
   bool IsInternal() const;
 
+  /** Whether this operator is stateful. */
+  bool IsStateful() const;
+
   /** Whether this operator doc should not be visible (but the Op is exposed in Python API) */
   bool IsDocHidden() const;
 
@@ -782,6 +791,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool is_internal_ = false;
   bool is_doc_hidden_ = false;
   bool is_doc_partially_hidden_ = false;
+  bool is_stateful_ = false;
 
   /// Custom docstring, if not empty should be used in place of input_dox_ descriptions
   std::string call_dox_ = {};
