@@ -1387,6 +1387,17 @@ def test_io_file_read_cpu():
     )
 
 
+def test_debayer():
+    check_single_input(
+        fn.experimental.debayer,
+        get_data=lambda: np.full((256, 256), 128, dtype=np.uint8),
+        batch=False,
+        input_layout="HW",
+        blue_position=[0, 0],
+        algorithm="bilinear_ocv",
+    )
+
+
 tested_methods = [
     "_conditional.merge",
     "_conditional.split",
