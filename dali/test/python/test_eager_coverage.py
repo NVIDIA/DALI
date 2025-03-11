@@ -742,6 +742,8 @@ def test_bb_flip():
 def test_warp_affine():
     check_single_input("warp_affine", matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
 
+def test_warp_perspective():
+    check_single_input("experimental.warp_perspective", matrix=np.eye(3))
 
 def test_normalize():
     check_single_input("normalize")
@@ -1671,6 +1673,7 @@ tested_methods = [
     "full",
     "full_like",
     "io.file.read",
+    "experimental.warp_perspective",
 ]
 
 excluded_methods = [
@@ -1691,7 +1694,6 @@ excluded_methods = [
     "experimental.median_blur",  # not supported for CPU
     "experimental.dilate",  # not supported for CPU
     "experimental.erode",  # not supported for CPU
-    "experimental.warp_perspective",  # not supported for CPU
     "experimental.resize",  # not supported for CPU
     "plugin.video.decoder",  # not supported for CPU
 ]
