@@ -105,9 +105,10 @@ template <typename Backend>
 class Debayer : public SequenceOperator<Backend, StatelessOperator> {
  public:
   using Base = SequenceOperator<Backend, StatelessOperator>;
-  explicit Debayer(const OpSpec &spec)
-      : Base(spec),
-        alg_{debayer::parse_algorithm_name(spec.GetArgument<std::string>(debayer::kAlgArgName))} {
+  explicit Debayer(const OpSpec &spec) : Base(spec) {
+    if (spec_.HasArgument(debayer::kAlgArgName)) {
+      alg_ = debayer::parse_algorithm_name(spec.GetArgument<std::string>(debayer::kAlgArgName));
+    }
     if (!spec_.HasTensorArgument(debayer::kBluePosArgName)) {
       std::vector<int> blue_pos;
       GetSingleOrRepeatedArg(spec_, blue_pos, debayer::kBluePosArgName, 2);
@@ -146,7 +147,7 @@ class Debayer : public SequenceOperator<Backend, StatelessOperator> {
   }
 
   debayer::DALIBayerPattern static_pattern_ = {};
-  debayer::DALIDebayerAlgorithm alg_;
+  debayer::DALIDebayerAlgorithm alg_ = debayer::DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT;
   std::vector<debayer::DALIBayerPattern> pattern_;
 };
 

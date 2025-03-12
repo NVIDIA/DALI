@@ -49,7 +49,7 @@ For example, the following snippet presents debayering of batch of image sequenc
       source=bayered_sequence, batch=False, num_outputs=2,
       layout=["FHW", None])  # note the "FHW" layout, for plain images it would be "HW"
     debayered_sequences = fn.experimental.debayer(
-      bayered_sequences.gpu(), blue_position=blue_positions, algorithm='bilinear_npp')
+      bayered_sequences.gpu(), blue_position=blue_positions, algorithm='default_npp')
     return debayered_sequences
 
 )code")
@@ -95,21 +95,22 @@ For example, the ``(0, 0)``/``BG``/``BGGR`` corresponds to the following matrix 
      - G
 )code",
             DALI_INT_VEC, true, true)
-    .AddArg(debayer::kAlgArgName,
-            R"code(The algorithm to be used when inferring missing colours for any given pixel.
+    .AddOptionalArg<std::string>(
+        debayer::kAlgArgName,
+        R"code(The algorithm to be used when inferring missing colours for any given pixel.
 Different algorithms are supported on the GPU and CPU.
 
 **GPU Algorithms:**
 
- - ``bilinear_npp`` bilinear interpolation with chroma correlation for green values.
+ - ``default_npp`` - default - bilinear interpolation with chroma correlation for green values.
 
 **CPU Algorithms:**
 
- - ``bilinear_ocv`` bilinear interpolation.
+ - ``bilinear_ocv`` - default - bilinear interpolation.
  - ``edgeaware_ocv`` edge-aware interpolation.
  - ``vng_ocv`` Variable Number of Gradients (VNG) interpolation (only ``uint8_t`` supported).
  - ``gray_ocv`` converts the image to grayscale with bilinear interpolation.)code",
-            DALI_STRING)
+        nullptr)
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
     .AllowSequences();
 

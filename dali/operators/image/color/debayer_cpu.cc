@@ -95,8 +95,12 @@ class DebayerCPU : public Debayer<CPUBackend> {
   explicit DebayerCPU(const OpSpec &spec) : Debayer<CPUBackend>(spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    DALI_ENFORCE(alg_ != debayer::DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP,
-                 "bilinear_npp algorithm is not supported on CPU.");
+    // If the algorithm is set to default, use bilinear ocv
+    if (alg_ == debayer::DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT) {
+      alg_ = debayer::DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_OCV;
+    }
+    DALI_ENFORCE(alg_ != debayer::DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP,
+                 "default_npp algorithm is not supported on CPU.");
     if (alg_ == debayer::DALIDebayerAlgorithm::DALI_DEBAYER_VNG_OCV) {
       DALI_ENFORCE(ws.Input<CPUBackend>(0).type() == DALI_UINT8,
                    "VNG debayering only supported with UINT8.");

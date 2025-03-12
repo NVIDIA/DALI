@@ -499,8 +499,7 @@ def test_debayer_stateless(device):
         data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
         if device == "gpu":
             data = data.gpu()
-        algorithm = {"gpu": "bilinear_npp", "cpu": "bilinear_ocv"}[device]
-        return fn.experimental.debayer(data, algorithm=algorithm, blue_position=[0, 0])
+        return fn.experimental.debayer(data, blue_position=[0, 0])
 
     check_is_pipeline_stateless(pipeline_factory)
 

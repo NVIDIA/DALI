@@ -146,15 +146,13 @@ class DebayerTest(unittest.TestCase):
                 img = img.reshape(h, w, 1)
             return img, np.array(idx, dtype=np.int32)
 
-        algorithm = "bilinear_npp" if device == "gpu" else "bilinear_ocv"
-
         @pipeline_def
         def debayer_pipeline():
             bayer_imgs, idxs = fn.external_source(source=source, batch=False, num_outputs=2)
             if device == "gpu":
                 bayer_imgs = bayer_imgs.gpu()
             debayered_imgs = fn.experimental.debayer(
-                bayer_imgs, blue_position=blue_position(pattern), algorithm=algorithm
+                bayer_imgs, blue_position=blue_position(pattern)
             )
             return debayered_imgs, idxs
 
@@ -194,8 +192,6 @@ class DebayerTest(unittest.TestCase):
                 np.array(idx, dtype=np.int32),
             )
 
-        algorithm = "bilinear_npp" if device == "gpu" else "bilinear_ocv"
-
         @pipeline_def
         def debayer_pipeline():
             bayer_imgs, blue_poses, idxs = fn.external_source(
@@ -203,9 +199,7 @@ class DebayerTest(unittest.TestCase):
             )
             if device == "gpu":
                 bayer_imgs = bayer_imgs.gpu()
-            debayered_imgs = fn.experimental.debayer(
-                bayer_imgs, blue_position=blue_poses, algorithm=algorithm
-            )
+            debayered_imgs = fn.experimental.debayer(bayer_imgs, blue_position=blue_poses)
             return debayered_imgs, blue_poses, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
@@ -308,8 +302,6 @@ class DebayerVideoTest(unittest.TestCase):
             vid = self.bayered_vid[idx]
             return vid, self.blue_poses[idx], np.array(idx, dtype=np.int32)
 
-        algorithm = "bilinear_npp" if device == "gpu" else "bilinear_ocv"
-
         @pipeline_def
         def debayer_pipeline():
             bayered_vid, blue_positions, idxs = fn.external_source(
@@ -318,7 +310,7 @@ class DebayerVideoTest(unittest.TestCase):
             if device == "gpu":
                 bayered_vid = bayered_vid.gpu()
             debayered_vid = fn.experimental.debayer(
-                bayered_vid, blue_position=fn.per_frame(blue_positions), algorithm=algorithm
+                bayered_vid, blue_position=fn.per_frame(blue_positions)
             )
             return debayered_vid, idxs
 
@@ -395,15 +387,43 @@ def test_no_blue_position_specified():
 
 
 @params(((2, 2),), ((1, 2),), ((-1, 0),))
-def test_blue_position_outside_of_2x2_tile(blue_position):
+def test_blue_position_outside_of_2x2_tile(blue_position_):
     with assert_raises(RuntimeError, glob="The `blue_position` position must lie within 2x2 tile"):
 
         @pipeline_def
         def pipeline():
             bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
+            return fn.experimental.debayer(bayer_imgs, blue_position=blue_position_)
+
+        pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
+        pipe.run()
+
+
+@params("bilinear_ocv", "edgeaware_ocv", "vng_ocv", "gray_ocv")
+def test_gpu_algorithm_unsupported(algorithm):
+    with assert_raises(
+        RuntimeError, glob="Only default and default_npp algorithm is supported on GPU."
+    ):
+
+        @pipeline_def
+        def pipeline():
+            bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
             return fn.experimental.debayer(
-                bayer_imgs, blue_position=blue_position, algorithm="bilinear_ocv"
+                bayer_imgs.gpu(), blue_position=[0, 0], algorithm=algorithm
             )
+
+        pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
+        pipe.run()
+
+
+@params("default_npp")
+def test_cpu_algorithm_unsupported(algorithm):
+    with assert_raises(RuntimeError, glob="default_npp algorithm is not supported on CPU."):
+
+        @pipeline_def
+        def pipeline():
+            bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
+            return fn.experimental.debayer(bayer_imgs, blue_position=[0, 0], algorithm=algorithm)
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
         pipe.run()

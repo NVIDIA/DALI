@@ -1393,8 +1393,7 @@ def test_debayer():
             positions = fn.external_source(source=blue_positions)
             if device == "gpu":
                 bayered = bayered.gpu()
-            algorithm = {"gpu": "bilinear_npp", "cpu": "bilinear_ocv"}[device]
-            return fn.experimental.debayer(bayered, algorithm=algorithm, blue_position=positions)
+            return fn.experimental.debayer(bayered, blue_position=positions)
 
         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
