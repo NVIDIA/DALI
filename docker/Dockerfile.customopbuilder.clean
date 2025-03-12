@@ -36,7 +36,8 @@ RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
         make -j8 build_all && \
         make -j8 altinstall && \
         cd .. && \
-        rm -rf Python-3.7.2; \
+        rm -rf Python-3.7.2 && \
+        rm -rf Python-3.7.2.tar.xz; \
     elif [ "${PYVER}" = "3.8" ]; then \
         apt-get install -y --no-install-recommends libffi-dev && \
         wget https://www.python.org/ftp/python/3.8.16/Python-3.8.16.tar.xz && \
@@ -46,7 +47,8 @@ RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
         make -j8 build_all && \
         make -j8 altinstall && \
         cd .. && \
-        rm -rf Python-3.8.16; \
+        rm -rf Python-3.8.16 && \
+        rm -rf Python-3.8.16.tar.xz; \
     elif [ "${PYVER}" = "3.9" ]; then \
         apt-get install -y --no-install-recommends libffi-dev && \
         wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tar.xz && \
@@ -56,7 +58,39 @@ RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
         make -j8 build_all && \
         make -j8 altinstall && \
         cd .. && \
-        rm -rf Python-3.9.18; \
+        rm -rf Python-3.9.18 && \
+        rm -rf Python-3.9.18.tar.xz; \
+    elif [ "${PYVER}" = "3.10" ]; then \
+        apt-get install -y --no-install-recommends libffi-dev && \
+        wget https://www.openssl.org/source/openssl-1.1.1b.tar.gz && \
+        tar -xf openssl-1.1.1b.tar.gz && \
+        cd openssl-1.1.1b && \
+        ./config --prefix=/usr -fPIC && \
+        make -j > /dev/null && \
+        rm -rf /usr/include/openssl/* && \
+        make -j install > /dev/null && \
+        # remove old openssl headers and static libraries
+        rm /usr/lib/x86_64-linux-gnu/libssl.a && \
+        rm /usr/lib/x86_64-linux-gnu/libcrypto.a && \
+        rm /lib/x86_64-linux-gnu/libssl* && \
+        cp /usr/include/openssl/opensslconf.h /usr/include/x86_64-linux-gnu/openssl && \
+        cd .. && \
+        rm -rf openssl-1.1.1b && \
+        rm -rf openssl-1.1.1b.tar.gz && \
+        wget https://www.python.org/ftp/python/3.10.9/Python-3.10.9.tar.xz && \
+        tar -xf Python-3.10.9.tar.xz && \
+        cd Python-3.10.9 && \
+        ./configure --enable-optimizations --prefix=/usr && \
+        # avoid linking to old openssl
+        mv /lib/x86_64-linux-gnu/libssl.so.1.0.0 /lib/x86_64-linux-gnu/libssl.so.1.0.0_bak && \
+        mv /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 /lib/x86_64-linux-gnu/libcrypto.so.1.0.0_bak && \
+        make -j8 build_all && \
+        make -j8 altinstall && \
+        mv /lib/x86_64-linux-gnu/libssl.so.1.0.0_bak /lib/x86_64-linux-gnu/libssl.so.1.0.0 && \
+        mv /lib/x86_64-linux-gnu/libcrypto.so.1.0.0_bak /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 && \
+        cd .. && \
+        rm -rf Python-3.10.9 && \
+        rm -rf Python-3.10.9.tar.xz; \
     else \
         if [ $(apt-cache search python$PYVER | wc -l) -eq 0 ]; then \
             apt-get install software-properties-common -y --no-install-recommends && \
