@@ -742,8 +742,10 @@ def test_bb_flip():
 def test_warp_affine():
     check_single_input("warp_affine", matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
 
+
 def test_warp_perspective():
     check_single_input("experimental.warp_perspective", matrix=np.eye(3))
+
 
 def test_normalize():
     check_single_input("normalize")
