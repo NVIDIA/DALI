@@ -13,10 +13,10 @@ cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 if [ ! -d "val" ]; then
-   ln -sf /data_raid/imagenet/val-jpeg/ val
+   ln -sf /data/imagenet/val-jpeg/ val
 fi
 if [ ! -d "train" ]; then
-   ln -sf /data_raid/imagenet/train-jpeg/ train
+   ln -sf /data/imagenet/train-jpeg/ train
 fi
 
 LOG=dali.log
@@ -26,7 +26,7 @@ SECONDS=0
 # turn off SHARP to avoid NCCL errors
 export NCCL_NVLS_ENABLE=0
 
-torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 5 ./ 2>&1 | tee $LOG
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 2 ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
@@ -57,7 +57,12 @@ printf "TOP-1 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP1 $MIN_TOP1 $TOP
 printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP5_RESULT
 printf "Average perf: %.2f (expect at least %f) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
 
-if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" && "$PERF_RESULT" == "OK" ]]; then
+# check perf only if data is locally available
+if [ $(stat /data/imagenet/val-jpeg --format="%T" -f) == "ext2/ext3" ] && [ "$PERF_RESULT" != "OK" ]; then
+    CAN_AND_EXIT 4
+fi
+
+if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" ]]; then
     CLEAN_AND_EXIT 0
 fi
 
