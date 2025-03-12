@@ -1,6 +1,6 @@
 # external libraries
 # it seems that sanitizer started reporting a leak in apt-get
-leak:pkgDPkgPM
+leak:pkgDPkgPM*
 leak:paddle
 leak:llvm
 leak:zmq
