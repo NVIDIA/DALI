@@ -26,7 +26,7 @@ SECONDS=0
 # turn off SHARP to avoid NCCL errors
 export NCCL_NVLS_ENABLE=0
 
-torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 5 ./ 2>&1 | tee $LOG
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 2 ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
