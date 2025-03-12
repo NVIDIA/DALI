@@ -147,4 +147,10 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
   return file_info;
 }
 
+std::string av_error_string(int ret) {
+  static char msg[AV_ERROR_MAX_STRING_SIZE];
+  memset(msg, 0, sizeof(msg));
+  return std::string(av_make_error_string(msg, AV_ERROR_MAX_STRING_SIZE, ret));
+}
+
 }  // namespace dali

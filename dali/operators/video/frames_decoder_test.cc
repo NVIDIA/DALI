@@ -31,8 +31,8 @@
 namespace dali {
 class FramesDecoderTestBase : public VideoTestBase {
  public:
-  virtual void RunSequentialForwardTest(FramesDecoderBase &decoder, TestVideo &ground_truth,
-                                        double eps = 1.0) {
+  virtual void RunSequentialForwardTest(
+    FramesDecoderBase &decoder, TestVideo &ground_truth, double eps = 1.0) {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
@@ -111,7 +111,7 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
   }
 
-  virtual void AssertFrame(uint8_t *frame, int index, TestVideo &ground_truth,
+  virtual void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth,
                            double eps = 1.0) = 0;
 
   virtual uint8_t *FrameData() = 0;
@@ -143,8 +143,9 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
   }
 
   void RunConstructorFailureTest(std::string path, std::string expected_error) {
-    RunFailureTest([&]() -> void { FramesDecoderCpu decoder(path, DALI_RGB, DALI_UINT8); },
-                   expected_error);
+    RunFailureTest([&]() -> void {
+      FramesDecoderCpu decoder(path);},
+      expected_error);
   }
 
  private:
@@ -168,7 +169,7 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     FramesDecoderTestBase::RunTest(decoder, ground_truth, has_index, eps);
   }
 
-  void AssertFrame(uint8_t *frame, int index, TestVideo &ground_truth, double eps = 1.0) override {
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth, double eps = 1.0) override {
     MemCopy(FrameDataCpu(), frame, ground_truth.FrameSize());
     CompareFrameAvgError(index, ground_truth.FrameSize(), ground_truth.Width(),
                          ground_truth.Height(), frame_cpu_buffer_.data(),
@@ -193,40 +194,47 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
 };
 
-
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateHevc) {
   FramesDecoderCpu decoder(cfr_hevc_videos_paths_[0]);
+  decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   FramesDecoderCpu decoder(vfr_videos_paths_[1]);
+  decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[1]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
   FramesDecoderCpu decoder(vfr_hevc_videos_paths_[0]);
+  decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
-  RunFailureTest([&]() -> void { decoder.SeekFrame(60); },
-                 "Invalid seek frame id. frame_id = 60, num_frames = 50");
+  decoder.BuildIndex();
+  RunFailureTest([&]() -> void {
+    decoder.SeekFrame(60);},
+    "Invalid seek frame id. frame_id = 60, num_frames = 50");
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+  decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
   FramesDecoderGpu decoder(vfr_videos_paths_[1]);
+  decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[1]);
 }
 
@@ -235,6 +243,7 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
     GTEST_SKIP();
   }
   FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
+  decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
 }
 
@@ -243,36 +252,42 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
     GTEST_SKIP();
   }
   FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
+  decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {
   auto memory_video = MemoryVideo(cfr_videos_paths_[1]);
   FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
+  decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[1]);
 }
 
 TEST_F(FramesDecoderGpuTest, InMemoryCfrVideo) {
   auto memory_video = MemoryVideo(cfr_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrVideo) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[1]);
   FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
+  decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[1]);
 }
 
 TEST_F(FramesDecoderGpuTest, InMemoryVfrVideo) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrHevcVideo) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
   FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
+  decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[0]);
 }
 
@@ -282,30 +297,31 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
   }
   auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
-  FramesDecoderCpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_videos_[0], false);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevcNoIndex) {
   auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
-  FramesDecoderCpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_hevc_videos_[1], false);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
-  FramesDecoderCpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_videos_[0], false);
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRateNoIndex) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_videos_[0], false);
 }
 
@@ -314,57 +330,57 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
     GTEST_SKIP();
   }
   auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_hevc_videos_[1], false);
 }
 
 TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4NoIndex) {
   auto memory_video = MemoryVideo(cfr_mpeg4_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4NoIndex) {
   auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndex) {
   auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false,
-                           cfr_videos_[0].NumFrames());
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  decoder.SetNumFrames(cfr_videos_[0].NumFrames());
   RunTest(decoder, cfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
   auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndex) {
   auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false,
-                           vfr_videos_[1].NumFrames());
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  decoder.SetNumFrames(vfr_videos_[1].NumFrames());
   RunTest(decoder, vfr_videos_[1], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
   auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_videos_[1], false, 3.0);
 }
 
 TEST_F(FramesDecoderGpuTest, RawH264) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[1]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[1], false, 1.5);
 }
 
 TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), DALI_RGB, DALI_UINT8, false);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 1.5);
 }
 

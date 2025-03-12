@@ -25,6 +25,7 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
 #include "dali/core/static_switch.h"
+#include "dali/operators/video/video_utils.h"
 
 namespace dali {
 
@@ -168,7 +169,6 @@ class NVDECCache {
       caps.eChromaFormat = chroma_format;
       caps.nBitDepthMinus8 = bit_depth_luma_minus8;
       CUDA_CALL(cuvidGetDecoderCaps(&caps));
-
       DALI_ENFORCE(caps.bIsSupported,
                    make_string("Codec configuration not supported on this GPU. ",
                    "Codec: ", codec_to_string(codec_type),
@@ -290,8 +290,6 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 
 }  // namespace frame_dec_gpu_impl
 
-using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
-
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
   const char* filtername = nullptr;
@@ -325,7 +323,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   default:
     DALI_FAIL(make_string(
       "Could not find suitable bit stream filter for codec: ",
-      codec_->name));
+      avcodec_get_name(codec_params_->codec_id)));
   }
 
   if (filtername != nullptr) {
@@ -422,62 +420,26 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, DALIImageType image_type, DALIDataType dtype,
-                                   bool build_index, cudaStream_t stream)
-    : FramesDecoderBase(filename, image_type, dtype, build_index, false),
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream)
+    : FramesDecoderBase(filename),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
-  if (is_valid_ && CanDecode(codec_params_->codec_id)) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+  if (is_valid_) {
     InitGpuParser();
-  } else {
-    is_valid_ = false;
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
-                                   DALIImageType image_type, DALIDataType dtype, bool build_index,
-                                   int num_frames, std::string_view source_info,
+FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
                                    cudaStream_t stream)
-    : FramesDecoderBase(memory_file, memory_file_size, image_type, dtype, build_index, false,
-                        num_frames, source_info),
+    : FramesDecoderBase(memory_file, memory_file_size, source_info),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
-  if (is_valid_ && CanDecode(codec_params_->codec_id)) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+  if (is_valid_) {
     InitGpuParser();
-  } else {
-    is_valid_ = false;
   }
 }
-
-bool FramesDecoderGpu::CanDecode(AVCodecID codec_id) const {
-  static constexpr std::array<AVCodecID, 7> codecs = {
-    AVCodecID::AV_CODEC_ID_H264,
-    AVCodecID::AV_CODEC_ID_HEVC,
-    AVCodecID::AV_CODEC_ID_VP8,
-    AVCodecID::AV_CODEC_ID_VP9,
-    AVCodecID::AV_CODEC_ID_MJPEG,
-    AVCodecID::AV_CODEC_ID_AV1,
-    AVCodecID::AV_CODEC_ID_MPEG4,
-  };
-  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                          ") is not supported by the GPU variant of this operator."));
-    return false;
-  }
-
-  CUVIDDECODECAPS decoder_caps = {};
-  decoder_caps.eCodecType = GetCodecType(codec_id);
-  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
-  decoder_caps.nBitDepthMinus8 = 0;
-  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
-  if (!decoder_caps.bIsSupported) {
-    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                          " is not supported by NVDEC on this platform."));
-    return false;
-  }
-  return true;
-}
-
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
@@ -517,18 +479,17 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
            << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts << std::endl;
 
   // current_pts is pts of frame that came from the decoder
-  // Index(NextFrameIdx()).pts is pts of the frame that we want to return
+  // Index()[NextFrameIdx()].pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
   void *frame_output = nullptr;
-  if (HasIndex() && current_pts == Index(NextFrameIdx()).pts) {
+  if (HasIndex() && current_pts == Index()[NextFrameIdx()].pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts
               << " for index " << next_frame_idx_ << std::endl;
-
     if (current_copy_to_output_ == false) {
       return 1;
     }
@@ -590,7 +551,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   // Check if requested frame was buffered earlier
   assert(HasIndex());
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
+    if (frame.pts_ != -1 && frame.pts_ == Index()[next_frame_idx_].pts) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
@@ -827,7 +788,7 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
     do {
       found_frame = false;
       for (auto &frame : frame_buffer_) {
-        if (frame.pts_ != -1 && HasIndex() && frame.pts_ == Index(next_frame_idx_).pts) {
+        if (frame.pts_ != -1 && HasIndex() && frame.pts_ == Index()[next_frame_idx_].pts) {
           LOG_LINE << "Processing remaining buffered frame pts=" << frame.pts_ << " for index "
                    << next_frame_idx_ << std::endl;
           frame.pts_ = -1;
@@ -907,10 +868,15 @@ unsigned int FramesDecoderGpu::NumEmptySpots() const {
 }
 
 void FramesDecoderGpu::Reset() {
+  Flush();
+  FramesDecoderBase::Reset();
+}
+
+void FramesDecoderGpu::Flush() {
+  LOG_LINE << "Flushing decoder state" << std::endl;
   SendLastPacket(true);
   more_frames_to_decode_ = true;
   frame_index_if_no_pts_ = 0;
-  FramesDecoderBase::Reset();
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
@@ -929,6 +895,50 @@ bool FramesDecoderGpu::SupportsHevc() {
 
 void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
   CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
+}
+
+bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
+  if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
+    return false;
+  }
+
+  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
+  assert(codec_params_);
+  AVCodecID codec_id = codec_params_->codec_id;
+
+  static constexpr std::array<AVCodecID, 7> codecs = {
+    AVCodecID::AV_CODEC_ID_H264,
+    AVCodecID::AV_CODEC_ID_HEVC,
+    AVCodecID::AV_CODEC_ID_VP8,
+    AVCodecID::AV_CODEC_ID_VP9,
+    AVCodecID::AV_CODEC_ID_MJPEG,
+    AVCodecID::AV_CODEC_ID_AV1,
+    AVCodecID::AV_CODEC_ID_MPEG4,
+  };
+  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
+    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                          ") is not supported by the GPU variant of this operator."));
+    return false;
+  }
+
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = GetCodecType(codec_id);
+  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
+  decoder_caps.nBitDepthMinus8 = 0;
+  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
+  if (!decoder_caps.bIsSupported) {
+    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                          " is not supported by NVDEC on this platform."));
+    return false;
+  }
+
+  codec_ctx_.reset(avcodec_alloc_context3(nullptr));
+  DALI_ENFORCE(codec_ctx_, "Could not alloc av codec context");
+
+  int ret = avcodec_parameters_to_context(codec_ctx_, codec_params_);
+  DALI_ENFORCE(ret >= 0, make_string("Could not fill the codec based on parameters: ",
+                                     av_error_string(ret)));
+  return true;
 }
 
 }  // namespace dali

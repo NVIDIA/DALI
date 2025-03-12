@@ -17,24 +17,171 @@
 #include <string>
 #include "dali/core/error_handling.h"
 #include <cstring>
+#include <iomanip>
+#include "dali/operators/video/video_utils.h"
 
 namespace dali {
 
-FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType image_type,
-                                   DALIDataType dtype, bool build_index)
-    : FramesDecoderBase(filename, image_type, dtype, build_index, true) {
-  is_valid_ = is_valid_ && CanDecode(codec_params_->codec_id);
+FramesDecoderCpu::FramesDecoderCpu(const std::string &filename)
+    : FramesDecoderBase(filename) {
+  is_valid_ = is_valid_ && SelectVideoStream();
 }
 
-FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size,
-                                   DALIImageType image_type, DALIDataType dtype, bool build_index,
-                                   int num_frames, std::string_view source_info)
-    : FramesDecoderBase(memory_file, memory_file_size, image_type, dtype, build_index, true,
-                        num_frames, source_info) {
-  is_valid_ = is_valid_ && CanDecode(codec_params_->codec_id);
+FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view source_info)
+  : FramesDecoderBase(memory_file, memory_file_size, source_info) {
+  is_valid_ = is_valid_ && SelectVideoStream();
 }
 
-bool FramesDecoderCpu::CanDecode(AVCodecID codec_id) const {
+void FramesDecoderCpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
+  std::memcpy(dst, src, FrameSize());
+}
+
+void FramesDecoderCpu::Flush() {
+  LOG_LINE << "FramesDecoderCpu::Flush" << std::endl;
+  avcodec_flush_buffers(codec_ctx_);
+  if (flush_state_) {
+    LOG_LINE << "Flushing frames" << std::endl;
+    while (ReadFlushFrame(nullptr)) {}
+    flush_state_ = false;
+  }
+}
+
+bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
+  LOG_LINE << "FramesDecoderCpu::ReadNextFrame: next_frame_idx_=" << next_frame_idx_ << std::endl;
+  // No more frames in the file
+  if (next_frame_idx_ == -1) {
+    return false;
+  }
+
+  if (!flush_state_) {
+    if (ReadRegularFrame(data)) {
+      return true;
+    }
+  }
+  return ReadFlushFrame(data);
+}
+
+void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
+  if (!sws_ctx_) {
+    sws_ctx_ = std::unique_ptr<SwsContext, decltype(&sws_freeContext)>(
+      sws_getContext(
+        Width(),
+        Height(),
+        codec_ctx_->pix_fmt,
+        Width(),
+        Height(),
+        AV_PIX_FMT_RGB24,
+        SWS_BILINEAR,
+        nullptr,
+        nullptr,
+        nullptr),
+      sws_freeContext);
+    DALI_ENFORCE(sws_ctx_, "Could not create sw context");
+  }
+
+  uint8_t *dest[4] = {data, nullptr, nullptr, nullptr};
+  int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
+
+  int ret = sws_scale(
+    sws_ctx_.get(),
+    frame_->data,
+    frame_->linesize,
+    0,
+    frame_->height,
+    dest,
+    dest_linesize);
+
+  DALI_ENFORCE(ret >= 0,
+               make_string("Could not convert frame data to RGB: ", av_error_string(ret)));
+}
+
+bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
+  int ret = -1;
+  bool copy_to_output = data != nullptr;
+  while (true) {
+    ret = av_read_frame(ctx_, packet_);
+    auto packet = AVPacketScope(packet_, av_packet_unref);
+    if (ret != 0) {
+      break;  // End of file
+    }
+
+    if (packet->stream_index != stream_id_) {
+      continue;
+    }
+    ret = avcodec_send_packet(codec_ctx_, packet.get());
+    DALI_ENFORCE(ret >= 0,
+                 make_string("Failed to send packet to decoder: ", av_error_string(ret)));
+
+    ret = avcodec_receive_frame(codec_ctx_, frame_);
+    if (ret == AVERROR(EAGAIN)) {
+      continue;
+    }
+
+    if (ret == AVERROR_EOF) {
+      break;
+    }
+
+    LOG_LINE << (copy_to_output ? "Read" : "Skip") << " frame (ReadRegularFrame), index "
+             << next_frame_idx_ << ", timestamp " << std::setw(5) << frame_->pts
+             << std::endl;
+    if (!copy_to_output) {
+      ++next_frame_idx_;
+      return true;
+    }
+
+    CopyToOutput(data);
+    ++next_frame_idx_;
+    return true;
+  }
+
+  ret = avcodec_send_packet(codec_ctx_, nullptr);
+  DALI_ENFORCE(ret >= 0,
+               make_string("Failed to send packet to decoder: ", av_error_string(ret)));
+  flush_state_ = true;
+
+  return false;
+}
+
+bool FramesDecoderCpu::ReadFlushFrame(uint8_t *data) {
+  bool copy_to_output = data != nullptr;
+  if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
+    flush_state_ = false;
+    return false;
+  }
+
+  if (copy_to_output) {
+    CopyToOutput(data);
+  }
+
+  LOG_LINE << (copy_to_output ? "Read" : "Skip") << "frame (ReadFlushFrame), index "
+           << next_frame_idx_ << " timestamp " << std::setw(5) << frame_->pts
+           << ", copy_to_output=" << copy_to_output << std::endl;
+  ++next_frame_idx_;
+
+  // TODO(awolant): Figure out how to handle this during index building
+  // Or when NumFrames in unavailible
+  if (next_frame_idx_ >= NumFrames()) {
+    next_frame_idx_ = -1;
+    LOG_LINE << "Next frame index out of bounds, setting to -1" << std::endl;
+  }
+
+  return true;
+}
+
+void FramesDecoderCpu::Reset() {
+  FramesDecoderBase::Reset();
+  flush_state_ = false;
+}
+
+bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
+  if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
+    return false;
+  }
+
+  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
+  assert(codec_params_);
+  AVCodecID codec_id = codec_params_->codec_id;
+
   static constexpr std::array<AVCodecID, 7> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
     AVCodecID::AV_CODEC_ID_HEVC,
@@ -45,28 +192,39 @@ bool FramesDecoderCpu::CanDecode(AVCodecID codec_id) const {
     // AVCodecID::AV_CODEC_ID_AV1,
     // AVCodecID::AV_CODEC_ID_MPEG4,
   };
+
   if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
     DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
                           ") is not supported by the CPU variant of this operator."));
     return false;
   }
 
-  void *iter = NULL;
-  const AVCodec *codec = NULL;
-  while ((codec = av_codec_iterate(&iter))) {
-    if (codec->id == codec_id && av_codec_is_decoder(codec)) {
-      return true;
-    }
+  if ((codec_ = avcodec_find_decoder(codec_params_->codec_id)) == nullptr) {
+    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_params_->codec_id)
+             << " (codec_id=" << codec_params_->codec_id << ")" << std::endl;
+    return false;
   }
-  DALI_WARN(
-      make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                  ") is not supported by the libavcodec version provided by DALI, and therefore "
-                  "cannot be decoded on the CPU."));
-  return false;
-}
 
-void FramesDecoderCpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
-  std::memcpy(dst, src, FrameSize());
+  codec_ctx_.reset(avcodec_alloc_context3(codec_));
+  DALI_ENFORCE(codec_ctx_, "Could not alloc av codec context");
+
+  int ret = avcodec_parameters_to_context(codec_ctx_, codec_params_);
+  DALI_ENFORCE(ret >= 0, make_string("Could not fill the codec based on parameters: ",
+                                     av_error_string(ret)));
+
+  ret = avcodec_open2(codec_ctx_, codec_, nullptr);
+  if (ret != 0) {
+    DALI_WARN(make_string("Could not initialize codec context: ", av_error_string(ret)));
+    return false;
+  }
+
+  frame_.reset(av_frame_alloc());
+  if (!frame_) {
+    DALI_WARN("Could not allocate the av frame");
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace dali

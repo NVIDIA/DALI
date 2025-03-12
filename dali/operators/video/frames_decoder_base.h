@@ -35,11 +35,55 @@ extern "C" {
 #include "dali/operators/video/color_space.h"
 
 namespace dali {
+
 struct IndexEntry {
   int64_t pts;
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
+};
+
+struct FrameIndex {
+  std::string filename;
+  std::vector<IndexEntry> index;
+  AVRational timebase;
+
+  size_t size() const {
+    return index.size();
+  }
+
+  IndexEntry& operator[](size_t idx) {
+    assert(idx < index.size());
+    return index[idx];
+  }
+
+  const IndexEntry& operator[](size_t idx) const {
+    assert(idx < index.size());
+    return index[idx];
+  }
+
+  /**
+   * @brief Returns the index of the frame that has the given timestamp
+   *
+   * @param timestamp Timestamp of the frame to seek to
+   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   */
+  int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
+    int frame_idx = 0;
+    for (size_t i = 1; i < index.size(); i++) {
+      if (index[i].pts >= timestamp) {
+        frame_idx = i;
+        break;
+      }
+    }
+    if (inclusive) {
+      if (frame_idx > 0 && index[frame_idx - 1].pts <= timestamp) {
+        frame_idx--;
+      }
+      assert(index[frame_idx].pts <= timestamp);
+    }
+    return frame_idx;
+  }
 };
 
 /**
@@ -120,35 +164,30 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * @param filename Path to a video file.
    * @param image_type Image type of the video.
-   * @param dtype Data type of the video.
-   * @param build_index If set to false index will not be build and some features are unavailable.
-   * @param init_codecs If set to false CPU codec part is not initalized, only parser
    */
-  explicit FramesDecoderBase(const std::string &filename,
-                             DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
-                             bool build_index = true, bool init_codecs = true);
+  explicit FramesDecoderBase(const std::string &filename);
 
   /**
    * @brief Initialize the decoder from a memory buffer.
    *
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
-   * @param image_type Image type of the video.
-   * @param dtype Data type of the video.
-   * @param build_index If set to false index will not be build and some features are unavailable.
-   * @param init_codecs If set to false CPU codec part is not initalized, only parser
-   * @param num_frames If set, number of frames in the video.
    * @param source_info Source information for the video file.
    */
   explicit FramesDecoderBase(const char *memory_file, size_t memory_file_size,
-                             DALIImageType image_type = DALI_RGB, DALIDataType dtype = DALI_UINT8,
-                             bool build_index = true, bool init_codecs = true, int num_frames = -1,
                              std::string_view source_info = {});
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
    */
-  int64_t NumFrames() const;
+  int64_t NumFrames();
+
+  /**
+   * @brief Set the number of frames in the video, which can be used to avoid parsing the file.
+   */
+  void SetNumFrames(int64_t num_frames) {
+    num_frames_ = num_frames;
+  }
 
   /**
    * @brief Width of a video frame in pixels
@@ -199,7 +238,7 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param data Output buffer to copy data to. If nullptr, the frame will be effectively skipped.
    * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
-  virtual bool ReadNextFrame(uint8_t *data);
+  virtual bool ReadNextFrame(uint8_t *data) = 0;
 
   /**
    * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
@@ -211,13 +250,6 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
    * (what to do when sampling out of bounds).
-   *
-   * ISOLATED: sampling out of bounds will result in a failure.
-   * CLAMP: sampling out of bounds will result in the last frame being repeated.
-   * CONSTANT: sampling out of bounds will result in a constant frame being repeated (constant_frame must be provided).
-   * REFLECT_1001: sampling out of bounds will result in 1001 reflection.
-   * REFLECT_101: sampling out of bounds will result in 101 reflection.
-   *
    * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
    * @param frame_ids Frame indices to decode.
    * @param boundary_type Boundary type to apply
@@ -229,18 +261,11 @@ class DLL_PUBLIC FramesDecoderBase {
     span<const int> frame_ids,
     boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED,
     const uint8_t *constant_frame = nullptr,
-    span<float> out_timestamps = {});
+    span<double> out_timestamps = {});
 
   /**
    * @brief Decodes a range of evenly spaced frames, applying a boundary type
    * (what to do when sampling out of bounds).
-   *
-   * ISOLATED: sampling out of bounds will result in a failure.
-   * CLAMP: sampling out of bounds will result in the last frame being repeated.
-   * CONSTANT: sampling out of bounds will result in a constant frame being repeated (constant_frame must be provided).
-   * REFLECT_1001: sampling out of bounds will result in 1001 reflection.
-   * REFLECT_101: sampling out of bounds will result in 101 reflection.
-   *
    * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
    * @param start_frame Start frame index.
    * @param end_frame End frame index.
@@ -256,7 +281,7 @@ class DLL_PUBLIC FramesDecoderBase {
     int stride,
     boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED,
     const uint8_t *constant_frame = nullptr,
-    span<float> out_timestamps = {});
+    span<double> out_timestamps = {});
 
   /**
    * @brief Copies a frame from one buffer to another.
@@ -279,7 +304,10 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param timestamp Timestamp of the frame to seek to
    * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
    */
-  virtual int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false);
+  int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
+    DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
+    return Index().GetFrameIdxByTimestamp(timestamp, inclusive);
+  }
 
   /**
    * @brief Seeks to the first frame
@@ -296,6 +324,11 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual bool AvSeekFrame(int64_t timestamp, int frame_id);
 
   /**
+   * @brief Flushes the decoder state.
+   */
+  virtual void Flush() = 0;
+
+  /**
    * @brief Returns index of the frame that will be returned by the next call of ReadNextFrame
    *
    * @return int Index of the next frame to be read
@@ -307,7 +340,12 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * @return Boolean indicating whether or not the index was created.
    */
-  bool HasIndex() const { return !index_.empty(); }
+  bool HasIndex() const { return Index().size() > 0; }
+
+  /**
+   * @brief Builds the index of the video file.
+   */
+  virtual void BuildIndex();
 
   virtual ~FramesDecoderBase() = default;
   FramesDecoderBase(FramesDecoderBase&&) = default;
@@ -321,20 +359,28 @@ class DLL_PUBLIC FramesDecoderBase {
     return is_valid_;
   }
 
-  const IndexEntry& Index(int frame_id) const {
-    assert(HasIndex());
-    return index_[frame_id];
+  const FrameIndex& Index() const {
+    return index_;
+  }
+
+  void SetOutputType(DALIDataType dtype) {
+    dtype_ = dtype;
+  }
+
+  void SetImageType(DALIImageType image_type) {
+    image_type_ = image_type;
   }
 
  protected:
+  /**
+   * @brief Select a stream to decode. If stream_id is -1, the video stream will be selected automatically.
+   */
+  virtual bool SelectVideoStream(int stream_id = -1);
+
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;
   AVUniquePtr<AVFrame> frame_;
   AVUniquePtr<AVPacket> packet_;
-  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
-    nullptr, sws_freeContext};
-
-  const AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
   int stream_id_ = -1;
   bool is_file_open_ = false;
@@ -342,7 +388,7 @@ class DLL_PUBLIC FramesDecoderBase {
   int OpenFile(const std::string& filename);
   int OpenMemoryFile(MemoryVideoFile& memory_video_file);
 
-  std::vector<IndexEntry> index_;
+  FrameIndex index_;
 
   int next_frame_idx_ = 0;
 
@@ -354,42 +400,7 @@ class DLL_PUBLIC FramesDecoderBase {
   bool is_valid_ = false;
 
  private:
-   /**
-   * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns
-   * boolean indicating, if the frame was succesfully read.
-   * After this method returns false, there might be more frames to read. Call `ReadFlushFrame` until
-   * it returns false, to get all of the frames from the video file.
-   *
-   * @param data Output buffer to copy data to. If nullptr, the frame will be effectively skipped.
-   *
-   * @returns True, if the read was succesful, or false, when all regular frames were consumed.
-   *
-   */
-  bool ReadRegularFrame(uint8_t *data);
-
-  /**
-   * @brief Reads frames from the last packet. This packet can hold
-   * multiple frames. This method will read all of them one by one.
-   *
-   * @param data Output buffer to copy data to. If nullptr, the frame will be effectively skipped.
-   *
-   * @returns True, if the read was succesful, or false, when ther are no more frames in last the packet.
-   */
-  bool ReadFlushFrame(uint8_t *data);
-
-  void CopyToOutput(uint8_t *data);
-
-  void BuildIndex();
-
   void DetectVariableFrameRate();
-
-  void InitAvCodecContext();
-
-  bool OpenAvCodec();
-
-  bool FindVideoStream(bool require_available_avcodec = true);
-
-  bool SelectVideoStream(int stream_id, bool require_available_avcodec);
 
   bool CheckDimensions();
 
@@ -397,13 +408,9 @@ class DLL_PUBLIC FramesDecoderBase {
 
   bool IsFormatSeekable();
 
-  void CountFrames();
-
   std::string GetAllStreamInfo() const;
 
-
   int channels_ = 3;
-  bool flush_state_ = false;
   bool is_vfr_ = false;
 
   std::string filename_ = {};

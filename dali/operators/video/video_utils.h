@@ -15,6 +15,13 @@
 #ifndef DALI_OPERATORS_VIDEO_VIDEO_READER_UTILS_H_
 #define DALI_OPERATORS_VIDEO_VIDEO_READER_UTILS_H_
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libswscale/swscale.h>
+}
+
 #include <dirent.h>
 #include <string>
 #include <vector>
@@ -24,6 +31,8 @@
 #include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
+
+using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 struct VideoFileMeta {
   std::string video_file;
@@ -35,14 +44,12 @@ struct VideoFileMeta {
   }
 };
 
-inline float TimestampToSeconds(AVRational timebase, int64_t timestamp) {
-  return static_cast<float>(
-    static_cast<double>(timestamp) * timebase.num / timebase.den);
+inline double TimestampToSeconds(AVRational timebase, int64_t timestamp) {
+  return static_cast<double>(timestamp) * timebase.num / timebase.den;
 }
 
-inline int64_t SecondsToTimestamp(AVRational timebase, float seconds) {
-  return static_cast<int64_t>(
-    static_cast<double>(seconds) * timebase.den / timebase.num);
+inline int64_t SecondsToTimestamp(AVRational timebase, double seconds) {
+  return static_cast<int64_t>(seconds * timebase.den / timebase.num);
 }
 
 std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
@@ -106,6 +113,8 @@ const uint8_t* ConstantFrame(Tensor<Backend>& constant_frame, const TensorShape<
   }
   return constant_frame.template data<uint8_t>();
 }
+
+std::string av_error_string(int ret);
 
 }  // namespace dali
 

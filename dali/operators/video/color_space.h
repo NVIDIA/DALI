@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_VIDEO_COLOR_SPACE_GPU_H_
-#define DALI_OPERATORS_VIDEO_COLOR_SPACE_GPU_H_
+#ifndef DALI_OPERATORS_VIDEO_COLOR_SPACE_H_
+#define DALI_OPERATORS_VIDEO_COLOR_SPACE_H_
 
 #include <stdint.h>
 
@@ -35,4 +35,4 @@ void VideoColorSpaceConversion(float *out, int out_pitch, const uint8_t* yuv, in
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_VIDEO_COLOR_SPACE_GPU_H_
+#endif  // DALI_OPERATORS_VIDEO_COLOR_SPACE_H_

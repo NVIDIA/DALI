@@ -88,11 +88,9 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
                                                    std::string_view source_info,
                                                    cudaStream_t stream = 0) {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      return std::make_unique<FramesDecoderImpl>(data, size, DALI_RGB, DALI_UINT8, build_index, -1,
-                                                 source_info);
+      return std::make_unique<FramesDecoderImpl>(data, size, source_info);
     } else {
-      return std::make_unique<FramesDecoderImpl>(data, size, DALI_RGB, DALI_UINT8, build_index, -1,
-                                                 source_info, stream);
+      return std::make_unique<FramesDecoderImpl>(data, size, source_info, stream);
     }
   }
 
