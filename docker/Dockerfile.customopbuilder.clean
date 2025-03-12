@@ -72,7 +72,6 @@ RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
         # remove old openssl headers and static libraries
         rm /usr/lib/x86_64-linux-gnu/libssl.a && \
         rm /usr/lib/x86_64-linux-gnu/libcrypto.a && \
-        rm /lib/x86_64-linux-gnu/libssl* && \
         cp /usr/include/openssl/opensslconf.h /usr/include/x86_64-linux-gnu/openssl && \
         cd .. && \
         rm -rf openssl-1.1.1b && \

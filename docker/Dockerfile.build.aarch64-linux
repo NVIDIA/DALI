@@ -46,6 +46,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
                        libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
     && \
     rm -rf /var/lib/apt/lists/* && \
+    rm /usr/bin/python3 && ln -s python3.10 /usr/bin/python3 && \
     PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
     if [ "${PYTHON_VER}" = "36" ]; then \
         curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
