@@ -133,6 +133,7 @@ DALI_SCHEMA(DummySource)
   .DocStr("Dummy")
   .NumInput(0)
   .NumOutput(2)
+  .MakeStateful()
   .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
 
 DALI_REGISTER_OPERATOR(DummyInnerLayer, DummyOperatorWithState<CPUBackend>, CPU);
@@ -143,6 +144,7 @@ DALI_SCHEMA(DummyInnerLayer)
   .DocStr("Dummy")
   .NumInput(1)
   .NumOutput(1)
+  .MakeStateful()
   .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
 
 DALI_REGISTER_OPERATOR(DummyOutput, DummyOperatorWithState<CPUBackend>, CPU);
@@ -153,6 +155,7 @@ DALI_SCHEMA(DummyOutput)
   .DocStr("Dummy")
   .NumInput(2)
   .NumOutput(1)
+  .MakeStateful()
   .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
 
 class CheckpointTest : public DALITest {

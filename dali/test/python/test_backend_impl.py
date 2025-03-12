@@ -18,7 +18,7 @@ import nvidia.dali.types as types
 import warnings
 from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU
+from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU, GetSchema
 from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
@@ -403,3 +403,24 @@ def test_tensor_dlpack_export():
     arr_from_dlapck = np.from_dlpack(tensor)
 
     assert np.array_equal(arr, arr_from_dlapck)
+
+
+def test_schema_is_stateful():
+    def get_schema(fn):
+        return GetSchema(fn._schema_name)
+
+    # Special operators
+    assert get_schema(fn.external_source).IsStateful()
+    assert get_schema(fn.python_function).IsStateful()
+    # Random number generators
+    assert get_schema(fn.random.uniform).IsStateful()
+    assert get_schema(fn.random.normal).IsStateful()
+    assert get_schema(fn.random.coin_flip).IsStateful()
+    # Readers
+    assert get_schema(fn.readers.file).IsStateful()
+    assert get_schema(fn.readers.tfrecord).IsStateful()
+    # Generic processing operators
+    assert not get_schema(fn.resize).IsStateful()
+    assert not get_schema(fn.tensor_subscript).IsStateful()
+    assert not get_schema(fn.slice).IsStateful()
+    assert not get_schema(fn.decoders.image).IsStateful()
