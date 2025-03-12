@@ -275,7 +275,10 @@ class DLL_PUBLIC OpSchema {
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
   OpSchema &MakeDocHidden();
 
-  /** Notes that this operator doesn't have a state. */
+  /** Notes that this operator doesn't have a state.
+   *
+   * NOTE: This overrides the statefulness inherited from parent schemas.
+   */
   OpSchema &MakeStateless();
 
   /** Notes that this operator is stateful. */
@@ -443,6 +446,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     return *this;
   }
 
+  /** Adds a random seed argument to the operator.
+   *
+   * If not provided, the seed will be selected automatically.
+   * Adding a random seed implies statefulness of the operator.
+   */
   OpSchema &AddRandomSeedArg();
 
   /**  Marks an argument as deprecated in favor of a new argument
@@ -571,7 +579,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /**  Whether this operator is internal to DALI backend (and shouldn't be exposed in Python API) */
   bool IsInternal() const;
 
-  /** Whether this operator is stateful. */
+  /** Whether this operator is stateful.
+   *
+   * Returns the statefulness of the operator. If it wasn't explicitly set, then the operator is
+   * considered stateful if any of its parents is stateful.
+   */
   bool IsStateful() const;
 
   /** Whether this operator doc should not be visible (but the Op is exposed in Python API) */
