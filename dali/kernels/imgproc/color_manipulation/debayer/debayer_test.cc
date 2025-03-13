@@ -46,7 +46,7 @@ class DebayerGpuTest : public ::testing::Test {
   using InOutT = typename DebayerTestParamsT::InOutT;
   using Kernel = NppDebayerKernel<InOutT>;
   static constexpr int num_channels = 3;
-  static_assert(DebayerTestParamsT::alg == DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP);
+  static_assert(DebayerTestParamsT::alg == DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP);
 
   void FillWithGradient(TensorListView<StorageCPU, InOutT, 3> rgb_batch) {
     int max_val = std::numeric_limits<InOutT>::max();
@@ -151,8 +151,8 @@ class DebayerGpuTest : public ::testing::Test {
 };
 
 using TestParams =
-    ::testing::Types<DebayerTestParams<uint8_t, DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP>,
-                     DebayerTestParams<uint16_t, DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP>>;
+    ::testing::Types<DebayerTestParams<uint8_t, DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP>,
+                     DebayerTestParams<uint16_t, DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP>>;
 
 TYPED_TEST_SUITE(DebayerGpuTest, TestParams);
 

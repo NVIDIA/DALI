@@ -84,9 +84,14 @@ class DebayerGPU : public Debayer<GPUBackend> {
 
 bool DebayerGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   bool has_inferred = Debayer<GPUBackend>::SetupImpl(output_desc, ws);
+  // If the algorithm is set to default, use default npp
+  if (alg_ == debayer::DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT) {
+    alg_ = debayer::DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP;
+  }
   assert(has_inferred);
   if (impl_ == nullptr) {
-    assert(alg_ == debayer::DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP);
+    DALI_ENFORCE(alg_ == debayer::DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP,
+                 "Only default and default_npp algorithm is supported on GPU.");
     const auto type = ws.GetInputDataType(0);
     TYPE_SWITCH(type, type2id, InT, DEBAYER_SUPPORTED_TYPES_GPU, (
       impl_ = std::make_unique<debayer::DebayerImplGPU<InT>>(spec_, pattern_);

@@ -1391,7 +1391,9 @@ def test_debayer():
         def piepline():
             bayered = fn.external_source(source=img_batches)
             positions = fn.external_source(source=blue_positions)
-            return fn.experimental.debayer(bayered.gpu(), blue_position=positions)
+            if device == "gpu":
+                bayered = bayered.gpu()
+            return fn.experimental.debayer(bayered, blue_position=positions)
 
         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
@@ -1413,7 +1415,7 @@ def test_debayer():
         [next(sample) for _ in range(2)],
     ]
 
-    check_pipeline(batches, debayer_pipline, devices=["gpu"])
+    check_pipeline(batches, debayer_pipline, devices=["gpu", "cpu"])
 
 
 def test_filter():

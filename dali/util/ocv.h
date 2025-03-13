@@ -18,10 +18,23 @@
 #include <opencv2/opencv.hpp>
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
+#include "dali/core/dali_data_type.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 
-int DLL_PUBLIC OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type);
+cv::InterpolationFlags inline OCVInterpForDALIInterp(DALIInterpType type) {
+  switch (type) {
+    case DALIInterpType::DALI_INTERP_NN:
+      return cv::InterpolationFlags::INTER_NEAREST;
+    case DALIInterpType::DALI_INTERP_LINEAR:
+      return cv::InterpolationFlags::INTER_LINEAR;
+    case DALIInterpType::DALI_INTERP_CUBIC:
+      return cv::InterpolationFlags::INTER_CUBIC;
+    default:
+      DALI_FAIL("OpenCV does not support DALI InterpolationType `", to_string(type), "`.");
+  }
+}
 
 int inline OCVBorderForDALIBoundary(boundary::BoundaryType border_type) {
   using namespace boundary;  // NOLINT(build/namespaces)
@@ -41,17 +54,50 @@ int inline OCVBorderForDALIBoundary(boundary::BoundaryType border_type) {
     case BoundaryType::ISOLATED:
       return cv::BORDER_ISOLATED;
     default:
-      throw std::runtime_error(make_string("Provided border type is not supported by OpenCV `",
-                                           to_string(border_type), "`."));
+      DALI_FAIL("OpenCV does not support DALI BoundaryType`", to_string(border_type), "`.");
   }
 }
 
+/**
+ * @brief Convert runtime DALIDataType to OpenCV data type
+ *
+ * @note will throw if the type is not supported
+ */
+int inline OCVMatTypeForDALIData(daliDataType_t dtype) {
+  switch (dtype) {
+    case DALI_UINT8:
+      return CV_8U;
+    case DALI_INT16:
+      return CV_16S;
+    case DALI_UINT16:
+      return CV_16U;
+    case DALI_INT32:
+      return CV_32S;
+    case DALI_FLOAT16:
+      return CV_16F;
+    case DALI_FLOAT:
+      return CV_32F;
+    case DALI_FLOAT64:
+      return CV_64F;
+    default:
+      DALI_FAIL("OpenCV does not support DALI DataType: `", daliDataTypeName(dtype), "`.");
+  }
+}
+
+/**
+ * @brief Convert runtime DALIDataType to OpenCV data type including number of channels
+ *
+ * @note will throw if the type is not supported
+ */
+int inline OCVMatTypeForDALIData(daliDataType_t dtype, int channels) {
+  DALI_ENFORCE(1 <= channels && channels <= 4,
+               "OpenCV supports only 1-4 channels, got " + std::to_string(channels) + " channels.");
+  return CV_MAKETYPE(OCVMatTypeForDALIData(dtype), channels);
+}
+
 template <typename T>
-inline cv::Mat DLL_PUBLIC CreateMatFromPtr(int H,
-                         int W,
-                         int type,
-                         const T * ptr,
-                         size_t step = cv::Mat::AUTO_STEP) {
+inline cv::Mat DLL_PUBLIC CreateMatFromPtr(int H, int W, int type, const T* ptr,
+                                           size_t step = cv::Mat::AUTO_STEP) {
   // Note: OpenCV can't take a const pointer to wrap even when the cv::Mat is const. This
   // is kinda icky to const_cast away the const-ness, but there isn't another way
   // (that I know of) without making the input argument non-const.
@@ -105,9 +151,8 @@ struct type2ocv<float> {
 
 int DLL_PUBLIC GetOpenCvChannelType(size_t c);
 
-void DLL_PUBLIC OpenCvColorConversion(
-  DALIImageType input_type, const cv::Mat& input_img,
-  DALIImageType output_type, cv::Mat& output_img);
+void DLL_PUBLIC OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
+                                      DALIImageType output_type, cv::Mat& output_img);
 
 }  // namespace dali
 

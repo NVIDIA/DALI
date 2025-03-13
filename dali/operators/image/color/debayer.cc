@@ -24,6 +24,7 @@ Converts single-channel image to RGB using specified color filter array.
 The supported input types are ``uint8_t`` and ``uint16_t``.
 The input images must be 2D tensors (``HW``) or 3D tensors (``HWC``) where the number of channels is 1.
 The operator supports sequence of images/video-like inputs (layout ``FHW``).
+The output of the operator is always ``HWC`` (or ``FHWC`` for sequences).
 
 For example, the following snippet presents debayering of batch of image sequences::
 
@@ -48,7 +49,7 @@ For example, the following snippet presents debayering of batch of image sequenc
       source=bayered_sequence, batch=False, num_outputs=2,
       layout=["FHW", None])  # note the "FHW" layout, for plain images it would be "HW"
     debayered_sequences = fn.experimental.debayer(
-      bayered_sequences.gpu(), blue_position=blue_positions)
+      bayered_sequences.gpu(), blue_position=blue_positions, algorithm='default_npp')
     return debayered_sequences
 
 )code")
@@ -94,15 +95,22 @@ For example, the ``(0, 0)``/``BG``/``BGGR`` corresponds to the following matrix 
      - G
 )code",
             DALI_INT_VEC, true, true)
-    .AddOptionalArg(
+    .AddOptionalArg<std::string>(
         debayer::kAlgArgName,
         R"code(The algorithm to be used when inferring missing colours for any given pixel.
-Currently only ``bilinear_npp`` is supported.
+Different algorithms are supported on the GPU and CPU.
 
-* The ``bilinear_npp`` algorithm uses bilinear interpolation to infer red and blue values.
-  For green values a bilinear interpolation with chroma correlation is used as explained in
-  `NPP documentation <https://docs.nvidia.com/cuda/npp/group__image__color__debayer.html>`_.)code",
-        "bilinear_npp")
+**GPU Algorithms:**
+
+ - ``default_npp`` - default - bilinear interpolation with chroma correlation for green values.
+
+**CPU Algorithms:**
+
+ - ``bilinear_ocv`` - default - bilinear interpolation.
+ - ``edgeaware_ocv`` edge-aware interpolation.
+ - ``vng_ocv`` Variable Number of Gradients (VNG) interpolation (only ``uint8_t`` supported).
+ - ``gray_ocv`` converts the image to grayscale with bilinear interpolation.)code",
+        nullptr)
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
     .AllowSequences();
 

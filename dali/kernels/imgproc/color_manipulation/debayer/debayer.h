@@ -33,7 +33,12 @@ enum class DALIBayerPattern {
 };
 
 enum class DALIDebayerAlgorithm {
-  DALI_DEBAYER_BILINEAR_NPP = 0
+  DALI_DEBAYER_DEFAULT = 0,
+  DALI_DEBAYER_DEFAULT_NPP = 1,
+  DALI_DEBAYER_BILINEAR_OCV = 2,
+  DALI_DEBAYER_EDGEAWARE_OCV = 3,
+  DALI_DEBAYER_VNG_OCV = 4,
+  DALI_DEBAYER_GRAY_OCV = 5,
 };
 
 inline std::string to_string(DALIBayerPattern bayer_pattern) {
@@ -53,8 +58,18 @@ inline std::string to_string(DALIBayerPattern bayer_pattern) {
 
 inline std::string to_string(DALIDebayerAlgorithm alg) {
   switch (alg) {
-    case DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP:
-      return "bilinear_npp";
+    case DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT:
+      return "default";
+    case DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP:
+      return "default_npp";
+    case DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_OCV:
+      return "bilinear_ocv";
+    case DALIDebayerAlgorithm::DALI_DEBAYER_EDGEAWARE_OCV:
+      return "edgeaware_ocv";
+    case DALIDebayerAlgorithm::DALI_DEBAYER_VNG_OCV:
+      return "vng_ocv";
+    case DALIDebayerAlgorithm::DALI_DEBAYER_GRAY_OCV:
+      return "gray_ocv";
     default:
       return "<unknown>";
   }
@@ -62,8 +77,23 @@ inline std::string to_string(DALIDebayerAlgorithm alg) {
 
 inline DALIDebayerAlgorithm parse_algorithm_name(std::string alg) {
   std::transform(alg.begin(), alg.end(), alg.begin(), [](auto c) { return std::tolower(c); });
-  if (alg == "bilinear_npp") {
-    return DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP;
+  if (alg == "default") {
+    return DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT;
+  }
+  if (alg == "default_npp") {
+    return DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP;
+  }
+  if (alg == "bilinear_ocv") {
+    return DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_OCV;
+  }
+  if (alg == "edgeaware_ocv") {
+    return DALIDebayerAlgorithm::DALI_DEBAYER_EDGEAWARE_OCV;
+  }
+  if (alg == "vng_ocv") {
+    return DALIDebayerAlgorithm::DALI_DEBAYER_VNG_OCV;
+  }
+  if (alg == "gray_ocv") {
+    return DALIDebayerAlgorithm::DALI_DEBAYER_GRAY_OCV;
   }
   throw std::runtime_error(
       make_string("Unsupported debayer algorithm was specified: `", alg, "`."));
