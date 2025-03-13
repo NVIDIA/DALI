@@ -27,8 +27,6 @@
 #include "dali/test/cv_mat_utils.h"
 
 namespace dali {
-void CompareFrameAvgError(
-  const uint8_t *ground_truth, const uint8_t *frame, int frame_size, double eps = 1.0);
 
 class TestVideo {
  public:
@@ -58,13 +56,14 @@ class TestVideo {
 
   void CompareFrame(int frame_id, const uint8_t *frame, int eps = 10);
 
-  void CompareFrameAvgError(int frame_id, const uint8_t *frame, double eps = 1.0);
-
   bool IsVfr() { return is_vfr_; }
 
   std::vector<cv::Mat> frames_;
   bool is_vfr_ = false;
 };
+
+void CompareFrameAvgError(int frame_id, size_t frame_size, size_t width, size_t height,
+                          const uint8_t *frame, const uint8_t *ground_truth, double eps);
 
 class VideoTestBase : public ::testing::Test {
  public:

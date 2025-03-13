@@ -213,12 +213,12 @@ class VideoInput : public InputOperator<Backend> {
     }
   }
 
-  std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size,
+  std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size, std::string_view source_info,
                                                    cudaStream_t stream = 0) {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      return std::make_unique<FramesDecoderImpl>(data, size, false, -1);
+      return std::make_unique<FramesDecoderImpl>(data, size, source_info);
     } else {
-      return std::make_unique<FramesDecoderImpl>(data, size, stream, false, -1);
+      return std::make_unique<FramesDecoderImpl>(data, size, source_info, stream);
     }
   }
 
@@ -283,7 +283,8 @@ bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &
     auto sample = encoded_video_[0];
     const char *data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     int size = sample.shape().num_elements();
-    frames_decoders_[0] = CreateDecoder(data, size, ws.has_stream() ? ws.stream() : 0);
+    std::string_view source_info{};
+    frames_decoders_[0] = CreateDecoder(data, size, source_info, ws.has_stream() ? ws.stream() : 0);
     DALI_ENFORCE(frames_decoders_[0]->IsValid(),
                  "Failed to create video decoder for provided video data");
 

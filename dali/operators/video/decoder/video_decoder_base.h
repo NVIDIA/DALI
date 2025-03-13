@@ -24,55 +24,19 @@
 #include <utility>
 #include <vector>
 #include "dali/core/boundary.h"
+#include "dali/core/small_vector.h"
 #include "dali/core/span.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/common/memset.h"
+#include "dali/operators/video/video_utils.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/core/small_vector.h"
 
 namespace dali {
 
 template <typename Backend, typename FramesDecoderImpl>
 class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
- private:
-  struct FrameInfo {
-    static FrameInfo FrameIndex(int frame_idx, int frame_num) {
-      FrameInfo info;
-      info.frame_num = frame_num;
-      info.frame_idx = frame_idx;
-      return info;
-    }
-
-    static FrameInfo Constant(int frame_num) {
-      FrameInfo info;
-      info.frame_num = frame_num;
-      return info;
-    }
-
-    bool operator<(const FrameInfo &other) const {
-      return frame_idx < other.frame_idx;  // sort by frame index
-    }
-
-    bool is_constant() const {
-      return frame_idx == -1;
-    }
-
-    int frame_num = 0;
-    int frame_idx = -1;
-  };
-
-  struct WorkerContext {
-    std::vector<FrameInfo> frame_infos;
-    SmallVector<uint8_t, 16> fill_value;
-    mm::uptr<uint8_t> fill_value_frame_cpu_buffer;
-    mm::uptr<uint8_t> fill_value_frame_gpu_buffer;
-    int64_t fill_value_frame_size = 0;
-    FramesDecoderImpl* frames_decoder = nullptr;
-    cudaStream_t stream = 0;
-  };
-
  public:
   USE_OPERATOR_MEMBERS();
   using InBackend = CPUBackend;
@@ -98,22 +62,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     DALI_ENFORCE(!(sequence_length_.HasValue() && end_frame_.HasValue()),
                  "Cannot specify both `sequence_length` and `end_frame` arguments");
 
-    auto pad_mode_str = spec_.template GetArgument<std::string>("pad_mode");
-    if (pad_mode_str == "none" || pad_mode_str == "") {
-      boundary_type_ = boundary::BoundaryType::ISOLATED;
-    } else if (pad_mode_str == "constant") {
-      boundary_type_ = boundary::BoundaryType::CONSTANT;
-    } else if (pad_mode_str == "edge" || pad_mode_str == "repeat") {
-      boundary_type_ = boundary::BoundaryType::CLAMP;
-    } else if (pad_mode_str == "reflect_1001" || pad_mode_str == "symmetric") {
-      boundary_type_ = boundary::BoundaryType::REFLECT_1001;
-    } else if (pad_mode_str == "reflect_101" || pad_mode_str == "reflect") {
-      boundary_type_ = boundary::BoundaryType::REFLECT_101;
-    } else {
-      DALI_FAIL(make_string("Invalid pad_mode: ", pad_mode_str, "\n",
-                            "Valid options are: none, constant, edge, reflect_1001, reflect_101"));
-    }
-
+    boundary_type_ = GetBoundaryType(spec_);
     build_index_ = spec_.template GetArgument<bool>("build_index");
 
     if (boundary_type_ == boundary::BoundaryType::CONSTANT) {
@@ -129,13 +78,19 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(VideoDecoderBase);
 
  protected:
+  struct WorkerContext {
+    FramesDecoderImpl* frames_decoder = nullptr;
+    cudaStream_t stream = 0;
+    Tensor<OutBackend> constant_frame;
+  };
+
   std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size, bool build_index,
                                                    std::string_view source_info,
                                                    cudaStream_t stream = 0) {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      return std::make_unique<FramesDecoderImpl>(data, size, build_index, -1, source_info);
+      return std::make_unique<FramesDecoderImpl>(data, size, source_info);
     } else {
-      return std::make_unique<FramesDecoderImpl>(data, size, stream, build_index, -1, source_info);
+      return std::make_unique<FramesDecoderImpl>(data, size, source_info, stream);
     }
   }
 
@@ -314,34 +269,6 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     return true;
   }
 
-  void AddFrame(int frame_num, int frame_idx, int orig_num_frames, WorkerContext &ctx) const {
-    if (frame_idx >= orig_num_frames) {
-      switch (boundary_type_) {
-        case boundary::BoundaryType::CLAMP:
-          ctx.frame_infos.push_back(FrameInfo::FrameIndex(orig_num_frames - 1, frame_num));
-          break;
-        case boundary::BoundaryType::REFLECT_1001:
-          ctx.frame_infos.push_back(FrameInfo::FrameIndex(
-              boundary::idx_reflect_1001<int>(static_cast<int>(frame_idx), orig_num_frames),
-              frame_num));
-          break;
-        case boundary::BoundaryType::REFLECT_101:
-          ctx.frame_infos.push_back(FrameInfo::FrameIndex(
-              boundary::idx_reflect_101<int>(static_cast<int>(frame_idx), orig_num_frames),
-              frame_num));
-          break;
-        case boundary::BoundaryType::CONSTANT:
-          ctx.frame_infos.push_back(FrameInfo::Constant(frame_num));
-          break;
-        default:
-        case boundary::BoundaryType::ISOLATED:
-          break;  // will result in a shorter sequence than requested
-      }
-    } else {
-      ctx.frame_infos.push_back(FrameInfo::FrameIndex(frame_idx, frame_num));
-    }
-  }
-
   void RunImpl(Workspace &ws) override {
     auto &output = ws.Output<OutBackend>(0);
     const auto &input = ws.Input<InBackend>(0);
@@ -357,42 +284,23 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             auto &ctx = ctx_[tid];
             ctx.frames_decoder = frames_decoders_[s].get();
             ctx.stream = ws.has_stream() ? ws.stream() : 0;
-            ctx.fill_value = fill_value_;
-            ctx.frame_infos.clear();
 
-            if (boundary_type_ == boundary::BoundaryType::CONSTANT) {
-              int nfill_values = fill_value_.size();
-              DALI_ENFORCE(nfill_values == 1 || nfill_values == ctx.frames_decoder->Channels(),
-                           make_string("Constant padding requires either a single fill value or a "
-                                       "fill value per channel. "
-                                       "Got ",
-                                       nfill_values, " fill values for a video with ",
-                                       ctx.frames_decoder->Channels(), " channels."));
-            }
+            const uint8_t *constant_frame = boundary_type_ == boundary::BoundaryType::CONSTANT ?
+                ConstantFrame(ctx.constant_frame, ctx.frames_decoder->FrameShape(),
+                             make_cspan(fill_value_), ctx.stream, true) : nullptr;
 
             if (frames_.HasValue()) {
-              for (int64_t frame_num = 0; frame_num < num_frames; frame_num++) {
-                DALI_ENFORCE(
-                    boundary_type_ != boundary::BoundaryType::ISOLATED ||
-                        frames_[s].data[frame_num] < orig_num_frames,
-                    make_string("Unexpected out-of-bounds frame index ", frames_[s].data[frame_num],
-                                " for pad_mode = 'none' and sample #", s, ", containing only ",
-                                orig_num_frames, " frames. Change `pad_mode` to fill the missing "
-                                "frames."));
-                AddFrame(frame_num, frames_[s].data[frame_num], orig_num_frames, ctx);
-              }
+              frames_decoders_[s]->DecodeFrames(output[s].template mutable_data<uint8_t>(),
+                                                make_cspan(frames_[s].data, frames_[s].shape[0]),
+                                                boundary_type_, constant_frame);
             } else {
-              int stride = GetStride(s);
-              int start_frame = GetStartFrame(s);
-              for (int64_t frame_num = 0, frame_idx = start_frame; frame_num < num_frames;
-                   frame_num++, frame_idx += stride) {
-                AddFrame(frame_num, frame_idx, orig_num_frames, ctx);
-              }
+              auto start_frame = GetStartFrame(s);
+              auto stride = GetStride(s);
+              auto end_frame = start_frame + num_frames * stride;  // it can go beyond the video length
+              frames_decoders_[s]->DecodeFrames(output[s].template mutable_data<uint8_t>(),
+                                                start_frame, end_frame, stride,
+                                                boundary_type_, constant_frame);
             }
-            // Sort the frame indices so that we can decode them in natural order
-            // to avoid unnecessary seeking when possible
-            std::sort(ctx.frame_infos.begin(), ctx.frame_infos.end());
-            DecodeFrames(output[s], ctx);
             frames_decoders_[s].reset();
           },
           output[s].shape().num_elements());
@@ -402,70 +310,6 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
 
   ThreadPool &GetThreadPool(const Workspace &ws) {
     return std::is_same<MixedBackend, Backend>::value ? *thread_pool_ : ws.GetThreadPool();
-  }
-
-  template <typename Storage>
-  void SetConstantPadding(uint8_t *output, int64_t output_size, WorkerContext &ctx) {
-    if (ctx.fill_value.size() == 1) {
-      kernels::memset<Storage>(output, ctx.fill_value[0], output_size, ctx.stream);
-    } else if (std::is_same_v<Storage, StorageCPU>) {
-      for (int64_t i = 0; i < output_size; i++) {
-        output[i] = ctx.fill_value[i % ctx.fill_value.size()];
-      }
-    } else if (std::is_same_v<Storage, StorageGPU>) {
-      bool is_same_fill_value = true;
-      if (ctx.fill_value_frame_size >= static_cast<int64_t>(ctx.fill_value.size())) {
-        for (size_t i = 0; i < ctx.fill_value.size(); i++) {
-          if (ctx.fill_value_frame_cpu_buffer.get()[i] != ctx.fill_value[i]) {
-            is_same_fill_value = false;
-            break;
-          }
-        }
-      }
-      if (ctx.fill_value_frame_size < ctx.frames_decoder->FrameSize() || !is_same_fill_value) {
-        ctx.fill_value_frame_size = ctx.frames_decoder->FrameSize();
-        ctx.fill_value_frame_cpu_buffer =
-            mm::alloc_raw_unique<uint8_t, mm::memory_kind::pinned>(ctx.fill_value_frame_size);
-        ctx.fill_value_frame_gpu_buffer =
-            mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(ctx.fill_value_frame_size);
-        SetConstantPadding<StorageCPU>(ctx.fill_value_frame_cpu_buffer.get(),
-                                       ctx.fill_value_frame_size, ctx);
-        kernels::copy<StorageGPU, StorageCPU>(ctx.fill_value_frame_gpu_buffer.get(),
-                                              ctx.fill_value_frame_cpu_buffer.get(),
-                                              ctx.fill_value_frame_size, ctx.stream);
-      }
-      for (int64_t offset = 0; offset < output_size; offset += ctx.frames_decoder->FrameSize()) {
-        assert(offset + ctx.frames_decoder->FrameSize() <= output_size);
-        kernels::copy<StorageGPU, StorageGPU>(output + offset,
-                                              ctx.fill_value_frame_gpu_buffer.get(),
-                                              ctx.frames_decoder->FrameSize(), ctx.stream);
-      }
-    }
-  }
-
-  void DecodeFrames(SampleView<OutBackend> output, WorkerContext &ctx) {
-    auto &frames_decoder = *ctx.frames_decoder;
-    int64_t frame_size = frames_decoder.FrameSize();
-    int num_fill_values = ctx.fill_value.size();
-    uint8_t *output_data = output.template mutable_data<uint8_t>();
-
-    FrameInfo last_frame{};
-    for (auto &frame : ctx.frame_infos) {
-      if (frame.is_constant()) {
-        SetConstantPadding<OutStorage>(output_data + frame.frame_num * frame_size, frame_size, ctx);
-      } else if (frame.frame_idx == last_frame.frame_idx) {
-        kernels::copy<OutStorage, OutStorage>(output_data + frame.frame_num * frame_size,
-                                              output_data + last_frame.frame_num * frame_size,
-                                              frame_size, ctx.stream);
-      } else {
-        if (frame.frame_idx != frames_decoder.NextFrameIdx()) {
-          frames_decoder.SeekFrame(frame.frame_idx);
-          assert(frames_decoder.NextFrameIdx() == frame.frame_idx);
-        }
-        frames_decoder.ReadNextFrame(output_data + frame.frame_num * frame_size);
-        last_frame = frame;
-      }
-    }
   }
 
   std::vector<std::unique_ptr<FramesDecoderImpl>> frames_decoders_;

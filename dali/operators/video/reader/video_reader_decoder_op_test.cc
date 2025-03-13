@@ -212,7 +212,8 @@ class VideoReaderDecoderCpuTest : public VideoReaderDecoderBaseTest {
   }
 
   void AssertFrame(int frame_id, const uint8_t *frame, TestVideo &ground_truth) override {
-    ground_truth.CompareFrameAvgError(frame_id, frame);
+    CompareFrameAvgError(frame_id, ground_truth.FrameSize(), ground_truth.Width(),
+                         ground_truth.Height(), frame, ground_truth.frames_[frame_id].data, 1.5);
   }
 };
 
@@ -231,7 +232,8 @@ class VideoReaderDecoderGpuTest : public VideoReaderDecoderBaseTest {
   void AssertFrame(int frame_id, const uint8_t *frame, TestVideo &ground_truth) override {
     frame_buffer_.clear();
     MemCopy(frame_buffer_.data(), frame, ground_truth.FrameSize());
-    ground_truth.CompareFrameAvgError(frame_id, frame_buffer_.data(), 1.5);
+    CompareFrameAvgError(frame_id, ground_truth.FrameSize(), ground_truth.Width(),
+                         ground_truth.Height(), frame_buffer_.data(), ground_truth.frames_[frame_id].data, 1.5);
   }
 
  private:
@@ -392,6 +394,9 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       // ARM implementations of decoding work slightly different, so we need to adjust the eps
       double eps = 1.5;
 
+      auto height = cpu_sample_shape[1];
+      auto width = cpu_sample_shape[2];
+
       for (int i = 0; i < sequence_length; ++i) {
         frame_buffer.clear();
         MemCopy(
@@ -399,11 +404,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
           gpu_sample + i * frame_size,
           frame_size * sizeof(uint8_t));
 
-        dali::CompareFrameAvgError(
-          cpu_sample + i * frame_size,
-          frame_buffer.data(),
-          frame_size,
-          eps);
+        CompareFrameAvgError(i, frame_size, width, height, cpu_sample + i * frame_size,
+                             frame_buffer.data(), eps);
 
         frame_buffer.clear();
         MemCopy(
@@ -411,11 +413,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
           old_sample + i * frame_size,
           frame_size * sizeof(uint8_t));
 
-        dali::CompareFrameAvgError(
-          cpu_sample + i * frame_size,
-          frame_buffer.data(),
-          frame_size,
-          eps);
+        CompareFrameAvgError(i, frame_size, width, height, cpu_sample + i * frame_size,
+                             frame_buffer.data(), eps);
       }
     }
   }

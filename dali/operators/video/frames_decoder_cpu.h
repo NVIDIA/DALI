@@ -27,33 +27,40 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @brief Construct a new FramesDecoder object.
    *
    * @param filename Path to a video file.
-   * @param build_index If set to false index will not be build and some features are unavailable.
    */
-  explicit FramesDecoderCpu(const std::string &filename, bool build_index = true);
+   explicit FramesDecoderCpu(const std::string &filename);
 
   /**
- * @brief Construct a new FramesDecoder object.
- *
- * @param memory_file Pointer to memory with video file data.
- * @param memory_file_size Size of memory_file in bytes.
- * @param build_index If set to false index will not be build and some features are unavailable.
- * @param num_frames If set, number of frames in the video.
- *
- * @note This constructor assumes that the `memory_file` and
- * `memory_file_size` arguments cover the entire video file, including the header.
- */
-  FramesDecoderCpu(const char *memory_file, size_t memory_file_size, bool build_index = true,
-                   int num_frames = -1, std::string_view = {});
+   * @brief Construct a new FramesDecoder object.
+   *
+   * @param memory_file Pointer to memory with video file data.
+   * @param memory_file_size Size of memory_file in bytes.
+   * @param source_info Source info of the video file.
+   *
+   * @note This constructor assumes that the `memory_file` and
+   * `memory_file_size` arguments cover the entire video file, including the header.
+   */
+  FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view = {});
 
   FramesDecoderCpu(FramesDecoderCpu&&) = default;
 
-  /**
-   * @brief Check if a codec is supported by the particular implementation.
-   *
-   * @param codec_id Codec ID to check.
-   * @return True if the codec is supported, false otherwise.
-   */
-  bool CanDecode(AVCodecID codec_id) const;
+  bool ReadNextFrame(uint8_t *data) override;
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+  void Reset() override;
+  void Flush() override;
+
+ protected:
+  bool SelectVideoStream(int stream_id = -1) override;
+
+ private:
+  void CopyToOutput(uint8_t *data);
+  bool ReadRegularFrame(uint8_t *data);
+  bool ReadFlushFrame(uint8_t *data);
+  bool flush_state_ = false;
+
+  const AVCodec *codec_ = nullptr;
+  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
+    nullptr, sws_freeContext};
 };
 
 }  // namespace dali

@@ -92,6 +92,8 @@ void VideoLoaderDecoderGpu::PrepareMetadataImpl() {
     video_files_.emplace_back(filename, cuda_stream_);
     if (!video_files_.back().IsValid()) {
       video_files_.pop_back();
+    } else {
+      video_files_.back().BuildIndex();
     }
   }
 

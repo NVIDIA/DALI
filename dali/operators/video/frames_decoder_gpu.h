@@ -130,29 +130,29 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @brief Construct a new FramesDecoder object.
    *
    * @param filename Path to a video file.
-   * @param stream Stream used for decode processing.
+   * @param stream CUDA stream to use for decoding.
    */
   explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0);
 
   /**
- * @brief Construct a new FramesDecoder object.
- *
- * @param memory_file Pointer to memory with video file data.
- * @param memory_file_size Size of memory_file in bytes.
- * @param build_index If set to false index will not be build and some features are unavailable.
- * @param num_frames If set, number of frames in the video.
- *
- * @note This constructor assumes that the `memory_file` and
- * `memory_file_size` arguments cover the entire video file, including the header.
- */
-  FramesDecoderGpu(const char *memory_file, size_t memory_file_size, cudaStream_t stream = 0,
-                   bool build_index = true, int num_frames = -1, std::string_view = {});
+   * @brief Construct a new FramesDecoder object.
+   *
+   * @param memory_file Pointer to memory with video file data.
+   * @param memory_file_size Size of memory_file in bytes.
+   * @param source_info Source info of the video file.
+   * @param stream CUDA stream to use for decoding.
+   * @note This constructor assumes that the `memory_file` and
+   * `memory_file_size` arguments cover the entire video file, including the header.
+   */
+  FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info = {}, cudaStream_t stream = 0);
 
   bool ReadNextFrame(uint8_t *data) override;
 
   void SeekFrame(int frame_id) override;
 
   void Reset() override;
+
+  void Flush() override;
 
   int ProcessPictureDecode(CUVIDPICPARAMS *picture_params);
 
@@ -168,17 +168,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
 
-  /**
-   * @brief Check if a codec is supported by the particular implementation.
-   *
-   * @param codec_id Codec ID to check.
-   * @return True if the codec is supported, false otherwise.
-   */
-  bool CanDecode(AVCodecID codec_id) const;
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+
+ protected:
+  bool SelectVideoStream(int stream_id = -1) override;
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
-  uint8_t *current_frame_output_ = nullptr;
+  void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
   bool flush_ = false;
@@ -197,7 +194,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   std::queue<int> piped_pts_;
 
-  cudaStream_t stream_;
+  cudaStream_t stream_ = 0;
 
   void SendLastPacket(bool flush = false);
 
