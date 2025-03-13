@@ -1,0 +1,2 @@
+# apt started reporting heap-buffer-overflow
+interceptor_via_lib:libapt-pkg
