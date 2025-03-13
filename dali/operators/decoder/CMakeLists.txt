@@ -24,10 +24,6 @@ if (BUILD_NVJPEG)
   add_subdirectory(nvjpeg)
 endif()
 
-if (BUILD_FFMPEG)
-  add_subdirectory(video)
-endif()
-
 if (BUILD_NVCOMP)
   add_subdirectory(inflate)
 endif()

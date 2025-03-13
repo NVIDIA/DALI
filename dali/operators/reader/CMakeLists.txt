@@ -14,9 +14,6 @@
 
 add_subdirectory(loader)
 add_subdirectory(parser)
-if (BUILD_NVDEC)
-  add_subdirectory(nvdecoder)
-endif()
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE) # TODO (ONLY SUPPORTED ONES)
 
@@ -35,19 +32,6 @@ if (BUILD_CUFILE)
 endif()
 
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/sequence_reader_op.cc")
-
-if (BUILD_FFMPEG)
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_cpu_op.cc")
-endif()
-
-if (BUILD_NVDEC)
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op.cc")
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_resize_op.cc")
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_gpu_op.cc")
-  if (BUILD_TEST)
-    list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_op_test.cc")
-  endif()
-endif()
 
 if (BUILD_LIBTAR)
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/webdataset_reader_op.cc")
@@ -79,9 +63,6 @@ if (BUILD_TEST)
   list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/coco_reader_op_test.cc")
   if(BUILD_CUFILE)
     list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/gds_mem_test.cu")
-  endif()
-  if(BUILD_NVDEC)
-    list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op_test.cc")
   endif()
   set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} PARENT_SCOPE)
 endif()

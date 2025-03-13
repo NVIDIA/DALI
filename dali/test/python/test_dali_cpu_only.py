@@ -1398,6 +1398,10 @@ def test_debayer():
     )
 
 
+def test_warp_perspective():
+    check_single_input(fn.experimental.warp_perspective, matrix=np.eye(3))
+
+
 tested_methods = [
     "_conditional.merge",
     "_conditional.split",
@@ -1573,6 +1577,7 @@ tested_methods = [
     "math.min",
     "numba.fn.experimental.numba_function",
     "dl_tensor_python_function",
+    "experimental.warp_perspective",
     "audio_resample",
     "experimental.decoders.video",
     "zeros",
@@ -1603,7 +1608,6 @@ excluded_methods = [
     "experimental.median_blur",  # not supported for CPU
     "experimental.dilate",  # not supported for CPU
     "experimental.erode",  # not supported for CPU
-    "experimental.warp_perspective",  # not supported for CPU
     "experimental.resize",  # not supported for CPU
     "plugin.video.decoder",  # not supported for CPU
 ]

@@ -368,7 +368,7 @@ ops_image_custom_args = [
     (fn.experimental.median_blur, {"devices": ["gpu"]}),
     (fn.experimental.dilate, {"devices": ["gpu"]}),
     (fn.experimental.erode, {"devices": ["gpu"]}),
-    (fn.experimental.warp_perspective, {"matrix": np.eye(3), "devices": ["gpu"]}),
+    (fn.experimental.warp_perspective, {"matrix": np.eye(3), "devices": ["gpu", "cpu"]}),
     (fn.experimental.resize, {"resize_x": 50, "resize_y": 50, "devices": ["gpu"]}),
     (fn.zeros_like, {"devices": ["cpu"]}),
     (fn.ones_like, {"devices": ["cpu"]}),

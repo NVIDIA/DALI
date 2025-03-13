@@ -8,7 +8,11 @@ do_once() {
 }
 
 test_body() {
-    # test code
+    if [ $(stat /data/imagenet/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
+        echo "Not available locally, skipping the test"
+        return 0
+    fi
+
     python test_RN50_data_pipeline.py --gpus ${NUM_GPUS} -b 256 --workers 3 --prefetch 2 --decoder_type "legacy"
     python test_RN50_data_pipeline.py --gpus ${NUM_GPUS} -b 256 --workers 3 --prefetch 2 --decoder_type "experimental"
     python test_RN50_data_pipeline.py --gpus ${NUM_GPUS} -b 16 --workers 3 --prefetch 11 --decoder_type "legacy"

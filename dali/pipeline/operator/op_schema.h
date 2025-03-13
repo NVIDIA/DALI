@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -274,6 +275,15 @@ class DLL_PUBLIC OpSchema {
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
   OpSchema &MakeDocHidden();
 
+  /** Notes that this operator doesn't have a state.
+   *
+   * NOTE: This overrides the statefulness inherited from parent schemas.
+   */
+  OpSchema &MakeStateless();
+
+  /** Notes that this operator is stateful. */
+  OpSchema &MakeStateful();
+
   /**
    * @brief Notes that for this operator only the doc_str should be visible, but not the docs for
    *        the inputs, outputs or argument (the Op is exposed in Python API)
@@ -436,6 +446,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     return *this;
   }
 
+  /** Adds a random seed argument to the operator.
+   *
+   * If not provided, the seed will be selected automatically.
+   * Adding a random seed implies statefulness of the operator.
+   */
   OpSchema &AddRandomSeedArg();
 
   /**  Marks an argument as deprecated in favor of a new argument
@@ -563,6 +578,13 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /**  Whether this operator is internal to DALI backend (and shouldn't be exposed in Python API) */
   bool IsInternal() const;
+
+  /** Whether this operator is stateful.
+   *
+   * Returns the statefulness of the operator. If it wasn't explicitly set, then the operator is
+   * considered stateful if any of its parents is stateful.
+   */
+  bool IsStateful() const;
 
   /** Whether this operator doc should not be visible (but the Op is exposed in Python API) */
   bool IsDocHidden() const;
@@ -782,6 +804,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool is_internal_ = false;
   bool is_doc_hidden_ = false;
   bool is_doc_partially_hidden_ = false;
+  mutable std::optional<bool> is_stateful_;
 
   /// Custom docstring, if not empty should be used in place of input_dox_ descriptions
   std::string call_dox_ = {};

@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ DALI_SCHEMA(InputOperatorBase)
 A base for any operator that forwards in-memory data to DALI pipeline.)doc")
                 .NumInput(0)
                 .NumOutput(0)
+                .MakeStateful()
                 .AddOptionalArg("blocking", R"code(
 **Advanced** If ``True``, this operator will block until the data is available
 (e.g. by calling ``feed_input``).

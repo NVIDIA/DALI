@@ -516,16 +516,16 @@ all_packages = [
             ],
             "120": [
                 PckgVer(
-                    "2.16.2",
-                    python_min_ver="3.9",
-                    alias="tensorflow",
-                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.16"],
-                ),
-                PckgVer(
-                    "2.17.0",
+                    "2.17.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
                     dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.17"],
+                ),
+                PckgVer(
+                    "2.18.0",
+                    python_min_ver="3.9",
+                    alias="tensorflow[and-cuda]",
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18"],
                 ),
             ],
         },
@@ -550,7 +550,10 @@ all_packages = [
                     python_min_ver="3.8",
                     python_max_ver="3.12",
                 )
-            ]
+            ],
+            # skip tests for CUDA 12 as PaddlePaddle doesn't support this CUDA yet
+            # and we may hit a runner that requires it
+            "120": [],
         },
         links_index="https://www.paddlepaddle.org.cn/" "whl/linux/mkl/avx/stable.html",
     ),

@@ -146,7 +146,9 @@ class StreamSynchronizer<CPUBackend> {
 
 }  // namespace detail
 
-
+// NOTE: This operator isn't really stateless - we just ignore
+//       the state of the underlying python function and allow
+//       it to be checkpointed.
 template <typename Backend>
 class DLTensorPythonFunctionImpl : public StatelessOperator<Backend> {
  public:
