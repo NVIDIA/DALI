@@ -9,6 +9,9 @@ set -x
 export PYTHONUNBUFFERED=1
 
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
+# supress leaks that are false positive or not related to DALI
+export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
+
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
@@ -68,8 +71,6 @@ epilog=${epilog-:}
 numer_of_prolog_elms=${#prolog[@]}
 
 enable_sanitizer() {
-    # supress leaks that are false positive or not related to DALI
-    export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
     export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0:verify_asan_link_order=0:detect_container_overflow=0
     export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
     # avoid python false positives
