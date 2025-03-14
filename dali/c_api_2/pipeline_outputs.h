@@ -22,6 +22,7 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/c_api_2/data_objects.h"
 
+// A dummy base that the handle points to
 struct _DALIPipelineOutputs {
  protected:
   _DALIPipelineOutputs() = default;

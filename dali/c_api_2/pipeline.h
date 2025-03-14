@@ -23,6 +23,7 @@
 #include "dali/dali.h"
 #include "dali/c_api_2/pipeline_outputs.h"
 
+// A dummy base that the handle points to
 struct _DALIPipeline {
  protected:
   _DALIPipeline() = default;

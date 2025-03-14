@@ -207,8 +207,8 @@ daliResult_t daliPipelineDeserialize(
   NOT_NULL(serialized_pipeline);
   NOT_NULL(param_overrides);
 
-  *out_pipe_handle = new PipelineWrapper
-      (serialized_pipeline,
+  *out_pipe_handle = new PipelineWrapper(
+      serialized_pipeline,
       serialized_pipeline_size,
       *param_overrides);
   DALI_EPILOG();
