@@ -15,13 +15,13 @@
 from enum import Enum, auto
 import nvidia.dali.types
 
+
 class DType:
     class Kind(Enum):
         signed = auto()
         unsigned = auto()
         float = auto()
         bool = auto()
-
 
     @staticmethod
     def default_exponent_bits(bits: int) -> int:
@@ -39,7 +39,6 @@ class DType:
         else:
             raise ValueError(f"Unsupported number of bits: {bits}")
 
-
     @staticmethod
     def default_significand_bits(bits: int) -> int:
         """
@@ -47,13 +46,19 @@ class DType:
         """
         return bits - DType.default_exponent_bits(bits) - 1
 
-
-    def __init__(self, kind: Kind, bits: int, exponent_bits: int = None, significand_bits: int = None):
+    def __init__(
+        self, kind: Kind, bits: int, exponent_bits: int = None, significand_bits: int = None
+    ):
         self.kind = kind
         self.bits = bits
-        self.exponent_bits = exponent_bits or DType.default_exponent_bits(bits)
-        self.significand_bits = significand_bits or DType.default_significand_bits(bits)
+        if kind == DType.Kind.float:
+            self.exponent_bits = exponent_bits or DType.default_exponent_bits(bits)
+            self.significand_bits = significand_bits or DType.default_significand_bits(bits)
+        else:
+            self.exponent_bits = None
+            self.significand_bits = None
         self.name = DType.make_name(kind, bits, exponent_bits, significand_bits)
+        self.bytes = (bits + 7) // 8
 
     @staticmethod
     def make_name(kind: Kind, bits: int, exponent_bits: int, significand_bits: int) -> str:
@@ -62,7 +67,9 @@ class DType:
         elif kind == DType.Kind.unsigned:
             return f"u{bits}"
         elif kind == DType.Kind.float:
-            if exponent_bits == DType.default_exponent_bits(bits) and significand_bits == DType.default_significand_bits(bits):
+            if exponent_bits == DType.default_exponent_bits(
+                bits
+            ) and significand_bits == DType.default_significand_bits(bits):
                 return f"f{bits}"
             elif bits == 16 and exponent_bits == 8 and significand_bits == 7:
                 return "bfloat16"
@@ -92,8 +99,9 @@ class DType:
         return _type2id[self]
 
     @staticmethod
-    def from_type_id(type_id: int) -> 'DType':
+    def from_type_id(type_id: int) -> "DType":
         return _id2type[type_id]
+
 
 int8 = DType(DType.Kind.signed, 8)
 int16 = DType(DType.Kind.signed, 16)
@@ -124,7 +132,7 @@ _type2id = {
     float16: nvidia.dali.types.FLOAT16,
     float32: nvidia.dali.types.FLOAT,
     float64: nvidia.dali.types.FLOAT64,
-    bool: nvidia.dali.types.BOOL
+    bool: nvidia.dali.types.BOOL,
 }
 
 _id2type = {v: k for k, v in _type2id.items()}
