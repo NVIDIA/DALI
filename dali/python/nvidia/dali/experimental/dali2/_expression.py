@@ -14,5 +14,3 @@
 
 from typing import Any, Optional, Tuple
 from ._tensor import Tensor, TensorSlice
-
-
