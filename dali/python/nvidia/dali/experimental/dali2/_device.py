@@ -14,8 +14,12 @@
 
 from typing import overload
 import nvidia.dali.backend as _backend
+from threading import local
+
 
 class Device:
+    _thread_local = local()
+
     def __init__(self, name: str, device_id: int = None):
         if device_id is None:
             type_and_id = name.split(":")
@@ -25,15 +29,26 @@ class Device:
             if len(type_and_id) == 2:
                 device_id = int(type_and_id[1])
         else:
-            if ':' in name:
+            if ":" in name:
                 raise ValueError(f"':' should not appear in device name when device_id is provided")
             device_type = name
 
         Device.validate_device_type(device_type)
         if device_id is not None:
             Device.validate_device_id(device_id, device_type)
+        else:
+            device_id = Device.default_device_id(device_type)
         self.device_type = device_type
         self.device_id = device_id
+
+    @staticmethod
+    def default_device_id(device_type: str) -> int:
+        if device_type == "cpu":
+            return 0
+        elif device_type == "gpu":
+            return _backend.GetCUDACurrentDevice()
+        else:
+            raise ValueError(f"Invalid device type: {device_type}")
 
     @staticmethod
     def validate_device_id(device_id: int, device_type: str):
@@ -45,7 +60,6 @@ class Device:
         elif device_type == "cpu":
             if device_id is not None and device_id != 0:
                 raise ValueError(f"Invalid device id: {device_id} for device type: {device_type}")
-
 
     @staticmethod
     def validate_device_type(device_type: str):
@@ -67,3 +81,20 @@ class Device:
     def __hash__(self):
         return hash((self.device_type, self.device_id))
 
+    @staticmethod
+    def current():
+        return Device._thread_local.devices[-1]
+
+    def __enter__(self):
+        if self.device_type == "gpu":
+            _backend.SetCurrentCUDADevice(self.device_id)
+        Device._thread_local.devices.append(self)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        Device._thread_local.devices.pop()
+        dev = Device.current()
+        if dev.device_type == "gpu":
+            _backend.SetCurrentCUDADevice(dev.device_id)
+
+
+Device._thread_local.devices = [Device("cpu")]
