@@ -1,6 +1,7 @@
 import threading
 from enum import Enum, auto
 
+
 class EvalMode(Enum):
     """Enum defining different evaluation modes for DALI2 operations.
 
@@ -15,14 +16,17 @@ class EvalMode(Enum):
         sync_cpu:   Synchronous evaluation mode - evaluation on the CPU finishes before the operation returns.
         sync_full:  Fully synchronous evaluation mode - evaluation on all devices finishes before the operation returns.
     """
+
     default = auto()
     deferred = auto()
     eager = auto()
     sync_cpu = auto()
     sync_full = auto()
 
+
 _tls = threading.local()
 _tls.eval_mode = EvalMode.default
+
 
 def set_eval_mode(mode: EvalMode):
     """Set the evaluation mode for the current thread.
@@ -32,8 +36,7 @@ def set_eval_mode(mode: EvalMode):
     """
     _tls.eval_mode = mode
 
-def eval_mode() -> EvalMode:
-    """Get the evaluation mode for the current thread.
-    """
-    return _tls.eval_mode
 
+def eval_mode() -> EvalMode:
+    """Get the evaluation mode for the current thread."""
+    return _tls.eval_mode
