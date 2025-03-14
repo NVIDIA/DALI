@@ -328,10 +328,11 @@ typedef struct _DALIPipelineParams {
     uint64_t seed_present           : 1;
     uint64_t exec_type_present      : 1;
     uint64_t exec_flags_present     : 1;
+    uint64_t prefetch_queue_depth_present : 1;
     uint64_t enable_checkpointing_present : 1;
     uint64_t enable_memory_stats_present  : 1;
   };
-  int batch_size;
+  int max_batch_size;
   int num_threads;
   int device_id;
   int64_t seed;
@@ -339,6 +340,7 @@ typedef struct _DALIPipelineParams {
   daliExecFlags_t exec_flags;
   daliBool enable_checkpointing;
   daliBool enable_memory_stats;
+  int prefetch_queue_depth;
 } daliPipelineParams_t;
 
 /** Describes an output of a DALI Pipeline */
@@ -430,11 +432,17 @@ DALI_API daliResult_t daliPipelineGetFeedCount(
   const char *input_name);
 
 typedef enum _DALIFeedInputFlags {
-  /** Do not make a copy of the input, use it directly instead.
-   *
-   * When daliTensorList_h is passed to daliFeedInput, a reference count is incremented
-   */
-  DALI_FEED_INPUT_NO_COPY = 1,
+  /** Wait for the copy to complete. */
+  DALI_FEED_INPUT_SYNC = 1,
+  /** Force a copy. */
+  DALI_FEED_INPUT_FORCE_COPY = 2,
+  /** Do not make a copy of the input, use it directly instead. */
+  DALI_FEED_INPUT_NO_COPY = 4,
+
+  DALI_FEED_INPUT_COPY_MASK = 6,
+
+  /** GPU-only: If set, the copy is performed by a CUDA kernel instead of cudaMemcpy */
+  DALI_FEED_INPUT_USE_COPY_KERNEL = 8,
 
   DALI_FEED_INPUT_FORCE_INT32 = 0x7fffffff
 } daliFeedInputFlags_t;
