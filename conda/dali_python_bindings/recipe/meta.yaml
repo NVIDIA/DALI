@@ -69,8 +69,8 @@ requirements:
     - patchelf
     - python-clang
     - git-lfs
-    - black =24.8.0
-    - black-jupyter =24.8.0
+    - black =25.1.0
+    - black-jupyter =25.1.0
     - bandit
   host:
     - libprotobuf-static =5.27.4

@@ -45,7 +45,7 @@ def check_serialize_deserialize(batch):
 
 def test_serialize_deserialize():
     for shapes in [
-        [(10)],
+        [(10,)],
         [(10, 20)],
         [(10, 20, 3)],
         [(1), (2)],

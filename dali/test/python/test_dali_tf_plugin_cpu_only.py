@@ -41,7 +41,7 @@ def get_data(batch_size, value):
     with tf.device("/cpu"):
         data = daliop(
             pipeline=pipe,
-            shapes=[(batch_size)],
+            shapes=[batch_size],
             dtypes=[tf.int32],
             device_id=types.CPU_ONLY_DEVICE_ID,
         )
