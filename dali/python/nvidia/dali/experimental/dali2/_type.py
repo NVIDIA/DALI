@@ -25,6 +25,9 @@ class DType:
 
     @staticmethod
     def default_exponent_bits(bits: int) -> int:
+        """
+        Returns the default number of exponent bits for a given number of bits.
+        """
         if bits == 16:
             return 5
         elif bits == 32:
@@ -39,6 +42,9 @@ class DType:
 
     @staticmethod
     def default_significand_bits(bits: int) -> int:
+        """
+        Returns the default number of significand bits for a given number of bits.
+        """
         return bits - DType.default_exponent_bits(bits) - 1
 
 
@@ -88,7 +94,6 @@ class DType:
     @staticmethod
     def from_type_id(type_id: int) -> 'DType':
         return _id2type[type_id]
-
 
 int8 = DType(DType.Kind.signed, 8)
 int16 = DType(DType.Kind.signed, 16)
