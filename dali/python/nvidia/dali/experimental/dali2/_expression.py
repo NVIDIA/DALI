@@ -12,11 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-DALI2 is a new experimental API that is currently under development.
-"""
+from typing import Any, Optional, Tuple
+from ._tensor import Tensor, TensorSlice
 
-from ._eval_mode import EvalMode, set_eval_mode, eval_mode
-from ._type import *  # noqa: F403
-from ._tensor import Tensor
-from ._device import Device
+
