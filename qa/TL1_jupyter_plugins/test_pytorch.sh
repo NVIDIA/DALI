@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages='pillow jupyter matplotlib<3.5.3 torchvision torch fsspec==2023.1.0 pytorch-lightning tensorboard'
+pip_packages='pillow jupyter matplotlib torchvision torch fsspec==2023.1.0 pytorch-lightning tensorboard'
 target_dir=./docs/examples/
 
 do_once() {
