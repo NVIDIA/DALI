@@ -2012,7 +2012,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
 # Bare decorator usage
 @overload
 def pipeline_def(
-    __func: Callable[..., Union[DataNode, Tuple[DataNode, ...]]]
+    __func: Callable[..., Union[DataNode, Tuple[DataNode, ...]]],
 ) -> Callable[..., Pipeline]: ...
 
 

@@ -96,14 +96,14 @@ class ProgressiveJpeg(unittest.TestCase):
         # fmt: on
         file = tempfile.NamedTemporaryFile(mode="w+b", delete=True)
         try:
-            file.write(b"\xFF\xD8")
-            file.write(b"\xFF")
-            file.write(b"\xC2" if decoding_method == "huffman" else b"\xCA")
-            file.write(b"\x00\x0B\x08")
+            file.write(b"\xff\xd8")
+            file.write(b"\xff")
+            file.write(b"\xc2" if decoding_method == "huffman" else b"\xca")
+            file.write(b"\x00\x0b\x08")
             file.write(extent)
             file.write(extent)
             file.write(b"\x01\x00\x11\x00")
-            file.write(b"\xFF\xDB\x00\x43\x00")
+            file.write(b"\xff\xdb\x00\x43\x00")
             file.write(quant_table)
             if decoding_method == "huffman":
                 file.write(b"\xff\xc4")  # DHT marker
