@@ -310,17 +310,9 @@ typedef enum _DALIExecFlags {
   DALI_EXEC_FLAGS_FORCE_INT32 = 0x7fffffff
 } daliExecFlags_t;
 
-typedef struct _DALIVersion {
-  int16_t major, minor;
-  int32_t patch;
-} daliVersion_t;
-
 
 /** DALI Pipeline construction parameters */
 typedef struct _DALIPipelineParams {
-  /** The version of this structure */
-  daliVersion_t version;
-
   struct {
     uint64_t max_batch_size_present : 1;
     uint64_t num_threads_present    : 1;
