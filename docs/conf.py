@@ -205,6 +205,7 @@ except ImportError:
     html_theme = "sphinx_rtd_theme"
     html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
+templates_path = ["_templates"]
 
 html_theme_options = {
     "switcher": {
@@ -214,7 +215,7 @@ html_theme_options = {
         "docs/_static/switcher.json",
         "version_match": "main" if "dev" in version_long else version_short,
     },
-    "navbar_start": ["navbar-logo", "version-switcher"],
+    "navbar_start": ["navbar-logo", "version-switcher", "sha_version"],
     "primary_sidebar_end": [],
 }
 
@@ -493,7 +494,10 @@ _dali_enums = [
 
 count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
 
-html_context = {"nvidia_analytics_id": count_unique_visitor_script}
+html_context = {
+    "nvidia_analytics_id": count_unique_visitor_script,
+    "git_sha": git_sha,
+}
 
 
 class EnumDocumenter(ClassDocumenter):
