@@ -56,10 +56,61 @@ struct VideoSample : public VideoSampleDesc {
 };
 
 enum class FileListFormat {
-  kFrameIndex,
-  kTimestamp,
-  kTimestampInclusive
+  kFrames,          // Use exact frame numbers (0-based). Negative values count from end
+  kTimestamps,      // Use timestamps in seconds
 };
+
+enum class FileListRounding {
+  kStartDownEndUp,  // Round start down and end up (default)
+  kStartUpEndDown,  // Round start up and end down
+  kAllUp,           // Round both up
+  kAllDown          // Round both down
+};
+
+struct FileListOptions {
+  FileListFormat format = FileListFormat::kTimestamps;
+  FileListRounding rounding = FileListRounding::kStartDownEndUp;
+  bool include_end = false;
+
+  bool should_round_down_start() const {
+    return rounding == FileListRounding::kStartDownEndUp || rounding == FileListRounding::kAllDown;
+  }
+
+  bool should_round_down_end() const {
+    return rounding == FileListRounding::kStartUpEndDown || rounding == FileListRounding::kAllDown;
+  }
+};
+
+inline std::string make_string(FileListRounding rounding) {
+  switch (rounding) {
+    case FileListRounding::kStartDownEndUp:
+      return "start_down_end_up";
+    case FileListRounding::kStartUpEndDown:
+      return "start_up_end_down";
+    case FileListRounding::kAllUp:
+      return "all_up";
+    case FileListRounding::kAllDown:
+      return "all_down";
+    default:
+      DALI_FAIL("Invalid file_list_rounding");
+  }
+}
+
+inline std::string make_string(FileListFormat format) {
+  switch (format) {
+    case FileListFormat::kFrames:
+      return "frames";
+    case FileListFormat::kTimestamps:
+      return "timestamps";
+    default:
+      DALI_FAIL("Invalid file_list_format");
+  }
+}
+
+inline std::string make_string(FileListOptions options) {
+  return make_string(options.format) + ", " + make_string(options.rounding) + ", " +
+         (options.include_end ? "include_end" : "exclude_end");
+}
 
 template <typename Backend, typename FramesDecoderImpl, typename Sample = VideoSample<Backend>>
 class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
@@ -72,6 +123,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         sequence_len_(spec.GetArgument<int>("sequence_length")),
         stride_(spec.GetArgument<int>("stride")),
         step_(spec.GetArgument<int>("step")),
+        image_type_(spec.GetArgument<DALIImageType>("image_type")),
         boundary_type_(GetBoundaryType(spec)) {
     if ((spec.HasArgument("file_list") || spec.HasArgument("file_root") || spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
@@ -89,14 +141,29 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
 
     if (!file_list_.empty()) {
-      auto file_list_format_str = spec.GetArgument<std::string>("file_list_format");
-      if (file_list_format_str == "frame_index") {
-        file_list_format_ = FileListFormat::kFrameIndex;
-      } else if (file_list_format_str == "timestamp") {
-        file_list_format_ = FileListFormat::kTimestamp;
-      } else if (file_list_format_str == "timestamp_inclusive") {
-        file_list_format_ = FileListFormat::kTimestampInclusive;
+      auto format_str = spec.GetArgument<std::string>("file_list_format");
+      if (format_str == "frames") {
+        file_list_opts_.format = FileListFormat::kFrames;
+      } else if (format_str == "timestamps") {
+        file_list_opts_.format = FileListFormat::kTimestamps;
+      } else {
+        DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
       }
+
+      auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
+      if (rounding_str == "start_down_end_up") {
+        file_list_opts_.rounding = FileListRounding::kStartDownEndUp;
+      } else if (rounding_str == "start_up_end_down") {
+        file_list_opts_.rounding = FileListRounding::kStartUpEndDown;
+      } else if (rounding_str == "all_up") {
+        file_list_opts_.rounding = FileListRounding::kAllUp;
+      } else if (rounding_str == "all_down") {
+        file_list_opts_.rounding = FileListRounding::kAllDown;
+      } else {
+        DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
+      }
+
+      file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
     }
 
     if (step_ <= 0) {
@@ -122,64 +189,87 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   }
 
   void PrepareMetadataImpl() override {
+    LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
+      LOG_LINE << "Processing video file " << i << ": " << entry.video_file << std::endl;
       std::unique_ptr<FramesDecoderImpl> decoder;
       if constexpr(std::is_same_v<Backend, CPUBackend>) {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.video_file);
+        decoder = std::make_unique<FramesDecoderImpl>(entry.video_file, image_type_);
       } else {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.video_file, cuda_stream_);
+        decoder = std::make_unique<FramesDecoderImpl>(entry.video_file, cuda_stream_, image_type_);
       }
       if (!decoder->IsValid()) {
         LOG_LINE << "Invalid video file: " << entry.video_file << std::endl;
         continue;
       } else {
+        LOG_LINE << "Building index for " << entry.video_file << std::endl;
         decoder->BuildIndex();
       }
       int64_t num_frames = decoder->NumFrames();
       int start_frame = 0, end_frame = num_frames;
+      LOG_LINE << "Total frames in video: " << num_frames << std::endl;
       if (entry.start_time != 0.0f || entry.end_time != 0.0f) {
-        switch (file_list_format_) {
-          case FileListFormat::kFrameIndex:
-            start_frame = entry.start_time;
-            end_frame = entry.end_time;
+        LOG_LINE << "Processing time range [" << entry.start_time << ", " << entry.end_time
+                 << "], file_list_format: " << make_string(file_list_opts_) << std::endl;
+        switch (file_list_opts_.format) {
+          case FileListFormat::kFrames:
+            if (entry.start_time < 0)
+              entry.start_time = num_frames + entry.start_time;
+            if (entry.end_time < 0)
+              entry.end_time = num_frames + entry.end_time;
+            start_frame = file_list_opts_.should_round_down_start() ? std::floor(entry.start_time) :
+                                                                      std::ceil(entry.start_time);
+            end_frame = file_list_opts_.should_round_down_end() ? std::floor(entry.end_time) :
+                                                                  std::ceil(entry.end_time);
             break;
-          case FileListFormat::kTimestamp:
+          case FileListFormat::kTimestamps:
             start_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.start_time), false);
+                SecondsToTimestamp(decoder->GetTimebase(), entry.start_time),
+                file_list_opts_.should_round_down_start());
             end_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.end_time), true);
-            break;
-          case FileListFormat::kTimestampInclusive:
-            start_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.start_time), true);
-            end_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.end_time), false);
+                SecondsToTimestamp(decoder->GetTimebase(), entry.end_time),
+                file_list_opts_.should_round_down_end());
             break;
           default:
             DALI_FAIL("Invalid file_list_format");
         }
+        if (file_list_opts_.include_end) {
+          end_frame = std::min<int>(end_frame, num_frames);
+        }
+        LOG_LINE << "Frame range after conversion: [" << start_frame << ", " << end_frame << "]"
+                 << std::endl;
       }
 
       if (start_frame >= end_frame) {
-        DALI_WARN(make_string("Empty frame range [", start_frame, ", ", end_frame,
-                             ") for file ", entry.video_file, ". Skipping."));
+        DALI_WARN(make_string("Empty frame range [", start_frame, ", ", end_frame, ") for file ",
+                              entry.video_file, ". Skipping."));
         continue;
       }
 
       int start = start_frame;
       int full_seq_stride = stride_ * sequence_len_;
       for (; start + full_seq_stride <= end_frame; start += step_) {
-        samples_.emplace_back(entry.video_file, entry.label, start, start + full_seq_stride, stride_);
+        LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
+                 << ", stride=" << stride_ << std::endl;
+        samples_.emplace_back(entry.video_file, entry.label, start, start + full_seq_stride,
+                              stride_);
       }
 
-      // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last sequence
+      // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
+      // sequence
       if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < end_frame) {
-        samples_.emplace_back(entry.video_file, entry.label, start, start + full_seq_stride, stride_);
+        LOG_LINE << "Adding padded tail sample starting at frame " << start << ", end=" << end_frame
+                 << ", stride=" << stride_ << std::endl;
+        samples_.emplace_back(entry.video_file, entry.label, start, start + full_seq_stride,
+                              stride_);
       }
     }
 
+    LOG_LINE << "Created " << samples_.size() << " total samples" << std::endl;
+
     if (shuffle_) {
+      LOG_LINE << "Shuffling samples" << std::endl;
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
@@ -188,6 +278,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
     // set the initial index for each shard
     Reset(true);
+    LOG_LINE << "Finished PrepareMetadataImpl" << std::endl;
   }
 
   void Reset(bool wrap_to_shard) override {
@@ -215,14 +306,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
 
-  FileListFormat file_list_format_ = FileListFormat::kTimestamp;
-
   Index current_index_ = 0;
 
   int sequence_len_;
   int stride_;
   int step_;
+  DALIImageType image_type_;
   boundary::BoundaryType boundary_type_;
+  FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
   std::vector<VideoSampleDesc> samples_;
@@ -248,7 +339,8 @@ class VideoReaderDecoder
       : Base(spec),
         has_frame_idx_(spec.GetArgument<bool>("enable_frame_num")),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
-        boundary_type_(GetBoundaryType(spec)) {
+        boundary_type_(GetBoundaryType(spec)),
+        image_type_(spec.GetArgument<DALIImageType>("image_type")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -284,6 +376,14 @@ class VideoReaderDecoder
       int device_id = spec.GetArgument<int>("device_id");
       cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
     }
+    DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
+                 make_string("Invalid image_type: ", image_type_));
+  }
+
+  ~VideoReaderDecoder() override {
+    LOG_LINE << "VideoReaderDecoder destructor" << std::endl;
+    Base::StopPrefetchThread();
+    LOG_LINE << "VideoReaderDecoder destructor done" << std::endl;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -307,7 +407,7 @@ class VideoReaderDecoder
       output_desc.push_back({label_shape, DALI_INT32});
     }
     if (has_timestamps_) {
-      output_desc.push_back({timestamps_shape, DALI_FLOAT});
+      output_desc.push_back({timestamps_shape, DALI_FLOAT64});
     }
     return true;
   }
@@ -374,40 +474,39 @@ class VideoReaderDecoder
   void Prefetch() override {
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
-
-    // keeping one decoder open. In case the next sample belongs to the same file,
-    // we reuse the same decoder.
-    std::unique_ptr<FramesDecoderImpl> decoder;
-
-    int i = 0;
+    size_t i = 0;
+    // decoder_.reset();  // TODO(janton): remove this
     for (auto &sample : current_batch) {
-      auto prev_filename = decoder ? decoder->Filename() : "";
-      if (!decoder || decoder->Filename() != sample->filename_) {
+      LOG_LINE << "Processing sample " << i++ << " with filename " << sample->filename_
+               << " and previous decoder " << decoder_.get() << " filename "
+               << (decoder_ ? decoder_->Filename() : "none") << std::endl;
+      auto prev_filename = decoder_ ? decoder_->Filename() : "";
+      if (prev_filename != sample->filename_) {
         if constexpr (std::is_same_v<Backend, CPUBackend>) {
-          decoder = std::make_unique<FramesDecoderImpl>(sample->filename_);
+          decoder_ = std::make_unique<FramesDecoderImpl>(sample->filename_, image_type_);
         } else {
-          decoder = std::make_unique<FramesDecoderImpl>(sample->filename_, cuda_stream_);
+          decoder_ = std::make_unique<FramesDecoderImpl>(sample->filename_, cuda_stream_, image_type_);
         }
-        LOG_LINE << "Initialized decoder to " << decoder->Filename() << " ptr: " << decoder.get()
-                 << " num_frames: " << decoder->NumFrames() << std::endl;
+        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
+                 << " num_frames: " << decoder_->NumFrames() << std::endl;
+        decoder_->BuildIndex();
       } else {
-        LOG_LINE << "Reusing decoder for " << decoder->Filename() << " ptr: " << decoder.get()
-                 << " num_frames: " << decoder->NumFrames() << std::endl;
+        LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
+                 << " num_frames: " << decoder_->NumFrames() << std::endl;
       }
-      DALI_ENFORCE(decoder->IsValid(),
+      DALI_ENFORCE(decoder_->IsValid(),
                    make_string("Invalid decoder for filename ", sample->filename_));
-      decoder->BuildIndex();
 
       int64_t num_frames = (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_;
       sample->data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
       sample->data_.Resize(
-          {num_frames, decoder->Height(), decoder->Width(), decoder->Channels()}, DALI_UINT8);
-      sample->data_.SetSourceInfo(decoder->Filename());
+          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
+      sample->data_.SetSourceInfo(decoder_->Filename());
       sample->data_.SetLayout("FHWC");
 
       const uint8_t *constant_frame =
           boundary_type_ == boundary::BoundaryType::CONSTANT ?
-              ConstantFrame(constant_frame_, decoder->FrameShape(), make_cspan(fill_value_),
+              ConstantFrame(constant_frame_, decoder_->FrameShape(), make_cspan(fill_value_),
                             cuda_stream_, true) :
               nullptr;
       if (has_timestamps_) {
@@ -415,25 +514,31 @@ class VideoReaderDecoder
       } else {
         sample->timestamps_.clear();
       }
-      decoder->DecodeFrames(sample->data_.template mutable_data<uint8_t>(), sample->start_,
+      LOG_LINE << "Decoding frames start=" << sample->start_ << ", end=" << sample->end_
+               << ", stride=" << sample->stride_ << ", num_frames=" << num_frames << std::endl;
+      decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(), sample->start_,
                             sample->end_, sample->stride_, boundary_type_, constant_frame,
                             make_span(sample->timestamps_));
+      LOG_LINE << "Decoding frames done" << std::endl;
     }
 
     if (cuda_stream_) {
       CUDA_CALL(cudaStreamSynchronize(cuda_stream_.get()));
     }
+    LOG_LINE << "Prefetch done" << std::endl;
   }
 
  private:
   bool has_frame_idx_;
   bool has_timestamps_;
   boundary::BoundaryType boundary_type_;
+  DALIImageType image_type_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 
   Tensor<Backend> constant_frame_;
   CUDAStreamLease cuda_stream_;
+  std::unique_ptr<FramesDecoderImpl> decoder_;  // keeping one decoder open.
 };
 
 DALI_SCHEMA(experimental__readers__Video)
@@ -463,7 +568,7 @@ The outputs of the operator are: video, [labels], [frame_idx], [timestamp].
 * ``labels``: Label associated with the sample. Only available when using ``labels`` with ``filenames``, or when
   using ``file_list`` or ``file_root``.
 * ``frame_idx``: Index of first frame in sequence. Only available when ``enable_frame_num=True``.
-* ``timestamp``: Time in seconds of first frame in sequence. Only available when ``enable_timestamps=True``.
+* ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
@@ -490,25 +595,25 @@ The values can be interpreted differently depending on the ``file_list_format``.
 
 This option is mutually exclusive with `filenames` and `file_root`.)code",
                     std::string())
-    .AddOptionalArg(
-        "file_list_format",
-        R"code(Policy to interpret the ``start`` and ``end`` values, when using ``file_list`` argument.
+    .AddOptionalArg("file_list_format",
+        R"code(How to interpret start/end values in file_list:
 
-The following policies are supported:
+* ``frames``: Use exact frame numbers (0-based). Negative values count from end.
+* ``timestamps``: Use timestamps in seconds.
 
-* ``frame_index``: The values are interpreted as the exact frame number to start or end the video.
-  In case of negative values, they are interpreted as a number of frames from the end of the video.
-  In case of floating point values, the start frame number will be rounded up and the end frame number will be rounded down.
-  Frame numbers start from 0.
+Default: ``timestamps``.)code",
+        "timestamps")
+    .AddOptionalArg("file_list_rounding",
+        R"code(How to handle non-exact frame matches:
 
-* ``timestamp``: The values are interpreted as the timestamp of the frame to start or end the video.
-  When no exact timestamp is found, the start timestamp is rounded up to the next available frame and the end timestamp is rounded down.
-
-* ``timestamp_inclusive``: The values are interpreted as the timestamp of the frame to start or end the video.
-  When no exact timestamp is found, the start timestamp is rounded down to the next available frame and the end timestamp is rounded up.
-
-The default policy is ``timestamp``.)code",
-        "timestamp")
+* ``start_down_end_up`` (default): Round start down and end up
+* ``start_up_end_down``: Round start up and end down 
+* ``all_up``: Round both up
+* ``all_down``: Round both down)code",
+        "start_down_end_up")
+    .AddOptionalArg("file_list_include_end",
+        R"code(If true, include the end frame in the range. Default: true)code",
+        true)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument. If not provided, no labels will be yielded.)",
                                  nullptr)
@@ -546,7 +651,11 @@ Not relevant when using ``frames`` argument.)code",
 Each value must be in range [0, 255].
 If a single value is provided, it will be used for all channels. 
 Otherwise, the number of values must match the number of channels in the video.)code",
-                    std::vector<int>{0, })
+                    std::vector<int>{
+                        0,
+                    })
+    .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
+                    DALI_RGB)
     .AddParent("LoaderBase");
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<CPUBackend>, CPU);

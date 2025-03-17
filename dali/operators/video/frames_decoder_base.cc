@@ -19,6 +19,9 @@
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
 
+#undef LOG_LINE
+#define LOG_LINE std::cout
+
 namespace dali {
 
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
@@ -212,9 +215,12 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
-FramesDecoderBase::FramesDecoderBase(const std::string &filename) {
+FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
   av_log_set_level(AV_LOG_ERROR);
   filename_ = filename;
+  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
+               make_string("Invalid image type: ", image_type));
+  image_type_ = image_type;
   int ret = OpenFile(filename);
   if (ret < 0) {
     DALI_WARN(make_string("Failed to open video file \"", Filename(), "\", due to ",
@@ -230,9 +236,12 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename) {
   next_frame_idx_ = 0;
 }
 
-FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info) {
+FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
   av_log_set_level(AV_LOG_ERROR);
   filename_ = source_info;
+  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
+               make_string("Invalid image type: ", image_type));
+  image_type_ = image_type;
   memory_video_file_ = std::make_unique<MemoryVideoFile>(memory_file, memory_file_size);
   int ret = OpenMemoryFile(*memory_video_file_);
   if (ret < 0) {
@@ -304,7 +313,6 @@ void FramesDecoderBase::BuildIndex() {
     // Read the next frame from the video
     int ret = av_read_frame(ctx_, packet_);
     auto packet = AVPacketScope(packet_, av_packet_unref);
-
     if (ret != 0) {
       LOG_LINE << "End of file reached after " << frame_count << " frames" << std::endl;
       break;  // Just break when we hit EOF instead of trying to seek back
@@ -474,6 +482,10 @@ void FramesDecoderBase::Reset() {
                  make_string("Could not open video file \"", Filename(),
                     "\" due to: ", av_error_string(ret)));
   }
+
+  is_valid_ = true;
+  can_seek_ = true;
+  next_frame_idx_ = 0;
 
   SelectVideoStream(stream_id);
 }

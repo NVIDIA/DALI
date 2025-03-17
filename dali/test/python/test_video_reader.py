@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import pipeline_def, fn
+from nvidia.dali import pipeline_def, fn, types
 from nvidia.dali.data_node import DataNode
 import numpy as np
 import os
@@ -41,6 +41,7 @@ batch_sizes = [1, 10]
 file_list_formats = ["frame_index", "timestamp", "timestamp_inclusive"]
 pad_modes = ["none", "constant", "edge", "reflect_1001", "reflect_101"]
 pad_modes_supported_by_legacy_reader = ["none", "constant"]
+image_type_supported_by_legacy_reader = [types.RGB, types.YCbCr]
 
 
 def compare_frames(
@@ -147,9 +148,15 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
         break
 
 
-@cartesian_params(devices, batch_sizes, sequence_lengths, pad_modes_supported_by_legacy_reader)
+@cartesian_params(
+    devices,
+    batch_sizes,
+    sequence_lengths,
+    pad_modes_supported_by_legacy_reader,
+    image_type_supported_by_legacy_reader,
+)
 def test_compare_experimental_to_legacy_reader_filenames(
-    device, batch_size, sequence_length, pad_mode
+    device, batch_size, sequence_length, pad_mode, image_type
 ):
     labels = [np.random.randint(0, 100) for _ in range(len(VIDEO_FILES))]
     compare_experimental_to_legacy_reader(
@@ -161,14 +168,20 @@ def test_compare_experimental_to_legacy_reader_filenames(
         enable_frame_num=True,
         labels=labels,
         pad_mode=pad_mode,
+        image_type=image_type,
     )
 
 
 @cartesian_params(
-    devices, batch_sizes, sequence_lengths, file_list_formats, pad_modes_supported_by_legacy_reader
+    devices,
+    batch_sizes,
+    sequence_lengths,
+    file_list_formats,
+    pad_modes_supported_by_legacy_reader,
+    image_type_supported_by_legacy_reader,
 )
 def test_compare_experimental_to_legacy_reader_file_list(
-    device, batch_size, sequence_length, file_list_format, pad_mode
+    device, batch_size, sequence_length, file_list_format, pad_mode, image_type
 ):
     files = sorted(VIDEO_FILES)
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
@@ -199,12 +212,19 @@ def test_compare_experimental_to_legacy_reader_file_list(
         enable_frame_num=True,
         file_list_format=file_list_format,
         pad_mode=pad_mode,
+        image_type=image_type,
     )
 
 
-@cartesian_params(devices, batch_sizes, sequence_lengths, pad_modes_supported_by_legacy_reader)
+@cartesian_params(
+    devices,
+    batch_sizes,
+    sequence_lengths,
+    pad_modes_supported_by_legacy_reader,
+    image_type_supported_by_legacy_reader,
+)
 def test_compare_experimental_to_legacy_reader_file_root(
-    device, batch_size, sequence_length, pad_mode
+    device, batch_size, sequence_length, pad_mode, image_type
 ):
     if debug:
         print("MULTIPLE_RESOLUTION_ROOT contents:")
@@ -217,4 +237,5 @@ def test_compare_experimental_to_legacy_reader_file_root(
         file_root=MULTIPLE_RESOLUTION_ROOT,
         sequence_length=sequence_length,
         pad_mode=pad_mode,
+        image_type=image_type,
     )
