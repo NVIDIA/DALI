@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/pipeline/executor/executor2/exec2.h"
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
+#include "dali/pipeline/operator/builtin/input_operator.h"
 
 namespace dali {
 namespace exec2 {
@@ -201,12 +202,17 @@ class Executor2::Impl {
     graph_.PrepareIteration(params);
   }
 
-  int InputFeedCount(std::string_view) {
+  int InputFeedCount(std::string_view input_name) {
+    if (!IsInputOperator(GetOperator(input_name))) {
+      throw invalid_key(make_string(
+          "The pipeline doesn't have an input named \"", input_name, "\"."));
+    }
+
     return prefetch_depth_;
   }
 
-  OperatorBase *GetOperator(std::string_view input_name) const {
-    auto it = node_map_.find(input_name);
+  OperatorBase *GetOperator(std::string_view operator_name) const {
+    auto it = node_map_.find(operator_name);
     if (it == node_map_.end())
       return nullptr;
     return it->second->op.get();

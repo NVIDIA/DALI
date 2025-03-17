@@ -257,12 +257,17 @@ void TestPipelineRun(PipelineType ptype) {
   PipelineHandle h = Deserialize(proto, params);
   ASSERT_NE(h, nullptr);
 
+  EXPECT_EQ(daliPipelineRun(h), DALI_ERROR_INVALID_OPERATION);
+  daliClearLastError();
   CHECK_DALI(daliPipelineBuild(h));
 
   int count;
   CHECK_DALI(daliPipelineGetOutputCount(h, &count));
   ASSERT_EQ(count, 2);
   daliPipelineOutputDesc_t desc{};
+  EXPECT_EQ(daliPipelineGetOutputDesc(h, &desc, -1), DALI_ERROR_OUT_OF_RANGE);
+  EXPECT_EQ(daliPipelineGetOutputDesc(h, &desc, count), DALI_ERROR_OUT_OF_RANGE);
+  daliClearLastError();
   CHECK_DALI(daliPipelineGetOutputDesc(h, &desc, 0));
   EXPECT_STREQ(desc.name, "op1");
   EXPECT_EQ(desc.device, DALI_STORAGE_CPU);
@@ -444,6 +449,8 @@ void TestFeedInput(daliFeedInputFlags_t flags) {
   ASSERT_NE(h, nullptr);
   CHECK_DALI(daliPipelineBuild(h));
   int count = 0;
+  EXPECT_EQ(daliPipelineGetFeedCount(h, &count, "nonexistent"), DALI_ERROR_INVALID_KEY);
+  daliClearLastError();
   CHECK_DALI(daliPipelineGetFeedCount(h, &count, "ext"));
   ASSERT_EQ(count, params.prefetch_queue_depth)
     << "Feed count should be equal to prefetch queue depth.";
@@ -468,6 +475,8 @@ void TestFeedInput(daliFeedInputFlags_t flags) {
     auto tl = Wrap(cpp_tl);
     daliTensorList_h tl_h = tl.get();
     cudaStream_t s = stream2 ? stream2.get() : stream1.get();
+    EXPECT_EQ(daliPipelineFeedInput(h, "nonexistent", tl_h, "", flags, &s), DALI_ERROR_INVALID_KEY);
+    daliClearLastError();
     CHECK_DALI(daliPipelineFeedInput(h, "ext", tl_h, "data", flags, &s));
   }
   CUDA_CALL(cudaDeviceSynchronize());

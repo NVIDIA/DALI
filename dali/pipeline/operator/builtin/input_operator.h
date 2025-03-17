@@ -565,10 +565,14 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   AccessOrder internal_copy_order_ = AccessOrder::host();
 };
 
+/** Checks if the Operator is an InputOperator */
+inline bool IsInputOperator(OperatorBase *op) {
+  return dynamic_cast<InputOperator<CPUBackend> *>(op) ||
+         dynamic_cast<InputOperator<MixedBackend> *>(op) ||
+         dynamic_cast<InputOperator<GPUBackend> *>(op);
+}
 
-/**
- * Checks, if the Operator defined by provided Schema is an InputOperator
- */
+/** Checks, if the Operator defined by provided Schema is an InputOperator */
 inline bool IsInputOperator(const OpSchema &schema) {
   const auto &parents = schema.GetParentNames();
   return std::any_of(parents.begin(), parents.end(),

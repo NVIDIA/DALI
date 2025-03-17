@@ -87,14 +87,13 @@ daliResult_t daliPipelineOutputsDestroy(daliPipelineOutputs_h h) {
   DALI_EPILOG();
 }
 
-daliResult_t daliPipelineOutputsGet(daliPipelineOutputs_h outputs, daliTensorList_h *tl, int idx) {
+daliResult_t daliPipelineOutputsGet(daliPipelineOutputs_h outputs, daliTensorList_h *out, int idx) {
   DALI_PROLOG();
   auto *outs = ToPointer(outputs);
-  if (!tl)
-    throw std::invalid_argument("The output parameter must not be NULL.");
+  CHECK_OUTPUT(out);
   auto ptr = outs->Get(idx);
-  *tl = ptr.release();  // no throwing beyond this point
-  assert(static_cast<ITensorList *>(*tl)->RefCount() > 1);
+  *out = ptr.release();  // no throwing beyond this point
+  assert(static_cast<ITensorList *>(*out)->RefCount() > 1);
   DALI_EPILOG();
 }
 
@@ -105,12 +104,9 @@ daliResult_t daliPipelineOutputsGetTrace(
       const char *trace_name) {
   DALI_PROLOG();
   auto *outs = ToPointer(outputs);
-  if (!out_trace)
-    throw std::invalid_argument("The output parameter must not be NULL.");
-  if (!operator_name)
-    throw std::invalid_argument("The operator_name argument must not be NULL.");
-  if (!trace_name)
-    throw std::invalid_argument("The trace_name argument must not be NULL.");
+  CHECK_OUTPUT(out_trace);
+  NOT_NULL(operator_name);
+  NOT_NULL(trace_name);
   auto trace = outs->GetTrace(operator_name, trace_name);
   if (!trace) {
     *out_trace = nullptr;
@@ -126,8 +122,8 @@ daliResult_t daliPipelineOutputsGetTraces(
       int *out_trace_count) {
   DALI_PROLOG();
   auto *outs = ToPointer(outputs);
-  if (!out_traces || !out_trace_count)
-    throw std::invalid_argument("The output parameters must not be NULL.");
+  CHECK_OUTPUT(out_traces);
+  CHECK_OUTPUT(out_trace_count);
   auto traces = outs->GetTraces();
   *out_traces = traces.data();
   *out_trace_count = traces.size();

@@ -33,6 +33,7 @@
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/graph/graph2dot.h"
 #include "dali/pipeline/graph/cse.h"
+#include "dali/pipeline/operator/builtin/input_operator.h"
 
 namespace dali {
 
@@ -927,13 +928,6 @@ int Pipeline::output_ndim(int id) const {
 }
 
 
-static bool is_input_operator(OperatorBase *op) {
-  return dynamic_cast<InputOperator<CPUBackend> *>(op) ||
-         dynamic_cast<InputOperator<MixedBackend> *>(op) ||
-         dynamic_cast<InputOperator<GPUBackend> *>(op);
-}
-
-
 int Pipeline::num_inputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_inputs()\".");
   return input_operators_.size();
@@ -1067,7 +1061,7 @@ void Pipeline::DiscoverInputOperators() noexcept {
   auto& op_nodes = graph_.OpNodes();
   for (const auto &node : op_nodes) {
     auto *op = executor_->GetOperator(node.instance_name);
-    if (is_input_operator(op)) {
+    if (IsInputOperator(op)) {
       input_operators_.insert(std::make_pair(node.instance_name, &node));
     }
   }

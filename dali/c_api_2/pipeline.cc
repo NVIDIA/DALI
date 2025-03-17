@@ -160,7 +160,7 @@ void PipelineWrapper::FeedInputImpl(
   if (options & DALI_FEED_INPUT_FORCE_COPY) {
     if (options & DALI_FEED_INPUT_NO_COPY)
       throw std::invalid_argument("DALI_FEED_INPUT_FORCE_COPY and DALI_FEED_INPUT_NO_COPY"
-                                  " must notbe used together.");
+                                  " must not be used together.");
     copy_mode = InputOperatorCopyMode::FORCE_COPY;
   } else if (options & DALI_FEED_INPUT_NO_COPY) {
     copy_mode = InputOperatorCopyMode::FORCE_NO_COPY;
