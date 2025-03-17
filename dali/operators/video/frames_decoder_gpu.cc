@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include <cuda.h>
 #include <unistd.h>
@@ -26,6 +27,10 @@
 #include "dali/operators/video/color_space.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/video/video_utils.h"
+
+#undef LOG_LINE
+#define LOG_LINE std::cout
+
 
 namespace dali {
 
@@ -377,12 +382,9 @@ void FramesDecoderGpu::InitGpuParser() {
 
   InitBitStreamFilter();
 
-  filtered_packet_ = av_packet_alloc();
-  if (!filtered_packet_) {
-    DALI_WARN(make_string("Could not allocate av packet for \"", Filename(), "\""));
-    is_valid_ = false;
-    return;
-  }
+  filtered_packet_.reset(av_packet_alloc());
+  DALI_ENFORCE(filtered_packet_,
+               make_string("Could not allocate av packet for \"", Filename(), "\""));
 
   auto codec_type = GetCodecType(codec_params_->codec_id);
 
@@ -420,8 +422,8 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream)
-    : FramesDecoderBase(filename),
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type)
+    : FramesDecoderBase(filename, image_type),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -431,8 +433,8 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
-                                   cudaStream_t stream)
-    : FramesDecoderBase(memory_file, memory_file_size, source_info),
+                                   cudaStream_t stream, DALIImageType image_type)
+    : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -511,6 +513,9 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     &pitch,
     &videoProcessingParameters));
 
+  LOG_LINE << "VideoColorSpaceConversion with conversion_type_="
+           << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
+           << std::endl;
   TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
     VideoColorSpaceConversion(
       reinterpret_cast<OutType *>(frame_output), Width() * 3,
@@ -522,7 +527,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
-  // TODO(awolant): Alterantive is to copy the data to a buffer
+  // TODO(awolant): Alternative is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when
   // the benchmark is ready.
   CUDA_CALL(cudaStreamSynchronize(stream_));
@@ -578,6 +583,8 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
 
     if (!SendFrameToParser()) {
       continue;
+    } else {
+      packet.release();  // ownership is transferred via av_bsf_send_packet
     }
 
     if (frame_returned_) {
@@ -618,6 +625,7 @@ bool FramesDecoderGpu::SendFrameToParser() {
     av_packet_unref(filtered_packet_);
   }
 
+  LOG_LINE << "Sending packet to bitstream filter " << packet_->pts << std::endl;
   DALI_ENFORCE(av_bsf_send_packet(bsfc_, packet_) >= 0);
   DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
 
@@ -631,7 +639,9 @@ bool FramesDecoderGpu::SendFrameToParser() {
 
   // Send packet to the nv decoder
   frame_returned_ = false;
+  LOG_LINE << "Sending packet to the nv decoder" << std::endl;
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  LOG_LINE << "Packet sent to the nv decoder" << std::endl;
   return true;
 }
 
@@ -868,20 +878,24 @@ unsigned int FramesDecoderGpu::NumEmptySpots() const {
 }
 
 void FramesDecoderGpu::Reset() {
+  LOG_LINE << "Resetting decoder " << this << std::endl;
   Flush();
   FramesDecoderBase::Reset();
+  LOG_LINE << "Reset decoder " << this << std::endl;
 }
 
 void FramesDecoderGpu::Flush() {
-  LOG_LINE << "Flushing decoder state" << std::endl;
+  LOG_LINE << "Flush" << std::endl;
   SendLastPacket(true);
   more_frames_to_decode_ = true;
   frame_index_if_no_pts_ = 0;
+  LOG_LINE << "Flush done" << std::endl;
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
-  if (filtered_packet_) av_packet_free(&filtered_packet_);
-  if (bsfc_) av_bsf_free(&bsfc_);
+  Flush();
+  filtered_packet_.reset();
+  bsfc_.reset();
 }
 
 bool FramesDecoderGpu::SupportsHevc() {
@@ -906,12 +920,12 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   assert(codec_params_);
   AVCodecID codec_id = codec_params_->codec_id;
 
-  static constexpr std::array<AVCodecID, 7> codecs = {
+  static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
     AVCodecID::AV_CODEC_ID_HEVC,
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
-    AVCodecID::AV_CODEC_ID_MJPEG,
+    //AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
     AVCodecID::AV_CODEC_ID_AV1,
     AVCodecID::AV_CODEC_ID_MPEG4,
   };

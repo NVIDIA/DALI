@@ -16,19 +16,24 @@
 #include <algorithm>
 #include <string>
 #include "dali/core/error_handling.h"
+#include "dali/core/tensor_view.h"
+#include "dali/kernels/transpose/transpose.h"
 #include <cstring>
 #include <iomanip>
 #include "dali/operators/video/video_utils.h"
 
+#undef LOG_LINE
+#define LOG_LINE std::cout
+
 namespace dali {
 
-FramesDecoderCpu::FramesDecoderCpu(const std::string &filename)
-    : FramesDecoderBase(filename) {
+FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType image_type)
+    : FramesDecoderBase(filename, image_type) {
   is_valid_ = is_valid_ && SelectVideoStream();
 }
 
-FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view source_info)
-  : FramesDecoderBase(memory_file, memory_file_size, source_info) {
+FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type)
+  : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type) {
   is_valid_ = is_valid_ && SelectVideoStream();
 }
 
@@ -61,7 +66,22 @@ bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
   return ReadFlushFrame(data);
 }
 
+
+void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, int64_t width, int64_t channels) {
+  std::array<int, 3> perm = {1, 2, 0};
+  TensorView<StorageCPU, uint8_t> output_view{output, {height, width, channels}};
+  TensorView<StorageCPU, const uint8_t> input_view{input, {channels, height, width}};
+  kernels::TransposeGrouped(output_view, input_view, make_cspan(perm));
+}
+
 void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
+  uint8_t *sws_output_data = data;
+  AVPixelFormat sws_output_format = AV_PIX_FMT_RGB24;
+  if (image_type_ == DALI_YCbCr) {
+    tmp_buffer_.resize(FrameSize());
+    sws_output_data = tmp_buffer_.data();
+    sws_output_format = AV_PIX_FMT_YUV444P;
+  }
   if (!sws_ctx_) {
     sws_ctx_ = std::unique_ptr<SwsContext, decltype(&sws_freeContext)>(
       sws_getContext(
@@ -70,7 +90,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
         codec_ctx_->pix_fmt,
         Width(),
         Height(),
-        AV_PIX_FMT_RGB24,
+        sws_output_format,
         SWS_BILINEAR,
         nullptr,
         nullptr,
@@ -79,9 +99,10 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     DALI_ENFORCE(sws_ctx_, "Could not create sw context");
   }
 
-  uint8_t *dest[4] = {data, nullptr, nullptr, nullptr};
+  uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
 
+  LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(
     sws_ctx_.get(),
     frame_->data,
@@ -91,8 +112,13 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     dest,
     dest_linesize);
 
+  if (image_type_ == DALI_YCbCr) {
+    LOG_LINE << "Converting planar YUV to interleaved" << std::endl;
+    PlanarToInterleaved(data, sws_output_data, Height(), Width(), Channels());
+  }
+
   DALI_ENFORCE(ret >= 0,
-               make_string("Could not convert frame data to RGB: ", av_error_string(ret)));
+               make_string("Could not convert frame data: ", av_error_string(ret)));
 }
 
 bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
@@ -169,6 +195,7 @@ bool FramesDecoderCpu::ReadFlushFrame(uint8_t *data) {
 }
 
 void FramesDecoderCpu::Reset() {
+  LOG_LINE << "Resetting decoder" << std::endl;
   FramesDecoderBase::Reset();
   flush_state_ = false;
 }

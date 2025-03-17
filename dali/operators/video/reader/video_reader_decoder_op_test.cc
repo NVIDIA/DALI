@@ -23,6 +23,9 @@
 #include "dali/test/cv_mat_utils.h"
 #include "dali/core/dev_buffer.h"
 
+// This runs all the tests from the legacy video reader op in addition to those defined in this file
+#define VIDEO_READER_OP experimental__readers__Video
+#include "dali/operators/video/legacy/reader/video_reader_op_test.cc"
 
 namespace dali {
 class VideoReaderDecoderBaseTest : public VideoTestBase {
