@@ -273,17 +273,9 @@ endif()
 # nvimagecodec
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
-set(DALI_INSTALL_REQUIRES_NVJPEG2K "")
-set(DALI_INSTALL_REQUIRES_NVTIFF "")
 if(BUILD_NVIMAGECODEC)
-  set(NVJPEG2K_MIN_VERSION "0.8.0")
-  set(NVJPEG2K_MAX_VERSION "0.9.0")
-
-  set(NVTIFF_MIN_VERSION "0.4.0")
-  set(NVTIFF_MAX_VERSION "0.5.0")
-
-  set(NVIMGCODEC_MIN_VERSION "0.4.1")
-  set(NVIMGCODEC_MAX_VERSION "0.5.0")
+  set(NVIMGCODEC_MIN_VERSION "0.5.0")
+  set(NVIMGCODEC_MAX_VERSION "0.6.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
@@ -297,8 +289,8 @@ if(BUILD_NVIMAGECODEC)
     include(FetchContent)
     FetchContent_Declare(
       nvimgcodec_headers
-      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.4.1.21-archive.tar.xz
-      URL_HASH SHA512=3f20f6944a360597586bfe3550a0605257bcd944748477a869691ec1a42716e3722f8ddbd0b525995ebab89a33cd91ed82d5b151194008f1a8424971448a4824
+      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
+      URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
     )
     FetchContent_Populate(nvimgcodec_headers)
     set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
@@ -315,24 +307,11 @@ if(BUILD_NVIMAGECODEC)
 
     if("$ENV{ARCH}" STREQUAL "aarch64-linux")
       message(STATUS "ARCH is set to aarch64-linux")
-      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}")
-      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-tegra-cu${CUDA_VERSION_MAJOR}")
-      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-tegra-cu${CUDA_VERSION_MAJOR}")
-      # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
-      # TODO(janton): enable support for nvimgcodec on Tegra
-      set(DALI_INSTALL_REQUIRES_NVJPEG2K "")
-      set(DALI_INSTALL_REQUIRES_NVTIFF "")
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}[all]")
       set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
     else()
       message(STATUS "ARCH is set to $ENV{ARCH}")
-      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}")
-      set(NVJPEG2K_PACKAGE_NAME "nvidia-nvjpeg2k-cu${CUDA_VERSION_MAJOR}")
-      set(NVTIFF_PACKAGE_NAME "nvidia-nvtiff-cu${CUDA_VERSION_MAJOR}")
-      # TODO(janton): Replace with nvimgcodec[nvtiff+nvjpeg2k+...] when available
-      set(DALI_INSTALL_REQUIRES_NVJPEG2K "\'${NVJPEG2K_PACKAGE_NAME} >= ${NVJPEG2K_MIN_VERSION}, < ${NVJPEG2K_MAX_VERSION}',")
-      message(STATUS "Adding nvjpeg2k requirement as: ${DALI_INSTALL_REQUIRES_NVJPEG2K}")
-      set(DALI_INSTALL_REQUIRES_NVTIFF "\'${NVTIFF_PACKAGE_NAME} >= ${NVTIFF_MIN_VERSION}, < ${NVTIFF_MAX_VERSION}',")
-      message(STATUS "Adding nvtiff requirement as: ${DALI_INSTALL_REQUIRES_NVTIFF}")
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}[all]")
       set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
       message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
     endif()
@@ -352,7 +331,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.4.0
+      GIT_TAG           v0.5.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
