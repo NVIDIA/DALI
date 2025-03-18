@@ -430,7 +430,7 @@ typedef enum _DALIFeedInputFlags {
   DALI_FEED_INPUT_FORCE_COPY = 2,
   /** Do not make a copy of the input, use it directly instead. */
   DALI_FEED_INPUT_NO_COPY = 4,
-
+  /** Masks the part of the flags that describes the copy mode. */
   DALI_FEED_INPUT_COPY_MASK = 6,
 
   /** GPU-only: If set, the copy is performed by a CUDA kernel instead of cudaMemcpy */
