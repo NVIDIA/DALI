@@ -105,7 +105,7 @@ void PipelineWrapper::FeedInput(
     const ITensorList *input_data,
     std::optional<std::string_view> data_id,
     daliFeedInputFlags_t options,
-    std::optional<cudaStream_t> stream) {
+    AccessOrder order) {
   assert(input_data);
   if (input_data->GetBufferPlacement().device_type == DALI_STORAGE_CPU) {
     FeedInputImpl(
@@ -113,14 +113,14 @@ void PipelineWrapper::FeedInput(
       *input_data->Unwrap<CPUBackend>(),
       data_id,
       options,
-      stream);
+      order);
   } else if (input_data->GetBufferPlacement().device_type == DALI_STORAGE_GPU) {
     FeedInputImpl(
       input_name,
       *input_data->Unwrap<GPUBackend>(),
       data_id,
       options,
-      stream);
+      order);
   } else {
     assert(!"Impossible device type encountered.");
   }
@@ -154,7 +154,7 @@ void PipelineWrapper::FeedInputImpl(
       const TensorList<Backend> &tl,
       std::optional<std::string_view> data_id,
       daliFeedInputFlags_t options,
-      std::optional<cudaStream_t> stream) {
+      AccessOrder order) {
   InputOperatorCopyMode copy_mode = InputOperatorCopyMode::DEFAULT;
 
   if (options & DALI_FEED_INPUT_FORCE_COPY) {
@@ -169,7 +169,7 @@ void PipelineWrapper::FeedInputImpl(
   pipeline_->SetExternalInput(
     std::string(input_name),  // TODO(michalz): switch setting input to string_view
     tl,
-    stream.has_value() ? AccessOrder(*stream) : tl.order(),
+    order ? order : tl.order(),
     options & DALI_FEED_INPUT_SYNC,
     options & DALI_FEED_INPUT_USE_COPY_KERNEL,
     copy_mode,
@@ -179,6 +179,7 @@ void PipelineWrapper::FeedInputImpl(
 }  // namespace dali::c_api
 
 using namespace dali::c_api;  // NOLINT
+using dali::AccessOrder;
 
 daliResult_t daliPipelineCreate(
       daliPipeline_h *out_pipe_handle,
@@ -259,7 +260,7 @@ daliResult_t daliPipelineFeedInput(
     ToPointer(input_data),
     ToOptionalString(data_id),
     options,
-    ToOptional(stream));
+    stream ? AccessOrder(*stream) : AccessOrder());
   DALI_EPILOG();
 }
 

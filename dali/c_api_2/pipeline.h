@@ -56,7 +56,7 @@ class PipelineWrapper : public _DALIPipeline {
       const ITensorList *input_data,
       std::optional<std::string_view> data_id,
       daliFeedInputFlags_t options,
-      std::optional<cudaStream_t> stream);
+      AccessOrder order);
 
   int GetOutputCount() const;
 
@@ -74,7 +74,7 @@ class PipelineWrapper : public _DALIPipeline {
         const TensorList<Backend> &tl,
         std::optional<std::string_view> data_id,
         daliFeedInputFlags_t options,
-        std::optional<cudaStream_t> stream);
+        AccessOrder order);
 
   std::unique_ptr<Pipeline> pipeline_;
 };
