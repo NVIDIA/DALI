@@ -21,12 +21,18 @@
 
 namespace dali::c_api {
 
+/** A base class for objects that feature intrusive reference counting. */
 class RefCountedObject {
  public:
+  /** Increments the reference count and returns the new value. */
   int IncRef() noexcept {
     return std::atomic_fetch_add_explicit(&ref_, 1, std::memory_order_relaxed) + 1;
   }
 
+  /** Decrements the reference count and returns the new value.
+   *
+   * When the reference count reaches 0, the object is deleted.
+   */
   int DecRef() noexcept {
     int ret = std::atomic_fetch_sub_explicit(&ref_, 1, std::memory_order_acq_rel) - 1;
     if (!ret)
@@ -34,20 +40,29 @@ class RefCountedObject {
     return ret;
   }
 
+  /** Returns the current reference count. */
   int RefCount() const noexcept {
     return ref_.load(std::memory_order_relaxed);
   }
 
   virtual ~RefCountedObject() = default;
+
  private:
   std::atomic<int> ref_{1};
 };
 
+/** A smart pointer that manages an object with intrusive reference counting. */
 template <typename T>
 class RefCountedPtr {
  public:
   constexpr RefCountedPtr() noexcept = default;
 
+  /** Constructs a RefCountedPtr from a pointer to an object.
+   *
+   * @param ptr The pointer to the object.
+   * @param inc_ref If true, the reference count is incremented.
+   *                If false, the ownership of the object is transferred to the RefCountedPtr.
+   */
   explicit RefCountedPtr(T *ptr, bool inc_ref = false) noexcept : ptr_(ptr) {
     if (inc_ref && ptr_)
       ptr_->IncRef();
