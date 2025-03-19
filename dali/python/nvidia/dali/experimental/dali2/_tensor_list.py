@@ -12,15 +12,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, List, Union
 from ._type import DType
 from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
-from ._tensor import Tensor
+from ._tensor import Tensor, _is_full_slice
+import nvidia.dali.backend as _backend
+
+class _TensorListSlice:
+    def __init__(self, backend: Any, start: int=0, stop: int=-1, step: int=1):
+        if self._step == 0:
+            raise ValueError("Step cannot be 0")
+        self._backend = backend
+        n = len(backend)
+        if start < 0:
+            start += n
+        if stop < 0:
+            stop += n
+        start = min(max(start, 0), n)
+        stop = min(max(stop, 0), n)
+        self._start = start
+        self._stop = stop
+        self._step = step
+        if step > 0:
+            self._stop = max(self._start, self._stop)
+        else:
+            self._stop = min(self._start, self._stop)
+
+    def __len__(self) -> int:
+        return (self._stop - self._start) // self._step
+
+    def __getitem__(self, range: Any) -> Union["_TensorListSlice", "Tensor"]:
+        if isinstance(range, tuple):
+            raise ValueError("A TensorList is a 1D object. Use a single index instead or a single slice.")
+        if isinstance(range, slice):
+            start = self._start
+            stop = self._stop
+            step = self._step
+            if step == 0:
+                raise ValueError("Step cannot be 0")
+            if range.start is not None:
+                start = range.start + self._start
+                if range.start < 0:
+                    start += len(self)
+            if range.stop is not None:
+                stop = range.stop + self._start
+                if range.stop < 0:
+                    stop += len(self)
+            start = min(max(start, self._start), self._stop)
+            stop = min(max(stop, start), self._stop)
+            if range.step is not None:
+                step *= range.step
+            return _TensorListSlice(self._backend, start, stop, step)
+        else:
+            if range < 0:
+                range += len(self)
+            if range < 0 or range >= len(self):
+                raise IndexError(f"The index {range} is out of bounds for the TensorList of size {len(self)}")
+
 
 class TensorList:
     def __init__(self, tensors: List[Any], dtype: Optional[DType] = None, device: Optional[Device] = None, layout: Optional[str] = None):
-        self._tensors = []]
+        self._tensors = []
         if len(tensors) == 0:
             if dtype is None:
                 raise ValueError("Element type must be specified if the list is empty")
@@ -42,6 +95,8 @@ class TensorList:
         self._dtype = dtype
         self._device = device
         self._layout = layout
+        self._backend = None
+        self._ndim = None if len(self._tensors) == 0 else self._tensors[0].ndim
 
     @property
     def dtype(self) -> DType:
@@ -56,8 +111,48 @@ class TensorList:
         return self._layout
 
     @property
-    def tensors(self) -> List[Tensor]:
-        return self._tensors
+    def ndim(self) -> int:
+        return self._ndim
 
+    @property
+    def tensors(self):
+        if self._backend is not None:
+            return _TensorListSlice(self._backend)
+        return  self._tensors
 
+    def batch_size(self) -> int:
+        return len(self._tensors)
+
+    def __getitem__(self, ranges: Any) -> "TensorList":
+        if not isinstance(ranges, (tuple)):
+            ranges = (ranges,)
+        if len(ranges) == 0:
+            return self
+
+        if all(_is_full_slice(r) for r in ranges):
+            return self
+
+        if self._backend is None:
+            self._initialize_backend()
+        args = {}
+        d = 0
+        for i, r in enumerate(ranges):
+            if r is Ellipsis:
+                d += self.ndim - len(ranges)
+            elif isinstance(r, slice):
+                if r.start is not None:
+                    args[f"lo_{d}"] = r.start
+                if r.stop is not None:
+                    args[f"hi_{d}"] = r.stop
+                if r.step is not None:
+                    args[f"step_{d}"] = r.step
+                d += 1
+            else:
+                args[f"at_{d}"] = r
+                d += 1
+
+        return fn.tensor_subscript(self, self._backend, *args)
+
+    def _initialize_backend(self):
+        self._backend = _backend.TensorList([
 
