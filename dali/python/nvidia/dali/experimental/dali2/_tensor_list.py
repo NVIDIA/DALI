@@ -14,10 +14,10 @@
 
 from typing import Any, Optional, Tuple, List, Union
 from ._type import DType
-from ._device import Device
-from nvidia.dali.backend import TensorCPU, TensorGPU
 from ._tensor import Tensor, _is_full_slice
 import nvidia.dali.backend as _backend
+from ._eval_context import EvalContext as _EvalContext
+from ._device import Device, DeviceType
 
 class _TensorListSlice:
     def __init__(self, backend: Any, start: int=0, stop: int=-1, step: int=1):
@@ -132,8 +132,6 @@ class TensorList:
         if all(_is_full_slice(r) for r in ranges):
             return self
 
-        if self._backend is None:
-            self._initialize_backend()
         args = {}
         d = 0
         for i, r in enumerate(ranges):
@@ -151,8 +149,19 @@ class TensorList:
                 args[f"at_{d}"] = r
                 d += 1
 
-        return fn.tensor_subscript(self, self._backend, *args)
+        return fn.tensor_subscript(self, *args)
 
-    def _initialize_backend(self):
-        self._backend = _backend.TensorList([
+    def evaluate(self):
+        with _EvalContext.get():
+            if self._backend is None:
+                if self._device.device_type == "cpu":
+                    backend_type = _backend.TensorListCPU
+                elif self._device.device_type == "gpu":
+                    backend_type = _backend.TensorListGPU
+                else:
+                    raise ValueError(f"Internal error: Unsupported device type: {self._device.device_type}")
+            self._backend = backend_type(
+                [t.evaluate() for t in self._tensors]._backend,
+                self.layout)
+        return self
 
