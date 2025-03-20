@@ -16,7 +16,8 @@ from typing import Any, Optional, Tuple
 from ._type import DType
 from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
-
+from ._eval_context import EvalContext as _EvalContext
+from . import _eval_mode
 
 class TensorMetadata:
     def __init__(self, shape: Tuple[int, ...], dtype: DType, layout: str):
@@ -52,8 +53,7 @@ class Tensor:
                 else:
                     self.assign(data.to_device(device))
             else:
-                # self.assign(fn.cast(data, dtype, device=device))
-                raise NotImplementedError("Casting to a different dtype is not implemented yet")
+                self.assign(fn.cast(data, dtype, device=device))
             return
         elif hasattr(data, "__dlpack__"):
             self._backend = TensorCPU(data, layout)
@@ -69,8 +69,8 @@ class Tensor:
         else:
             self.device = Device("cpu")
 
-        if self.device.device_type == "gpu" and isinstance(self._backend, TensorCPU):
-            self._backend = self._backend._as_gpu()
+        if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
+            self.assign(self.to_device(device))
 
         self._metadata = TensorMetadata(self._backend.shape(), dtype, layout)
 
@@ -128,7 +128,14 @@ class Tensor:
             raise ValueError(f"Tensor has {self.size} elements, expected 1")
         import numpy as np
 
-        return np.array(self.cpu()._backend).item()
+        with _EvalContext.get():
+            return np.array(self.cpu().evaluate()._backend).item()
+
+    def evaluate(self):
+        if self._backend is None:
+            assert self._expression is not None
+            self._backend = self._expression.evaluate()._backend
+        return self
 
     def __getitem__(self, ranges: Any) -> "TensorSlice":
         if not isinstance(ranges, tuple):
@@ -267,4 +274,38 @@ class TensorSlice:
                     else:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
-            return TensorSlice(self._tensor, tuple(abs_ranges))
+            slice = TensorSlice(self._tensor, tuple(abs_ranges))
+            if _eval_mode.eval_mode >= _eval_mode.EvalMode.EAGER:
+                return slice.evaluate()
+            else:
+                return slice
+
+    def evaluate(self):
+        if not isinstance(ranges, (tuple)):
+            ranges = (ranges,)
+
+        with _EvalContext.get() as context:
+            if len(ranges) == 0:
+                return self._tensor.evaluate()
+
+            if all(_is_full_slice(r) for r in ranges):
+                return self._tensor.evaluate()
+
+            args = {}
+            d = 0
+            for i, r in enumerate(ranges):
+                if r is Ellipsis:
+                    d += self.ndim - len(ranges)
+                elif isinstance(r, slice):
+                    if r.start is not None:
+                        args[f"lo_{d}"] = r.start
+                    if r.stop is not None:
+                        args[f"hi_{d}"] = r.stop
+                    if r.step is not None:
+                        args[f"step_{d}"] = r.step
+                    d += 1
+                else:
+                    args[f"at_{d}"] = r
+                    d += 1
+
+            return fn.tensor_subscript(self, *args).evaluate()
