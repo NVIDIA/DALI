@@ -12,16 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.backend as _b
-import nvidia.dali.ops as _ops
+from contextlib import contextmanager
+from threading import local
 
-def initialize():
-    _all_ops = _ops._registry._all_registered_ops()
-    for op_name in _all_ops:
+_tls = local()
+_tls.stack = []
 
-        schema = _b.TryGetSchema(_all_ops)
-        if schema is None:
-            print(f"Warning: no schema found for {op_name}")
-            continue
 
+class EvalContext:
+
+    def __init__(self):
+        self._expressions = {}
+
+    def current(self):
+        return self._tls.stack[-1] if self._tls.stack else None
+
+    def __enter__(self):
+        _tls.stack.append(self)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _tls.stack.pop()
+
+    @staticmethod
+    def get():
+        return EvalContext.current() or EvalContext()
 
