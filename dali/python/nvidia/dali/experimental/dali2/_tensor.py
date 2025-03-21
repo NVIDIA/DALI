@@ -18,6 +18,8 @@ from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
+import copy
+
 
 class TensorMetadata:
     def __init__(self, shape: Tuple[int, ...], dtype: DType, layout: str):
@@ -146,6 +148,9 @@ class Tensor:
         else:
             return TensorSlice(self, ranges)
 
+    def _is_same_tensor(self, other: "Tensor") -> bool:
+        return self._backend is other._backend and self._expression is other._expression
+
 
 def _is_int_value(tested: Any, reference: int) -> bool:
     return isinstance(tested, int) and tested == reference
@@ -181,8 +186,8 @@ def _scalar_value(value: Any) -> int:
 
 class TensorSlice:
     def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...]):
-        self._tensor = tensor
-        self._ranges = ranges
+        self._tensor = copy.copy(tensor)
+        self._ranges = [copy.copy(r) for r in ranges]
         self._ndim_dropped = 0
         self._shape = None
         self._absolute_ranges = None
