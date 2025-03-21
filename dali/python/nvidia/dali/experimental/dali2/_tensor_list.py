@@ -19,8 +19,9 @@ import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from ._device import Device, DeviceType
 
+
 class _TensorListSlice:
-    def __init__(self, backend: Any, start: int=0, stop: int=-1, step: int=1):
+    def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
         if self._step == 0:
             raise ValueError("Step cannot be 0")
         self._backend = backend
@@ -44,7 +45,9 @@ class _TensorListSlice:
 
     def __getitem__(self, range: Any) -> Union["_TensorListSlice", "Tensor"]:
         if isinstance(range, tuple):
-            raise ValueError("A TensorList is a 1D object. Use a single index instead or a single slice.")
+            raise ValueError(
+                "A TensorList is a 1D object. Use a single index instead or a single slice."
+            )
         if isinstance(range, slice):
             start = self._start
             stop = self._stop
@@ -68,11 +71,19 @@ class _TensorListSlice:
             if range < 0:
                 range += len(self)
             if range < 0 or range >= len(self):
-                raise IndexError(f"The index {range} is out of bounds for the TensorList of size {len(self)}")
+                raise IndexError(
+                    f"The index {range} is out of bounds for the TensorList of size {len(self)}"
+                )
 
 
 class TensorList:
-    def __init__(self, tensors: List[Any], dtype: Optional[DType] = None, device: Optional[Device] = None, layout: Optional[str] = None):
+    def __init__(
+        self,
+        tensors: List[Any],
+        dtype: Optional[DType] = None,
+        device: Optional[Device] = None,
+        layout: Optional[str] = None,
+    ):
         self._tensors = []
         if len(tensors) == 0:
             if dtype is None:
@@ -96,6 +107,7 @@ class TensorList:
         self._device = device
         self._layout = layout
         self._backend = None
+        self._expression = None
         self._ndim = None if len(self._tensors) == 0 else self._tensors[0].ndim
 
     @property
@@ -118,10 +130,22 @@ class TensorList:
     def tensors(self):
         if self._backend is not None:
             return _TensorListSlice(self._backend)
-        return  self._tensors
+        return self._tensors
 
     def batch_size(self) -> int:
         return len(self._tensors)
+
+    def _is_same_tensor_list(self, other: "TensorList") -> bool:
+        if self is other:
+            return True
+        return (
+            self._backend is other._backend
+            and self._expression is other._expression
+            and (
+                self._tensors is other._tensors
+                or [t._is_same_tensor(ot) for t, ot in zip(self._tensors, other._tensors)]
+            )
+        )
 
     def __getitem__(self, ranges: Any) -> "TensorList":
         if not isinstance(ranges, (tuple)):
@@ -159,9 +183,10 @@ class TensorList:
                 elif self._device.device_type == "gpu":
                     backend_type = _backend.TensorListGPU
                 else:
-                    raise ValueError(f"Internal error: Unsupported device type: {self._device.device_type}")
+                    raise ValueError(
+                        f"Internal error: Unsupported device type: {self._device.device_type}"
+                    )
             self._backend = backend_type(
-                [t.evaluate() for t in self._tensors]._backend,
-                self.layout)
+                [t.evaluate() for t in self._tensors]._backend, self.layout
+            )
         return self
-
