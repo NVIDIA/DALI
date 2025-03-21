@@ -37,4 +37,3 @@ class EvalContext:
     @staticmethod
     def get():
         return EvalContext.current() or EvalContext()
-

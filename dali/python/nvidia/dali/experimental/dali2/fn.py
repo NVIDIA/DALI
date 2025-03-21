@@ -15,13 +15,15 @@
 import nvidia.dali.backend as _b
 import nvidia.dali.ops as _ops
 
+
 def initialize():
     _all_ops = _ops._registry._all_registered_ops()
     for op_name in _all_ops:
+        # ExternalSource and PythonFunction are not needed in dali2 API
+        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
+            continue
 
         schema = _b.TryGetSchema(_all_ops)
         if schema is None:
             print(f"Warning: no schema found for {op_name}")
             continue
-
-
