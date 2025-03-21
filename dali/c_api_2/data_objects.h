@@ -28,8 +28,18 @@
 #include "dali/c_api_2/validation.h"
 
 
-struct _DALITensorList {};
-struct _DALITensor {};
+// A dummy base that the handle points to
+struct _DALITensorList {
+ protected:
+  _DALITensorList() = default;
+  ~_DALITensorList() = default;
+};
+
+struct _DALITensor {
+ protected:
+  _DALITensor() = default;
+  ~_DALITensor() = default;
+};
 
 namespace dali {
 namespace c_api {

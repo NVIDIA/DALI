@@ -79,10 +79,15 @@ std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool
   catch (std::invalid_argument &e) {
     throw std::invalid_argument(
         make_string(error.context_info, e.what(), error.additional_message));
+  } catch (std::system_error &e) {
+    throw std::system_error(e.code(),
+        make_string(error.context_info, e.what(), error.additional_message));
   } catch (std::domain_error &e) {
     throw std::domain_error(make_string(error.context_info, e.what(), error.additional_message));
   } catch (std::length_error &e) {
     throw std::length_error(make_string(error.context_info, e.what(), error.additional_message));
+  } catch (dali::invalid_key &e) {
+    throw dali::invalid_key(make_string(error.context_info, e.what(), error.additional_message));
   } catch (std::out_of_range &e) {
     throw std::out_of_range(make_string(error.context_info, e.what(), error.additional_message));
   } catch (std::range_error &e) {

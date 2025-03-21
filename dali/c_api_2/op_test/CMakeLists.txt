@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This subdirectory contains tests that need non-builtin operators
-add_subdirectory(op_test)
-
 # Get all the source files
 
-# The headers here are private and should not be installed.
-# collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-# The tests from this directory go to dali_test.
+# Everything from this directory goes to dali_operator_test.
+# No headers are installed.
 
-collect_sources(DALI_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
-set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} PARENT_SCOPE)
+collect_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)

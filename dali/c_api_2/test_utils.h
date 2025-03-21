@@ -12,30 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_C_API_2_UTILS_H_
-#define DALI_C_API_2_UTILS_H_
+#ifndef DALI_C_API_2_TEST_UTILS_H_
+#define DALI_C_API_2_TEST_UTILS_H_
 
-#include <optional>
-#include <stdexcept>
-#include <string_view>
+#include <gtest/gtest.h>
+#define DALI_ALLOW_NEW_C_API
+#include "dali/dali.h"
 
-namespace dali::c_api {
+#define CHECK_DALI(...) EXPECT_EQ((__VA_ARGS__), DALI_SUCCESS) << daliGetLastErrorMessage()
 
-template <typename T>
-std::optional<T> ToOptional(const T *nullable) {
-  if (nullable == nullptr)
-    return std::nullopt;
-  else
-    return *nullable;
-}
-
-constexpr std::optional<std::string_view> ToOptionalString(const char *nullable) {
-  if (nullable == nullptr)
-    return std::nullopt;
-  else
-    return nullable;
-}
-
-}  // namespace dali::c_api
-
-#endif  // DALI_C_API_2_UTILS_H_
+#endif  // DALI_C_API_2_TEST_UTILS_H_
