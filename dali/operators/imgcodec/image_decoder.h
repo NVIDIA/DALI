@@ -815,6 +815,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
         CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, decode_status_.data(),
                                                              &decode_status_size));
         CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
+
+        // There is a race condition on nvimagecodec side that can cause data corruption if we don't
+        // wait for all threads to finish. This is because nvimagecodec is setting the promise
+        // before it issues stream synchronization with the user stream. Even if we didn't have that
+        // race, we probably want to wait for all threads to finish anyway because we can't
+        // guarantee that the thread pool from the workspace outlives RunImplImpl call.
+        tp_->WaitForWork();
       }
       if (decode_status_size != nsamples_decode)
         throw std::runtime_error("Failed to run decoder");
