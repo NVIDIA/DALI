@@ -136,7 +136,8 @@ class Tensor:
     def evaluate(self):
         if self._backend is None:
             assert self._expression is not None
-            self._backend = self._expression.evaluate()._backend
+            with _EvalContext.get() as ctx:
+                self._backend = ctx.evaluate(self._expression)._backend
         return self
 
     def __getitem__(self, ranges: Any) -> "TensorSlice":
