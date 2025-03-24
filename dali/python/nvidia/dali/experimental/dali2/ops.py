@@ -11,3 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+class Operator:
+    def __init__(self, name, max_batch_size):
+        self._name = name
+        self._max_batch_size = max_batch_size
