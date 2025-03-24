@@ -889,7 +889,6 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
-  Flush();
   filtered_packet_.reset();
   bsfc_.reset();
 }
