@@ -18,6 +18,9 @@ import makefun
 from _tensor_list import TensorList
 from _tensor import Tensor
 import warnings
+import ops
+import types
+import copy
 
 
 def _is_tensor_type(x, nested_list_warning=False):
@@ -48,9 +51,57 @@ def _is_batch(x):
     return False
 
 
-def build_call_function(schema, op_class):
-    function_name = "__call__"
+def build_operator_class(schema):
+    op_name = schema.GetName()
+    *module_path, class_name = op_name.split("__")
+    module = ops
+    for path_part in module_path:
+        new_module = getattr(module, path_part, None)
+        if new_module is None:
+            new_module = types.ModuleType(path_part)
+            setattr(module, path_part, new_module)
+        module = new_module
+    op_class = type(class_name, (module.Operator,), {})
+    op_class.schema = schema
+    op_class.__init__ = build_constructor(schema, op_class)
+    op_class.__call__ = build_call_function(schema, op_class)
+    return op_class
 
+
+def build_constructor(schema, op_class):
+    stateful = schema.IsStateful()
+    function_name = "__init__"
+
+    call_args = []
+    for arg in schema.GetArgumentNames():
+        if schema.IsTensorArgument(arg):
+            continue
+        if schema.IsArgumentOptional(arg):
+            if schema.HasArgumentDefaultValue(arg):
+                call_args.append(f"{arg}={schema.GetArgumentDefaultValueString(arg)}")
+            else:
+                call_args.append(f"{arg}=None")
+        else:
+            call_args.append(arg)
+
+    if call_args:
+        call_args = ["*"] + call_args
+    header = f"__init__({', '.join(['self'] + call_args)})"
+
+    def init(self, name, max_batch_size, **kwargs):
+        super().__init__(name, max_batch_size)
+        self._init_args = kwargs
+        if stateful:
+            self._call_id = 0
+
+    function = makefun.create_function(header, init)
+    function.__qualname__ = f"{op_class.__name__}.{function_name}"
+
+    return function
+
+
+def build_call_function(schema, op_class):
+    stateful = schema.IsStateful()
     call_args = []
     for arg in schema.GetArgumentNames():
         if not schema.IsTensorArgument(arg):
@@ -94,23 +145,21 @@ def build_call_function(schema, op_class):
                     is_batch = True
                     first_batch_arg = x
                     break
+        if not is_batch:
+            batch_size = self._max_batch_size
+            is_batch = True
+
+        args = [copy.copy(x) for x in args]
+        kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
+        if stateful:
+            call_id = self._call_id
+            self._call_id += 1
+        else:
+            call_id = None
+        expr = Expression(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
         if is_batch:
-            if batch_size is None:
-                batch_size = (
-                    first_batch_arg.batch_size
-                    if hasattr(first_batch_arg, "batch_size")
-                    else len(first_batch_arg)
-                )
-            for i in range(len(inputs)):
-                if not _is_batch(inputs[i]):
-                    inputs[i] = TensorList([inputs[i]] * batch_size)
-            for k, v in kwargs.items():
-                if not _is_batch(v):
-                    kwargs[k] = TensorList([v] * batch_size)
+            return TensorList(expr)
 
     function = makefun.create_function(header, call)
-
-    if op_class is not None:
-        setattr(op_class, function_name, function)
 
     return function
