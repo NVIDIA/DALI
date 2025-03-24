@@ -19,9 +19,6 @@
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
 
-#undef LOG_LINE
-#define LOG_LINE std::cout
-
 namespace dali {
 
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
