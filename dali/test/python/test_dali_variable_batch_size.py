@@ -1121,7 +1121,7 @@ def test_audio_decoders():
 
 def test_image_decoders():
     extra_args = {
-        "hw_decoder_load": 1.0,  # for deterministic results regardless of batch size
+        "hw_decoder_load": 0.0,  # for deterministic results regardless of batch size
     }
 
     def image_decoder_pipe(module, max_batch_size, input_data, device):
@@ -1155,7 +1155,7 @@ def test_image_decoders():
     def peek_image_shape_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
-        shape = module.peek_image_shape(encoded, device=device, **extra_args)
+        shape = module.peek_image_shape(encoded, device=device)
         pipe.set_outputs(shape)
         return pipe
 
