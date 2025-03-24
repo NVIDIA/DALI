@@ -63,8 +63,22 @@ TEST(CAPI2_PipelineTest, ReaderDecoderCPU) {
   TestReaderDecoder("cpu", StorageDevice::CPU);
 }
 
-TEST(CAPI2_PipelineTest, ReaderDecoderGPU) {
+TEST(CAPI2_PipelineTest, ReaderDecoderCPU2GPU) {
+  TestReaderDecoder("cpu", StorageDevice::GPU);
+}
+
+TEST(CAPI2_PipelineTest, ReaderDecoderMixed) {
+  if (!MixedOperatorRegistry::Registry().IsRegistered("ImageDecoder")) {
+    GTEST_SKIP() << "ImageDecoder for mixed backend is not available";
+  }
   TestReaderDecoder("mixed", StorageDevice::GPU);
+}
+
+TEST(CAPI2_PipelineTest, ReaderDecoderMixed2CPU) {
+  if (!MixedOperatorRegistry::Registry().IsRegistered("ImageDecoder")) {
+    GTEST_SKIP() << "ImageDecoder for mixed backend is not available";
+  }
+  TestReaderDecoder("mixed", StorageDevice::CPU);
 }
 
 }  // namespace dali::c_api::test
