@@ -125,7 +125,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         boundary_type_(GetBoundaryType(spec)) {
-    if ((spec.HasArgument("file_list") || spec.HasArgument("file_root") || spec.HasArgument("filenames")) != 1) {
+    if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
     }
     bool has_labels = spec.TryGetRepeatedArgument(labels_, "labels");
@@ -547,7 +547,7 @@ DALI_SCHEMA(experimental__readers__Video)
 The operator supports most common video container formats using libavformat (FFmpeg).
 The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
 
-The following video codecs are supported by both CPU and Mixed backends:
+The following video codecs are supported by both CPU and GPU backends:
 
 * H.264/AVC
 * H.265/HEVC
@@ -555,7 +555,7 @@ The following video codecs are supported by both CPU and Mixed backends:
 * VP9
 * MJPEG
 
-The following codecs are supported by the Mixed backend only:
+The following codecs are supported by the GPU backend only:
 
 * AV1
 * MPEG-4

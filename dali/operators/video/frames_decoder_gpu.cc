@@ -28,10 +28,6 @@
 #include "dali/core/static_switch.h"
 #include "dali/operators/video/video_utils.h"
 
-#undef LOG_LINE
-#define LOG_LINE std::cout
-
-
 namespace dali {
 
 namespace frame_dec_gpu_impl {

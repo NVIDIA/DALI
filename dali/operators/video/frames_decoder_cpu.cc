@@ -22,9 +22,6 @@
 #include <iomanip>
 #include "dali/operators/video/video_utils.h"
 
-#undef LOG_LINE
-#define LOG_LINE std::cout
-
 namespace dali {
 
 FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType image_type)
