@@ -85,30 +85,33 @@ class TensorList:
         layout: Optional[str] = None,
     ):
         self._tensors = []
-        if len(tensors) == 0:
-            if dtype is None:
-                raise ValueError("Element type must be specified if the list is empty")
-            if device is None:
-                device = Device("cpu")
-            if layout is None:
-                layout = ""
-        else:
-            for t in tensors:
-                sample = Tensor(t, dtype, device, layout)
+        if tensors is not None:
+            if len(tensors) == 0:
                 if dtype is None:
-                    dtype = sample.dtype
+                    raise ValueError("Element type must be specified if the list is empty")
                 if device is None:
-                    device = sample.device
+                    device = Device("cpu")
                 if layout is None:
-                    layout = sample.layout
-                self._tensors.append(sample)
+                    layout = ""
+            else:
+                for t in tensors:
+                    sample = Tensor(t, dtype, device, layout)
+                    if dtype is None:
+                        dtype = sample.dtype
+                    if device is None:
+                        device = sample.device
+                    if layout is None:
+                        layout = sample.layout
+                    self._tensors.append(sample)
 
         self._dtype = dtype
         self._device = device
         self._layout = layout
         self._backend = None
         self._expression = None
-        self._ndim = None if len(self._tensors) == 0 else self._tensors[0].ndim
+        self._ndim = None
+        if self._tensors and self._tensors[0]._shape:
+            self._ndim = len(self._tensors[0]._shape)
 
     @property
     def dtype(self) -> DType:
@@ -124,6 +127,13 @@ class TensorList:
 
     @property
     def ndim(self) -> int:
+        if self._ndim is None:
+            if self._expression is not None:
+                self._ndim = self._expression.ndim
+            elif self._tensors:
+                self._ndim = self._tensors[0].ndim
+            else:
+                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
         return self._ndim
 
     @property
@@ -176,17 +186,20 @@ class TensorList:
         return fn.tensor_subscript(self, *args)
 
     def evaluate(self):
-        with _EvalContext.get():
+        with _EvalContext.get() as ctx:
             if self._backend is None:
-                if self._device.device_type == "cpu":
-                    backend_type = _backend.TensorListCPU
-                elif self._device.device_type == "gpu":
-                    backend_type = _backend.TensorListGPU
+                if self._expression is not None:
+                    self._backend = ctx.evaluate(self._expression)._backend
                 else:
-                    raise ValueError(
-                        f"Internal error: Unsupported device type: {self._device.device_type}"
+                    if self._device.device_type == "cpu":
+                        backend_type = _backend.TensorListCPU
+                    elif self._device.device_type == "gpu":
+                        backend_type = _backend.TensorListGPU
+                    else:
+                        raise ValueError(
+                            f"Internal error: Unsupported device type: {self._device.device_type}"
+                        )
+                    self._backend = backend_type(
+                        [t.evaluate() for t in self._tensors]._backend, self.layout
                     )
-            self._backend = backend_type(
-                [t.evaluate() for t in self._tensors]._backend, self.layout
-            )
         return self
