@@ -37,3 +37,13 @@ class EvalContext:
     @staticmethod
     def get():
         return EvalContext.current() or EvalContext()
+
+    def cached_result(self, expression):
+        if expression in self._cached_results:
+            return self._cached_results[expression]
+
+        # TODO(michalz): Common subexpression elimination.
+        return None
+
+    def cache_result(self, expression, result):
+        self._cached_results[expression] = result
