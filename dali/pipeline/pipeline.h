@@ -39,7 +39,7 @@
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
-
+#include "dali/pipeline/pipeline_params.h"
 
 namespace dali {
 

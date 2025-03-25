@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -241,6 +241,7 @@ class Pipeline(object):
         py_callback_pickler=None,
         output_dtype=None,
         output_ndim=None,
+        output_layout=None,
         exec_dynamic=False,
         experimental_exec_dynamic=None,
     ):
@@ -368,6 +369,22 @@ class Pipeline(object):
         elif output_ndim is not None and output_ndim < 0:
             raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
         self._output_ndim = output_ndim
+
+        # Assign and validate output_layout
+        if isinstance(output_layout, (list, tuple)):
+            for layout in output_layout:
+                if not isinstance(layout, (str, type(None))):
+                    raise TypeError(
+                        f"`output_layout` must be either: a string, a list of strings or None. "
+                        f"Found type {type(layout)} in the list."
+                    )
+        elif not isinstance(output_layout, (str, type(None))):
+            raise TypeError(
+                f"`output_layout` must be either: a string, a list of strings or None. "
+                f"Found type: {type(output_layout)}."
+            )
+        self._output_layout = output_layout
+
         Pipeline._pipes.add(weakref.ref(self))
 
     _pipes = set()  # this is necessary for clean exit
@@ -1835,6 +1852,11 @@ class Pipeline(object):
             if type(self._output_ndim) is not list
             else self._output_ndim
         )
+        layouts = (
+            [self._output_layout] * num_outputs
+            if type(self._output_layout) is not list
+            else self._output_layout
+        )
         if not (len(dtypes) == len(ndims) == num_outputs):
             raise RuntimeError(
                 f"Lengths of provided output descriptions do not match. \n"
@@ -1843,8 +1865,16 @@ class Pipeline(object):
             )
 
         return [
-            (name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
-            for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)
+            (
+                name,
+                dev,
+                types.NO_TYPE if dtype is None else dtype,
+                -1 if ndim is None else ndim,
+                layout if layout is not None else "",
+            )
+            for (name, dev), dtype, ndim, layout in zip(
+                self._names_and_devices, dtypes, ndims, layouts
+            )
         ]
 
     def _stub(self):

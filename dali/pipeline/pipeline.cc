@@ -183,7 +183,9 @@ Pipeline::Pipeline(const string &serialized_pipe,
     // output names
     for (auto &output : def.pipe_outputs()) {
       this->output_descs_.emplace_back(output.name(), output.device(),
-                                       static_cast<DALIDataType>(output.dtype()), output.ndim());
+                                       static_cast<DALIDataType>(output.dtype()),
+                                       output.ndim(),
+                                       output.layout());
     }
 
     // checkpointing
@@ -611,14 +613,18 @@ bool Pipeline::ValidateOutputs(const Workspace &ws) const {
                make_string("Number of outputs does not match. Expected: ", output_descs_.size(),
                            ". Received: ", ws.NumOutput(), "."));
   for (int i = 0; i < ws.NumOutput(); i++) {
-    DALI_ENFORCE(ws.GetOutputDim(i) == output_descs_[i].ndim || output_descs_[i].ndim == -1,
+    DALI_ENFORCE(output_descs_[i].ndim == -1 || ws.GetOutputDim(i) == output_descs_[i].ndim,
                  make_string("Number of dimensions in the output_idx=", i,
                              " does not match. Expected: ", output_descs_[i].ndim,
                              ". Received: ", ws.GetOutputDim(i), "."));
     DALI_ENFORCE(
-        ws.GetOutputDataType(i) == output_descs_[i].dtype || output_descs_[i].dtype == DALI_NO_TYPE,
+        output_descs_[i].dtype == DALI_NO_TYPE || ws.GetOutputDataType(i) == output_descs_[i].dtype,
         make_string("Data type in the output_idx=", i, " does not match. Expected: ",
                     output_descs_[i].dtype, ". Received: ", ws.GetOutputDataType(i), "."));
+    DALI_ENFORCE(
+        output_descs_[i].layout.empty() || ws.GetOutputLayout(i) == output_descs_[i].layout,
+        make_string("Layout in the output_idx=", i, " does not match. Expected: ",
+                    output_descs_[i].layout, ". Received: ", ws.GetOutputLayout(i), "."));
   }
   return true;
 }
