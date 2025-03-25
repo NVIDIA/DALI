@@ -44,7 +44,9 @@ template <typename Backend>
 struct VideoSample : public VideoSampleDesc {
   VideoSample(std::string filename = {}, int label = -1, int start = -1, int end = -1,
               int stride = -1)
-      : VideoSampleDesc{filename, label, start, end, stride} {}
+      : VideoSampleDesc{filename, label, start, end, stride} {
+    data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
+  }
 
   VideoSample(const VideoSampleDesc &other) noexcept
       : VideoSampleDesc(other) {}
@@ -378,6 +380,8 @@ class VideoReaderDecoder
     }
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
+
+    constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
 
   ~VideoReaderDecoder() override {
@@ -498,7 +502,6 @@ class VideoReaderDecoder
                    make_string("Invalid decoder for filename ", sample->filename_));
 
       int64_t num_frames = (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_;
-      sample->data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
       sample->data_.Resize(
           {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
       sample->data_.SetSourceInfo(decoder_->Filename());

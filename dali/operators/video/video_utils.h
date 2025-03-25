@@ -84,9 +84,6 @@ const uint8_t* ConstantFrame(Tensor<Backend>& constant_frame, const TensorShape<
   if (reuse_existing_data && constant_frame.shape().num_elements() >= shape.num_elements()) {
     return constant_frame.template data<uint8_t>();
   }
-  if (std::is_same_v<Backend, CPUBackend>) {
-    constant_frame.set_pinned(false);
-  }
   constant_frame.Resize(shape, DALI_UINT8);
   DALI_ENFORCE(fill_value.size() == 1 || static_cast<int>(fill_value.size()) == shape[2],
                make_string("Fill value size must be 1 or equal to the number of channels. Got ",
