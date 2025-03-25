@@ -306,12 +306,9 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     if (duration == AV_NOPTS_VALUE)
       duration = file.fmt_ctx_->duration / 1000;
 
-    file.frame_count_ = stream->nb_frames;
-    if (file.frame_count_ <= 0) {
-      file.frame_count_ = av_rescale_q(duration,
-                                       stream->time_base,
-                                       file.frame_base_);
-    }
+    file.frame_count_ = av_rescale_q(duration,
+                                     stream->time_base,
+                                     file.frame_base_);
 
     if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC ||
         codec_id == AV_CODEC_ID_MPEG4 || codec_id == AV_CODEC_ID_VP8 ||
