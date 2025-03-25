@@ -19,7 +19,7 @@ from nvidia.dali.backend import TensorCPU, TensorGPU
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
 import copy
-
+import _expression
 
 class TensorMetadata:
     def __init__(self, shape: Tuple[int, ...], dtype: DType, layout: str):
@@ -38,43 +38,53 @@ def _volume(shape: Tuple[int, ...]) -> int:
 class Tensor:
     def __init__(
         self,
-        data: Any,
+        data: Optional[Any] = None,
         dtype: Optional[DType] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
+        expression: Optional[_expression.Expression] = None,
     ):
         if layout is None:
             layout = ""
         elif not isinstance(layout, str):
             raise ValueError(f"Layout must be a string, got {type(layout)}")
 
-        if isinstance(data, Tensor):
-            if dtype is None or dtype == data.dtype:
-                if device is None or device == data.device:
-                    self.assign(data)
+        if expression is None:
+            if data is None:
+                raise ValueError("Either data or expression must be provided")
+
+            if isinstance(data, Tensor):
+                if dtype is None or dtype == data.dtype:
+                    if device is None or device == data.device:
+                        self.assign(data)
+                    else:
+                        self.assign(data.to_device(device))
                 else:
-                    self.assign(data.to_device(device))
+                    self.assign(fn.cast(data, dtype, device=device))
+                return
+            elif hasattr(data, "__dlpack__"):
+                self._backend = TensorCPU(data, layout)
+            elif hasattr(data, "__array__"):
+                self._backend = TensorCPU(data, layout)
             else:
-                self.assign(fn.cast(data, dtype, device=device))
-            return
-        elif hasattr(data, "__dlpack__"):
-            self._backend = TensorCPU(data, layout)
-        elif hasattr(data, "__array__"):
-            self._backend = TensorCPU(data, layout)
+                import numpy as np
+
+                self._backend = TensorCPU(np.array(data), layout, False)
+
+            if device is not None:
+                self.device = device if isinstance(device, Device) else Device(device)
+            else:
+                self.device = Device("cpu")
+
+            if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
+                self.assign(self.to_device(device))
+
+            self._metadata = TensorMetadata(self._backend.shape(), dtype, layout)
         else:
-            import numpy as np
+            self._backend = None
+            self._expression = expression
+            self._device = expression.device
 
-            self._backend = TensorCPU(np.array(data), layout, False)
-
-        if device is not None:
-            self.device = device if isinstance(device, Device) else Device(device)
-        else:
-            self.device = Device("cpu")
-
-        if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
-            self.assign(self.to_device(device))
-
-        self._metadata = TensorMetadata(self._backend.shape(), dtype, layout)
 
     def cpu(self) -> "Tensor":
         return self.to_device(Device("cpu"))
