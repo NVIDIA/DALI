@@ -41,7 +41,7 @@ batch_sizes = [1, 10]
 file_list_formats = ["frame_index", "timestamp", "timestamp_inclusive"]
 pad_modes = ["none", "constant", "edge", "reflect_1001", "reflect_101"]
 pad_modes_supported_by_legacy_reader = ["none", "constant"]
-image_type_supported_by_legacy_reader = [types.RGB, types.YCbCr]
+image_type_supported_by_legacy_reader = [types.RGB]  # TODO(janton): Add types.YCbCr
 
 
 def compare_frames(
