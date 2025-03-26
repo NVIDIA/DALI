@@ -351,7 +351,10 @@ def check_batch(
                 if hasattr(batch2[i], "source_info"):
                     error_msg += f"\nRHS data source: {batch2[i].source_info()}"
 
-                dump_as_core_artifacts(batch1[i].source_info(), left, right, sample_idx=i)
+                filename = (
+                    batch1[i].source_info() if hasattr(batch1[i], "source_info") else f"unknown{i}"
+                )
+                dump_as_core_artifacts(filename, left, right, sample_idx=i)
                 assert False, error_msg
 
 
