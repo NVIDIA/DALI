@@ -141,9 +141,10 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
                                                      &tempSize));
 
     void *temp = scratchpad.AllocateGPU<uint8_t>(tempSize);
+    nvcompStatus_t *device_statuses = scratchpad.AllocateGPU<nvcompStatus_t>(total_chunks_num);
     CUDA_CALL(nvcompBatchedLZ4DecompressAsync(in, in_sizes, out_sizes, actual_out_sizes,
-                                               total_chunks_num, temp, tempSize, out, nullptr,
-                                               stream));
+                                               total_chunks_num, temp, tempSize, out,
+                                               device_statuses, stream));
 
     // nvCOMP uses ``out_sizes`` to avoid OOB accesses if the actual data size after the compression
     // is greater than what follows from the shapes reported by the user.
