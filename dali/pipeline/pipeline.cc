@@ -121,51 +121,64 @@ bool IsCSEEnabled() {
 Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed,
                    bool pipelined_execution, int prefetch_queue_depth,
                    bool async_execution, bool dynamic_execution, size_t bytes_per_sample_hint,
-                   bool set_affinity) {
-  InitializeMemoryResources();
-  Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
-       async_execution, dynamic_execution, bytes_per_sample_hint, set_affinity,
-       QueueSizes{prefetch_queue_depth});
+                   bool set_affinity)
+: Pipeline(PipelineParams{
+    max_batch_size != -1 ? std::optional<int>(max_batch_size) : std::nullopt,
+    num_threads != -1 ? std::optional<int>(num_threads) : std::nullopt,
+    device_id != CPU_ONLY_DEVICE_ID ? std::optional<int>(device_id) : std::nullopt,
+    seed != -1 ? std::optional<int64_t>(seed) : std::nullopt,
+    MakeExecutorType(pipelined_execution, async_execution, false, dynamic_execution),
+    set_affinity ? ExecutorFlags::SetAffinity : ExecutorFlags::None,
+    QueueSizes(prefetch_queue_depth),
+    std::nullopt,
+    std::nullopt,
+    bytes_per_sample_hint})
+{
 }
 
-Pipeline::Pipeline(const string &serialized_pipe,
+Pipeline::Pipeline(const string &serialized_pipeline,
                    int batch_size, int num_threads, int device_id,
                    bool pipelined_execution, int prefetch_queue_depth,
                    bool async_execution, bool dynamic_execution,
                    size_t bytes_per_sample_hint, bool set_affinity,
-                   int64_t seed) {
+                   int64_t seed)
+: Pipeline(serialized_pipeline, PipelineParams{
+    batch_size != -1 ? std::optional<int>(batch_size) : std::nullopt,
+    num_threads != -1 ? std::optional<int>(num_threads) : std::nullopt,
+    device_id != CPU_ONLY_DEVICE_ID ? std::optional<int>(device_id) : std::nullopt,
+    seed != -1 ? std::optional<int64_t>(seed) : std::nullopt,
+    MakeExecutorType(pipelined_execution, async_execution, dynamic_execution),
+    set_affinity ? ExecutorFlags::SetAffinity : ExecutorFlags::None,
+    QueueSizes(prefetch_queue_depth),
+    std::nullopt,
+    std::nullopt,
+    bytes_per_sample_hint})
+{}
+
+Pipeline::Pipeline(const PipelineParams &params) {
+  InitializeMemoryResources();
+  Init(params);
+}
+
+Pipeline::Pipeline(const string &serialized_pipe, const PipelineParams &params) {
   InitializeMemoryResources();
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
-    // If not given, take parameters from the serialized pipeline
-    this->max_batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
-    DALI_ENFORCE(this->max_batch_size_ > 0,
-                 make_string("You are trying to create a pipeline with an incorrect batch size (",
-                             this->max_batch_size_, "). Please set the batch_size argument "
-                             "to a positive integer."));
+    // First, set parameters from the serialized pipeline
+    params_.max_batch_size = def.batch_size() != -1 ? std::optional<int>(def.batch_size()) : std::nullopt;
+    params_.num_threads = def.num_threads() != -1 ? std::optional<int>(def.num_threads()) : std::nullopt;
+    params_.device_id = def.device_id() >= 0 ? std::optional<int>(def.device_id()) : std::nullopt;
+    params_.seed = def.seed() >= 0 ? std::optional<int64_t>(def.seed()) : std::nullopt;
+    params_.executor_type = static_cast<ExecutorType>(def.executor_type());
+    params_.executor_flags = static_cast<ExecutorFlags>(def.executor_flags());
+    params_.prefetch_queue_depths = QueueSizes(def.prefetch_queue_depth_cpu(), def.prefetch_queue_depth_gpu());
+    params_.enable_checkpointing = def.checkpointing_enabled();
 
-    this->device_id_ = device_id == -1 ? def.device_id() : device_id;
-    DALI_ENFORCE(this->device_id_ >= 0 || this->device_id_ == CPU_ONLY_DEVICE_ID,
-                 make_string("You are trying to create a pipeline with a negative device id (",
-                             this->device_id_, "). Please set a correct device_id."));
+    // Then, update with any provided parameters
+    params_.Update(params);
 
-    this->num_threads_ = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
-    DALI_ENFORCE(this->num_threads_ > 0,
-                 make_string("You are trying to create a pipeline with an incorrect number "
-                             "of worker threads (", this->num_threads_, "). Please set the "
-                             "num_threads argument to a positive integer."));
-    seed = seed == -1 ? def.seed() : seed;
-
-    Init(this->max_batch_size_, this->num_threads_,
-         this->device_id_, seed,
-         pipelined_execution,
-         separated_execution_,
-         async_execution,
-         dynamic_execution,
-         bytes_per_sample_hint,
-         set_affinity,
-         QueueSizes{prefetch_queue_depth});
+    Init(params_);
 
     // from serialized pipeline, construct new pipeline
     // All external inputs
@@ -189,7 +202,7 @@ Pipeline::Pipeline(const string &serialized_pipe,
     }
 
     // checkpointing
-    if (def.enable_checkpointing()) {
+    if (params_.enable_checkpointing) {
       this->EnableCheckpointing();
     }
 }
@@ -201,18 +214,70 @@ Pipeline::~Pipeline() {
   repeat_last_ = {};
 }
 
-void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
-                    bool pipelined_execution, bool separated_execution,
-                    bool async_execution, bool dynamic_execution,
-                    size_t bytes_per_sample_hint, bool set_affinity,
-                    QueueSizes prefetch_queue_depth) {
-    DALI_ENFORCE(device_id == CPU_ONLY_DEVICE_ID || cuInitChecked(),
+PipelineParams Pipeline::DefaultParams() {
+  PipelineParams params{};
+  params.executor_type = ExecutorType::AsyncPipelined;
+  params.executor_flags = ExecutorFlags::ConcurrencyBackend;
+  params.prefetch_queue_depths = QueueSizes{2};
+  params.enable_checkpointing = false;
+  params.enable_memory_stats = false;
+  params.bytes_per_sample_hint = 0;
+  return params;
+}
+
+void Pipeline::Validate(const PipelineParams &params) {
+  if (params.device_id.has_value()) {
+    int ndev = 0;
+    CUDA_CALL(cudaGetDeviceCount(&ndev));
+    if (*params.device_id < 0 || *params.device_id >= ndev) {
+      if (ndev == 0) {
+        throw std::runtime_error("The pipeline requires a CUDA device, but none are available.");
+      } else {
+        throw std::invalid_argument(make_string("Invalid device id: ", *params.device_id, ". "
+                                                "Valid device ids are 0..", ndev - 1 , "."));
+      }
+    }
+  }
+
+  if (!params.max_batch_size.has_value())
+    throw std::invalid_argument("The batch size must be set.");
+  if (*params.max_batch_size <= 0)
+    throw std::invalid_argument(make_string("Invalid batch size: ", *params.max_batch_size, ". "
+                                            "Please set a positive integer."));
+
+  if (!params.num_threads.has_value())
+    throw std::invalid_argument("The number of threads must be set.");
+  if (*params.num_threads <= 0)
+    throw std::invalid_argument(make_string("Invalid number of threads: ", *params.num_threads, ". "
+                                            "Please set a positive integer."));
+
+  if (!params.prefetch_queue_depths.has_value())
+    throw std::logic_error("Internal error: prefetch queue depths not set.");
+
+  if (params.prefetch_queue_depths->cpu_size <= 0 ||
+      params.prefetch_queue_depths->gpu_size <= 0) {
+    throw std::invalid_argument("The prefetch queue depth must be greater than 0.");
+  }
+  if (params.prefetch_queue_depths->cpu_size != params.prefetch_queue_depths->gpu_size) {
+    if (params.executor_type.has_value() &&
+        !Test(*params.executor_type, ExecutorType::SeparatedFlag)) {
+      throw std::invalid_argument("The prefetch queue depth must be the same for CPU and GPU "
+                                  "if separated execution is not used.");
+    }
+  }
+}
+
+void Pipeline::Init(const PipelineParams &params) {
+    DALI_ENFORCE(!params.device_id.has_value() || cuInitChecked(),
                 "You are trying to create a GPU DALI pipeline, while CUDA is not available. "
                 "Please install CUDA or set `device_id = None` in Pipeline constructor. "
                 "If running inside Docker container, you may need to use  `--gpus` option.");
 
+    int device_id = params.device_id.value_or(CPU_ONLY_DEVICE_ID);
     DeviceGuard g(device_id);
-    this->max_batch_size_ = max_batch_size;
+    params_.Update(params);
+    Validate(params_);
+    /*this->max_batch_size_ = max_batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
     using Clock = std::chrono::high_resolution_clock;
@@ -224,7 +289,10 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
     this->set_affinity_ = set_affinity;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
     this->separated_execution_ = (prefetch_queue_depth.cpu_size != prefetch_queue_depth.gpu_size);
-    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");
+    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");*/
+
+    using Clock = std::chrono::high_resolution_clock;
+    original_seed_ = params.seed.value_or(Clock::now().time_since_epoch().count());
 
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
@@ -310,7 +378,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({std::string(inst_name), spec, logical_id});
 
-  DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
+  DALI_ENFORCE(device != "gpu" || device_id() != CPU_ONLY_DEVICE_ID,
                "Cannot add a GPU operator. Pipeline 'device_id' should not be equal to "
                "`CPU_ONLY_DEVICE_ID`.");
 
@@ -322,7 +390,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
     spec.SetArg("device", "cpu");
   }
 
-  DeviceGuard g(device_id_);
+  DeviceGuard g(device_id());
 
   // Verify the regular inputs to the op
   for (int i = 0; i < spec.NumInput(); ++i) {
@@ -469,7 +537,7 @@ void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
 }
 
 void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
-  DeviceGuard d(device_id_);
+  DeviceGuard d(device_id());
   SetOutputDescs(std::move(output_descs));
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   auto num_outputs = output_descs_.size();
@@ -477,11 +545,11 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
                make_string("User specified incorrect number of outputs (", num_outputs, ")."));
 
   executor_ =
-      GetExecutor(pipelined_execution_, separated_execution_, async_execution_, dynamic_execution_,
-                  max_batch_size_, num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
-                  prefetch_queue_depth_);
-  executor_->EnableMemoryStats(enable_memory_stats_);
-  executor_->EnableCheckpointing(checkpointing_);
+      GetExecutor(*params_.executor_type, *params_.executor_flags,
+                  max_batch_size(), num_threads(), device_id(), bytes_per_sample_hint(),
+                  GetQueueSizes());
+  executor_->EnableMemoryStats(memory_stats_enabled());
+  executor_->EnableCheckpointing(checkpointing_enabled());
   executor_->Init();
 
   // Validate the output tensors names
@@ -691,15 +759,15 @@ void Pipeline::ToGPU(std::map<string, EdgeMeta>::iterator it) {
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
-  spec->AddArg("max_batch_size", max_batch_size_)
-    .AddArg("num_threads", num_threads_)
-    .AddArg("device_id", device_id_)
-    .AddArg("checkpointing", checkpointing_);
+  spec->AddArg("max_batch_size", max_batch_size())
+    .AddArg("num_threads", num_threads())
+    .AddArg("device_id", device_id())
+    .AddArg("checkpointing", checkpointing_enabled());
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
-    spec->AddArg("cpu_prefetch_queue_depth", prefetch_queue_depth_.cpu_size);
+    spec->AddArg("cpu_prefetch_queue_depth", GetQueueSizes().cpu_size);
   if (dev == "gpu" || dev == "mixed")
-    spec->AddArg("gpu_prefetch_queue_depth", prefetch_queue_depth_.gpu_size);
+    spec->AddArg("gpu_prefetch_queue_depth", GetQueueSizes().gpu_size);
 
   if (spec->GetSchemaOrDefault().HasRandomSeedArg()) {
     if (spec->ArgumentDefined("seed")) {
@@ -763,7 +831,11 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_batch_size(this->max_batch_size());
   pipe.set_device_id(this->device_id());
   pipe.set_seed(this->original_seed_);
-  pipe.set_enable_checkpointing(this->checkpointing_);
+  pipe.set_enable_checkpointing(this->checkpointing_enabled());
+  pipe.set_bytes_per_sample_hint(this->bytes_per_sample_hint());
+  pipe.set_prefetch_queue_depths(this->GetQueueSizes());
+  pipe.set_executor_type(static_cast<int32_t>(*params_.executor_type));
+  pipe.set_executor_flags(static_cast<int32_t>(*params_.executor_flags));
 
   // loop over ops, create messages and append
   for (size_t i = 0; i < this->op_specs_for_serialization_.size(); ++i) {
@@ -788,7 +860,7 @@ string Pipeline::SerializeToProtobuf() const {
     out->set_dtype(output.dtype);
     out->set_ndim(output.ndim);
   }
-  pipe.set_device_id(this->device_id_);
+  pipe.set_device_id(this->device_id());
   string output = pipe.SerializeAsString();
 
   return output;
@@ -977,7 +1049,7 @@ bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
 }
 
 void Pipeline::Shutdown() {
-  DeviceGuard dg(device_id_);
+  DeviceGuard dg(device_id());
   for (auto &[name, node] : input_operators_) {
     OperatorBase *op_ptr = executor_->GetOperator(name);
     if (!op_ptr)

@@ -2417,7 +2417,12 @@ def test_output_descs():
     def my_pipe():
         return fn.reshape(np.array([1, 2, 3, 4, 5, 6], dtype=np.int32), shape=[2, 3], layout="XY")
 
-    pipe = my_pipe(output_ndim=2)
+    pipe = my_pipe(output_ndim=2, output_dtype=types.INT32, output_layout="XY")
+    o, = pipe.run()
+    assert o[0].shape() == [2, 3]
+    assert o[0].layout() == "XY"
+
+    pipe = my_pipe(output_ndim=1)
     with assert_raises(
         RuntimeError,
         glob="Number of dimensions in the output_idx=0 does not match. Expected: 1. Received: 2.",
@@ -2436,6 +2441,3 @@ def test_output_descs():
         RuntimeError, glob="Layout in the output_idx=0 does not match. Expected: AB. Received: XY."
     ):
         pipe.run()
-
-    pipe = my_pipe(output_ndim=1, output_dtype=types.INT32, output_layout="XY")
-    pipe.run()  # no error generated

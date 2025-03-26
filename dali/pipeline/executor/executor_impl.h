@@ -73,13 +73,14 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  public:
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
-                             size_t bytes_per_sample_hint, bool set_affinity = false,
+                             size_t bytes_per_sample_hint,
+                             ExecutorFlags flags = ExecutorFlags::None,
                              QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : max_batch_size_(max_batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
         event_pool_(),
-        thread_pool_(num_thread, device_id, set_affinity, "Executor"),
+        thread_pool_(num_thread, device_id, Test(flags, ExecutorFlags::SetAffinity), "Executor"),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
         enable_memory_stats_(false), checkpointing_(false) {

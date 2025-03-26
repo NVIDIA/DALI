@@ -530,7 +530,8 @@ py::capsule ToDLPack(Tensor<Backend> &tensor,
 using OutputDesc = std::tuple<std::string  /* name */,
                               std::string  /* device */,
                               DALIDataType /* dtype */,
-                              int          /* ndim */>;
+                              int          /* ndim */,
+                              std::string  /* layout */>;
 
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
