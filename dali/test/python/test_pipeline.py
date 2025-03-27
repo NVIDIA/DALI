@@ -1196,7 +1196,6 @@ def test_python_formats():
         np.uint16,
         np.uint32,
         np.uint64,
-        np.float_,
         np.float32,
         np.float16,
         np.short,

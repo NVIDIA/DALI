@@ -518,7 +518,9 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
     max_val = np_dtype(1.0) if dtype == types.FLOAT else np.iinfo(np_dtype).max
     need_scaling = max_val != np_dtype(2**precision - 1)
     if need_scaling:
-        multiplier = max_val / (2**precision - 1)
+        # numpy 2.x computes this division as float32 while numpy 1.x as float64
+        # so we need to cast max_val to python float to get the same results
+        multiplier = float(max_val) / float(2**precision - 1)
         ref = ref * multiplier
         if dtype != types.FLOAT:
             kwargs["atol"] = 0.5  # possible rounding error

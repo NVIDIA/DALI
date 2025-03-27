@@ -146,7 +146,6 @@ all_numpy_types = set(
         np.uintp,
         np.float32,
         np.float64,
-        np.float_,
         np.complex64,
         np.complex128,
         complex,
