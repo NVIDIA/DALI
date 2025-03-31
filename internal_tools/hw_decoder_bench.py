@@ -39,7 +39,8 @@ parser.add_argument("-t", dest="total_images", help="total images", default=100,
 parser.add_argument(
     "-j",
     dest="num_threads",
-    help="CPU threads. Can be a single value (e.g. 4) or range 'start:end:step' (e.g. 1:8:2)",
+    help="CPU threads. Can be a single value (e.g. 4) or range 'start:end:step' (e.g. 1:8:2). "
+         "End of range is included.",
     default="4",
     type=str,
 )
@@ -74,13 +75,13 @@ parser.add_argument(
     "--hw_load",
     dest="hw_load",
     help="HW decoder workload. Can be a single value (e.g. 0.66) or range "
-    "'start:end:step' (e.g. 0.0:1.0:0.2)",
+    "'start:end:step' (e.g. 0.0:1.0:0.2). End of range is included.",
     default="0.75",
     type=str,
 )
 
 
-def parse_range_arg(arg_str, use_float=False):
+def parse_range_arg(arg_str, parse_fn=int):
     """Parse argument into a list of values. Handles both range format
        'start:end:step' and single values.
 
@@ -90,12 +91,10 @@ def parse_range_arg(arg_str, use_float=False):
     Returns:
         List of parsed values
     """
-    parse_fn = float if use_float else int
-
     if ":" in arg_str:
         try:
             start, end, step = map(parse_fn, arg_str.split(":"))
-            if use_float:
+            if parse_fn == float:
                 return list(np.arange(start, end + step / 2, step))  # +step/2 to include end value
             else:
                 return list(range(start, end + 1, step))  # +1 to include end value
@@ -126,11 +125,277 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+
+@pipeline_def(
+    batch_size=args.batch_size,
+    num_threads=1,
+    device_id=args.device_id,
+    seed=0,
+)
+def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
+    device = "mixed" if args.device == "gpu" else "cpu"
+    jpegs, _ = fn.readers.file(file_root=args.images_dir)
+    images = decoders_module.image(
+        jpegs,
+        device=device,
+        output_type=types.RGB,
+        hw_decoder_load=hw_load,
+        preallocate_width_hint=args.width_hint,
+        preallocate_height_hint=args.height_hint,
+    )
+    return images
+
+
+@pipeline_def(
+    batch_size=args.batch_size,
+    num_threads=1,
+    device_id=args.device_id,
+    seed=0,
+)
+def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
+    device = "mixed" if args.device == "gpu" else "cpu"
+    jpegs, _ = fn.readers.file(file_root=args.images_dir)
+    images = decoders_module.image_random_crop(
+        jpegs,
+        device=device,
+        output_type=types.RGB,
+        hw_decoder_load=hw_load,
+        preallocate_width_hint=args.width_hint,
+        preallocate_height_hint=args.height_hint,
+    )
+    images = fn.resize(images, resize_x=224, resize_y=224, minibatch_size=minibatch_size)
+    layout = types.NCHW
+    out_type = types.FLOAT16
+    coin_flip = fn.random.coin_flip(probability=0.5)
+    images = fn.crop_mirror_normalize(
+        images,
+        dtype=out_type,
+        output_layout=layout,
+        crop=(224, 224),
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+        mirror=coin_flip,
+    )
+    return images
+
+
+@pipeline_def(
+    batch_size=args.batch_size,
+    num_threads=1,
+    device_id=args.device_id,
+    seed=0,
+    enable_conditionals=True,
+    decoders_module=fn.decoders,
+)
+def EfficientnetTrainingPipeline(
+    minibatch_size,
+    automatic_augmentation="autoaugment",
+    decoders_module=fn.decoders,
+    hw_load=0,
+):
+    dali_device = args.device
+    output_layout = types.NCHW
+    rng = fn.random.coin_flip(probability=0.5)
+
+    jpegs, _ = fn.readers.file(
+        name="Reader",
+        file_root=args.images_dir,
+    )
+
+    if dali_device == "gpu":
+        decoder_device = "mixed"
+        resize_device = "gpu"
+    else:
+        decoder_device = "cpu"
+        resize_device = "cpu"
+
+    images = decoders_module.image_random_crop(
+        jpegs,
+        device=decoder_device,
+        output_type=types.RGB,
+        random_aspect_ratio=[0.75, 4.0 / 3.0],
+        random_area=[0.08, 1.0],
+        hw_decoder_load=hw_load,
+        preallocate_width_hint=args.width_hint,
+        preallocate_height_hint=args.height_hint,
+    )
+
+    images = fn.resize(
+        images,
+        device=resize_device,
+        size=[224, 224],
+        antialias=False,
+        minibatch_size=minibatch_size,
+    )
+
+    # Make sure that from this point we are processing on GPU regardless
+    # of dali_device parameter
+    images = images.gpu()
+
+    images = fn.flip(images, horizontal=rng)
+
+    # Based on the specification, apply the automatic augmentation policy. Note, that from
+    # the pointof Pipeline definition, this `if` statement relies on static scalar
+    # parameter, so it is evaluated exactly once during build - we either include automatic
+    # augmentations or not.We pass the shape of the image after the resize so
+    # the translate operations are done relative to the image size.
+    if automatic_augmentation == "autoaugment":
+        output = auto_augment.auto_augment_image_net(images, shape=[224, 224])
+    elif automatic_augmentation == "trivialaugment":
+        output = trivial_augment.trivial_augment_wide(images, shape=[224, 224])
+    else:
+        output = images
+
+    output = fn.crop_mirror_normalize(
+        output,
+        dtype=types.FLOAT,
+        output_layout=output_layout,
+        crop=(224, 224),
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+    )
+
+    return output
+
+
+@pipeline_def(
+    batch_size=args.batch_size,
+    num_threads=1,
+    device_id=args.device_id,
+    prefetch_queue_depth=1,
+)
+def EfficientnetInferencePipeline(decoders_module=fn.decoders, hw_load=0):
+    images = fn.external_source(device="cpu", name=DALI_INPUT_NAME)
+    images = decoders_module.image(
+        images,
+        device="mixed" if args.device == "gpu" else "cpu",
+        output_type=types.RGB,
+        hw_decoder_load=hw_load,
+    )
+    images = fn.resize(images, resize_x=224, resize_y=224)
+    images = fn.crop_mirror_normalize(
+        images,
+        dtype=types.FLOAT,
+        output_layout="CHW",
+        crop=(224, 224),
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+    )
+    return images
+
+
+def feed_input(dali_pipeline, data):
+    if needs_feed_input:
+        assert data is not None, "Input data has not been provided."
+        dali_pipeline.feed_input(DALI_INPUT_NAME, data)
+
+
+def create_input_tensor(batch_size, file_list):
+    """
+    Creates an input batch to the DALI Pipeline.
+    The batch will comprise the files defined within file list and will be shuffled.
+    If the file list contains fewer files than the batch size, they will be repeated.
+    The encoded images will be padded.
+    :param batch_size: Requested batch size.
+    :param file_list: List of images to be loaded.
+    :return:
+    """
+    # Adjust file_list to batch_size
+    while len(file_list) < batch_size:
+        file_list += file_list
+    file_list = file_list[:batch_size]
+
+    random.shuffle(file_list)
+
+    # Read the files as byte buffers
+    arrays = list(map(lambda x: np.fromfile(x, dtype=np.uint8), file_list))
+
+    # Pad the encoded images
+    lengths = list(map(lambda x, ar=arrays: ar[x].shape[0], [x for x in range(len(arrays))]))
+    max_len = max(lengths)
+    arrays = list(map(lambda ar, ml=max_len: np.pad(ar, (0, ml - ar.shape[0])), arrays))
+
+    for arr in arrays:
+        assert arr.shape == arrays[0].shape, "Arrays must have the same shape"
+    return np.stack(arrays)
+
+
+def non_image_preprocessing(raw_text):
+    return np.array([int(bytes(raw_text).decode("utf-8"))])
+
+
+@pipeline_def(batch_size=args.batch_size, num_threads=cpu_num, device_id=args.device_id, seed=0)
+def vit_pipeline(
+    is_training=False,
+    image_shape=(384, 384, 3),
+    num_classes=1000,
+    decoders_module=fn.decoders,
+    hw_load=0,
+):
+    files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)]
+
+    img, clss = fn.readers.webdataset(
+        paths=files_paths,
+        index_paths=None,
+        ext=["jpg", "cls"],
+        missing_component_behavior="error",
+        random_shuffle=False,
+        shard_id=0,
+        num_shards=1,
+        pad_last_batch=False if is_training else True,
+        name="webdataset_reader",
+    )
+
+    use_gpu = args.device == "gpu"
+    labels = fn.python_function(clss, function=non_image_preprocessing, num_outputs=1)
+    if use_gpu:
+        labels = labels.gpu()
+    labels = fn.one_hot(labels, num_classes=num_classes)
+
+    device = "mixed" if use_gpu else "cpu"
+    img = decoders_module.image(
+        img,
+        device=device,
+        output_type=types.RGB,
+        hw_decoder_load=hw_load,
+        preallocate_width_hint=args.width_hint,
+        preallocate_height_hint=args.height_hint,
+    )
+
+    if is_training:
+        img = fn.random_resized_crop(img, size=image_shape[:-1])
+        img = fn.flip(img, depthwise=0, horizontal=fn.random.coin_flip())
+
+        # color jitter
+        brightness = fn.random.uniform(range=[0.6, 1.4])
+        contrast = fn.random.uniform(range=[0.6, 1.4])
+        saturation = fn.random.uniform(range=[0.6, 1.4])
+        hue = fn.random.uniform(range=[0.9, 1.1])
+        img = fn.color_twist(
+            img, brightness=brightness, contrast=contrast, hue=hue, saturation=saturation
+        )
+
+        # auto-augment
+        # `shape` controls the magnitude of the translation operations
+        img = auto_augment.auto_augment_image_net(img)
+    else:
+        img = fn.resize(img, size=image_shape[:-1])
+
+    # normalize
+    # https://github.com/NVIDIA/DALI/issues/4469
+    mean = np.asarray([0.485, 0.456, 0.406])[None, None, :]
+    std = np.asarray([0.229, 0.224, 0.225])[None, None, :]
+    scale = 1 / 255.0
+    img = fn.normalize(img, mean=mean / scale, stddev=std, scale=scale, dtype=types.FLOAT)
+
+    return img, labels
+
+
 DALI_INPUT_NAME = "DALI_INPUT_0"
 needs_feed_input = args.pipeline == "efficientnet_inference"
 
-threads_num = parse_range_arg(args.num_threads, use_float=False)
-decoder_hw_load = parse_range_arg(args.hw_load, use_float=True)
+threads_num = parse_range_arg(args.num_threads, parse_fn=int)
+decoder_hw_load = parse_range_arg(args.hw_load, parse_fn=float)
 
 print(f"Threads num to check: {threads_num}")
 print(f"Decoder hw load to check: {decoder_hw_load}")
@@ -138,268 +403,6 @@ print(f"Decoder hw load to check: {decoder_hw_load}")
 perf_results = []
 for cpu_num in threads_num:
     for hw_load in decoder_hw_load:
-
-        @pipeline_def(
-            batch_size=args.batch_size,
-            num_threads=cpu_num,
-            device_id=args.device_id,
-            seed=0,
-        )
-        def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
-            device = "mixed" if args.device == "gpu" else "cpu"
-            jpegs, _ = fn.readers.file(file_root=args.images_dir)
-            images = decoders_module.image(
-                jpegs,
-                device=device,
-                output_type=types.RGB,
-                hw_decoder_load=hw_load,
-                preallocate_width_hint=args.width_hint,
-                preallocate_height_hint=args.height_hint,
-            )
-            return images
-
-        @pipeline_def(
-            batch_size=args.batch_size,
-            num_threads=cpu_num,
-            device_id=args.device_id,
-            seed=0,
-        )
-        def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
-            device = "mixed" if args.device == "gpu" else "cpu"
-            jpegs, _ = fn.readers.file(file_root=args.images_dir)
-            images = decoders_module.image_random_crop(
-                jpegs,
-                device=device,
-                output_type=types.RGB,
-                hw_decoder_load=hw_load,
-                preallocate_width_hint=args.width_hint,
-                preallocate_height_hint=args.height_hint,
-            )
-            images = fn.resize(images, resize_x=224, resize_y=224, minibatch_size=minibatch_size)
-            layout = types.NCHW
-            out_type = types.FLOAT16
-            coin_flip = fn.random.coin_flip(probability=0.5)
-            images = fn.crop_mirror_normalize(
-                images,
-                dtype=out_type,
-                output_layout=layout,
-                crop=(224, 224),
-                mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-                mirror=coin_flip,
-            )
-            return images
-
-        @pipeline_def(
-            batch_size=args.batch_size,
-            num_threads=cpu_num,
-            device_id=args.device_id,
-            seed=0,
-            enable_conditionals=True,
-            decoders_module=fn.decoders,
-        )
-        def EfficientnetTrainingPipeline(
-            minibatch_size,
-            automatic_augmentation="autoaugment",
-            decoders_module=fn.decoders,
-            hw_load=0,
-        ):
-            dali_device = args.device
-            output_layout = types.NCHW
-            rng = fn.random.coin_flip(probability=0.5)
-
-            jpegs, _ = fn.readers.file(
-                name="Reader",
-                file_root=args.images_dir,
-            )
-
-            if dali_device == "gpu":
-                decoder_device = "mixed"
-                resize_device = "gpu"
-            else:
-                decoder_device = "cpu"
-                resize_device = "cpu"
-
-            images = decoders_module.image_random_crop(
-                jpegs,
-                device=decoder_device,
-                output_type=types.RGB,
-                random_aspect_ratio=[0.75, 4.0 / 3.0],
-                random_area=[0.08, 1.0],
-                hw_decoder_load=hw_load,
-                preallocate_width_hint=args.width_hint,
-                preallocate_height_hint=args.height_hint,
-            )
-
-            images = fn.resize(
-                images,
-                device=resize_device,
-                size=[224, 224],
-                antialias=False,
-                minibatch_size=minibatch_size,
-            )
-
-            # Make sure that from this point we are processing on GPU regardless
-            # of dali_device parameter
-            images = images.gpu()
-
-            images = fn.flip(images, horizontal=rng)
-
-            # Based on the specification, apply the automatic augmentation policy. Note, that from
-            # the pointof Pipeline definition, this `if` statement relies on static scalar
-            # parameter, so it is evaluated exactly once during build - we either include automatic
-            # augmentations or not.We pass the shape of the image after the resize so
-            # the translate operations are done relative to the image size.
-            if automatic_augmentation == "autoaugment":
-                output = auto_augment.auto_augment_image_net(images, shape=[224, 224])
-            elif automatic_augmentation == "trivialaugment":
-                output = trivial_augment.trivial_augment_wide(images, shape=[224, 224])
-            else:
-                output = images
-
-            output = fn.crop_mirror_normalize(
-                output,
-                dtype=types.FLOAT,
-                output_layout=output_layout,
-                crop=(224, 224),
-                mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-            )
-
-            return output
-
-        @pipeline_def(
-            batch_size=args.batch_size,
-            num_threads=cpu_num,
-            device_id=args.device_id,
-            prefetch_queue_depth=1,
-        )
-        def EfficientnetInferencePipeline(decoders_module=fn.decoders, hw_load=0):
-            images = fn.external_source(device="cpu", name=DALI_INPUT_NAME)
-            images = decoders_module.image(
-                images,
-                device="mixed" if args.device == "gpu" else "cpu",
-                output_type=types.RGB,
-                hw_decoder_load=hw_load,
-            )
-            images = fn.resize(images, resize_x=224, resize_y=224)
-            images = fn.crop_mirror_normalize(
-                images,
-                dtype=types.FLOAT,
-                output_layout="CHW",
-                crop=(224, 224),
-                mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-            )
-            return images
-
-        def feed_input(dali_pipeline, data):
-            if needs_feed_input:
-                assert data is not None, "Input data has not been provided."
-                dali_pipeline.feed_input(DALI_INPUT_NAME, data)
-
-        def create_input_tensor(batch_size, file_list):
-            """
-            Creates an input batch to the DALI Pipeline.
-            The batch will comprise the files defined within file list and will be shuffled.
-            If the file list contains fewer files than the batch size, they will be repeated.
-            The encoded images will be padded.
-            :param batch_size: Requested batch size.
-            :param file_list: List of images to be loaded.
-            :return:
-            """
-            # Adjust file_list to batch_size
-            while len(file_list) < batch_size:
-                file_list += file_list
-            file_list = file_list[:batch_size]
-
-            random.shuffle(file_list)
-
-            # Read the files as byte buffers
-            arrays = list(map(lambda x: np.fromfile(x, dtype=np.uint8), file_list))
-
-            # Pad the encoded images
-            lengths = list(
-                map(lambda x, ar=arrays: ar[x].shape[0], [x for x in range(len(arrays))])
-            )
-            max_len = max(lengths)
-            arrays = list(map(lambda ar, ml=max_len: np.pad(ar, (0, ml - ar.shape[0])), arrays))
-
-            for arr in arrays:
-                assert arr.shape == arrays[0].shape, "Arrays must have the same shape"
-            return np.stack(arrays)
-
-        def non_image_preprocessing(raw_text):
-            return np.array([int(bytes(raw_text).decode("utf-8"))])
-
-        @pipeline_def(
-            batch_size=args.batch_size, num_threads=cpu_num, device_id=args.device_id, seed=0
-        )
-        def vit_pipeline(
-            is_training=False,
-            image_shape=(384, 384, 3),
-            num_classes=1000,
-            decoders_module=fn.decoders,
-            hw_load=0,
-        ):
-            files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)]
-
-            img, clss = fn.readers.webdataset(
-                paths=files_paths,
-                index_paths=None,
-                ext=["jpg", "cls"],
-                missing_component_behavior="error",
-                random_shuffle=False,
-                shard_id=0,
-                num_shards=1,
-                pad_last_batch=False if is_training else True,
-                name="webdataset_reader",
-            )
-
-            use_gpu = args.device == "gpu"
-            labels = fn.python_function(clss, function=non_image_preprocessing, num_outputs=1)
-            if use_gpu:
-                labels = labels.gpu()
-            labels = fn.one_hot(labels, num_classes=num_classes)
-
-            device = "mixed" if use_gpu else "cpu"
-            img = decoders_module.image(
-                img,
-                device=device,
-                output_type=types.RGB,
-                hw_decoder_load=hw_load,
-                preallocate_width_hint=args.width_hint,
-                preallocate_height_hint=args.height_hint,
-            )
-
-            if is_training:
-                img = fn.random_resized_crop(img, size=image_shape[:-1])
-                img = fn.flip(img, depthwise=0, horizontal=fn.random.coin_flip())
-
-                # color jitter
-                brightness = fn.random.uniform(range=[0.6, 1.4])
-                contrast = fn.random.uniform(range=[0.6, 1.4])
-                saturation = fn.random.uniform(range=[0.6, 1.4])
-                hue = fn.random.uniform(range=[0.9, 1.1])
-                img = fn.color_twist(
-                    img, brightness=brightness, contrast=contrast, hue=hue, saturation=saturation
-                )
-
-                # auto-augment
-                # `shape` controls the magnitude of the translation operations
-                img = auto_augment.auto_augment_image_net(img)
-            else:
-                img = fn.resize(img, size=image_shape[:-1])
-
-            # normalize
-            # https://github.com/NVIDIA/DALI/issues/4469
-            mean = np.asarray([0.485, 0.456, 0.406])[None, None, :]
-            std = np.asarray([0.229, 0.224, 0.225])[None, None, :]
-            scale = 1 / 255.0
-            img = fn.normalize(img, mean=mean / scale, stddev=std, scale=scale, dtype=types.FLOAT)
-
-            return img, labels
-
         decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
         print(f"Using decoders_module={decoders_module}")
 
@@ -407,7 +410,11 @@ for cpu_num in threads_num:
         if args.pipeline == "decoder":
             for i in range(args.gpu_num):
                 pipes.append(
-                    DecoderPipeline(device_id=i + args.device_id, decoders_module=decoders_module)
+                    DecoderPipeline(
+                        device_id=i + args.device_id,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
+                    )
                 )
         elif args.pipeline == "rn50":
             for i in range(args.gpu_num):
@@ -415,6 +422,7 @@ for cpu_num in threads_num:
                     RN50Pipeline(
                         device_id=i + args.device_id,
                         minibatch_size=args.minibatch_size,
+                        num_threads=cpu_num,
                         decoders_module=decoders_module,
                     )
                 )
@@ -422,7 +430,9 @@ for cpu_num in threads_num:
             for i in range(args.gpu_num):
                 pipes.append(
                     EfficientnetInferencePipeline(
-                        device_id=i + args.device_id, decoders_module=decoders_module
+                        device_id=i + args.device_id,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
                     )
                 )
         elif args.pipeline == "vit":
@@ -437,6 +447,7 @@ for cpu_num in threads_num:
                         device_id=i + args.device_id,
                         minibatch_size=args.minibatch_size,
                         automatic_augmentation=args.aug_strategy,
+                        num_threads=cpu_num,
                         decoders_module=decoders_module,
                     )
                 )
@@ -526,9 +537,9 @@ if len(perf_results) > 0:
     # Find and print result with best throughputif
     best_result = max(perf_results, key=lambda x: x["total_throughput"])
     print("\nBest throughput configuration:")
-    print(f"CPU threads: {best_result['cpu_num']}")
-    print(f"HW decoder load: {best_result['hw_load']}")
-    print(f"Total time: {best_result['total_time']:.6f} sec")
-    print(f"Throughput: {best_result['total_throughput']:.2f} frames/sec")
+    print(f"Best: CPU threads: {best_result['cpu_num']}")
+    print(f"Best: HW decoder load: {best_result['hw_load']}")
+    print(f"Best: Total time: {best_result['total_time']:.6f} sec")
+    print(f"Best: Throughput: {best_result['total_throughput']:.2f} frames/sec")
 else:
     print("No results to display")
