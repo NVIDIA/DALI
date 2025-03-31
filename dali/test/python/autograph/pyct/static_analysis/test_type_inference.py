@@ -471,7 +471,7 @@ class TypeInferenceAnalyzerTest(unittest.TestCase):
     def test_local_function_closure_mutable_var(self):
         def test_fn(x: int):
             def foo():
-                nonlocal x
+                nonlocal x  # noqa: F824
                 return x
 
             foo()

@@ -503,7 +503,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
 
     def test_global_symbol(self):
         def test_fn(c):
-            global global_a
+            global global_a  # noqa: F824
             global global_b
             if global_a:
                 global_b = c
@@ -521,7 +521,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
         nonlocal_b = 13
 
         def test_fn(c):
-            nonlocal nonlocal_a
+            nonlocal nonlocal_a  # noqa: F824
             nonlocal nonlocal_b
             if nonlocal_a:
                 nonlocal_b = c

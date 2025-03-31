@@ -425,7 +425,7 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
 
     def test_global(self):
         def test_fn():
-            global global_a
+            global global_a  # noqa: F824
             global global_b
             if global_a:
                 global_b = []
@@ -448,7 +448,7 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
         b = 13
 
         def test_fn():
-            nonlocal a
+            nonlocal a  # noqa: F824
             nonlocal b
             if a:
                 b = []
@@ -475,7 +475,7 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
             b = 13
 
             def local_fn():
-                nonlocal a, b
+                nonlocal a, b  # noqa: F824
                 if a:
                     b = []
                 return a, b
@@ -515,7 +515,7 @@ class ReachingDefinitionsAnalyzerTestPy3(ReachingDefinitionsAnalyzerTestBase):
         b = 13
 
         def test_fn():
-            nonlocal a
+            nonlocal a  # noqa: F824
             nonlocal b
             if a:
                 b = []
@@ -542,7 +542,7 @@ class ReachingDefinitionsAnalyzerTestPy3(ReachingDefinitionsAnalyzerTestBase):
             b = 13
 
             def local_fn():
-                nonlocal a, b
+                nonlocal a, b  # noqa: F824
                 if a:
                     b = []
                 return a, b

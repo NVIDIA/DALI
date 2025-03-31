@@ -705,7 +705,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
     def test_global_symbol(self):
         def test_fn(c):
             global global_a
-            global global_b
+            global global_b  # noqa: F824
             global_a = global_b + c
 
         node, _ = self._parse_and_analyze(test_fn)
@@ -722,7 +722,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
         def test_fn(c):
             nonlocal nonlocal_a
-            nonlocal nonlocal_b
+            nonlocal nonlocal_b  # noqa: F824
             nonlocal_a = nonlocal_b + c
 
         node, _ = self._parse_and_analyze(test_fn)
