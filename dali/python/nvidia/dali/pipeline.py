@@ -62,11 +62,9 @@ class Pipeline(object):
 
     Parameters
     ----------
-    batch_size : int, optional, default = -1
-        Maximum batch size of the pipeline. Negative values for this parameter
-        are invalid - the default value may only be used with
-        serialized pipeline (the value stored in serialized pipeline
-        is used instead). In most cases, the actual batch size of the pipeline
+    batch_size : int
+        Maximum batch size of the pipeline. The value must be positivel
+        In most cases, the actual batch size of the pipeline
         will be equal to the maximum one. Running the DALI Pipeline with a smaller batch size
         is also supported. The batch size might change from iteration to iteration.
 
@@ -82,9 +80,8 @@ class Pipeline(object):
         A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
         This limits the pipeline to only CPU operators but allows it to run on any CPU capable
         machine.
-    seed : int, optional, default = -1
-        Seed used for random number generation. Leaving the default value
-        for this parameter results in random seed.
+    seed : int, optional, default = None
+        Seed used for random number generation. If not set, a random seed will be generated.
     exec_pipelined : bool, optional, default = True
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
@@ -221,10 +218,10 @@ class Pipeline(object):
 
     def __init__(
         self,
-        batch_size=-1,
-        num_threads=-1,
-        device_id=-1,
-        seed=-1,
+        batch_size=None,
+        num_threads=None,
+        device_id=None,
+        seed=None,
         exec_pipelined=True,
         prefetch_queue_depth=2,
         exec_async=True,
@@ -324,6 +321,17 @@ class Pipeline(object):
         self._condition_stack = None
         # Tracking the stack frame where pipeline definition starts
         self._definition_frame_start = 0
+
+        self._executor_type = b.MakeExecutorType(
+            self._exec_pipelined,
+            self._exec_async,
+            self._exec_separated,
+            self._exec_dynamic)
+
+        self._executor_flags = b.ExecutorFlags.NoFlags
+        if self._set_affinity:
+            self._executor_flags |= b.ExecutorFlags.SetAffinity
+
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -909,26 +917,44 @@ class Pipeline(object):
         weakref.finalize(self, lambda pool: pool.close(), self._py_pool)
         self._py_pool_started = True
 
-    def _init_pipeline_backend(self):
-        device_id = self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID
-        if device_id != types.CPU_ONLY_DEVICE_ID:
-            b.check_cuda_runtime()
-        self._pipe = b.Pipeline(
-            self._max_batch_size,
-            self._num_threads,
-            device_id,
-            self._seed if self._seed is not None else -1,
-            self._exec_pipelined,
-            self._cpu_queue_size,
-            self._exec_async,
-            self._exec_dynamic,
-            self._bytes_per_sample,
-            self._set_affinity,
+    def _get_params(self):
+        return b.PipelineParams(
+            max_batch_size=self._max_batch_size,
+            num_threads=self._num_threads,
+            device_id=self._device_id,
+            seed=self._seed if self._seed is not None else -1,
+            executor_type=self._executor_type,
+            executor_flags=self._executor_flags,
+            prefetch_queue_depths=(self._cpu_queue_size, self._gpu_queue_size),
+            enable_checkpointing=self._enable_checkpointing,
+            enable_memory_stats=self._enable_memory_stats,
+            bytes_per_sample_hint=self._bytes_per_sample,
         )
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._pipe.EnableCheckpointing(self._enable_checkpointing)
+
+    def _set_params(self, params):
+        self._max_batch_size = params.max_batch_size
+        self._num_threads = params.num_threads
+        self._device_id = params.device_id
+        self._seed = params.seed
+        self._executor_type = params.executor_type
+        self._executor_flags = params.executor_flags
+        self._cpu_queue_size = params.prefetch_queue_depths[0]
+        self._gpu_queue_size = params.prefetch_queue_depths[1]
+        self._enable_checkpointing = params.enable_checkpointing
+        self._enable_memory_stats = params.enable_memory_stats
+        self._bytes_per_sample = params.bytes_per_sample_hint
+        # reconsitute legacy flags
+        self._exec_async = bool(params._self.executor_type & b.ExecutorFlags.AsyncFlag)
+        self._exec_pipelined = bool(params._self.executor_type & b.ExecutorFlags.PipelinedFlag)
+        self._exec_separated = bool(params._self.executor_type & b.ExecutorFlags.SeparatedFlag)
+        self._exec_dynamic = bool(params._self.executor_type & b.ExecutorFlags.DynamicFlag)
+        self._set_affinity = bool(params._self.executor_flags & b.ExecutorFlags.SetAffinity)
+
+    def _init_pipeline_backend(self):
+        if self._device_id is not None:
+            b.check_cuda_runtime()
+        params = self._get_params()
+        self._pipe = b.Pipeline(params)
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
@@ -1620,26 +1646,53 @@ class Pipeline(object):
         if filename is not None:
             with open(filename, "rb") as pipeline_file:
                 serialized_pipeline = pipeline_file.read()
-        pipeline._pipe = b.Pipeline(
-            serialized_pipeline,
-            kw.get("batch_size", -1),
-            kw.get("num_threads", -1),
-            kw.get("device_id", -1),
-            kw.get("exec_pipelined", True),
-            kw.get("prefetch_queue_depth", 2),
-            kw.get("exec_async", True),
-            kw.get("exec_dynamic", False),
-            kw.get("bytes_per_sample", 0),
-            kw.get("set_affinity", False),
+
+        prefetch_queue_depth = kw.get("prefetch_queue_depth", None)
+        exec_separated = False
+        if isinstance(prefetch_queue_depth, int):
+            prefetch_queue_depths = (prefetch_queue_depth, prefetch_queue_depth)
+        elif isinstance(prefetch_queue_depth, dict):
+            if "cpu" not in prefetch_queue_depth and "gpu" not in prefetch_queue_depth:
+                raise ValueError("prefetch_queue_depth must contain either 'cpu' or 'gpu' key")
+            exec_separated = True
+            prefetch_queue_depths = (
+                prefetch_queue_depth.get("cpu", prefetch_queue_depth["gpu"]),
+                prefetch_queue_depth.get("gpu", prefetch_queue_depth["cpu"]),
+            )
+        else:
+            prefetch_queue_depths = None
+
+        exec_pipelined = kw.get("exec_pipelined", None)
+        exec_async = kw.get("exec_async", None)
+        exec_dynamic = kw.get("exec_dynamic", None)
+        executor_type = b.MakeExecutorType(
+            exec_pipelined or False,
+            exec_async or False,
+            exec_separated,
+            exec_dynamic or False)
+        executor_flags = b.ExecutorFlags.NoFlags
+        if kw.get("set_affinity", False):
+            executor_flags |= b.ExecutorFlags.SetAffinity
+
+        params = b.PipelineParams(
+            max_batch_size=kw.get("batch_size", None),
+            num_threads=kw.get("num_threads", None),
+            device_id=kw.get("device_id", None),
+            seed=kw.get("seed", None),
+            executor_type=executor_type,
+            executor_flags=executor_flags,
+            prefetch_queue_depths=prefetch_queue_depths,
+            enable_checkpointing=kw.get("enable_checkpointing", None),
+            enable_memory_stats=kw.get("enable_memory_stats", None),
+            bytes_per_sample_hint=kw.get("bytes_per_sample", None),
         )
-        if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
+        pipeline._pipe = b.Pipeline(serialized_pipeline, params)
+
+        if pipeline.device_id is not None:
             b.check_cuda_runtime()
-        pipeline._pipe.SetExecutionTypes(
-            pipeline._exec_pipelined, pipeline._exec_separated, pipeline._exec_async
-        )
-        pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
-        pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
-        pipeline._pipe.EnableCheckpointing(pipeline._enable_checkpointing)
+
+        pipeline._executor_type = executor_type
+        pipeline._executor_flags = executor_flags
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
         pipeline._restore_state_from_checkpoint()
@@ -1666,20 +1719,9 @@ class Pipeline(object):
         """
         self._pipe = b.Pipeline(
             serialized_pipeline,
-            self._max_batch_size,
-            self._num_threads,
-            self._device_id,
-            self._exec_pipelined,
-            self._prefetch_queue_depth,
-            self._exec_async,
-            self._exec_dynamic,
-            self._bytes_per_sample,
-            self._set_affinity,
+            self._get_params()
         )
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._pipe.EnableCheckpointing(self._enable_checkpointing)
+        self._set_params(self._pipe.params())
         self._backend_prepared = True
         self._pipe.Build()
         self._restore_state_from_checkpoint()

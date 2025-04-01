@@ -73,7 +73,7 @@ def test_tensorflow_build_check():
         data = types.Constant(1)
         return data
 
-    pipe = get_dali_pipe(batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
+    pipe = get_dali_pipe(batch_size=3, device_id=None, num_threads=1)
     pipe.run()
 
 

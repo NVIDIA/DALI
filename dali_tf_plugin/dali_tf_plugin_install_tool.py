@@ -66,7 +66,7 @@ def plugin_load_and_test(dali_tf_path):
     def get_data():
         batch_size = 3
         pipe = get_dali_pipe(
-            batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1
+            batch_size=batch_size, device_id=None, num_threads=1
         )
 
         out = []
@@ -75,7 +75,7 @@ def plugin_load_and_test(dali_tf_path):
                 serialized_pipeline=pipe.serialize(),
                 shapes=[(batch_size,)],
                 dtypes=[tf.int32],
-                device_id=types.CPU_ONLY_DEVICE_ID,
+                device_id=None,
                 batch_size=batch_size,
                 exec_separated=False,
                 gpu_prefetch_queue_depth=2,

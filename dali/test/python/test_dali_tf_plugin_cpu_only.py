@@ -34,7 +34,7 @@ def get_dali_pipe(value):
 
 def get_data(batch_size, value):
     pipe = get_dali_pipe(
-        batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value
+        batch_size=batch_size, device_id=None, num_threads=1, value=value
     )
     daliop = dali_tf.DALIIterator()
     out = []
@@ -43,7 +43,7 @@ def get_data(batch_size, value):
             pipeline=pipe,
             shapes=[batch_size],
             dtypes=[tf.int32],
-            device_id=types.CPU_ONLY_DEVICE_ID,
+            device_id=None,
         )
         out.append(data)
     return [out]

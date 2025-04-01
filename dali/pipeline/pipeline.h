@@ -84,6 +84,7 @@ class DLL_PUBLIC Pipeline {
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'false'.
    */
+  [[deprecated]]
   DLL_PUBLIC Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
                       bool async_execution = true, bool dynamic_execution = false,
@@ -93,6 +94,7 @@ class DLL_PUBLIC Pipeline {
    * @warning This constructor is deprecated. Use
    *          Pipeline(const string &serialized_pipe, const PipelineParams &param_override) instead.
    */
+  [[deprecated]]
   DLL_PUBLIC Pipeline(const string &serialized_pipe,
                       int max_batch_size = -1, int num_threads = -1, int device_id = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
@@ -366,26 +368,15 @@ class DLL_PUBLIC Pipeline {
     }
   }
 
-  /**
-   * @brief Set queue sizes for Pipeline using Separated Queues
-   *
-   * Must be called before Build()
-   *
-   * @param cpu_size
-   * @param gpu_size
-   */
-  DLL_PUBLIC void SetQueueSizes(int cpu_size, int gpu_size) {
-    DALI_ENFORCE(!built_,
-                 "Alterations to the pipeline after "
-                 "\"Build()\" has been called are not allowed - cannot set queue sizes.");
-    DALI_ENFORCE(separated_execution() || (cpu_size == gpu_size),
-                 "Setting different queue sizes for non-separated execution is not allowed");
-    DALI_ENFORCE(cpu_size > 0 && gpu_size > 0, "Only positive queue sizes allowed");
-    params_.prefetch_queue_depths = QueueSizes(cpu_size, gpu_size);
-  }
-
   DLL_PUBLIC QueueSizes GetQueueSizes() const {
     return *params_.prefetch_queue_depths;
+  }
+
+  /**
+   * @brief Returns the parameters with which the pipeline was created
+   */
+  DLL_PUBLIC const PipelineParams &GetParams() const & {
+    return params_;
   }
 
   /** @{ */
@@ -707,9 +698,9 @@ class DLL_PUBLIC Pipeline {
     return Test(*params_.executor_type, ExecutorType::SeparatedFlag);
   }
 
-  inline bool checkpointing_enabled() const { return *params_.enable_checkpointing; }
-  inline bool memory_stats_enabled() const { return *params_.enable_memory_stats; }
-  inline size_t bytes_per_sample_hint() const { return *params_.bytes_per_sample_hint; }
+  inline bool checkpointing_enabled() const { return params_.enable_checkpointing.value_or(false); }
+  inline bool memory_stats_enabled() const { return params_.enable_memory_stats.value_or(false); }
+  inline size_t bytes_per_sample_hint() const { return params_.bytes_per_sample_hint.value_or(0); }
 
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;

@@ -125,16 +125,14 @@ Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t s
 : Pipeline(PipelineParams{
     max_batch_size != -1 ? std::optional<int>(max_batch_size) : std::nullopt,
     num_threads != -1 ? std::optional<int>(num_threads) : std::nullopt,
-    device_id != CPU_ONLY_DEVICE_ID ? std::optional<int>(device_id) : std::nullopt,
+    device_id >= 0 ? std::optional<int>(device_id) : std::nullopt,
     seed != -1 ? std::optional<int64_t>(seed) : std::nullopt,
     MakeExecutorType(pipelined_execution, async_execution, false, dynamic_execution),
     set_affinity ? ExecutorFlags::SetAffinity : ExecutorFlags::None,
     QueueSizes(prefetch_queue_depth),
     std::nullopt,
     std::nullopt,
-    bytes_per_sample_hint})
-{
-}
+    bytes_per_sample_hint}) {}
 
 Pipeline::Pipeline(const string &serialized_pipeline,
                    int batch_size, int num_threads, int device_id,
@@ -145,9 +143,9 @@ Pipeline::Pipeline(const string &serialized_pipeline,
 : Pipeline(serialized_pipeline, PipelineParams{
     batch_size != -1 ? std::optional<int>(batch_size) : std::nullopt,
     num_threads != -1 ? std::optional<int>(num_threads) : std::nullopt,
-    device_id != CPU_ONLY_DEVICE_ID ? std::optional<int>(device_id) : std::nullopt,
+    device_id >= 0 ? std::optional<int>(device_id) : std::nullopt,
     seed != -1 ? std::optional<int64_t>(seed) : std::nullopt,
-    MakeExecutorType(pipelined_execution, async_execution, dynamic_execution),
+    MakeExecutorType(pipelined_execution, async_execution, false, dynamic_execution),
     set_affinity ? ExecutorFlags::SetAffinity : ExecutorFlags::None,
     QueueSizes(prefetch_queue_depth),
     std::nullopt,
@@ -165,15 +163,40 @@ Pipeline::Pipeline(const string &serialized_pipe, const PipelineParams &params) 
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
+    auto to_optional = [](auto value) {
+      return value >= 0 ? std::optional<decltype(value)>(value) : std::nullopt;
+    };
+
     // First, set parameters from the serialized pipeline
-    params_.max_batch_size = def.batch_size() != -1 ? std::optional<int>(def.batch_size()) : std::nullopt;
-    params_.num_threads = def.num_threads() != -1 ? std::optional<int>(def.num_threads()) : std::nullopt;
-    params_.device_id = def.device_id() >= 0 ? std::optional<int>(def.device_id()) : std::nullopt;
-    params_.seed = def.seed() >= 0 ? std::optional<int64_t>(def.seed()) : std::nullopt;
-    params_.executor_type = static_cast<ExecutorType>(def.executor_type());
-    params_.executor_flags = static_cast<ExecutorFlags>(def.executor_flags());
-    params_.prefetch_queue_depths = QueueSizes(def.prefetch_queue_depth_cpu(), def.prefetch_queue_depth_gpu());
-    params_.enable_checkpointing = def.checkpointing_enabled();
+    params_.max_batch_size = to_optional(def.batch_size());
+
+    if (def.has_num_threads())
+      params_.num_threads = to_optional(def.num_threads());
+
+    if (def.has_device_id())
+      params_.device_id = to_optional(def.device_id());
+
+    if (def.has_seed())
+      params_.seed = to_optional(def.seed());
+
+    if (def.has_executor_type())
+      params_.executor_type = static_cast<ExecutorType>(def.executor_type());
+
+    if (def.has_executor_flags())
+      params_.executor_flags = static_cast<ExecutorFlags>(def.executor_flags());
+
+    if (def.has_prefetch_queue_depth_cpu() && def.has_prefetch_queue_depth_gpu())
+      params_.prefetch_queue_depths = QueueSizes(def.prefetch_queue_depth_cpu(),
+                                                 def.prefetch_queue_depth_gpu());
+    else if (def.has_prefetch_queue_depth_cpu())
+      params_.prefetch_queue_depths = QueueSizes(def.prefetch_queue_depth_cpu(),
+                                                 def.prefetch_queue_depth_cpu());
+    else if (def.has_prefetch_queue_depth_gpu())
+      params_.prefetch_queue_depths = QueueSizes(def.prefetch_queue_depth_gpu(),
+                                                 def.prefetch_queue_depth_gpu());
+
+    if (def.has_enable_checkpointing())
+      params_.enable_checkpointing = def.enable_checkpointing();
 
     // Then, update with any provided parameters
     params_.Update(params);
@@ -202,7 +225,7 @@ Pipeline::Pipeline(const string &serialized_pipe, const PipelineParams &params) 
     }
 
     // checkpointing
-    if (params_.enable_checkpointing) {
+    if (checkpointing_enabled()) {
       this->EnableCheckpointing();
     }
 }
@@ -406,7 +429,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
                  make_string("Data node \"", input_name, "\" requested as ", FormatInput(spec, i),
                              " to operator \"", inst_name, "\" is not known to the pipeline."));
 
-    DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
+    DALI_ENFORCE(device_id() != CPU_ONLY_DEVICE_ID || device == "cpu",
                   "Cannot add a Mixed operator with a GPU output, 'device_id' "
                   "should not be `CPU_ONLY_DEVICE_ID`.");
 
@@ -425,7 +448,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
     // TODO(michalz): This is a bit ugly, but it provides a nice and generic error message.
     //                In the long run, we should probably allow GPU named inputs and then
     //                the check should be done based on the schema, without a universal ToCPU.
-    if (dynamic_execution_)
+    if (dynamic_execution())
       ToCPU(it);
 
     DALI_ENFORCE(
@@ -580,7 +603,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
     } else {
       assert(device == StorageDevice::GPU);
-      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
+      DALI_ENFORCE(device_id() != CPU_ONLY_DEVICE_ID,
                    make_string(
                      "Cannot move the data node ", name, " to the GPU "
                      "in a CPU-only pipeline. The 'device_id' parameter "
@@ -833,7 +856,8 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_seed(this->original_seed_);
   pipe.set_enable_checkpointing(this->checkpointing_enabled());
   pipe.set_bytes_per_sample_hint(this->bytes_per_sample_hint());
-  pipe.set_prefetch_queue_depths(this->GetQueueSizes());
+  pipe.set_prefetch_queue_depth_cpu(this->GetQueueSizes().cpu_size);
+  pipe.set_prefetch_queue_depth_gpu(this->GetQueueSizes().gpu_size);
   pipe.set_executor_type(static_cast<int32_t>(*params_.executor_type));
   pipe.set_executor_flags(static_cast<int32_t>(*params_.executor_flags));
 

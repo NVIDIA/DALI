@@ -79,10 +79,10 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
          << exec_pipelined_ << endl;
     cout.flags(f);
 
-    pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
-                                           exec_pipelined_, cpu_queue_depth_, exec_async_);
-
-    pipeline_->SetExecutionTypes(exec_pipelined_, exec_separated_, exec_async_);
+    PipelineParams params{};
+    params.executor_type = MakeExecutorType(exec_pipelined_, exec_separated_, exec_async_, false);
+    params.prefetch_queue_depths = QueueSizes{cpu_queue_depth_, gpu_queue_depth_};
+    pipeline_ = std::make_unique<Pipeline>(params);
 
     PutTogetherDaliGraph();
 

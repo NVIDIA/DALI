@@ -34,6 +34,16 @@
 
 #include "dali/c_api.h"  // NOLINT [build/include]
 
+// Sanity check that the values of the flags are consistent with the ExecutorType enum.
+namespace dali {
+namespace {
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_PIPELINED) == ExecutorType::PipelinedFlag);
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_ASYNC) == ExecutorType::AsyncFlag);
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_SEPARATED) == ExecutorType::SeparatedFlag);
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_DYNAMIC) == ExecutorType::DynamicFlag);
+}  // namespace
+}  // namespace dali
+
 using dali::AccessOrder;
 using dali::CPUBackend;
 using dali::GPUBackend;
@@ -248,7 +258,7 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     int enable_memory_stats) {
   dali_exec_flags_t flags = {};
   if (async_execution)
-    flags = flags | DALI_EXEC_IS_ASYNC;
+    flags = flags | DALI_EXEC_IS_ASYNC | DALI_EXEC_IS_PIPELINED;
   if (pipelined_execution)
     flags = flags | DALI_EXEC_IS_PIPELINED;
   if (separated_execution)
@@ -265,26 +275,22 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     dali_exec_flags_t exec_flags, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
-
-  dali::PipelineParams params{};
+  dali::PipelineParams params = dali::MakePipelineParams(max_batch_size, num_threads, device_id);
   params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
   if (exec_flags & DALI_EXEC_IS_SEPARATED) {
-    params.prefetch_queue_depths = dali::QueueSizes{
-        cpu_prefetch_queue_depth, gpu_prefetch_queue_depth
-    };
+    dali::QueueSizes queue_sizes{cpu_prefetch_queue_depth, gpu_prefetch_queue_depth};
+    params.prefetch_queue_depths = queue_sizes;
   } else {
     params.prefetch_queue_depths = dali::QueueSizes{prefetch_queue_depth, prefetch_queue_depth};
   }
+  params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
 
   params.enable_memory_stats = enable_memory_stats;
   params.enable_checkpointing = false;
-  params.bytes_per_sample_hint = 0;
-  params.max_batch_size = max_batch_size;
-  params.num_threads = num_threads;
-  params.device_id = device_id;
   params.enable_memory_stats = enable_memory_stats;
 
-  auto pipeline = std::make_unique<dali::Pipeline>(params);
+  auto pipeline = std::make_unique<dali::Pipeline>(
+        std::string(serialized_pipeline, length), params);
   pipeline->Build();
 
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();

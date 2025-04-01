@@ -46,15 +46,15 @@ constexpr bool Test(ExecutorFlags all_flags, ExecutorFlags flags_to_test) {
 
 enum class ExecutorType : int {
   Simple = 0,
-  AsyncFlag = 1,
-  PipelinedFlag = 2,
+  PipelinedFlag = 1,
+  AsyncFlag = 2,
   SeparatedFlag = 4,
   DynamicFlag = 8,
   Pipelined = PipelinedFlag,
   AsyncPipelined = AsyncFlag | PipelinedFlag,
-  PipelinedSeparated = PipelinedFlag | SeparatedFlag,  // TODO(michalz): I think it doesn't work
-  AsyncSeparated = AsyncPipelined | SeparatedFlag,
-  Dymamic = AsyncPipelined | DynamicFlag,
+  SeparatedPipelined = PipelinedFlag | SeparatedFlag,  // TODO(michalz): I think it doesn't work
+  AsyncSeparatedPipelined = AsyncPipelined | SeparatedFlag,
+  Dynamic = AsyncPipelined | DynamicFlag,
 };
 
 constexpr ExecutorType operator|(ExecutorType a, ExecutorType b) {
@@ -71,6 +71,13 @@ constexpr bool Test(ExecutorType type, ExecutorType flags) {
 
 constexpr ExecutorType MakeExecutorType(bool pipelined, bool async, bool separated, bool dynamic) {
   ExecutorType type = ExecutorType::Simple;
+  if (async) {
+    pipelined = true;
+  }
+  if (dynamic) {
+    async = true;
+    pipelined = true;
+  }
   if (pipelined) type = type | ExecutorType::PipelinedFlag;
   if (async) type = type | ExecutorType::AsyncFlag;
   if (separated) type = type | ExecutorType::SeparatedFlag;

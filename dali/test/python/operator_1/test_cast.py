@@ -132,7 +132,7 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
     @pipeline_def(
         batch_size=batch_size,
         num_threads=4,
-        device_id=types.CPU_ONLY_DEVICE_ID if device == "cpu" else 0,
+        device_id=None if device == "cpu" else 0,
     )
     def cast_pipe():
         inp = fn.external_source(src)

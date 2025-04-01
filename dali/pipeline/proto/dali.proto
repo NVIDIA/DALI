@@ -78,13 +78,13 @@ message PipelineDef {
 
   optional bool enable_checkpointing = 10 [default = false];
 
-  optional int32 executor_type = 12 [default = 0];
-  optional int64 executor_flags = 13 [default = 0];
+  optional int32 executor_type = 11 [default = 0];
+  optional int64 executor_flags = 12 [default = 0];
 
-  optional int32 prefetch_queue_depth_cpu = 14 [default = 2];
-  optional int32 prefetch_queue_depth_gpu = 15 [default = 2];
+  optional int32 prefetch_queue_depth_cpu = 13 [default = 2];
+  optional int32 prefetch_queue_depth_gpu = 14 [default = 2];
 
-  optional int64 bytes_per_sample_hint = 16 [default = 0];
+  optional int64 bytes_per_sample_hint = 15 [default = 0];
 }
 
 message Checkpoint {

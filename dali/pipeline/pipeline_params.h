@@ -51,6 +51,14 @@ struct PipelineParams {
   }
 };
 
+inline PipelineParams MakePipelineParams(int max_batch_size, int num_threads, int device_id) {
+  PipelineParams params{};
+  if (max_batch_size >= 0) params.max_batch_size = max_batch_size;
+  if (num_threads >= 0) params.num_threads = num_threads;
+  if (device_id >= 0) params.device_id = device_id;
+  return params;
+}
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_PIPELINE_PARAMS_H_

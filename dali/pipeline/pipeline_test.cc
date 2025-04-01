@@ -569,49 +569,16 @@ class PrefetchedPipelineTest : public DALITest {
   int batch_size_ = 5, num_threads_ = 1;
 };
 
-TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
-  Pipeline pipe(this->batch_size_, 4, 0);
-  // By default we are non-separated execution
-  ASSERT_THROW(pipe.SetQueueSizes(5, 3), std::runtime_error);
-}
-
-TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
-  Pipeline pipe(this->batch_size_, 4, 0);
-  pipe.AddExternalInput("data");
-  pipe.AddOperator(OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data", StorageDevice::GPU)
-          .AddOutput("final_images", StorageDevice::GPU));
-
-  vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
-  pipe.Build(outputs);
-  ASSERT_THROW(pipe.SetExecutionTypes(), std::runtime_error);
-}
-
-TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
-  Pipeline pipe(this->batch_size_, 4, 0);
-  pipe.AddExternalInput("data");
-  pipe.AddOperator(OpSpec("Copy")
-          .AddArg("device", "gpu")
-          .AddInput("data", StorageDevice::GPU)
-          .AddOutput("final_images", StorageDevice::GPU));
-
-  vector<std::pair<string, string>> outputs = {{"final_images", "gpu"}};
-  pipe.Build(outputs);
-  ASSERT_THROW(pipe.SetQueueSizes(2, 2), std::runtime_error);
-}
-
 TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Test coprime queue sizes
   constexpr int CPU = 5, GPU = 3;
   constexpr int N = CPU + GPU + 5;
   int batch_size = this->batch_size_;
 
-  Pipeline pipe(batch_size, 4, 0);
-  // Cannot test async while setting external input - need to make sure that
-  pipe.SetExecutionTypes(true, true, true);
-  // Test coprime queue sizes
-  pipe.SetQueueSizes(CPU, GPU);
+  PipelineParams params = MakePipelineParams(batch_size, 4, 0);
+  params.prefetch_queue_depths = QueueSizes{CPU, GPU};
+  params.executor_type = MakeExecutorType(true, true, true, false);
+  Pipeline pipe(params);
   pipe.AddExternalInput("data");
   pipe.AddOperator(OpSpec("Copy")
           .AddArg("device", "cpu")

@@ -81,9 +81,9 @@ template <typename... T>
 std::unique_ptr<ExecutorBase> GetExecutorImpl(
       ExecutorType type, T&&... args) {
   // Go over possible combinations and throw otherwise.
-  if (type == ExecutorType::AsyncSeparated) {
+  if (type == ExecutorType::AsyncSeparatedPipelined) {
     return std::make_unique<AsyncSeparatedPipelinedExecutor>(std::forward<T>(args)...);
-  } else if (type == ExecutorType::Dymamic) {
+  } else if (type == ExecutorType::Dynamic) {
     return std::make_unique<exec2::Executor2>(MakeExec2Config(std::forward<T>(args)...));
   } else if (type == ExecutorType::AsyncPipelined) {
     bool force_exec2 = ForceExec2();
@@ -93,7 +93,7 @@ std::unique_ptr<ExecutorBase> GetExecutorImpl(
     } else {
      return std::make_unique<AsyncPipelinedExecutor>(std::forward<T>(args)...);
     }
-  } else if (type == ExecutorType::PipelinedSeparated) {
+  } else if (type == ExecutorType::SeparatedPipelined) {
     return std::make_unique<SeparatedPipelinedExecutor>(std::forward<T>(args)...);
   } else if (type == ExecutorType::Pipelined) {
     return std::make_unique<PipelinedExecutor>(std::forward<T>(args)...);
@@ -102,9 +102,10 @@ std::unique_ptr<ExecutorBase> GetExecutorImpl(
   }
   std::stringstream error;
   error << std::boolalpha;
-  error << "No supported executor selected for pipelined = " << pipelined
-        << ", separated = " << separated << ", async = " << async
-        << ", dynamic = " << dynamic << std::endl;
+  error << "No supported executor selected for pipelined = " << Test(type, ExecutorType::Pipelined)
+        << ", separated = " << Test(type, ExecutorType::SeparatedFlag)
+        << ", async = " << Test(type, ExecutorType::AsyncFlag)
+        << ", dynamic = " << Test(type, ExecutorType::DynamicFlag) << std::endl;
   DALI_FAIL(error.str());
 }
 
@@ -114,9 +115,7 @@ std::unique_ptr<ExecutorBase> GetExecutor(ExecutorType type, ExecutorFlags flags
                                           size_t bytes_per_sample_hint,
                                           QueueSizes prefetch_queue_depth) {
   return GetExecutorImpl(
-    pipelined, separated, async, dynamic,
-    batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
-    prefetch_queue_depth);
+    type, batch_size, num_thread, device_id, bytes_per_sample_hint, flags, prefetch_queue_depth);
 }
 
 }  // namespace dali
