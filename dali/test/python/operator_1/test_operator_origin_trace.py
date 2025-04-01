@@ -46,7 +46,6 @@ def capture_python_traces(fun, full_stack=False):
     full_stack : bool, optional
         Whether to capture the whole stack, by default False
     """
-    global extracted_stacks
     global base_frame
     base_frame = len(traceback.extract_stack()) if not full_stack else 0
 
@@ -85,14 +84,11 @@ def capture_dali_traces(pipe_def):
 
 def origin_trace():
     """Either return trace using test operator or capture it via Python API"""
-    global op_mode
     if op_mode == "dali.fn":
         return fn.origin_trace_dump()
     if op_mode == "dali.ops":
         return ops.OriginTraceDump()()  # Yup, super obvious __init__ + __call__
     # elif op_mode == "python":
-    global extracted_stacks
-    global base_frame
     # Skip last frame as it differs from calling the fn.origin_trace_dump above.
     extracted_stacks.append(traceback.extract_stack()[base_frame:-1])
     return None
@@ -105,7 +101,6 @@ def origin_trace_glob(op_mode):
 
 
 def compare_traces(dali_tbs, python_tbs, end_glob=origin_trace_glob):
-    global op_mode
     assert len(dali_tbs) == len(python_tbs)
     regex = fnmatch.translate(end_glob(op_mode))
     for dali_tb, python_tb in zip(dali_tbs, python_tbs):

@@ -714,7 +714,6 @@ def get_links_indices(packages, cuda_version):
 
 
 def main():
-    global args
     if args.list:
         print_configs(args.cuda)
     elif args.num:

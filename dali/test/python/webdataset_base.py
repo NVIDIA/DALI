@@ -105,7 +105,6 @@ def file_reader_pipeline(
 
 
 def generate_temp_index_file(tar_file_path):
-    global wds2idx_script
     temp_index_file = tempfile.NamedTemporaryFile()
     assert_equals(
         call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb")),

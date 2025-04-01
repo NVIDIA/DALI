@@ -48,7 +48,6 @@ def set_tracing(*, enabled: bool = None, options={}):
 
 
 def is_tracing_enabled():
-    global _origin_trace_enabled
     return _origin_trace_enabled
 
 

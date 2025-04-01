@@ -108,7 +108,6 @@ def trace(*args):
 
 
 def get_verbosity():
-    global verbosity_level
     if verbosity_level is not None:
         return verbosity_level
     return int(os.getenv(VERBOSITY_VAR_NAME, DEFAULT_VERBOSITY))
