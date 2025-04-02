@@ -521,7 +521,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsFilenames) {
           .AddOutput("frame_num", StorageDevice::GPU));
 
   pipe.Build(this->Output_frames_label_frame_num());
-
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.Run();

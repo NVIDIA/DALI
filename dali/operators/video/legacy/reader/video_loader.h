@@ -205,7 +205,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
     int total_count = 1 + (count_ - 1) * stride_;
 
     for (size_t i = 0; i < file_info_.size(); ++i) {
-      const auto& file = get_or_open_file(file_info_[i].video_file);
+      const auto& file = get_or_open_file(file_info_[i].filename);
       // cannot open, skip
       if (file.empty()) continue;
       const auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
@@ -213,8 +213,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
 
       int start_frame = 0;
       int end_frame = file.frame_count_;
-      float start = file_info_[i].start_time;
-      float end = file_info_[i].end_time;
+      float start = file_info_[i].start;
+      float end = file_info_[i].end;
       if (start != 0 || end != 0) {
         if (file_list_frame_num_) {
           if (start >= 0) {
@@ -229,11 +229,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
           }
 
           DALI_ENFORCE(start_frame <= end_frame, "Start frame number should be lesser or equal "
-                       "to end frame number for a file " + file_info_[i].video_file);
+                       "to end frame number for a file " + file_info_[i].filename);
           DALI_ENFORCE(start_frame <= file.frame_count_, "Start frame number is greater than "
-                       "total number of frames for file " + file_info_[i].video_file);
+                       "total number of frames for file " + file_info_[i].filename);
           DALI_ENFORCE(end_frame <= file.frame_count_, "End frame number is greater than "
-                       "total number of frames for file " + file_info_[i].video_file);
+                       "total number of frames for file " + file_info_[i].filename);
         } else {
           auto frame_rate = av_inv_q(file.frame_base_);
           if (start >= 0) {
@@ -267,11 +267,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
           }
 
           DALI_ENFORCE(start_frame <= end_frame, "Start time number should be lesser or equal "
-                       "to end time for a file " + file_info_[i].video_file);
+                       "to end time for a file " + file_info_[i].filename);
           DALI_ENFORCE(start_frame <= file.frame_count_, "Start time is greater than video "
-                       "duration for file " + file_info_[i].video_file);
+                       "duration for file " + file_info_[i].filename);
           DALI_ENFORCE(end_frame <= file.frame_count_, "End time is greater than video duration "
-                       "for file " + file_info_[i].video_file);
+                       "for file " + file_info_[i].filename);
         }
       }
 
@@ -294,7 +294,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
                  "length.");
 
     // get first valid video
-    const auto& file = get_or_open_file(file_info_[frame_starts_[0].filename_idx].video_file);
+    const auto& file = get_or_open_file(file_info_[frame_starts_[0].filename_idx].filename);
     DALI_ENFORCE(!file.empty(), "Cannot open video file");
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
 

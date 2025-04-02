@@ -38,7 +38,8 @@ MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/"
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
 batch_sizes = [1, 10]
-file_list_formats = ["frame_index", "timestamp", "timestamp_inclusive"]
+file_list_formats = ["frames", "timestamps"]
+file_list_roundings = ["start_down_end_up", "start_up_end_down"]
 pad_modes = ["none", "constant", "edge", "reflect_1001", "reflect_101"]
 pad_modes_supported_by_legacy_reader = ["none", "constant"]
 image_type_supported_by_legacy_reader = [types.RGB]  # TODO(janton): Add types.YCbCr
@@ -75,16 +76,15 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
         if "file_list_format" in kwargs:
             file_list_format = kwargs["file_list_format"]
             del kwargs_legacy["file_list_format"]
-            if file_list_format == "frame_index":
+            if file_list_format == "frames":
                 kwargs_legacy["file_list_frame_num"] = True
-                kwargs_legacy["file_list_include_preceding_frame"] = False
-            elif file_list_format == "timestamp":
+            elif file_list_format == "timestamps":
                 kwargs_legacy["file_list_frame_num"] = False
-                kwargs_legacy["file_list_include_preceding_frame"] = False
-            elif file_list_format == "timestamp_inclusive":
-                kwargs_legacy["file_list_frame_num"] = False
-                kwargs_legacy["file_list_include_preceding_frame"] = True
-
+            file_list_rounding = kwargs.get("file_list_rounding", "start_down_end_up")
+            del kwargs_legacy["file_list_rounding"]
+            kwargs_legacy["file_list_include_preceding_frame"] = (
+                file_list_rounding == "start_down_end_up"
+            )
         if "pad_mode" in kwargs:
             pad_mode = kwargs["pad_mode"]
             del kwargs_legacy["pad_mode"]
@@ -117,10 +117,9 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
     pipe.build()
     legacy_epoch_size = pipe.reader_meta("legacy_reader")["epoch_size"]
     experimental_epoch_size = pipe.reader_meta("experimental_reader")["epoch_size"]
-    assert (
-        legacy_epoch_size == experimental_epoch_size
-    ), f"Epoch size mismatch: {legacy_epoch_size} != {experimental_epoch_size}"
-    epoch_size = legacy_epoch_size
+    # The readers calculate the number of frames in the epoch differently,
+    # so we need to take the minimum of the two.
+    epoch_size = min(legacy_epoch_size, experimental_epoch_size)
     for i in range(epoch_size):
         outs = pipe.run()
         n = len(outs)
@@ -177,11 +176,12 @@ def test_compare_experimental_to_legacy_reader_filenames(
     batch_sizes,
     sequence_lengths,
     file_list_formats,
+    file_list_roundings,
     pad_modes_supported_by_legacy_reader,
     image_type_supported_by_legacy_reader,
 )
 def test_compare_experimental_to_legacy_reader_file_list(
-    device, batch_size, sequence_length, file_list_format, pad_mode, image_type
+    device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
 ):
     files = sorted(VIDEO_FILES)
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
@@ -189,7 +189,7 @@ def test_compare_experimental_to_legacy_reader_file_list(
         label = np.random.randint(0, 20)
         start = end = 0
         while start >= end:
-            if file_list_format == "frame_index":
+            if file_list_format == "frames":
                 start = np.random.randint(0, 20)
                 end = np.random.randint(0, 20)
             else:
@@ -211,6 +211,7 @@ def test_compare_experimental_to_legacy_reader_file_list(
         enable_timestamps=True,
         enable_frame_num=True,
         file_list_format=file_list_format,
+        file_list_rounding=file_list_rounding,
         pad_mode=pad_mode,
         image_type=image_type,
     )

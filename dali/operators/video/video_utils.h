@@ -35,12 +35,14 @@ namespace dali {
 using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 struct VideoFileMeta {
-  std::string video_file;
+  std::string filename;
   int label;
-  float start_time;
-  float end_time;
+  float start;
+  float end;
+  int start_frame = -1;
+  int end_frame = -1;
   bool operator<(const VideoFileMeta& right) {
-    return video_file < right.video_file;
+    return filename < right.filename;
   }
 };
 

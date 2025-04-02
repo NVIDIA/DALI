@@ -263,6 +263,17 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void SeekFrame(int frame_id);
 
   /**
+   * @brief Handles boundary conditions for a given frame index.
+   *
+   * @param boundary_type The boundary type to apply.
+   * @param frame_id The frame index to handle.
+   * @param roi_start The start of the region of interest.
+   * @param roi_end The end of the region of interest.
+   */
+  int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                     int roi_start, int roi_end);
+
+  /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
    * (what to do when sampling out of bounds).
    * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
@@ -321,7 +332,7 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
     DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
-    return Index().GetFrameIdxByTimestamp(timestamp, inclusive);
+    return index_.GetFrameIdxByTimestamp(timestamp, inclusive);
   }
 
   /**
@@ -355,12 +366,20 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * @return Boolean indicating whether or not the index was created.
    */
-  bool HasIndex() const { return Index().size() > 0; }
+  bool HasIndex() const { return index_.size() > 0; }
 
   /**
    * @brief Builds the index of the video file.
    */
   virtual void BuildIndex();
+
+  const FrameIndex& GetIndex() const {
+    return index_;
+  }
+
+  void SetIndex(const FrameIndex& index) {
+    index_ = index;
+  }
 
   virtual ~FramesDecoderBase() = default;
   FramesDecoderBase(FramesDecoderBase&&) = default;
@@ -374,15 +393,16 @@ class DLL_PUBLIC FramesDecoderBase {
     return is_valid_;
   }
 
-  const FrameIndex& Index() const {
-    return index_;
-  }
-
   void SetOutputType(DALIDataType dtype) {
     dtype_ = dtype;
   }
 
  protected:
+  void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
+                        boundary::BoundaryType boundary_type,
+                        const uint8_t *constant_frame,
+                        span<double> out_timestamps);
+
   /**
    * @brief Select a stream to decode. If stream_id is -1, the video stream will be selected automatically.
    */

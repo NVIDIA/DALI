@@ -723,7 +723,7 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     tensor.initialize(seq_meta.length, count_, seq_meta.height, seq_meta.width, channels_, dtype_);
 
     tensor.read_sample_f = [this,
-                            file_name = file_info_[seq_meta.filename_idx].video_file,
+                            file_name = file_info_[seq_meta.filename_idx].filename,
                             index = seq_meta.frame_idx, count = seq_meta.length, &tensor] () {
       thread_file_reader_.DoWork([this]() {
         read_file();
@@ -736,7 +736,7 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
 
     tensor.label = seq_meta.label;
     tensor.first_frame_idx = seq_meta.frame_idx;
-    tensor.sequence.SetSourceInfo(file_info_[seq_meta.filename_idx].video_file);
+    tensor.sequence.SetSourceInfo(file_info_[seq_meta.filename_idx].filename);
     MoveToNextShard(current_frame_idx_);
 }
 

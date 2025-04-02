@@ -477,13 +477,13 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
            << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts << std::endl;
 
   // current_pts is pts of frame that came from the decoder
-  // Index()[NextFrameIdx()].pts is pts of the frame that we want to return
+  // index_[NextFrameIdx()].pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
   void *frame_output = nullptr;
-  if (HasIndex() && current_pts == Index()[NextFrameIdx()].pts) {
+  if (HasIndex() && current_pts == index_[NextFrameIdx()].pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts
@@ -552,7 +552,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   // Check if requested frame was buffered earlier
   assert(HasIndex());
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ != -1 && frame.pts_ == Index()[next_frame_idx_].pts) {
+    if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
@@ -794,7 +794,7 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
     do {
       found_frame = false;
       for (auto &frame : frame_buffer_) {
-        if (frame.pts_ != -1 && HasIndex() && frame.pts_ == Index()[next_frame_idx_].pts) {
+        if (frame.pts_ != -1 && HasIndex() && frame.pts_ == index_[next_frame_idx_].pts) {
           LOG_LINE << "Processing remaining buffered frame pts=" << frame.pts_ << " for index "
                    << next_frame_idx_ << std::endl;
           frame.pts_ = -1;
