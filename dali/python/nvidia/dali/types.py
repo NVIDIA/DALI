@@ -25,6 +25,7 @@ from nvidia.dali._backend_enums import (
 )
 
 # TODO: Handle forwarding imports from backend_impl
+from nvidia.dali.backend_impl.types import ExecutorType, ExecutorFlags
 from nvidia.dali.backend_impl.types import *  # noqa: F401, F403
 
 try:

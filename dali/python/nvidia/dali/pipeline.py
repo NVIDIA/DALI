@@ -1948,7 +1948,7 @@ class Pipeline(object):
         stub.add_sink = short_circuit
         stub.checkpoint = short_circuit
         stub.set_outputs = short_circuit
-        stutypes.executor_statistics = short_circuit
+        stub.executor_statistics = short_circuit
         stub.external_source_shm_statistics = short_circuit
         return stub
 

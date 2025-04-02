@@ -17,7 +17,6 @@ import sys
 import tensorflow as tf
 from tensorflow.python.data.util import nest
 from tensorflow.python.framework import tensor_shape
-from nvidia.dali import types
 from nvidia.dali import internal as _internal
 
 from nvidia.dali.external_source import _is_external_source, _has_external_source

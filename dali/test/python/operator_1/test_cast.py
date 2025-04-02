@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 
 import numpy as np
 import nvidia.dali.fn as fn
-import nvidia.dali.types as types
 from nose_utils import nottest
 from nvidia.dali import pipeline_def
 from test_utils import np_type_to_dali
