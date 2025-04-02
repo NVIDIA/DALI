@@ -84,7 +84,6 @@ class DLL_PUBLIC Pipeline {
    * @param set_affinity indicates whether thread affinity should be
    * configured in the thread pool. Defaults to 'false'.
    */
-  [[deprecated]]
   DLL_PUBLIC Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
                       bool async_execution = true, bool dynamic_execution = false,
@@ -94,7 +93,6 @@ class DLL_PUBLIC Pipeline {
    * @warning This constructor is deprecated. Use
    *          Pipeline(const string &serialized_pipe, const PipelineParams &param_override) instead.
    */
-  [[deprecated]]
   DLL_PUBLIC Pipeline(const string &serialized_pipe,
                       int max_batch_size = -1, int num_threads = -1, int device_id = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
