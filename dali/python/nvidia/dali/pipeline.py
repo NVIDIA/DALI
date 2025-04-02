@@ -1701,12 +1701,10 @@ class Pipeline(object):
             bytes_per_sample_hint=kw.get("bytes_per_sample", None),
         )
         pipeline._pipe = b.Pipeline(serialized_pipeline, params)
+        pipeline._set_params(pipeline._pipe.params())
 
         if pipeline.device_id is not None:
             b.check_cuda_runtime()
-
-        pipeline._set_params(pipeline._pipe.params())
-        print("Max batch size: ", pipeline._max_batch_size)
 
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
