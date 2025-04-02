@@ -254,6 +254,12 @@ class Pipeline(object):
         self._max_batch_size = batch_size
         self._num_threads = num_threads
         self._device_id = device_id
+        if seed is not None and seed < 0:
+            warnings.warn(
+                "The use of negative seed to use automatic seed asignment is deprecated. "
+                "Use `None` instead."
+            )
+            seed = None
         self._seed = seed
         self._next_op_id_counter = 0
         self._exec_pipelined = exec_pipelined
@@ -322,16 +328,13 @@ class Pipeline(object):
         # Tracking the stack frame where pipeline definition starts
         self._definition_frame_start = 0
 
-        self._executor_type = b.MakeExecutorType(
-            self._exec_pipelined,
-            self._exec_async,
-            self._exec_separated,
-            self._exec_dynamic)
+        self._executor_type = types.MakeExecutorType(
+            self._exec_pipelined, self._exec_async, self._exec_separated, self._exec_dynamic
+        )
 
-        self._executor_flags = b.ExecutorFlags.NoFlags
+        self._executor_flags = types.ExecutorFlags.NoFlags
         if self._set_affinity:
-            self._executor_flags |= b.ExecutorFlags.SetAffinity
-
+            self._executor_flags |= types.ExecutorFlags.SetAffinity
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -918,11 +921,11 @@ class Pipeline(object):
         self._py_pool_started = True
 
     def _get_params(self):
-        return b.PipelineParams(
+        return types.PipelineParams(
             max_batch_size=self._max_batch_size,
             num_threads=self._num_threads,
             device_id=self._device_id,
-            seed=self._seed if self._seed is not None else -1,
+            seed=self._seed,
             executor_type=self._executor_type,
             executor_flags=self._executor_flags,
             prefetch_queue_depths=(self._cpu_queue_size, self._gpu_queue_size),
@@ -944,11 +947,11 @@ class Pipeline(object):
         self._enable_memory_stats = params.enable_memory_stats
         self._bytes_per_sample = params.bytes_per_sample_hint
         # reconsitute legacy flags
-        self._exec_async = bool(params._self.executor_type & b.ExecutorFlags.AsyncFlag)
-        self._exec_pipelined = bool(params._self.executor_type & b.ExecutorFlags.PipelinedFlag)
-        self._exec_separated = bool(params._self.executor_type & b.ExecutorFlags.SeparatedFlag)
-        self._exec_dynamic = bool(params._self.executor_type & b.ExecutorFlags.DynamicFlag)
-        self._set_affinity = bool(params._self.executor_flags & b.ExecutorFlags.SetAffinity)
+        self._exec_async = bool(params.executor_type & types.ExecutorType.AsyncFlag)
+        self._exec_pipelined = bool(params.executor_type & types.ExecutorType.PipelinedFlag)
+        self._exec_separated = bool(params.executor_type & types.ExecutorType.SeparatedFlag)
+        self._exec_dynamic = bool(params.executor_type & types.ExecutorType.DynamicFlag)
+        self._set_affinity = bool(params.executor_flags & types.ExecutorFlags.SetAffinity)
 
     def _init_pipeline_backend(self):
         if self._device_id is not None:
@@ -1665,20 +1668,26 @@ class Pipeline(object):
         exec_pipelined = kw.get("exec_pipelined", None)
         exec_async = kw.get("exec_async", None)
         exec_dynamic = kw.get("exec_dynamic", None)
-        executor_type = b.MakeExecutorType(
-            exec_pipelined or False,
-            exec_async or False,
-            exec_separated,
-            exec_dynamic or False)
-        executor_flags = b.ExecutorFlags.NoFlags
+        executor_type = types.MakeExecutorType(
+            exec_pipelined or False, exec_async or False, exec_separated, exec_dynamic or False
+        )
+        executor_flags = types.ExecutorFlags.NoFlags
         if kw.get("set_affinity", False):
-            executor_flags |= b.ExecutorFlags.SetAffinity
+            executor_flags |= types.ExecutorFlags.SetAffinity
 
-        params = b.PipelineParams(
+        seed = kw.get("seed", None)
+        if seed is not None and seed < 0:
+            warnings.warn(
+                "The use of negative seed to use automatic seed asignment is deprecated. "
+                "Use `None` instead."
+            )
+            seed = None
+
+        params = types.PipelineParams(
             max_batch_size=kw.get("batch_size", None),
             num_threads=kw.get("num_threads", None),
             device_id=kw.get("device_id", None),
-            seed=kw.get("seed", None),
+            seed=seed,
             executor_type=executor_type,
             executor_flags=executor_flags,
             prefetch_queue_depths=prefetch_queue_depths,
@@ -1717,10 +1726,7 @@ class Pipeline(object):
         serialized_pipeline : str
                               Serialized pipeline.
         """
-        self._pipe = b.Pipeline(
-            serialized_pipeline,
-            self._get_params()
-        )
+        self._pipe = b.Pipeline(serialized_pipeline, self._get_params())
         self._set_params(self._pipe.params())
         self._backend_prepared = True
         self._pipe.Build()
@@ -1942,7 +1948,7 @@ class Pipeline(object):
         stub.add_sink = short_circuit
         stub.checkpoint = short_circuit
         stub.set_outputs = short_circuit
-        stub.executor_statistics = short_circuit
+        stutypes.executor_statistics = short_circuit
         stub.external_source_shm_statistics = short_circuit
         return stub
 

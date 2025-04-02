@@ -1845,6 +1845,10 @@ void ExposePipelineParams(py::module &m) {
         std::optional<bool> enable_checkpointing,
         std::optional<bool> enable_memory_stats,
         std::optional<size_t> bytes_per_sample_hint) {
+      std::optional<QueueSizes> queue_sizes;
+      if (prefetch_queue_depths)
+        queue_sizes = QueueSizes{prefetch_queue_depths->first, prefetch_queue_depths->second};
+
       return std::unique_ptr<PipelineParams>(new PipelineParams{
         max_batch_size,
         num_threads,
@@ -1852,7 +1856,7 @@ void ExposePipelineParams(py::module &m) {
         seed,
         executor_type,
         executor_flags,
-        QueueSizes{prefetch_queue_depths->first, prefetch_queue_depths->second},
+        queue_sizes,
         enable_checkpointing,
         enable_memory_stats,
         bytes_per_sample_hint
@@ -1875,7 +1879,19 @@ void ExposePipelineParams(py::module &m) {
   .def_readwrite("seed", &PipelineParams::seed)
   .def_readwrite("executor_type", &PipelineParams::executor_type)
   .def_readwrite("executor_flags", &PipelineParams::executor_flags)
-  .def_readwrite("prefetch_queue_depths", &PipelineParams::prefetch_queue_depths)
+  .def_property("prefetch_queue_depths",
+    [](const PipelineParams &self)->std::optional<std::pair<int, int>> {
+      if (self.prefetch_queue_depths.has_value()) {
+        return std::make_pair(self.prefetch_queue_depths->cpu_size,
+                              self.prefetch_queue_depths->gpu_size);
+      } else {
+        return std::nullopt;
+      }
+    },
+    [](PipelineParams &self, std::optional<std::pair<int, int>> &queue_depths) {
+      if (queue_depths.has_value())
+        self.prefetch_queue_depths = QueueSizes{queue_depths->first, queue_depths->second};
+    })
   .def_readwrite("enable_checkpointing", &PipelineParams::enable_checkpointing)
   .def_readwrite("enable_memory_stats", &PipelineParams::enable_memory_stats)
   .def_readwrite("bytes_per_sample_hint", &PipelineParams::bytes_per_sample_hint);
@@ -2346,7 +2362,7 @@ PYBIND11_MODULE(backend_impl, m) {
         });
 
   // Pipeline class and parameters
-  ExposePipelineParams(m);
+  ExposePipelineParams(types_m);
   ExposePipeline(m);
 
 #define DALI_OPSPEC_ADDARG(T) \

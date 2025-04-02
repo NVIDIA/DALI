@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,6 +47,12 @@ def _to_list(func):
 
 def _not_implemented(val):
     raise NotImplementedError()
+
+
+ExecutorType.__and__ = lambda x, y: ExecutorType(x.value & y.value)
+ExecutorType.__or__ = lambda x, y: ExecutorType(x.value | y.value)
+ExecutorFlags.__and__ = lambda x, y: ExecutorFlags(x.value & y.value)
+ExecutorFlags.__or__ = lambda x, y: ExecutorFlags(x.value | y.value)
 
 
 _known_types = {

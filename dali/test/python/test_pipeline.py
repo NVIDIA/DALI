@@ -2418,7 +2418,7 @@ def test_output_descs():
         return fn.reshape(np.array([1, 2, 3, 4, 5, 6], dtype=np.int32), shape=[2, 3], layout="XY")
 
     pipe = my_pipe(output_ndim=2, output_dtype=types.INT32, output_layout="XY")
-    o, = pipe.run()
+    (o,) = pipe.run()
     assert o[0].shape() == [2, 3]
     assert o[0].layout() == "XY"
 

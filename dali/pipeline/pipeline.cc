@@ -256,8 +256,8 @@ void Pipeline::Validate(const PipelineParams &params) {
       if (ndev == 0) {
         throw std::runtime_error("The pipeline requires a CUDA device, but none are available.");
       } else {
-        throw std::invalid_argument(make_string("Invalid device id: ", *params.device_id, ". "
-                                                "Valid device ids are 0..", ndev - 1 , "."));
+        throw std::invalid_argument(make_string("The device_id=", *params.device_id, " is invalid. "
+                                                "Valid range is [0..", ndev - 1 , "]."));
       }
     }
   }
@@ -300,19 +300,6 @@ void Pipeline::Init(const PipelineParams &params) {
     DeviceGuard g(device_id);
     params_.Update(params);
     Validate(params_);
-    /*this->max_batch_size_ = max_batch_size;
-    this->num_threads_ = num_threads;
-    this->device_id_ = device_id;
-    using Clock = std::chrono::high_resolution_clock;
-    this->original_seed_ = seed < 0 ? Clock::now().time_since_epoch().count() : seed;
-    this->pipelined_execution_ = pipelined_execution;
-    this->async_execution_ = async_execution;
-    this->dynamic_execution_ = dynamic_execution;
-    this->bytes_per_sample_hint_ = bytes_per_sample_hint;
-    this->set_affinity_ = set_affinity;
-    this->prefetch_queue_depth_ = prefetch_queue_depth;
-    this->separated_execution_ = (prefetch_queue_depth.cpu_size != prefetch_queue_depth.gpu_size);
-    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");*/
 
     using Clock = std::chrono::high_resolution_clock;
     original_seed_ = params.seed.value_or(Clock::now().time_since_epoch().count());
