@@ -952,6 +952,11 @@ class Pipeline(object):
         self._exec_separated = bool(params.executor_type & types.ExecutorType.SeparatedFlag)
         self._exec_dynamic = bool(params.executor_type & types.ExecutorType.DynamicFlag)
         self._set_affinity = bool(params.executor_flags & types.ExecutorFlags.SetAffinity)
+        if self.exec_separated:
+            self._prefetch_queue_depth = {"cpu": self._cpu_queue_size, "gpu": self._gpu_queue_size}
+        else:
+            assert self._cpu_queue_size == self._gpu_queue_size
+            self._prefetch_queue_depth = self._cpu_queue_size
 
     def _init_pipeline_backend(self):
         if self._device_id is not None:
@@ -1700,22 +1705,14 @@ class Pipeline(object):
         if pipeline.device_id is not None:
             b.check_cuda_runtime()
 
-        pipeline._executor_type = executor_type
-        pipeline._executor_flags = executor_flags
+        pipeline._set_params(pipeline._pipe.params())
+        print("Max batch size: ", pipeline._max_batch_size)
+
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
         pipeline._restore_state_from_checkpoint()
         pipeline._built = True
         pipeline._deserialized = True
-        pipeline._max_batch_size = kw.get("batch_size", -1)
-        pipeline._num_threads = kw.get("num_threads", -1)
-        pipeline._device_id = kw.get("device_id", -1)
-        pipeline._exec_pipelined = kw.get("exec_pipelined", True)
-        pipeline._prefetch_queue_depth = kw.get("prefetch_queue_depth", 2)
-        pipeline._exec_async = kw.get("exec_async", True)
-        pipeline._bytes_per_sample = kw.get("bytes_per_sample", 0)
-        pipeline._set_affinity = kw.get("set_affinity", False)
-
         return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):

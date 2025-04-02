@@ -50,8 +50,11 @@ def _not_implemented(val):
     raise NotImplementedError()
 
 
+ExecutorType.__bool__ = lambda self: self.value != 0
 ExecutorType.__and__ = lambda x, y: ExecutorType(x.value & y.value)
 ExecutorType.__or__ = lambda x, y: ExecutorType(x.value | y.value)
+
+ExecutorFlags.__bool__ = lambda self: self.value != 0
 ExecutorFlags.__and__ = lambda x, y: ExecutorFlags(x.value & y.value)
 ExecutorFlags.__or__ = lambda x, y: ExecutorFlags(x.value | y.value)
 
