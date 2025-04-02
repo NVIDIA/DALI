@@ -65,9 +65,7 @@ def plugin_load_and_test(dali_tf_path):
 
     def get_data():
         batch_size = 3
-        pipe = get_dali_pipe(
-            batch_size=batch_size, device_id=None, num_threads=1
-        )
+        pipe = get_dali_pipe(batch_size=batch_size, device_id=None, num_threads=1)
 
         out = []
         with tf.device("/cpu"):
