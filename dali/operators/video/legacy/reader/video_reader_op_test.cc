@@ -502,7 +502,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabels) {
 
 TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsFilenames) {
   const int sequence_length = 1;
-  const int iterations = 256;
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
@@ -518,9 +517,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsFilenames) {
           .AddArg("labels", std::vector<int>{0, })
           .AddOutput("frames", StorageDevice::GPU)
           .AddOutput("labels", StorageDevice::GPU)
-          .AddOutput("frame_num", StorageDevice::GPU));
+          .AddOutput("frame_num", StorageDevice::GPU),
+        "reader");
 
   pipe.Build(this->Output_frames_label_frame_num());
+  auto reader_meta = pipe.GetReaderMeta("reader");
+  int iterations = reader_meta.epoch_size;
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.Run();
@@ -548,7 +550,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsFilenames) {
 
 TEST_F(VIDEO_READER_TEST_CLASS, LabelsFilenames) {
   const int sequence_length = 1;
-  const int iterations = 256;
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
@@ -564,9 +565,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, LabelsFilenames) {
           .AddArg("labels", std::vector<int>{99})
           .AddOutput("frames", StorageDevice::GPU)
           .AddOutput("labels", StorageDevice::GPU)
-          .AddOutput("frame_num", StorageDevice::GPU));
+          .AddOutput("frame_num", StorageDevice::GPU),
+      "reader");
 
   pipe.Build(this->Output_frames_label_frame_num());
+  auto reader_meta = pipe.GetReaderMeta("reader");
+  int iterations = reader_meta.epoch_size;
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
@@ -595,7 +599,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, LabelsFilenames) {
 
 TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsWithFileListFrameNum) {
   const int sequence_length = 1;
-  const int iterations = 256;
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
@@ -627,9 +630,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsWithFileListFrameNum) {
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
                        .AddOutput("frame_num", StorageDevice::GPU)
-                       .AddOutput("timestamp", StorageDevice::GPU));
+                       .AddOutput("timestamp", StorageDevice::GPU),
+      "reader");
 
   pipe.Build(this->Output_frames_frame_num_timestamp());
+  auto reader_meta = pipe.GetReaderMeta("reader");
+  int iterations = reader_meta.epoch_size;
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
@@ -676,7 +682,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsWithFileListFrameNum) {
 
 TEST_F(VIDEO_READER_TEST_CLASS, TimestampLabels) {
   const int sequence_length = 1;
-  const int iterations = 256;
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
@@ -703,9 +708,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, TimestampLabels) {
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
                        .AddOutput("frame_num", StorageDevice::GPU)
-                       .AddOutput("timestamp", StorageDevice::GPU));
+                       .AddOutput("timestamp", StorageDevice::GPU),
+      "reader");
 
   pipe.Build(this->Output_frames_frame_num_timestamp());
+  auto reader_meta = pipe.GetReaderMeta("reader");
+  int iterations = reader_meta.epoch_size;
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
@@ -738,7 +746,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, TimestampLabels) {
 
 TEST_F(VIDEO_READER_TEST_CLASS, StartEndLabels) {
   const int sequence_length = 1;
-  const int iterations = 256;
   const int batch_size = 1;
   Pipeline pipe(batch_size, 1, 0);
 
@@ -763,9 +770,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, StartEndLabels) {
                        .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)
                        .AddOutput("labels", StorageDevice::GPU)
-                       .AddOutput("timestamp", StorageDevice::GPU));
+                       .AddOutput("timestamp", StorageDevice::GPU),
+      "reader");
 
   pipe.Build(this->Output_frames_label_timestamp());
+  auto reader_meta = pipe.GetReaderMeta("reader");
+  int iterations = reader_meta.epoch_size;
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {

@@ -82,6 +82,12 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     FramesDecoderImpl* frames_decoder = nullptr;
     cudaStream_t stream = 0;
     Tensor<OutBackend> constant_frame;
+
+    WorkerContext() {
+      if (std::is_same_v<Backend, CPUBackend>) {
+        constant_frame.set_pinned(false);
+      }
+    }
   };
 
   std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size, bool build_index,
