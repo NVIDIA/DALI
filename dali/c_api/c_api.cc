@@ -284,9 +284,6 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
     params.prefetch_queue_depths = dali::QueueSizes{prefetch_queue_depth, prefetch_queue_depth};
   }
   params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
-
-  params.enable_memory_stats = enable_memory_stats;
-  params.enable_checkpointing = false;
   params.enable_memory_stats = enable_memory_stats;
 
   auto pipeline = std::make_unique<dali::Pipeline>(
