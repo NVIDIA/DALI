@@ -24,6 +24,7 @@ from nvidia.dali.external_source import _is_external_source_with_callback
 
 from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc
 from nvidia.dali._utils.external_source_impl import _cycle_enabled
+import nvidia.dali.types as _types
 
 from packaging.version import Version
 import warnings
@@ -479,7 +480,7 @@ if dataset_compatible_tensorflow():
             self._pipeline_serialized = serialize_pipeline(pipeline)
             self._batch_size = batch_size
             self._num_threads = num_threads
-            self._device_id = device_id
+            self._device_id = _types.CPU_ONLY_DEVICE_ID if device_id is None else device_id
             self._exec_separated = exec_separated
             self._exec_dynamic = exec_dynamic
             self._prefetch_queue_depth = prefetch_queue_depth
