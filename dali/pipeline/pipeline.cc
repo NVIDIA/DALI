@@ -268,12 +268,6 @@ void Pipeline::Validate(const PipelineParams &params) {
     throw std::invalid_argument(make_string("Invalid batch size: ", *params.max_batch_size, ". "
                                             "Please set a positive integer."));
 
-  if (!params.num_threads.has_value())
-    throw std::invalid_argument("The number of threads must be set.");
-  if (*params.num_threads <= 0)
-    throw std::invalid_argument(make_string("Invalid number of threads: ", *params.num_threads, ". "
-                                            "Please set a positive integer."));
-
   if (!params.prefetch_queue_depths.has_value())
     throw std::logic_error("Internal error: prefetch queue depths not set.");
 
@@ -553,6 +547,13 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   auto num_outputs = output_descs_.size();
   DALI_ENFORCE(num_outputs > 0,
                make_string("User specified incorrect number of outputs (", num_outputs, ")."));
+
+  if (!params_.num_threads.has_value())
+    throw std::invalid_argument("The number of threads must be set.");
+  if (*params_.num_threads <= 0)
+    throw std::invalid_argument(make_string("Invalid number of threads: ", *params_.num_threads,
+                                            ". Please set a positive integer."));
+
 
   executor_ =
       GetExecutor(*params_.executor_type, *params_.executor_flags,
