@@ -60,7 +60,9 @@ class PipelineWrapper : public _DALIPipeline {
 
   int GetOutputCount() const;
 
-  daliPipelineOutputDesc_t GetOutputDesc(int idx) const;
+  daliPipelineIODesc_t GetOutputDesc(int idx) const;
+
+  int GetInputCount() const;
 
   /** Retrieves the underlying DALI Pipeline object */
   dali::Pipeline *Unwrap() const & {

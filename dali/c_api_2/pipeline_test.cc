@@ -264,7 +264,7 @@ void TestPipelineRun(PipelineType ptype) {
   int count;
   CHECK_DALI(daliPipelineGetOutputCount(h, &count));
   ASSERT_EQ(count, 2);
-  daliPipelineOutputDesc_t desc{};
+  daliPipelineIODesc_t desc{};
   EXPECT_EQ(daliPipelineGetOutputDesc(h, &desc, -1), DALI_ERROR_OUT_OF_RANGE);
   EXPECT_EQ(daliPipelineGetOutputDesc(h, &desc, count), DALI_ERROR_OUT_OF_RANGE);
   daliClearLastError();

@@ -263,6 +263,8 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC const graph::OpNode *GetInputOperatorNode(std::string_view name);
 
+  DLL_PUBLIC const auto
+
   /** @{ */
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data

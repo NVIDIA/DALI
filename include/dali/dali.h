@@ -336,7 +336,7 @@ typedef struct _DALIPipelineParams {
 } daliPipelineParams_t;
 
 /** Describes an output of a DALI Pipeline */
-typedef struct _DALIPipelineOutputDesc {
+typedef struct _DALIPipelineIODesc {
   const char *name;
   daliStorageDevice_t device;
   struct {
@@ -345,7 +345,7 @@ typedef struct _DALIPipelineOutputDesc {
   };
   daliDataType_t dtype;
   int ndim;
-} daliPipelineOutputDesc_t;
+} daliPipelineIODesc_t;
 
 /** Creates an empty pipeline. */
 DALI_API daliResult_t daliPipelineCreate(
@@ -461,6 +461,36 @@ DALI_API daliResult_t daliPipelineFeedInput(
   daliFeedInputFlags_t options,
   const cudaStream_t *stream);
 
+/** Gets the number of pipeline inputs.
+ *
+ * @param pipeline        [in]  The pipeline
+ * @param out_input_count [out] A pointer to the location where the number of pipeline inputs is
+ *                              stored.
+ */
+DALI_API daliResult_t daliPipelineGetInputCount(daliPipeline_h pipeline, int *out_input_count);
+
+/** Gets a descriptor of the specified pipeline input.
+ *
+ * @param pipeline        [in]  The pipeline
+ * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
+ * @param index           [in]  The 0-based index of the input. See `daliPipelineGetInputCount`.
+ */
+DALI_API daliResult_t daliPipelineGetInputDesc(
+  daliPipeline_h pipeline,
+  daliPipelineIODesc_t *out_input_desc,
+  int index);
+
+  /** Gets a descriptor of the specified pipeline input.
+ *
+ * @param pipeline        [in]  The pipeline
+ * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
+ * @param name            [in]  The name of the input whose descriptor to obtain.]
+ */
+DALI_API daliResult_t daliPipelineGetInputDesc(
+  daliPipeline_h pipeline,
+  daliPipelineIODesc_t *out_input_desc,
+  const char *name);
+
 /** Gets the number of pipeline outputs.
  *
  * @param pipeline  [in]  The pipeline
@@ -481,7 +511,7 @@ DALI_API daliResult_t daliPipelineGetOutputCount(daliPipeline_h pipeline, int *o
  */
 DALI_API daliResult_t daliPipelineGetOutputDesc(
   daliPipeline_h pipeline,
-  daliPipelineOutputDesc_t *out_desc,
+  daliPipelineIODesc_t *out_desc,
   int index);
 
 
