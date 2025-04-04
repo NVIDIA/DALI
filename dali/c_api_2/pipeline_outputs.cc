@@ -42,7 +42,7 @@ span<daliOperatorTrace_t> PipelineOutputs::GetTraces() {
   if (!traces_.has_value()) {
     traces_.emplace();
     if (auto iter_data = ws_.GetIterationData()) {
-      auto trace_map = iter_data->operator_traces.GetCopy();
+      auto &trace_map = iter_data->operator_traces.GetRef();
       for (auto &[op, traces] : trace_map) {
         for (auto &[name, value] : traces) {
           traces_->push_back({ op.c_str(), name.c_str(), value.c_str() });

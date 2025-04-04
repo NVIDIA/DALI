@@ -70,6 +70,11 @@ class OperatorTraces {
     return map_;
   }
 
+  /** Gets a reference to the operator trace map */
+  auto &GetRef() const & {
+    return map_;
+  }
+
  private:
   mutable std::mutex mtx_;
   std::map<
