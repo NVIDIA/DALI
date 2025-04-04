@@ -32,8 +32,8 @@ struct _DALIPipeline {
 
 namespace dali::c_api {
 
-#define GET_OR_DEFAULT(params_struct, param_name, default_value) \
-  (params_struct.param_name##_present ? params_struct.param_name : default_value)
+#define GET_OR_DEFAULT(params_struct, param_name, ...) \
+  (params_struct.param_name##_present ? params_struct.param_name : __VA_ARGS__)
 
 class PipelineWrapper : public _DALIPipeline {
  public:

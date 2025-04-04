@@ -260,7 +260,6 @@ typedef enum _DALIExecFlags {
 
   /** Operators are not executed in parallel.
    *
-   * NOT IMPLEMENTED!
    * For DALI_EXEC_DYNAMIC only.
    */
   DALI_EXEC_FLAGS_CONCURRENCY_NONE     = 1 << 1,
@@ -272,12 +271,10 @@ typedef enum _DALIExecFlags {
   DALI_EXEC_FLAGS_CONCURRENCY_BACKEND  = 2 << 1,
   /** Any two operators may run in parallel.
    *
-   * NOT IMPLEMENTED!
    * For DALI_EXEC_DYNAMIC only.
    */
   DALI_EXEC_FLAGS_CONCURRENCY_FULL     = 3 << 1,
 
-  /* TODO(michalz): Make stream policy configurable in the pipeline */
   /** Masks the part of the flags that represent the stream policy. */
   DALI_EXEC_FLAGS_STREAM_POLICY_MASK   = 0x00000070,
 
@@ -289,7 +286,6 @@ typedef enum _DALIExecFlags {
 
   /** Use a single CUDA stream for all operators that need one.
    *
-   * NOT IMPLEMENTED!
    * For DALI_EXEC_DYNAMIC only.
    */
   DALI_EXEC_FLAGS_STREAM_POLICY_SINGLE = 1 << 4,
@@ -302,7 +298,6 @@ typedef enum _DALIExecFlags {
 
   /** Use dedicated streams for independent CUDA-enabled operators.
    *
-   * NOT IMPLEMENTED!
    * For DALI_EXEC_DYNAMIC only.
    */
   DALI_EXEC_FLAGS_STREAM_POLICY_PER_OPERATOR = 3 << 4,
@@ -310,6 +305,9 @@ typedef enum _DALIExecFlags {
   DALI_EXEC_FLAGS_FORCE_INT32 = 0x7fffffff
 } daliExecFlags_t;
 
+typedef struct _DALIPrefetchQueueSizes {
+  int cpu, gpu;
+} daliPrefetchQueueSizes_t;
 
 /** DALI Pipeline construction parameters */
 typedef struct _DALIPipelineParams {
@@ -320,9 +318,10 @@ typedef struct _DALIPipelineParams {
     uint64_t seed_present           : 1;
     uint64_t exec_type_present      : 1;
     uint64_t exec_flags_present     : 1;
-    uint64_t prefetch_queue_depth_present : 1;
+    uint64_t prefetch_queue_depths_present : 1;
     uint64_t enable_checkpointing_present : 1;
     uint64_t enable_memory_stats_present  : 1;
+    uint64_t bytes_per_sample_hint_present : 1;
   };
   int max_batch_size;
   int num_threads;
@@ -330,9 +329,10 @@ typedef struct _DALIPipelineParams {
   int64_t seed;
   daliExecType_t exec_type;
   daliExecFlags_t exec_flags;
+  daliPrefetchQueueSizes_t prefetch_queue_depths;
   daliBool enable_checkpointing;
   daliBool enable_memory_stats;
-  int prefetch_queue_depth;
+  size_t bytes_per_sample_hint;
 } daliPipelineParams_t;
 
 /** Describes an output of a DALI Pipeline */

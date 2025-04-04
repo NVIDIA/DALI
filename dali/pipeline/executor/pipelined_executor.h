@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,10 +39,10 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueuePolicy> {
  public:
   DLL_PUBLIC inline PipelinedExecutorImpl(int batch_size, int num_thread, int device_id,
-                                          size_t bytes_per_sample_hint, bool set_affinity = false,
+                                          size_t bytes_per_sample_hint, ExecutorFlags flags = {},
                                           QueueSizes prefetch_queue_depth = {2, 2})
       : Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id,
-                                               bytes_per_sample_hint, set_affinity,
+                                               bytes_per_sample_hint, flags,
                                                prefetch_queue_depth) {
   }
 

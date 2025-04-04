@@ -63,6 +63,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
  protected:
   void SetUp() final {
     auto parameters = GetParam();
+    cpu_input_ = parameters.cpu_input;
     cpu_queue_depth_ = parameters.cpu_queue_depth;
     gpu_queue_depth_ = parameters.gpu_queue_depth;
     exec_async_ = parameters.exec_async;
@@ -70,15 +71,20 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
     exec_separated_ = cpu_queue_depth_ != gpu_queue_depth_;
     cpu_input_ = parameters.cpu_input;
 
+    PipelineParams params{};
+    params.max_batch_size = batch_size_;
+    params.num_threads = num_threads_;
+    params.device_id = device_id_;
+    params.executor_type = MakeExecutorType(exec_pipelined_, exec_async_, exec_separated_, false);
+    params.prefetch_queue_depths = QueueSizes{cpu_queue_depth_, gpu_queue_depth_};
+
     std::ios_base::fmtflags f = cout.flags();
     cout << "TEST: cpu_queue_depth=" << cpu_queue_depth_ << ", gpu_queue_depth=" << gpu_queue_depth_
          << ", exec_async=" << std::boolalpha << exec_async_ << ", exec_pipelined="
          << exec_pipelined_ << endl;
     cout.flags(f);
 
-    pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
-                                           exec_pipelined_, cpu_queue_depth_, exec_async_);
-    pipeline_->SetExecutionTypes(exec_pipelined_, exec_separated_, exec_async_);
+    pipeline_ = std::make_unique<Pipeline>(params);
 
     PutTogetherDaliGraph();
 

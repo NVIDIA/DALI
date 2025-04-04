@@ -36,7 +36,7 @@ class ExternalSourceBasicTest : public ::testing::Test {
 
   void CreateAndSerializePipeline(bool repeat_last) {
     std::string dev_str = is_cpu ? "cpu" : "gpu";
-    auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, false, 1,
+    auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1, false, 1,
                                                false);
     pipeline->AddOperator(
             OpSpec("ExternalSource")

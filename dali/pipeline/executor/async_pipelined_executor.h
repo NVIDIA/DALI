@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,13 +33,13 @@ namespace dali {
 class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
  public:
   DLL_PUBLIC inline AsyncPipelinedExecutor(int batch_size, int num_thread, int device_id,
-                                           size_t bytes_per_sample_hint, bool set_affinity = false,
+                                           size_t bytes_per_sample_hint, ExecutorFlags flags = {},
                                            QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
-      : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
+      : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, flags,
                           prefetch_queue_depth),
-        cpu_thread_(device_id, set_affinity, "CPU executor"),
-        mixed_thread_(device_id, set_affinity, "Mixed executor"),
-        gpu_thread_(device_id, set_affinity, "GPU executor") {}
+        cpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "CPU executor"),
+        mixed_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "Mixed executor"),
+        gpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "GPU executor") {}
 
   DLL_PUBLIC ~AsyncPipelinedExecutor() override {
     Shutdown();

@@ -2410,3 +2410,55 @@ def test_optional_build():
     assert "shard_id" in pipes[4].reader_meta("only_reader")
 
     pipes[-1].feed_input("source", np.array([10, 10]))
+
+
+def test_output_descs():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def my_pipe():
+        return fn.reshape(np.array([1, 2, 3, 4, 5, 6], dtype=np.int32), shape=[2, 3], layout="XY")
+
+    pipe = my_pipe(output_ndim=2, output_dtype=types.INT32, output_layout="XY")
+    (o,) = pipe.run()
+    assert o[0].shape() == [2, 3]
+    assert o[0].layout() == "XY"
+
+    pipe = my_pipe(output_ndim=1)
+    with assert_raises(
+        RuntimeError,
+        glob="Number of dimensions in the output_idx=0 does not match. Expected: 1. Received: 2.",
+    ):
+        pipe.run()
+
+    pipe = my_pipe(output_dtype=types.FLOAT)
+    with assert_raises(
+        RuntimeError,
+        glob="Data type in the output_idx=0 does not match. Expected: FLOAT. Received: INT32.",
+    ):
+        pipe.run()
+
+    pipe = my_pipe(output_layout="AB")
+    with assert_raises(
+        RuntimeError, glob="Layout in the output_idx=0 does not match. Expected: AB. Received: XY."
+    ):
+        pipe.run()
+
+
+def test_device_auto():
+    @pipeline_def(batch_size=1, num_threads=1)
+    def cpuonly():
+        return 42
+
+    p = cpuonly()
+    (o,) = p.run()
+    assert p.device_id is None
+    assert np.array(o.as_cpu()[0]) == 42
+
+    @pipeline_def(batch_size=1, num_threads=1)
+    def gpu():
+        return types.Constant(42, device="gpu")
+
+    p = gpu()
+    assert p.device_id is None
+    (o,) = p.run()
+    assert p.device_id == 0
+    assert np.array(o.as_cpu()[0]) == 42

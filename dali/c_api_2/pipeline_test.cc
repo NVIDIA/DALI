@@ -78,7 +78,7 @@ OpSpec TraceOp(std::string_view name, std::string_view device, std::string_view 
 }
 
 std::string GetCPUOnlyPipelineProto(int max_batch_size, int num_threads, int device_id) {
-  Pipeline p(max_batch_size, num_threads, device_id);
+  Pipeline p(MakePipelineParams(max_batch_size, num_threads, device_id));
   OpSpec op1 = TestOp("op1", "cpu")
     .AddInput("ctr", StorageDevice::CPU)
     .AddOutput("op1", StorageDevice::CPU)
@@ -98,7 +98,7 @@ std::string GetCPUOnlyPipelineProto(int max_batch_size, int num_threads, int dev
 }
 
 std::string GetCPU2GPUPipelineProto(int max_batch_size, int num_threads, int device_id) {
-  Pipeline p(max_batch_size, num_threads, device_id);
+  Pipeline p(MakePipelineParams(max_batch_size, num_threads, device_id));
   OpSpec op1 = TestOp("op1", "cpu")
     .AddInput("ctr", StorageDevice::CPU)
     .AddOutput("op1", StorageDevice::CPU)
@@ -245,10 +245,10 @@ void TestPipelineRun(PipelineType ptype) {
   daliPipelineParams_t params{};
   params.max_batch_size_present = true;
   params.max_batch_size = 4;
-  params.prefetch_queue_depth_present = true;
-  params.prefetch_queue_depth = 3;
+  params.prefetch_queue_depths_present = true;
+  params.prefetch_queue_depths = { 3, 3 };
   params.enable_checkpointing_present = true;
-  params.enable_checkpointing = 2;
+  params.enable_checkpointing = false;
   if (ptype == GPU2CPU) {
     params.exec_type_present = true;
     params.exec_type = DALI_EXEC_DYNAMIC;
@@ -315,13 +315,14 @@ TEST(CAPI2_PipelineTest, IncompatibleExec) {
   daliPipelineParams_t params{};
   params.max_batch_size_present = true;
   params.max_batch_size = 4;
-  params.prefetch_queue_depth_present = true;
-  params.prefetch_queue_depth = 3;
-  params.enable_checkpointing_present = true;
-  params.enable_checkpointing = 2;
-  params.exec_type_present = true;
+  params.prefetch_queue_depths_present = true;
+  params.prefetch_queue_depths = { 3, 3 };
 
+  params.enable_checkpointing_present = true;
+  params.enable_checkpointing = false;
+  params.exec_type_present = true;
   params.exec_type = DALI_EXEC_ASYNC_PIPELINED;
+
   auto deserialize_and_build = [&]() {
     daliClearLastError();
     auto h = Deserialize(proto, params);
@@ -441,8 +442,8 @@ void TestFeedInput(daliFeedInputFlags_t flags) {
   daliPipelineParams_t params{};
   params.max_batch_size_present = true;
   params.max_batch_size = 8;
-  params.prefetch_queue_depth_present = true;
-  params.prefetch_queue_depth = 3;
+  params.prefetch_queue_depths_present = true;
+  params.prefetch_queue_depths = { 3, 3 };
   params.exec_type_present = true;
   params.exec_type = DALI_EXEC_DYNAMIC;
   auto h = Deserialize(proto, params);
@@ -452,7 +453,7 @@ void TestFeedInput(daliFeedInputFlags_t flags) {
   EXPECT_EQ(daliPipelineGetFeedCount(h, &count, "nonexistent"), DALI_ERROR_INVALID_KEY);
   daliClearLastError();
   CHECK_DALI(daliPipelineGetFeedCount(h, &count, "ext"));
-  ASSERT_EQ(count, params.prefetch_queue_depth)
+  ASSERT_EQ(count, params.prefetch_queue_depths.cpu)
     << "Feed count should be equal to prefetch queue depth.";
 
   std::mt19937_64 rng(1234);

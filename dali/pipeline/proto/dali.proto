@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ message InputOutput {
   optional string arg_name = 4;
   optional int32 dtype = 5 [default = -1];  // @ref DALIDataType
   optional int32 ndim = 6 [default = -1];
+  optional string layout = 7 [default = ""];
 }
 
 // stores info about a single operator
@@ -57,8 +58,9 @@ message OpDef {
 message PipelineDef {
   optional int64 num_threads = 1 [default = 4];
   required int32 batch_size = 2;
-  optional bool use_async = 3 [default = false];
-  optional bool pipeline = 4 [default = false];
+  // These fields were effectively unused
+  optional bool _unused_use_async = 3 [default = true];
+  optional bool _unused_pipeline = 4 [default = true];
 
   // Store all container operators
   repeated OpDef op = 5;
@@ -75,6 +77,14 @@ message PipelineDef {
   optional int64 seed = 9 [default = -1];
 
   optional bool enable_checkpointing = 10 [default = false];
+
+  optional int32 executor_type = 11 [default = 0];
+  optional int64 executor_flags = 12 [default = 0];
+
+  optional int32 prefetch_queue_depth_cpu = 13 [default = 2];
+  optional int32 prefetch_queue_depth_gpu = 14 [default = 2];
+
+  optional int64 bytes_per_sample_hint = 15 [default = 0];
 }
 
 message Checkpoint {
