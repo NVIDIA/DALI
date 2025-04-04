@@ -32,10 +32,23 @@ using HostDecoderCrop = WithCropAttr<HostDecoder, CPUBackend>;
 using HostDecoderSlice = WithSliceAttr<HostDecoder, CPUBackend>;
 using HostDecoderRandomCrop = WithRandomCropAttr<HostDecoder, CPUBackend>;
 
+DALI_REGISTER_OPERATOR(decoders__Image, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(decoders__ImageCrop, HostDecoderCrop, CPU);
+DALI_REGISTER_OPERATOR(decoders__ImageSlice, HostDecoderSlice, CPU);
+DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
+
+// experimental aliases: fn.experimental.decoders.image*
 DALI_REGISTER_OPERATOR(experimental__decoders__Image, HostDecoder, CPU);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageCrop, HostDecoderCrop, CPU);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageSlice, HostDecoderSlice, CPU);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
+
+// Deprecated aliases: fn.image*_decoder
+DALI_REGISTER_OPERATOR(ImageDecoder, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderCrop, HostDecoderCrop, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderSlice, HostDecoderSlice, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
+
 
 }  // namespace imgcodec
 }  // namespace dali
