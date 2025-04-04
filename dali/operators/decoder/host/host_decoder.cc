@@ -50,7 +50,6 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
   std::memcpy(out_data, decoded.get(), volume(shape));
 }
 
-DALI_REGISTER_OPERATOR(decoders__Image, HostDecoder, CPU);
-DALI_REGISTER_OPERATOR(ImageDecoder, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(legacy__decoders__Image, HostDecoder, CPU);
 
 }  // namespace dali
