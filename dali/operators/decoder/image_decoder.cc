@@ -163,7 +163,7 @@ allocation might be useful to determine suitable values for `device_memory_paddi
 )code",
       false);
 
-DALI_SCHEMA(decoders__Image)
+DALI_SCHEMA(legacy__decoders__Image)
   .DocStr(R"code(Decodes images.
 
 For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
@@ -195,7 +195,7 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
 
 // Fused
 
-DALI_SCHEMA(decoders__ImageCrop)
+DALI_SCHEMA(legacy__decoders__ImageCrop)
   .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
 by fixed window dimensions and variable anchors.
 
@@ -219,7 +219,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
   .AddParent("ImageDecoderAttr")
   .AddParent("CropAttr");
 
-DALI_SCHEMA(decoders__ImageRandomCrop)
+DALI_SCHEMA(legacy__decoders__ImageRandomCrop)
   .DocStr(R"code(Decodes images and randomly crops them.
 
 The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
@@ -246,7 +246,7 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
   .AddParent("RandomCropAttr");
 
 
-DALI_SCHEMA(decoders__ImageSlice)
+DALI_SCHEMA(legacy__decoders__ImageSlice)
   .DocStr(R"code(Decodes images and extracts regions of interest.
 
 The slice can be specified by proving the start and end coordinates, or start coordinates
@@ -310,59 +310,5 @@ of the slice (s0, s1, s2, …).
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
 `normalized_shape`.)code");
-
-
-// Deprecated aliases
-
-DALI_SCHEMA(ImageDecoder)
-    .DocStr("Legacy alias for :meth:`decoders.image`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__Image")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__Image",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
-
-// Fused
-
-DALI_SCHEMA(ImageDecoderCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_crop`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageCrop")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__ImageCrop",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
-
-DALI_SCHEMA(ImageDecoderRandomCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_random_crop`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageRandomCrop")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__ImageRandomCrop",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
-
-
-DALI_SCHEMA(ImageDecoderSlice)
-    .DocStr("Legacy alias for :meth:`decoders.image_slice`.")
-    .NumInput(1, 3)
-    .NumOutput(1)
-    .AddParent("decoders__ImageSlice")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__ImageSlice",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 }  // namespace dali

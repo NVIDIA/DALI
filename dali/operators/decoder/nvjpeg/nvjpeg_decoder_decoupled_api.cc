@@ -24,7 +24,6 @@ bool nvjpegIsSymbolAvailable(const char *name) {
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(decoders__Image, nvJPEGDecoder, Mixed);
-DALI_REGISTER_OPERATOR(ImageDecoder, nvJPEGDecoder, Mixed);
+DALI_REGISTER_OPERATOR(legacy__decoders__Image, nvJPEGDecoder, Mixed);
 
 }  // namespace dali
