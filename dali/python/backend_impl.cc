@@ -2016,6 +2016,7 @@ void ExposePipeline(py::module &m) {
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
     .def("params", &Pipeline::GetParams)
+    .def("requires_gpu", &Pipeline::requires_gpu)
     .def("output_dtype",
          [](Pipeline *p) {
              auto &descs = p->output_descs();

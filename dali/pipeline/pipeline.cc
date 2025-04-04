@@ -286,7 +286,7 @@ void Pipeline::Validate(const PipelineParams &params) {
 
 void Pipeline::Init(const PipelineParams &params) {
     DALI_ENFORCE(!params.device_id.has_value() || cuInitChecked(),
-                "You are trying to create a GPU DALI pipeline, while CUDA is not available. "
+                "You are trying to create a GPU DALI pipeline while CUDA is not available. "
                 "Please install CUDA or set `device_id = None` in Pipeline constructor. "
                 "If running inside Docker container, you may need to use  `--gpus` option.");
 
@@ -382,10 +382,6 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({std::string(inst_name), spec, logical_id});
 
-  DALI_ENFORCE(device != "gpu" || device_id() != CPU_ONLY_DEVICE_ID,
-               "Cannot add a GPU operator. Pipeline 'device_id' should not be equal to "
-               "`CPU_ONLY_DEVICE_ID`.");
-
   if (device == "support") {
     auto warning_context = GetErrorContextMessage(spec, "Warning");
     DALI_WARN(warning_context,
@@ -394,7 +390,13 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
     spec.SetArg("device", "cpu");
   }
 
-  DeviceGuard g(device_id());
+  if (device != "cpu")
+    requires_gpu_ = true;
+
+  for (int i = 0; i < spec.NumOutput(); ++i) {
+    if (spec.OutputDevice(i) == StorageDevice::GPU)
+      requires_gpu_ = true;
+  }
 
   // Verify the regular inputs to the op
   for (int i = 0; i < spec.NumInput(); ++i) {
@@ -410,12 +412,9 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
                  make_string("Data node \"", input_name, "\" requested as ", FormatInput(spec, i),
                              " to operator \"", inst_name, "\" is not known to the pipeline."));
 
-    DALI_ENFORCE(device_id() != CPU_ONLY_DEVICE_ID || device == "cpu",
-                  "Cannot add a Mixed operator with a GPU output, 'device_id' "
-                  "should not be `CPU_ONLY_DEVICE_ID`.");
-
     if (input_device == StorageDevice::GPU) {
-      ToGPU(it);
+        requires_gpu_ = true;
+        ToGPU(it);
     } else {
       ToCPU(it);
     }
@@ -541,8 +540,15 @@ void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
 }
 
 void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
-  DeviceGuard d(device_id());
   SetOutputDescs(std::move(output_descs));
+  if (requires_gpu_ && !params_.device_id.has_value()) {
+    int dev = -1;
+    auto err = cudaGetDevice(&dev);
+    if (err == cudaErrorNoDevice)
+      throw std::runtime_error("The pipeline requires a CUDA-capable GPU but none are available.");
+    params_.device_id = dev;
+  }
+  DeviceGuard d(device_id());
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   auto num_outputs = output_descs_.size();
   DALI_ENFORCE(num_outputs > 0,
@@ -591,13 +597,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
     } else {
       assert(device == StorageDevice::GPU);
-      DALI_ENFORCE(device_id() != CPU_ONLY_DEVICE_ID,
-                   make_string(
-                     "Cannot move the data node ", name, " to the GPU "
-                     "in a CPU-only pipeline. The 'device_id' parameter "
-                     "is set to `CPU_ONLY_DEVICE_ID`. Set 'device_id' "
-                     "to a valid GPU identifier to enable GPU features "
-                     "in the pipeline."));
       if (!it->second.has_gpu)
         ToGPU(it);
 
@@ -671,6 +670,11 @@ void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
                            "`SetOutputDescs` may be invoked multiple times, with the argument "
                            "equal to existing `output_descs_`.\nReceived:\n", output_descs));
   output_descs_ = std::move(output_descs);
+  for (auto &out : output_descs_)
+    if (out.device == StorageDevice::GPU) {
+      requires_gpu_ = true;
+      break;
+    }
 }
 
 void Pipeline::Run() {

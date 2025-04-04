@@ -494,6 +494,13 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
+   * @brief Returns whether the pipeline requires a CUDA-capable GPU to run.
+   */
+  DLL_PUBLIC inline bool requires_gpu() const {
+    return requires_gpu_;
+  }
+
+  /**
    * @brief Returns number of external inputs.
    */
   DLL_PUBLIC int num_inputs() const;
@@ -706,6 +713,7 @@ class DLL_PUBLIC Pipeline {
   std::vector<int64_t> seed_;
   int64_t original_seed_ = -1;
   size_t current_seed_ = 0;
+  bool requires_gpu_ = false;
 
   std::unique_ptr<ExecutorBase> executor_;
   graph::OpGraph graph_;

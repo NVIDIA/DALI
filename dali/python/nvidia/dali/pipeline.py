@@ -75,11 +75,10 @@ class Pipeline(object):
         Negative values for this parameter are invalid - the default
         value may only be used with serialized pipeline (the value
         stored in serialized pipeline is used instead).
-    device_id : int, optional, default = -1
+    device_id : int, optional, default = None
         Id of GPU used by the pipeline.
-        A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
-        This limits the pipeline to only CPU operators but allows it to run on any CPU capable
-        machine.
+        If the pipeline requires a GPU and this field is left unspecified, DALI will use the
+        current CUDA device (according to ``cudaGetDevice``) at the time the pipeline is built.
     seed : int, optional, default = None
         Seed used for random number generation. If not set, a random seed will be generated.
     exec_pipelined : bool, optional, default = True
@@ -427,7 +426,11 @@ class Pipeline(object):
 
     @property
     def device_id(self):
-        """Id of the GPU used by the pipeline or None for CPU-only pipelines."""
+        """Id of the GPU used by the pipeline or None, if not set.
+
+        If the pipeline requires a GPU but none was specified at construction, the current GPU
+        (according to CUDA runtime) will be assigned once the pipeline is built.
+        """
         return None if self._device_id == types.CPU_ONLY_DEVICE_ID else self._device_id
 
     @property
@@ -959,10 +962,10 @@ class Pipeline(object):
             self._prefetch_queue_depth = self._cpu_queue_size
 
     def _init_pipeline_backend(self):
-        if self._device_id is not None:
-            b.check_cuda_runtime()
         params = self._get_params()
         self._pipe = b.Pipeline(params)
+        if self._pipe.requires_gpu():
+            b.check_cuda_runtime()
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
@@ -1111,6 +1114,10 @@ class Pipeline(object):
         process makes any interaction with the GPU. If needed, the :meth:`build` can used before
         running the pipeline to separate the graph building and the processing steps.
 
+        If the pipeline requires a GPU (it contains any "cpu" or "mixed" operators or has GPU
+        outputs) and no ``device_id`` was specified at construction, the current CUDA device
+        (according to ``cudaGetDevice``) will be used.
+
         Pipeline is automatically built when it is:
 
             * run, either via the run APIs (:meth:`run`, :meth:`schedule_run`),
@@ -1134,6 +1141,9 @@ class Pipeline(object):
         self._setup_pipe_pool_dependency()
 
         self._pipe.Build(self._generate_build_args())
+        self._device_id = self._pipe.device_id()
+        if self._device_id == types.CPU_ONLY_DEVICE_ID:
+            self._device_id = None
         self._restore_state_from_checkpoint()
         self._built = True
 
@@ -1290,7 +1300,10 @@ class Pipeline(object):
         and return them to DALI buffer pool when the results have been consumed.
         Needs to be used together with :meth:`release_outputs`
         and :meth:`share_outputs`.
-        Should not be mixed with :meth:`run` in the same pipeline"""
+        Should not be mixed with :meth:`run` in the same pipeline.
+
+        The pipeline is built if no explicit call to ``build`` was made previously.
+        """
         self.build()
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
@@ -1409,6 +1422,8 @@ class Pipeline(object):
         Should not be mixed with :meth:`schedule_run` in the same pipeline,
         :meth:`share_outputs` and
         :meth:`release_outputs`
+
+        The pipeline is built if no explicit call to ``build`` was made previously.
 
         Parameters
         ----------
@@ -1701,13 +1716,15 @@ class Pipeline(object):
             bytes_per_sample_hint=kw.get("bytes_per_sample", None),
         )
         pipeline._pipe = b.Pipeline(serialized_pipeline, params)
-        pipeline._set_params(pipeline._pipe.params())
-
-        if pipeline.device_id is not None:
+        if pipeline._pipe.requires_gpu():
             b.check_cuda_runtime()
+        pipeline._set_params(pipeline._pipe.params())
 
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
+        pipeline._device_id = pipeline._pipe.device_id()
+        if pipeline._device_id == types.CPU_ONLY_DEVICE_ID:
+            pipeline._device_id = None
         pipeline._restore_state_from_checkpoint()
         pipeline._built = True
         pipeline._deserialized = True
@@ -1725,6 +1742,10 @@ class Pipeline(object):
         self._set_params(self._pipe.params())
         self._backend_prepared = True
         self._pipe.Build()
+        self._device_id = self._pipe.device_id()
+        if self._device_id == types.CPU_ONLY_DEVICE_ID:
+            self._device_id = None
+
         self._restore_state_from_checkpoint()
         self._built = True
         self._deserialized = True
