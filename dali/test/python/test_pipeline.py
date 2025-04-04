@@ -2441,3 +2441,24 @@ def test_output_descs():
         RuntimeError, glob="Layout in the output_idx=0 does not match. Expected: AB. Received: XY."
     ):
         pipe.run()
+
+
+def test_device_auto():
+    @pipeline_def(batch_size=1, num_threads=1)
+    def cpuonly():
+        return 42
+
+    p = cpuonly()
+    (o,) = p.run()
+    assert p.device_id is None
+    assert np.array(o.as_cpu()[0]) == 42
+
+    @pipeline_def(batch_size=1, num_threads=1)
+    def gpu():
+        return types.Constant(42, device="gpu")
+
+    p = gpu()
+    assert p.device_id is None
+    (o,) = p.run()
+    assert p.device_id == 0
+    assert np.array(o.as_cpu()[0]) == 42
