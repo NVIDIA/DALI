@@ -92,23 +92,23 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
     string line;
     string video_file;
     int label;
-    float start_time;
-    float end_time;
+    float start;
+    float end;
     int line_num = 0;
     while (std::getline(s, line)) {
       line_num++;
       video_file.clear();
       label = -1;
-      start_time = end_time = 0;
+      start = end = 0;
       std::istringstream file_line(line);
       file_line >> video_file >> label;
       if (video_file.empty())
         continue;
       DALI_ENFORCE(label >= 0, "Label value should be >= 0 in file_list at line number: " +
                                    to_string(line_num) + ", filename: " + video_file);
-      if (file_line >> start_time) {
-        if (file_line >> end_time) {
-          if (start_time == end_time) {
+      if (file_line >> start) {
+        if (file_line >> end) {
+          if (start == end) {
             DALI_WARN(
                 "Start and end time/frame are the same, skipping the file, in file_list "
                 "at line number: " +
@@ -117,7 +117,7 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
           }
         }
       }
-      file_info.push_back(VideoFileMeta{video_file, label, start_time, end_time});
+      file_info.push_back(VideoFileMeta{video_file, label, start, end});
     }
 
     DALI_ENFORCE(s.eof(), "Wrong format of file_list.");

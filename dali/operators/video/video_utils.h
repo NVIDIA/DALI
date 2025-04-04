@@ -35,12 +35,14 @@ namespace dali {
 using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 struct VideoFileMeta {
-  std::string video_file;
+  std::string filename;
   int label;
-  float start_time;
-  float end_time;
+  float start;
+  float end;
+  int start_frame = -1;
+  int end_frame = -1;
   bool operator<(const VideoFileMeta& right) {
-    return video_file < right.video_file;
+    return filename < right.filename;
   }
 };
 
@@ -83,9 +85,6 @@ const uint8_t* ConstantFrame(Tensor<Backend>& constant_frame, const TensorShape<
                              bool reuse_existing_data = true) {
   if (reuse_existing_data && constant_frame.shape().num_elements() >= shape.num_elements()) {
     return constant_frame.template data<uint8_t>();
-  }
-  if (std::is_same_v<Backend, CPUBackend>) {
-    constant_frame.set_pinned(false);
   }
   constant_frame.Resize(shape, DALI_UINT8);
   DALI_ENFORCE(fill_value.size() == 1 || static_cast<int>(fill_value.size()) == shape[2],

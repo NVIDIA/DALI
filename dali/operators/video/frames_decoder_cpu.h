@@ -27,8 +27,9 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @brief Construct a new FramesDecoder object.
    *
    * @param filename Path to a video file.
+   * @param image_type Image type of the video.
    */
-   explicit FramesDecoderCpu(const std::string &filename);
+   explicit FramesDecoderCpu(const std::string &filename, DALIImageType image_type = DALI_RGB);
 
   /**
    * @brief Construct a new FramesDecoder object.
@@ -36,11 +37,12 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
    * @param source_info Source info of the video file.
+   * @param image_type Image type of the video.
    *
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
-  FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view = {});
+  FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view = {}, DALIImageType image_type = DALI_RGB);
 
   FramesDecoderCpu(FramesDecoderCpu&&) = default;
 
@@ -61,6 +63,8 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   const AVCodec *codec_ = nullptr;
   std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
     nullptr, sws_freeContext};
+
+  std::vector<uint8_t> tmp_buffer_;
 };
 
 }  // namespace dali
