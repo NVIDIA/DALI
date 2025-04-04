@@ -543,8 +543,8 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsFilenames) {
     const auto *label = labels_cpu.tensor<int>(0);
     const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
-    ASSERT_EQ(frames[0], frame_num[0]);
-    ASSERT_EQ(label[0], 0);
+    ASSERT_EQ(frames[0], frame_num[0]) << "iteration: " << i;
+    ASSERT_EQ(label[0], 0) << "iteration: " << i;
   }
 }
 
@@ -592,8 +592,8 @@ TEST_F(VIDEO_READER_TEST_CLASS, LabelsFilenames) {
     const auto *label = labels_cpu.tensor<int>(0);
     const auto *frame_num = frame_num_cpu.tensor<int>(0);
 
-    ASSERT_EQ(frames[0], frame_num[0]);
-    ASSERT_EQ(label[0], 99);
+    ASSERT_EQ(frames[0], frame_num[0]) << "iteration: " << i;
+    ASSERT_EQ(label[0], 99) << "iteration: " << i;
   }
 }
 

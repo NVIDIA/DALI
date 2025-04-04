@@ -497,11 +497,12 @@ class VideoReaderDecoder
     };
 
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
-      Tensor<CPUBackend> tmp;
-      tmp.set_pinned(true);
-      tmp.Resize(output_as_tensor.shape(), output_as_tensor.type());
-      copy_data(tmp.mutable_data<T>());
-      output_as_tensor.Copy(tmp, ws.stream());
+      auto data = mm::alloc_raw_async_unique<T, mm::memory_kind::pinned>(
+        output_as_tensor.shape().num_elements(), nullptr, ws.stream());
+      copy_data(data.get());
+      CUDA_CALL(cudaMemcpyAsync(output_as_tensor.template mutable_data<T>(), data.get(),
+                                output_as_tensor.shape().num_elements() * sizeof(T),
+                                cudaMemcpyHostToDevice, ws.stream()));
     } else {
       copy_data(output_as_tensor.template mutable_data<T>());
     }
