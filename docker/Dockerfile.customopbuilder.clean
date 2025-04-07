@@ -135,7 +135,8 @@ RUN rm -f /usr/bin/python && \
     pip install --upgrade pip && \
     pip install packaging && \
     python --version && \
-    pip --version
+    pip --version && \
+    rm -rf /usr/local/cuda
 
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs/:${LD_LIBRARY_PATH}

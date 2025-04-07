@@ -123,6 +123,8 @@ TEST(TensorListViewTest, ConstructorNull) {
   }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 TEST(TensorListViewTest, ConstructorContiguous) {
   int dummy;
   int *base_ptr = &dummy;
@@ -134,6 +136,7 @@ TEST(TensorListViewTest, ConstructorContiguous) {
   EXPECT_EQ(tlv[2].data, base_ptr + 4 * 100 * 50 + 2 * 10 * 5);
   EXPECT_EQ(tlv[3].data, base_ptr + 4 * 100 * 50 + 2 * 10 * 5 + 4 * 50 * 25);
 }
+#pragma GCC diagnostic pop
 
 TEST(TensorListViewTest, ConstructorScattered) {
   int a[4];
