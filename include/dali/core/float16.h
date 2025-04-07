@@ -374,12 +374,12 @@ struct is_fp_or_half {
 
 namespace literal {
 DALI_HOST_DEV DALI_FORCEINLINE
-float16 operator "" _hf(long double x) {
+float16 operator ""_hf(long double x) {
   return float16(static_cast<double>(x));
 }
 
 DALI_HOST_DEV DALI_FORCEINLINE
-float16 operator "" _hf(unsigned long long int x) {  // NOLINT(runtime/int)
+float16 operator ""_hf(unsigned long long int x) {  // NOLINT(runtime/int)
   return float16(x);
 }
 

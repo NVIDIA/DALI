@@ -33,7 +33,7 @@ struct device_side_allocator {
     return static_cast<T *>(malloc(count * sizeof(T)));
   }
   static __device__ void deallocate(T *ptr, size_t) {
-    free(ptr);
+    ::free(ptr);
   }
 };
 

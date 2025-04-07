@@ -62,7 +62,7 @@ enum class Method {
 };
 
 void TestCopyOutput(Method method) {
-  int batch_size = 2;
+  constexpr int batch_size = 2;
   dali::Pipeline pipe(batch_size, 4, 0);
   std::string es_cpu_name = "pipe_in";
   pipe.AddExternalInput(es_cpu_name, "cpu");
