@@ -1174,14 +1174,20 @@ def test_image_decoders():
             yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
             pipe = partial(pipe_template, fn.experimental.decoders)
             yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
+            pipe = partial(pipe_template, fn.legacy.decoders)
+            yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
         pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
         yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
         pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
+        yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
+        pipe = partial(image_decoder_rcrop_pipe, fn.legacy.decoders)
         yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
 
     pipe = partial(peek_image_shape_pipe, fn)
     yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
     pipe = partial(peek_image_shape_pipe, fn.experimental)
+    yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
+    pipe = partial(peek_image_shape_pipe, fn.legacy)
     yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
 
 
@@ -1670,6 +1676,11 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_random_crop",
     "decoders.image_slice",
+    "legacy.decoders.image",
+    "legacy.decoders.image_crop",
+    "legacy.decoders.image_random_crop",
+    "legacy.decoders.image_slice",
+    "legacy.peek_image_shape",
     "dl_tensor_python_function",
     "dump_image",
     "experimental.equalize",
