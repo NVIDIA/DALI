@@ -376,7 +376,7 @@ functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 DALI_SCHEMA(experimental__decoders__ImageSlice)
     .DocStr("Alias for :meth:`decoders.image_slice`.")
-    .NumInput(1)
+    .NumInput(1, 3)
     .NumOutput(1)
     .AddParent("decoders__ImageSlice")
     .MakeDocPartiallyHidden()

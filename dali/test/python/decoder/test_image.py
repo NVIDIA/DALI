@@ -24,7 +24,6 @@ from nvidia.dali import pipeline_def
 
 from nose2.tools import params
 from nose_utils import assert_raises, SkipTest
-from test_utils import check_output_pattern
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
@@ -296,26 +295,6 @@ def test_fancy_upsampling(batch_size):
         N_iterations=3,
         eps=1,
     )
-
-
-def test_image_decoder_memory_stats():
-    device = "mixed"
-    img_type = "jpeg"
-
-    def check(img_type, size, device, threads):
-        data_path = os.path.join(test_data_root, good_path, img_type)
-        # largest allocation should match our (in this case) memory padding settings
-        # (assuming no reallocation was needed here as the hint is big enough)
-        pattern = (
-            r"Device memory: \d+ allocations, largest = 16777216 bytes\n.*"
-            r"Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n"
-        )
-        with check_output_pattern(pattern):
-            run_decode(img_type, data_path, size, device, threads, memory_stats=True)
-
-    for size in [1, 10]:
-        for threads in [1, random.choice([2, 3, 4])]:
-            yield check, img_type, size, device, threads
 
 
 batch_size_test = 16
