@@ -63,7 +63,7 @@ class Pipeline(object):
     Parameters
     ----------
     batch_size : int
-        Maximum batch size of the pipeline. The value must be positivel
+        Maximum batch size of the pipeline. The value must be positive.
         In most cases, the actual batch size of the pipeline
         will be equal to the maximum one. Running the DALI Pipeline with a smaller batch size
         is also supported. The batch size might change from iteration to iteration.
@@ -327,13 +327,13 @@ class Pipeline(object):
         # Tracking the stack frame where pipeline definition starts
         self._definition_frame_start = 0
 
-        self._executor_type = types.MakeExecutorType(
+        self._executor_type = b.MakeExecutorType(
             self._exec_pipelined, self._exec_async, self._exec_separated, self._exec_dynamic
         )
 
-        self._executor_flags = types.ExecutorFlags.NoFlags
+        self._executor_flags = b.ExecutorFlags.NoFlags
         if self._set_affinity:
-            self._executor_flags |= types.ExecutorFlags.SetAffinity
+            self._executor_flags |= b.ExecutorFlags.SetAffinity
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -924,7 +924,7 @@ class Pipeline(object):
         self._py_pool_started = True
 
     def _get_params(self):
-        return types.PipelineParams(
+        return b.PipelineParams(
             max_batch_size=self._max_batch_size,
             num_threads=self._num_threads,
             device_id=self._device_id,
@@ -950,11 +950,11 @@ class Pipeline(object):
         self._enable_memory_stats = params.enable_memory_stats
         self._bytes_per_sample = params.bytes_per_sample_hint
         # reconsitute legacy flags
-        self._exec_async = bool(params.executor_type & types.ExecutorType.AsyncFlag)
-        self._exec_pipelined = bool(params.executor_type & types.ExecutorType.PipelinedFlag)
-        self._exec_separated = bool(params.executor_type & types.ExecutorType.SeparatedFlag)
-        self._exec_dynamic = bool(params.executor_type & types.ExecutorType.DynamicFlag)
-        self._set_affinity = bool(params.executor_flags & types.ExecutorFlags.SetAffinity)
+        self._exec_async = bool(params.executor_type & b.ExecutorType.AsyncFlag)
+        self._exec_pipelined = bool(params.executor_type & b.ExecutorType.PipelinedFlag)
+        self._exec_separated = bool(params.executor_type & b.ExecutorType.SeparatedFlag)
+        self._exec_dynamic = bool(params.executor_type & b.ExecutorType.DynamicFlag)
+        self._set_affinity = bool(params.executor_flags & b.ExecutorFlags.SetAffinity)
         if self.exec_separated:
             self._prefetch_queue_depth = {"cpu": self._cpu_queue_size, "gpu": self._gpu_queue_size}
         else:
@@ -1688,12 +1688,12 @@ class Pipeline(object):
         exec_pipelined = kw.get("exec_pipelined", None)
         exec_async = kw.get("exec_async", None)
         exec_dynamic = kw.get("exec_dynamic", None)
-        executor_type = types.MakeExecutorType(
+        executor_type = b.MakeExecutorType(
             exec_pipelined or False, exec_async or False, exec_separated, exec_dynamic or False
         )
-        executor_flags = types.ExecutorFlags.NoFlags
+        executor_flags = b.ExecutorFlags.NoFlags
         if kw.get("set_affinity", False):
-            executor_flags |= types.ExecutorFlags.SetAffinity
+            executor_flags |= b.ExecutorFlags.SetAffinity
 
         seed = kw.get("seed", None)
         if seed is not None and seed < 0:
@@ -1703,7 +1703,7 @@ class Pipeline(object):
             )
             seed = None
 
-        params = types.PipelineParams(
+        params = b.PipelineParams(
             max_batch_size=kw.get("batch_size", None),
             num_threads=kw.get("num_threads", None),
             device_id=kw.get("device_id", None),

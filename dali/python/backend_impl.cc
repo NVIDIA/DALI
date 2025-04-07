@@ -2363,7 +2363,7 @@ PYBIND11_MODULE(backend_impl, m) {
         });
 
   // Pipeline class and parameters
-  ExposePipelineParams(types_m);
+  ExposePipelineParams(m);
   ExposePipeline(m);
 
 #define DALI_OPSPEC_ADDARG(T) \

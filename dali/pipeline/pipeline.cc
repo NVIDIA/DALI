@@ -544,9 +544,18 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   if (requires_gpu_ && !params_.device_id.has_value()) {
     int dev = -1;
     auto err = cudaGetDevice(&dev);
-    if (err == cudaErrorNoDevice)
+    switch (err) {
+    case cudaErrorNoDevice:
       throw std::runtime_error("The pipeline requires a CUDA-capable GPU but none are available.");
-    params_.device_id = dev;
+    case cudaErrorInitializationError:
+      throw std::runtime_error("The pipeline requires a CUDA-capable GPU but CUDA runtime "
+                               "initialization failed.");
+    case cudaErrorInsufficientDriver:
+      throw std::runtime_error("The pipeline requires a CUDA-capable GPU but the CUDA driver is "
+                               "not installed or its version is insufficient.");
+    default:
+      params_.device_id = dev;
+    }
   }
   DeviceGuard d(device_id());
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");

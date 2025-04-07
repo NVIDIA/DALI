@@ -53,10 +53,9 @@ OperatorTraceTestParam operator_trace_test_params_pipelined_executor_separate_qu
 };
 
 OperatorTraceTestParam operator_trace_test_params_dynamic_executor[] = {
-  {1, 1, true, true, true},
-  {2, 2, true, true, true},
+        {1, 1, true, true, true},
+        {2, 2, true, true, true},
 };
-
 
 const char *operator_under_test_names[] = {
     "PassthroughWithTraceOpCpu", "PassthroughWithTraceOpGpu"
@@ -194,9 +193,9 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 INSTANTIATE_TEST_SUITE_P(
-  OperatorTraceTestDynamicExecutor,
-  OperatorTraceTest,
-  ::testing::ValuesIn(operator_trace_test_params_dynamic_executor)
+        OperatorTraceTestDynamicExecutor,
+        OperatorTraceTest,
+        ::testing::ValuesIn(operator_trace_test_params_dynamic_executor)
 );
 
 /**

@@ -90,7 +90,7 @@ def test_move_to_device_end():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob="The pipeline requires a CUDA-capable GPU but none are available.",
+        glob="The pipeline requires a CUDA-capable GPU but *",
     )
 
 
@@ -108,7 +108,7 @@ def test_move_to_device_middle():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob=("The pipeline requires a CUDA-capable GPU but none are available"),
+        glob=("The pipeline requires a CUDA-capable GPU but *"),
     )
 
 
@@ -128,7 +128,7 @@ def check_bad_device(device_id, error_msg):
 def test_gpu_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
-        "The pipeline requires a CUDA-capable GPU but none are available",
+        "The pipeline requires a CUDA-capable GPU but *",
         "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
     ]
 
@@ -147,7 +147,7 @@ def check_mixed_op_bad_device(device_id, error_msg):
 def test_mixed_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
-        "The pipeline requires a CUDA-capable GPU but none are available.",
+        "The pipeline requires a CUDA-capable GPU but *",
         "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
     ]
 
@@ -1128,7 +1128,7 @@ def test_arithm_ops_cpu_gpu():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob=("The pipeline requires a CUDA-capable GPU but none are available"),
+        glob=("The pipeline requires a CUDA-capable GPU but *"),
     )
 
 

@@ -257,7 +257,7 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
   dali_exec_flags_t flags = {};
-  if (async_execution)
+  if (async_execution)  // there's no non-pipelined async executor
     flags = flags | DALI_EXEC_IS_ASYNC | DALI_EXEC_IS_PIPELINED;
   if (pipelined_execution)
     flags = flags | DALI_EXEC_IS_PIPELINED;
@@ -287,7 +287,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
   params.enable_memory_stats = enable_memory_stats;
 
   auto pipeline = std::make_unique<dali::Pipeline>(
-        std::string(serialized_pipeline, length), params);
+      std::string(serialized_pipeline, length), params);
   pipeline->Build();
 
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();

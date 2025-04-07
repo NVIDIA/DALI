@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ from nvidia.dali.backend_impl import (
     GetCufftVersion,
     GetNppVersion,
     GetNvjpegVersion,
+    ExecutorType,
+    ExecutorFlags,
 )
 
 # TODO: Handle forwarding imports from backend_impl
@@ -27,6 +29,15 @@ from nvidia.dali.backend_impl import *  # noqa: F401, F403
 from . import __cuda_version__
 import warnings
 import sys
+
+
+ExecutorType.__bool__ = lambda self: self.value != 0
+ExecutorType.__and__ = lambda x, y: ExecutorType(x.value & y.value)
+ExecutorType.__or__ = lambda x, y: ExecutorType(x.value | y.value)
+
+ExecutorFlags.__bool__ = lambda self: self.value != 0
+ExecutorFlags.__and__ = lambda x, y: ExecutorFlags(x.value & y.value)
+ExecutorFlags.__or__ = lambda x, y: ExecutorFlags(x.value | y.value)
 
 
 def deprecation_warning(what):
