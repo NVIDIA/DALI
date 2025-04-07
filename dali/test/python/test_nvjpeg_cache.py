@@ -17,7 +17,6 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from numpy.testing import assert_array_equal
 from test_utils import get_dali_extra_path
-from nose2.tools import params
 
 seed = 1549361629
 
@@ -37,17 +36,13 @@ def compare(tl1, tl2):
 
 
 class HybridDecoderPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, cache_size, decoder_type):
+    def __init__(self, batch_size, num_threads, device_id, cache_size):
         super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed=seed)
         self.input = ops.readers.File(file_root=image_dir)
         policy = None
         if cache_size > 0:
             policy = "threshold"
-        print("Decoder type:", decoder_type)
-        decoder_module = (
-            ops.experimental.decoders if "experimental" in decoder_type else ops.decoders
-        )
-        self.decode = decoder_module.Image(
+        self.decode = ops.decoders.Image(
             device="mixed",
             output_type=types.RGB,
             cache_size=cache_size,
@@ -62,10 +57,9 @@ class HybridDecoderPipeline(Pipeline):
         return (images, labels)
 
 
-@params(("legacy",), ("experimental",))
-def test_nvjpeg_cached(decoder_type):
-    ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0, decoder_type)
-    cached_pipe = HybridDecoderPipeline(batch_size, 1, 0, 100, decoder_type)
+def test_nvjpeg_cached():
+    ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0)
+    cached_pipe = HybridDecoderPipeline(batch_size, 1, 0, 100)
     epoch_size = ref_pipe.epoch_size("Reader")
 
     for i in range(0, (2 * epoch_size + batch_size - 1) // batch_size):
@@ -82,8 +76,7 @@ def test_nvjpeg_cached(decoder_type):
 
 
 def main():
-    test_nvjpeg_cached("legacy")
-    test_nvjpeg_cached("experimental")
+    test_nvjpeg_cached()
 
 
 if __name__ == "__main__":

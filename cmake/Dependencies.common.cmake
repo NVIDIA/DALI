@@ -355,7 +355,7 @@ if(BUILD_NVIMAGECODEC)
                         "-DBUILD_NVJPEG2K_EXT=${BUILD_NVJPEG2K}"
                         "-DWITH_DYNAMIC_NVJPEG2K=OFF"
                         "-DBUILD_NVJPEG_EXT=${BUILD_NVJPEG}"
-                        "-DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG}"
+                        "-DWITH_DYNAMIC_NVJPEG=ON"
                         "-DBUILD_NVTIFF_EXT=OFF"
                         "-DWITH_DYNAMIC_NVTIFF=OFF"
                         "-DBUILD_NVBMP_EXT=OFF"

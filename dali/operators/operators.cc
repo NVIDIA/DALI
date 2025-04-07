@@ -46,14 +46,6 @@ DLL_PUBLIC int GetNppVersion() {
   return NPPGetVersion();
 }
 
-DLL_PUBLIC int GetNvjpegVersion() {
-#if DALI_USE_NVJPEG
-  return nvjpegGetVersion();
-#else
-  return -1;
-#endif
-}
-
 DLL_PUBLIC int GetNvimgcodecVersion() {
 #if not(NVIMAGECODEC_ENABLED)
   return -1;

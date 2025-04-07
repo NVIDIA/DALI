@@ -28,7 +28,7 @@ import sys
 import tempfile
 from packaging.version import Version
 from nose_utils import SkipTest
-
+import ctypes as c
 
 is_of_supported_var = None
 
@@ -741,14 +741,14 @@ def module_functions(
             prefix = ""
         res.append(prefix + cls.__name__)
     elif check_non_module or inspect.ismodule(cls):
-        for c_name, c in inspect.getmembers(cls):
+        for c_name, c_value in inspect.getmembers(cls):
 
             def public_or_allowed(c_name):
                 return not c_name.startswith("_") or c_name in allowed_private_modules
 
             if public_or_allowed(c_name) and c_name not in sys.builtin_module_names:
                 res += module_functions(
-                    c,
+                    c_value,
                     cls.__name__,
                     remove_prefix=remove_prefix,
                     check_non_module=check_non_module,
@@ -1020,3 +1020,42 @@ def is_of_supported(device_id=0):
         platform.machine() == "x86_64" or driver_version_major < 495
     )
     return is_of_supported_var
+
+
+def get_nvjpeg_ver():
+    nvjpeg_ver_major, nvjpeg_ver_minor, nvjpeg_ver_patch = (c.c_int(), c.c_int(), c.c_int())
+    try:
+        nvjpeg_libname = "libnvjpeg.so"
+        nvjpeg_lib = c.CDLL(nvjpeg_libname)
+        nvjpeg_lib.nvjpegGetProperty(0, c.byref(nvjpeg_ver_major))
+        nvjpeg_lib.nvjpegGetProperty(1, c.byref(nvjpeg_ver_minor))
+        nvjpeg_lib.nvjpegGetProperty(2, c.byref(nvjpeg_ver_patch))
+    except Exception:
+        for file in os.listdir("/usr/local/cuda/lib64/"):
+            try:
+                if file.startswith("libnvjpeg.so"):
+                    nvjpeg_lib = c.CDLL(file)
+                    nvjpeg_lib.nvjpegGetProperty(0, c.byref(nvjpeg_ver_major))
+                    nvjpeg_lib.nvjpegGetProperty(1, c.byref(nvjpeg_ver_minor))
+                    nvjpeg_lib.nvjpegGetProperty(2, c.byref(nvjpeg_ver_patch))
+                    break
+            except Exception:
+                continue
+    return nvjpeg_ver_major.value, nvjpeg_ver_minor.value, nvjpeg_ver_patch.value
+
+
+def get_cuda_compute_capability(device_id=0):
+    compute_cap = 0
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.0
+    except ModuleNotFoundError:
+        print("NVML not found")
+    return compute_cap
+
+
+img_dir_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../resources"))
