@@ -103,11 +103,6 @@ if (BUILD_CVCUDA)
   target_link_libraries(dali_operators PRIVATE cvcuda nvcv_types)
 endif(BUILD_CVCUDA)
 
-if (BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
-  target_link_libraries(dali_operators PRIVATE dynlink_nvjpeg)
-  target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvjpeg>")
-endif(BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
-
 if (BUILD_NVIMAGECODEC)
   if (WITH_DYNAMIC_NVIMGCODEC)
     target_link_libraries(dali_operators PRIVATE dynlink_nvimgcodec)
