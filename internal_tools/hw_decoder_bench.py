@@ -40,7 +40,7 @@ parser.add_argument(
     "-j",
     dest="num_threads",
     help="CPU threads. Can be a single value (e.g. 4) or range 'start:end:step' (e.g. 1:8:2). "
-         "End of range is included.",
+    "End of range is included.",
     default="4",
     type=str,
 )
@@ -324,7 +324,7 @@ def non_image_preprocessing(raw_text):
     return np.array([int(bytes(raw_text).decode("utf-8"))])
 
 
-@pipeline_def(batch_size=args.batch_size, num_threads=cpu_num, device_id=args.device_id, seed=0)
+@pipeline_def(batch_size=args.batch_size, num_threads=1, device_id=args.device_id, seed=0)
 def vit_pipeline(
     is_training=False,
     image_shape=(384, 384, 3),
