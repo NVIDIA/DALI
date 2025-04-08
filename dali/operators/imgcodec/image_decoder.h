@@ -693,6 +693,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
           auto roi = GetRoi(spec_, ws, i, cached_shape);
           if (!roi.use_roi()) {
             st->load_from_cache = true;
+            st->out_shape = cached_shape;
             output.ResizeSample(i, st->out_shape);
             st->image_info.buffer = output.raw_mutable_tensor(i);
             continue;
