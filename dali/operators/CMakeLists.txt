@@ -66,7 +66,6 @@ if (NOT OPERATOR_SRCS_PATTERN STREQUAL "" OR
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/operators.cc")
   # Those are needed for operators.cc to have all symbols
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/util/npp.cc")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/decoder/nvjpeg/nvjpeg_helper.cc")
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/video/dynlink_nvcuvid/dynlink_nvcuvid.cc")
 
   list(APPEND OPERATOR_SRCS_PATTERN_EXCLUDE "*test*")
