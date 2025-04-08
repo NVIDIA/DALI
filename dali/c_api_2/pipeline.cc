@@ -89,8 +89,37 @@ void PipelineWrapper::Prefetch() {
 }
 
 int PipelineWrapper::GetInputCount() const {
-  return pipeline_->GetInputNdim(
+  return pipeline_->GetInputOperators().size();
 }
+
+daliPipelineIODesc_t PipelineWrapper::GetInputDesc(int idx) const & {
+  auto &inputs = pipeline_->GetInputOperators();
+  int n = inputs.size();
+  if (idx < 0 || idx >= n)
+    throw std::out_of_range(make_string(
+        "The input index ", idx, " is out of range. The valid range is [0..", n-1, "]."));
+
+  if (input_names_.size() != n) {
+    input_names_.clear();
+    input_names_.reserve(n);
+    for (auto it = inputs.begin(); it != inputs.end(); it++) {
+      input_names_.push_back(it->first);
+    }
+  }
+  return GetInputDesc(input_names_[idx]);
+}
+
+daliPipelineIODesc_t PipelineWrapper::GetInputDesc(std::string_view name) const & {
+  auto &inputs = pipeline_->GetInputOperators();
+  auto it = inputs.find(name);
+  if (it == inputs.end())
+    throw invalid_key(make_string("The input with the name \"", name, "\" was not found."));
+
+  daliPipelineIODesc_t desc{};
+  desc.name = it->first.c_str();
+  desc.device = it->second.
+}
+
 
 int PipelineWrapper::GetFeedCount(std::string_view input_name) {
   return pipeline_->InputFeedCount(input_name);
@@ -126,7 +155,7 @@ int PipelineWrapper::GetOutputCount() const {
   return pipeline_->output_descs().size();
 }
 
-daliPipelineIODesc_t PipelineWrapper::GetOutputDesc(int idx) const {
+daliPipelineIODesc_t PipelineWrapper::GetOutputDesc(int idx) const & {
   auto &outputs = pipeline_->output_descs();
   int nout = outputs.size();
   if (idx < 0 || idx >= nout)

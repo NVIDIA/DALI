@@ -469,18 +469,18 @@ DALI_API daliResult_t daliPipelineFeedInput(
  */
 DALI_API daliResult_t daliPipelineGetInputCount(daliPipeline_h pipeline, int *out_input_count);
 
-/** Gets a descriptor of the specified pipeline input.
+/** Gets a descriptor of a pipeline input specified by index.
  *
  * @param pipeline        [in]  The pipeline
  * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
  * @param index           [in]  The 0-based index of the input. See `daliPipelineGetInputCount`.
  */
-DALI_API daliResult_t daliPipelineGetInputDesc(
+DALI_API daliResult_t daliPipelineGetInputDescByIdx(
   daliPipeline_h pipeline,
   daliPipelineIODesc_t *out_input_desc,
   int index);
 
-  /** Gets a descriptor of the specified pipeline input.
+  /** Gets a descriptor of a pipeline input specified by its name.
  *
  * @param pipeline        [in]  The pipeline
  * @param out_input_desc  [out] A pointer to the location where the descriptor is written.

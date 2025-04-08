@@ -60,9 +60,13 @@ class PipelineWrapper : public _DALIPipeline {
 
   int GetOutputCount() const;
 
-  daliPipelineIODesc_t GetOutputDesc(int idx) const;
+  daliPipelineIODesc_t GetOutputDesc(int idx) const &;
 
   int GetInputCount() const;
+
+  daliPipelineIODesc_t GetInputDesc(int idx) const &;
+
+  daliPipelineIODesc_t GetInputDesc(std::string_view name) const &;
 
   /** Retrieves the underlying DALI Pipeline object */
   dali::Pipeline *Unwrap() const & {
@@ -79,6 +83,7 @@ class PipelineWrapper : public _DALIPipeline {
         AccessOrder order);
 
   std::unique_ptr<Pipeline> pipeline_;
+  mutable std::vector<std::string_view> input_names_;
 };
 
 PipelineWrapper *ToPointer(daliPipeline_h handle);
