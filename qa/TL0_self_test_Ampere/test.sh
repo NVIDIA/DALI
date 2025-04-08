@@ -30,7 +30,7 @@ test_body() {
   done
 
   # test decoders on A100 as well
-  ${python_new_invoke_test} -s decoder test_image
+  ${python_new_invoke_test} -s decoder test_imgcodec
 
   # test Optical Flow
   ${python_new_invoke_test} -s operator_1 test_optical_flow

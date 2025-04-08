@@ -33,7 +33,7 @@ example_2() {
   cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
         -DBUILD_TEST=ON \
         -DBUILD_BENCHMARK=OFF \
-        -DOPERATOR_SRCS_PATTERN="reader/tf*.cc;reader/loader/loader.cc;decoder/cache/*" \
+        -DOPERATOR_SRCS_PATTERN="reader/tf*.cc;reader/loader/loader.cc;decoder/cache/*;imgcodec" \
         -DOPERATOR_TEST_SRCS_PATTERN=" " \
         -DKERNEL_SRCS_PATTERN=" " \
         -DKERNEL_TEST_SRCS_PATTERN=" " \
