@@ -36,7 +36,14 @@ parser.add_argument(
 )
 parser.add_argument("-w", dest="warmup_iterations", help="warmup iterations", default=0, type=int)
 parser.add_argument("-t", dest="total_images", help="total images", default=100, type=int)
-parser.add_argument("-j", dest="num_threads", help="num_threads", default=1, type=int)
+parser.add_argument(
+    "-j",
+    dest="num_threads",
+    help="CPU threads. Can be a single value (e.g. 4) or range 'start:end:step' (e.g. 1:8:2). "
+    "End of range is included.",
+    default="4",
+    type=str,
+)
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument("-i", dest="images_dir", help="images dir")
 input_files_arg.add_argument(
@@ -63,13 +70,44 @@ parser.add_argument(
 )
 parser.add_argument("--width_hint", dest="width_hint", default=0, type=int)
 parser.add_argument("--height_hint", dest="height_hint", default=0, type=int)
+
 parser.add_argument(
     "--hw_load",
     dest="hw_load",
-    help="HW decoder workload (e.g. 0.66 means 66%% of the batch)",
-    default=0.75,
-    type=float,
+    help="HW decoder workload. Can be a single value (e.g. 0.66) or range "
+    "'start:end:step' (e.g. 0.0:1.0:0.2). End of range is included.",
+    default="0.75",
+    type=str,
 )
+
+
+def parse_range_arg(arg_str, parse_fn=int):
+    """Parse argument into a list of values. Handles both range format
+       'start:end:step' and single values.
+
+    Args:
+        arg_str: String argument to parse
+        use_float: If True, parse as float values, otherwise as integers
+    Returns:
+        List of parsed values
+    """
+    if ":" in arg_str:
+        try:
+            start, end, step = map(parse_fn, arg_str.split(":"))
+            if parse_fn == float:
+                return list(np.arange(start, end + step / 2, step))  # +step/2 to include end value
+            else:
+                return list(range(start, end + 1, step))  # +1 to include end value
+        except ValueError:
+            raise ValueError(
+                f"Invalid range format. Expected 'start:end:step' with {parse_fn.__name__} values"
+            )
+    else:
+        try:
+            return [parse_fn(arg_str)]
+        except ValueError:
+            raise ValueError(f"Invalid value. Expected {parse_fn.__name__} number")
+
 
 parser.add_argument(
     "--print_every_n_iterations",
@@ -87,24 +125,21 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-DALI_INPUT_NAME = "DALI_INPUT_0"
-needs_feed_input = args.pipeline == "efficientnet_inference"
-
 
 @pipeline_def(
     batch_size=args.batch_size,
-    num_threads=args.num_threads,
+    num_threads=1,
     device_id=args.device_id,
     seed=0,
 )
-def DecoderPipeline(decoders_module=fn.decoders):
+def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
     device = "mixed" if args.device == "gpu" else "cpu"
     jpegs, _ = fn.readers.file(file_root=args.images_dir)
     images = decoders_module.image(
         jpegs,
         device=device,
         output_type=types.RGB,
-        hw_decoder_load=args.hw_load,
+        hw_decoder_load=hw_load,
         preallocate_width_hint=args.width_hint,
         preallocate_height_hint=args.height_hint,
     )
@@ -113,18 +148,18 @@ def DecoderPipeline(decoders_module=fn.decoders):
 
 @pipeline_def(
     batch_size=args.batch_size,
-    num_threads=args.num_threads,
+    num_threads=1,
     device_id=args.device_id,
     seed=0,
 )
-def RN50Pipeline(minibatch_size, decoders_module=fn.decoders):
+def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
     device = "mixed" if args.device == "gpu" else "cpu"
     jpegs, _ = fn.readers.file(file_root=args.images_dir)
     images = decoders_module.image_random_crop(
         jpegs,
         device=device,
         output_type=types.RGB,
-        hw_decoder_load=args.hw_load,
+        hw_decoder_load=hw_load,
         preallocate_width_hint=args.width_hint,
         preallocate_height_hint=args.height_hint,
     )
@@ -146,14 +181,17 @@ def RN50Pipeline(minibatch_size, decoders_module=fn.decoders):
 
 @pipeline_def(
     batch_size=args.batch_size,
-    num_threads=args.num_threads,
+    num_threads=1,
     device_id=args.device_id,
     seed=0,
     enable_conditionals=True,
     decoders_module=fn.decoders,
 )
 def EfficientnetTrainingPipeline(
-    minibatch_size, automatic_augmentation="autoaugment", decoders_module=fn.decoders
+    minibatch_size,
+    automatic_augmentation="autoaugment",
+    decoders_module=fn.decoders,
+    hw_load=0,
 ):
     dali_device = args.device
     output_layout = types.NCHW
@@ -177,7 +215,7 @@ def EfficientnetTrainingPipeline(
         output_type=types.RGB,
         random_aspect_ratio=[0.75, 4.0 / 3.0],
         random_area=[0.08, 1.0],
-        hw_decoder_load=args.hw_load,
+        hw_decoder_load=hw_load,
         preallocate_width_hint=args.width_hint,
         preallocate_height_hint=args.height_hint,
     )
@@ -190,16 +228,17 @@ def EfficientnetTrainingPipeline(
         minibatch_size=minibatch_size,
     )
 
-    # Make sure that from this point we are processing on GPU regardless of dali_device parameter
+    # Make sure that from this point we are processing on GPU regardless
+    # of dali_device parameter
     images = images.gpu()
 
     images = fn.flip(images, horizontal=rng)
 
-    # Based on the specification, apply the automatic augmentation policy. Note, that from the point
-    # of Pipeline definition, this `if` statement relies on static scalar parameter, so it is
-    # evaluated exactly once during build - we either include automatic augmentations or not.
-    # We pass the shape of the image after the resize so the translate operations are done
-    # relative to the image size.
+    # Based on the specification, apply the automatic augmentation policy. Note, that from
+    # the pointof Pipeline definition, this `if` statement relies on static scalar
+    # parameter, so it is evaluated exactly once during build - we either include automatic
+    # augmentations or not.We pass the shape of the image after the resize so
+    # the translate operations are done relative to the image size.
     if automatic_augmentation == "autoaugment":
         output = auto_augment.auto_augment_image_net(images, shape=[224, 224])
     elif automatic_augmentation == "trivialaugment":
@@ -221,17 +260,17 @@ def EfficientnetTrainingPipeline(
 
 @pipeline_def(
     batch_size=args.batch_size,
-    num_threads=args.num_threads,
+    num_threads=1,
     device_id=args.device_id,
     prefetch_queue_depth=1,
 )
-def EfficientnetInferencePipeline(decoders_module=fn.decoders):
+def EfficientnetInferencePipeline(decoders_module=fn.decoders, hw_load=0):
     images = fn.external_source(device="cpu", name=DALI_INPUT_NAME)
     images = decoders_module.image(
         images,
         device="mixed" if args.device == "gpu" else "cpu",
         output_type=types.RGB,
-        hw_decoder_load=args.hw_load,
+        hw_decoder_load=hw_load,
     )
     images = fn.resize(images, resize_x=224, resize_y=224)
     images = fn.crop_mirror_normalize(
@@ -285,11 +324,13 @@ def non_image_preprocessing(raw_text):
     return np.array([int(bytes(raw_text).decode("utf-8"))])
 
 
-@pipeline_def(
-    batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
-)
+@pipeline_def(batch_size=args.batch_size, num_threads=1, device_id=args.device_id, seed=0)
 def vit_pipeline(
-    is_training=False, image_shape=(384, 384, 3), num_classes=1000, decoders_module=fn.decoders
+    is_training=False,
+    image_shape=(384, 384, 3),
+    num_classes=1000,
+    decoders_module=fn.decoders,
+    hw_load=0,
 ):
     files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)]
 
@@ -316,7 +357,7 @@ def vit_pipeline(
         img,
         device=device,
         output_type=types.RGB,
-        hw_decoder_load=args.hw_load,
+        hw_decoder_load=hw_load,
         preallocate_width_hint=args.width_hint,
         preallocate_height_hint=args.height_hint,
     )
@@ -350,108 +391,155 @@ def vit_pipeline(
     return img, labels
 
 
-decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
-print(f"Using decoders_module={decoders_module}")
+DALI_INPUT_NAME = "DALI_INPUT_0"
+needs_feed_input = args.pipeline == "efficientnet_inference"
 
-pipes = []
-if args.pipeline == "decoder":
-    for i in range(args.gpu_num):
-        pipes.append(DecoderPipeline(device_id=i + args.device_id, decoders_module=decoders_module))
-elif args.pipeline == "rn50":
-    for i in range(args.gpu_num):
-        pipes.append(
-            RN50Pipeline(
-                device_id=i + args.device_id,
-                minibatch_size=args.minibatch_size,
-                decoders_module=decoders_module,
-            )
+threads_num = parse_range_arg(args.num_threads, parse_fn=int)
+decoder_hw_load = parse_range_arg(args.hw_load, parse_fn=float)
+
+print(f"Threads num to check: {threads_num}")
+print(f"Decoder hw load to check: {decoder_hw_load}")
+
+perf_results = []
+for cpu_num in threads_num:
+    for hw_load in decoder_hw_load:
+        decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
+        print(f"Using decoders_module={decoders_module}")
+
+        pipes = []
+        if args.pipeline == "decoder":
+            for i in range(args.gpu_num):
+                pipes.append(
+                    DecoderPipeline(
+                        device_id=i + args.device_id,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
+                    )
+                )
+        elif args.pipeline == "rn50":
+            for i in range(args.gpu_num):
+                pipes.append(
+                    RN50Pipeline(
+                        device_id=i + args.device_id,
+                        minibatch_size=args.minibatch_size,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
+                    )
+                )
+        elif args.pipeline == "efficientnet_inference":
+            for i in range(args.gpu_num):
+                pipes.append(
+                    EfficientnetInferencePipeline(
+                        device_id=i + args.device_id,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
+                    )
+                )
+        elif args.pipeline == "vit":
+            for i in range(args.gpu_num):
+                pipes.append(
+                    vit_pipeline(device_id=i + args.device_id, decoders_module=decoders_module)
+                )
+        elif args.pipeline == "efficientnet_training":
+            for i in range(args.gpu_num):
+                pipes.append(
+                    EfficientnetTrainingPipeline(
+                        device_id=i + args.device_id,
+                        minibatch_size=args.minibatch_size,
+                        automatic_augmentation=args.aug_strategy,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
+                    )
+                )
+        else:
+            raise RuntimeError("Unsupported pipeline")
+        for p in pipes:
+            p.build()
+
+        input_tensor = (
+            create_input_tensor(args.batch_size, args.image_list) if needs_feed_input else None
         )
-elif args.pipeline == "efficientnet_inference":
-    for i in range(args.gpu_num):
-        pipes.append(
-            EfficientnetInferencePipeline(
-                device_id=i + args.device_id, decoders_module=decoders_module
-            )
-        )
-elif args.pipeline == "vit":
-    for i in range(args.gpu_num):
-        pipes.append(vit_pipeline(device_id=i + args.device_id, decoders_module=decoders_module))
-elif args.pipeline == "efficientnet_training":
-    for i in range(args.gpu_num):
-        pipes.append(
-            EfficientnetTrainingPipeline(
-                device_id=i + args.device_id,
-                minibatch_size=args.minibatch_size,
-                automatic_augmentation=args.aug_strategy,
-                decoders_module=decoders_module,
-            )
-        )
-else:
-    raise RuntimeError("Unsupported pipeline")
-for p in pipes:
-    p.build()
 
-input_tensor = create_input_tensor(args.batch_size, args.image_list) if needs_feed_input else None
+        for iteration in range(args.warmup_iterations):
+            for p in pipes:
+                feed_input(p, input_tensor)
+                p.schedule_run()
+            for p in pipes:
+                _ = p.share_outputs()
+            for p in pipes:
+                p.release_outputs()
+        print("Warmup finished")
 
-for iteration in range(args.warmup_iterations):
-    for p in pipes:
-        feed_input(p, input_tensor)
-        p.schedule_run()
-    for p in pipes:
-        _ = p.share_outputs()
-    for p in pipes:
-        p.release_outputs()
-print("Warmup finished")
+        test_iterations = args.total_images // args.batch_size
 
-start = time.time()
-test_iterations = args.total_images // args.batch_size
+        print("Test iterations: ", test_iterations)
+        start_time = time.perf_counter()
+        execution_times = []
+        for iteration in range(test_iterations):
+            iter_start_time = time.perf_counter()
+            for p in pipes:
+                feed_input(p, input_tensor)
+                p.schedule_run()
+            for p in pipes:
+                _ = p.share_outputs()
+            for p in pipes:
+                p.release_outputs()
+            iter_end_time = time.perf_counter()
+            iter_duration = iter_end_time - iter_start_time
+            execution_times.append(iter_duration)
 
-print("Test iterations: ", test_iterations)
-start_time = time.perf_counter()
-execution_times = []
-for iteration in range(test_iterations):
-    iter_start_time = time.perf_counter()
-    for p in pipes:
-        feed_input(p, input_tensor)
-        p.schedule_run()
-    for p in pipes:
-        _ = p.share_outputs()
-    for p in pipes:
-        p.release_outputs()
-    iter_end_time = time.perf_counter()
-    iter_duration = iter_end_time - iter_start_time
-    execution_times.append(iter_duration)
+            if args.print_every_n_iterations > 0 and (
+                (iteration + 1) % args.print_every_n_iterations == 0
+                or iteration == test_iterations - 1
+            ):
+                elapsed_time = time.perf_counter() - start_time
+                throughput = (iteration + 1) * args.batch_size * args.gpu_num / elapsed_time
+                mean_t = statistics.mean(execution_times)
+                median_t = statistics.median(execution_times)
+                min_t = min(execution_times)
+                max_t = max(execution_times)
+                print(
+                    f"Iteration {iteration + 1}/{test_iterations} - "
+                    + f"Throughput: {throughput:.2f} frames/sec "
+                    + f"(mean={mean_t:.6f}sec, median={median_t:.6f}sec, "
+                    + f"min={min_t:.6f}sec, max={max_t:.6f}sec)"
+                )
 
-    if args.print_every_n_iterations > 0 and (
-        (iteration + 1) % args.print_every_n_iterations == 0 or iteration == test_iterations - 1
-    ):
-        elapsed_time = time.perf_counter() - start_time
-        throughput = (iteration + 1) * args.batch_size * args.gpu_num / elapsed_time
-        mean_t = statistics.mean(execution_times)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        total_throughput = test_iterations * args.batch_size * args.gpu_num / total_time
+        avg_t = statistics.mean(execution_times)
+        stdev_t = statistics.stdev(execution_times)
         median_t = statistics.median(execution_times)
         min_t = min(execution_times)
         max_t = max(execution_times)
-        print(
-            f"Iteration {iteration + 1}/{test_iterations} - "
-            + f"Throughput: {throughput:.2f} frames/sec "
-            + f"(mean={mean_t:.6f}sec, median={median_t:.6f}sec, "
-            + f"min={min_t:.6f}sec, max={max_t:.6f}sec)"
+
+        print("\nFinal Results:")
+        print(f"CPU threads: {cpu_num}")
+        print(f"HW decoder load: {hw_load}")
+        print(f"Total Execution Time: {total_time:.6f} sec")
+        print(f"Total Throughput: {total_throughput:.2f} frames/sec")
+        print(f"Average time per iteration: {avg_t:.6f} sec")
+        print(f"Median time per iteration: {median_t:.6f} sec")
+        print(f"Stddev time per iteration: {stdev_t:.6f} sec")
+        print(f"Min time per iteration: {min_t:.6f} sec")
+        print(f"Max time per iteration: {max_t:.6f} sec")
+        perf_results.append(
+            {
+                "cpu_num": cpu_num,
+                "hw_load": hw_load,
+                "total_time": total_time,
+                "total_throughput": total_throughput,
+            }
         )
 
-end_time = time.perf_counter()
-total_time = end_time - start_time
-total_throughput = test_iterations * args.batch_size * args.gpu_num / total_time
-avg_t = statistics.mean(execution_times)
-stdev_t = statistics.stdev(execution_times)
-median_t = statistics.median(execution_times)
-min_t = min(execution_times)
-max_t = max(execution_times)
-
-print("\nFinal Results:")
-print(f"Total Execution Time: {total_time:.6f} sec")
-print(f"Total Throughput: {total_throughput:.2f} frames/sec")
-print(f"Average time per iteration: {avg_t:.6f} sec")
-print(f"Median time per iteration: {median_t:.6f} sec")
-print(f"Stddev time per iteration: {stdev_t:.6f} sec")
-print(f"Min time per iteration: {min_t:.6f} sec")
-print(f"Max time per iteration: {max_t:.6f} sec")
+if len(perf_results) > 0:
+    # Find and print result with best throughputif
+    best_result = max(perf_results, key=lambda x: x["total_throughput"])
+    print("\nBest throughput configuration:")
+    print(f"Best: CPU threads: {best_result['cpu_num']}")
+    print(f"Best: HW decoder load: {best_result['hw_load']}")
+    print(f"Best: Total time: {best_result['total_time']:.6f} sec")
+    print(f"Best: Throughput: {best_result['total_throughput']:.2f} frames/sec")
+else:
+    print("No results to display")
