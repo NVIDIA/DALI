@@ -51,7 +51,7 @@ def get_img_files(data_path, subdir="*", ext=None):
 @pipeline_def
 def decoder_pipe(data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=False):
     inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
-    decoded = fn.experimental.decoders.image(
+    decoded = fn.decoders.image(
         inputs,
         device=device,
         output_type=types.RGB,
@@ -102,11 +102,9 @@ def create_decoder_slice_pipeline(data_path, device):
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
-    images_sliced_1 = fn.experimental.decoders.image_slice(
-        jpegs, anchor, shape, axes=(0, 1), device=device
-    )
+    images_sliced_1 = fn.decoders.image_slice(jpegs, anchor, shape, axes=(0, 1), device=device)
 
-    images = fn.experimental.decoders.image(jpegs, device=device)
+    images = fn.decoders.image(jpegs, device=device)
     images_sliced_2 = fn.slice(images, anchor, shape, axes=(0, 1))
 
     return images_sliced_1, images_sliced_2
@@ -121,11 +119,11 @@ def create_decoder_crop_pipeline(data_path, device):
     w = 242
     h = 230
 
-    images_crop_1 = fn.experimental.decoders.image_crop(
+    images_crop_1 = fn.decoders.image_crop(
         jpegs, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y, device=device
     )
 
-    images = fn.experimental.decoders.image(jpegs, device=device)
+    images = fn.decoders.image(jpegs, device=device)
 
     images_crop_2 = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
 
@@ -139,12 +137,12 @@ def create_decoder_random_crop_pipeline(data_path, device):
 
     w = 242
     h = 230
-    images_random_crop_1 = fn.experimental.decoders.image_random_crop(
+    images_random_crop_1 = fn.decoders.image_random_crop(
         jpegs, device=device, output_type=types.RGB, seed=seed
     )
     images_random_crop_1 = fn.resize(images_random_crop_1, size=(w, h))
 
-    images = fn.experimental.decoders.image(jpegs, device=device)
+    images = fn.decoders.image(jpegs, device=device)
     images_random_crop_2 = fn.random_resized_crop(images, size=(w, h), seed=seed)
 
     return images_random_crop_1, images_random_crop_2
@@ -299,7 +297,7 @@ batch_size_test = 16
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def img_decoder_pipe(device, out_type, files):
     encoded, _ = fn.readers.file(files=files)
-    decoded = fn.experimental.decoders.image(encoded, device=device, output_type=out_type)
+    decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
     return decoded
 
 
@@ -338,8 +336,8 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(device, out_type, files):
         encoded, _ = fn.readers.file(files=files)
-        decoded = fn.experimental.decoders.image(encoded, device=device, output_type=out_type)
-        peeked_shape = fn.experimental.peek_image_shape(encoded)
+        decoded = fn.decoders.image(encoded, device=device, output_type=out_type)
+        peeked_shape = fn.peek_image_shape(encoded)
         return decoded, peeked_shape
 
     files = get_img_files(os.path.join(test_data_root, path), ext=ext, subdir=None)
@@ -367,9 +365,7 @@ def _testimpl_image_decoder_crop_error_oob(device):
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
     def pipe(device):
         encoded, _ = fn.readers.file(file_root=file_root)
-        decoded = fn.experimental.decoders.image_crop(
-            encoded, crop_w=10000, crop_h=100, device=device
-        )
+        decoded = fn.decoders.image_crop(encoded, crop_w=10000, crop_h=100, device=device)
         return decoded
 
     p = pipe(device)
@@ -389,9 +385,7 @@ def _testimpl_image_decoder_slice_error_oob(device):
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
     def pipe(device):
         encoded, _ = fn.readers.file(file_root=file_root)
-        decoded = fn.experimental.decoders.image_slice(
-            encoded, device=device, end=[10000], axes=[1]
-        )
+        decoded = fn.decoders.image_slice(encoded, device=device, end=[10000], axes=[1])
         return decoded
 
     p = pipe(device)
@@ -412,8 +406,8 @@ def test_tiff_palette():
     @pipeline_def(batch_size=2, device_id=0, num_threads=1)
     def pipe():
         encoded, _ = fn.readers.file(files=[normal, palette])
-        peeked_shapes = fn.experimental.peek_image_shape(encoded)
-        decoded = fn.experimental.decoders.image(encoded, device="cpu")
+        peeked_shapes = fn.peek_image_shape(encoded)
+        decoded = fn.decoders.image(encoded, device="cpu")
         return decoded, peeked_shapes
 
     p = pipe()
@@ -434,7 +428,7 @@ def _testimpl_image_decoder_peek_shape(
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def peek_shape_pipeline(file):
         encoded, _ = fn.readers.file(files=[file])
-        return fn.experimental.peek_image_shape(
+        return fn.peek_image_shape(
             encoded, image_type=image_type, adjust_orientation=adjust_orientation
         )
 
@@ -500,9 +494,7 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
     @pipeline_def(batch_size=1, device_id=device_id, num_threads=1)
     def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
-        decoded = fn.experimental.decoders.image(
-            encoded, device="mixed", dtype=dtype, output_type=output_type
-        )
+        decoded = fn.decoders.image(encoded, device="mixed", dtype=dtype, output_type=output_type)
         return decoded
 
     p = pipe(data_dir + f"/{img_name}.jpg")
@@ -528,7 +520,7 @@ def test_image_decoder_lossless_jpeg_cpu_not_supported():
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
-        decoded = fn.experimental.decoders.image(
+        decoded = fn.decoders.image(
             encoded, device="cpu", dtype=types.UINT16, output_type=types.ANY_DATA
         )
         return decoded

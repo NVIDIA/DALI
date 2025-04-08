@@ -25,9 +25,14 @@ DALI_SCHEMA(PeekImageShape)
 This operator returns the shape that an image would have after decoding.
 
 .. note::
-    This operator is not recommended for use with the dynamic executor (`exec_dynamic=True` in the
-    pipeline constructor).
-    Use :meth:`nvidia.dali.pipeline.DataNode.shape()` instead on the decoded images.
+    This operator is specifically designed to peek at the shape of encoded images before decoding them.
+
+    For already decoded images, you could instead use either:
+
+    * The ``shape`` operator
+    * The :meth:`nvidia.dali.pipeline.DataNode.shape()` method
+
+    When using the dynamic executor, the shape output will always be a CPU tensor, regardless of the input device location.
 )")
   .NumInput(1)
   .NumOutput(1)
