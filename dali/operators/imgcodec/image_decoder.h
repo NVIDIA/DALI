@@ -648,6 +648,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     if (output.sample_dim() != 3)
       output.set_sample_dim(3);
     output.set_type(dtype_);
+    if (std::is_same<CPUBackend, Backend>::value && device_id_ != CPU_ONLY_DEVICE_ID) {
+      output.set_pinned(true);
+    }
+    output.set_device_id(device_id_);
     output.SetContiguity(BatchContiguity::Noncontiguous);
     output.SetLayout("HWC");
     output.SetSize(nsamples);
