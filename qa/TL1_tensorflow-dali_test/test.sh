@@ -56,6 +56,9 @@ do_once() {
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
+    # it addresses the issue with third_party/gloo, which is a part of horovod dependency,
+    # requiring too old version of cmake
+    export CMAKE_POLICY_VERSION_MINIMUM=3.5
     # horovod is added to `pip_packages` so it can be preloaded, but install it here when
     # TF is already available and we can set env variables
     install_pip_pkg "pip install --force-reinstall horovod==0.28.1 -f /pip-packages"
