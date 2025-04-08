@@ -19,8 +19,14 @@ from nvidia.dali.backend_impl import (
     GetCufftVersion,
     GetNppVersion,
     GetNvjpegVersion,
-    ExecutorType,
-    ExecutorFlags,
+)
+
+# Re-expose some private symbols not imported with `import *`
+from nvidia.dali.backend_impl import (  # noqa: F401
+    _ExecutorType,
+    _ExecutorFlags,
+    _MakeExecutorType,
+    _PipelineParams,
 )
 
 # TODO: Handle forwarding imports from backend_impl
@@ -31,13 +37,13 @@ import warnings
 import sys
 
 
-ExecutorType.__bool__ = lambda self: self.value != 0
-ExecutorType.__and__ = lambda x, y: ExecutorType(x.value & y.value)
-ExecutorType.__or__ = lambda x, y: ExecutorType(x.value | y.value)
+_ExecutorType.__bool__ = lambda self: self.value != 0
+_ExecutorType.__and__ = lambda x, y: _ExecutorType(x.value & y.value)
+_ExecutorType.__or__ = lambda x, y: _ExecutorType(x.value | y.value)
 
-ExecutorFlags.__bool__ = lambda self: self.value != 0
-ExecutorFlags.__and__ = lambda x, y: ExecutorFlags(x.value & y.value)
-ExecutorFlags.__or__ = lambda x, y: ExecutorFlags(x.value | y.value)
+_ExecutorFlags.__bool__ = lambda self: self.value != 0
+_ExecutorFlags.__and__ = lambda x, y: _ExecutorFlags(x.value & y.value)
+_ExecutorFlags.__or__ = lambda x, y: _ExecutorFlags(x.value | y.value)
 
 
 def deprecation_warning(what):

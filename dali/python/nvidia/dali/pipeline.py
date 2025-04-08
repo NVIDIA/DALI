@@ -327,13 +327,13 @@ class Pipeline(object):
         # Tracking the stack frame where pipeline definition starts
         self._definition_frame_start = 0
 
-        self._executor_type = b.MakeExecutorType(
+        self._executor_type = b._MakeExecutorType(
             self._exec_pipelined, self._exec_async, self._exec_separated, self._exec_dynamic
         )
 
-        self._executor_flags = b.ExecutorFlags.NoFlags
+        self._executor_flags = b._ExecutorFlags.NoFlags
         if self._set_affinity:
-            self._executor_flags |= b.ExecutorFlags.SetAffinity
+            self._executor_flags |= b._ExecutorFlags.SetAffinity
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -924,7 +924,7 @@ class Pipeline(object):
         self._py_pool_started = True
 
     def _get_params(self):
-        return b.PipelineParams(
+        return b._PipelineParams(
             max_batch_size=self._max_batch_size,
             num_threads=self._num_threads,
             device_id=self._device_id,
@@ -950,11 +950,11 @@ class Pipeline(object):
         self._enable_memory_stats = params.enable_memory_stats
         self._bytes_per_sample = params.bytes_per_sample_hint
         # reconsitute legacy flags
-        self._exec_async = bool(params.executor_type & b.ExecutorType.AsyncFlag)
-        self._exec_pipelined = bool(params.executor_type & b.ExecutorType.PipelinedFlag)
-        self._exec_separated = bool(params.executor_type & b.ExecutorType.SeparatedFlag)
-        self._exec_dynamic = bool(params.executor_type & b.ExecutorType.DynamicFlag)
-        self._set_affinity = bool(params.executor_flags & b.ExecutorFlags.SetAffinity)
+        self._exec_async = bool(params.executor_type & b._ExecutorType.AsyncFlag)
+        self._exec_pipelined = bool(params.executor_type & b._ExecutorType.PipelinedFlag)
+        self._exec_separated = bool(params.executor_type & b._ExecutorType.SeparatedFlag)
+        self._exec_dynamic = bool(params.executor_type & b._ExecutorType.DynamicFlag)
+        self._set_affinity = bool(params.executor_flags & b._ExecutorFlags.SetAffinity)
         if self.exec_separated:
             self._prefetch_queue_depth = {"cpu": self._cpu_queue_size, "gpu": self._gpu_queue_size}
         else:
@@ -1596,21 +1596,25 @@ class Pipeline(object):
         return self._batches_to_consume == 0
 
     def serialize(self, define_graph=None, filename=None):
-        """Serialize the pipeline to a Protobuf string.
+        """Serialize the pipeline definition to a Protobuf string.
 
-        Additionally, you can pass file name, so that serialized pipeline will be written there.
+        .. note::
+            This function doesn't serialize the pipeline's internal state. Use
+            `checkpointing <advanced_topics_checkpointing.html>`_ to achieve that.
+
+        Additionally, you can pass a file name, so that serialized pipeline will be written there.
         The file contents will be overwritten.
 
         Parameters
         ----------
-        define_graph : callable
+        define_graph : callable, optional, default = None
+                Deprecated.
                 If specified, this function will be used instead of member :meth:`define_graph`.
                 This parameter must not be set, if the pipeline outputs are specified with
-                :meth:`set_outputs`.
-        filename : str
-                The file that the serialized pipeline will be written to.
-        kwargs : dict
-                Refer to Pipeline constructor for full list of arguments.
+                :meth:`set_outputs` or the pipeline was constructed with a function decorated with
+                :meth:`pipeline_def`.
+        filename : str, optional, default = None
+                The file that the serialized pipeline definition will be written to.
         """
         if define_graph is not None and not callable(define_graph):
             raise TypeError(
@@ -1688,12 +1692,12 @@ class Pipeline(object):
         exec_pipelined = kw.get("exec_pipelined", None)
         exec_async = kw.get("exec_async", None)
         exec_dynamic = kw.get("exec_dynamic", None)
-        executor_type = b.MakeExecutorType(
+        executor_type = b._MakeExecutorType(
             exec_pipelined or False, exec_async or False, exec_separated, exec_dynamic or False
         )
-        executor_flags = b.ExecutorFlags.NoFlags
+        executor_flags = b._ExecutorFlags.NoFlags
         if kw.get("set_affinity", False):
-            executor_flags |= b.ExecutorFlags.SetAffinity
+            executor_flags |= b._ExecutorFlags.SetAffinity
 
         seed = kw.get("seed", None)
         if seed is not None and seed < 0:
@@ -1703,7 +1707,7 @@ class Pipeline(object):
             )
             seed = None
 
-        params = b.PipelineParams(
+        params = b._PipelineParams(
             max_batch_size=kw.get("batch_size", None),
             num_threads=kw.get("num_threads", None),
             device_id=kw.get("device_id", None),

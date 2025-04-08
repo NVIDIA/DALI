@@ -1808,7 +1808,7 @@ struct PyPipeline: public Pipeline {
 };
 
 void ExposePipelineParams(py::module &m) {
-  py::enum_<ExecutorType>(m, "ExecutorType")
+  py::enum_<ExecutorType>(m, "_ExecutorType")
     .value("Simple", ExecutorType::Simple)
     .value("PipelinedFlag", ExecutorType::PipelinedFlag)
     .value("SeparatedFlag", ExecutorType::SeparatedFlag)
@@ -1819,7 +1819,7 @@ void ExposePipelineParams(py::module &m) {
     .value("AsyncSeparatedPipelined", ExecutorType::AsyncSeparatedPipelined)
     .value("Dynamic", ExecutorType::Dynamic);
 
-  py::enum_<ExecutorFlags>(m, "ExecutorFlags")
+  py::enum_<ExecutorFlags>(m, "_ExecutorFlags")
     .value("NoFlags", ExecutorFlags::None)
     .value("SetAffinity", ExecutorFlags::SetAffinity)
     .value("StreamPolicyMask", ExecutorFlags::StreamPolicyMask)
@@ -1831,9 +1831,9 @@ void ExposePipelineParams(py::module &m) {
     .value("ConcurrencyFull", ExecutorFlags::ConcurrencyFull)
     .value("ConcurrencyBackend", ExecutorFlags::ConcurrencyBackend);
 
-  m.def("MakeExecutorType", MakeExecutorType);
+  m.def("_MakeExecutorType", MakeExecutorType);
 
-  py::class_<PipelineParams>(m, "PipelineParams")
+  py::class_<PipelineParams>(m, "_PipelineParams")
     .def(py::init([](
         std::optional<int> max_batch_size,
         std::optional<int> num_threads,
