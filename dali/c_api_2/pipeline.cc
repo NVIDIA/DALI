@@ -94,8 +94,8 @@ int PipelineWrapper::GetInputCount() const {
 
 daliPipelineIODesc_t PipelineWrapper::GetInputDesc(int idx) const & {
   auto &inputs = pipeline_->GetInputOperators();
-  int n = inputs.size();
-  if (idx < 0 || idx >= n)
+  size_t n = inputs.size();
+  if (idx < 0 || static_cast<size_t>(idx) >= n)
     throw std::out_of_range(make_string(
         "The input index ", idx, " is out of range. The valid range is [0..", n-1, "]."));
 
@@ -109,6 +109,29 @@ daliPipelineIODesc_t PipelineWrapper::GetInputDesc(int idx) const & {
   return GetInputDesc(input_names_[idx]);
 }
 
+namespace {
+
+template <typename Backend>
+void FillPipelineDesc(daliPipelineIODesc_t &desc, const InputOperator<Backend> &inp) {
+  int ndim = inp.in_ndim();
+  if (ndim >= 0) {
+    desc.ndim_present = true;
+    desc.ndim = ndim;
+  }
+  auto dtype = inp.in_dtype();
+  if (dtype != DALI_NO_TYPE) {
+    desc.dtype_present = true;
+    desc.dtype = dtype;
+  }
+  auto &layout = inp.in_layout();
+  if (layout.size())
+    desc.layout = layout.c_str();
+  else
+    desc.layout = nullptr;
+}
+
+}  // namespace
+
 daliPipelineIODesc_t PipelineWrapper::GetInputDesc(std::string_view name) const & {
   auto &inputs = pipeline_->GetInputOperators();
   auto it = inputs.find(name);
@@ -117,7 +140,19 @@ daliPipelineIODesc_t PipelineWrapper::GetInputDesc(std::string_view name) const 
 
   daliPipelineIODesc_t desc{};
   desc.name = it->first.c_str();
-  desc.device = it->second.
+  desc.device = it->second->op_type == OpType::GPU ? DALI_STORAGE_GPU : DALI_STORAGE_CPU;
+  auto *op = pipeline_->GetOperator(name);
+  if (auto *inp = dynamic_cast<InputOperator<CPUBackend> *>(op))
+    FillPipelineDesc(desc, *inp);
+  else if (auto *inp = dynamic_cast<InputOperator<GPUBackend> *>(op))
+    FillPipelineDesc(desc, *inp);
+  else if (auto *inp = dynamic_cast<InputOperator<MixedBackend> *>(op))
+    FillPipelineDesc(desc, *inp);
+  else
+    throw std::logic_error(make_string(
+      "Internal error - the operator \"", name, "\" was found in the input operators map, but "
+      "it's not an instance of InputOperator<Backend>."));
+  return desc;
 }
 
 
@@ -170,6 +205,7 @@ daliPipelineIODesc_t PipelineWrapper::GetOutputDesc(int idx) const & {
   desc.name           = out.name.c_str();
   desc.ndim           = out.ndim;
   desc.ndim_present   = out.ndim >= 0;
+  desc.layout         = out.layout.c_str();
   return desc;
 }
 
@@ -286,6 +322,37 @@ daliResult_t daliPipelineFeedInput(
     ToOptionalString(data_id),
     options,
     stream ? AccessOrder(*stream) : AccessOrder());
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineGetInputCount(daliPipeline_h pipeline, int *out_input_count) {
+  DALI_PROLOG();
+  auto p = ToPointer(pipeline);
+  CHECK_OUTPUT(out_input_count);
+  *out_input_count = p->GetInputCount();
+  DALI_EPILOG();
+}
+
+DALI_API daliResult_t daliPipelineGetInputDescByIdx(
+      daliPipeline_h pipeline,
+      daliPipelineIODesc_t *out_input_desc,
+      int index) {
+  DALI_PROLOG();
+  auto p = ToPointer(pipeline);
+  CHECK_OUTPUT(out_input_desc);
+  *out_input_desc = p->GetInputDesc(index);
+  DALI_EPILOG();
+}
+
+DALI_API daliResult_t daliPipelineGetInputDesc(
+      daliPipeline_h pipeline,
+      daliPipelineIODesc_t *out_input_desc,
+      const char *name) {
+  DALI_PROLOG();
+  auto p = ToPointer(pipeline);
+  CHECK_OUTPUT(out_input_desc);
+  NOT_NULL(name);
+  *out_input_desc = p->GetInputDesc(name);
   DALI_EPILOG();
 }
 

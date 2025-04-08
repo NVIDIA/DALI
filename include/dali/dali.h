@@ -345,6 +345,7 @@ typedef struct _DALIPipelineIODesc {
   };
   daliDataType_t dtype;
   int ndim;
+  const char *layout;
 } daliPipelineIODesc_t;
 
 /** Creates an empty pipeline. */
@@ -463,28 +464,46 @@ DALI_API daliResult_t daliPipelineFeedInput(
 
 /** Gets the number of pipeline inputs.
  *
+ * NOTE: The pipeline must be built before calling this function.
+ *
  * @param pipeline        [in]  The pipeline
  * @param out_input_count [out] A pointer to the location where the number of pipeline inputs is
  *                              stored.
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION   the pipeline wasn't built before the call
  */
 DALI_API daliResult_t daliPipelineGetInputCount(daliPipeline_h pipeline, int *out_input_count);
 
 /** Gets a descriptor of a pipeline input specified by index.
  *
+ * NOTE: The pipeline must be built before calling this function.
+ *
  * @param pipeline        [in]  The pipeline
  * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
  * @param index           [in]  The 0-based index of the input. See `daliPipelineGetInputCount`.
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION   the pipeline wasn't built before the call
+ * @retval DALI_ERROR_OUT_OF_RANGE        the index is not a valid 0-based index of the an input
  */
 DALI_API daliResult_t daliPipelineGetInputDescByIdx(
   daliPipeline_h pipeline,
   daliPipelineIODesc_t *out_input_desc,
   int index);
 
-  /** Gets a descriptor of a pipeline input specified by its name.
+/** Gets a descriptor of a pipeline input specified by its name.
+ *
+ * NOTE: The pipeline must be built before calling this function.
  *
  * @param pipeline        [in]  The pipeline
  * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
  * @param name            [in]  The name of the input whose descriptor to obtain.]
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION   the pipeline wasn't built before the call
+ * @retval DALI_ERROR_INVALID_KEY         if `input_name` is not a valid name of an input of the
+ *                                        pipeline
  */
 DALI_API daliResult_t daliPipelineGetInputDesc(
   daliPipeline_h pipeline,

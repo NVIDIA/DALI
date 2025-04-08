@@ -159,13 +159,16 @@ std::string GetPipelineWithExternalSource(
       StorageDevice dev_type,
       int max_batch_size,
       int num_threads,
-      int device_id) {
+      int device_id,
+      bool extended_input_desc = false) {
   Pipeline p(max_batch_size, num_threads, device_id);
   OpSpec src = OpSpec("ExternalSource")
     .AddOutput("out", dev_type)
     .AddArg("device", dev_type == StorageDevice::CPU ? "cpu" : "gpu")
     .AddArg("name", "ext")
     .AddArg("batch_size", max_batch_size);
+  if (extended_input_desc)
+    src.AddArg("ndim", 3).AddArg("layout", "HWC").AddArg("dtype", DALI_UINT8);
   p.AddOperator(src, "ext");
   p.SetOutputDescs({ {"out", to_string(dev_type)} });
   return p.SerializeToProtobuf();
@@ -502,7 +505,47 @@ TEST(CAPI2_PipelineTest, FeedInputGPUAsync) {
   TestFeedInput<GPUBackend>({});
 }
 
+TEST(CAPI2_PipelineTest, InputDescSimple) {
+  auto proto = GetPipelineWithExternalSource(dali::StorageDevice::GPU, 4, 4, 0, false);
+  daliPipelineParams_t params{};
+  params.exec_type_present = true;
+  params.exec_type = DALI_EXEC_DYNAMIC;
 
+  auto h = Deserialize(proto, params);
+  CHECK_DALI(daliPipelineBuild(h));
+  int count = 0;
+  CHECK_DALI(daliPipelineGetInputCount(h, &count));
+  ASSERT_EQ(count, 1);
+  daliPipelineIODesc_t desc{};
+  CHECK_DALI(daliPipelineGetInputDescByIdx(h, &desc, 0));
+  EXPECT_EQ(desc.device, DALI_STORAGE_GPU);
+  EXPECT_STREQ(desc.name, "ext");
+  EXPECT_FALSE(desc.ndim_present);
+  EXPECT_FALSE(desc.dtype_present);
+  EXPECT_EQ(desc.layout, nullptr);
+}
+
+TEST(CAPI2_PipelineTest, InputDescExtended) {
+  auto proto = GetPipelineWithExternalSource(dali::StorageDevice::CPU, 4, 4, 0, true);
+  daliPipelineParams_t params{};
+  params.exec_type_present = true;
+  params.exec_type = DALI_EXEC_DYNAMIC;
+
+  auto h = Deserialize(proto, params);
+  CHECK_DALI(daliPipelineBuild(h));
+  int count = 0;
+  CHECK_DALI(daliPipelineGetInputCount(h, &count));
+  ASSERT_EQ(count, 1);
+  daliPipelineIODesc_t desc{};
+  CHECK_DALI(daliPipelineGetInputDescByIdx(h, &desc, 0));
+  EXPECT_EQ(desc.device, DALI_STORAGE_CPU);
+  EXPECT_STREQ(desc.name, "ext");
+  EXPECT_TRUE(desc.ndim_present);
+  EXPECT_EQ(desc.ndim, 3);
+  EXPECT_TRUE(desc.dtype_present);
+  EXPECT_EQ(desc.dtype, DALI_UINT8);
+  EXPECT_STREQ(desc.layout, "HWC");
+}
 
 }  // namespace test
 }  // namespace c_api

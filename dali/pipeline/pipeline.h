@@ -268,6 +268,7 @@ class DLL_PUBLIC Pipeline {
    *
    */
   DLL_PUBLIC const auto &GetInputOperators() const & {
+    DALI_ENFORCE(built_);
     return input_operators_;
   }
 
