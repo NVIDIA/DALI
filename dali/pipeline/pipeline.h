@@ -279,19 +279,6 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void Build();
 
   /**
-   * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
-   *
-   * @param enable_memory_stats If statistics should be gathered
-   * Useful for `bytes_per_sample_hint` operator parameter.
-   */
-  DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
-    params_.enable_memory_stats = enable_memory_stats;
-    if (executor_) {
-      executor_->EnableMemoryStats(enable_memory_stats);
-    }
-  }
-
-  /**
    * @brief Set if the DALI pipeline should create checkpoints between the epochs
    *
    * @param enable_memory_stats If checkpoints should be created

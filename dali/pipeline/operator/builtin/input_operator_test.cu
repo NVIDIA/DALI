@@ -63,7 +63,6 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
  protected:
   void SetUp() final {
     auto parameters = GetParam();
-    cpu_input_ = parameters.cpu_input;
     cpu_queue_depth_ = parameters.cpu_queue_depth;
     gpu_queue_depth_ = parameters.gpu_queue_depth;
     exec_async_ = parameters.exec_async;

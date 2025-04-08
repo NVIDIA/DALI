@@ -1931,11 +1931,6 @@ void ExposePipeline(py::module &m) {
          })
     .def("Build", [](Pipeline *p) { p->Build(); })
     .def("Shutdown", &Pipeline::Shutdown, py::call_guard<py::gil_scoped_release>())
-    .def("EnableExecutorMemoryStats",
-        [](Pipeline *p, bool enable_memory_stats) {
-          p->EnableExecutorMemoryStats(enable_memory_stats);
-        },
-        "enable_memory_stats"_a = true)
     .def("EnableCheckpointing",
         [](Pipeline *p, bool checkpointing) {
           p->EnableCheckpointing(checkpointing);
