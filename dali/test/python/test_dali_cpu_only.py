@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ def test_tensorflow_build_check():
         data = types.Constant(1)
         return data
 
-    pipe = get_dali_pipe(batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
+    pipe = get_dali_pipe(batch_size=3, device_id=None, num_threads=1)
     pipe.run()
 
 
@@ -90,9 +90,7 @@ def test_move_to_device_end():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob="Cannot move the data node __ExternalSource_* to the GPU in a CPU-only pipeline. "
-        "The 'device_id' parameter is set to `CPU_ONLY_DEVICE_ID`. "
-        "Set 'device_id' to a valid GPU identifier to enable GPU features in the pipeline.",
+        glob="The pipeline requires a CUDA-capable GPU but *",
     )
 
 
@@ -110,11 +108,7 @@ def test_move_to_device_middle():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob=(
-            "Error in GPU operator `nvidia.dali.fn.rotate`*"
-            "Cannot add a GPU operator. "
-            "Pipeline 'device_id' should not be equal to `CPU_ONLY_DEVICE_ID`."
-        ),
+        glob=("The pipeline requires a CUDA-capable GPU but *"),
     )
 
 
@@ -134,12 +128,8 @@ def check_bad_device(device_id, error_msg):
 def test_gpu_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
-        (
-            "Error in GPU operator `nvidia.dali.fn.external_source`*"
-            "Cannot add a GPU operator."
-            " Pipeline 'device_id' should not be equal to `CPU_ONLY_DEVICE_ID`."
-        ),
-        "You are trying to create a GPU DALI pipeline, while CUDA is not available.*",
+        "The pipeline requires a CUDA-capable GPU but *",
+        "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
     ]
 
     for device_id, error_msg in zip(device_ids, error_msgs):
@@ -157,12 +147,8 @@ def check_mixed_op_bad_device(device_id, error_msg):
 def test_mixed_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
-        (
-            "Error in MIXED operator `nvidia.dali.fn.decoders.image`*"
-            "Cannot add a Mixed operator with a GPU output,"
-            " 'device_id' should not be `CPU_ONLY_DEVICE_ID`"
-        ),
-        "You are trying to create a GPU DALI pipeline, while CUDA is not available.*",
+        "The pipeline requires a CUDA-capable GPU but *",
+        "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
     ]
 
     for device_id, error_msg in zip(device_ids, error_msgs):
@@ -1142,11 +1128,7 @@ def test_arithm_ops_cpu_gpu():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob=(
-            "Error in GPU operator `nvidia.dali.math.*`*"
-            "Cannot add a GPU operator."
-            " Pipeline 'device_id' should not be equal to `CPU_ONLY_DEVICE_ID`."
-        ),
+        glob=("The pipeline requires a CUDA-capable GPU but *"),
     )
 
 

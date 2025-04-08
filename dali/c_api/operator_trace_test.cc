@@ -27,29 +27,34 @@ using namespace dali;  // NOLINT
 
 struct OperatorTraceTestParam {
   int cpu_queue_depth, gpu_queue_depth;
-  bool exec_pipelined, exec_async;
+  bool exec_pipelined, exec_async, exec_dynamic;
 };
 
 namespace {
 
 OperatorTraceTestParam operator_trace_test_params_simple_executor[] = {
-        {1, 1, false, false},
-        {2, 2, false, false},
+        {1, 1, false, false, false},
+        {2, 2, false, false, false},
 };
 
 
 OperatorTraceTestParam operator_trace_test_params_pipelined_executor_uniform_queue[] = {
-        {2, 2, true, false},
-        {3, 3, true, false},
-        {2, 2, true, true},
-        {3, 3, true, true},
+        {2, 2, true, false, false},
+        {3, 3, true, false, false},
+        {2, 2, true, true, false},
+        {3, 3, true, true, false},
 };
 
 OperatorTraceTestParam operator_trace_test_params_pipelined_executor_separate_queue[] = {
-        {2, 3, true, true},
-        {3, 2, true, true},
-        {2, 3, true, false},
-        {2, 2, true, false},
+        {2, 3, true, true, false},
+        {3, 2, true, true, false},
+        {2, 3, true, false, false},
+        {2, 2, true, false, false},
+};
+
+OperatorTraceTestParam operator_trace_test_params_dynamic_executor[] = {
+        {1, 1, true, true, true},
+        {2, 2, true, true, true},
 };
 
 const char *operator_under_test_names[] = {
@@ -70,6 +75,7 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
     cpu_queue_depth_ = parameters.cpu_queue_depth;
     gpu_queue_depth_ = parameters.gpu_queue_depth;
     exec_async_ = parameters.exec_async;
+    exec_dynamic_ = parameters.exec_dynamic;
     exec_pipelined_ = parameters.exec_pipelined;
     exec_separated_ = cpu_queue_depth_ != gpu_queue_depth_;
 
@@ -79,10 +85,13 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
          << exec_pipelined_ << endl;
     cout.flags(f);
 
-    pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
-                                           exec_pipelined_, cpu_queue_depth_, exec_async_);
-
-    pipeline_->SetExecutionTypes(exec_pipelined_, exec_separated_, exec_async_);
+    PipelineParams params = MakePipelineParams(batch_size_, num_threads_, device_id_);
+    params.executor_type = MakeExecutorType(exec_pipelined_,
+                                            exec_async_,
+                                            exec_separated_,
+                                            exec_dynamic_);
+    params.prefetch_queue_depths = QueueSizes{cpu_queue_depth_, gpu_queue_depth_};
+    pipeline_ = std::make_unique<Pipeline>(params);
 
     PutTogetherDaliGraph();
 
@@ -97,7 +106,7 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
   int n_iterations_ = 50;
   std::unique_ptr<Pipeline> pipeline_;
 
-  bool exec_pipelined_, exec_async_, exec_separated_;
+  bool exec_pipelined_, exec_async_, exec_separated_, exec_dynamic_;
   int cpu_queue_depth_, gpu_queue_depth_;
   std::string serialized_pipeline_;
 
@@ -183,6 +192,11 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::ValuesIn(operator_trace_test_params_pipelined_executor_separate_queue)
 );
 
+INSTANTIATE_TEST_SUITE_P(
+        OperatorTraceTestDynamicExecutor,
+        OperatorTraceTest,
+        ::testing::ValuesIn(operator_trace_test_params_dynamic_executor)
+);
 
 /**
  * Tests the Operator Traces with data provided by daliSetExternalInput.

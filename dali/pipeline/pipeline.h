@@ -39,7 +39,7 @@
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
-
+#include "dali/pipeline/pipeline_params.h"
 
 namespace dali {
 
@@ -65,7 +65,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Creates a pipeline that will produce batches of size `batch_size`,
    * using `num_threads` worker threads on gpu `device_id`.
    *
-   * TODO(michalz): Rework Pipeline construction to use a configuration structure.
+   * @warning This constructor is deprecated. Use Pipeline(const PipelineParams &params) instead.
    *
    * @param max_batch_size the maximum size of the batch that can be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
@@ -89,12 +89,22 @@ class DLL_PUBLIC Pipeline {
                       bool async_execution = true, bool dynamic_execution = false,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false);
 
+  /**
+   * @warning This constructor is deprecated. Use
+   *          Pipeline(const string &serialized_pipe, const PipelineParams &param_override) instead.
+   */
   DLL_PUBLIC Pipeline(const string &serialized_pipe,
                       int max_batch_size = -1, int num_threads = -1, int device_id = -1,
                       bool pipelined_execution = true, int prefetch_queue_depth = 2,
                       bool async_execution = true, bool dynamic_execution = false,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                       int64_t seed = -1);
+
+  /** Constructs a pipeline with parameters specified in the PipelineParams structure. */
+  DLL_PUBLIC Pipeline(const PipelineParams &params);
+
+  /** Constructs a pipeline from a serialized pipeline, optionally overriding the parameters. */
+  DLL_PUBLIC Pipeline(const string &serialized_pipe, const PipelineParams &param_override);
 
   virtual DLL_PUBLIC ~Pipeline();
 
@@ -269,47 +279,14 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void Build();
 
   /**
-   * @brief Set execution characteristics for this Pipeline
-   *
-   * TODO(michalz): Remove this function and rework Pipeline construction
-   *                to use a configuration structure.
-   *
-   * @param pipelined_execution Use pipelined execution
-   * @param separated_execution Use separated queues
-   * @param async_execution Use worker threads for RunX() functions
-   */
-  DLL_PUBLIC void SetExecutionTypes(bool pipelined_execution = true,
-                                    bool separated_execution = false,
-                                    bool async_execution = true) {
-    DALI_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed - cannot change execution type.");
-    pipelined_execution_ = pipelined_execution;
-    separated_execution_ = separated_execution;
-    async_execution_ = async_execution;
-  }
-
-  /**
-   * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
-   *
-   * @param enable_memory_stats If statistics should be gathered
-   * Useful for `bytes_per_sample_hint` operator parameter.
-   */
-  DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
-    enable_memory_stats_ = enable_memory_stats;
-    if (executor_) {
-      executor_->EnableMemoryStats(enable_memory_stats_);
-    }
-  }
-
-  /**
    * @brief Set if the DALI pipeline should create checkpoints between the epochs
    *
    * @param enable_memory_stats If checkpoints should be created
    */
   DLL_PUBLIC void EnableCheckpointing(bool checkpointing = true) {
-    checkpointing_ = checkpointing;
+    params_.enable_checkpointing = checkpointing;
     if (executor_) {
-      executor_->EnableCheckpointing(checkpointing_);
+      executor_->EnableCheckpointing(checkpointing);
     }
   }
 
@@ -329,7 +306,7 @@ class DLL_PUBLIC Pipeline {
   */
   DLL_PUBLIC Checkpoint GetCheckpoint() const {
     DALI_ENFORCE(executor_, "Pipeline must be built before it can produce a checkpoint. ");
-    DALI_ENFORCE(checkpointing_,
+    DALI_ENFORCE(checkpointing_enabled(),
                  "Cannot save the checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");
     auto &cpt = executor_->GetCurrentCheckpoint();
@@ -347,7 +324,7 @@ class DLL_PUBLIC Pipeline {
   */
   DLL_PUBLIC ExternalContextCheckpoint RestoreFromSerializedCheckpoint(
       const std::string &serialized_checkpoint) {
-    DALI_ENFORCE(checkpointing_,
+    DALI_ENFORCE(checkpointing_enabled(),
                  "Cannot restore checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");
     Checkpoint cpt;
@@ -376,26 +353,15 @@ class DLL_PUBLIC Pipeline {
     }
   }
 
-  /**
-   * @brief Set queue sizes for Pipeline using Separated Queues
-   *
-   * Must be called before Build()
-   *
-   * @param cpu_size
-   * @param gpu_size
-   */
-  DLL_PUBLIC void SetQueueSizes(int cpu_size, int gpu_size) {
-    DALI_ENFORCE(!built_,
-                 "Alterations to the pipeline after "
-                 "\"Build()\" has been called are not allowed - cannot set queue sizes.");
-    DALI_ENFORCE(separated_execution_ || (cpu_size == gpu_size),
-                 "Setting different queue sizes for non-separated execution is not allowed");
-    DALI_ENFORCE(cpu_size > 0 && gpu_size > 0, "Only positive queue sizes allowed");
-    prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
+  DLL_PUBLIC QueueSizes GetQueueSizes() const {
+    return *params_.prefetch_queue_depths;
   }
 
-  DLL_PUBLIC QueueSizes GetQueueSizes() const {
-    return prefetch_queue_depth_;
+  /**
+   * @brief Returns the parameters with which the pipeline was created
+   */
+  DLL_PUBLIC const PipelineParams &GetParams() const & {
+    return params_;
   }
 
   /** @{ */
@@ -473,8 +439,8 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the maximum batch size that can be processed by the Pipeline
    */
-  DLL_PUBLIC inline int batch_size() const { return max_batch_size_; }
-  DLL_PUBLIC inline int max_batch_size() const { return max_batch_size_; }
+  DLL_PUBLIC inline int batch_size() const { return max_batch_size(); }
+  DLL_PUBLIC inline int max_batch_size() const { return params_.max_batch_size.value_or(-1); }
   /** @} */
 
   /**
@@ -505,13 +471,20 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the number of threads used by the pipeline.
    */
-  DLL_PUBLIC inline int num_threads() const { return num_threads_; }
+  DLL_PUBLIC inline int num_threads() const { return params_.num_threads.value_or(-1); }
 
   /**
    * @brief Returns the GPU device number used by the pipeline
    */
   DLL_PUBLIC inline int device_id() const {
-    return device_id_;
+    return params_.device_id.value_or(CPU_ONLY_DEVICE_ID);
+  }
+
+  /**
+   * @brief Returns whether the pipeline requires a CUDA-capable GPU to run.
+   */
+  DLL_PUBLIC inline bool requires_gpu() const {
+    return requires_gpu_;
   }
 
   /**
@@ -575,13 +548,10 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC DISABLE_COPY_MOVE_ASSIGN(Pipeline);
 
  private:
-  /**
-   * @brief Initializes the Pipeline internal state
-   */
-  void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
-            bool separated_execution, bool async_execution, bool dynamic_execution,
-            size_t bytes_per_sample_hint, bool set_affinity,
-            QueueSizes prefetch_queue_depth = QueueSizes{2});
+  /**  Initializes the Pipeline internal state */
+  void Init(const PipelineParams &params);
+  /** Validate the Pipeline parameters */
+  static void Validate(const PipelineParams &params);
 
   struct EdgeMeta {
     bool has_cpu;
@@ -702,23 +672,35 @@ class DLL_PUBLIC Pipeline {
 
   const int MAX_SEEDS = 1024;
 
+  static DLL_PUBLIC PipelineParams DefaultParams();
+
   bool built_ = false;
-  int max_batch_size_ = 1, num_threads_ = 0, device_id_ = CPU_ONLY_DEVICE_ID;
-  bool pipelined_execution_ = false;
-  bool separated_execution_ = false;
-  bool async_execution_ = false;
-  bool dynamic_execution_ = false;
-  size_t bytes_per_sample_hint_ = 0;
-  int set_affinity_ = 0;
+  PipelineParams params_ = DefaultParams();
+
+  inline bool pipelined_execution() const {
+    return Test(*params_.executor_type, ExecutorType::PipelinedFlag);
+  }
+  inline bool async_execution() const {
+    return Test(*params_.executor_type, ExecutorType::AsyncFlag);
+  }
+  inline bool dynamic_execution() const {
+    return Test(*params_.executor_type, ExecutorType::DynamicFlag);
+  }
+  inline bool separated_execution() const {
+    return Test(*params_.executor_type, ExecutorType::SeparatedFlag);
+  }
+
+  inline bool checkpointing_enabled() const { return params_.enable_checkpointing.value_or(false); }
+  inline bool memory_stats_enabled() const { return params_.enable_memory_stats.value_or(false); }
+  inline size_t bytes_per_sample_hint() const { return params_.bytes_per_sample_hint.value_or(0); }
+
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
-  QueueSizes prefetch_queue_depth_{};
-  bool enable_memory_stats_ = false;
-  bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
-  int64_t original_seed_ = 0;
+  int64_t original_seed_ = -1;
   size_t current_seed_ = 0;
+  bool requires_gpu_ = false;
 
   std::unique_ptr<ExecutorBase> executor_;
   graph::OpGraph graph_;

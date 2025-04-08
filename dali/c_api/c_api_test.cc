@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1065,7 +1065,7 @@ TEST(CApiTest, GetDeclaredOutputDtypeNdimTest) {
   const int ndim = 2;
   dali::Pipeline pipe(13, 1, 0);
   pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
-  pipe.SetOutputDescs({{"INPUT", "cpu", dtype, ndim}});
+  pipe.SetOutputDescs({{"INPUT", "cpu", dtype, ndim, ""}});
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());

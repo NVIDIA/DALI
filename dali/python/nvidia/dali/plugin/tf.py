@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ import sys
 import tensorflow as tf
 from tensorflow.python.data.util import nest
 from tensorflow.python.framework import tensor_shape
-from nvidia.dali import types
 from nvidia.dali import internal as _internal
 
 from nvidia.dali.external_source import _is_external_source, _has_external_source
@@ -25,6 +24,7 @@ from nvidia.dali.external_source import _is_external_source_with_callback
 
 from nvidia.dali._utils.external_source_impl import _get_generator_from_source_desc
 from nvidia.dali._utils.external_source_impl import _cycle_enabled
+import nvidia.dali.types as _types
 
 from packaging.version import Version
 import warnings
@@ -480,9 +480,7 @@ if dataset_compatible_tensorflow():
             self._pipeline_serialized = serialize_pipeline(pipeline)
             self._batch_size = batch_size
             self._num_threads = num_threads
-            if device_id is None:
-                device_id = types.CPU_ONLY_DEVICE_ID
-            self._device_id = device_id
+            self._device_id = _types.CPU_ONLY_DEVICE_ID if device_id is None else device_id
             self._exec_separated = exec_separated
             self._exec_dynamic = exec_dynamic
             self._prefetch_queue_depth = prefetch_queue_depth
@@ -996,7 +994,7 @@ DALIDataset.__doc__ = """Creates a ``DALIDataset`` compatible with
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
-        This flag is incompatible with ``exec_dymamic``.
+        This flag is incompatible with ``exec_dynamic``.
     exec_dynamic : bool, optional, default = False
         Whether to execute the pipeline with the dynamic executor, which allows flexible mixing
         of CPU and GPU operators and enables aggressive memory reuse.

@@ -27,54 +27,46 @@ PipelineWrapper *ToPointer(daliPipeline_h handle) {
   return static_cast<PipelineWrapper *>(handle);
 }
 
+PipelineParams ToCppParams(const daliPipelineParams_t &params) {
+  PipelineParams cpp_params = {};
+
+  if (params.max_batch_size_present)
+    cpp_params.max_batch_size = params.max_batch_size;
+  if (params.num_threads_present)
+    cpp_params.num_threads = params.num_threads;
+  if (params.device_id_present)
+    cpp_params.device_id = params.device_id;
+  if (params.seed_present)
+    cpp_params.seed = params.seed;
+  if (params.exec_type_present)
+    cpp_params.executor_type = static_cast<ExecutorType>(params.exec_type);
+  if (params.exec_flags_present)
+    cpp_params.executor_flags = static_cast<ExecutorFlags>(params.exec_flags);
+
+  if (params.prefetch_queue_depths_present)
+    cpp_params.prefetch_queue_depths = QueueSizes{params.prefetch_queue_depths.cpu,
+                                                  params.prefetch_queue_depths.gpu};
+
+  if (params.enable_checkpointing_present)
+    cpp_params.enable_checkpointing = params.enable_checkpointing;
+  if (params.enable_memory_stats_present)
+    cpp_params.enable_memory_stats = params.enable_memory_stats;
+  if (params.bytes_per_sample_hint_present)
+    cpp_params.bytes_per_sample_hint = params.bytes_per_sample_hint;
+  return cpp_params;
+}
+
 PipelineWrapper::PipelineWrapper(const daliPipelineParams_t &params) {
-  bool pipelined = true, async = true, dynamic = false, set_affinity = false;
-  if (params.exec_type_present) {
-    pipelined = params.exec_type & DALI_EXEC_IS_PIPELINED;
-    async = params.exec_type & DALI_EXEC_IS_ASYNC;
-    dynamic = params.exec_type & DALI_EXEC_IS_DYNAMIC;
-  }
-  if (params.exec_flags_present) {
-    set_affinity = params.exec_flags & DALI_EXEC_FLAGS_SET_AFFINITY;
-  }
-  pipeline_ = std::make_unique<Pipeline>(
-    GET_OR_DEFAULT(params, max_batch_size, -1),
-    GET_OR_DEFAULT(params, num_threads, -1),
-    GET_OR_DEFAULT(params, device_id, -1),
-    GET_OR_DEFAULT(params, seed, -1_i64),
-    pipelined,
-    GET_OR_DEFAULT(params, prefetch_queue_depth, 2),
-    async,
-    dynamic,
-    0,
-    set_affinity);
+  pipeline_ = std::make_unique<Pipeline>(ToCppParams(params));
 }
 
 PipelineWrapper::PipelineWrapper(
       const void *serialized,
       size_t length,
       const daliPipelineParams_t &params) {
-  bool pipelined = true, async = true, dynamic = false, set_affinity = false;
-  if (params.exec_type_present) {
-    pipelined = params.exec_type & DALI_EXEC_IS_PIPELINED;
-    async = params.exec_type & DALI_EXEC_IS_ASYNC;
-    dynamic = params.exec_type & DALI_EXEC_IS_DYNAMIC;
-  }
-  if (params.exec_flags_present) {
-    set_affinity = params.exec_flags & DALI_EXEC_FLAGS_SET_AFFINITY;
-  }
   pipeline_ = std::make_unique<Pipeline>(
     std::string(static_cast<const char *>(serialized), length),
-    GET_OR_DEFAULT(params, max_batch_size, -1),
-    GET_OR_DEFAULT(params, num_threads, -1),
-    GET_OR_DEFAULT(params, device_id, -1),
-    pipelined,
-    GET_OR_DEFAULT(params, prefetch_queue_depth, 2),
-    async,
-    dynamic,
-    0,
-    set_affinity,
-    GET_OR_DEFAULT(params, seed, -1_i64));
+    ToCppParams(params));
 }
 
 PipelineWrapper::~PipelineWrapper() = default;

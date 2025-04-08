@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,11 +62,9 @@ class Pipeline(object):
 
     Parameters
     ----------
-    batch_size : int, optional, default = -1
-        Maximum batch size of the pipeline. Negative values for this parameter
-        are invalid - the default value may only be used with
-        serialized pipeline (the value stored in serialized pipeline
-        is used instead). In most cases, the actual batch size of the pipeline
+    batch_size : int
+        Maximum batch size of the pipeline. The value must be positive.
+        In most cases, the actual batch size of the pipeline
         will be equal to the maximum one. Running the DALI Pipeline with a smaller batch size
         is also supported. The batch size might change from iteration to iteration.
 
@@ -77,14 +75,12 @@ class Pipeline(object):
         Negative values for this parameter are invalid - the default
         value may only be used with serialized pipeline (the value
         stored in serialized pipeline is used instead).
-    device_id : int, optional, default = -1
+    device_id : int, optional, default = None
         Id of GPU used by the pipeline.
-        A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
-        This limits the pipeline to only CPU operators but allows it to run on any CPU capable
-        machine.
-    seed : int, optional, default = -1
-        Seed used for random number generation. Leaving the default value
-        for this parameter results in random seed.
+        If the pipeline requires a GPU and this field is left unspecified, DALI will use the
+        current CUDA device (according to ``cudaGetDevice``) at the time the pipeline is built.
+    seed : int, optional, default = None
+        Seed used for random number generation. If not set, a random seed will be generated.
     exec_pipelined : bool, optional, default = True
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
@@ -221,10 +217,10 @@ class Pipeline(object):
 
     def __init__(
         self,
-        batch_size=-1,
-        num_threads=-1,
-        device_id=-1,
-        seed=-1,
+        batch_size=None,
+        num_threads=None,
+        device_id=None,
+        seed=None,
         exec_pipelined=True,
         prefetch_queue_depth=2,
         exec_async=True,
@@ -241,6 +237,7 @@ class Pipeline(object):
         py_callback_pickler=None,
         output_dtype=None,
         output_ndim=None,
+        output_layout=None,
         exec_dynamic=False,
         experimental_exec_dynamic=None,
     ):
@@ -256,6 +253,12 @@ class Pipeline(object):
         self._max_batch_size = batch_size
         self._num_threads = num_threads
         self._device_id = device_id
+        if seed is not None and seed < 0:
+            warnings.warn(
+                "The use of negative seed to use automatic seed asignment is deprecated. "
+                "Use `None` instead."
+            )
+            seed = None
         self._seed = seed
         self._next_op_id_counter = 0
         self._exec_pipelined = exec_pipelined
@@ -324,6 +327,14 @@ class Pipeline(object):
         # Tracking the stack frame where pipeline definition starts
         self._definition_frame_start = 0
 
+        self._executor_type = b._MakeExecutorType(
+            self._exec_pipelined, self._exec_async, self._exec_separated, self._exec_dynamic
+        )
+
+        self._executor_flags = b._ExecutorFlags.NoFlags
+        if self._set_affinity:
+            self._executor_flags |= b._ExecutorFlags.SetAffinity
+
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
             for dtype in output_dtype:
@@ -368,6 +379,22 @@ class Pipeline(object):
         elif output_ndim is not None and output_ndim < 0:
             raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
         self._output_ndim = output_ndim
+
+        # Assign and validate output_layout
+        if isinstance(output_layout, (list, tuple)):
+            for layout in output_layout:
+                if not isinstance(layout, (str, type(None))):
+                    raise TypeError(
+                        f"`output_layout` must be either: a string, a list of strings or None. "
+                        f"Found type {type(layout)} in the list."
+                    )
+        elif not isinstance(output_layout, (str, type(None))):
+            raise TypeError(
+                f"`output_layout` must be either: a string, a list of strings or None. "
+                f"Found type: {type(output_layout)}."
+            )
+        self._output_layout = output_layout
+
         Pipeline._pipes.add(weakref.ref(self))
 
     _pipes = set()  # this is necessary for clean exit
@@ -399,7 +426,11 @@ class Pipeline(object):
 
     @property
     def device_id(self):
-        """Id of the GPU used by the pipeline or None for CPU-only pipelines."""
+        """Id of the GPU used by the pipeline or None, if not set.
+
+        If the pipeline requires a GPU but none was specified at construction, the current GPU
+        (according to CUDA runtime) will be assigned once the pipeline is built.
+        """
         return None if self._device_id == types.CPU_ONLY_DEVICE_ID else self._device_id
 
     @property
@@ -892,26 +923,49 @@ class Pipeline(object):
         weakref.finalize(self, lambda pool: pool.close(), self._py_pool)
         self._py_pool_started = True
 
-    def _init_pipeline_backend(self):
-        device_id = self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID
-        if device_id != types.CPU_ONLY_DEVICE_ID:
-            b.check_cuda_runtime()
-        self._pipe = b.Pipeline(
-            self._max_batch_size,
-            self._num_threads,
-            device_id,
-            self._seed if self._seed is not None else -1,
-            self._exec_pipelined,
-            self._cpu_queue_size,
-            self._exec_async,
-            self._exec_dynamic,
-            self._bytes_per_sample,
-            self._set_affinity,
+    def _get_params(self):
+        return b._PipelineParams(
+            max_batch_size=self._max_batch_size,
+            num_threads=self._num_threads,
+            device_id=self._device_id,
+            seed=self._seed,
+            executor_type=self._executor_type,
+            executor_flags=self._executor_flags,
+            prefetch_queue_depths=(self._cpu_queue_size, self._gpu_queue_size),
+            enable_checkpointing=self._enable_checkpointing,
+            enable_memory_stats=self._enable_memory_stats,
+            bytes_per_sample_hint=self._bytes_per_sample,
         )
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._pipe.EnableCheckpointing(self._enable_checkpointing)
+
+    def _set_params(self, params):
+        self._max_batch_size = params.max_batch_size
+        self._num_threads = params.num_threads
+        self._device_id = params.device_id
+        self._seed = params.seed
+        self._executor_type = params.executor_type
+        self._executor_flags = params.executor_flags
+        self._cpu_queue_size = params.prefetch_queue_depths[0]
+        self._gpu_queue_size = params.prefetch_queue_depths[1]
+        self._enable_checkpointing = params.enable_checkpointing
+        self._enable_memory_stats = params.enable_memory_stats
+        self._bytes_per_sample = params.bytes_per_sample_hint
+        # reconsitute legacy flags
+        self._exec_async = bool(params.executor_type & b._ExecutorType.AsyncFlag)
+        self._exec_pipelined = bool(params.executor_type & b._ExecutorType.PipelinedFlag)
+        self._exec_separated = bool(params.executor_type & b._ExecutorType.SeparatedFlag)
+        self._exec_dynamic = bool(params.executor_type & b._ExecutorType.DynamicFlag)
+        self._set_affinity = bool(params.executor_flags & b._ExecutorFlags.SetAffinity)
+        if self.exec_separated:
+            self._prefetch_queue_depth = {"cpu": self._cpu_queue_size, "gpu": self._gpu_queue_size}
+        else:
+            assert self._cpu_queue_size == self._gpu_queue_size
+            self._prefetch_queue_depth = self._cpu_queue_size
+
+    def _init_pipeline_backend(self):
+        params = self._get_params()
+        self._pipe = b.Pipeline(params)
+        if self._pipe.requires_gpu():
+            b.check_cuda_runtime()
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
@@ -1060,6 +1114,10 @@ class Pipeline(object):
         process makes any interaction with the GPU. If needed, the :meth:`build` can used before
         running the pipeline to separate the graph building and the processing steps.
 
+        If the pipeline requires a GPU (it contains any "cpu" or "mixed" operators or has GPU
+        outputs) and no ``device_id`` was specified at construction, the current CUDA device
+        (according to ``cudaGetDevice``) will be used.
+
         Pipeline is automatically built when it is:
 
             * run, either via the run APIs (:meth:`run`, :meth:`schedule_run`),
@@ -1083,6 +1141,9 @@ class Pipeline(object):
         self._setup_pipe_pool_dependency()
 
         self._pipe.Build(self._generate_build_args())
+        self._device_id = self._pipe.device_id()
+        if self._device_id == types.CPU_ONLY_DEVICE_ID:
+            self._device_id = None
         self._restore_state_from_checkpoint()
         self._built = True
 
@@ -1239,7 +1300,10 @@ class Pipeline(object):
         and return them to DALI buffer pool when the results have been consumed.
         Needs to be used together with :meth:`release_outputs`
         and :meth:`share_outputs`.
-        Should not be mixed with :meth:`run` in the same pipeline"""
+        Should not be mixed with :meth:`run` in the same pipeline.
+
+        The pipeline is built if no explicit call to ``build`` was made previously.
+        """
         self.build()
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
@@ -1358,6 +1422,8 @@ class Pipeline(object):
         Should not be mixed with :meth:`schedule_run` in the same pipeline,
         :meth:`share_outputs` and
         :meth:`release_outputs`
+
+        The pipeline is built if no explicit call to ``build`` was made previously.
 
         Parameters
         ----------
@@ -1530,21 +1596,25 @@ class Pipeline(object):
         return self._batches_to_consume == 0
 
     def serialize(self, define_graph=None, filename=None):
-        """Serialize the pipeline to a Protobuf string.
+        """Serialize the pipeline definition to a Protobuf string.
 
-        Additionally, you can pass file name, so that serialized pipeline will be written there.
+        .. note::
+            This function doesn't serialize the pipeline's internal state. Use
+            `checkpointing <advanced_topics_checkpointing.html>`_ to achieve that.
+
+        Additionally, you can pass a file name, so that serialized pipeline will be written there.
         The file contents will be overwritten.
 
         Parameters
         ----------
-        define_graph : callable
+        define_graph : callable, optional, default = None
+                Deprecated.
                 If specified, this function will be used instead of member :meth:`define_graph`.
                 This parameter must not be set, if the pipeline outputs are specified with
-                :meth:`set_outputs`.
-        filename : str
-                The file that the serialized pipeline will be written to.
-        kwargs : dict
-                Refer to Pipeline constructor for full list of arguments.
+                :meth:`set_outputs` or the pipeline was constructed with a function decorated with
+                :meth:`pipeline_def`.
+        filename : str, optional, default = None
+                The file that the serialized pipeline definition will be written to.
         """
         if define_graph is not None and not callable(define_graph):
             raise TypeError(
@@ -1603,40 +1673,65 @@ class Pipeline(object):
         if filename is not None:
             with open(filename, "rb") as pipeline_file:
                 serialized_pipeline = pipeline_file.read()
-        pipeline._pipe = b.Pipeline(
-            serialized_pipeline,
-            kw.get("batch_size", -1),
-            kw.get("num_threads", -1),
-            kw.get("device_id", -1),
-            kw.get("exec_pipelined", True),
-            kw.get("prefetch_queue_depth", 2),
-            kw.get("exec_async", True),
-            kw.get("exec_dynamic", False),
-            kw.get("bytes_per_sample", 0),
-            kw.get("set_affinity", False),
+
+        prefetch_queue_depth = kw.get("prefetch_queue_depth", None)
+        exec_separated = False
+        if isinstance(prefetch_queue_depth, int):
+            prefetch_queue_depths = (prefetch_queue_depth, prefetch_queue_depth)
+        elif isinstance(prefetch_queue_depth, dict):
+            if "cpu" not in prefetch_queue_depth and "gpu" not in prefetch_queue_depth:
+                raise ValueError("prefetch_queue_depth must contain either 'cpu' or 'gpu' key")
+            exec_separated = True
+            prefetch_queue_depths = (
+                prefetch_queue_depth.get("cpu", prefetch_queue_depth["gpu"]),
+                prefetch_queue_depth.get("gpu", prefetch_queue_depth["cpu"]),
+            )
+        else:
+            prefetch_queue_depths = None
+
+        exec_pipelined = kw.get("exec_pipelined", None)
+        exec_async = kw.get("exec_async", None)
+        exec_dynamic = kw.get("exec_dynamic", None)
+        executor_type = b._MakeExecutorType(
+            exec_pipelined or False, exec_async or False, exec_separated, exec_dynamic or False
         )
-        if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
+        executor_flags = b._ExecutorFlags.NoFlags
+        if kw.get("set_affinity", False):
+            executor_flags |= b._ExecutorFlags.SetAffinity
+
+        seed = kw.get("seed", None)
+        if seed is not None and seed < 0:
+            warnings.warn(
+                "The use of negative seed to use automatic seed asignment is deprecated. "
+                "Use `None` instead."
+            )
+            seed = None
+
+        params = b._PipelineParams(
+            max_batch_size=kw.get("batch_size", None),
+            num_threads=kw.get("num_threads", None),
+            device_id=kw.get("device_id", None),
+            seed=seed,
+            executor_type=executor_type,
+            executor_flags=executor_flags,
+            prefetch_queue_depths=prefetch_queue_depths,
+            enable_checkpointing=kw.get("enable_checkpointing", None),
+            enable_memory_stats=kw.get("enable_memory_stats", None),
+            bytes_per_sample_hint=kw.get("bytes_per_sample", None),
+        )
+        pipeline._pipe = b.Pipeline(serialized_pipeline, params)
+        if pipeline._pipe.requires_gpu():
             b.check_cuda_runtime()
-        pipeline._pipe.SetExecutionTypes(
-            pipeline._exec_pipelined, pipeline._exec_separated, pipeline._exec_async
-        )
-        pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
-        pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
-        pipeline._pipe.EnableCheckpointing(pipeline._enable_checkpointing)
+        pipeline._set_params(pipeline._pipe.params())
+
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
+        pipeline._device_id = pipeline._pipe.device_id()
+        if pipeline._device_id == types.CPU_ONLY_DEVICE_ID:
+            pipeline._device_id = None
         pipeline._restore_state_from_checkpoint()
         pipeline._built = True
         pipeline._deserialized = True
-        pipeline._max_batch_size = kw.get("batch_size", -1)
-        pipeline._num_threads = kw.get("num_threads", -1)
-        pipeline._device_id = kw.get("device_id", -1)
-        pipeline._exec_pipelined = kw.get("exec_pipelined", True)
-        pipeline._prefetch_queue_depth = kw.get("prefetch_queue_depth", 2)
-        pipeline._exec_async = kw.get("exec_async", True)
-        pipeline._bytes_per_sample = kw.get("bytes_per_sample", 0)
-        pipeline._set_affinity = kw.get("set_affinity", False)
-
         return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):
@@ -1647,24 +1742,14 @@ class Pipeline(object):
         serialized_pipeline : str
                               Serialized pipeline.
         """
-        self._pipe = b.Pipeline(
-            serialized_pipeline,
-            self._max_batch_size,
-            self._num_threads,
-            self._device_id,
-            self._exec_pipelined,
-            self._prefetch_queue_depth,
-            self._exec_async,
-            self._exec_dynamic,
-            self._bytes_per_sample,
-            self._set_affinity,
-        )
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
-        self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._pipe.EnableCheckpointing(self._enable_checkpointing)
+        self._pipe = b.Pipeline(serialized_pipeline, self._get_params())
+        self._set_params(self._pipe.params())
         self._backend_prepared = True
         self._pipe.Build()
+        self._device_id = self._pipe.device_id()
+        if self._device_id == types.CPU_ONLY_DEVICE_ID:
+            self._device_id = None
+
         self._restore_state_from_checkpoint()
         self._built = True
         self._deserialized = True
@@ -1835,6 +1920,11 @@ class Pipeline(object):
             if type(self._output_ndim) is not list
             else self._output_ndim
         )
+        layouts = (
+            [self._output_layout] * num_outputs
+            if type(self._output_layout) is not list
+            else self._output_layout
+        )
         if not (len(dtypes) == len(ndims) == num_outputs):
             raise RuntimeError(
                 f"Lengths of provided output descriptions do not match. \n"
@@ -1843,8 +1933,16 @@ class Pipeline(object):
             )
 
         return [
-            (name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
-            for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)
+            (
+                name,
+                dev,
+                types.NO_TYPE if dtype is None else dtype,
+                -1 if ndim is None else ndim,
+                layout if layout is not None else "",
+            )
+            for (name, dev), dtype, ndim, layout in zip(
+                self._names_and_devices, dtypes, ndims, layouts
+            )
         ]
 
     def _stub(self):

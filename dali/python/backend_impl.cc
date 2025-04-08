@@ -530,7 +530,8 @@ py::capsule ToDLPack(Tensor<Backend> &tensor,
 using OutputDesc = std::tuple<std::string  /* name */,
                               std::string  /* device */,
                               DALIDataType /* dtype */,
-                              int          /* ndim */>;
+                              int          /* ndim */,
+                              std::string  /* layout */>;
 
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
@@ -1806,6 +1807,326 @@ struct PyPipeline: public Pipeline {
   }
 };
 
+void ExposePipelineParams(py::module &m) {
+  py::enum_<ExecutorType>(m, "_ExecutorType")
+    .value("Simple", ExecutorType::Simple)
+    .value("PipelinedFlag", ExecutorType::PipelinedFlag)
+    .value("SeparatedFlag", ExecutorType::SeparatedFlag)
+    .value("AsyncFlag", ExecutorType::AsyncFlag)
+    .value("DynamicFlag", ExecutorType::DynamicFlag)
+    .value("AsyncPipelined", ExecutorType::AsyncPipelined)
+    .value("SeparatedPipelined", ExecutorType::SeparatedPipelined)
+    .value("AsyncSeparatedPipelined", ExecutorType::AsyncSeparatedPipelined)
+    .value("Dynamic", ExecutorType::Dynamic);
+
+  py::enum_<ExecutorFlags>(m, "_ExecutorFlags")
+    .value("NoFlags", ExecutorFlags::None)
+    .value("SetAffinity", ExecutorFlags::SetAffinity)
+    .value("StreamPolicyMask", ExecutorFlags::StreamPolicyMask)
+    .value("StreamPolicyPerOperator", ExecutorFlags::StreamPolicyPerOperator)
+    .value("StreamPolicyPerBackend", ExecutorFlags::StreamPolicyPerBackend)
+    .value("StreamPolicySingle", ExecutorFlags::StreamPolicySingle)
+    .value("ConcurrencyMask", ExecutorFlags::ConcurrencyMask)
+    .value("ConcurrencyNone", ExecutorFlags::ConcurrencyNone)
+    .value("ConcurrencyFull", ExecutorFlags::ConcurrencyFull)
+    .value("ConcurrencyBackend", ExecutorFlags::ConcurrencyBackend);
+
+  m.def("_MakeExecutorType", MakeExecutorType);
+
+  py::class_<PipelineParams>(m, "_PipelineParams")
+    .def(py::init([](
+        std::optional<int> max_batch_size,
+        std::optional<int> num_threads,
+        std::optional<int> device_id,
+        std::optional<int64_t> seed,
+        std::optional<ExecutorType> executor_type,
+        std::optional<ExecutorFlags> executor_flags,
+        std::optional<std::pair<int, int>> prefetch_queue_depths,
+        std::optional<bool> enable_checkpointing,
+        std::optional<bool> enable_memory_stats,
+        std::optional<size_t> bytes_per_sample_hint) {
+      std::optional<QueueSizes> queue_sizes;
+      if (prefetch_queue_depths)
+        queue_sizes = QueueSizes{prefetch_queue_depths->first, prefetch_queue_depths->second};
+
+      return std::unique_ptr<PipelineParams>(new PipelineParams{
+        max_batch_size,
+        num_threads,
+        device_id,
+        seed,
+        executor_type,
+        executor_flags,
+        queue_sizes,
+        enable_checkpointing,
+        enable_memory_stats,
+        bytes_per_sample_hint
+      });
+    }),
+    "max_batch_size"_a = py::none(),
+    "num_threads"_a = py::none(),
+    "device_id"_a = py::none(),
+    "seed"_a = py::none(),
+    "executor_type"_a = py::none(),
+    "executor_flags"_a = py::none(),
+    "prefetch_queue_depths"_a = py::none(),
+    "enable_checkpointing"_a = py::none(),
+    "enable_memory_stats"_a = py::none(),
+    "bytes_per_sample_hint"_a = py::none()
+    )
+  .def_readwrite("max_batch_size", &PipelineParams::max_batch_size)
+  .def_readwrite("num_threads", &PipelineParams::num_threads)
+  .def_readwrite("device_id", &PipelineParams::device_id)
+  .def_readwrite("seed", &PipelineParams::seed)
+  .def_readwrite("executor_type", &PipelineParams::executor_type)
+  .def_readwrite("executor_flags", &PipelineParams::executor_flags)
+  .def_property("prefetch_queue_depths",
+    [](const PipelineParams &self)->std::optional<std::pair<int, int>> {
+      if (self.prefetch_queue_depths.has_value()) {
+        return std::make_pair(self.prefetch_queue_depths->cpu_size,
+                              self.prefetch_queue_depths->gpu_size);
+      } else {
+        return std::nullopt;
+      }
+    },
+    [](PipelineParams &self, std::optional<std::pair<int, int>> &queue_depths) {
+      if (queue_depths.has_value())
+        self.prefetch_queue_depths = QueueSizes{queue_depths->first, queue_depths->second};
+    })
+  .def_readwrite("enable_checkpointing", &PipelineParams::enable_checkpointing)
+  .def_readwrite("enable_memory_stats", &PipelineParams::enable_memory_stats)
+  .def_readwrite("bytes_per_sample_hint", &PipelineParams::bytes_per_sample_hint);
+}
+
+void ExposePipeline(py::module &m) {
+  py::class_<Pipeline, PyPipeline>(m, "Pipeline")
+    .def(py::init(
+            [](const PipelineParams &params) {
+              return std::make_unique<PyPipeline>(params);
+            }),
+        "params"_a
+        )
+    // initialize from serialized pipeline
+    .def(py::init(
+          [](const string &serialized_pipe,
+             const PipelineParams &params) {
+              return std::make_unique<PyPipeline>(serialized_pipe, params);
+            }),
+        "serialized_pipe"_a,
+        "params"_a
+        )
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(const OpSpec &, std::string_view)>
+                                      (&Pipeline::AddOperator))
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(const OpSpec &, std::string_view, int)>
+                                      (&Pipeline::AddOperator))
+    .def("GetOperatorNode", &Pipeline::GetOperatorNode)
+    .def("Build",
+         [](Pipeline *p, const std::vector<OutputDesc> &outputs) {
+             std::vector<PipelineOutputDesc> build_args;
+             for (auto& out : outputs) {
+               build_args.emplace_back(to_struct<PipelineOutputDesc>(out));
+             }
+             p->Build(build_args);
+         })
+    .def("Build", [](Pipeline *p) { p->Build(); })
+    .def("Shutdown", &Pipeline::Shutdown, py::call_guard<py::gil_scoped_release>())
+    .def("EnableCheckpointing",
+        [](Pipeline *p, bool checkpointing) {
+          p->EnableCheckpointing(checkpointing);
+        },
+        "checkpointing"_a = true)
+    .def("SerializedCheckpoint",
+        [](Pipeline *p, const ExternalContextCheckpoint &external_ctx_cpt) -> py::bytes {
+          return p->SerializedCheckpoint(external_ctx_cpt);
+          })
+    .def("RestoreFromSerializedCheckpoint",
+        [](Pipeline *p, const std::string &serialized_checkpoint) {
+          return p->RestoreFromSerializedCheckpoint(serialized_checkpoint);
+        })
+    .def("executor_statistics",
+        [](Pipeline *p) {
+          auto ret = p->GetExecutorMeta();
+          return ExecutorMetaToDict(ret);
+        })
+    .def("SetOutputDescs",
+        [](Pipeline *p, const std::vector<OutputDesc>& outputs) {
+          std::vector<PipelineOutputDesc> out_desc;
+          for (auto& out : outputs) {
+            out_desc.emplace_back(to_struct<PipelineOutputDesc>(out));
+          }
+          p->SetOutputDescs(out_desc);
+        })
+    .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
+    .def("Prefetch", &Pipeline::Prefetch, py::call_guard<py::gil_scoped_release>())
+    .def("Outputs",
+        [](Pipeline *p, py::object cuda_stream) {
+          Workspace ws;
+
+          if (!cuda_stream.is_none())
+            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
+
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->Outputs(&ws);
+          }
+          py::tuple outs(ws.NumOutput());
+          for (int i = 0; i < ws.NumOutput(); ++i) {
+            if (ws.OutputIsType<CPUBackend>(i)) {
+              outs[i] = ws.OutputPtr<CPUBackend>(i);
+            } else {
+              outs[i] = ws.OutputPtr<GPUBackend>(i);
+            }
+          }
+          return outs;
+        },
+        "cuda_stream"_a = py::none(),
+        py::return_value_policy::take_ownership)
+    .def("ShareOutputs",
+        [](Pipeline *p, py::object cuda_stream) {
+          Workspace ws;
+
+          if (!cuda_stream.is_none())
+            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
+
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->ShareOutputs(&ws);
+          }
+
+          py::tuple outs(ws.NumOutput());
+          for (int i = 0; i < ws.NumOutput(); ++i) {
+            if (ws.OutputIsType<CPUBackend>(i)) {
+              outs[i] = ws.OutputPtr<CPUBackend>(i);
+            } else {
+              outs[i] = ws.OutputPtr<GPUBackend>(i);
+            }
+          }
+          return outs;
+        },
+        "cuda_stream"_a = py::none(),
+        py::return_value_policy::take_ownership)
+    .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
+    .def("batch_size", &Pipeline::batch_size)
+    .def("num_threads", &Pipeline::num_threads)
+    .def("device_id", &Pipeline::device_id)
+    .def("params", &Pipeline::GetParams)
+    .def("requires_gpu", &Pipeline::requires_gpu)
+    .def("output_dtype",
+         [](Pipeline *p) {
+             auto &descs = p->output_descs();
+             std::vector<DALIDataType> ret(descs.size());
+             for (size_t i = 0; i < descs.size(); i++) {
+               ret[i] = descs[i].dtype;
+             }
+             return ret;
+         })
+    .def("output_ndim",
+         [](Pipeline *p) {
+             auto &descs = p->output_descs();
+             std::vector<int> ret(descs.size());
+             for (size_t i = 0; i < descs.size(); i++) {
+               ret[i] = descs[i].ndim;
+             }
+             return ret;
+         })
+    .def("InputFeedCount", &Pipeline::InputFeedCount, "input_name"_a)
+    .def("SetExternalTLInput",
+        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
+           py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
+          p->SetExternalInput(name, tl, {}, true);
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none(),
+        "use_copy_kernel"_a = false)
+    .def("SetExternalTLInput",
+        [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
+           py::object cuda_stream, bool use_copy_kernel) {
+           cudaStream_t stream = cuda_stream.is_none()
+                                 ? UserStream::Get()->GetStream(tl)
+                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+          p->SetExternalInput(name, tl, stream, cuda_stream.is_none(), use_copy_kernel);
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none(),
+        "use_copy_kernel"_a = false)
+    .def("SetExternalTensorInput",
+        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream,
+           bool use_copy_kernel) {
+          // Note: This is a hack to get around weird casting
+          // issues w/ pybind and a non-copyable type (dali::Tensor).
+          // We cannot use pybind::cast<Tensor<CPUBackend>>
+          // because somewhere through the chain of templates
+          // pybind returns the calling template type, which
+          // tries to call the deleted copy constructor for Tensor.
+          // instead, we cast to a reference type and manually
+          // move into the vector.
+          DALI_ENFORCE(static_cast<int>(list.size()) <= p->max_batch_size(),
+             "Data list provided to feed_input exceeds maximum batch_size for this pipeline.");
+
+          // not the most beautiful but at least it doesn't throw as plain cast<T>()
+          py::detail::make_caster<Tensor<CPUBackend>&> conv;
+          bool is_cpu_data = list.empty() || conv.load(static_cast<py::object>(list[0]), true);
+          if (is_cpu_data) {
+            FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
+          } else {
+            int device_id = p->device_id();
+            cudaStream_t stream = 0;
+            if (!cuda_stream.is_none())
+              stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+
+            if (!list.empty()) {
+              auto &sample0 = list[0].cast<Tensor<GPUBackend>&>();
+              if (cuda_stream.is_none())
+                stream = UserStream::Get()->GetStream(sample0);
+              device_id = sample0.device_id();
+            }
+            AccessOrder order(stream, device_id);
+            if (order.is_device()) {
+              CUcontext ctx = nullptr;
+              CUDA_CALL(cuStreamGetCtx(order.stream(), &ctx));
+              CUDA_CALL(cuCtxPushCurrent(ctx));
+              CUdevice device;
+              CUDA_CALL(cuCtxGetDevice(&device));
+              CUDA_CALL(cuCtxPopCurrent(&ctx));
+            }
+            FeedPipeline<GPUBackend>(p, name, list, order, cuda_stream.is_none(), use_copy_kernel);
+          }
+        },
+        "name"_a,
+        "list"_a,
+        "cuda_stream"_a = py::none(),
+        "use_copy_kernel"_a = false)
+    .def("SetPyObjDependency",
+      [](Pipeline *p, py::object obj) {}, "obj"_a, py::keep_alive<1, 2>())
+    .def("SerializeToProtobuf",
+        [](Pipeline *p) -> py::bytes {
+          string s = p->SerializeToProtobuf();
+          return s;
+          }, py::return_value_policy::take_ownership)
+    .def("SaveGraphToDotFile", &Pipeline::SaveGraphToDotFile,
+        "path"_a,
+        "show_tensors"_a = false,
+        "use_colors"_a = false)
+    .def("reader_meta", [](Pipeline* p) {
+          py::dict d;
+          for (auto const&[name, meta] : p->GetReaderMeta()) {
+            std::string name_str(name);  // pybind11 doesn't have operator[](string_view)
+            d[name_str.c_str()] = ReaderMetaToDict(meta);
+          }
+          return d;
+        })
+    .def("reader_meta",
+        [](Pipeline* p, const std::string& op_name) {
+          ReaderMeta meta = p->GetReaderMeta(op_name);
+          DALI_ENFORCE(meta,
+              "Operator " + op_name + "  not found or does not expose valid metadata.");
+          return ReaderMetaToDict(meta);
+        });
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -2036,279 +2357,9 @@ PYBIND11_MODULE(backend_impl, m) {
           self.iterator_data = new_data;
         });
 
-  // Pipeline class
-  py::class_<Pipeline, PyPipeline>(m, "Pipeline")
-    .def(py::init(
-            [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
-                bool pipelined_execution = true, int prefetch_queue_depth = 2,
-                bool async_execution = true, bool dynamic_execution = false,
-                size_t bytes_per_sample_hint = 0,
-                bool set_affinity = false) {
-              return std::make_unique<PyPipeline>(
-                    batch_size, num_threads, device_id, seed,
-                    pipelined_execution, prefetch_queue_depth, async_execution, dynamic_execution,
-                    bytes_per_sample_hint, set_affinity);
-            }),
-        "batch_size"_a,
-        "num_threads"_a,
-        "device_id"_a,
-        "seed"_a = -1,
-        "exec_pipelined"_a = true,
-        "prefetch_queue_depth"_a = 2,
-        "exec_async"_a = true,
-        "exec_dynamic"_a = false,
-        "bytes_per_sample_hint"_a = 0,
-        "set_affinity"_a = false
-        )
-    // initialize from serialized pipeline
-    .def(py::init(
-          [](string serialized_pipe,
-             int batch_size = -1, int num_threads = -1, int device_id = -1,
-             bool pipelined_execution = true,  int prefetch_queue_depth = 2,
-             bool async_execution = true, bool dynamic_execution = false,
-             size_t bytes_per_sample_hint = 0, bool set_affinity = false) {
-              return std::make_unique<PyPipeline>(
-                               serialized_pipe,
-                               batch_size, num_threads, device_id, pipelined_execution,
-                               prefetch_queue_depth, async_execution, dynamic_execution,
-                               bytes_per_sample_hint, set_affinity);
-            }),
-        "serialized_pipe"_a,
-        "batch_size"_a = -1,
-        "num_threads"_a = -1,
-        "device_id"_a = -1,
-        "exec_pipelined"_a = true,
-        "prefetch_queue_depth"_a = 2,
-        "exec_async"_a = true,
-        "exec_dynamic"_a = true,
-        "bytes_per_sample_hint"_a = 0,
-        "set_affinity"_a = false
-        )
-    .def("AddOperator",
-         static_cast<int (Pipeline::*)(const OpSpec &, std::string_view)>
-                                      (&Pipeline::AddOperator))
-    .def("AddOperator",
-         static_cast<int (Pipeline::*)(const OpSpec &, std::string_view, int)>
-                                      (&Pipeline::AddOperator))
-    .def("GetOperatorNode", &Pipeline::GetOperatorNode)
-    .def("Build",
-         [](Pipeline *p, const std::vector<OutputDesc> &outputs) {
-             std::vector<PipelineOutputDesc> build_args;
-             for (auto& out : outputs) {
-               build_args.emplace_back(to_struct<PipelineOutputDesc>(out));
-             }
-             p->Build(build_args);
-         })
-    .def("Build", [](Pipeline *p) { p->Build(); })
-    .def("Shutdown", &Pipeline::Shutdown, py::call_guard<py::gil_scoped_release>())
-    .def("SetExecutionTypes",
-        [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
-          p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
-        },
-        "exec_pipelined"_a = true,
-        "exec_separated"_a = false,
-        "exec_async"_a = true)
-    .def("EnableExecutorMemoryStats",
-        [](Pipeline *p, bool enable_memory_stats) {
-          p->EnableExecutorMemoryStats(enable_memory_stats);
-        },
-        "enable_memory_stats"_a = true)
-    .def("EnableCheckpointing",
-        [](Pipeline *p, bool checkpointing) {
-          p->EnableCheckpointing(checkpointing);
-        },
-        "checkpointing"_a = true)
-    .def("SerializedCheckpoint",
-        [](Pipeline *p, const ExternalContextCheckpoint &external_ctx_cpt) -> py::bytes {
-          return p->SerializedCheckpoint(external_ctx_cpt);
-          })
-    .def("RestoreFromSerializedCheckpoint",
-        [](Pipeline *p, const std::string &serialized_checkpoint) {
-          return p->RestoreFromSerializedCheckpoint(serialized_checkpoint);
-        })
-    .def("executor_statistics",
-        [](Pipeline *p) {
-          auto ret = p->GetExecutorMeta();
-          return ExecutorMetaToDict(ret);
-        })
-    .def("SetQueueSizes",
-        [](Pipeline *p, int cpu_size, int gpu_size) {
-          p->SetQueueSizes(cpu_size, gpu_size);
-        })
-    .def("SetOutputDescs",
-        [](Pipeline *p, const std::vector<OutputDesc>& outputs) {
-          std::vector<PipelineOutputDesc> out_desc;
-          for (auto& out : outputs) {
-            out_desc.emplace_back(to_struct<PipelineOutputDesc>(out));
-          }
-          p->SetOutputDescs(out_desc);
-        })
-    .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
-    .def("Prefetch", &Pipeline::Prefetch, py::call_guard<py::gil_scoped_release>())
-    .def("Outputs",
-        [](Pipeline *p, py::object cuda_stream) {
-          Workspace ws;
-
-          if (!cuda_stream.is_none())
-            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
-
-          {
-            py::gil_scoped_release interpreter_unlock{};
-            p->Outputs(&ws);
-          }
-          py::tuple outs(ws.NumOutput());
-          for (int i = 0; i < ws.NumOutput(); ++i) {
-            if (ws.OutputIsType<CPUBackend>(i)) {
-              outs[i] = ws.OutputPtr<CPUBackend>(i);
-            } else {
-              outs[i] = ws.OutputPtr<GPUBackend>(i);
-            }
-          }
-          return outs;
-        },
-        "cuda_stream"_a = py::none(),
-        py::return_value_policy::take_ownership)
-    .def("ShareOutputs",
-        [](Pipeline *p, py::object cuda_stream) {
-          Workspace ws;
-
-          if (!cuda_stream.is_none())
-            ws.set_output_order(static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream)));
-
-          {
-            py::gil_scoped_release interpreter_unlock{};
-            p->ShareOutputs(&ws);
-          }
-
-          py::tuple outs(ws.NumOutput());
-          for (int i = 0; i < ws.NumOutput(); ++i) {
-            if (ws.OutputIsType<CPUBackend>(i)) {
-              outs[i] = ws.OutputPtr<CPUBackend>(i);
-            } else {
-              outs[i] = ws.OutputPtr<GPUBackend>(i);
-            }
-          }
-          return outs;
-        },
-        "cuda_stream"_a = py::none(),
-        py::return_value_policy::take_ownership)
-    .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
-    .def("batch_size", &Pipeline::batch_size)
-    .def("num_threads", &Pipeline::num_threads)
-    .def("device_id", &Pipeline::device_id)
-    .def("output_dtype",
-         [](Pipeline *p) {
-             auto &descs = p->output_descs();
-             std::vector<DALIDataType> ret(descs.size());
-             for (size_t i = 0; i < descs.size(); i++) {
-               ret[i] = descs[i].dtype;
-             }
-             return ret;
-         })
-    .def("output_ndim",
-         [](Pipeline *p) {
-             auto &descs = p->output_descs();
-             std::vector<int> ret(descs.size());
-             for (size_t i = 0; i < descs.size(); i++) {
-               ret[i] = descs[i].ndim;
-             }
-             return ret;
-         })
-    .def("InputFeedCount", &Pipeline::InputFeedCount, "input_name"_a)
-    .def("SetExternalTLInput",
-        [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
-           py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
-          p->SetExternalInput(name, tl, {}, true);
-        },
-        "name"_a,
-        "list"_a,
-        "cuda_stream"_a = py::none(),
-        "use_copy_kernel"_a = false)
-    .def("SetExternalTLInput",
-        [](Pipeline *p, const string &name, const TensorList<GPUBackend> &tl,
-           py::object cuda_stream, bool use_copy_kernel) {
-           cudaStream_t stream = cuda_stream.is_none()
-                                 ? UserStream::Get()->GetStream(tl)
-                                 : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          p->SetExternalInput(name, tl, stream, cuda_stream.is_none(), use_copy_kernel);
-        },
-        "name"_a,
-        "list"_a,
-        "cuda_stream"_a = py::none(),
-        "use_copy_kernel"_a = false)
-    .def("SetExternalTensorInput",
-        [](Pipeline *p, const string &name, py::list list, py::object cuda_stream,
-           bool use_copy_kernel) {
-          // Note: This is a hack to get around weird casting
-          // issues w/ pybind and a non-copyable type (dali::Tensor).
-          // We cannot use pybind::cast<Tensor<CPUBackend>>
-          // because somewhere through the chain of templates
-          // pybind returns the calling template type, which
-          // tries to call the deleted copy constructor for Tensor.
-          // instead, we cast to a reference type and manually
-          // move into the vector.
-          DALI_ENFORCE(static_cast<int>(list.size()) <= p->max_batch_size(),
-             "Data list provided to feed_input exceeds maximum batch_size for this pipeline.");
-
-          // not the most beautiful but at least it doesn't throw as plain cast<T>()
-          py::detail::make_caster<Tensor<CPUBackend>&> conv;
-          bool is_cpu_data = list.empty() || conv.load(static_cast<py::object>(list[0]), true);
-          if (is_cpu_data) {
-            FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
-          } else {
-            int device_id = p->device_id();
-            cudaStream_t stream = 0;
-            if (!cuda_stream.is_none())
-              stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-
-            if (!list.empty()) {
-              auto &sample0 = list[0].cast<Tensor<GPUBackend>&>();
-              if (cuda_stream.is_none())
-                stream = UserStream::Get()->GetStream(sample0);
-              device_id = sample0.device_id();
-            }
-            AccessOrder order(stream, device_id);
-            if (order.is_device()) {
-              CUcontext ctx = nullptr;
-              CUDA_CALL(cuStreamGetCtx(order.stream(), &ctx));
-              CUDA_CALL(cuCtxPushCurrent(ctx));
-              CUdevice device;
-              CUDA_CALL(cuCtxGetDevice(&device));
-              CUDA_CALL(cuCtxPopCurrent(&ctx));
-            }
-            FeedPipeline<GPUBackend>(p, name, list, order, cuda_stream.is_none(), use_copy_kernel);
-          }
-        },
-        "name"_a,
-        "list"_a,
-        "cuda_stream"_a = py::none(),
-        "use_copy_kernel"_a = false)
-    .def("SetPyObjDependency",
-      [](Pipeline *p, py::object obj) {}, "obj"_a, py::keep_alive<1, 2>())
-    .def("SerializeToProtobuf",
-        [](Pipeline *p) -> py::bytes {
-          string s = p->SerializeToProtobuf();
-          return s;
-          }, py::return_value_policy::take_ownership)
-    .def("SaveGraphToDotFile", &Pipeline::SaveGraphToDotFile,
-        "path"_a,
-        "show_tensors"_a = false,
-        "use_colors"_a = false)
-    .def("reader_meta", [](Pipeline* p) {
-          py::dict d;
-          for (auto const&[name, meta] : p->GetReaderMeta()) {
-            std::string name_str(name);  // pybind11 doesn't have operator[](string_view)
-            d[name_str.c_str()] = ReaderMetaToDict(meta);
-          }
-          return d;
-        })
-    .def("reader_meta",
-        [](Pipeline* p, const std::string& op_name) {
-          ReaderMeta meta = p->GetReaderMeta(op_name);
-          DALI_ENFORCE(meta,
-              "Operator " + op_name + "  not found or does not expose valid metadata.");
-          return ReaderMetaToDict(meta);
-        });
+  // Pipeline class and parameters
+  ExposePipelineParams(m);
+  ExposePipeline(m);
 
 #define DALI_OPSPEC_ADDARG(T) \
     .def("AddArg", \
