@@ -1,2 +1,3 @@
 # apt started reporting heap-buffer-overflow
 interceptor_via_lib:libapt-pkg
+interceptor_via_lib:_zmq.cpython
