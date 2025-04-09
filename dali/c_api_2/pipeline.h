@@ -25,10 +25,10 @@
 
 // A dummy base that the handle points to
 struct _DALIPipeline {
- protected:
-  _DALIPipeline() = default;
-  ~_DALIPipeline() = default;
-};
+  protected:
+   _DALIPipeline() = default;
+   ~_DALIPipeline() = default;
+ };
 
 namespace dali::c_api {
 
@@ -72,6 +72,8 @@ class PipelineWrapper : public _DALIPipeline {
   dali::Pipeline *Unwrap() const & {
     return pipeline_.get();
   }
+
+  std::unique_ptr<Checkpoint> GetCheckpoint(const daliCheckpointExternalData_t *ext) const;
 
  private:
   template <typename Backend>

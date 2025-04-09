@@ -237,6 +237,19 @@ void PipelineWrapper::FeedInputImpl(
     data_id ? std::optional<std::string>(std::in_place, *data_id) : std::nullopt);
 }
 
+std::unique_ptr<CheckpointWrapper> PipelineWrapper::GetCheckpoint(
+      const daliCheckpointExternalData_t *ext) const {
+  auto cpt = std::make_unique<CheckpointWrapper>(pipeline_->GetCheckpoint());
+  if (ext) {
+    cpt->external_ctx_cpt_.pipeline_data =
+        std::string(ext->pipeline_data.data, ext->pipeline_data.size);
+    cpt->external_ctx_cpt_.iterator_data =
+        std::string(ext->iterator_data.data, ext->iterator_data.size);
+  }
+  return cpt;
+}
+
+
 }  // namespace dali::c_api
 
 using namespace dali::c_api;  // NOLINT

@@ -122,6 +122,7 @@ class Resource##Handle \
 
 DALI_C_UNIQUE_HANDLE(Pipeline);
 DALI_C_UNIQUE_HANDLE(PipelineOutputs);
+DALI_C_UNIQUE_HANDLE(Checkpoint);
 DALI_C_REF_HANDLE(TensorList);
 DALI_C_REF_HANDLE(Tensor);
 
