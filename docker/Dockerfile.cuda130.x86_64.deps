@@ -12,7 +12,7 @@ RUN NVJPEG2K_VERSION=0.8.1.40-1 && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub && \
     add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /" && \
-    add-apt-repository "deb http://cuda-repo/release-candidates/kitbundles/r13.0/20250406/repos/ubuntu2204/x86_64/ /" && \
+    add-apt-repository "deb http://cuda-repo/release-candidates/kitbundles/r13.0/20250410/repos/ubuntu2204/x86_64/ /" && \
     apt-get update && \
     apt install -y \
         cuda-cudart-13-0 \
@@ -44,4 +44,29 @@ RUN NVJPEG2K_VERSION=0.8.1.40-1 && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
     cp -r /usr/include/nvcomp_${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
     cp -r /usr/lib/x86_64-linux-gnu/nvcomp/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
+    mv /usr/local/cuda/bin/fatbinary /usr/local/cuda/bin/fatbinary_org && \
+    echo "#!/bin/bash \\n\
+real_fatbinary=\$(which fatbinary_org || which fatbinary) \\n\
+# If we can't find the real fatbinary, exit with error \\n\
+if [ -z \"\$real_fatbinary\" ]; then \\n\
+    echo \"Error: Could not find real fatbinary executable\" >&2 \\n\
+    exit 1 \\n\
+fi \\n\
+args=() \\n\
+while [ \$# -gt 0 ]; do \\n\
+    case \"\$1\" in \\n\
+        --image=*) \\n\
+            specs=\$1 \\n\
+            shift \\n\
+            new_spec=\$(echo \"\$specs\" | sed 's/image=/image3=/g' | sed 's/profile=sm_/kind=elf,sm=/g') \\n\
+            args+=(\"\${new_spec[@]}\") \\n\
+            ;; \\n\
+        *) \\n\
+            args+=(\"\$1\") \\n\
+            ;; \\n\
+    esac \\n\
+    shift \\n\
+done \\n\
+exec \"\$real_fatbinary\" \"\${args[@]}\"" > /usr/local/cuda/bin/fatbinary && \
+    chmod a+x /usr/local/cuda/bin/fatbinary && \
     rm -rf /var/lib/apt/lists/*
