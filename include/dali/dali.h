@@ -494,7 +494,7 @@ DALI_API daliResult_t daliPipelineGetInputDescByIdx(
  *
  * @param pipeline        [in]  The pipeline
  * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
- * @param name            [in]  The name of the input whose descriptor to obtain.]
+ * @param name            [in]  The name of the input whose descriptor to obtain.
  *
  * @retval DALI_SUCCESS
  * @retval DALI_ERROR_INVALID_OPERATION   the pipeline wasn't built before the call
