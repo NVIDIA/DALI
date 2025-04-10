@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include <chrono>
 #include <queue>
 #include <sstream>
@@ -46,23 +45,50 @@
 #include "tensorflow/core/framework/full_type_util.h"
 #endif
 
-#include "dali/c_api.h"
+#include "dali/dali.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
 #include "dali_tf_plugin/dali_helper.h"
 
 #include "dali_tf_plugin/dali_dataset.h"
 
-#define TF_DALI_CALL(FUNC)                                                                    \
+namespace {
+inline auto ReportDALIErrorStatus(
+      daliResult_t status,
+      const char *message,
+      const char *expression,
+      const char *file,
+      int line) {
+  auto err = dali_tf_impl::DALIException::MakeErrorString(status, message, expression, file, line);
+  std::cout << err << std::endl;
+  return ::tensorflow::errors::Internal(std::move(err));
+}
+}  // namespace
+
+#define TF_DALI_CALL(...)                                                                     \
   do {                                                                                        \
-    try {                                                                                     \
-      FUNC;                                                                                   \
-    } catch (std::exception & e) {                                                            \
-      std::string error = "DALI " + std::string(#FUNC) + " failed: " + std::string(e.what()); \
-      std::cout << error << std::endl;                                                        \
-      return ::tensorflow::errors::Internal(error);                                           \
+    auto status = (__VA_ARGS__);                                                              \
+    if (status & DALI_ERROR) {                                                                \
+      return ReportDALIErrorStatus(status, daliGetLastErrorMessage(), #__VA_ARGS__, __FILE__, \
+                                   __LINE__);                                                 \
     }                                                                                         \
   } while (0)
+
+#define TF_TRANSLATE_EXCEPTION(...)                                                                \
+  do {                                                                                             \
+    try {                                                                                          \
+      __VA_ARGS__;                                                                                 \
+    } catch (const DALIException &e) {                                                             \
+      std::cout << e.what() << std::endl;                                                          \
+      return ::tensorflow::errors::Internal(e.what());                                             \
+    } catch (const std::exception &e) {                                                            \
+      std::string error = dali::make_string(                                                       \
+          "Error ", e.what(), "\nwhile executing:\n" #__VA_ARGS__ "\nin " __FILE__ ":", __LINE__); \
+      std::cout << error << std::endl;                                                             \
+      return ::tensorflow::errors::Internal(error));                                               \
+    }                                                                                              \
+  } while (0)
+
 
 using namespace tensorflow;        // NOLINT(build/namespaces)
 using namespace tensorflow::data;  // NOLINT(build/namespaces)
@@ -80,7 +106,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
         pipeline_def_(pipeline_def),
         shapes_(shapes),
         dtypes_(dtypes),
-        device_type_(is_gpu_device ? device_type_t::GPU : device_type_t::CPU),
+        device_type_(is_gpu_device ? DALI_STORAGE_GPU : DALI_STORAGE_CPU),
         fail_on_device_mismatch_(fail_on_device_mismatch) {
     for (const auto &input : input_desc_.inputs) {
       input->Ref();
@@ -168,7 +194,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   std::vector<PartialTensorShape> shapes_;
   const DataTypeVector dtypes_;
   cudaStream_t stream_ = 0;
-  const device_type_t device_type_;
+  const daliStorageDevice_t device_type_;
   const bool fail_on_device_mismatch_;
 
   const InputDescs input_desc_;
@@ -248,18 +274,44 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     return Status();
   }
 
-  Status InitPipeline(daliPipelineHandle *pipeline_handle) const {
-    dali_exec_flags_t flags = DALI_EXEC_ASYNC_PIPELINED;
+  Status InitPipeline(dali::c_api::PipelineHandle &pipeline_handle) const {
+    daliExecType_t exec_type = DALI_EXEC_ASYNC_PIPELINED;
     if (pipeline_def_.exec_dynamic)
-      flags = flags | DALI_EXEC_IS_DYNAMIC;
+      exec_type = exec_type | DALI_EXEC_IS_DYNAMIC;
     if (pipeline_def_.exec_separated)
-      flags = flags | DALI_EXEC_IS_SEPARATED;
-    TF_DALI_CALL(daliCreatePipeline3(
-        pipeline_handle, pipeline_def_.pipeline.c_str(), pipeline_def_.pipeline.length(),
-        pipeline_def_.batch_size, pipeline_def_.num_threads, pipeline_def_.device_id,
-        flags, pipeline_def_.prefetch_queue_depth,
-        pipeline_def_.cpu_prefetch_queue_depth, pipeline_def_.gpu_prefetch_queue_depth,
-        pipeline_def_.enable_memory_stats));
+      exec_type = exec_type | DALI_EXEC_IS_SEPARATED;
+
+    daliPipelineParams_t params{};
+    DALI_SET_PARAM(params, max_batch_size, pipeline_def_.batch_size);
+    DALI_SET_PARAM(params, exec_type, exec_type);
+
+    daliPrefetchQueueSizes_t queue_depths;
+    if (pipeline_def_.exec_separated) {
+      queue_depths.cpu = pipeline_def_.cpu_prefetch_queue_depth;
+      queue_depths.gpu = pipeline_def_.gpu_prefetch_queue_depth;
+    } else {
+      queue_depths.gpu = queue_depths.cpu = pipeline_def_.prefetch_queue_depth;
+    }
+    DALI_SET_PARAM(params, prefetch_queue_depths, queue_depths);
+
+    if (pipeline_def_.device_id >= 0)
+      DALI_SET_PARAM(params, device_id, pipeline_def_.device_id);
+
+    if (pipeline_def_.num_threads > 0)
+      DALI_SET_PARAM(params, num_threads, pipeline_def_.num_threads);
+
+    DALI_SET_PARAM(params, enable_memory_stats, pipeline_def_.enable_memory_stats);
+
+    params.exec_type_present = 1;
+    params.exec_type = exec_type;
+    daliPipeline_h raw_handle = nullptr;
+    TF_DALI_CALL(daliPipelineDeserialize(
+        &raw_handle,
+        pipeline_def_.pipeline.c_str(),
+        pipeline_def_.pipeline.length(),
+        &params));
+    pipeline_handle = dali::c_api::PipelineHandle(raw_handle);
+    TF_DALI_CALL(daliPipelineBuild(pipeline_handle));
     return Status();
   }
 
@@ -269,7 +321,6 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     return !input_desc_.inputs.empty();
   }
 
-
   int NumInputs() const {
     return input_desc_.inputs.size();
   }
@@ -278,10 +329,11 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
 class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
  public:
-  explicit Iterator(const Params &params, daliPipelineHandle pipeline_handle,
+  explicit Iterator(const Params &params,
+                    dali::c_api::PipelineHandle pipeline_handle,
                     bool enable_memory_stats = false)
       : DatasetIterator<Dataset>(params),
-        pipeline_handle_(pipeline_handle),
+        pipeline_handle_(std::move(pipeline_handle)),
         enable_memory_stats_(enable_memory_stats) {}
 
   Status Initialize(IteratorContext *context) override {
@@ -302,24 +354,28 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       }
       input_ext_src_devices_.resize(dataset()->NumInputs());
       for (size_t i = 0; i < input_ext_src_devices_.size(); i++) {
-        TF_DALI_CALL(input_ext_src_devices_[i] = daliGetOperatorBackend(
-                         &pipeline_handle_, dataset()->input_desc_.input_names[i].c_str()));
+        const char *name = dataset()->input_desc_.input_names[i].c_str();
+        daliPipelineIODesc_t input_desc{};
+        TF_DALI_CALL(daliPipelineGetInputDesc(pipeline_handle_, &input_desc, name));
+        input_ext_src_devices_[i] = input_desc.device;
       }
     }
-    TF_RETURN_IF_ERROR(PrefetchPipeline(context, &pipeline_handle_));
+    TF_RETURN_IF_ERROR(PrefetchPipeline(context, pipeline_handle_));
     return CheckOutputDevices();
   }
 
   Status CheckOutputDevices() {
-    auto num_outputs = daliGetNumOutput(&pipeline_handle_);
-    for (auto i = 0; i < num_outputs; ++i) {
-      auto dali_device_type = daliGetOutputDevice(&pipeline_handle_, i);
+    int num_outputs = 0;
+    TF_DALI_CALL(daliPipelineGetOutputCount(pipeline_handle_, &num_outputs));
+    for (int i = 0; i < num_outputs; ++i) {
+      daliPipelineIODesc_t output_desc{};
+      TF_DALI_CALL(daliPipelineGetOutputDesc(pipeline_handle_, &output_desc, i));
 
-      if (dali_device_type != dataset()->device_type_) {
+      if (output_desc.device != dataset()->device_type_) {
         auto msg = dali::make_string(
             "TF device and DALI device mismatch. TF device: ",
-            (dataset()->device_type_ == device_type_t::CPU ? "CPU" : "GPU"),
-            ", DALI device: ", (dali_device_type == device_type_t::CPU ? "CPU" : "GPU"),
+            (dataset()->device_type_ == DALI_STORAGE_CPU ? "CPU" : "GPU"),
+            ", DALI device: ", (output_desc.device == DALI_STORAGE_CPU ? "CPU" : "GPU"),
             " for output ", i);
 
         if (dataset()->fail_on_device_mismatch_) {
@@ -355,7 +411,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         if (end_of_input_sequence) {
           iterator_state_ = InputState::stop_pending;
         } else {
-          TF_RETURN_IF_ERROR(FeedInputs(&pipeline_handle_, std::move(batches)));
+          TF_RETURN_IF_ERROR(FeedInputs(pipeline_handle_, std::move(batches)));
         }
       }
 
@@ -380,17 +436,18 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     // We schedule next run always when we don't have inputs or when we have inputs
     // and they produced something - which happens only in `in_progress` state.
     if (!dataset()->HasInputs() || iterator_state_ == InputState::in_progress) {
-      TF_DALI_CALL(daliRun(&pipeline_handle_));
+      TF_DALI_CALL(daliPipelineRun(pipeline_handle_));
     }
     return Status();
   }
 
   ~Iterator() {
     if (pipeline_handle_) {
-      if (enable_memory_stats_) {
+      // TODO(michalz): Remove or implement memory stats in C API 2.0
+      /*if (enable_memory_stats_) {
         size_t N;
         daliExecutorMetadata *meta;
-        daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
+        daliGetExecutorMetadata(pipeline_handle_, &meta, &N);
         std::cout << "DALI operator memory statistics: " << std::endl;
         for (size_t i = 0; i < N; ++i) {
           std::cout << "Operator " << meta[i].operator_name;
@@ -405,9 +462,9 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
           std::cout << std::endl;
         }
         daliFreeExecutorMetadata(meta, N);
-      }
-      daliDeletePipeline(&pipeline_handle_);
+      }*/
     }
+    pipeline_handle_.reset();
   }
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
@@ -416,18 +473,17 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     TF_RETURN_IF_ERROR(checkCheckpointingSupport());
     tensorflow::mutex_lock l(mu_);
 
-    char *cpt;
+    const char *cpt;
     size_t n;
-    daliExternalContextCheckpoint external_context{};
-    TF_DALI_CALL(daliGetSerializedCheckpoint(
-      &pipeline_handle_, &external_context, &cpt, &n));
+    daliCheckpoint_h checkpoint_h;
+    TF_DALI_CALL(daliPipelineGetCheckpoint(pipeline_handle_, &checkpoint_h, nullptr));
+    dali::c_api::CheckpointHandle checkpoint(checkpoint_h);
+    TF_DALI_CALL(daliPipelineSerializeCheckpoint(pipeline_handle_, checkpoint, &cpt, &n));
 
-    tensorflow::Tensor cpt_tensor(DT_UINT8, {n});
+    tensorflow::Tensor cpt_tensor(DT_UINT8, {static_cast<ptrdiff_t>(n)});
     memcpy(cpt_tensor.data(), cpt, n);
-    TF_DALI_CALL(daliDestroyExternalContextCheckpoint(&external_context));
-    TF_DALI_CALL(daliFree(cpt));
+    checkpoint.reset();
     TF_RETURN_IF_ERROR(writer->WriteTensor(prefix(), "checkpoint", cpt_tensor));
-
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 10)
     return OkStatus();
@@ -445,15 +501,17 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     TF_RETURN_IF_ERROR(reader->ReadTensor(prefix(), "checkpoint", &cpt_tensor));
     auto cpt_data = cpt_tensor.tensor_data();
 
-    TF_DALI_CALL(daliDeletePipeline(&pipeline_handle_));
-    TF_RETURN_IF_ERROR(dataset()->InitPipeline(&pipeline_handle_));
-    daliExternalContextCheckpoint external_context{};
-    TF_DALI_CALL(daliRestoreFromSerializedCheckpoint(
-      &pipeline_handle_, cpt_data.data(), cpt_data.size(), &external_context));
+    pipeline_handle_.reset();
+    TF_RETURN_IF_ERROR(dataset()->InitPipeline(pipeline_handle_));
+    daliCheckpoint_h checkpoint_h;
+    TF_DALI_CALL(daliPipelineDeserializeCheckpoint(
+      pipeline_handle_, &checkpoint_h, cpt_data.data(), cpt_data.size()));
+    dali::c_api::CheckpointHandle checkpoint(checkpoint_h);
+
+    TF_DALI_CALL(daliPipelineRestoreCheckpoint(pipeline_handle_, checkpoint));
 
     // Checkpointing is not supported with separated queues, so we can just prefetch uniformly
-    TF_DALI_CALL(daliPrefetchUniform(&pipeline_handle_,
-                                     dataset()->pipeline_def_.prefetch_queue_depth));
+    TF_DALI_CALL(daliPipelinePrefetch(pipeline_handle_));
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 10)
     return OkStatus();
@@ -472,7 +530,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * TODO(klecki): Inputs handled only for an uniform executor
    * TODO(michalz): Clean up the control flow (reverse if nesting)
    */
-  Status PrefetchPipeline(IteratorContext *context, daliPipelineHandle *pipeline_handle) {
+  Status PrefetchPipeline(IteratorContext *context, daliPipeline_h pipeline_handle) {
     if (!dataset()->pipeline_def_.exec_separated) {
       int prefetch_depth = dataset()->pipeline_def_.prefetch_queue_depth;
       int actual_prefetch_depth = 0;
@@ -494,12 +552,12 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         actual_prefetch_depth = prefetch_depth;
       }
       for (int i = 0; i < actual_prefetch_depth; i++)
-        TF_DALI_CALL(daliRun(pipeline_handle));
+        TF_DALI_CALL(daliPipelineRun(pipeline_handle));
     } else {
       if (dataset()->HasInputs()) {
         return errors::InvalidArgument("Input datasets are not compatible with split executor.");
       }
-      TF_DALI_CALL(daliPrefetch(pipeline_handle));
+      TF_DALI_CALL(daliPipelinePrefetch(pipeline_handle));
     }
     return Status();
   }
@@ -616,47 +674,49 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    */
   Status ProduceOutputs(IteratorContext *context, std::vector<Tensor> *out_tensors,
                         bool &end_of_sequence) {
-    TF_DALI_CALL(daliShareOutput(&pipeline_handle_));
+    daliPipelineOutputs_h outputs_h;
+    TF_DALI_CALL(daliPipelinePopOutputs(pipeline_handle_, &outputs_h));
+    dali::c_api::PipelineOutputsHandle pipe_outputs(outputs_h);
 
-    auto num_outputs = 0;
-    TF_DALI_CALL(num_outputs = daliGetNumOutput(&pipeline_handle_));
+    int num_outputs = 0;
+    TF_DALI_CALL(daliPipelineGetOutputCount(pipeline_handle_, &num_outputs));
 
     for (int out_id = 0; out_id < num_outputs; ++out_id) {
-      TensorShape output_shape;
-      bool is_uniform = false;
-      TF_DALI_CALL(is_uniform = daliOutputHasUniformShape(&pipeline_handle_, out_id));
+      daliTensorList_h output_tl_h;
+      TF_DALI_CALL(daliPipelineOutputsGet(pipe_outputs, &output_tl_h, out_id));
+      dali::c_api::TensorListHandle output_tl(output_tl_h);
 
+      int num_samples = 0, ndim = 0;
+      const int64_t *out_tl_shape = nullptr;
+      TF_DALI_CALL(daliTensorListGetShape(output_tl, &num_samples, &ndim, &out_tl_shape));
+
+      bool is_uniform = IsUniform(num_samples, ndim, out_tl_shape);
       if (!is_uniform) {
-        std::stringstream shapes;
-        for (int sample_id = 0; sample_id < dataset()->pipeline_def_.batch_size; sample_id++) {
-          AutoCPtr<int64_t> dali_shape;
-          TF_DALI_CALL(dali_shape = AutoCPtr<int64_t>(
-                           daliShapeAtSample(&pipeline_handle_, out_id, sample_id)));
-
-          shapes << DaliToShape(dali_shape);
-          if (sample_id < dataset()->pipeline_def_.batch_size - 1) {
-            shapes << ", ";
-          }
-        }
         return errors::FailedPrecondition(
             "Batch output at index '", out_id,
             "' from DALI pipeline is not uniform - individual samples have different dimensions. "
             "This output cannot be represented as single, dense Tensor, which is required by "
             "TensorFlow. Ensure that all the samples that you produce in given batch have equal "
-            "shape. Got shapes: ", shapes.str());
+            "shape. Got shapes: ", ShapeToString(output_tl));
       }
-      AutoCPtr<int64_t> dali_batch_shape;
-      TF_DALI_CALL(dali_batch_shape = AutoCPtr<int64_t>(daliShapeAt(&pipeline_handle_, out_id)));
-      auto dali_shape = DaliToShape(dali_batch_shape);
+      std::vector<int64_t> shape_as_tensor(ndim + 1);
+      shape_as_tensor[0] = num_samples;
+      if (num_samples > 0) {
+        for (int i = 0; i < ndim; i++)
+          shape_as_tensor[i + 1] = out_tl_shape[i];
+      }
+      tensorflow::TensorShape dali_shape = ToTfShape(shape_as_tensor.data(), ndim + 1);
+      tensorflow::TensorShape output_shape;
       auto status = GetCompatibleShape(output_shape, dataset()->shapes_[out_id], dali_shape,
                                        dataset()->pipeline_def_.batch_size, out_id);
       if (status != Status()) {
         return status;
       }
 
-      dali_data_type_t dali_type = DALI_NO_TYPE;
-      TF_DALI_CALL(dali_type = daliTypeAt(&pipeline_handle_, out_id));
-      auto tf_type = DaliToTfType(dali_type);
+      daliDataType_t dtype = DALI_NO_TYPE;
+      TF_DALI_CALL(daliTensorListGetDType(output_tl, &dtype));
+
+      auto tf_type = DaliToTfType(dtype);
 
       if (tf_type != dataset()->dtypes_[out_id]) {
         std::stringstream ss;
@@ -717,18 +777,33 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       // Synchronize with the dataset()->stream_ when doing the last copy, so the outputs
       // are fully finished before we release the output buffers for reuse.
       // if the OP runs on the CPU the output memory is not pinned and we don't need to sync
-      unsigned int wait_flag = dataset()->device_type_ != device_type_t::CPU &&
-                               (out_id == num_outputs - 1) ?
-                                  DALI_ext_force_sync :
-                                  DALI_ext_default;
+      bool should_wait = dataset()->device_type_ != DALI_STORAGE_CPU && (out_id == num_outputs - 1);
 
-      TF_DALI_CALL(daliOutputCopy(&pipeline_handle_, dst, out_id, dataset()->device_type_,
-                                  dataset()->stream_, wait_flag));
+      daliCopyFlags_t copy_flags = should_wait ? DALI_COPY_SYNC : DALI_COPY_DEFAULT;
+
+#ifndef NDEBUG
+      daliBufferPlacement_t tl_placement{};
+      TF_DALI_CALL(daliTensorListGetBufferPlacement(output_tl, &tl_placement));
+      assert(tl_placement.device_type == dataset()->device_type_);
+#endif
+      cudaStream_t stream = 0;
+      cudaStream_t *pstream = nullptr;
+      bool is_gpu = dataset()->device_type_ == DALI_STORAGE_GPU;
+      if (is_gpu) {
+        assert(dataset()->device_type_ == DALI_STORAGE_GPU);
+        stream = dataset()->stream_;
+        pstream = &stream;
+      }
+      daliBufferPlacement_t output_placement{};
+      output_placement.device_id = dataset()->pipeline_def_.device_id;
+      output_placement.device_type = dataset()->device_type_;
+
+      TF_DALI_CALL(daliTensorListCopyOut(output_tl, dst, output_placement, pstream, copy_flags));
     }
 
-    end_of_sequence = false;
+    pipe_outputs.reset();
 
-    TF_DALI_CALL(daliOutputRelease(&pipeline_handle_));
+    end_of_sequence = false;
     return Status();
   }
 
@@ -737,7 +812,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    *
    * The batches are kept in queue to keep them alive long enough for DALI to process them.
    */
-  Status FeedInputs(daliPipelineHandle *pipeline_handle, ListOfBatches &&batches) {
+  Status FeedInputs(daliPipeline_h pipeline_handle, ListOfBatches &&batches) {
     // Keep alive the prefetch_queue_depth of batches - this corresponds to the number of batches
     // that we insert during warmup
     alive_batches_.push(std::move(batches));
@@ -745,7 +820,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     // reuse the allocations for all inputs
     std::vector<const void *> ptrs;
-    dali_data_type_t dtype;
+    daliDataType_t dtype;
     std::vector<int64_t> shapes;
     int64_t ndim;
 
@@ -761,35 +836,65 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       auto ext_src_device = input_ext_src_devices_[input_idx];
 
 
-      unsigned int flag = 0u;
+      daliFeedInputFlags_t flags{};
       // We can share the data without copy when the backends are the same, otherwise
       // we need to copy.
-      if ((input_device == CPU && ext_src_device == DALI_BACKEND_CPU) ||
-          (input_device == GPU && ext_src_device == DALI_BACKEND_GPU)) {
-        flag = DALI_ext_force_no_copy;
+      bool should_copy = input_device != ext_src_device;
+      if (!should_copy) {
+        flags = DALI_FEED_INPUT_NO_COPY;
       } else {
-        flag = DALI_ext_force_copy;
+        flags = DALI_FEED_INPUT_FORCE_COPY;
       }
 
-      // TODO(klecki): Consider using other stream here: Dataset's stream_ or stream 0.
+      daliBufferPlacement_t placement{};
+      placement.device_id = dataset()->pipeline_def_.device_id;
+      placement.device_type = dataset()->device_type_;
+      daliTensorList_h tl_h = nullptr;
+      TF_DALI_CALL(daliTensorListCreate(&tl_h, placement));
+      dali::c_api::TensorListHandle tl(tl_h);
+
+      cudaStream_t stream = dataset()->stream_;
+      if (placement.device_type == DALI_STORAGE_GPU)
+        TF_DALI_CALL(daliTensorListSetStream(tl, &stream, false));
+
+      int num_samples = input_batch.batch_size();
+      auto dtype = input_batch.dtype();
+      int ndim = input_batch.ndim();
+      const char *layout = input_layout.c_str();
+      input_batch.GetShapes(shapes);
+
       if (batched) {
         const void *ptr = nullptr;
         TF_RETURN_IF_ERROR(input_batch.GetPtr(ptr));
-        input_batch.GetShapes(shapes);
-        TF_DALI_CALL(daliSetExternalInput(pipeline_handle, input_name.c_str(), input_device, ptr,
-                                          input_batch.dtype(), shapes.data(), input_batch.ndim(),
-                                          input_layout.c_str(), flag));
+        TF_DALI_CALL(daliTensorListAttachBuffer(
+          tl,
+          num_samples,
+          ndim,
+          shapes.data(),
+          dtype,
+          layout,
+          const_cast<void *>(ptr),
+          nullptr,
+          {}));
       } else {
         TF_RETURN_IF_ERROR(input_batch.GetPtrs(ptrs));
-        input_batch.GetShapes(shapes);
-        TF_DALI_CALL(daliSetExternalInputTensors(pipeline_handle, input_name.c_str(), input_device,
-                                                 ptrs.data(), input_batch.dtype(), shapes.data(),
-                                                 input_batch.ndim(), input_layout.c_str(), flag));
+        std::vector<daliTensorDesc_t> samples(num_samples);
+        for (int i = 0; i < num_samples; i++) {
+          samples[i].data = const_cast<void *>(ptrs[i]);
+          samples[i].dtype = dtype;
+          samples[i].ndim = ndim;
+          samples[i].shape = &shapes[i * ndim];
+          samples[i].layout = layout;
+        }
+        TF_DALI_CALL(daliTensorListAttachSamples(
+          tl, num_samples, ndim, dtype, layout, samples.data(), nullptr));
       }
 
+      TF_DALI_CALL(daliPipelineFeedInput(
+          pipeline_handle_, input_name.c_str(), tl, nullptr, flags, nullptr));
+
       // No need keep the data if we did the copy
-      if ((input_device == CPU && ext_src_device != DALI_BACKEND_CPU) ||
-          (input_device == GPU && ext_src_device != DALI_BACKEND_GPU)) {
+      if (should_copy) {
         input_batch.clear();
       }
     }
@@ -927,7 +1032,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * @brief Check checkpointing support and return and error if not
    */
   Status checkCheckpointingSupport() {
-    if (dataset()->device_type_ == GPU) {
+    if (dataset()->device_type_ == DALI_STORAGE_GPU) {
       // Current TensorFlow (2.15) will raise an error before even getting here
       return errors::Unimplemented("Checkpointing is not supported for DALI GPU dataset.");
     }
@@ -946,10 +1051,10 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   tensorflow::mutex mu_;
   std::vector<std::unique_ptr<IteratorBase>> input_impls_;
   // Obtained from pipeline, the `device` parameter of external source nodes used for inputs
-  std::vector<dali_backend_t> input_ext_src_devices_;
+  std::vector<daliStorageDevice_t> input_ext_src_devices_;
   std::queue<ListOfBatches> alive_batches_;
   InputState iterator_state_ = InputState::in_progress;
-  daliPipelineHandle pipeline_handle_ = nullptr;
+  dali::c_api::PipelineHandle pipeline_handle_;
   bool enable_memory_stats_ = false;
 };
 
@@ -1015,11 +1120,13 @@ void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs,
 
 std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
     const string &prefix) const {
-  daliPipelineHandle pipeline_handle;
-  TF_CHECK_OK(InitPipeline(&pipeline_handle));
+  dali::c_api::PipelineHandle pipeline_handle;
+  TF_CHECK_OK(InitPipeline(pipeline_handle));
 
-  return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
-                                     pipeline_handle, pipeline_def_.enable_memory_stats);
+  return absl::make_unique<Iterator>(
+    Iterator::Params{this, strings::StrCat(prefix, "::DALI")},
+    std::move(pipeline_handle),
+    pipeline_def_.enable_memory_stats);
 }
 
 

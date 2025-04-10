@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -332,7 +332,7 @@ class InstallerHelper:
             # DALI TF sdist installation
             dali_stub_src = os.path.join(tmpdir, "dali_stub.cc")
             dali_stub_lib = os.path.join(tmpdir, "libdali.so")
-            dali_c_api_hdr = os.path.join(self.src_path, "include", "dali", "c_api.h")
+            dali_c_api_hdr = os.path.join(self.src_path, "include", "dali", "dali.h")
             with open(dali_stub_src, "w+") as f:
                 stubgen(header_filepath=dali_c_api_hdr, out_file=f)
 

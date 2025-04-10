@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 
 #include "dali/pipeline/data/allocator.h"
 #include "dali/core/common.h"
-#include "dali/c_api.h"
+#include "dali/dali.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/data/backend.h"
 

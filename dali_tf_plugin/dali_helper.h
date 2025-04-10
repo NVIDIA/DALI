@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,31 +18,95 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <string>
 
-#include "dali/c_api.h"
+#include "dali/dali.h"
+#include "dali/core/format.h"
+#include "dali/dali_cpp_wrappers.h"
 
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
 
 namespace dali_tf_impl {
 
-struct CDeleter {
-  void operator()(void* p) {
-    free(p);
+class DALIException : public std::runtime_error {
+ public:
+  explicit DALIException(
+        daliResult_t result,
+        std::string message,
+        const char *expression,
+        const char *file,
+        int line)
+  : runtime_error(MakeErrorString(result, message, expression, file, line)) {}
+
+  static daliResult_t Rethrow(
+        daliResult_t result,
+        const char *expression,
+        const char *file,
+        int line) {
+    if (!(result & DALI_ERROR))  // return non-error results
+      return result;
+    throw DALIException(
+      result,
+      daliGetLastErrorMessage(),
+      expression,
+      file,
+      line);
   }
+
+  static std::string MakeErrorString(
+        daliResult_t result,
+        const std::string &message,
+        const char *expression,
+        const char *file,
+        int line) {
+    std::stringstream ss;
+    ss << "Error ";
+    if (const char *err = daliGetErrorName(result))
+      ss << err;
+    else
+      ss << "<unknown error " << static_cast<int>(result) << ">";
+
+    ss << ":\n" << message;
+
+    if (expression)
+      ss << "\nwhile executing: " << expression;
+
+    if (file && line > 0)
+      ss << "\nin " << file << ":" << line;
+
+    ss << std::endl;
+    return ss.str();
+  }
+
+  daliResult_t code;
+  std::string message;
+  const char *expression = nullptr;
+  const char *file = nullptr;
+  int line = -1;
 };
 
-template <typename T>
-using AutoCPtr = std::unique_ptr<T, CDeleter>;
+#define DALI_RETHROW(...) DALIException::Rethrow((__VA_ARGS__), #__VA_ARGS__, __FILE__, __LINE__)
 
-static tensorflow::TensorShape DaliToShape(const AutoCPtr<int64_t>& ns) {
+inline tensorflow::TensorShape ToTfShape(const int64_t *shape, int ndim) {
   tensorflow::TensorShape ts;
-  for (int i = 0; ns.get()[i] != 0; ++i)
-    ts.InsertDim(i, ns.get()[i]);
+  auto status = tensorflow::TensorShape::BuildTensorShape(absl::Span(shape, ndim), &ts);
+  if (!status.ok())
+    throw std::runtime_error(std::string(status.message()));
   return ts;
 }
 
-constexpr tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
+inline tensorflow::TensorShape GetTfShape(const daliTensorDesc_t &desc) {
+  return ToTfShape(desc.shape, desc.ndim);
+}
+
+inline tensorflow::TensorShape GetTfShape(daliTensor_h tensor) {
+  daliTensorDesc_t desc{};
+  DALI_RETHROW(daliTensorGetDesc(tensor, &desc));
+  return ToTfShape(desc.shape, desc.ndim);
+}
+
+constexpr tensorflow::DataType DaliToTfType(daliDataType_t dali_type) {
   switch (dali_type) {
     case DALI_UINT8:
       return tensorflow::DT_UINT8;
@@ -73,7 +137,7 @@ constexpr tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
   }
 }
 
-constexpr dali_data_type_t TfToDaliType(tensorflow::DataType tf_type) {
+constexpr daliDataType_t TfToDaliType(tensorflow::DataType tf_type) {
   switch (tf_type) {
     case tensorflow::DT_UINT8:
       return DALI_UINT8;
@@ -123,6 +187,30 @@ using TfExample = std::vector<tensorflow::Tensor>;
 // We need to build batches sample by sample to advance the input iterators in sync.
 using BatchStorage = std::vector<tensorflow::Tensor>;
 
+inline bool IsUniform(int num_samples, int ndim, const int64_t *shape) {
+  if (num_samples < 2 || ndim == 0)
+    return true;
+  for (int s = 1; s < num_samples; s++) {
+    for (int i = 0; i < ndim; i++)
+      if (shape[i] != shape[s * ndim + i])
+        return false;
+  }
+  return true;
+}
+
+inline std::string ShapeToString(daliTensorList_h tl) {
+  const int64_t *shape = nullptr;
+  int ndim = 0, num_samples = 0;
+  DALI_RETHROW(daliTensorListGetShape(tl, &num_samples, &ndim, &shape));
+  std::stringstream ss;
+  for (int s = 0; s < num_samples; s++) {
+    if (s)
+      ss << ", ";
+    ss << ToTfShape(shape + s * ndim, ndim);
+  }
+  return ss.str();
+}
+
 class Batch {
  public:
   Batch() = default;
@@ -141,7 +229,7 @@ class Batch {
     }
   }
 
-  dali_data_type_t dtype() const {
+  daliDataType_t dtype() const {
     return TfToDaliType(storage[0].dtype());
   }
 
