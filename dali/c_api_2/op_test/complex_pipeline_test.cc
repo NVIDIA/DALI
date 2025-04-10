@@ -89,16 +89,25 @@ TEST(CAPI2_PipelineTest, ReaderDecoderMixed2CPU) {
 }
 
 TEST(CAPI2_PipelineTest, Checkpointing) {
+  // This test creates three pipelines - a C++ pipeline (ref) and two C pipelines (pipe1, pipe2),
+  // created by deserializing the serialized representation of the C++ pipeline.
+  //
+  // (pipe1) advances 3 iterations and then a checkpoint is taken and restored in (ref),
+  // after which 5 iterations of outputs are compared.
+  // Then a checkpoint is taken in (ref) and restored in (pipe2), after which another 5 iterations
+  // are compared.
   PipelineParams params{};
   params.enable_checkpointing = true;
   params.seed = 1234;
   auto ref = ReaderDecoderPipe("cpu", StorageDevice::GPU, params);
   ref->Build();
-  auto pipe_str = ref->SerializeToProtobuf();
-  auto pipe1 = Deserialize(pipe_str, {});
-  auto pipe2 = Deserialize(pipe_str, {});
+  auto pipe_str = ref->SerializeToProtobuf();  // serialize the ref...
+  auto pipe1 = Deserialize(pipe_str, {});  // ...and create pipe1
+  auto pipe2 = Deserialize(pipe_str, {});  // ...and pipe2 from serialized ref
   CHECK_DALI(daliPipelineBuild(pipe1));
   CHECK_DALI(daliPipelineBuild(pipe2));
+
+  // Advance a few iterations...
   CHECK_DALI(daliPipelinePrefetch(pipe1));
   daliPipelineOutputs_h out1_h{};
   CHECK_DALI(daliPipelinePopOutputs(pipe1, &out1_h));
@@ -120,6 +129,7 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   ext.pipeline_data.size = strlen(ext.pipeline_data.data);
 
   daliCheckpoint_h checkpoint_h{};
+  // Take a checkpoint...
   CHECK_DALI(daliPipelineGetCheckpoint(pipe1, &checkpoint_h, &ext));
   CheckpointHandle checkpoint(checkpoint_h);
 
@@ -128,10 +138,15 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   CHECK_DALI(daliPipelineSerializeCheckpoint(pipe1, checkpoint, &data, &size));
   ASSERT_NE(data, nullptr);
 
+  // ...restore...
   ref->RestoreFromSerializedCheckpoint(std::string(data, size));
+  // ...run and compare.
   ComparePipelineOutputs(*ref, pipe1, 5, false);
+
+  // Now take another checkpoint...
   auto chk_str = ref->GetSerializedCheckpoint({ ext.pipeline_data.data, ext.iterator_data.data });
 
+  // ...deserialize...
   CHECK_DALI(daliPipelineDeserializeCheckpoint(
         pipe2, &checkpoint_h, chk_str.data(), chk_str.length()));
   CheckpointHandle checkpoint2(checkpoint_h);
@@ -142,7 +157,9 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   EXPECT_STREQ(ext.iterator_data.data, "ITER");
   EXPECT_EQ(ext.pipeline_data.size, pipeline_data_size);
   EXPECT_STREQ(ext.pipeline_data.data, pipeline_data);
+  // ...restore...
   CHECK_DALI(daliPipelineRestoreCheckpoint(pipe2, checkpoint2));
+  // ...run and compare.
   ComparePipelineOutputs(*ref, pipe2, 5, false);
 }
 
