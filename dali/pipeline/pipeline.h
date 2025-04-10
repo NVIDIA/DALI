@@ -263,6 +263,15 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC const graph::OpNode *GetInputOperatorNode(std::string_view name);
 
+  /**
+   * @brief Get input operatos as a name-to-node mapping.
+   *
+   */
+  DLL_PUBLIC const auto &GetInputOperators() const & {
+    DALI_ENFORCE(built_);
+    return input_operators_;
+  }
+
   /** @{ */
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
