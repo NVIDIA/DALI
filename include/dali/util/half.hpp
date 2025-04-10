@@ -1187,7 +1187,7 @@ namespace half_float
 		/// to rather involved single-to-half conversion.
 		/// \param value literal value
 		/// \return half with given value (if representable)
-		inline half operator "" _h(long double value) { return half(static_cast<float>(value)); }
+		inline half operator ""_h(long double value) { return half(static_cast<float>(value)); }
 	}
 #endif
 

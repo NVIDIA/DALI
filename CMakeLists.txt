@@ -384,7 +384,7 @@ if ("${ARCH}" STREQUAL "aarch64-linux")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare -Wno-deprecated-declarations")
 
   # Settings specific to builds where Clang is used for compiling CUDA code
   if (DALI_CLANG_ONLY)

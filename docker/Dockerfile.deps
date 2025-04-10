@@ -26,7 +26,7 @@ RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
     rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
 
 # Clang, build it before deps as deps changes more frequently
-RUN CLANG_VERSION=17.0.6                                                                           && \
+RUN CLANG_VERSION=20.1.2                                                                           && \
     cd /tmp                                                                                        && \
     wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
     tar -xf llvmorg-*.tar.gz                                                                       && \
