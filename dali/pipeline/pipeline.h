@@ -364,7 +364,7 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(checkpointing_enabled(),
                  "Cannot restore checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");
-    DALI_ENFORCE(built_, "The pipeline must be built before restoring its state.");
+    DALI_ENFORCE(executor_, "The pipeline must be built before restoring its state.");
     executor_->RestoreStateFromCheckpoint(cpt);
   }
 
