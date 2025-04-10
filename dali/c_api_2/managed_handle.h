@@ -18,7 +18,6 @@
 #include <cassert>
 #include <stdexcept>
 #include <utility>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/unique_handle.h"
 

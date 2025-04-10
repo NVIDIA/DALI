@@ -19,10 +19,6 @@
 #error The new DALI C API is incompatible with the old one. Please do not include both headers in one translation unit.  // NOLINT
 #endif
 
-#ifndef DALI_ALLOW_NEW_C_API
-#error The new DALI C API is work in progress and incomplete.
-#endif
-
 #if (defined(__cplusplus) && __cplusplus < 201402L) || \
     (!defined(__cplusplus) && __STDC_VERSION__ < 199901L)
 #error The DALI C API requires a C99 or a C++14 compiler.
@@ -672,6 +668,24 @@ DALI_API daliResult_t daliPipelineGetCheckpoint(
   daliCheckpoint_h *out_checkpoint,
   const daliCheckpointExternalData_t *checkpoint_ext);
 
+/** Gets the checkpoint data, serialized as a byte buffer.
+ *
+ * Gets the serialized checkpoint.
+ * The result is cached and remain valid until the checkpoint object is destroyed.
+ *
+ * @param pipeline    [in]  The pipeline
+ * @param checkpoint  [in]  The checkpoint
+ * @param out_data    [out] A pointer to the buffer containing the serialized checkpoint
+ *                          The returned pointer remains valid until the checkpoint is destroyed.
+ * @param out_size    [out] A pointer to the location where the checkpoint length is stored
+ */
+DALI_API daliResult_t daliPipelineSerializeCheckpoint(
+  daliPipeline_h pipeline,
+  daliCheckpoint_h checkpoint,
+  const char **out_data,
+  size_t *out_size);
+
+
 /** Restores the state of the pipeline based on the checkpoint.
  *
  * @param pipeline    The pipeline whose state to restore. The pipeline must be identical to the one
@@ -687,12 +701,14 @@ DALI_API daliResult_t daliPipelineRestoreCheckpoint(
 
 /** Reconstitutes a checkpoint object from a byte buffer.
  *
- * @param checkpoint                  [in]  The checkpoint.
+ * @param pipeline                    [in]  The pipeline whose checkpoint is being deserialized.
+ * @param checkpoint                  [out] The checkpoint.
  * @param serialized_checkpoint       [in]  A pointer to the beginning of the buffer containing the
  *                                          serialized checkpoint data.
  * @param serialized_checkpoint_size  [out] The length, in bytes, of the buffer.
  */
-DALI_API daliResult_t daliCheckpointDeserialize(
+DALI_API daliResult_t daliPipelineDeserializeCheckpoint(
+  daliPipeline_h pipeline,
   daliCheckpoint_h  *out_checkpoint,
   const char *serialized_checkpoint,
   size_t serialized_checkpoint_size);
@@ -705,18 +721,6 @@ DALI_API daliResult_t daliCheckpointDeserialize(
 DALI_API daliResult_t daliCheckpointGetExternalData(
   daliCheckpoint_h checkpoint,
   daliCheckpointExternalData_t *out_ext_data);
-
-/** Gets the checkpoint data, serialized as a byte buffer.
- *
- * @param checkpoint  [in]  The checkpoint.
- * @param out_data    [out] A pointer to the buffer containing the serialized checkpoint
- *                          The returned pointer remains valid until the checkpoint is destroyed.
- * @param out_size    [out] A pointer to the location where the checkpoint length is stored
- */
-DALI_API daliResult_t daliCheckpointSerialize(
-  daliCheckpoint_h checkpoint,
-  const char **out_data,
-  size_t *out_size);
 
 /** Destroys a checkpoint object */
 DALI_API daliResult_t daliCheckpointDestroy(daliCheckpoint_h checkpoint);

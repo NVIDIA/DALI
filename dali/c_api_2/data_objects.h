@@ -21,7 +21,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/c_api_2/ref_counting.h"

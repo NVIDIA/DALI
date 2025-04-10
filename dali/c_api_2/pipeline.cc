@@ -14,6 +14,7 @@
 
 #include "dali/c_api_2/pipeline.h"
 #include "dali/c_api_2/pipeline_outputs.h"
+#include "dali/c_api_2/checkpoint.h"
 #include "dali/c_api_2/error_handling.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/c_api_2/utils.h"
@@ -25,6 +26,12 @@ PipelineWrapper *ToPointer(daliPipeline_h handle) {
   if (!handle)
     throw NullHandle("Pipeline");
   return static_cast<PipelineWrapper *>(handle);
+}
+
+CheckpointWrapper *ToPointer(daliCheckpoint_h handle) {
+  if (!handle)
+    throw NullHandle("Checkpoint");
+  return static_cast<CheckpointWrapper *>(handle);
 }
 
 PipelineParams ToCppParams(const daliPipelineParams_t &params) {
@@ -241,13 +248,33 @@ std::unique_ptr<CheckpointWrapper> PipelineWrapper::GetCheckpoint(
       const daliCheckpointExternalData_t *ext) const {
   auto cpt = std::make_unique<CheckpointWrapper>(pipeline_->GetCheckpoint());
   if (ext) {
-    cpt->external_ctx_cpt_.pipeline_data =
+    cpt->Unwrap()->external_ctx_cpt_.pipeline_data =
         std::string(ext->pipeline_data.data, ext->pipeline_data.size);
-    cpt->external_ctx_cpt_.iterator_data =
+    cpt->Unwrap()->external_ctx_cpt_.iterator_data =
         std::string(ext->iterator_data.data, ext->iterator_data.size);
   }
   return cpt;
 }
+
+std::string_view PipelineWrapper::SerializeCheckpoint(CheckpointWrapper &chk) const {
+  chk.Serialize(*this);
+  return chk.Serialized();
+}
+
+void CheckpointWrapper::Serialize(const PipelineWrapper &pipeline) {
+  if (!serialized_)
+    serialized_ = pipeline.Unwrap()->SerializeCheckpoint(cpt_);
+}
+
+std::unique_ptr<CheckpointWrapper>
+PipelineWrapper::DeserializeCheckpoint(std::string_view serialized) {
+  return std::make_unique<CheckpointWrapper>(pipeline_->DeserializeCheckpoint(serialized));
+}
+
+void PipelineWrapper::RestoreFromCheckpoint(CheckpointWrapper &chk) {
+  pipeline_->RestoreFromCheckpoint(*chk.Unwrap());
+}
+
 
 
 }  // namespace dali::c_api
@@ -404,5 +431,85 @@ daliResult_t daliPipelinePopOutputsAsync(
   auto pipe = ToPointer(pipeline);
   CHECK_OUTPUT(out);
   *out = pipe->PopOutputs(stream).release();
+  DALI_EPILOG();
+}
+
+
+daliResult_t daliPipelineGetCheckpoint(
+      daliPipeline_h pipeline,
+      daliCheckpoint_h *out_checkpoint,
+      const daliCheckpointExternalData_t *checkpoint_ext) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out_checkpoint);
+  auto chk = pipe->GetCheckpoint(checkpoint_ext);
+  *out_checkpoint = chk.release();  // No throwing beyond this point!
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineRestoreCheckpoint(
+      daliPipeline_h pipeline,
+      daliCheckpoint_h checkpoint) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  auto chk = ToPointer(checkpoint);
+  pipe->RestoreFromCheckpoint(*chk);
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineDeserializeCheckpoint(
+      daliPipeline_h pipeline,
+      daliCheckpoint_h  *out_checkpoint,
+      const char *serialized_checkpoint,
+      size_t serialized_checkpoint_size) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out_checkpoint);
+  if (!serialized_checkpoint_size) {
+    *out_checkpoint = nullptr;
+    return DALI_NO_DATA;
+  }
+  if (!serialized_checkpoint) {
+    throw std::invalid_argument("The parameter `serialized_checkpoint` must not be NULL if "
+                                "`serialize_checkpoint_size` is nonzero.");
+  }
+
+  auto cpt = pipe->DeserializeCheckpoint(
+    std::string_view(serialized_checkpoint, serialized_checkpoint_size));
+
+  *out_checkpoint = cpt.release();  // No throwing beyond this point!
+  DALI_EPILOG();
+}
+
+daliResult_t daliCheckpointGetExternalData(
+      daliCheckpoint_h checkpoint,
+      daliCheckpointExternalData_t *out_ext_data) {
+  DALI_PROLOG();
+  auto cpt = ToPointer(checkpoint);
+  CHECK_OUTPUT(out_ext_data);
+  *out_ext_data = cpt->ExternalData();
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineSerializeCheckpoint(
+      daliPipeline_h pipeline,
+      daliCheckpoint_h checkpoint,
+      const char **out_data,
+      size_t *out_size) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  auto cpt = ToPointer(checkpoint);
+  CHECK_OUTPUT(out_data);
+  CHECK_OUTPUT(out_size);
+  auto serialized = pipe->SerializeCheckpoint(*cpt);
+  *out_data = serialized.data();
+  *out_size = serialized.size();
+  DALI_EPILOG();
+}
+
+/** Destroys a checkpoint object */
+daliResult_t daliCheckpointDestroy(daliCheckpoint_h checkpoint) {
+  DALI_PROLOG();
+  delete ToPointer(checkpoint);
   DALI_EPILOG();
 }

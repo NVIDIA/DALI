@@ -93,10 +93,12 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   params.enable_checkpointing = true;
   params.seed = 1234;
   auto ref = ReaderDecoderPipe("cpu", StorageDevice::GPU, params);
+  ref->Build();
   auto pipe_str = ref->SerializeToProtobuf();
   auto pipe1 = Deserialize(pipe_str, {});
   auto pipe2 = Deserialize(pipe_str, {});
   CHECK_DALI(daliPipelineBuild(pipe1));
+  CHECK_DALI(daliPipelineBuild(pipe2));
   CHECK_DALI(daliPipelinePrefetch(pipe1));
   daliPipelineOutputs_h out1_h{};
   CHECK_DALI(daliPipelinePopOutputs(pipe1, &out1_h));
@@ -123,14 +125,15 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
 
   const char *data = nullptr;
   size_t size = 0;
-  CHECK_DALI(daliCheckpointSerialize(checkpoint, &data, &size));
+  CHECK_DALI(daliPipelineSerializeCheckpoint(pipe1, checkpoint, &data, &size));
   ASSERT_NE(data, nullptr);
 
   ref->RestoreFromSerializedCheckpoint(std::string(data, size));
-  ComparePipelineOutput(*ref, pipe1);
-  auto chk_str = ref->SerializedCheckpoint({ ext.pipeline_data.data, ext.iterator_data.data });
+  ComparePipelineOutputs(*ref, pipe1, 5, false);
+  auto chk_str = ref->GetSerializedCheckpoint({ ext.pipeline_data.data, ext.iterator_data.data });
 
-  CHECK_DALI(daliCheckpointDeserialize(&checkpoint_h, chk_str.data(), chk_str.length()));
+  CHECK_DALI(daliPipelineDeserializeCheckpoint(
+        pipe2, &checkpoint_h, chk_str.data(), chk_str.length()));
   CheckpointHandle checkpoint2(checkpoint_h);
 
   daliCheckpointExternalData_t ext2{};
@@ -140,7 +143,7 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   EXPECT_EQ(ext.pipeline_data.size, pipeline_data_size);
   EXPECT_STREQ(ext.pipeline_data.data, pipeline_data);
   CHECK_DALI(daliPipelineRestoreCheckpoint(pipe2, checkpoint2));
-  ComparePipelineOutput(*ref, pipe2);
+  ComparePipelineOutputs(*ref, pipe2, 5, false);
 }
 
 }  // namespace dali::c_api::test

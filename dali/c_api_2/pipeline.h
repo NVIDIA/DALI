@@ -19,16 +19,16 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
+#include "dali/c_api_2/checkpoint.h"
 #include "dali/c_api_2/pipeline_outputs.h"
 
 // A dummy base that the handle points to
 struct _DALIPipeline {
-  protected:
-   _DALIPipeline() = default;
-   ~_DALIPipeline() = default;
- };
+ protected:
+  _DALIPipeline() = default;
+  ~_DALIPipeline() = default;
+};
 
 namespace dali::c_api {
 
@@ -73,7 +73,14 @@ class PipelineWrapper : public _DALIPipeline {
     return pipeline_.get();
   }
 
-  std::unique_ptr<Checkpoint> GetCheckpoint(const daliCheckpointExternalData_t *ext) const;
+  std::unique_ptr<CheckpointWrapper> GetCheckpoint(const daliCheckpointExternalData_t *ext) const;
+
+  std::string_view SerializeCheckpoint(CheckpointWrapper &chk) const;
+
+  std::unique_ptr<CheckpointWrapper> DeserializeCheckpoint(std::string_view serialized);
+
+  void RestoreFromCheckpoint(CheckpointWrapper &chk);
+
 
  private:
   template <typename Backend>
@@ -89,6 +96,7 @@ class PipelineWrapper : public _DALIPipeline {
 };
 
 PipelineWrapper *ToPointer(daliPipeline_h handle);
+CheckpointWrapper *ToPointer(daliCheckpoint_h handle);
 
 }  // namespace dali::c_api
 
