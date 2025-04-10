@@ -414,6 +414,7 @@ for cpu_num in threads_num:
                         device_id=i + args.device_id,
                         num_threads=cpu_num,
                         decoders_module=decoders_module,
+                        hw_load=hw_load,
                     )
                 )
         elif args.pipeline == "rn50":
@@ -424,6 +425,7 @@ for cpu_num in threads_num:
                         minibatch_size=args.minibatch_size,
                         num_threads=cpu_num,
                         decoders_module=decoders_module,
+                        hw_load=hw_load,
                     )
                 )
         elif args.pipeline == "efficientnet_inference":
@@ -433,12 +435,18 @@ for cpu_num in threads_num:
                         device_id=i + args.device_id,
                         num_threads=cpu_num,
                         decoders_module=decoders_module,
+                        hw_load=hw_load,
                     )
                 )
         elif args.pipeline == "vit":
             for i in range(args.gpu_num):
                 pipes.append(
-                    vit_pipeline(device_id=i + args.device_id, decoders_module=decoders_module)
+                    vit_pipeline(
+                        device_id=i + args.device_id,
+                        num_threads=cpu_num,
+                        decoders_module=decoders_module,
+                        hw_load=hw_load,
+                    )
                 )
         elif args.pipeline == "efficientnet_training":
             for i in range(args.gpu_num):
@@ -449,6 +457,7 @@ for cpu_num in threads_num:
                         automatic_augmentation=args.aug_strategy,
                         num_threads=cpu_num,
                         decoders_module=decoders_module,
+                        hw_load=hw_load,
                     )
                 )
         else:
