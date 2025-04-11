@@ -97,9 +97,13 @@ void ComparePipelineOutput(Pipeline &ref, daliPipeline_h test) {
   ref.ReleaseOutputs();
 }
 
-void ComparePipelineOutputs(Pipeline &ref, daliPipeline_h test, int iters = 5) {
+void ComparePipelineOutputs(
+      Pipeline &ref,
+      daliPipeline_h test,
+      int iters = 5,
+      bool prefetch_on_first_iter = false) {
   for (int iter = 0; iter < iters; iter++) {
-    if (iter == 0) {
+    if (iter == 0 && prefetch_on_first_iter) {
       ref.Prefetch();
       CHECK_DALI(daliPipelinePrefetch(test));
     } else {

@@ -18,7 +18,6 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/format.h"
 #include "dali/core/span.h"

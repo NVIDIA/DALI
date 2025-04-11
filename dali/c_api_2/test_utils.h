@@ -16,7 +16,6 @@
 #define DALI_C_API_2_TEST_UTILS_H_
 
 #include <gtest/gtest.h>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 
 #define CHECK_DALI(...) EXPECT_EQ((__VA_ARGS__), DALI_SUCCESS) << daliGetLastErrorMessage()

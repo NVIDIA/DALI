@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <atomic>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/c_api_2/error_handling.h"
 #include "dali/pipeline/init.h"

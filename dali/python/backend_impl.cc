@@ -1936,9 +1936,9 @@ void ExposePipeline(py::module &m) {
           p->EnableCheckpointing(checkpointing);
         },
         "checkpointing"_a = true)
-    .def("SerializedCheckpoint",
+    .def("GetSerializedCheckpoint",
         [](Pipeline *p, const ExternalContextCheckpoint &external_ctx_cpt) -> py::bytes {
-          return p->SerializedCheckpoint(external_ctx_cpt);
+          return p->GetSerializedCheckpoint(external_ctx_cpt);
           })
     .def("RestoreFromSerializedCheckpoint",
         [](Pipeline *p, const std::string &serialized_checkpoint) {

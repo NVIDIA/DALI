@@ -17,7 +17,6 @@
 
 #include <string>
 #include <vector>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/c_api_2/data_objects.h"

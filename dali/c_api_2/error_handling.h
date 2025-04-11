@@ -19,7 +19,6 @@
 #include <iostream>
 #include <string>
 #include <sstream>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/error_handling.h"
 

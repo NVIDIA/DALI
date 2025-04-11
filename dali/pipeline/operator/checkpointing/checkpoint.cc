@@ -90,10 +90,10 @@ std::string Checkpoint::SerializeToProtobuf(ExecutorBase &exec) const {
   return checkpoint.SerializeAsString();
 }
 
-void Checkpoint::DeserializeFromProtobuf(ExecutorBase &exec, const std::string &serialized_data) {
+void Checkpoint::DeserializeFromProtobuf(ExecutorBase &exec, std::string_view serialized_data) {
   Clear();
   dali_proto::Checkpoint checkpoint;
-  checkpoint.ParseFromString(serialized_data);
+  checkpoint.ParseFromArray(serialized_data.data(), serialized_data.size());
 
   for (int i = 0; i < checkpoint.cpts_size(); i++) {
     const auto &name = checkpoint.cpts(i).operator_name();

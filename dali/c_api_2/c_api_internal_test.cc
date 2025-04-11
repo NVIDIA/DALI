@@ -15,7 +15,6 @@
 #include <gtest/gtest.h>
 #include <stdexcept>
 #include <system_error>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/c_api_2/error_handling.h"
 #include "dali/core/cuda_error.h"

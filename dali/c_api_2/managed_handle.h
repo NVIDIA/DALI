@@ -18,7 +18,6 @@
 #include <cassert>
 #include <stdexcept>
 #include <utility>
-#define DALI_ALLOW_NEW_C_API
 #include "dali/dali.h"
 #include "dali/core/unique_handle.h"
 
@@ -122,6 +121,7 @@ class Resource##Handle \
 
 DALI_C_UNIQUE_HANDLE(Pipeline);
 DALI_C_UNIQUE_HANDLE(PipelineOutputs);
+DALI_C_UNIQUE_HANDLE(Checkpoint);
 DALI_C_REF_HANDLE(TensorList);
 DALI_C_REF_HANDLE(Tensor);
 

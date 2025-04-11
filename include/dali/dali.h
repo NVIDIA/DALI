@@ -19,10 +19,6 @@
 #error The new DALI C API is incompatible with the old one. Please do not include both headers in one translation unit.  // NOLINT
 #endif
 
-#ifndef DALI_ALLOW_NEW_C_API
-#error The new DALI C API is work in progress and incomplete.
-#endif
-
 #if (defined(__cplusplus) && __cplusplus < 201402L) || \
     (!defined(__cplusplus) && __STDC_VERSION__ < 199901L)
 #error The DALI C API requires a C99 or a C++14 compiler.
@@ -498,7 +494,7 @@ DALI_API daliResult_t daliPipelineGetInputDescByIdx(
  *
  * @param pipeline        [in]  The pipeline
  * @param out_input_desc  [out] A pointer to the location where the descriptor is written.
- * @param name            [in]  The name of the input whose descriptor to obtain.]
+ * @param name            [in]  The name of the input whose descriptor to obtain.
  *
  * @retval DALI_SUCCESS
  * @retval DALI_ERROR_INVALID_OPERATION   the pipeline wasn't built before the call
@@ -532,7 +528,6 @@ DALI_API daliResult_t daliPipelineGetOutputDesc(
   daliPipeline_h pipeline,
   daliPipelineIODesc_t *out_desc,
   int index);
-
 
 /** Pops the pipeline outputs from the pipeline's output queue.
  *
@@ -635,6 +630,100 @@ DALI_API daliResult_t daliPipelineOutputsGet(
   daliPipelineOutputs_h outputs,
   daliTensorList_h *out,
   int index);
+
+/****************************************************************************/
+/*** Checkpointing **********************************************************/
+/****************************************************************************/
+
+typedef struct _DALICheckpoint *daliCheckpoint_h;
+
+typedef struct _DALICheckpointExternalBuffer {
+  const char *data;
+  size_t      size;
+} daliCheckpointExternalBuffer_t;
+
+/** Contains extra state stored alongside the pipeline checkpoint */
+typedef struct _DALICheckpointExternalData {
+  daliCheckpointExternalBuffer_t pipeline_data;
+  daliCheckpointExternalBuffer_t iterator_data;
+} daliCheckpointExternalData_t;
+
+/** Gets the latest checkpoint.
+ *
+ * Gets the current state of the pipeline. It can be used later to restore the pipeline
+ * to a state it was in at the time the checkpoint was obtained.
+ *
+ * The function returns a checkpoint as a handle, which must be destroyed with a call to
+ * daliCheckpointDestroy.
+ *
+ * @param pipeline        [in]  The pipeline
+ * @param out_checkpoint  [out] A pointer to the location where the checkpoint handle is stored
+ * @param checkpoint_ext  [in]  An optional pointer to a structure with additional checkpoint data.
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION   The pipeline wasn't built or checkpointing is disabled.
+ */
+DALI_API daliResult_t daliPipelineGetCheckpoint(
+  daliPipeline_h pipeline,
+  daliCheckpoint_h *out_checkpoint,
+  const daliCheckpointExternalData_t *checkpoint_ext);
+
+/** Gets the checkpoint data, serialized as a byte buffer.
+ *
+ * Gets the serialized checkpoint.
+ * The result is cached and remain valid until the checkpoint object is destroyed.
+ *
+ * @param pipeline    [in]  The pipeline
+ * @param checkpoint  [in]  The checkpoint
+ * @param out_data    [out] A pointer to the buffer containing the serialized checkpoint
+ *                          The returned pointer remains valid until the checkpoint is destroyed.
+ * @param out_size    [out] A pointer to the location where the checkpoint length is stored
+ */
+DALI_API daliResult_t daliPipelineSerializeCheckpoint(
+  daliPipeline_h pipeline,
+  daliCheckpoint_h checkpoint,
+  const char **out_data,
+  size_t *out_size);
+
+
+/** Restores the state of the pipeline based on the checkpoint.
+ *
+ * @param pipeline    The pipeline whose state to restore. The pipeline must be identical to the one
+ *                    from which the checkpoint was obtained.
+ * @param checkpoint  The checkpoint containing the pipeline state.
+ *
+ * @retval DALI_SUCCESS
+ * @retval DALI_ERROR_INVALID_OPERATION The pipeline does not match the one from the checkpoint.
+ */
+DALI_API daliResult_t daliPipelineRestoreCheckpoint(
+  daliPipeline_h pipeline,
+  daliCheckpoint_h checkpoint);
+
+/** Reconstitutes a checkpoint object from a byte buffer.
+ *
+ * @param pipeline                    [in]  The pipeline whose checkpoint is being deserialized.
+ * @param checkpoint                  [out] The checkpoint.
+ * @param serialized_checkpoint       [in]  A pointer to the beginning of the buffer containing the
+ *                                          serialized checkpoint data.
+ * @param serialized_checkpoint_size  [out] The length, in bytes, of the buffer.
+ */
+DALI_API daliResult_t daliPipelineDeserializeCheckpoint(
+  daliPipeline_h pipeline,
+  daliCheckpoint_h  *out_checkpoint,
+  const char *serialized_checkpoint,
+  size_t serialized_checkpoint_size);
+
+/** Gets the external data associated with a checkpoint
+ *
+ * @param checkpoint    [in]  The checkpoint
+ * @param out_ext_data  [out] A pointer to the location where the return value is stored.
+ */
+DALI_API daliResult_t daliCheckpointGetExternalData(
+  daliCheckpoint_h checkpoint,
+  daliCheckpointExternalData_t *out_ext_data);
+
+/** Destroys a checkpoint object */
+DALI_API daliResult_t daliCheckpointDestroy(daliCheckpoint_h checkpoint);
 
 /****************************************************************************/
 /*** Tensor and TensorList API **********************************************/
@@ -805,7 +894,7 @@ DALI_API daliResult_t daliTensorListGetBufferPlacement(
 
 /** Associates a stream with the TensorList.
  *
- * @param stream      an optional CUDA stream handle; if the handle poitner is NULL,
+ * @param stream      an optional CUDA stream handle; if the handle pointer is NULL,
  *                    host-synchronous behavior is prescribed.
  * @param synchronize if true, the new stream (or host, if NULL), will be synchronized with the
  *                    currently associated stream
@@ -942,7 +1031,7 @@ DALI_API daliResult_t daliTensorListSetSourceInfo(
 /** Gets the tensor descriptor of the specified sample.
  *
  * @param tensor_list [in]  The tensor list
- * @param out_desc    [out] A poitner to a location where the descriptor is written.
+ * @param out_desc    [out] A pointer to a location where the descriptor is written.
  * @param sample_idx  [in]  The index of the sample, whose descriptor to get.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
@@ -1062,7 +1151,7 @@ DALI_API daliResult_t daliTensorGetBufferPlacement(
 
 /** Associates a stream with the Tensor.
  *
- * @param stream      an optional CUDA stream handle; if the handle poitner is NULL,
+ * @param stream      an optional CUDA stream handle; if the handle pointer is NULL,
  *                    host-synchronous behavior is prescribed.
  * @param synchronize if true, the new stream (or host, if NULL), will be synchronized with the
  *                    currently associated stream
@@ -1188,7 +1277,7 @@ DALI_API daliResult_t daliTensorSetSourceInfo(
 /** Gets the descriptor of the data in the tensor.
  *
  * @param tensor      [in]  The tensor
- * @param out_desc    [out] A poitner to a location where the descriptor is written.
+ * @param out_desc    [out] A pointer to a location where the descriptor is written.
  *
  * The descriptor stored in `out_desc` contains pointers. These pointers are invalidated by
  * destroying, clearing or resizing the Tensor or re-attaching new data to it.
