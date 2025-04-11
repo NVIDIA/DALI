@@ -76,132 +76,6 @@ auto codecpar(AVStream* stream) -> decltype(stream->codec) {
 }
 #endif
 
-inline void assemble_video_list(const std::string& path, const std::string& curr_entry, int label,
-                        std::vector<dali::file_meta> &file_info) {
-  std::string curr_dir_path = path + "/" + curr_entry;
-  DIR *dir = opendir(curr_dir_path.c_str());
-  DALI_ENFORCE(dir != nullptr, "Directory " + curr_dir_path + " could not be opened");
-
-  struct dirent *entry;
-
-  while ((entry = readdir(dir))) {
-    std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
-#ifdef _DIRENT_HAVE_D_TYPE
-    /*
-     * Regular files and symlinks supported. If FS returns DT_UNKNOWN,
-     * filename is validated.
-     */
-    if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
-        entry->d_type != DT_UNKNOWN) {
-      continue;
-    }
-#endif
-    file_info.push_back(file_meta{full_path, label, 0, 0});
-  }
-  closedir(dir);
-}
-
-std::vector<dali::file_meta> filesystem::get_file_label_pair(
-    const std::string& file_root,
-    const std::vector<std::string>& filenames,
-    bool use_labels,
-    const std::vector<int>& labels,
-    const std::string& file_list) {
-  // open the root
-  std::vector<dali::file_meta> file_info;
-  std::vector<std::string> entry_name_list;
-
-  if (!file_root.empty()) {
-    DIR *dir = opendir(file_root.c_str());
-
-    DALI_ENFORCE(dir != nullptr,
-        "Directory " + file_root + " could not be opened.");
-
-    struct dirent *entry;
-
-    while ((entry = readdir(dir))) {
-      struct stat s;
-      std::string entry_name(entry->d_name);
-      std::string full_path = file_root + "/" + entry_name;
-      int ret = stat(full_path.c_str(), &s);
-      DALI_ENFORCE(ret == 0,
-          "Could not access " + full_path + " during directory traversal.");
-      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-      if (S_ISDIR(s.st_mode)) {
-        entry_name_list.push_back(entry_name);
-      }
-    }
-    closedir(dir);
-    // sort directories to preserve class alphabetic order, as readdir could
-    // return unordered dir list. Otherwise file reader for training and validation
-    // could return directories with the same names in completely different order
-    std::sort(entry_name_list.begin(), entry_name_list.end());
-    for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-        assemble_video_list(file_root, entry_name_list[dir_count], dir_count, file_info);
-    }
-
-    // sort file names as well
-    std::sort(file_info.begin(), file_info.end());
-  } else if (!file_list.empty()) {
-    // load (path, label) pairs from list
-    std::ifstream s(file_list);
-    DALI_ENFORCE(s.is_open(), file_list + " could not be opened.");
-
-    string line;
-    string video_file;
-    int label;
-    float start_time;
-    float end_time;
-    int line_num = 0;
-    while (std::getline(s, line)) {
-      line_num++;
-      video_file.clear();
-      label = -1;
-      start_time = end_time = 0;
-      std::istringstream file_line(line);
-      file_line >> video_file >> label;
-      if (video_file.empty()) continue;
-      DALI_ENFORCE(label >= 0, "Label value should be >= 0 in file_list at line number: "
-                   + to_string(line_num) + ", filename: "+ video_file);
-      if (file_line >> start_time) {
-        if (file_line >> end_time) {
-          if (start_time == end_time) {
-            DALI_WARN("Start and end time/frame are the same, skipping the file, in file_list "
-                      "at line number: " + to_string(line_num) + ", filename: "+ video_file);
-            continue;
-          }
-        }
-      }
-      file_info.push_back(file_meta{video_file, label, start_time, end_time});
-    }
-
-    DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
-    s.close();
-  } else {
-    file_info.reserve(filenames.size());
-    if (use_labels) {
-      if (!labels.empty()) {
-        for (size_t i = 0; i < filenames.size(); ++i) {
-          file_info.push_back(file_meta{filenames[i], labels[i], 0, 0});
-        }
-      } else {
-        for (size_t i = 0; i < filenames.size(); ++i) {
-          file_info.push_back(file_meta{filenames[i], static_cast<int>(i), 0, 0});
-        }
-      }
-    } else {
-      for (size_t i = 0; i < filenames.size(); ++i) {
-        file_info.push_back(file_meta{filenames[i], 0, 0, 0});
-      }
-    }
-  }
-
-  LOG_LINE << "read " << file_info.size() << " files from "
-              << entry_name_list.size() << " directories\n";
-
-  return file_info;
-}
-
 // Are these good numbers? Allow them to be set?
 static constexpr auto frames_used_warning_ratio = 3.0f;
 static constexpr auto frames_used_warning_minimum = 1000;
@@ -849,7 +723,7 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     tensor.initialize(seq_meta.length, count_, seq_meta.height, seq_meta.width, channels_, dtype_);
 
     tensor.read_sample_f = [this,
-                            file_name = file_info_[seq_meta.filename_idx].video_file,
+                            file_name = file_info_[seq_meta.filename_idx].filename,
                             index = seq_meta.frame_idx, count = seq_meta.length, &tensor] () {
       thread_file_reader_.DoWork([this]() {
         read_file();
@@ -862,7 +736,7 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
 
     tensor.label = seq_meta.label;
     tensor.first_frame_idx = seq_meta.frame_idx;
-    tensor.sequence.SetSourceInfo(file_info_[seq_meta.filename_idx].video_file);
+    tensor.sequence.SetSourceInfo(file_info_[seq_meta.filename_idx].filename);
     MoveToNextShard(current_frame_idx_);
 }
 

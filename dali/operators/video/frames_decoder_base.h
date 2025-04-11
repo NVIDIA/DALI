@@ -20,6 +20,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libswscale/swscale.h>
+#include <libavcodec/bsf.h>
 }
 
 #include <memory>
@@ -66,22 +67,31 @@ struct FrameIndex {
    * @brief Returns the index of the frame that has the given timestamp
    *
    * @param timestamp Timestamp of the frame to seek to
-   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
    */
-  int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
+  int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
+    LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
+             << ", index_size=" << index.size() << std::endl;
     int frame_idx = 0;
-    for (size_t i = 1; i < index.size(); i++) {
-      if (index[i].pts >= timestamp) {
+    for (size_t i = 0; i < index.size(); i++) {
+      if (index[i].pts == timestamp) {
+        LOG_LINE << "Exact match found at index " << i << std::endl;
         frame_idx = i;
+        break;
+      } else if (index[i].pts > timestamp) {
+        LOG_LINE << "Frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
+        if (rounddown && i > 0) {
+          LOG_LINE << "Round down mode: previous frame " << i - 1 << " with pts=" << index[i - 1].pts << " is the last frame before the timestamp" << std::endl;
+          frame_idx = i - 1;
+        } else {
+          LOG_LINE << "Round up mode: frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
+          frame_idx = i;
+        }
         break;
       }
     }
-    if (inclusive) {
-      if (frame_idx > 0 && index[frame_idx - 1].pts <= timestamp) {
-        frame_idx--;
-      }
-      assert(index[frame_idx].pts <= timestamp);
-    }
+    assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
+    LOG_LINE << "Returning frame_idx=" << frame_idx << std::endl;
     return frame_idx;
   }
 };
@@ -136,6 +146,11 @@ static void DestroyAvObject(AVPacket **packet) {
   av_packet_free(packet);
 }
 
+static void DestroyAvObject(AVBSFContext **bsf) {
+  assert(*bsf != nullptr);
+  av_bsf_free(bsf);
+}
+
 template <typename T>
 class AVUniquePtr : public UniqueHandle<T *, AVUniquePtr<T>> {
  public:
@@ -165,7 +180,7 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param filename Path to a video file.
    * @param image_type Image type of the video.
    */
-  explicit FramesDecoderBase(const std::string &filename);
+  explicit FramesDecoderBase(const std::string &filename, DALIImageType image_type = DALI_RGB);
 
   /**
    * @brief Initialize the decoder from a memory buffer.
@@ -175,7 +190,7 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param source_info Source information for the video file.
    */
   explicit FramesDecoderBase(const char *memory_file, size_t memory_file_size,
-                             std::string_view source_info = {});
+                             std::string_view source_info = {}, DALIImageType image_type = DALI_RGB);
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -248,6 +263,17 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void SeekFrame(int frame_id);
 
   /**
+   * @brief Handles boundary conditions for a given frame index.
+   *
+   * @param boundary_type The boundary type to apply.
+   * @param frame_id The frame index to handle.
+   * @param roi_start The start of the region of interest.
+   * @param roi_end The end of the region of interest.
+   */
+  int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                     int roi_start, int roi_end);
+
+  /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
    * (what to do when sampling out of bounds).
    * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
@@ -306,7 +332,7 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
     DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
-    return Index().GetFrameIdxByTimestamp(timestamp, inclusive);
+    return index_.GetFrameIdxByTimestamp(timestamp, inclusive);
   }
 
   /**
@@ -340,12 +366,20 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * @return Boolean indicating whether or not the index was created.
    */
-  bool HasIndex() const { return Index().size() > 0; }
+  bool HasIndex() const { return index_.size() > 0; }
 
   /**
    * @brief Builds the index of the video file.
    */
   virtual void BuildIndex();
+
+  const FrameIndex& GetIndex() const {
+    return index_;
+  }
+
+  void SetIndex(const FrameIndex& index) {
+    index_ = index;
+  }
 
   virtual ~FramesDecoderBase() = default;
   FramesDecoderBase(FramesDecoderBase&&) = default;
@@ -359,19 +393,16 @@ class DLL_PUBLIC FramesDecoderBase {
     return is_valid_;
   }
 
-  const FrameIndex& Index() const {
-    return index_;
-  }
-
   void SetOutputType(DALIDataType dtype) {
     dtype_ = dtype;
   }
 
-  void SetImageType(DALIImageType image_type) {
-    image_type_ = image_type;
-  }
-
  protected:
+  void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
+                        boundary::BoundaryType boundary_type,
+                        const uint8_t *constant_frame,
+                        span<double> out_timestamps);
+
   /**
    * @brief Select a stream to decode. If stream_id is -1, the video stream will be selected automatically.
    */
@@ -394,7 +425,6 @@ class DLL_PUBLIC FramesDecoderBase {
 
   DALIImageType image_type_ = DALI_RGB;
   DALIDataType dtype_ = DALI_UINT8;
-  VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;

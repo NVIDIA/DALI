@@ -131,8 +131,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    *
    * @param filename Path to a video file.
    * @param stream CUDA stream to use for decoding.
+   * @param image_type Image type of the video.
    */
-  explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0);
+  explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0,
+                            DALIImageType image_type = DALI_RGB);
 
   /**
    * @brief Construct a new FramesDecoder object.
@@ -141,10 +143,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param memory_file_size Size of memory_file in bytes.
    * @param source_info Source info of the video file.
    * @param stream CUDA stream to use for decoding.
+   * @param image_type Image type of the video.
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
-  FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info = {}, cudaStream_t stream = 0);
+  FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
+                   std::string_view source_info = {}, cudaStream_t stream = 0,
+                   DALIImageType image_type = DALI_RGB);
 
   bool ReadNextFrame(uint8_t *data) override;
 
@@ -184,8 +189,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   // This is used to order the frames, if there is no pts
   int frame_index_if_no_pts_ = 0;
 
-  AVBSFContext *bsfc_ = nullptr;
-  AVPacket *filtered_packet_ = nullptr;
+  AVUniquePtr<AVBSFContext> bsfc_;
+  AVUniquePtr<AVPacket> filtered_packet_;
 
   // TODO(awolant): This value is an approximation. Make it set dynamically
   const int num_decode_surfaces_ = 8;
@@ -195,6 +200,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   std::queue<int> piped_pts_;
 
   cudaStream_t stream_ = 0;
+
+  VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
 
   void SendLastPacket(bool flush = false);
 
