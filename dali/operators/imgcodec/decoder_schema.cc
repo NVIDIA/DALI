@@ -89,7 +89,7 @@ Determines the percentage of the workload that will be offloaded to the hardware
 if available. The optimal workload depends on the number of threads that are provided to
 the DALI pipeline and should be found empirically. More details can be found at
 https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100)code",
-      0.90f)
+      0.65f)
   .AddOptionalArg("preallocate_width_hint",
       R"code(Image width hint.
 
