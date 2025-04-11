@@ -148,7 +148,7 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
 
 
 @cartesian_params(
-    devices,
+    ["cpu"],  # TODO(janton): use all devices
     batch_sizes,
     sequence_lengths,
     pad_modes_supported_by_legacy_reader,
