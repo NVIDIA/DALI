@@ -27,12 +27,15 @@ def efficientnet_processing_training(
     output_layout,
     automatic_augmentation,
     dali_device="gpu",
+    decoder="default",
 ):
     """
     Image processing part of the ResNet training pipeline (excluding data loading)
     """
     decoder_device = "mixed" if dali_device == "gpu" else "cpu"
-    images = fn.decoders.image_random_crop(
+    decoder_module = fn.experimental.decoders if decoder == 'experimental' else fn.decoders
+    print("Using decoder module: ", decoder_module)
+    images = decoder_module.image_random_crop(
         jpegs_input,
         device=decoder_device,
         output_type=types.RGB,
@@ -91,6 +94,7 @@ def training_pipe(
     dali_device="gpu",
     rank=0,
     world_size=1,
+    decoder='default',
 ):
     jpegs, labels = fn.readers.file(
         name="Reader",
@@ -107,6 +111,7 @@ def training_pipe(
         output_layout,
         automatic_augmentation,
         dali_device,
+        decoder=decoder,
     )
     return outputs, labels
 
@@ -120,6 +125,7 @@ def training_pipe_external_source(
     dali_device="gpu",
     rank=0,
     world_size=1,
+    decoder="default",
 ):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
@@ -130,17 +136,20 @@ def training_pipe_external_source(
         output_layout,
         automatic_augmentation,
         dali_device,
+        decoder=decoder,
     )
     return outputs
 
 
 def efficientnet_processing_validation(
-    jpegs, interpolation, image_size, image_crop, output_layout
+    jpegs, interpolation, image_size, image_crop, output_layout, decoder="default",
 ):
     """
     Image processing part of the ResNet validation pipeline (excluding data loading)
     """
-    images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
+    decoder_module = fn.experimental.decoders if decoder == 'experimental' else fn.decoders
+    print("Using decoder module: ", decoder_module)
+    images = decoder_module.image(jpegs, device="mixed", output_type=types.RGB)
 
     images = fn.resize(
         images,
@@ -169,6 +178,7 @@ def validation_pipe(
     output_layout,
     rank=0,
     world_size=1,
+    decoder="default",
 ):
     jpegs, label = fn.readers.file(
         name="Reader",
@@ -179,18 +189,18 @@ def validation_pipe(
         pad_last_batch=True,
     )
     outputs = efficientnet_processing_validation(
-        jpegs, interpolation, image_size, image_crop, output_layout
+        jpegs, interpolation, image_size, image_crop, output_layout, decoder=decoder,
     )
     return outputs, label
 
 
 @pipeline_def
 def validation_pipe_external_source(
-    interpolation, image_size, image_crop, output_layout
+    interpolation, image_size, image_crop, output_layout, decoder="default",
 ):
     filepaths = fn.external_source(name="images", no_copy=True)
     jpegs = fn.io.file.read(filepaths)
     outputs = efficientnet_processing_validation(
-        jpegs, interpolation, image_size, image_crop, output_layout
+        jpegs, interpolation, image_size, image_crop, output_layout, decoder=decoder,
     )
     return outputs
