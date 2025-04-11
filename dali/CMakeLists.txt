@@ -50,10 +50,6 @@ if (BUILD_DALI_PIPELINE)
 endif()
 
 if(BUILD_DALI_OPERATORS)
-  if(BUILD_NVJPEG)
-    add_subdirectory(nvjpeg)
-  endif()
-
   if(BUILD_NVIMAGECODEC)
     add_subdirectory(nvimgcodec)
   endif()

@@ -19,15 +19,20 @@
 namespace dali {
 namespace imgcodec {
 
-DALI_SCHEMA(experimental__PeekImageShape)
+DALI_SCHEMA(PeekImageShape)
   .DocStr(R"(Obtains the shape of the encoded image.
 
 This operator returns the shape that an image would have after decoding.
 
 .. note::
-    This operator is not recommended for use with the dynamic executor (`exec_dynamic=True` in the
-    pipeline constructor).
-    Use :meth:`nvidia.dali.pipeline.DataNode.shape()` instead on the decoded images.
+    This operator is specifically designed to peek at the shape of encoded images before decoding them.
+
+    For already decoded images, you could instead use either:
+
+    * The ``shape`` operator
+    * The :meth:`nvidia.dali.pipeline.DataNode.shape()` method
+
+    When using the dynamic executor, the shape output will always be a CPU tensor, regardless of the input device location.
 )")
   .NumInput(1)
   .NumOutput(1)
@@ -37,6 +42,18 @@ This operator returns the shape that an image would have after decoding.
     R"code(Use the EXIF orientation metadata when calculating the shape.)code", true)
   .AddOptionalArg("image_type",
     R"code(Color format of the image.)code", DALI_RGB);
+
+DALI_SCHEMA(experimental__PeekImageShape)
+    .DocStr("Alias for :meth:`peek_image_shape`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("PeekImageShape")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "PeekImageShape",
+        R"code(Experimental features of the decoders have been moved to the main decoder module
+:mod:`~nvidia.dali.fn`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.49
+
 
 ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
     : StatelessOperator<CPUBackend>(spec) {
@@ -119,6 +136,7 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
 }
 
 
+DALI_REGISTER_OPERATOR(PeekImageShape, ImgcodecPeekImageShape, CPU);
 DALI_REGISTER_OPERATOR(experimental__PeekImageShape, ImgcodecPeekImageShape, CPU);
 
 }  // namespace imgcodec

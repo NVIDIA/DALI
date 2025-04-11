@@ -362,16 +362,6 @@ def test_decoders_image():
     )
 
 
-def test_experimental_decoders_image():
-    check_single_input(
-        "experimental.decoders.image",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-    )
-
-
 def test_decoders_image_crop():
     check_single_input(
         "decoders.image_crop",
@@ -383,30 +373,9 @@ def test_decoders_image_crop():
     )
 
 
-def test_experimental_decoders_image_crop():
-    check_single_input(
-        "experimental.decoders.image_crop",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-        crop=(10, 10),
-    )
-
-
 def test_decoders_image_random_crop():
     check_single_input_stateful(
         "decoders.image_random_crop",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-    )
-
-
-def test_experimental_decoders_image_random_crop():
-    check_single_input_stateful(
-        "experimental.decoders.image_random_crop",
         pipe_fun=reader_op_pipeline,
         fn_source=images_dir,
         eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
@@ -1219,15 +1188,6 @@ def test_squeeze():
 def test_peek_image_shape():
     check_single_input(
         "peek_image_shape",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-    )
-
-
-def test_experimental_peek_image_shape():
-    check_single_input(
-        "experimental.peek_image_shape",
         pipe_fun=reader_op_pipeline,
         fn_source=images_dir,
         eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
