@@ -132,7 +132,7 @@ class DALIWrapper(object):
         )
 
 
-def get_dali_train_loader(dali_device="gpu"):
+def get_dali_train_loader(dali_device="gpu", decoder="default"):
     def gdtl(
         data_path,
         image_size,
@@ -180,6 +180,7 @@ def get_dali_train_loader(dali_device="gpu"):
             dali_device=dali_device,
             rank=rank,
             world_size=world_size,
+            decoder=decoder,
             **pipeline_kwargs,
         )
 
@@ -195,7 +196,7 @@ def get_dali_train_loader(dali_device="gpu"):
     return gdtl
 
 
-def get_dali_val_loader():
+def get_dali_val_loader(decoder="default"):
     def gdvl(
         data_path,
         image_size,
@@ -239,6 +240,7 @@ def get_dali_val_loader():
             image_size=image_size + crop_padding,
             image_crop=image_size,
             output_layout=output_layout,
+            decoder=decoder,
             **pipeline_kwargs,
         )
 

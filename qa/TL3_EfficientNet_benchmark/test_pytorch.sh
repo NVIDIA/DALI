@@ -61,12 +61,15 @@ python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 -
 
 # DALI without automatic augmentations
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_dali.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --decoder experimental --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_dali_experimental.json $PATH_TO_IMAGENET
 
 # DALI with AutoAugment
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_aa.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --decoder experimental --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_aa_experimental.json $PATH_TO_IMAGENET
 
 # DALI with TrivialAugment
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --report-file bench_report_dali_ta.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali --decoder experimental --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --report-file bench_report_dali_ta_experimental.json $PATH_TO_IMAGENET
 
 # DALI proxy without automatic augmentations
 python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 13 --epochs 3 --no-checkpoints --training-only --data-backend dali_proxy --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_proxy.json $PATH_TO_IMAGENET
@@ -132,6 +135,10 @@ CHECK_PERF_THRESHOLD "bench_report_pytorch.json" $PYTORCH_NONE_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_pytorch_aa.json" $PYTORCH_AA_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_optimized_pytorch.json" $PYTORCH_NONE_THRESHOLD
 CHECK_PERF_THRESHOLD "bench_report_optimized_pytorch_aa.json" $PYTORCH_AA_THRESHOLD
+
+CHECK_PERF_THRESHOLD "bench_report_dali_experimental.json" $DALI_NONE_THRESHOLD
+CHECK_PERF_THRESHOLD "bench_report_dali_aa_experimental.json" $DALI_AA_THRESHOLD
+CHECK_PERF_THRESHOLD "bench_report_dali_ta_experimental.json" $DALI_TA_THRESHOLD
 
 
 

@@ -365,6 +365,14 @@ def add_parser_arguments(parser, skip_arch=False):
         required=False,
     )
 
+    parser.add_argument(
+        "--decoder",
+        type=str,
+        default="default",
+        choices=["default", "experimental"],
+        help="decoder to use",
+    )
+
 
 def prepare_for_training(args, model_args, model_arch):
     args.distributed = False
@@ -524,13 +532,13 @@ def prepare_for_training(args, model_args, model_arch):
         get_train_loader = get_pytorch_optimized_train_loader
         get_val_loader = get_pytorch_optimize_val_loader
     elif args.data_backend == "dali":
-        get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
-        get_val_loader = get_dali_val_loader()
+        get_train_loader = get_dali_train_loader(dali_device=args.dali_device, decoder=args.decoder)
+        get_val_loader = get_dali_val_loader(decoder=args.decoder)
     elif args.data_backend == "dali_proxy":
         get_train_loader = get_dali_proxy_train_loader(
-            dali_device=args.dali_device
+            dali_device=args.dali_device, decoder=args.decoder
         )
-        get_val_loader = get_dali_proxy_val_loader()
+        get_val_loader = get_dali_proxy_val_loader(decoder=args.decoder)
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
         get_train_loader = get_synthetic_loader
