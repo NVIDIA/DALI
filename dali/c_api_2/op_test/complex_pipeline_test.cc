@@ -153,10 +153,10 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
 
   daliCheckpointExternalData_t ext2{};
   CHECK_DALI(daliCheckpointGetExternalData(checkpoint2, &ext2));
-  EXPECT_EQ(ext.iterator_data.size, 4);
-  EXPECT_STREQ(ext.iterator_data.data, "ITER");
-  EXPECT_EQ(ext.pipeline_data.size, pipeline_data_size);
-  EXPECT_STREQ(ext.pipeline_data.data, pipeline_data);
+  EXPECT_EQ(ext2.iterator_data.size, 4);
+  EXPECT_STREQ(ext2.iterator_data.data, "ITER");
+  EXPECT_EQ(ext2.pipeline_data.size, pipeline_data_size);
+  EXPECT_STREQ(ext2.pipeline_data.data, pipeline_data);
   // ...restore...
   CHECK_DALI(daliPipelineRestoreCheckpoint(pipe2, checkpoint2));
   // ...run and compare.

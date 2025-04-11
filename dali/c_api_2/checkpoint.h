@@ -48,8 +48,8 @@ class CheckpointWrapper : public _DALICheckpoint {
 
   daliCheckpointExternalData_t ExternalData() const {
     daliCheckpointExternalData_t ext;
-    ext.iterator_data.data = cpt_.external_ctx_cpt_.pipeline_data.data();
-    ext.iterator_data.size = cpt_.external_ctx_cpt_.pipeline_data.size();
+    ext.iterator_data.data = cpt_.external_ctx_cpt_.iterator_data.data();
+    ext.iterator_data.size = cpt_.external_ctx_cpt_.iterator_data.size();
     ext.pipeline_data.data = cpt_.external_ctx_cpt_.pipeline_data.data();
     ext.pipeline_data.size = cpt_.external_ctx_cpt_.pipeline_data.size();
     return ext;

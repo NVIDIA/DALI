@@ -660,9 +660,9 @@ class TensorListWrapper : public ITensorList {
   }
 
   RefCountedPtr<ITensor> ViewAsTensor() const override {
-    if (!tl_->IsContiguous())
+    if (!tl_->IsDenseTensor())
       throw std::runtime_error(
-        "The TensorList is not contiguous and cannot be viewed as a Tensor.");
+        "Only a densely packed list of tensors of uniform shape can be viewed as a Tensor.");
 
     auto t = std::make_shared<Tensor<Backend>>();
     auto buf = unsafe_owner(*tl_);
