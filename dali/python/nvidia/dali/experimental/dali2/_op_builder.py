@@ -21,6 +21,7 @@ import warnings
 import ops
 import types
 import copy
+import _expression
 
 
 def _is_tensor_type(x, nested_list_warning=False):
@@ -138,12 +139,10 @@ def build_call_function(schema, op_class):
     def call(self, *args, batch_size=None, **kwargs):
         inputs = args
         is_batch = batch_size is not None
-        first_batch_arg = None
         if batch_size is None:
             for i, x in enumerate(inputs + list(kwargs.values())):
                 if _is_batch(x):
                     is_batch = True
-                    first_batch_arg = x
                     break
         if not is_batch:
             batch_size = self._max_batch_size
@@ -156,10 +155,13 @@ def build_call_function(schema, op_class):
             self._call_id += 1
         else:
             call_id = None
-        expr = Expression(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
+        expr = _expression.Expression(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
         if is_batch:
-            return TensorList(expr)
+            return TensorList(expression=expr)
+        else:
+            return Tensor(expression=expr)
 
     function = makefun.create_function(header, call)
 
     return function
+
