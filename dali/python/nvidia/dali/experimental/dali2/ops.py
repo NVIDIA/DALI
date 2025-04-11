@@ -17,3 +17,4 @@ class Operator:
     def __init__(self, name, max_batch_size):
         self._name = name
         self._max_batch_size = max_batch_size
+
