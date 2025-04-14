@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy matplotlib<3.5.3 jax flax'
+pip_packages='jupyter numpy matplotlib jax flax'
 target_dir=./docs/examples
 
 test_body() {
