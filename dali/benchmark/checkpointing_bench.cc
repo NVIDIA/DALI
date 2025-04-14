@@ -49,7 +49,7 @@ class CheckpointingOverhead : public DALIBenchmark {
       if (policy == CheckpointingPolicy::SaveEveryIter) {
         volatile auto cpt = pipe->GetCheckpoint();
       } else if (policy == CheckpointingPolicy::SerializeEveryIter) {
-        volatile auto cpt = pipe->SerializedCheckpoint({});
+        volatile auto cpt = pipe->GetSerializedCheckpoint({});
       }
     }
 

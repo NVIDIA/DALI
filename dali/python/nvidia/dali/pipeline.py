@@ -1793,7 +1793,7 @@ class Pipeline(object):
             {"iter": self._consumer_iter, "epoch_idx": self._epoch_idx}
         )
         external_ctx_cpt.iterator_data = iterator_data
-        return self._pipe.SerializedCheckpoint(external_ctx_cpt)
+        return self._pipe.GetSerializedCheckpoint(external_ctx_cpt)
 
     def checkpoint(self, filename=None):
         """Returns the pipeline's state as a serialized Protobuf string.
