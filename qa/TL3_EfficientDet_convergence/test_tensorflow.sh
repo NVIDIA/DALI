@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 function CLEAN_AND_EXIT {
+    ((IS_TMP_DIR)) && rm -rf ${DATA_DIR}
     exit $1
 }
 
@@ -14,9 +15,9 @@ export NCCL_NVLS_ENABLE=0
 # workaround for https://github.com/tensorflow/tensorflow/issues/63548
 export WRAPT_DISABLE_EXTENSIONS=1
 
-export DATA_DIR=/data/coco/coco-2017/coco2017/
+export DATA_DIR=/data/coco/coco-2017/coco2017
 export IS_TMP_DIR=0
-if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg"] && [ -f "/data/coco/coco-2017/coco2017/train2017.zip"]; then
+if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg" ] && [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
     export DATA_DIR=$(mktemp -d)
     export IS_TMP_DIR=1
     cd ${DATA_DIR}
@@ -48,4 +49,3 @@ python train.py                                                                 
     --output_filename out_weights_1.h5  2>&1 | tee $LOG
 
 CLEAN_AND_EXIT ${PIPESTATUS[0]}
-((IS_TMP_DIR)) && rm -rf ${DATA_DIR}

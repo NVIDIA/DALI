@@ -183,19 +183,14 @@ class TFRecordPipeline(CommonPipeline):
         tfrecord_idx = sorted(glob.glob(kwargs["data_paths"][1]))
         if len(tfrecord_idx) == 0:
             # generate indices
-            tfrecord_files = [
-                os.path.join(tfrecord, f)
-                for f in os.listdir(tfrecord)
-                if os.path.isfile(os.path.join(tfrecord, f)) and not f.endswith(".idx")
-            ]
             self.temp_dir = tempfile.TemporaryDirectory()
             tfrecord_idxs = [
-                f"{self.temp_dir.name}/{os.path.basename(f)}.idx" for f in tfrecord_files
+                os.path.join(self.temp_dir.name, f"{os.path.basename(f)}.idx") for f in tfrecord
             ]
-            for tfrecord_file, tfrecord_idx_file in zip(tfrecord_files, tfrecord_idxs):
+            for tfrecord_file, tfrecord_idx_file in zip(tfrecord, tfrecord_idxs):
                 print(f"Generating index file for {tfrecord_file}")
                 call(["tfrecord2idx", tfrecord_file, tfrecord_idx_file])
-            tfrecord_idx = self.temp_dir.name()
+            tfrecord_idx = tfrecord_idxs
         cache_enabled = kwargs["decoder_cache_params"]["cache_enabled"]
         self.input = ops.readers.TFRecord(
             path=tfrecord,
