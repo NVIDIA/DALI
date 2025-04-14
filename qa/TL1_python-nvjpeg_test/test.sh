@@ -8,7 +8,7 @@ do_once() {
 }
 
 test_body() {
-    export DATA_DIR=/data/coco/coco-2017/coco2017/
+    export DATA_DIR=/data/coco/coco-2017/coco2017
     export IS_TMP_DIR=0
     if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg"] && [ -f "/data/coco/coco-2017/coco2017/train2017.zip"]; then
         export DATA_DIR=$(mktemp -d)
@@ -29,7 +29,7 @@ test_body() {
                               '${DATA_DIR}/annotations/instances_train2017.json'], \
                              ['${DATA_DIR}/val2017', \
                               '${DATA_DIR}/annotations/instances_val2017.json']]"
-    ((IS_TMP_DIR)) && rm -rf ${DATA_DIR}
+    ((IS_TMP_DIR)) && rm -rf ${DATA_DIR} || true
 }
 
 pushd ../..
