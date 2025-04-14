@@ -158,6 +158,7 @@ do
         version_ge "${CUDA_VERSION}" "110" && \
           if [ "$(uname -m)" == "x86_64" ] && [ -z "${DO_NOT_INSTALL_CUDA_WHEEL}" ] && [ -z "${CONDA_PREFIX}" ]; then
             NPP_VERSION=$(if [[ $DALI_CUDA_MAJOR_VERSION == "12" ]] || [[ $DALI_CUDA_MAJOR_VERSION == "13" ]]; then echo "==12.2.5.30"; else echo ""; fi)
+            if [[ $DALI_CUDA_MAJOR_VERSION == "13" ]]; then export DALI_CUDA_MAJOR_VERSION=12; fi
             install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}${NPP_VERSION}    \
                                                    nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
