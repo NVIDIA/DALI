@@ -184,7 +184,9 @@ class TFRecordPipeline(CommonPipeline):
         if len(tfrecord_idx) == 0:
             # generate indices
             self.temp_dir = tempfile.TemporaryDirectory()
-            tfrecord_idxs = [f"{self.temp_dir.name}/{os.path.basename(f)}.idx" for f in tfrecord]
+            tfrecord_idxs = [
+                os.path.join(self.temp_dir.name, f"{os.path.basename(f)}.idx") for f in tfrecord
+            ]
             for tfrecord_file, tfrecord_idx_file in zip(tfrecord, tfrecord_idxs):
                 print(f"Generating index file for {tfrecord_file}")
                 call(["tfrecord2idx", tfrecord_file, tfrecord_idx_file])
