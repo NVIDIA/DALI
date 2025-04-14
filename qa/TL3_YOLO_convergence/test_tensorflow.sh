@@ -16,7 +16,7 @@ export NCCL_NVLS_ENABLE=0
 # workaround for https://github.com/tensorflow/tensorflow/issues/63548
 export WRAPT_DISABLE_EXTENSIONS=1
 
-export DATA_DIR=/data/coco/coco-2017/coco2017/
+export DATA_DIR=/data/coco/coco-2017/coco2017
 export IS_TMP_DIR=0
 if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg" ] && [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
     export DATA_DIR=$(mktemp -d)

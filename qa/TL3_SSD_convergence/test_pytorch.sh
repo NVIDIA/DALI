@@ -5,7 +5,7 @@ set -o errexit
 set -o pipefail
 
 function CLEAN_AND_EXIT {
-    ((IS_TMP_DIR)) && rm -rf ${DATA_DIR}
+    ((IS_TMP_DIR)) && rm -rf ${DATA_DIR} || true
     exit $1
 }
 
@@ -16,7 +16,7 @@ pip install git+https://github.com/NVIDIA/cocoapi.git#subdirectory=PythonAPI
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-export DATA_DIR=/data/coco/coco-2017/coco2017/
+export DATA_DIR=/data/coco/coco-2017/coco2017
 export IS_TMP_DIR=0
 if [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
     apt update && apt install -y unzip
