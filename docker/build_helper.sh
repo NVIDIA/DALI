@@ -76,6 +76,9 @@ export BUNDLE_PATH_PREFIX=${BUNDLE_PATH_PREFIX}
 export TEST_BUNDLED_LIBS=${TEST_BUNDLED_LIBS:-YES}
 export PYTHON_VERSIONS=${PYTHON_VERSIONS}
 # use all available pythons
+if [[ "$PYTHON_VERSIONS" == *"t"* ]]; then
+    export PYTHON_GIL=0
+fi
 
 cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DARCH=${ARCH}                               \
