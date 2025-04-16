@@ -158,7 +158,7 @@ def test_compare_experimental_to_legacy_reader_filenames(
     device, batch_size, sequence_length, pad_mode, image_type
 ):
     labels = [np.random.randint(0, 100) for _ in range(len(VIDEO_FILES))]
-    files = sorted(VIDEO_FILES)
+    files = VIDEO_FILES
     compare_experimental_to_legacy_reader(
         device=device,
         batch_size=batch_size,
@@ -184,7 +184,7 @@ def test_compare_experimental_to_legacy_reader_filenames(
 def test_compare_experimental_to_legacy_reader_file_list(
     device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
 ):
-    files = sorted(VIDEO_FILES)
+    files = VIDEO_FILES
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     for i, file in enumerate(files):
         label = np.random.randint(0, 20)
