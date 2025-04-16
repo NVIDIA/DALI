@@ -546,7 +546,6 @@ class VideoReaderDecoder
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
     size_t i = 0;
-    // decoder_.reset();  // TODO(janton): remove this
     for (auto &sample : current_batch) {
       LOG_LINE << "Processing sample " << i++ << " with filename " << sample->video_file_meta_->filename
                << " and previous decoder " << decoder_.get() << " filename "

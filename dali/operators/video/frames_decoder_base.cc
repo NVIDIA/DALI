@@ -327,7 +327,7 @@ void FramesDecoderBase::BuildIndex() {
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
-      LOG_LINE << "Found potential keyframe at frame " << frame_count << std::endl;
+      LOG_LINE << "Found potential keyframe at frame " << index_.size() << std::endl;
 
       // Special handling for H.264 and HEVC formats
       auto codec_id = ctx_->streams[packet->stream_index]->codecpar->codec_id;
@@ -377,6 +377,11 @@ void FramesDecoderBase::BuildIndex() {
     entry.pts = (packet->pts != AV_NOPTS_VALUE) ? packet->pts : packet->dts;
     if (entry.pts == AV_NOPTS_VALUE) {
       DALI_FAIL(make_string("Video file \"", Filename(), "\" has no valid timestamps"));
+    }
+
+    if (entry.pts < 0) {
+      LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
+      continue;
     }
 
     // Update last keyframe position if this is a keyframe
