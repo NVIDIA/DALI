@@ -309,24 +309,12 @@ def test_image_decoder_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image)
 
 
-def test_experimental_image_decoder_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image)
-
-
 def test_image_decoder_crop_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image_crop, crop=(10, 10))
 
 
-def test_experimental_image_decoder_crop_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image_crop, crop=(10, 10))
-
-
 def test_image_decoder_random_crop_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image_random_crop)
-
-
-def test_experimental_image_decoder_random_crop_cpu():
-    _test_image_decoder_args_cpu(fn.experimental.decoders.image_random_crop)
 
 
 def test_coin_flip_cpu():
@@ -707,10 +695,6 @@ def _test_image_decoder_slice_cpu(decoder_type):
 
 def test_image_decoder_slice_cpu():
     _test_image_decoder_slice_cpu(fn.decoders.image_slice)
-
-
-def test_experimental_image_decoder_slice_cpu():
-    _test_image_decoder_slice_cpu(fn.experimental.decoders.image_slice)
 
 
 def test_pad_cpu():
@@ -1202,10 +1186,6 @@ def test_peek_image_shape_cpu():
     _test_peek_image_shape_cpu(fn.peek_image_shape)
 
 
-def test_experimental_peek_image_shape_cpu():
-    _test_peek_image_shape_cpu(fn.experimental.peek_image_shape)
-
-
 def test_separated_exec_setup():
     batch_size = 128
     pipe = Pipeline(
@@ -1390,19 +1370,19 @@ tested_methods = [
     "_conditional.not_",
     "_conditional.validate_logical",
     "audio_decoder",
-    "image_decoder",
-    "image_decoder_slice",
-    "image_decoder_crop",
-    "image_decoder_random_crop",
     "decoders.image",
     "decoders.image_crop",
     "decoders.image_slice",
     "decoders.image_random_crop",
-    "experimental.debayer",
+    "image_decoder",
+    "image_decoder_slice",
+    "image_decoder_crop",
+    "image_decoder_random_crop",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
+    "experimental.debayer",
     "experimental.inputs.video",
     "decoders.audio",
     "external_source",
