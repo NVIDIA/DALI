@@ -365,6 +365,20 @@ def add_parser_arguments(parser, skip_arch=False):
         required=False,
     )
 
+class WorkerInitFn:
+    def __init__(self, args):
+        self.seed = args.seed
+        self.local_rank = args.local_rank
+    
+    def __call__(self, id):
+        # Worker process should inherit its affinity from parent
+        affinity = os.sched_getaffinity(0)
+        print(
+            f"Process {self.local_rank} Worker {id} set affinity to: {affinity}"
+        )
+        if self.seed is not None:
+            np.random.seed(seed=self.seed + self.local_rank + id)
+            random.seed(self.seed + self.local_rank + id)
 
 def prepare_for_training(args, model_args, model_arch):
     args.distributed = False
@@ -393,24 +407,7 @@ def prepare_for_training(args, model_args, model_arch):
         np.random.seed(seed=args.seed + args.local_rank)
         random.seed(args.seed + args.local_rank)
 
-        def _worker_init_fn(id):
-            # Worker process should inherit its affinity from parent
-            affinity = os.sched_getaffinity(0)
-            print(
-                f"Process {args.local_rank} Worker {id} set affinity to: {affinity}"
-            )
-
-            np.random.seed(seed=args.seed + args.local_rank + id)
-            random.seed(args.seed + args.local_rank + id)
-
-    else:
-
-        def _worker_init_fn(id):
-            # Worker process should inherit its affinity from parent
-            affinity = os.sched_getaffinity(0)
-            print(
-                f"Process {args.local_rank} Worker {id} set affinity to: {affinity}"
-            )
+    _worker_init_fn = WorkerInitFn(args)
 
     if args.static_loss_scale != 1.0:
         if not args.amp:
@@ -531,6 +528,10 @@ def prepare_for_training(args, model_args, model_arch):
             dali_device=args.dali_device
         )
         get_val_loader = get_dali_proxy_val_loader()
+    elif args.data_backend == "dali_mps":
+        args.workers = args.workers * 2
+        get_train_loader = get_pytorch_train_loader
+        get_val_loader = get_pytorch_val_loader
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
         get_train_loader = get_synthetic_loader
@@ -551,6 +552,7 @@ def prepare_for_training(args, model_args, model_arch):
         _worker_init_fn=_worker_init_fn,
         memory_format=memory_format,
         prefetch_factor=args.prefetch,
+        preprocessing_method="dali" if args.data_backend == "dali_mps" else None,
     )
     if args.mixup != 0.0:
         train_loader = MixUpWrapper(args.mixup, train_loader)
@@ -566,6 +568,7 @@ def prepare_for_training(args, model_args, model_arch):
         _worker_init_fn=_worker_init_fn,
         memory_format=memory_format,
         prefetch_factor=args.prefetch,
+        preprocessing_method="dali" if args.data_backend == "dali_mps" else None,
     )
 
     if (
@@ -714,6 +717,10 @@ if __name__ == "__main__":
     add_parser_arguments(parser)
 
     args, rest = parser.parse_known_args()
+
+    if args.data_backend == "dali_mps":
+        import torch.multiprocessing as mp
+        mp.set_start_method('spawn', force=True)
 
     model_arch = available_models()[args.arch]
     model_args, rest = model_arch.parser().parse_known_args(rest)

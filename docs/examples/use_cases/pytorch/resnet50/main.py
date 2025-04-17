@@ -88,9 +88,9 @@ def parse():
     parser.add_argument('--dali_cpu', action='store_true',
                         help='Runs CPU based version of DALI pipeline.')
     parser.add_argument("--data_loader", default="dali",
-                        choices=["pytorch", "dali", "dali_proxy"],
+                        choices=["pytorch", "dali", "dali_proxy", "dali_mps"],
                         help='Select data loader: "pytorch" for native PyTorch data loader, '
-                        '"dali" for DALI data loader, or "dali_proxy" for PyTorch dataloader with DALI proxy preprocessing.')
+                        '"dali" for DALI data loader, "dali_proxy" for PyTorch dataloader with DALI proxy preprocessing, or "dali_mps" for DALI data loader with MPS support.')
     parser.add_argument('--prof', default=-1, type=int,
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true',
