@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import numpy as np
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.plugin.tf as dali_tf
 import nvidia.dali.types as types
 import os.path
@@ -67,7 +68,7 @@ class CaffeReadPipeline(CommonPipeline):
 
     def define_graph(self):
         images, labels = self.input()
-        return self.base_define_graph(images, labels)
+        return self.base_define_graph(images, fn.reshape(labels, shape=[]))
 
 
 def get_batch_dali(batch_size, pipe_type, label_type, num_gpus=1):
@@ -116,6 +117,47 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=16, iterations=32):
                 assert np.equal(np.mod(label, 1), 0).all()
                 assert (label >= 0).all()
                 assert (label <= 999).all()
+
+
+def get_batch_dali_sparse(batch_size, pipe_type, label_type):
+    pipe = pipe_type(batch_size=batch_size, num_threads=2, device_id=None, num_gpus=1)
+
+    daliop = dali_tf.DALIIterator()
+    with tf.device("/cpu"):
+        image, label = daliop(
+            pipeline=pipe,
+            shapes=[(batch_size, 3, 227, 227), ()],
+            dtypes=[tf.int32, label_type],
+            device_id=None,
+            sparse=[False, True],
+        )
+
+        return image, label
+
+
+def test_dali_tf_op_sparse(pipe_type=CaffeReadPipeline, batch_size=16, iterations=32):
+    test_batch = get_batch_dali_sparse(batch_size, pipe_type, tf.int32)
+    try:
+        from tensorflow.compat.v1 import GPUOptions
+        from tensorflow.compat.v1 import ConfigProto
+        from tensorflow.compat.v1 import Session
+    except ImportError:
+        # Older TF versions don't have compat.v1 layer
+        from tensorflow import GPUOptions
+        from tensorflow import ConfigProto
+        from tensorflow import Session
+
+    gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.5)
+    config = ConfigProto(gpu_options=gpu_options)
+    with Session(config=config) as sess:
+        for i in range(iterations):
+            _, label = sess.run(test_batch)
+            # Testing correctness of labels
+            # labels need to be integers
+            label = label.values
+            assert np.equal(np.mod(label, 1), 0).all()
+            assert (label >= 0).all()
+            assert (label <= 999).all()
 
 
 class PythonOperatorPipeline(Pipeline):

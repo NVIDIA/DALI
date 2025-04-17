@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -289,14 +289,6 @@ class DaliOp : public tf::OpKernel {
         for (unsigned n = 0; n < elms; ++n) {
           TF_DALI_CALL(data_output_shape = DaliToShape(AutoCPtr<int64_t>(
                        daliShapeAtSample(&pipe_handle_, i, n))));
-          // it seems that num_elements() return 1 for empty tensors
-          if (data_output_shape.dims() == 0) {
-            continue;
-          }
-          // squeeze
-          if (data_output_shape.dim_size(data_output_shape.dims() - 1) == 1) {
-            data_output_shape.RemoveLastDims(1);
-          }
           for (unsigned elm_idx = 0; elm_idx < data_output_shape.num_elements(); ++elm_idx) {
             unsigned idx_val = elm_idx;
             // first value of indices is tensor index
