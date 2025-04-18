@@ -143,13 +143,8 @@ else()
   unset(BUILD_CUFILE CACHE)
 endif()
 
-if(NOT (${ARCH} MATCHES "aarch64"))
-  cmake_dependent_option(BUILD_NVCOMP "Build with nvCOMP support" OFF
-                         "NOT BUILD_DALI_NODEPS" OFF)
-else()
-  # make sure that even if set by -DBUILD_NVCOMP, it will be unset as not supported
-  unset(BUILD_NVCOMP CACHE)
-endif()
+cmake_dependent_option(BUILD_NVCOMP "Build with nvCOMP support" OFF
+                        "NOT BUILD_DALI_NODEPS" OFF)
 
 if (BUILD_DALI_NODEPS)
   set(BUILD_OPENCV OFF)
