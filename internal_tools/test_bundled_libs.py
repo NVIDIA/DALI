@@ -17,25 +17,43 @@
 import subprocess
 import sys
 
+print("DEBUG: Starting script execution")
+
 
 def get_list_elm_match(value, elms):
     """Check if any element in the elms list matches the value"""
+    print(f"DEBUG: get_list_elm_match called with value={value}, elms={elms}")
     return any(e in value for e in elms)
 
 
+print("DEBUG: get_list_elm_match function defined")
+
+
 def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
+    print(f"DEBUG: check_ldd_out called with lib={lib}, linked_lib={linked_lib}")
     # Gather all libs that may be linked with 'lib' and don't need to be bundled
     # Entries from 'lib' key in allowed_libs should cover all 'lib*' libs
     # Empty key is used for all libs
     allowed_libs_to_check = []
+    print(f"DEBUG: Initial allowed_libs_to_check={allowed_libs_to_check}")
     for k in allowed_libs.keys():
+        print(f"DEBUG: Checking key {k} in allowed_libs")
         if k in lib:
             allowed_libs_to_check += allowed_libs[k]
+            print(f"DEBUG: Updated allowed_libs_to_check={allowed_libs_to_check}")
 
-    return linked_lib in bundled_lib_names or get_list_elm_match(linked_lib, allowed_libs_to_check)
+    result = linked_lib in bundled_lib_names or get_list_elm_match(
+        linked_lib, allowed_libs_to_check
+    )
+    print(f"DEBUG: check_ldd_out returning {result}")
+    return result
+
+
+print("DEBUG: check_ldd_out function defined")
 
 
 def main():
+    print("DEBUG: Entering main function")
     allowed_libs = {
         "": [
             "linux-vdso.so.1",
@@ -54,23 +72,30 @@ def main():
             "libtsan.so",
         ]
     }
+    print(f"DEBUG: allowed_libs initialized: {allowed_libs}")
 
     bundled_libs = sys.argv[1:]
+    print(f"DEBUG: bundled_libs from command line: {bundled_libs}")
 
     # Gather all names of bundled libs without path
     bundled_lib_names = []
     for lib in bundled_libs:
         beg = lib.rfind("/")
         bundled_lib_names.append(lib[beg + 1 :])
+    print(f"DEBUG: bundled_lib_names extracted: {bundled_lib_names}")
 
     print("Checking bundled libs linkage:")
     failing = False
     for lib_path, lib_name in zip(bundled_libs, bundled_lib_names):
+        print(f"DEBUG: Processing library {lib_name} at path {lib_path}")
         print(f"- {lib_name}")
         ldd = subprocess.Popen(["ldd", lib_path], stdout=subprocess.PIPE)
+        print(f"DEBUG: ldd process started for {lib_path}")
         for lib in ldd.stdout:
             lib = lib.decode().strip("\t").strip("\n")
+            print(f"DEBUG: Processing ldd output line: {lib}")
             linked_lib = lib.split()[0]
+            print(f"DEBUG: Extracted linked_lib: {linked_lib}")
             if not check_ldd_out(lib_name, linked_lib, bundled_lib_names, allowed_libs):
                 print(
                     f"Library: '{linked_lib}' should be bundled in whl "
@@ -78,12 +103,18 @@ def main():
                     file=sys.stderr,
                 )
                 failing = True
+                print(f"DEBUG: Found failing library: {linked_lib}")
 
     if failing:
+        print("DEBUG: Exiting with failure status")
         sys.exit(1)
 
     print("-> OK")
+    print("DEBUG: Script completed successfully")
 
+
+print("DEBUG: Main function defined")
 
 if __name__ == "__main__":
+    print("DEBUG: Script started as main")
     main()

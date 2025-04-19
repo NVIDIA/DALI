@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 #
 # Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
@@ -50,7 +50,8 @@ OUTWHLNAME=${4:-$(basename $INWHL)}
 DEPS_PATH=${5:-/usr/local}
 OUTDIR=${6:-/wheelhouse}
 COMPRESSION=${7:-YES} # whether to compress the resulting wheel
-BUNDLE_NVCOMP=${8:-NO}
+BUNDLE_NVCOMP=${8:-YES}
+echo "BUNDLE_NVCOMP value $BUNDLE_NVCOMP"
 
 if [[ "$COMPRESSION" == "NO" ]]; then
     ZIP_FLAG="-0"
@@ -143,13 +144,11 @@ DEPS_LIST=(
     "lib/libnvcv_types_d.so.0"
 )
 
-if [ "$BUNDLE_NVCOMP" = "YES" ]; then
-    DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.4"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
-    )
-fi
+DEPS_LIST+=(
+    "${DEPS_PATH}/cuda/lib64/libnvcomp.so.4"
+    "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
+    "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
+)
 
 TMPDIR=$(mktemp -d)
 pushd $TMPDIR
@@ -323,3 +322,4 @@ echo "Finished compressing wheel"
 # clean up
 popd
 rm -rf $TMPDIR
+exit 0
