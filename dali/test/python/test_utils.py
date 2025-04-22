@@ -69,6 +69,9 @@ def get_device_memory_info(device_id=0):
     except ModuleNotFoundError:
         print("Python bindings for NVML not found")
         return None
+    except pynvml.NVMLError_NotSupported:
+        print("nvmlDeviceGetMemoryInfo not supported on this system")
+        return None
 
 
 def get_gpu_name_from_nvml():
