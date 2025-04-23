@@ -791,7 +791,7 @@ def test_numba_function_stateless():
 
 
 @has_operator("experimental.inflate")
-@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
+@restrict_platform(min_compute_cap=6.0)
 @stateless_signed_off("experimental.inflate")
 def test_inflate_stateless():
     import lz4.block

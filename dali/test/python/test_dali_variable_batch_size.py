@@ -1345,7 +1345,7 @@ def test_video_decoder():
 
 
 @has_operator("experimental.inflate")
-@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
+@restrict_platform(min_compute_cap=6.0)
 def test_inflate():
     import lz4.block
 
