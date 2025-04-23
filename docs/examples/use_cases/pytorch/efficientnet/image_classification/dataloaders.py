@@ -634,65 +634,27 @@ def get_pytorch_optimized_train_loader(
     memory_format=torch.contiguous_format,
     preprocessing_method=None,
 ):
+    interpolation = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR}[
+        interpolation
+    ]
     traindir = os.path.join(data_path, "train")
-    if preprocessing_method == "dali":
-        interpolation = {
-            "bicubic": types.INTERP_CUBIC,
-            "bilinear": types.INTERP_LINEAR,
-            "triangular": types.INTERP_TRIANGULAR,
-        }[interpolation]
-
-        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
-
-        if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
-            world_size = torch.distributed.get_world_size()
-        else:
-            rank = 0
-            world_size = 1
-
-        pipeline_kwargs = {
-            "interpolation": interpolation,
-            "image_size": image_size,
-            "output_layout": output_layout,
-            "automatic_augmentation": augmentation,
-            "dali_device": "gpu",
-            "rank": rank,
-            "world_size": world_size,
-            "batch_size": batch_size,
-            "num_threads": workers,
-            "device_id": rank % torch.cuda.device_count(),
-            "seed": 12 + rank % torch.cuda.device_count(),
-        }
-        train_dataset = datasets.ImageFolder(traindir,
-            transform=dali_mps.DALIPipelineRunner(training_pipe_external_source, pipeline_kwargs),
-            loader=read_filepath
-        )
+    transform_list = [
+        transforms.RandomResizedCrop(image_size, interpolation=interpolation),
+        transforms.RandomHorizontalFlip(),
+    ]
+    if augmentation == "disabled":
+        pass
+    elif augmentation == "autoaugment":
+        transform_list.append(AutoaugmentImageNetPolicy())
     else:
-        interpolation = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR}[
-            interpolation
-        ]
-        transform_list = [
-            transforms.RandomResizedCrop(image_size, interpolation=interpolation),
-            transforms.RandomHorizontalFlip(),
-        ]
-        if augmentation == "disabled":
-            pass
-        elif augmentation == "autoaugment":
-            transform_list.append(AutoaugmentImageNetPolicy())
-        else:
-            raise NotImplementedError(
-                f"Automatic augmentation: '{augmentation}' is not supported"
-                " for PyTorch data loader."
-            )
+        raise NotImplementedError(
+            f"Automatic augmentation: '{augmentation}' is not supported"
+            " for PyTorch data loader."
+        )
 
-        transform_list.append(transforms.ToTensor())
-        transform_list.append(
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        )
-        train_dataset = datasets.ImageFolder(
-            traindir, transforms.Compose(transform_list)
-        )
+    train_dataset = datasets.ImageFolder(
+        traindir, transforms.Compose(transform_list)
+    )
 
     if torch.distributed.is_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -708,8 +670,8 @@ def get_pytorch_optimized_train_loader(
         shuffle=(train_sampler is None),
         num_workers=workers,
         worker_init_fn=_worker_init_fn,
-        pin_memory=(preprocessing_method != "dali"),
-        collate_fn=partial(fast_optimized_collate, memory_format) if preprocessing_method != "dali" else None,
+        pin_memory=True,
+        collate_fn=partial(fast_optimized_collate, memory_format),
         drop_last=True,
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
@@ -740,50 +702,20 @@ def get_pytorch_optimize_val_loader(
     prefetch_factor=2,
     preprocessing_method=None,
 ):
+    interpolation = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR}[
+        interpolation
+    ]
     valdir = os.path.join(data_path, "val")
-    if preprocessing_method == "dali":
-        interpolation = {
-            "bicubic": types.INTERP_CUBIC,
-            "bilinear": types.INTERP_LINEAR,
-            "triangular": types.INTERP_TRIANGULAR,
-        }[interpolation]
-
-        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
-
-        rank = (
-            torch.distributed.get_rank()
-            if torch.distributed.is_initialized()
-            else 0
-        )
-        pipeline_kwargs = {
-            "interpolation": interpolation,
-            "image_size": image_size + crop_padding,
-            "image_crop": image_size,
-            "output_layout": output_layout,
-            "batch_size": batch_size,
-            "num_threads": workers,
-            "device_id": rank % torch.cuda.device_count(),
-            "seed": 12 + rank % torch.cuda.device_count(),
-        }
-
-        val_dataset = datasets.ImageFolder(valdir, 
-            transform=dali_mps.DALIPipelineRunner(validation_pipe_external_source, pipeline_kwargs),
-            loader=read_filepath
-        )
-    else:
-        interpolation = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR}[
-            interpolation
-        ]
-        transform_list = [
-            transforms.Resize(
-                image_size + crop_padding, interpolation=interpolation
-            ),
-            transforms.CenterCrop(image_size),
-        ]
-        val_dataset = datasets.ImageFolder(
-            valdir,
-            transforms.Compose(transform_list),
-        )
+    transform_list = [
+        transforms.Resize(
+            image_size + crop_padding, interpolation=interpolation
+        ),
+        transforms.CenterCrop(image_size),
+    ]
+    val_dataset = datasets.ImageFolder(
+        valdir,
+        transforms.Compose(transform_list),
+    )
 
     if torch.distributed.is_initialized():
         val_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -799,8 +731,8 @@ def get_pytorch_optimize_val_loader(
         shuffle=(val_sampler is None),
         num_workers=workers,
         worker_init_fn=_worker_init_fn,
-        pin_memory=(preprocessing_method != "dali"),
-        collate_fn=partial(fast_optimized_collate, memory_format) if preprocessing_method != "dali" else None,
+        pin_memory=True,
+        collate_fn=partial(fast_optimized_collate, memory_format),
         drop_last=False,
         persistent_workers=True,
         prefetch_factor=prefetch_factor,
@@ -896,10 +828,9 @@ def get_dali_proxy_train_loader(dali_device="gpu"):
             prefetch_factor=prefetch_factor,
         )
 
-        out_memory_format = memory_format if preprocessing_method == "dali" else None
         return (
             PrefetchedWrapper(
-                train_loader, start_epoch, num_classes, one_hot, memory_format=out_memory_format
+                train_loader, start_epoch, num_classes, one_hot, memory_format
             ),
             len(train_loader),
         )
@@ -979,10 +910,9 @@ def get_dali_proxy_val_loader(dali_device="gpu"):
             prefetch_factor=prefetch_factor,
         )
 
-        out_memory_format = memory_format if preprocessing_method == "dali" else None
         return (
             PrefetchedWrapper(
-                val_loader, 0, num_classes, one_hot, memory_format=out_memory_format
+                val_loader, 0, num_classes, one_hot, memory_format
             ),
             len(val_loader),
         )
