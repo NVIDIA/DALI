@@ -578,7 +578,8 @@ static size_t daliMaxDimTensorsHelper(dali::Workspace* ws, int n) {
     auto shape = out_tensor_list.tensor_shape(i);
     int num_dim = shape.size();
     // squeeze last dimension
-    if (shape[num_dim - 1] == 1) {
+    // TODO(michalz): Remove this logic! The client should be responsible for this!
+    if (num_dim > 0 && shape[num_dim - 1] == 1) {
       --num_dim;
     }
     max_num_dim = std::max(max_num_dim, num_dim);
