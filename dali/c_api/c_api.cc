@@ -569,31 +569,9 @@ size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n) {
   }
 }
 
-template <typename T>
-static size_t daliMaxDimTensorsHelper(dali::Workspace* ws, int n) {
-  const auto &out_tensor_list = ws->Output<T>(n);
-  size_t tensors_num = out_tensor_list.num_samples();
-  int max_num_dim = 0;
-  for (size_t i = 0; i < tensors_num; ++i) {
-    auto shape = out_tensor_list.tensor_shape(i);
-    int num_dim = shape.size();
-    // squeeze last dimension
-    // TODO(michalz): Remove this logic! The client should be responsible for this!
-    if (num_dim > 0 && shape[num_dim - 1] == 1) {
-      --num_dim;
-    }
-    max_num_dim = std::max(max_num_dim, num_dim);
-  }
-  return static_cast<size_t>(max_num_dim);
-}
-
 size_t daliMaxDimTensors(daliPipelineHandle_t pipe_handle, int n) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliMaxDimTensorsHelper<CPUBackend>(ws, n);
-  } else {
-    return daliMaxDimTensorsHelper<GPUBackend>(ws, n);
-  }
+  return ws->GetOutputDim(n);
 }
 
 size_t daliGetDeclaredOutputNdim(daliPipelineHandle_t pipe_handle, int n) {
