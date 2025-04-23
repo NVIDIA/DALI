@@ -163,6 +163,7 @@ do
                                                    nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
+                                                   nvidia-nvcomp-cu${DALI_CUDA_MAJOR_VERSION}  \
                                                    -f /pip-packages"
           fi
 

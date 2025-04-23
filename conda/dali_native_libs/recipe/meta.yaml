@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ build:
    - WITH_DYNAMIC_CUFFT
    - WITH_DYNAMIC_NPP
    - WITH_DYNAMIC_NVIMGCODEC
+   - WITH_DYNAMIC_NVCOMP
    - VERBOSE_LOGS
    - WERROR
    - BUILD_WITH_ASAN
@@ -87,6 +88,7 @@ requirements:
     - openjpeg
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - nvcomp
   run:
     - libjpeg-turbo
     - lmdb
@@ -104,6 +106,7 @@ requirements:
     - libprotobuf =5.27.4
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - nvcomp
 
 about:
   home: https://github.com/NVIDIA/DALI

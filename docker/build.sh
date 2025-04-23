@@ -180,6 +180,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         WITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON} \
                                         WITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}  \
                                         WITH_DYNAMIC_NVIMGCODEC=${WITH_DYNAMIC_NVIMGCODEC:-ON}  \
+                                        WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP:-ON}  \
                                         STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
@@ -228,6 +229,8 @@ else
                                    --build-arg "WITH_DYNAMIC_NVJPEG"=${WITH_DYNAMIC_NVJPEG:-ON} \
                                    --build-arg "WITH_DYNAMIC_CUFFT"=${WITH_DYNAMIC_CUFFT:-ON} \
                                    --build-arg "WITH_DYNAMIC_NPP"=${WITH_DYNAMIC_NPP:-ON}  \
+                                   --build-arg "WITH_DYNAMIC_NVIMGCODEC"=${WITH_DYNAMIC_NVIMGCODEC:-ON}  \
+                                   --build-arg "WITH_DYNAMIC_NVCOMP"=${WITH_DYNAMIC_NVCOMP:-ON}  \
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \

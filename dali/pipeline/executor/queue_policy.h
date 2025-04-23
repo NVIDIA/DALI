@@ -241,6 +241,9 @@ struct SeparateQueuePolicy {
     int previous_stage = -1;
     if (HasPreviousStage(stage)) {
       previous_stage = static_cast<int>(PreviousStage(stage));
+      if (previous_stage == -1) {
+        return QueueIdxs{kInvalidIdx};
+      }
       std::unique_lock<std::mutex> ready_previous_lock(stage_ready_mutex_[previous_stage]);
       stage_ready_cv_[previous_stage].wait(ready_previous_lock, [previous_stage, this]() {
         return !stage_ready_[previous_stage].empty() || stage_ready_stop_[previous_stage];

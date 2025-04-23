@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -123,6 +123,11 @@ if (WITH_DYNAMIC_NPP)
   target_link_libraries(dali_operators PRIVATE dynlink_npp)
   target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
 endif(WITH_DYNAMIC_NPP)
+
+if (WITH_DYNAMIC_NVCOMP)
+  target_link_libraries(dali_operators PRIVATE dynlink_nvcomp)
+  target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvcomp>")
+endif()
 
 if (BUILD_CUFILE)
   target_link_libraries(dali_operators PRIVATE dynlink_cufile)
