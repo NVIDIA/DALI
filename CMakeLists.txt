@@ -145,8 +145,12 @@ endif()
 
 cmake_dependent_option(BUILD_NVCOMP "Build with nvCOMP support" OFF
                        "NOT BUILD_DALI_NODEPS" OFF)
-cmake_dependent_option(WITH_DYNAMIC_NVCOMP "Dynamicly load nvcomp" ON
-                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+if (BUILD_NVCOMP)
+  cmake_dependent_option(WITH_DYNAMIC_NVCOMP "Dynamicly load nvcomp" ON
+                        "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+else()
+  set(WITH_DYNAMIC_NVCOMP OFF)
+endif()
 
 if (BUILD_DALI_NODEPS)
   set(BUILD_OPENCV OFF)
