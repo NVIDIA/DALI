@@ -14,21 +14,24 @@ def test_pipe():
     return ext + row + col
 
 
+stream = torch.cuda.Stream(0)
+
+
 def bench_dlpack(verbose=False):
     if verbose:
         print("Testing dlpack")
     pipe = test_pipe(exec_dynamic=True)
     pipe.run()
 
-    s = torch.cuda.Stream(0)
-    with torch.cuda.stream(s):
+    with torch.cuda.stream(stream):
         sum = torch.zeros((), dtype=torch.float32).cuda()
         sum -= 318
         start = time.time_ns()
         for i in range(10):
-            (out,) = pipe.run(s)
+            (out,) = pipe.run(stream)
             batch = [torch.from_dlpack(t) for t in out]
-            sum += torch.mean(torch.stack(batch))
+            batch_tensor = torch.stack(batch)
+            sum += torch.mean(batch_tensor)
         sum_cpu = sum.cpu()
         assert sum_cpu == 2137, sum_cpu
         end = time.time_ns()
@@ -56,8 +59,7 @@ def bench_copy(new_exec, verbose=False):
         dali_pyt.feed_ndarray(dali_tensor, t, stream)
         return t
 
-    s = torch.cuda.Stream(0)
-    with torch.cuda.stream(s):
+    with torch.cuda.stream(stream):
         sum = torch.zeros((), dtype=torch.float32).cuda()
         sum -= 318
         start = time.time_ns()
@@ -71,9 +73,6 @@ def bench_copy(new_exec, verbose=False):
         if verbose:
             print((end - start) * 1e-6)
     pipe._shutdown()
-    del pipe
-    del sum
-    del sum_cpu
     return (end - start) * 1e-6
 
 
