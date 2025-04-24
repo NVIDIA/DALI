@@ -72,7 +72,7 @@ if not initialized:
             "Please update your environment to use Python 3.8, "
             "3.9, 3.10, or (experimentally) 3.11."
         )
-    # py3.7 warning
+    # py3.8 warning
     if sys.version_info[0] == 3 and sys.version_info[1] == 8:
         deprecation_warning(
             "DALI 1.49 is the last release to support Python 3.8 "
