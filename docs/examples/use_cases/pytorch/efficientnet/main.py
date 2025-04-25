@@ -529,7 +529,7 @@ def prepare_for_training(args, model_args, model_arch):
         )
         get_val_loader = get_dali_proxy_val_loader()
     elif args.data_backend == "dali_mps":
-        args.workers = args.workers * 2
+        args.workers = args.workers
         get_train_loader = get_pytorch_train_loader
         get_val_loader = get_pytorch_val_loader
     elif args.data_backend == "synthetic":
