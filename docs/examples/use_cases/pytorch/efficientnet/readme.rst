@@ -12,7 +12,7 @@ Differences to the Deep Learning Examples configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * The default values of the parameters were adjusted to values used in EfficientNet training.
-* ``--data-backend`` parameter was changed to accept ``dali``, ``pytorch``, or ``synthetic``. It is set to ``dali`` by default.
+* ``--data-backend`` parameter was changed to accept ``pytorch``, ``pytorch_optimized``, ``synthetic``, ``dali`` or ``dali_proxy``. It is set to ``dali`` by default.
 * ``--dali-device`` was added to control placement of some of DALI operators.
 * ``--augmentation`` was replaced with ``--automatic-augmentation``, now supporting ``disabled``, ``autoaugment``, and ``trivialaugment`` values.
 * ``--workers`` defaults were halved to accommodate DALI. The value is automatically doubled when ``pytorch`` data loader is used. Thanks to this the default value performs well with both loaders.
