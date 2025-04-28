@@ -48,9 +48,6 @@ else
   export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=OFF
 fi
 
-
-export BUILD_NVCOMP=${BUILD_NVCOMP:-OFF}
-
 # Create build directory for cmake and enter it
 mkdir $SRC_DIR/build_core
 cd $SRC_DIR/build_core
