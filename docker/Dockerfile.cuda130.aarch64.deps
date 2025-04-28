@@ -33,7 +33,8 @@ RUN NVJPEG2K_VERSION=0.8.1.40-1 && \
         libcufft-dev-13-0 \
         libcufile-dev-13-0 \
         libcusolver-dev-13-0 \
-        libcublas-dev-13-0 && \
+        libcublas-dev-13-0 \
+        cuda-compat-13-0 && \
     apt-get install libnvjpeg2k0-dev-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \

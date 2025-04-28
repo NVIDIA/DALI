@@ -41,6 +41,11 @@ test "$NVIDIA_SMI_DRIVER_VERSION" != "" && \
 version_lt "$NVIDIA_SMI_DRIVER_VERSION" "525.0" && \
 export LD_LIBRARY_PATH="/usr/local/cuda-12.0/compat:$LD_LIBRARY_PATH"
 
+version_eq "$DALI_CUDA_MAJOR_VERSION" "13" && \
+test "$NVIDIA_SMI_DRIVER_VERSION" != "" && \
+version_lt "$NVIDIA_SMI_DRIVER_VERSION" "580.0" && \
+export LD_LIBRARY_PATH="/usr/local/cuda-13.0/compat:$LD_LIBRARY_PATH"
+
 echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
 
 
