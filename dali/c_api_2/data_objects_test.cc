@@ -586,35 +586,70 @@ void FillTensorList(dali::TensorList<dali::CPUBackend> &tl) {
 
 template <typename T>
 void FillTensorList(dali::TensorList<dali::GPUBackend> &tl) {
-  assert(tl.IsContiguousInMemory());
-  void *data = tl.raw_mutable_tensor(0);
-  FillKernel<<<div_ceil(n, 256), 256>>>(
+  dali::TensorList<dali::CPUBackend> cpu;
+  cpu.Resize(tl.shape(), tl.type());
+  FillTensorList<T>(tl);
+  tl.Copy(cpu);
   CUDA_CALL(cudaDeviceSynchronize());
 }
 
+template <typename T>
 void FillTensorList(
       daliTensorList_h tl,
-      const dali::TensorListShape<> &shape,
-      daliDataType_t dtype) {
+      const dali::TensorListShape<> &shape) {
   CHECK_DALI(daliTensorListResize(
     tl,
     shape.num_samples(),
     shape.sample_dim(),
     shape.shapes.data(),
-    dtype,
+    type2id<T>::value,
     nullptr));
   daliBufferPlacement_t placement;
   CHECK_DALI(daliTensorListGetBufferPlacement(tl, &placement));
   if (placement.device_type == DALI_STORAGE_GPU)
-    FillTensorList(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::GPUBackend>());
+    FillTensorList<T>(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::GPUBackend>());
   else
-    FillTensorList(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::CPUBackend>());
+    FillTensorList<T>(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::CPUBackend>());
 }
 
 
-class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam> {
-  protected:
-}
+using CopyTestParams = std::tuple<
+daliStorageDevice_t,    // data object device
+daliStorageDevice_t,    // target storage device
+daliCopyFlags_t>;       // flags
 
-TEST_P(CAPI2_TensorListTest, CopyOut) {
+class CAPI2_CopyOutTest : public ::testing::TestWithParam<CopyTestParams> {
+};
+
+INSTANTIATE_TEST_SUITE_P(CAPI2_CopyOutTest, CAPI2_CopyOutTest, testing::Values<CopyTestParams>({
+  { DALI_STORAGE_CPU, DALI_STORAGE_CPU, DALI_COPY_DEFAULT },
+
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
+
+  { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
+
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
+}));
+
+TEST_P(CAPI2_CopyOutTest, CopyOut) {
+  CopyTestParams param = this->GetParam();
+  auto tl_backend = std::get<0>(param);
+  auto copy_backend = std::get<1>(GetParam());
+  auto flags = std::get<2>(GetParam());
+  daliBufferPlacement_t placement{};
+  placement.device_id = 0;
+  placement.device_type = tl_backend;
+  auto tl = CreateTensorList(placement);
+  dali::TensorListShape<> shape = {
+    { 480, 640, 3 },
+    { 1080, 1920, 3, }
+    { 600, 800, 3 },
+  };
+  FillTensorList<int>(tl, shape);
 }
