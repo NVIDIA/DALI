@@ -331,6 +331,12 @@ typedef struct _DALIPipelineParams {
   size_t bytes_per_sample_hint;
 } daliPipelineParams_t;
 
+#define DALI_GET_PARAM(params_struct, param_name, ... /* default*/) \
+  (params_struct.param_name##_present ? params_struct.param_name : __VA_ARGS__)
+
+#define DALI_SET_PARAM(params_struct, param_name, ... /* value */) \
+  ((params_struct.param_name##_present = 1), (params_struct.param_name = (__VA_ARGS__)))
+
 /** Describes an output of a DALI Pipeline */
 typedef struct _DALIPipelineIODesc {
   const char *name;
@@ -960,6 +966,31 @@ DALI_API daliResult_t daliTensorListGetShape(
   int *out_ndim,
   const int64_t **out_shape);
 
+
+/** Gets the size, in bytes, of the tensor list
+ *
+ * @param tensor_list [in]  the tensor list whose size to obtain
+ * @param out_bytes   [out] a pointer to the place where the number of bytes occupied by the tensor
+ *                          list is stored.
+ *
+ * NOTE: This function returns the sum of the sizes of the individual samples, regardless of their
+ *       layout in memory.
+ */
+DALI_API daliResult_t daliTensorListGetByteSize(daliTensorList_h tensor_list, size_t *out_bytes);
+
+/** Gets the type of the element of the TensorList.
+ *
+ * Gets the element type of the TensorList. Note that TensorList may have a data type set up
+ * even if it has 0 samples, in which case obtainng the element type through
+ * `daliTensorListGetTensorDesc` would be impossible.
+ *
+ * @param tensor_list [in]  The tensor list, whose element type to query
+ * @param out_dtype   [out] A pointer to the location where the data type is returned.
+ */
+DALI_API daliResult_t daliTensorListGetDType(
+  daliTensorList_h tensor_list,
+  daliDataType_t *out_dtype);
+
 /** Gets a layout string describing the samples in the TensorList.
  *
  * @param tensor_list [in]  the tensor list whose layout to obtain
@@ -1085,6 +1116,35 @@ DALI_API daliResult_t daliTensorListViewAsTensor(
   daliTensorList_h tensor_list,
   daliTensor_h *out_tensor);
 
+typedef enum _DALICopyFlags {
+  DALI_COPY_DEFAULT = 0,
+  /** If specified (and possible) the copy will be performed by a CUDA kernel rather memcpy */
+  DALI_COPY_USE_KERNEL = 1,
+  /** If specified, the function will wait for the copy to complete */
+  DALI_COPY_SYNC = 2,
+} daliCopyFlags_t;
+
+/** Copies the contents of the TensorList to a user-provided buffer
+ *
+ * @param tensor_list           The tensor list whose contents are copied
+ * @param dst_buffer            A pointer to the beginning of the destination buffer
+ * @param dst_buffer_placement  Specifies the location (device type, pinnedness) of the
+ *                              destination buffer
+ * @param stream                Optional CUDA stream to schedule the copy on.
+ *                              If not specified, the copy will be scheduled on the stream
+ *                              associated with the tensor list.
+ *                              If neither the tensor list nor the destination is GPU-accessible,
+ *                              this parameter may be ignored.
+ * @param flags                 Options that specify how the copy is performed.
+ */
+DALI_API daliResult_t daliTensorListCopyOut(
+  daliTensorList_h tensor_list,
+  void *dst_buffer,
+  daliBufferPlacement_t dst_buffer_placement,
+  const cudaStream_t *stream,
+  daliCopyFlags_t flags);
+
+
 /***************************************************************************/
 /*** Tensor ****************************************************************/
 /***************************************************************************/
@@ -1208,11 +1268,32 @@ DALI_API daliResult_t daliTensorGetOrCreateReadyEvent(
  *
  * The pointer returned in `out_shape` remains valid until the Tensor is destroyed or modified.
  * If the caller is not interested in some of the values, the pointers can be NULL.
+ *
+ * NOTE: When multiple properties (e.g. shape and type) are needed, consider calling
+ *       `daliTensorGetDesc` instead.
  */
 DALI_API daliResult_t daliTensorGetShape(
   daliTensor_h tensor,
   int *out_ndim,
   const int64_t **out_shape);
+
+/** Gets the size, in bytes, of the tensor
+ *
+ * @param tensor    [in]  the tensor whose size to obtain
+ * @param out_bytes [out] a pointer to the place where the number of bytes occupied by the tensor
+ *                        is stored.
+ */
+DALI_API daliResult_t daliTensorGetByteSize(daliTensor_h tensor, size_t *out_bytes);
+
+/** Gets element type of the tensor
+ *
+ * @param tensor    [in]  the tensor whose element type to obtain
+ * @param out_bytes [out] a pointer to the place where the tensor's element type is stored
+ *
+ * NOTE: When multiple properties (e.g. shape and type) are needed, consider calling
+ *       `daliTensorGetDesc` instead.
+ */
+DALI_API daliResult_t daliTensorGetDType(daliTensor_h tensor, daliDataType_t *out_bytes);
 
 /** Gets a layout string describing the data in the Tensor.
  *
@@ -1227,6 +1308,9 @@ DALI_API daliResult_t daliTensorGetShape(
  *
  * The pointer remains valid until the tensor is destroyed, cleared, resized or its layout
  * changed.
+ *
+ * NOTE: When multiple properties (e.g. shape and layout) are needed, consider calling
+ *       `daliTensorGetDesc` instead.
  */
 DALI_API daliResult_t daliTensorGetLayout(
   daliTensor_h tensor,
@@ -1286,6 +1370,26 @@ DALI_API daliResult_t daliTensorGetDesc(
   daliTensor_h tensor,
   daliTensorDesc_t *out_desc);
 
+/** Copies the contents of the Tensor to a user-provided buffer
+ *
+ * @param tensor                The tensor whose contents are copied
+ * @param dst_buffer            A pointer to the beginning of the destination buffer
+ * @param dst_buffer_placement  Specifies the location (device type, pinnedness) of the
+ *                              destination buffer
+ * @param stream                Optional CUDA stream to schedule the copy on.
+ *                              If not set, the copy will be scheduled on the stream associated
+ *                              with the tensor.
+ *                              If neither the tensor nor the destination is GPU-accessible,
+ *                              this parameter may be ignored.
+ * @param flags                 Options that specify how the copy is performed.
+ */
+DALI_API daliResult_t daliTensorCopyOut(
+  daliTensor_h tensor,
+  void *dst_buffer,
+  daliBufferPlacement_t dst_buffer_placement,
+  const cudaStream_t *stream,
+  daliCopyFlags_t flags);
+
 /** Increments the reference count of the tensor.
  *
  * @param tensor      [in]  A handle to the tensor.
@@ -1313,6 +1417,34 @@ DALI_API daliResult_t daliTensorRefCount(daliTensor_h tensor, int *count);
 
 #ifdef __cplusplus
 }  // extern "C"
+
+constexpr daliExecType_t operator|(daliExecType_t a, daliExecType_t b) {
+  return static_cast<daliExecType_t>(static_cast<int>(a) | static_cast<int>(b));
+}
+constexpr daliExecType_t operator&(daliExecType_t a, daliExecType_t b) {
+  return static_cast<daliExecType_t>(static_cast<int>(a) & static_cast<int>(b));
+}
+
+constexpr daliExecFlags_t operator|(daliExecFlags_t a, daliExecFlags_t b) {
+  return static_cast<daliExecFlags_t>(static_cast<int>(a) | static_cast<int>(b));
+}
+constexpr daliExecFlags_t operator&(daliExecFlags_t a, daliExecFlags_t b) {
+  return static_cast<daliExecFlags_t>(static_cast<int>(a) & static_cast<int>(b));
+}
+
+constexpr daliFeedInputFlags_t operator|(daliFeedInputFlags_t a, daliFeedInputFlags_t b) {
+  return static_cast<daliFeedInputFlags_t>(static_cast<int>(a) | static_cast<int>(b));
+}
+constexpr daliFeedInputFlags_t operator&(daliFeedInputFlags_t a, daliFeedInputFlags_t b) {
+  return static_cast<daliFeedInputFlags_t>(static_cast<int>(a) & static_cast<int>(b));
+}
+
+constexpr daliCopyFlags_t operator|(daliCopyFlags_t a, daliCopyFlags_t b) {
+  return static_cast<daliCopyFlags_t>(static_cast<int>(a) | static_cast<int>(b));
+}
+constexpr daliCopyFlags_t operator&(daliCopyFlags_t a, daliCopyFlags_t b) {
+  return static_cast<daliCopyFlags_t>(static_cast<int>(a) & static_cast<int>(b));
+}
 #endif
 
 #endif  // DALI_DALI_H_
