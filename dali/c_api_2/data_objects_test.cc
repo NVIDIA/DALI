@@ -18,6 +18,8 @@
 #include "dali/core/span.h"
 #include "dali/core/device_guard.h"
 #include "dali/c_api_2/test_utils.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/pipeline/data/views.h"
 
 TEST(CAPI2_TensorListTest, NullHandle) {
   daliTensorList_h h = nullptr;
@@ -575,4 +577,44 @@ TEST(CAPI2_TensorListTest, SourceInfo) {
   EXPECT_EQ(out_src_info, nullptr);
   CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 4));
   EXPECT_STREQ(out_src_info, "fox");
+}
+
+template <typename T>
+void FillTensorList(dali::TensorList<dali::CPUBackend> &tl) {
+  dali::SequentialFill(dali::view<T>(tl), 123);
+}
+
+template <typename T>
+void FillTensorList(dali::TensorList<dali::GPUBackend> &tl) {
+  assert(tl.IsContiguousInMemory());
+  void *data = tl.raw_mutable_tensor(0);
+  FillKernel<<<div_ceil(n, 256), 256>>>(
+  CUDA_CALL(cudaDeviceSynchronize());
+}
+
+void FillTensorList(
+      daliTensorList_h tl,
+      const dali::TensorListShape<> &shape,
+      daliDataType_t dtype) {
+  CHECK_DALI(daliTensorListResize(
+    tl,
+    shape.num_samples(),
+    shape.sample_dim(),
+    shape.shapes.data(),
+    dtype,
+    nullptr));
+  daliBufferPlacement_t placement;
+  CHECK_DALI(daliTensorListGetBufferPlacement(tl, &placement));
+  if (placement.device_type == DALI_STORAGE_GPU)
+    FillTensorList(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::GPUBackend>());
+  else
+    FillTensorList(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::CPUBackend>());
+}
+
+
+class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam> {
+  protected:
+}
+
+TEST_P(CAPI2_TensorListTest, CopyOut) {
 }
