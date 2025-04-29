@@ -14,12 +14,15 @@
 
 #include "dali/c_api_2/data_objects.h"
 #include <gtest/gtest.h>
+#include <tuple>
 #include "dali/dali_cpp_wrappers.h"
 #include "dali/core/span.h"
 #include "dali/core/device_guard.h"
 #include "dali/c_api_2/test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/cuda_stream_pool.h"
 
 TEST(CAPI2_TensorListTest, NullHandle) {
   daliTensorList_h h = nullptr;
@@ -580,15 +583,21 @@ TEST(CAPI2_TensorListTest, SourceInfo) {
 }
 
 template <typename T>
-void FillTensorList(dali::TensorList<dali::CPUBackend> &tl) {
-  dali::SequentialFill(dali::view<T>(tl), 123);
+void FillTensorList(dali::TensorList<dali::CPUBackend> &tl, T start) {
+  auto view = dali::view<T>(tl);
+  T value = start;
+  for (int i = 0; i < view.num_samples(); i++) {
+    auto tv = view[i];
+    for (int64_t j = 0, n = tv.num_elements(); j < n; j++)
+      tv.data[j] = value++;
+  }
 }
 
 template <typename T>
-void FillTensorList(dali::TensorList<dali::GPUBackend> &tl) {
+void FillTensorList(dali::TensorList<dali::GPUBackend> &tl, T start) {
   dali::TensorList<dali::CPUBackend> cpu;
   cpu.Resize(tl.shape(), tl.type());
-  FillTensorList<T>(tl);
+  FillTensorList<T>(cpu, start);
   tl.Copy(cpu);
   CUDA_CALL(cudaDeviceSynchronize());
 }
@@ -596,20 +605,22 @@ void FillTensorList(dali::TensorList<dali::GPUBackend> &tl) {
 template <typename T>
 void FillTensorList(
       daliTensorList_h tl,
-      const dali::TensorListShape<> &shape) {
+      const dali::TensorListShape<> &shape,
+      T start) {
   CHECK_DALI(daliTensorListResize(
     tl,
     shape.num_samples(),
     shape.sample_dim(),
     shape.shapes.data(),
-    type2id<T>::value,
+    dali::type2id<T>::value,
     nullptr));
   daliBufferPlacement_t placement;
   CHECK_DALI(daliTensorListGetBufferPlacement(tl, &placement));
+  auto *tl_ptr = static_cast<dali::c_api::ITensorList*>(tl);
   if (placement.device_type == DALI_STORAGE_GPU)
-    FillTensorList<T>(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::GPUBackend>());
+    FillTensorList<T>(*tl_ptr->Unwrap<dali::GPUBackend>(), start);
   else
-    FillTensorList<T>(*static_cast<dali::c_api::ITensorList*>(tl)->Unwrap<dali::CPUBackend>());
+    FillTensorList<T>(*tl_ptr->Unwrap<dali::CPUBackend>(), start);
 }
 
 
@@ -621,7 +632,10 @@ daliCopyFlags_t>;       // flags
 class CAPI2_CopyOutTest : public ::testing::TestWithParam<CopyTestParams> {
 };
 
-INSTANTIATE_TEST_SUITE_P(CAPI2_CopyOutTest, CAPI2_CopyOutTest, testing::Values<CopyTestParams>({
+INSTANTIATE_TEST_SUITE_P(
+      CAPI2_CopyOutTest,
+      CAPI2_CopyOutTest,
+      testing::ValuesIn(std::vector<CopyTestParams>({
   { DALI_STORAGE_CPU, DALI_STORAGE_CPU, DALI_COPY_DEFAULT },
 
   { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
@@ -632,10 +646,10 @@ INSTANTIATE_TEST_SUITE_P(CAPI2_CopyOutTest, CAPI2_CopyOutTest, testing::Values<C
   { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
   { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
 
-  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
-  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
-  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
-}));
+  { DALI_STORAGE_GPU, DALI_STORAGE_CPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_GPU, DALI_STORAGE_CPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_GPU, DALI_STORAGE_CPU, DALI_COPY_SYNC },
+})));
 
 TEST_P(CAPI2_CopyOutTest, CopyOut) {
   CopyTestParams param = this->GetParam();
@@ -645,11 +659,41 @@ TEST_P(CAPI2_CopyOutTest, CopyOut) {
   daliBufferPlacement_t placement{};
   placement.device_id = 0;
   placement.device_type = tl_backend;
+  placement.pinned = true;
   auto tl = CreateTensorList(placement);
+  auto lease = dali::CUDAStreamPool::instance().Get();
   dali::TensorListShape<> shape = {
     { 480, 640, 3 },
-    { 1080, 1920, 3, }
+    { 1080, 1920, 3, },
     { 600, 800, 3 },
   };
-  FillTensorList<int>(tl, shape);
+  using T = int;
+  FillTensorList<T>(tl, shape, 123);
+  dali::mm::uptr<T> dst_cpu, dst;
+  dst_cpu = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::host>(shape.num_elements());
+  if (copy_backend == DALI_STORAGE_GPU) {
+    dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::device>(shape.num_elements());
+  } else {
+    dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::host>(shape.num_elements());
+  }
+
+  daliBufferPlacement_t dst_placement{};
+  dst_placement.pinned = true;
+  dst_placement.device_type = copy_backend;
+  cudaStream_t stream = lease;
+  bool h2h = tl_backend == DALI_STORAGE_CPU && copy_backend == DALI_STORAGE_CPU;
+  size_t size = shape.num_elements() * sizeof(T);
+  CHECK_DALI(daliTensorListCopyOut(tl, dst.get(), dst_placement, h2h ? nullptr : &stream, flags));
+  if (copy_backend == DALI_STORAGE_GPU) {
+    if (flags & DALI_COPY_SYNC)
+      stream = 0;  // deliberately use a different stream, as no sync should be necessary
+    CUDA_CALL(cudaMemcpyAsync(dst_cpu.get(), dst.get(), size, cudaMemcpyDefault, stream));
+  } else {
+    if (!(flags & DALI_COPY_SYNC))
+      CUDA_CALL(cudaStreamSynchronize(stream));  // synchronize manually
+    // else - no synchronization should be required
+    memcpy(dst_cpu.get(), dst.get(), size);
+  }
+  for (int64_t i = 0, n = shape.num_elements(); i < n; i++)
+    ASSERT_EQ(dst_cpu.get()[i], i + 123) << "at i = " << i;
 }

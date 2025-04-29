@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CPP_WRAPPERS_H_
-#define DALI_CPP_WRAPPERS_H_
+#ifndef DALI_DALI_CPP_WRAPPERS_H_
+#define DALI_DALI_CPP_WRAPPERS_H_
 
 /** @file dali_cpp_wrappers.h
  *
@@ -141,4 +141,4 @@ DALI_C_REF_HANDLE(Tensor);
 
 }  // namespace dali::c_api
 
-#endif  // DALI_CPP_WRAPPERS_H_
+#endif  // DALI_DALI_CPP_WRAPPERS_H_
