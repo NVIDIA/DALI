@@ -694,7 +694,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       if (!is_uniform) {
         return errors::FailedPrecondition(
             "Batch output at index '", out_id,
-            "' from DALI pipeline is not uniform - individual samples have different dimensions. "
+            "' from DALI pipeline is not uniform - individual samples have different shapes. "
             "This output cannot be represented as single, dense Tensor, which is required by "
             "TensorFlow. Ensure that all the samples that you produce in given batch have equal "
             "shape. Got shapes: ", ShapeToString(output_tl));
