@@ -674,7 +674,7 @@ TEST_P(CAPI2_CopyOutTest, CopyOut) {
   if (copy_backend == DALI_STORAGE_GPU) {
     dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::device>(shape.num_elements());
   } else {
-    dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::host>(shape.num_elements());
+    dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::pinned>(shape.num_elements());
   }
 
   daliBufferPlacement_t dst_placement{};
