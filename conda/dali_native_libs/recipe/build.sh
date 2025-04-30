@@ -48,9 +48,6 @@ else
   export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=OFF
 fi
 
-
-export BUILD_NVCOMP=${BUILD_NVCOMP:-OFF}
-
 # Create build directory for cmake and enter it
 mkdir $SRC_DIR/build_core
 cd $SRC_DIR/build_core
@@ -84,7 +81,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVDEC=${BUILD_NVDEC:-ON}                    \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
-      -DBUILD_NVCOMP=${BUILD_NVCOMP}                      \
+      -DBUILD_NVCOMP=${BUILD_NVCOMP:-ON}                  \
       -DBUILD_CVCUDA=${BUILD_CVCUDA:-ON}                  \
       -DBUILD_NVIMAGECODEC=${BUILD_NVIMAGECODEC:-ON}      \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
@@ -93,6 +90,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DWITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON}       \
       -DWITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}           \
       -DWITH_DYNAMIC_NVIMGCODEC=${WITH_DYNAMIC_NVIMGCODEC:-ON} \
+      -DWITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP:-ON  } \
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
       -DWERROR=${WERROR:-ON}                              \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \
@@ -125,11 +123,9 @@ DEPS_LIST=(
 
 DEPS_PATH=/usr/local/
 
-if [ "$BUILD_NVCOMP" = "ON" ]; then
+if [ "$BUILD_NVCOMP" = "ON" ] && [ "$WITH_DYNAMIC_NVCOMP" = "ON" ]; then
     DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.4"
     )
 fi
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <nvcomp/lz4.h>
-
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "dali/core/dynlink_nvcomp.h"
 #include "dali/core/backend_tags.h"
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
@@ -31,84 +30,6 @@
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
-
-namespace inflate {
-
-class NvCompError : public std::runtime_error {
- public:
-  explicit NvCompError(nvcompStatus_t  result, const char *details = nullptr)
-  : std::runtime_error(Message(result, details))
-  , result_(result) {}
-
-  static const char *ErrorString(nvcompStatus_t result) {
-    switch (result) {
-      case nvcompSuccess:
-        return "The API call has finished successfully. Note that many of the calls are "
-               "asynchronous and some of the errors may be seen only after synchronization.";
-      case nvcompErrorInvalidValue:
-        return "Invalid value provided to the API.";
-      case nvcompErrorNotSupported:
-        return "Operation not supported.";
-      case nvcompErrorCannotDecompress:
-        return "Cannot decompress provided input.";
-      case nvcompErrorBadChecksum:
-        return "Wrong checksum of the provided data.";
-      case nvcompErrorCannotVerifyChecksums:
-        return "Cannot verify checksum of the provided data.";
-      case nvcompErrorOutputBufferTooSmall:
-        return "Provided output buffer is too small.";
-      case nvcompErrorWrongHeaderLength:
-        return "Wrong header length of the provided data.";
-      case nvcompErrorAlignment:
-        return "Wrong alignment of the provided data.";
-      case nvcompErrorChunkSizeTooLarge:
-        return "Chunk size of the decoded data is too large.";
-      case nvcompErrorCudaError:
-        return "Unknown CUDA error.";
-      case nvcompErrorInternal:
-        return "Unknown nvCOMP error.";
-      default:
-        return "< unknown error >";
-    }
-  }
-
-  static std::string Message(nvcompStatus_t result, const char *details) {
-    if (details && *details) {
-      return make_string("nvComp error (", result, "): ", ErrorString(result),
-                         "\nDetails:\n", details);
-    } else {
-      return make_string("nvComp error (", result, "): ", ErrorString(result));
-    }
-  }
-
-  nvcompStatus_t result() const { return result_; }
-
- private:
-  nvcompStatus_t result_;
-};
-
-}  // namespace inflate
-
-
-template <>
-inline void cudaResultCheck<nvcompStatus_t>(nvcompStatus_t status) {
-  switch (status) {
-  case nvcompSuccess:
-    return;
-  default:
-    throw inflate::NvCompError(status);
-  }
-}
-
-template <>
-inline void cudaResultCheck<nvcompStatus_t>(nvcompStatus_t status, const string &extra) {
-  switch (status) {
-  case nvcompSuccess:
-    return;
-  default:
-    throw inflate::NvCompError(status, extra.c_str());
-  }
-}
 
 namespace inflate {
 

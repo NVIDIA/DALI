@@ -55,6 +55,7 @@ export WITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON}
 export WITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON}
 export WITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}
 export WITH_DYNAMIC_NVIMGCODEC=${WITH_DYNAMIC_NVIMGCODEC:-ON}
+export WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP:-ON}
 export STRIP_BINARY=${STRIP_BINARY:-OFF}
 export VERBOSE_LOGS=${VERBOSE_LOGS:-OFF}
 export WERROR=${WERROR:-ON}
@@ -107,6 +108,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DWITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT}   \
       -DWITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP}       \
       -DWITH_DYNAMIC_NVIMGCODEC=${WITH_DYNAMIC_NVIMGCODEC} \
+      -DWITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP} \
       -DVERBOSE_LOGS=${VERBOSE_LOGS}               \
       -DWERROR=${WERROR}                           \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN}         \
@@ -121,7 +123,7 @@ if [ "${WERROR}" = "ON" ]; then
 fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
-if [ "$BUILD_NVCOMP" = "ON" ]; then
+if [ "$BUILD_NVCOMP" = "ON" ] && [ "$WITH_DYNAMIC_NVCOMP" != "ON" ]; then
     export BUNDLE_NVCOMP=YES
 else
     export BUNDLE_NVCOMP=NO

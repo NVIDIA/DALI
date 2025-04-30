@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 
 ##################################################################
 # OpenCV
@@ -131,26 +132,32 @@ endif()
 ##################################################################
 # nvcomp
 ##################################################################
+set(DALI_INSTALL_REQUIRES_NVCOMP "")
 if(BUILD_NVCOMP)
-  find_library(
-    nvcomp_LIBS
-    NAMES nvcomp
-    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-    PATH_SUFFIXES lib lib64)
-  find_path(
-    nvcomp_INCLUDE_DIR
-    NAMES nvcomp
-    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-    PATH_SUFFIXES include)
-  if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
-    message(FATAL_ERROR "nvCOMP libs could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  if (NOT WITH_DYNAMIC_NVCOMP)
+    find_library(
+      nvcomp_LIBS
+      NAMES nvcomp
+      PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+      PATH_SUFFIXES lib lib64)
+    find_path(
+      nvcomp_INCLUDE_DIR
+      NAMES nvcomp
+      PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+      PATH_SUFFIXES include)
+    if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
+      message(FATAL_ERROR "nvCOMP libs could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+    endif()
+    if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
+      message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+    endif()
+    message(STATUS "Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}.")
+    include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
+    list(APPEND DALI_LIBS ${nvcomp_LIBS})
+  else()
+    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-nvcomp-cu${CUDA_VERSION_MAJOR} ~= 4.0\',")
+    message(STATUS "Adding nvComp requirement as: ${DALI_INSTALL_REQUIRES_NVCOMP}")
   endif()
-  if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
-    message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
-  endif()
-  message(STATUS "Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}.")
-  include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
-  list(APPEND DALI_LIBS ${nvcomp_LIBS})
 endif()
 
 

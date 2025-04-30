@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -144,7 +144,13 @@ else()
 endif()
 
 cmake_dependent_option(BUILD_NVCOMP "Build with nvCOMP support" OFF
-                        "NOT BUILD_DALI_NODEPS" OFF)
+                       "NOT BUILD_DALI_NODEPS" OFF)
+if (BUILD_NVCOMP)
+  cmake_dependent_option(WITH_DYNAMIC_NVCOMP "Dynamicly load nvcomp" ON
+                        "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+else()
+  set(WITH_DYNAMIC_NVCOMP OFF)
+endif()
 
 if (BUILD_DALI_NODEPS)
   set(BUILD_OPENCV OFF)
@@ -325,6 +331,7 @@ propagate_option(WITH_DYNAMIC_NVJPEG)
 propagate_option(WITH_DYNAMIC_CUFFT)
 propagate_option(WITH_DYNAMIC_NPP)
 propagate_option(WITH_DYNAMIC_NVIMGCODEC)
+propagate_option(WITH_DYNAMIC_NVCOMP)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 

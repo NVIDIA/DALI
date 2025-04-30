@@ -45,4 +45,5 @@ version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
               nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
               nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
               nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
+              nvidia-nvcomp-cu${DALI_CUDA_MAJOR_VERSION}  \
   || true

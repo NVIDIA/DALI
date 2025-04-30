@@ -149,6 +149,7 @@ CMD WERROR=ON           \
     WITH_DYNAMIC_CUFFT=ON \
     WITH_DYNAMIC_NPP=ON \
     WITH_DYNAMIC_NVIMGCODEC=ON \
+    WITH_DYNAMIC_NVCOMP=OFF \
     NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-0} \
     WHL_PLATFORM_NAME=manylinux2014_aarch64            \
     BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,6 +76,28 @@ if (BUILD_CUFILE)
 endif()
 
 list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cufile.cc")
+
+if (BUILD_NVCOMP)
+  set(NVCOMP_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvcomp_gen.cc")
+  add_custom_command(
+      OUTPUT ${NVCOMP_GENERATED_STUB}
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=nvComp --
+                  "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvcomp.json" ${NVCOMP_GENERATED_STUB}
+                  "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/nvcomp/lz4.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
+                  # for some reason QNX fails with 'too many errors emitted' is this is not set
+                  "-ferror-limit=0"
+                  ${DEFAULT_COMPILER_INCLUDE}
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
+              "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/nvcomp/lz4.h"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvcomp.json"
+      COMMENT "Running nvcomp/lz4.hstub generator"
+      VERBATIM)
+
+  set_source_files_properties(${NVCOMP_GENERATED_STUB} PROPERTIES GENERATED TRUE)
+  add_library(dynlink_nvcomp STATIC dynlink_nvcomp.cc ${NVCOMP_GENERATED_STUB})
+endif()
+
+list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_nvcomp.cc")
 
 adjust_source_file_language_property("${DALI_CORE_SRCS}")
 add_library(dali_core ${LIBTYPE} ${DALI_CORE_SRCS})
