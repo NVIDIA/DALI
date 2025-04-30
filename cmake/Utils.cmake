@@ -144,6 +144,7 @@ macro(copy_post_build TARGET_NAME SRC DST)
 
     add_custom_command(
     TARGET install_${TARGET_NAME}
+    POST_BUILD
     COMMAND mkdir -p "${DST}" && cp -r
             "${SRC}"
             "${DST}")
@@ -241,6 +242,7 @@ endfunction(propagate_option)
 function(add_sources_to_lint LINT_TARGET LINT_EXTRA LIST_SRC)
   add_custom_command(
     TARGET ${LINT_TARGET}
+    POST_BUILD
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     COMMAND ${LINT_COMMAND} ${LINT_EXTRA} ${LIST_SRC}
     )
@@ -250,9 +252,9 @@ function(add_check_gtest_target TARGET_NAME BINARY BINARY_DIR)
   add_custom_target(${TARGET_NAME})
   add_custom_command(
     TARGET ${TARGET_NAME}
+    POST_BUILD
     WORKING_DIRECTORY ${BINARY_DIR}
     COMMAND ${BINARY}
-    DEPENDS ${BINARY}
   )
   add_dependencies("check-gtest" ${TARGET_NAME})
 endfunction(add_check_gtest_target)

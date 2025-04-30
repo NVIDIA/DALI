@@ -31,6 +31,7 @@ configure_file("${DALI_ROOT}/plugins/__init__.py.in" "pkg_src/src/nvidia/dali/pl
 add_custom_target(dali-plugin-video ALL)
 add_custom_command(
     TARGET dali-plugin-video
+    POST_BUILD
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pkg_src
     COMMAND ${PYTHON_EXECUTABLE} setup.py sdist)
 
