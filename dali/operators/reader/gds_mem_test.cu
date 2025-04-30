@@ -33,7 +33,7 @@ namespace test {
 
 struct CUFileDriverScope {
   CUFileDriverScope() {
-    // cuFileDriverOpen is some versions of cuFile library, can close stdin
+    // cuFileDriverOpen in some versions of cuFile library, can close stdin
     // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
     // and passing to GDS which cannot handle it properly leading to an error
     int stdin_backup = dup(STDIN_FILENO);
@@ -60,7 +60,7 @@ struct CUFileDriverScope {
   #pragma push_macro("cuFileDriverClose")
   #undef cuFileDriverClose
     if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
-      // cuFileDriverOpen is some versions of cuFile library, can close stdin
+      // cuFileDriverOpen in some versions of cuFile library, can close stdin
       // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
       // and passing to GDS which cannot handle it properly leading to an error
       int stdin_backup = dup(STDIN_FILENO);

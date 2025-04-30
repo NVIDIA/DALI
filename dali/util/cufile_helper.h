@@ -38,7 +38,7 @@ struct CUFileDriverScope {
   CUFileDriverScope() {
     // v2 API performs proper reference counting, so we increase the reference count here...
     if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
-      // cuFileDriverOpen is some versions of cuFile library, can close stdin
+      // cuFileDriverOpen in some versions of cuFile library, can close stdin
       // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
       // and passing to GDS which cannot handle it properly leading to an error
       int stdin_backup = dup(STDIN_FILENO);
@@ -62,7 +62,7 @@ struct CUFileDriverScope {
     // The old GDS API would simply destroy the library, possibly still in use by other modules
     // within the process.
     if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
-      // cuFileDriverOpen is some versions of cuFile library, can close stdin
+      // cuFileDriverOpen in some versions of cuFile library, can close stdin
       // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
       // and passing to GDS which cannot handle it properly leading to an error
       int stdin_backup = dup(STDIN_FILENO);
