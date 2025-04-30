@@ -285,18 +285,21 @@ if(BUILD_NVIMAGECODEC)
       cmake_policy(SET CMP0135 NEW)
     endif()
 
-    # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
-    include(FetchContent)
-    FetchContent_Declare(
-      nvimgcodec_headers
-      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
-      URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
-    )
-    FetchContent_Populate(nvimgcodec_headers)
-    set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
-    find_path(nvimgcodec_INCLUDE_DIR nvimgcodec.h PATHS "${nvimgcodec_SEARCH_PATH}")
-    if (${nvimgcodec_INCLUDE_DIR} STREQUAL "nvimgcodec_INCLUDE_DIR-NOTFOUND")
-      message(FATAL_ERROR "nvimgcodec not found in ${nvimgcodec_SEARCH_PATH} - something went wrong with the download")
+    find_package(nvimgcodec ${NVIMGCODEC_MIN_VERSION}...<${NVIMGCODEC_MAX_VERSION})
+    if (NOT nvimgcodec_FOUND)
+      message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
+      # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
+      include(FetchContent)
+      FetchContent_Declare(
+        nvimgcodec_headers
+        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
+        URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
+      )
+      FetchContent_Populate(nvimgcodec_headers)
+      set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
+      if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
+        message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
+      endif()
     endif()
     message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
     include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
