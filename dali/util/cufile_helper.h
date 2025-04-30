@@ -25,6 +25,7 @@
 #include <sys/syscall.h>
 #endif
 #include <unistd.h>
+#include <fcntl.h>
 
 // dali device guard
 #include "dali/core/dynlink_cufile.h"
@@ -37,7 +38,23 @@ struct CUFileDriverScope {
   CUFileDriverScope() {
     // v2 API performs proper reference counting, so we increase the reference count here...
     if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
+      // cuFileDriverOpen in some versions of cuFile library, can close stdin
+      // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
+      // and passing to GDS which cannot handle it properly leading to an error
+      int stdin_backup = dup(STDIN_FILENO);
+      if (stdin_backup == -1) {
+        std::cerr << "dup failed: " << strerror(errno) << "\n";
+      }
       CUDA_CALL(cuFileDriverOpen());
+      if (stdin_backup != -1) {
+        if (fcntl(STDIN_FILENO, F_GETFL) == -1 && errno == EBADF) {
+          // Restore stdin from backup
+          if (dup2(stdin_backup, STDIN_FILENO) == -1) {
+            std::cerr << "dup2 failed: " << strerror(errno) << "\n";
+          }
+        }
+        close(stdin_backup);  // Cleanup backup
+      }
     }
   }
   ~CUFileDriverScope() {
@@ -45,7 +62,23 @@ struct CUFileDriverScope {
     // The old GDS API would simply destroy the library, possibly still in use by other modules
     // within the process.
     if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
+      // cuFileDriverOpen in some versions of cuFile library, can close stdin
+      // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
+      // and passing to GDS which cannot handle it properly leading to an error
+      int stdin_backup = dup(STDIN_FILENO);
+      if (stdin_backup == -1) {
+        std::cerr << "dup failed: " << strerror(errno) << "\n";
+      }
       CUDA_DTOR_CALL(cuFileDriverClose());  // termination on exception is expected
+      if (stdin_backup != -1) {
+        if (fcntl(STDIN_FILENO, F_GETFL) == -1 && errno == EBADF) {
+          // Restore stdin from backup
+          if (dup2(stdin_backup, STDIN_FILENO) == -1) {
+            std::cerr << "dup2 failed: " << strerror(errno) << "\n";
+          }
+        }
+        close(stdin_backup);  // Cleanup backup
+      }
     }
   }
 };
