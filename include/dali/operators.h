@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ namespace dali {
 /**
  * @brief Functions to initialize operators in DALI
  *
- * Remember to also call @see daliInitialize() from `c_api.h` to initialize whole DALI backend.
+ * Remember to also call @see daliInit() from `dali.h` to initialize whole DALI backend.
  * Use either InitOperatorsLib or daliInitOperators, depending whether you use C++ or C API.
  * This function initializes operators' library. In case you use only Operators
  * (no Executor or Pipeline), you may pass on @see daliInitialize().

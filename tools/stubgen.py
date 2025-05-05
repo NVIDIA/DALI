@@ -54,7 +54,7 @@ def stubgen(header_filepath, out_file=sys.stdout):
     print(COPYRIGHT_NOTICE, file=out_file)
     print('#include "{}"\n\n'.format(header_filepath), file=out_file)
 
-    FUNCTION_DECL_PATTERN = r"DLL_PUBLIC[\s]+(.*)[\s]+(.*)\(([^\)]*?)\);"
+    FUNCTION_DECL_PATTERN = r"(?:DLL_PUBLIC|DALI_API)[\s]+(.*)[\s]+(.*)\(([^\)]*?)\);"
     for entry in re.finditer(FUNCTION_DECL_PATTERN, header_text):
         ret_type = entry.group(1)
         func_name = entry.group(2)
