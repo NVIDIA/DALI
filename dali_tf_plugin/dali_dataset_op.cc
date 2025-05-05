@@ -302,8 +302,8 @@ class DALIDatasetOp::Dataset : public DatasetBase {
 
     DALI_SET_PARAM(params, enable_memory_stats, pipeline_def_.enable_memory_stats);
 
-    params.exec_type_present = 1;
-    params.exec_type = exec_type;
+    DALI_SET_PARAM(params, exec_type, exec_type);
+
     daliPipeline_h raw_handle = nullptr;
     TF_DALI_CALL(daliPipelineDeserialize(
         &raw_handle,
