@@ -222,6 +222,26 @@ daliResult_t daliTensorGetShape(
   DALI_EPILOG();
 }
 
+daliResult_t daliTensorGetByteSize(
+      daliTensor_h tensor,
+      size_t *out_size) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  CHECK_OUTPUT(out_size);
+  *out_size = ptr->GetByteSize();
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorGetDType(
+      daliTensor_h tensor,
+      daliDataType_t *out_dtype) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor);
+  CHECK_OUTPUT(out_dtype);
+  *out_dtype = ptr->GetDType();
+  DALI_EPILOG();
+}
+
 daliResult_t daliTensorGetSourceInfo(
       daliTensor_h tensor,
       const char **out_source_info) {
@@ -391,6 +411,26 @@ daliResult_t daliTensorListGetShape(
   DALI_EPILOG();
 }
 
+daliResult_t daliTensorListGetByteSize(
+      daliTensorList_h tensor_list,
+      size_t *out_size) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  CHECK_OUTPUT(out_size);
+  *out_size = ptr->GetByteSize();
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorListGetDType(
+      daliTensorList_h tensor_list,
+      daliDataType_t *out_dtype) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  CHECK_OUTPUT(out_dtype);
+  *out_dtype = ptr->GetDType();
+  DALI_EPILOG();
+}
+
 daliResult_t daliTensorListGetTensorDesc(
       daliTensorList_h tensor_list,
       daliTensorDesc_t *out_tensor,
@@ -430,5 +470,18 @@ daliResult_t daliTensorListViewAsTensor(
   CHECK_OUTPUT(out_tensor);
   auto t = ptr->ViewAsTensor();
   *out_tensor = t.release();  // no throwing allowed after this line
+  DALI_EPILOG();
+}
+
+daliResult_t daliTensorListCopyOut(
+      daliTensorList_h tensor_list,
+      void *dst_buffer,
+      daliBufferPlacement_t dst_buffer_placement,
+      const cudaStream_t *stream,
+      daliCopyFlags_t flags) {
+  DALI_PROLOG();
+  auto *ptr = ToPointer(tensor_list);
+  CHECK_OUTPUT(dst_buffer)
+  ptr->CopyOut(dst_buffer, dst_buffer_placement, ToOptional(stream), flags);
   DALI_EPILOG();
 }

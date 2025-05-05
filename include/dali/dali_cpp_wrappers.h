@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_C_API_2_MANAGED_HANDLE_H_
-#define DALI_C_API_2_MANAGED_HANDLE_H_
+#ifndef DALI_DALI_CPP_WRAPPERS_H_
+#define DALI_DALI_CPP_WRAPPERS_H_
+
+/** @file dali_cpp_wrappers.h
+ *
+ * This file provides C++ wrappers for DALI C API handles.
+ *
+ * The wrappers are reminiscent of `unique_ptr` and `shared_ptr` and allow for RAII management
+ * of C API handle lifetimes.
+ */
 
 #include <cassert>
 #include <stdexcept>
@@ -23,6 +31,7 @@
 
 namespace dali::c_api {
 
+/** A wrapper around a handle which provides reference counting. */
 template <typename HandleType, typename Actual>
 class RefCountedHandle {
  public:
@@ -119,13 +128,17 @@ class Resource##Handle \
   } \
 }
 
+/** A wrapper for a unique Pipeline handle */
 DALI_C_UNIQUE_HANDLE(Pipeline);
+/** A wrapper for a unique PipelineOutputs handle */
 DALI_C_UNIQUE_HANDLE(PipelineOutputs);
+/** A wrapper for a unique Checkpoint handle */
 DALI_C_UNIQUE_HANDLE(Checkpoint);
+/** A wrapper for a shared TensorList handle */
 DALI_C_REF_HANDLE(TensorList);
+/** A wrapper for a shared Tensor handle */
 DALI_C_REF_HANDLE(Tensor);
-
 
 }  // namespace dali::c_api
 
-#endif  // DALI_C_API_2_MANAGED_HANDLE_H_
+#endif  // DALI_DALI_CPP_WRAPPERS_H_

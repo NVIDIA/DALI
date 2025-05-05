@@ -99,7 +99,7 @@ inline void Validate(daliStorageDevice_t device_type) {
     throw std::invalid_argument(make_string("Invalid storage device type: ", device_type));
 }
 
-void ValidateDeviceId(int device_id, bool allow_cpu_only);
+DLL_PUBLIC void ValidateDeviceId(int device_id, bool allow_cpu_only);
 
 inline void Validate(const daliBufferPlacement_t &placement) {
   Validate(placement.device_type);

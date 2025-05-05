@@ -14,9 +14,15 @@
 
 #include "dali/c_api_2/data_objects.h"
 #include <gtest/gtest.h>
-#include "dali/c_api_2/managed_handle.h"
+#include <tuple>
+#include "dali/dali_cpp_wrappers.h"
 #include "dali/core/span.h"
 #include "dali/core/device_guard.h"
+#include "dali/c_api_2/test_utils.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/cuda_stream_pool.h"
 
 TEST(CAPI2_TensorListTest, NullHandle) {
   daliTensorList_h h = nullptr;
@@ -38,12 +44,12 @@ TEST(CAPI2_TensorListTest, CreateDestroy) {
   ASSERT_EQ(r, DALI_SUCCESS) << daliGetLastErrorMessage();
 
   int ref = -1;
-  EXPECT_EQ(daliTensorListRefCount(h, &ref), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorListRefCount(h, &ref));
   EXPECT_EQ(ref, 1);
   ref = -1;
 
   h = tl.release();
-  EXPECT_EQ(daliTensorListDecRef(h, &ref), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorListDecRef(h, &ref));
   EXPECT_EQ(ref, 0);
 }
 
@@ -78,7 +84,7 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   auto tl = CreateTensorList(placement);
 
   daliBufferPlacement_t test_placement{};
-  EXPECT_EQ(daliTensorListGetBufferPlacement(tl, &test_placement), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetBufferPlacement(tl, &test_placement));
   EXPECT_EQ(test_placement.device_type, placement.device_type);
   EXPECT_EQ(test_placement.device_id, placement.device_id);
   EXPECT_EQ(test_placement.pinned, placement.pinned);
@@ -90,21 +96,23 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   shapes[0] = -1;
   EXPECT_EQ(daliTensorListResize(tl, 4, 3, shapes, dtype, "HWC"), DALI_ERROR_INVALID_ARGUMENT);
   shapes[0] = 480;
-  EXPECT_EQ(daliTensorListResize(tl, 1, 3, shapes, dtype, "HWC"), DALI_SUCCESS)
-      << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorListResize(tl, 1, 3, shapes, dtype, "HWC"));
   // resize, but keep the layout
-  EXPECT_EQ(daliTensorListResize(tl, 4, 3, shapes, dtype, nullptr), DALI_SUCCESS)
-      << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorListResize(tl, 4, 3, shapes, dtype, nullptr));
 
   size_t element_size = dali::TypeTable::GetTypeInfo(dtype).size();
 
-  EXPECT_EQ(daliTensorListGetShape(tl, nullptr, nullptr, nullptr), DALI_SUCCESS)
-      << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorListGetShape(tl, nullptr, nullptr, nullptr));
+
+  daliDataType_t reported_dtype = DALI_NO_TYPE;
+  CHECK_DALI(daliTensorListGetDType(tl, &reported_dtype));
+  EXPECT_EQ(reported_dtype, dtype);
+
   {
     int nsamples = -1, ndim = -1;
     const int64_t *shape_data = nullptr;
-    EXPECT_EQ(daliTensorListGetShape(tl, &nsamples, &ndim, &shape_data), DALI_SUCCESS)
-        << daliGetLastErrorMessage();
+    ASSERT_EQ(daliTensorListGetShape(tl, &nsamples, &ndim, &shape_data), DALI_SUCCESS)
+      << daliGetLastErrorMessage();
     ASSERT_NE(shape_data, nullptr);
     EXPECT_EQ(nsamples, 4);
     EXPECT_EQ(ndim, 3);
@@ -118,7 +126,7 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   const char *base;
   for (int i = 0; i < 4; i++) {
     daliTensorDesc_t desc{};
-    EXPECT_EQ(daliTensorListGetTensorDesc(tl, &desc, i), DALI_SUCCESS) << daliGetLastErrorMessage();
+    CHECK_DALI(daliTensorListGetTensorDesc(tl, &desc, i));
     ASSERT_EQ(desc.ndim, 3);
     if (i == 0)
       base = static_cast<char *>(desc.data);
@@ -137,6 +145,10 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
     }
     offset += sample_bytes;
   }
+  size_t reported_byte_size = 0;
+  CHECK_DALI(daliTensorListGetByteSize(tl, &reported_byte_size));
+  EXPECT_EQ(reported_byte_size, static_cast<size_t>(offset));
+
   if (storage_device == DALI_STORAGE_GPU) {
     EXPECT_EQ(cudaDeviceSynchronize(), cudaSuccess);
   }
@@ -210,7 +222,7 @@ TEST(CAPI2_TensorListTest, AttachBuffer) {
   const char *base = reinterpret_cast<const char *>(data.get());
   for (int i = 0; i < 4; i++) {
     daliTensorDesc_t desc{};
-    EXPECT_EQ(daliTensorListGetTensorDesc(tl, &desc, i), DALI_SUCCESS) << daliGetLastErrorMessage();
+    CHECK_DALI(daliTensorListGetTensorDesc(tl, &desc, i));
     ASSERT_EQ(desc.ndim, 3);
     EXPECT_EQ(desc.data, base + offset);
     EXPECT_EQ(desc.dtype, dtype);
@@ -278,7 +290,7 @@ TEST(CAPI2_TensorListTest, AttachSamples) {
   // The deleter doesn't actually delete - we still own the data.
   for (int i = 0; i < 4; i++) {
     daliTensorDesc_t desc{};
-    EXPECT_EQ(daliTensorListGetTensorDesc(tl, &desc, i), DALI_SUCCESS) << daliGetLastErrorMessage();
+    CHECK_DALI(daliTensorListGetTensorDesc(tl, &desc, i));
     ASSERT_EQ(desc.ndim, 3);
     EXPECT_EQ(desc.data, data[i].get());
     EXPECT_EQ(desc.dtype, dtype);
@@ -338,18 +350,18 @@ TEST(CAPI2_TensorListTest, ViewAsTensor) {
   // The deleter doesn't actually delete - we still own the data.
 
   daliTensor_h ht = nullptr;
-  EXPECT_EQ(daliTensorListViewAsTensor(tl, &ht), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorListViewAsTensor(tl, &ht));
   ASSERT_NE(ht, nullptr);
   dali::c_api::TensorHandle t(ht);
 
   daliBufferPlacement_t tensor_placement{};
-  EXPECT_EQ(daliTensorGetBufferPlacement(ht, &tensor_placement), DALI_SUCCESS);
+  CHECK_DALI(daliTensorGetBufferPlacement(ht, &tensor_placement));
   EXPECT_EQ(tensor_placement.device_type, placement.device_type);
   EXPECT_EQ(tensor_placement.device_id, placement.device_id);
   EXPECT_EQ(tensor_placement.pinned, placement.pinned);
 
   daliTensorDesc_t desc{};
-  EXPECT_EQ(daliTensorGetDesc(t, &desc), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorGetDesc(t, &desc));
   EXPECT_EQ(desc.data, data.get());
   ASSERT_NE(desc.shape, nullptr);
   EXPECT_EQ(desc.shape[0], lshape.num_samples());
@@ -359,10 +371,10 @@ TEST(CAPI2_TensorListTest, ViewAsTensor) {
   EXPECT_EQ(desc.shape[3], lshape[0][2]);
   EXPECT_STREQ(desc.layout, "NHWC");
   EXPECT_EQ(desc.dtype, dtype);
-  EXPECT_EQ(daliTensorGetShape(t, nullptr, nullptr), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorGetShape(t, nullptr, nullptr));
   int ndim = -1;
   const int64_t *shape = nullptr;
-  EXPECT_EQ(daliTensorGetShape(t, &ndim, &shape), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorGetShape(t, &ndim, &shape));
   EXPECT_EQ(ndim, 4);
   EXPECT_EQ(shape, desc.shape);
 
@@ -449,12 +461,12 @@ TEST(CAPI2_TensorTest, CreateDestroy) {
   ASSERT_EQ(r, DALI_SUCCESS) << daliGetLastErrorMessage();
 
   int ref = -1;
-  EXPECT_EQ(daliTensorRefCount(h, &ref), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorRefCount(h, &ref));
   EXPECT_EQ(ref, 1);
   ref = -1;
 
   h = tl.release();
-  EXPECT_EQ(daliTensorDecRef(h, &ref), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorDecRef(h, &ref));
   EXPECT_EQ(ref, 0);
 }
 
@@ -490,18 +502,16 @@ void TestTensorResize(daliStorageDevice_t storage_device) {
   shape[0] = -1;
   EXPECT_EQ(daliTensorResize(t, 3, shape, dtype, "HWC"), DALI_ERROR_INVALID_ARGUMENT);
   shape[0] = 1;
-  EXPECT_EQ(daliTensorResize(t, 3, shape, dtype, "HWC"), DALI_SUCCESS)
-      << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorResize(t, 3, shape, dtype, "HWC"));
 
   shape[0] = 1080;
-  EXPECT_EQ(daliTensorResize(t, 3, shape, dtype, nullptr), DALI_SUCCESS)
-      << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorResize(t, 3, shape, dtype, nullptr));
 
   size_t element_size = dali::TypeTable::GetTypeInfo(dtype).size();
 
   ptrdiff_t offset = 0;
   daliTensorDesc_t desc{};
-  EXPECT_EQ(daliTensorGetDesc(t, &desc), DALI_SUCCESS) << daliGetLastErrorMessage();
+  CHECK_DALI(daliTensorGetDesc(t, &desc));
   ASSERT_EQ(desc.ndim, 3);
   EXPECT_STREQ(desc.layout, "HWC");
   EXPECT_EQ(desc.dtype, dtype);
@@ -509,6 +519,13 @@ void TestTensorResize(daliStorageDevice_t storage_device) {
   for (int j = 0; j < 3; j++)
     EXPECT_EQ(desc.shape[j], shape[j]);
   size_t sample_bytes = volume(dali::make_cspan(desc.shape, desc.ndim)) * element_size;
+  size_t reported_byte_size = 0;
+  CHECK_DALI(daliTensorGetByteSize(t, &reported_byte_size));
+  EXPECT_EQ(reported_byte_size, sample_bytes);
+  daliDataType_t reported_dtype = DALI_NO_TYPE;
+  CHECK_DALI(daliTensorGetDType(t, &reported_dtype));
+  EXPECT_EQ(reported_dtype, dtype);
+
   if (storage_device == DALI_STORAGE_GPU) {
     // Check that the data is accessible for the GPU
     EXPECT_EQ(cudaMemset(desc.data, 0, sample_bytes), cudaSuccess);
@@ -532,34 +549,151 @@ TEST(CAPI2_TensorTest, ResizeGPU) {
 TEST(CAPI2_TensorTest, SourceInfo) {
   auto t = CreateTensor({});
   const char *out_src_info = "junk";
-  EXPECT_EQ(daliTensorGetSourceInfo(t, &out_src_info), DALI_SUCCESS);
+  CHECK_DALI(daliTensorGetSourceInfo(t, &out_src_info));
   EXPECT_EQ(out_src_info, nullptr);
 
-  EXPECT_EQ(daliTensorSetSourceInfo(t, "source_info"), DALI_SUCCESS);
-  EXPECT_EQ(daliTensorGetSourceInfo(t, &out_src_info), DALI_SUCCESS);
+  CHECK_DALI(daliTensorSetSourceInfo(t, "source_info"));
+  CHECK_DALI(daliTensorGetSourceInfo(t, &out_src_info));
   EXPECT_STREQ(out_src_info, "source_info");
 }
 
 TEST(CAPI2_TensorListTest, SourceInfo) {
   auto t = CreateTensorList({});
-  ASSERT_EQ(daliTensorListResize(t, 5, 0, nullptr, DALI_UINT8, nullptr), DALI_SUCCESS);
+  ASSERT_EQ(daliTensorListResize(t, 5, 0, nullptr, DALI_UINT8, nullptr), DALI_SUCCESS)
+    << daliGetLastErrorMessage();
 
   const char *out_src_info = "junk";
-  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 0), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 0));
   EXPECT_EQ(out_src_info, nullptr);
 
-  EXPECT_EQ(daliTensorListSetSourceInfo(t, 0, "quick"), DALI_SUCCESS);
-  EXPECT_EQ(daliTensorListSetSourceInfo(t, 2, "brown"), DALI_SUCCESS);
-  EXPECT_EQ(daliTensorListSetSourceInfo(t, 4, "fox"), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListSetSourceInfo(t, 0, "quick"));
+  CHECK_DALI(daliTensorListSetSourceInfo(t, 2, "brown"));
+  CHECK_DALI(daliTensorListSetSourceInfo(t, 4, "fox"));
 
-  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 0), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 0));
   EXPECT_STREQ(out_src_info, "quick");
-  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 1), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 1));
   EXPECT_EQ(out_src_info, nullptr);
-  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 2), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 2));
   EXPECT_STREQ(out_src_info, "brown");
-  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 3), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 3));
   EXPECT_EQ(out_src_info, nullptr);
-  EXPECT_EQ(daliTensorListGetSourceInfo(t, &out_src_info, 4), DALI_SUCCESS);
+  CHECK_DALI(daliTensorListGetSourceInfo(t, &out_src_info, 4));
   EXPECT_STREQ(out_src_info, "fox");
+}
+
+template <typename T>
+void FillTensorList(dali::TensorList<dali::CPUBackend> &tl, T start) {
+  auto view = dali::view<T>(tl);
+  T value = start;
+  for (int i = 0; i < view.num_samples(); i++) {
+    auto tv = view[i];
+    for (int64_t j = 0, n = tv.num_elements(); j < n; j++)
+      tv.data[j] = value++;
+  }
+}
+
+template <typename T>
+void FillTensorList(dali::TensorList<dali::GPUBackend> &tl, T start) {
+  dali::TensorList<dali::CPUBackend> cpu;
+  cpu.Resize(tl.shape(), tl.type());
+  FillTensorList<T>(cpu, start);
+  tl.Copy(cpu);
+  CUDA_CALL(cudaDeviceSynchronize());
+}
+
+template <typename T>
+void FillTensorList(
+      daliTensorList_h tl,
+      const dali::TensorListShape<> &shape,
+      T start) {
+  CHECK_DALI(daliTensorListResize(
+    tl,
+    shape.num_samples(),
+    shape.sample_dim(),
+    shape.shapes.data(),
+    dali::type2id<T>::value,
+    nullptr));
+  daliBufferPlacement_t placement;
+  CHECK_DALI(daliTensorListGetBufferPlacement(tl, &placement));
+  auto *tl_ptr = static_cast<dali::c_api::ITensorList*>(tl);
+  if (placement.device_type == DALI_STORAGE_GPU)
+    FillTensorList<T>(*tl_ptr->Unwrap<dali::GPUBackend>(), start);
+  else
+    FillTensorList<T>(*tl_ptr->Unwrap<dali::CPUBackend>(), start);
+}
+
+
+using CopyTestParams = std::tuple<
+daliStorageDevice_t,    // data object device
+daliStorageDevice_t,    // target storage device
+daliCopyFlags_t>;       // flags
+
+class CAPI2_CopyOutTest : public ::testing::TestWithParam<CopyTestParams> {
+};
+
+INSTANTIATE_TEST_SUITE_P(
+      CAPI2_CopyOutTest,
+      CAPI2_CopyOutTest,
+      testing::ValuesIn(std::vector<CopyTestParams>({
+  { DALI_STORAGE_CPU, DALI_STORAGE_CPU, DALI_COPY_DEFAULT },
+
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_GPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
+
+  { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_CPU, DALI_STORAGE_GPU, DALI_COPY_SYNC },
+
+  { DALI_STORAGE_GPU, DALI_STORAGE_CPU, DALI_COPY_DEFAULT },
+  { DALI_STORAGE_GPU, DALI_STORAGE_CPU, DALI_COPY_USE_KERNEL },
+  { DALI_STORAGE_GPU, DALI_STORAGE_CPU, DALI_COPY_SYNC },
+})));
+
+TEST_P(CAPI2_CopyOutTest, CopyOut) {
+  CopyTestParams param = this->GetParam();
+  auto tl_backend = std::get<0>(param);
+  auto copy_backend = std::get<1>(GetParam());
+  auto flags = std::get<2>(GetParam());
+  daliBufferPlacement_t placement{};
+  placement.device_id = 0;
+  placement.device_type = tl_backend;
+  placement.pinned = true;
+  auto tl = CreateTensorList(placement);
+  auto lease = dali::CUDAStreamPool::instance().Get();
+  dali::TensorListShape<> shape = {
+    { 480, 640, 3 },
+    { 1080, 1920, 3, },
+    { 600, 800, 3 },
+  };
+  using T = int;
+  FillTensorList<T>(tl, shape, 123);
+  dali::mm::uptr<T> dst_cpu, dst;
+  dst_cpu = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::host>(shape.num_elements());
+  if (copy_backend == DALI_STORAGE_GPU) {
+    dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::device>(shape.num_elements());
+  } else {
+    dst = dali::mm::alloc_raw_unique<T, dali::mm::memory_kind::pinned>(shape.num_elements());
+  }
+
+  daliBufferPlacement_t dst_placement{};
+  dst_placement.pinned = true;
+  dst_placement.device_type = copy_backend;
+  cudaStream_t stream = lease;
+  bool h2h = tl_backend == DALI_STORAGE_CPU && copy_backend == DALI_STORAGE_CPU;
+  size_t size = shape.num_elements() * sizeof(T);
+  CHECK_DALI(daliTensorListCopyOut(tl, dst.get(), dst_placement, h2h ? nullptr : &stream, flags));
+  if (copy_backend == DALI_STORAGE_GPU) {
+    if (flags & DALI_COPY_SYNC)
+      stream = 0;  // deliberately use a different stream, as no sync should be necessary
+    CUDA_CALL(cudaMemcpyAsync(dst_cpu.get(), dst.get(), size, cudaMemcpyDefault, stream));
+  } else {
+    if (!(flags & DALI_COPY_SYNC))
+      CUDA_CALL(cudaStreamSynchronize(stream));  // synchronize manually
+    // else - no synchronization should be required
+    memcpy(dst_cpu.get(), dst.get(), size);
+  }
+  for (int64_t i = 0, n = shape.num_elements(); i < n; i++)
+    ASSERT_EQ(dst_cpu.get()[i], i + 123) << "at i = " << i;
 }

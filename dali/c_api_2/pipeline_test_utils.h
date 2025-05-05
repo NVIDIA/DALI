@@ -17,7 +17,7 @@
 
 #include "dali/c_api_2/test_utils.h"
 #include "dali/c_api_2/pipeline.h"
-#include "dali/c_api_2/managed_handle.h"
+#include "dali/dali_cpp_wrappers.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"

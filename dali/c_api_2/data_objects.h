@@ -23,6 +23,7 @@
 #include <vector>
 #include "dali/dali.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/copy_to_external.h"
 #include "dali/c_api_2/ref_counting.h"
 #include "dali/c_api_2/validation.h"
 
@@ -42,6 +43,15 @@ struct _DALITensor {
 
 namespace dali {
 namespace c_api {
+
+constexpr mm::memory_kind_id GetMemoryKind(const daliBufferPlacement_t &placement) {
+  if (placement.device_type == DALI_STORAGE_GPU) {
+    return mm::memory_kind_id::device;
+  } else {
+    assert(placement.device_type == DALI_STORAGE_CPU);
+    return placement.pinned ? mm::memory_kind_id::pinned : mm::memory_kind_id::host;
+  }
+}
 
 //////////////////////////////////////////////////////////////////////////////
 // Interfaces
@@ -88,9 +98,20 @@ class ITensor : public _DALITensor, public RefCountedObject {
 
   virtual const TensorShape<> &GetShape() const & = 0;
 
+  virtual size_t GetByteSize() const = 0;
+
+  virtual daliDataType_t GetDType() const = 0;
+
   virtual const char *GetSourceInfo() const & = 0;
 
   virtual void SetSourceInfo(const char *source_info) = 0;
+
+  virtual void CopyOut(
+      void *dst_buffer,
+      daliBufferPlacement_t dst_buffer_placement,
+      std::optional<cudaStream_t> stream,
+      daliCopyFlags_t flags) = 0;
+
 
   /** Retrieves the underlying DALI Tensor<Backend> pointer.
    *
@@ -155,11 +176,21 @@ class ITensorList : public _DALITensorList, public RefCountedObject {
 
   virtual const TensorListShape<> &GetShape() const & = 0;
 
+  virtual size_t GetByteSize() const = 0;
+
+  virtual daliDataType_t GetDType() const = 0;
+
   virtual RefCountedPtr<ITensor> ViewAsTensor() const = 0;
 
   virtual const char *GetSourceInfo(int sample) const & = 0;
 
   virtual void SetSourceInfo(int sample, const char *source_info) = 0;
+
+  virtual void CopyOut(
+    void *dst_buffer,
+    daliBufferPlacement_t dst_buffer_placement,
+    std::optional<cudaStream_t> stream,
+    daliCopyFlags_t flags) = 0;
 
   /** Retrieves the underlying DALI TensorList<Backend> pointer.
    *
@@ -334,6 +365,14 @@ class TensorWrapper : public ITensor {
     return t_->shape();
   }
 
+  size_t GetByteSize() const override {
+    return t_->nbytes();
+  }
+
+  daliDataType_t GetDType() const override {
+    return t_->type();
+  }
+
   const char *GetSourceInfo() const & override {
     const char *info = t_->GetMeta().GetSourceInfo().c_str();
     if (info && !*info)
@@ -343,6 +382,19 @@ class TensorWrapper : public ITensor {
 
   void SetSourceInfo(const char *source_info) override {
     t_->SetSourceInfo(source_info ? source_info : "");
+  }
+
+  void CopyOut(
+      void *dst_buffer,
+      daliBufferPlacement_t dst_buffer_placement,
+      std::optional<cudaStream_t> stream,
+      daliCopyFlags_t flags) override {
+    Validate(dst_buffer_placement);
+    AccessOrder order = stream ? *stream : t_->order();
+    mm::memory_kind_id mem_kind = GetMemoryKind(dst_buffer_placement);
+    CopyToExternal(dst_buffer, mem_kind, *t_, order, flags & DALI_COPY_USE_KERNEL);
+    if (flags & DALI_COPY_SYNC)
+        AccessOrder::host().wait(order);
   }
 
   const auto &NativePtr() const & {
@@ -646,6 +698,14 @@ class TensorListWrapper : public ITensorList {
     return tl_->shape();
   }
 
+  size_t GetByteSize() const override {
+    return tl_->nbytes();
+  }
+
+  daliDataType_t GetDType() const override {
+    return tl_->type();
+  }
+
   const char *GetSourceInfo(int sample) const & override {
     ValidateSampleIdx(sample);
     const char *info = tl_->GetMeta(sample).GetSourceInfo().c_str();
@@ -682,6 +742,19 @@ class TensorListWrapper : public ITensorList {
       t->SetLayout("N" + layout);
     }
     return Wrap(std::move(t));
+  }
+
+  void CopyOut(
+      void *dst_buffer,
+      daliBufferPlacement_t dst_buffer_placement,
+      std::optional<cudaStream_t> stream,
+      daliCopyFlags_t flags) override {
+    Validate(dst_buffer_placement);
+    AccessOrder order = stream ? *stream : tl_->order();
+    mm::memory_kind_id mem_kind = GetMemoryKind(dst_buffer_placement);
+    CopyToExternal(dst_buffer, mem_kind, *tl_, order, flags & DALI_COPY_USE_KERNEL);
+    if (flags & DALI_COPY_SYNC)
+        AccessOrder::host().wait(order);
   }
 
   const auto &NativePtr() const & {
