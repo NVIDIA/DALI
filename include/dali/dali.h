@@ -334,8 +334,10 @@ typedef struct _DALIPipelineParams {
 #define DALI_GET_PARAM(params_struct, param_name, ... /* default*/) \
   (params_struct.param_name##_present ? params_struct.param_name : __VA_ARGS__)
 
-#define DALI_SET_PARAM(params_struct, param_name, ... /* value */) \
-  ((params_struct.param_name##_present = 1), (params_struct.param_name = (__VA_ARGS__)))
+#define DALI_SET_PARAM(params_struct, param_name, ... /* value */) do { \
+    (params_struct).param_name##_present = 1; \
+    (params_struct).param_name = (__VA_ARGS__); \
+  } while (0)
 
 /** Describes an output of a DALI Pipeline */
 typedef struct _DALIPipelineIODesc {
@@ -981,7 +983,7 @@ DALI_API daliResult_t daliTensorListGetByteSize(daliTensorList_h tensor_list, si
 /** Gets the type of the element of the TensorList.
  *
  * Gets the element type of the TensorList. Note that TensorList may have a data type set up
- * even if it has 0 samples, in which case obtainng the element type through
+ * even if it has 0 samples, in which case obtaining the element type through
  * `daliTensorListGetTensorDesc` would be impossible.
  *
  * @param tensor_list [in]  The tensor list, whose element type to query
