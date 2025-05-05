@@ -60,6 +60,10 @@ struct S3ClientManager {
     if (endpoint_url_ptr) {
       config.endpointOverride = std::string(endpoint_url_ptr);
     }
+    auto no_verify_ptr = std::getenv("DALI_S3_NO_VERIFY_SSL");
+    if (no_verify_ptr) {
+      config.verifySSL = std::atoi(no_verify_ptr) == 0;
+    }
     client_ = std::make_unique<Aws::S3::S3Client>(std::move(config));
   }
 
