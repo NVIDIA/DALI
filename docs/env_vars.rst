@@ -202,6 +202,21 @@ Default: 0
 
 If set, DALI doesn't try to use NVML. Useful on systems without NVML support, e.g. WSL2.
 
+Network
+~~~~~~~
+
+`DALI_S3_NO_VERIFY_SSL`
+-----------------------
+
+Values: 0, 1
+
+Default: 0
+
+If set, DALI will not verify SSL certificates when communicating with S3 services.
+
+By default, DALI uses SSL when communicating with S3 services, which includes verifying SSL certificates.
+This option allows you to override the default behavior of verifying SSL certificates.
+
 Testing
 ~~~~~~~
 
