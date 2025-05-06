@@ -38,10 +38,10 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 set the following environment variables:
 
 * | CUDA_VERSION - CUDA toolkit version (11.8 and 12.4 are officially supported, 11.0,
-    11.1, 11.2, 11.4, 11.5, 11.6, 11.7, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5 and 12.6 are deprecated
+    11.1, 11.2, 11.4, 11.5, 11.6, 11.7, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7 and 12.8 are deprecated
     and may not work).
   | The default is ``12.9``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3, 11.4
-    11.5, 11.6, 11.7, 11.8 and 11.9 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
+    11.5, 11.6, 11.7 and 11.8 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
     family. Same applies to CUDA 12.x. Please update to the latest recommended driver version in that family.
   | If the value of the CUDA_VERSION is prefixed with `.` then any value ``.XX.Y`` can be passed,
     the supported version check is suppressed, and the user needs to make sure that
