@@ -123,7 +123,7 @@ if [ "${WERROR}" = "ON" ]; then
 fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
-if [ "$BUILD_NVCOMP" = "ON" ] && [ "$WITH_DYNAMIC_NVCOMP" != "ON" ]; then
+if [ "$BUILD_NVCOMP" = "ON" ] && ( [ "$WITH_DYNAMIC_NVCOMP" != "ON" ] || [ "$WITH_DYNAMIC_CUDA_TOOLKIT" != "ON" ] ); then
     export BUNDLE_NVCOMP=YES
 else
     export BUNDLE_NVCOMP=NO
