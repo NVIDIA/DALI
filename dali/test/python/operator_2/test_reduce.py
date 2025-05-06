@@ -585,7 +585,42 @@ def _test_reduce_large_data(rank, axes, device, in_layout):
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
 
-def test_reduce_large_data():
+def empty_batches(rank, axes, batch_size, num_batches):
+    data = []
+    for _ in range(num_batches):
+        batch = []
+        for _ in range(batch_size):
+            shape = np.random.randint(1, 10, size=rank)
+            for a in axes:
+                shape[a] = 0
+            sample = np.empty(shape, dtype=np.float32)
+            batch.append(sample)
+        data.append(batch)
+    return data
+
+
+@nottest
+def _test_reduce_empty_data(rank, axes, device, in_layout):
+    batch_size = 16
+    num_batches = 2
+    data = empty_batches(rank, axes, batch_size, num_batches)
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == "gpu" else None)
+    input = fn.external_source(data, cycle=True, device=device, layout=in_layout)
+    reduced = fn.reductions.sum(input, axes=axes)
+    pipe.set_outputs(reduced)
+
+    for b, batch in enumerate(data):
+        (out,) = pipe.run()
+        check_layout(out, in_layout, axes, False)
+        if device == "gpu":
+            out = out.as_cpu()
+        for i in range(batch_size):
+            ref = np.sum(batch[i].astype(np.float64), axis=axes)
+            assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
+
+def test_reduce_empty_data():
     np.random.seed(12344)
     for device in ["cpu", "gpu"]:
         for rank in [1, 2, 3]:
@@ -596,7 +631,7 @@ def test_reduce_large_data():
                         lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
                     )
                 )
-                yield _test_reduce_large_data, rank, axes, device, layout
+                yield _test_reduce_empty_data, rank, axes, device, layout
 
 
 @nottest
