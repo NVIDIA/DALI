@@ -439,7 +439,7 @@ void VideoLoader::read_file() {
   if (vid_decoder_) {
       vid_decoder_->push_req(req);
   } else {
-      DALI_FAIL(make_string("No video decoder even after opening a file for file: ", req.filename));
+      DALI_FAIL(make_string("No video decoder even after opening a file: ", req.filename));
   }
 
   // we want to seek each time because even if we ended on the
