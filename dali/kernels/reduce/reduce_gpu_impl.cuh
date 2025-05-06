@@ -1355,7 +1355,7 @@ class ReduceImplGPU {
           This().GetReduction(),
           gpu_post ? gpu_post + sample_offset : nullptr);
 
-      sample_offset += num_none;
+      sample_offset += num_degenerate;
     }
 
     // None
