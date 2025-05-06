@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -431,7 +431,7 @@ void VideoLoader::read_file() {
     if (vid_decoder_) {
       vid_decoder_->finish();
     }
-    DALI_FAIL("Cannot open video file");
+    DALI_FAIL(make_string("Cannot open video file for file: ", req.filename));
   }
   auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
   req.frame_base = file.frame_base_;
@@ -439,7 +439,7 @@ void VideoLoader::read_file() {
   if (vid_decoder_) {
       vid_decoder_->push_req(req);
   } else {
-      DALI_FAIL("No video decoder even after opening a file");
+      DALI_FAIL(make_string("No video decoder even after opening a file: ", req.filename));
   }
 
   // we want to seek each time because even if we ended on the
@@ -500,9 +500,9 @@ void VideoLoader::read_file() {
           if (vid_decoder_) {
             vid_decoder_->finish();
           }
-          DALI_FAIL("Decoding not started when starting from frame 0, "
+          DALI_FAIL(make_string("Decoding not started when starting from frame 0, "
                     "no point in seeking to preceding keyframe which is "
-                    "already 0");
+                    "already 0 for file: ", req.filename));
         }
 
       if (previous_last_key_frame < 0) {
@@ -527,7 +527,7 @@ void VideoLoader::read_file() {
       continue;
     }
 
-    DALI_ENFORCE(pkt, "Failed to read frames.");
+    DALI_ENFORCE(pkt, make_string("Failed to read frames for file: ", req.filename));
 
     if (key) {
       last_key_frame = frame;
@@ -554,7 +554,7 @@ void VideoLoader::read_file() {
         if (seek_must_succeed) {
           std::stringstream ss;
           ss << device_id_ << ": failed to seek frame "
-              << req.frame;
+              << req.frame << " for file: " << req.filename;
           if (vid_decoder_) {
             vid_decoder_->finish();
           }
@@ -594,7 +594,8 @@ void VideoLoader::read_file() {
         if (vid_decoder_) {
           vid_decoder_->finish();
         }
-        DALI_FAIL(std::string("BSF send packet failed:") + av_err2str(ret));
+        DALI_FAIL(make_string("BSF send packet failed: ", av_err2str(ret),
+                              " for file: ", req.filename));
       }
       while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
         auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
@@ -606,7 +607,8 @@ void VideoLoader::read_file() {
         if (vid_decoder_) {
           vid_decoder_->finish();
         }
-        DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
+        DALI_FAIL(make_string("BSF receive packet failed: ", av_err2str(ret),
+                              " for file: ", req.filename));
       }
 #else
       AVPacket fpkt;
@@ -620,7 +622,7 @@ void VideoLoader::read_file() {
             if (vid_decoder_) {
               vid_decoder_->finish();
             }
-            DALI_FAIL(std::string("BSF error:") + av_err2str(ret));
+            DALI_FAIL(make_string("BSF error: ", av_err2str(ret), " for file: ", req.filename));
         }
         if (ret == 0 && fpkt.data != pkt->data) {
           // fpkt is an offset into pkt, copy the smaller portion to the start
@@ -629,7 +631,8 @@ void VideoLoader::read_file() {
             if (vid_decoder_) {
               vid_decoder_->finish();
             }
-            DALI_FAIL(std::string("av_copy_packet error:") + av_err2str(ret));
+            DALI_FAIL(make_string("av_copy_packet error: ", av_err2str(ret),
+                                  " for file: ", req.filename));
           }
           ret = 1;
         }
@@ -644,7 +647,7 @@ void VideoLoader::read_file() {
               if (vid_decoder_) {
                 vid_decoder_->finish();
               }
-              DALI_FAIL(std::string("Unable to create buffer during bsf"));
+              DALI_FAIL(make_string("Unable to create buffer during bsf for file: ", req.filename));
           }
         }
         *pkt.get() = fpkt;
