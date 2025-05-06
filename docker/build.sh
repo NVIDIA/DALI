@@ -4,7 +4,7 @@ usage="ENV1=VAL1 ENV2=VAL2 [...] $(basename "$0") [-h] -- this is simple, one cl
 a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
-PYVER=[default 3.8, required only by Run image]
+PYVER=[default 3.10, required only by Run image]
 CUDA_VERSION=[default 12.8, accepts also 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8 and 12.9]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
@@ -38,7 +38,7 @@ shift $((OPTIND - 1))
 
 #########Set Me###############
 export ARCH=${ARCH:-x86_64}
-export PYVER=${PYVER:-3.8}
+export PYVER=${PYVER:-3.10}
 export PYV=${PYVER/./}
 export CUDA_VERSION=${CUDA_VERSION:-12.9}
 export CUDA_VER=${CUDA_VERSION//./}
