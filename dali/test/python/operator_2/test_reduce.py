@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import nvidia.dali.fn as fn
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nose_utils import nottest, assert_raises
+from nose2.tools import params
 
 import numpy as np
 
@@ -668,3 +669,46 @@ def test_std_dev_large_data():
                     )
                 )
                 yield _test_std_dev_large_data, rank, axes, device, layout
+
+
+@params(
+    ("cpu", (0,)),
+    ("cpu", (1,)),
+    ("cpu", (0, 1)),
+    ("gpu", (0,)),
+    ("gpu", (1,)),
+    ("gpu", (0, 1)),
+)
+def test_sum_degenerate_data(device, axes):
+    data = [
+        np.ones(shape=(5, 3), dtype=np.int32),
+        np.ones(shape=(3, 4), dtype=np.int32),
+    ]
+
+    @pipeline_def(batch_size=2, num_threads=2, prefetch_queue_depth=1)
+    def pipe():
+        d = fn.external_source(data, cycle=True, batch=False, device=device)
+        r = fn.reductions.sum(d, axes=axes)
+        return r
+
+    p = pipe()
+
+    # This is a bugfix test.
+    # Before the fix the data was not written at all, so we need to write something (nonzero) to the
+    # outputs first, then switch to degenerate inputs and re-check if it's all zero now.
+
+    # first run with normal inputs
+    (o,) = p.run()
+    o = o.as_cpu()
+    assert np.array_equal(o[0], np.sum(data[0], axis=axes))
+    assert np.array_equal(o[1], np.sum(data[1], axis=axes))
+
+    # switch to degenerate inputs
+    data[0] = np.ones(shape=(0, 2), dtype=np.int32)
+    data[1] = np.ones(shape=(0, 5), dtype=np.int32)
+
+    # ... and re-run
+    (o,) = p.run()
+    o = o.as_cpu()
+    assert np.array_equal(o[0], np.sum(data[0], axis=axes))
+    assert np.array_equal(o[1], np.sum(data[1], axis=axes))

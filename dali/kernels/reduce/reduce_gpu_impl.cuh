@@ -835,14 +835,7 @@ class ReduceImplGPU {
         }
         reduced[i] = sample_shape[axis];
         outer[i] *= new_outer;
-        if (axis < in_dim - 1) {
-          if (new_outer * reduced[i] > 0)
-            inner[i] /= new_outer * reduced[i];
-          else
-            inner[i] = 0;
-        } else {
-          inner[i] = 1;
-        }
+        inner[i] = volume(sample_shape.begin() + axis + 1, sample_shape.end());
       }
       prev_axis = axis;
 
