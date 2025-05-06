@@ -465,27 +465,30 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
-  // Take pts of the currently decoded frame
-  int current_pts = piped_pts_.front();
+  if (current_pts_ == -1) {  // if != -1, it's not the first frame from the packet
+    // first frame from this packet, pop it from the queue and remember it.
+    current_pts_ = piped_pts_.front();
+    piped_pts_.pop();
+  }
 
   LOG_LINE << "HandlePictureDisplay-"
            << (picture_display_info->progressive_frame ?
                    "I" :
                    "NI")  // I=progressive frame, NI=interlaced
            << ": " << (current_copy_to_output_ ? "Read" : "Skip") << " frame, index "
-           << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts << std::endl;
+           << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts_ << std::endl;
 
-  // current_pts is pts of frame that came from the decoder
+  // current_pts_ is pts of frame that came from the decoder
   // index_[NextFrameIdx()].pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
   void *frame_output = nullptr;
-  if (HasIndex() && current_pts == index_[NextFrameIdx()].pts) {
+  if (HasIndex() && current_pts_ == index_[NextFrameIdx()].pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
-    LOG_LINE << "Found frame with correct display timestamp " << current_pts
+    LOG_LINE << "Found frame with correct display timestamp " << current_pts_
               << " for index " << next_frame_idx_ << std::endl;
     if (current_copy_to_output_ == false) {
       return 1;
@@ -494,7 +497,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   } else {
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
-    slot.pts_ = current_pts;
+    slot.pts_ = current_pts_;
     frame_output = slot.frame_.data();
   }
 
@@ -635,10 +638,10 @@ bool FramesDecoderGpu::SendFrameToParser() {
 
   // Send packet to the nv decoder
   frame_returned_ = false;
-  LOG_LINE << "Sending packet to the nv decoder, pts=" << piped_pts_.front() << std::endl;
+  LOG_LINE << "Sending packet to the nv decoder, next pts=" << piped_pts_.front() << std::endl;
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-  LOG_LINE << "Packet sent to the nv decoder, pts=" << piped_pts_.front() << std::endl;
-  piped_pts_.pop();  // pop the current pts from the queue
+  LOG_LINE << "Packet sent to the nv decoder" << std::endl;
+  current_pts_ = -1;  // we are done with this packet. Next frame will come from a new packet
   return true;
 }
 

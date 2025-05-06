@@ -198,6 +198,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   std::vector<BufferedFrame> frame_buffer_;
 
   std::queue<int> piped_pts_;
+  int current_pts_ = -1;
 
   cudaStream_t stream_ = 0;
 
