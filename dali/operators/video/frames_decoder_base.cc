@@ -603,20 +603,21 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
   DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
                make_string("Constant frame must be provided if boundary type is CONSTANT"));
 
-  int last_out_frame_idx = -1;
+  uint8_t* last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
+    auto out_frame_start = data + ptrdiff_t(i) * FrameSize();
+    assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;
       SeekFrame(frame_id);
-      ReadNextFrame(data + i * FrameSize());
-      last_out_frame_idx = i;
+      ReadNextFrame(out_frame_start);
+      last_out_frame_start = out_frame_start;
     } else if (frame_id < 0) {
       LOG_LINE << "Copying constant frame to position " << i << std::endl;
-      CopyFrame(data + i * FrameSize(), constant_frame);
+      CopyFrame(out_frame_start, constant_frame);
     } else {
-      LOG_LINE << "Copying last decoded frame " << last_out_frame_idx << " to position " << i
-               << std::endl;
-      CopyFrame(data + i * FrameSize(), data + last_out_frame_idx * FrameSize());
+      LOG_LINE << "Copying last decoded frame to position " << i << std::endl;
+      CopyFrame(out_frame_start, last_out_frame_start);
     }
   }
 

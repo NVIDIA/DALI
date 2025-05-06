@@ -467,7 +467,6 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
 
   // Take pts of the currently decoded frame
   int current_pts = piped_pts_.front();
-  piped_pts_.pop();
 
   LOG_LINE << "HandlePictureDisplay-"
            << (picture_display_info->progressive_frame ?
@@ -554,6 +553,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
+        LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
@@ -635,9 +635,10 @@ bool FramesDecoderGpu::SendFrameToParser() {
 
   // Send packet to the nv decoder
   frame_returned_ = false;
-  LOG_LINE << "Sending packet to the nv decoder" << std::endl;
+  LOG_LINE << "Sending packet to the nv decoder, pts=" << piped_pts_.front() << std::endl;
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-  LOG_LINE << "Packet sent to the nv decoder" << std::endl;
+  LOG_LINE << "Packet sent to the nv decoder, pts=" << piped_pts_.front() << std::endl;
+  piped_pts_.pop();  // pop the current pts from the queue
   return true;
 }
 
@@ -728,6 +729,9 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     if (dtype_ == DALI_FLOAT) {
       total_size *= 4;
     }
+    LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
+             << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
+             << ")" << std::endl;
     copyD2D(
       static_cast<uint8_t *>(current_frame_output_),
       frame_buffer_[frame_to_return_index].frame_.data(),
