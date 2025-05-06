@@ -78,7 +78,7 @@ export GIT_CLONE_PROTECTION_ACTIVE=true
 conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
 
 # Building DALI python bindings package
-conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.8, 3.9, 3.10, 3.11, 3.12]}" dali_python_bindings/recipe
+conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.9, 3.10, 3.11, 3.12]}" dali_python_bindings/recipe
 
 # Copying the artifacts from conda prefix
 mkdir -p artifacts
