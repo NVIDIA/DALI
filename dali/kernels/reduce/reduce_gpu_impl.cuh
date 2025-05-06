@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ enum class ReductionKind {
   Block,   ///< Reduce contiguous samples separately
   Inner,   ///< Reduce inner dimension
   Middle,  ///< Reduce middle or outer dimension
-  None,    ///< No reduction - can happen when reduced dimension is degenerate
+  None,    ///< No reduction - can happen when reduced dimension has unit extent
   Fold,    ///< Reduce samples, keep spatial extents
 };
 
@@ -658,10 +658,25 @@ class ReduceImplGPU {
       rs.reduced_in = 1;
       rs.reduced_out = (i == 0 || !reduce_batch_) ? 1 : 0;
     }
+
+    if (reduce_batch_ && N > 1) {
+      ReductionStage stage;
+      stage.kind = ReductionKind::Fold;
+      stage.shape.resize(N);
+      for (int i = 0; i < N; i ++) {
+        stage.shape[i].outer = 1;
+        stage.shape[i].inner = stages_.back().shape[i].output_elements();
+        stage.shape[i].reduced_in = 1;
+        stage.shape[i].reduced_out = (i == 0) ? 1 : 0;
+      }
+      stage.index = stages_.size();
+      stages_.push_back(std::move(stage));
+    }
+    stages_.back().is_last = true;
   }
 
   static int64_t CalcReducedExtent(int64_t to_reduce, int remaining_stages) {
-    if (remaining_stages == 0)
+    if (remaining_stages == 0 || to_reduce < 2)
       return 1;
     int log2 = ilog2(to_reduce);
     int pow = log2 * remaining_stages / (remaining_stages + 1);
@@ -703,6 +718,9 @@ class ReduceImplGPU {
 
     int log2max = ilog2(max_reduced_extent * (reduce_batch_ ? nsamples : 1));
     int substages = div_ceil(log2max, 15);
+    if (substages == 0)  // no reduction, but we need to at least copy
+      substages++;
+
     if (substages == 1 && reduce_batch_ && nsamples > 1) {
       // cannot reduce multiple samples in one stage due to contiguity requirement
       substages++;
@@ -828,15 +846,26 @@ class ReduceImplGPU {
       prev_axis = axis;
 
       int64_t max_reduced_extent = 0;
+      int64_t min_reduced_extent = std::numeric_limits<int64_t>::max();
       for (int i = 0; i < nsamples; i++) {
         int64_t extent = in_shape_.tensor_shape_span(i)[axis];
         if (extent > max_reduced_extent) {
           max_reduced_extent = extent;
         }
+        if (extent < min_reduced_extent) {
+          min_reduced_extent = extent;
+        }
       }
 
       int log2max = ilog2(max_reduced_extent);
       int substages = div_ceil(log2max, 15);
+      if (substages == 0) {
+        assert(min_reduced_extent <= 1 && max_reduced_extent <= 1);
+        // We have a 0-sized reduction, so we need to run a stage that injects the neutral value.
+        // If only some samples have 0 size, some waste will occur, but it's an edge case anyway.
+        if (min_reduced_extent != 1)
+          substages++;
+      }
 
       bool is_inner = axis == in_dim - 1;
       for (int substage = 0; substage < substages; substage++) {
@@ -1254,6 +1283,9 @@ class ReduceImplGPU {
       multi_partition(
         indices.begin(), indices.end(),
         [&](int i) {
+         return cpu_samples[i].n_reduced == 0;
+        },
+        [&](int i) {
          return cpu_samples[i].n_reduced == 1;
         },
         [&](int i) {
@@ -1262,11 +1294,13 @@ class ReduceImplGPU {
         [&](int i) {
           return cpu_samples[i].n_inner < 32;
         });
-    auto none_end = std::get<0>(groups);
-    auto middle_small_end = std::get<1>(groups);
-    auto middle_large_inner_small_end = std::get<2>(groups);
+    auto degenerate_end = std::get<0>(groups);
+    auto none_end = std::get<1>(groups);
+    auto middle_small_end = std::get<2>(groups);
+    auto middle_large_inner_small_end = std::get<3>(groups);
 
-    int num_none = none_end - indices.begin();
+    int num_degenerate = degenerate_end - indices.begin();
+    int num_none = none_end - degenerate_end;
     int num_middle_small = middle_small_end - none_end;
     int num_middle_large_inner_small = middle_large_inner_small_end - middle_small_end;
     int num_middle_large_inner_medium = indices.end() - middle_large_inner_small_end;
@@ -1308,6 +1342,20 @@ class ReduceImplGPU {
 
     dim3 grid, block;
     int sample_offset = 0;
+
+    // Degenerate
+    if (num_degenerate) {
+      std::tie(grid, block) = launch_params(
+          ReduceMiddleDegenerateKernel<Acc, StageOut, StageIn, red_t, post_t>,
+          num_degenerate, 0, 256);
+
+      ReduceMiddleDegenerateKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_none;
+    }
 
     // None
     if (num_none) {
@@ -1426,7 +1474,6 @@ class ReduceImplGPU {
 
     for (int i = 0; i < N; i++) {
       sample_sizes[i] = stage.shape[i].input_elements();
-      assert(stage.shape[i].input_elements() == stage.shape[0].output_elements());
     }
 
     dim3 block(1024);
@@ -1456,7 +1503,7 @@ class ReduceImplGPU {
   TensorListShape<> out_shape_;
   /// Original axes adjusted to the positive range [0, ndim-1]
   SmallVector<int, kMaxStaticDims> axes_;
-  /// Merged axes (without degenerate ones)
+  /// Merged axes (without unit ones)
   SmallVector<int, kMaxStaticDims> simplified_axes_;
   /// Groups of dimensions merged by Simplify
   SmallVector<std::pair<int, int>, kMaxStaticDims> dim_groups_;
