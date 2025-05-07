@@ -659,20 +659,6 @@ class ReduceImplGPU {
       rs.reduced_in = 1;
       rs.reduced_out = (i == 0 || !reduce_batch_) ? 1 : 0;
     }
-
-    if (reduce_batch_ && N > 1) {
-      ReductionStage stage;
-      stage.kind = ReductionKind::Fold;
-      stage.shape.resize(N);
-      for (int i = 0; i < N; i ++) {
-        stage.shape[i].outer = 1;
-        stage.shape[i].inner = stages_.back().shape[i].output_elements();
-        stage.shape[i].reduced_in = 1;
-        stage.shape[i].reduced_out = (i == 0) ? 1 : 0;
-      }
-      stage.index = stages_.size();
-      stages_.push_back(std::move(stage));
-    }
     stages_.back().is_last = true;
   }
 
