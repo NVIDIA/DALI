@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ def main():
             linked_lib = lib.split()[0]
             if not check_ldd_out(lib_name, linked_lib, bundled_lib_names, allowed_libs):
                 print(
-                    f"Library: '{linked_lib}' should be bundled in whl "
+                    f"ERROR: The library: '{linked_lib}' should be bundled in whl "
                     f"or removed from the dynamic link dependency",
                     file=sys.stderr,
                 )
