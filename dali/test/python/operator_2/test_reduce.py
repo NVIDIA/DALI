@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -584,6 +584,20 @@ def _test_reduce_large_data(rank, axes, device, in_layout):
         for i in range(batch_size):
             ref = np.sum(batch[i].astype(np.float64), axis=axes)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
+
+def test_reduce_large_data():
+    np.random.seed(12344)
+    for device in ["cpu", "gpu"]:
+        for rank in [1, 2, 3]:
+            for axis_mask in range(1, 2**rank):
+                layout = np.random.choice([None, "DALI"[:rank]])
+                axes = tuple(
+                    filter(
+                        lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
+                    )
+                )
+                yield _test_reduce_large_data, rank, axes, device, layout
 
 
 def empty_batches(rank, axes, batch_size, num_batches):
