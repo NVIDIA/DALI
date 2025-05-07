@@ -430,7 +430,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     // we produced output, we can safely release the input that was used to produce it
     if (dataset()->HasInputs()) {
-      assert(iterator_state_ != InputState::stop_signalled && InputsScheduled() > 0);
+      assert(iterator_state_ != InputState::stop_signaled && InputsScheduled() > 0);
       ReleaseInputs();
     }
     // We schedule next run always when we don't have inputs or when we have inputs

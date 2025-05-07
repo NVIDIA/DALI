@@ -149,10 +149,18 @@ inline int64_t EnumerateIndices(
   }
 }
 
-inline int64_t EnumerateIndices(int64_t *indices, const int64_t *shape, int ndim) {
+inline int64_t EnumerateIndicesWithinSample(
+      int64_t *out_indices,
+      int sample_idx,
+      const int64_t *sample_shape,
+      int sample_ndim) {
   dali::SmallVector<int64_t, 8> pos;
-  pos.resize(ndim);
-  return EnumerateIndices(indices, shape, ndim, pos.data(), 0);
+  pos.resize(sample_ndim + 1);
+  pos[0] = sample_idx;
+  // HACK: We now start enumeration as if we had one more dimension, but we start at 1.
+  //       To achieve this feat, we need to offset the shape pointer by -1, so all's fine
+  //       when it's accessed starting at index 1.
+  return EnumerateIndices(out_indices, sample_shape - 1, sample_ndim + 1, pos.data(), 1);
 }
 
 class DaliOp : public tf::OpKernel {
@@ -366,8 +374,8 @@ class DaliOp : public tf::OpKernel {
             int extent = out_tl_shape[i * ndim + d];
             if (extent > max_dims[d + 1]) {
               max_dims[d + 1] = extent;
-              sample_volume *= extent;
             }
+            sample_volume *= extent;
           }
           total_elms += sample_volume;
         }
@@ -375,11 +383,18 @@ class DaliOp : public tf::OpKernel {
                                                  &data_output_tensors[j]));
         tf::Tensor* out_tensor = data_output_tensors[j];
         auto p_out_indices = out_tensor->flat<tf::int64>().data();
+        assert(total_elms * batch_ndim * sizeof(int64_t) <= out_tensor->TotalBytes());
         int64_t idx_offset = 0;
         for (int s = 0; s < num_samples; s++) {
-          auto n = EnumerateIndices(p_out_indices + idx_offset, out_tl_shape + s * ndim, ndim);
+          auto n = EnumerateIndicesWithinSample(
+              p_out_indices + idx_offset,
+              s,
+              out_tl_shape + s * ndim,
+              ndim);
           idx_offset += n;
+          assert(idx_offset <= total_elms * batch_ndim);
         }
+        assert(idx_offset * sizeof(int64_t) <= out_tensor->TotalBytes());
         ++j;
         // allocate output
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({total_elms}),
@@ -437,11 +452,13 @@ class DaliOp : public tf::OpKernel {
       if (should_be_sparse_tensor) {
         ++j;
         // copy out shape
+        assert(max_dims.size() == static_cast<size_t>(batch_ndim));
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({batch_ndim}),
                                                  &data_output_tensors[j]));
         auto out_tensor = data_output_tensors[j];
+        assert(out_tensor->TotalBytes() >= batch_ndim * sizeof(int64_t));
         auto out_shape = out_tensor->flat<tf::int64>().data();
-        for (size_t k = 0; k < max_dims.size(); ++k) {
+        for (int k = 0; k < batch_ndim; ++k) {
           out_shape[k] = max_dims[k];
         }
       }
