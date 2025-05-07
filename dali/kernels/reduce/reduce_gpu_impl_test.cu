@@ -433,9 +433,9 @@ TEST(SumImplGPU, All_ZeroSize) {
 
 TEST(SumImplGPU, Partial_ZeroShape_Middle) {
   TensorListShape<> in_shape = {{
-    { 3, 4, 5 },
-    { 6, 7, 8 },
-    { 9, 1, 2 }
+    { 3, 0, 5 },
+    { 6, 0, 8 },
+    { 9, 0, 2 }
   }};
   TensorListShape<> ref_out_shape = {{
     TensorShape<>{3, 5},
@@ -456,9 +456,9 @@ TEST(SumImplGPU, Partial_ZeroShape_Middle) {
 
 TEST(SumImplGPU, Partial_ZeroShape_Inner) {
   TensorListShape<> in_shape = {{
-    { 3, 4, 5 },
-    { 6, 7, 8 },
-    { 9, 1, 2 }
+    { 3, 0, 0 },
+    { 6, 0, 0 },
+    { 9, 0, 0 }
   }};
   TensorListShape<> ref_out_shape = {{
     TensorShape<>{3},
@@ -479,9 +479,9 @@ TEST(SumImplGPU, Partial_ZeroShape_Inner) {
 
 TEST(SumImplGPU, Partial_ZeroShape_Outer) {
   TensorListShape<> in_shape = {{
-    { 3, 4, 5 },
-    { 6, 7, 8 },
-    { 9, 1, 2 }
+    { 0, 4, 5 },
+    { 0, 7, 8 },
+    { 0, 1, 2 }
   }};
   TensorListShape<> ref_out_shape = {{
     TensorShape<>{4, 5},
@@ -502,9 +502,9 @@ TEST(SumImplGPU, Partial_ZeroShape_Outer) {
 
 TEST(SumImplGPU, Partial_ZeroShape_OuterInner) {
   TensorListShape<> in_shape = {{
-    { 3, 4, 5 },
-    { 6, 7, 8 },
-    { 9, 1, 2 }
+    { 0, 4, 0 },
+    { 0, 7, 0 },
+    { 0, 1, 0 }
   }};
   TensorListShape<> ref_out_shape = {{
     TensorShape<>{4},
