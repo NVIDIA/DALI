@@ -113,7 +113,7 @@ __device__ void ReduceFlatNone(Out *out, const In *in, int64_t n,
 /**
  * @brief This function is used when reducting a degenerate dimension
  *
- * This function store and optionally postprocess the reduction's default value.
+ * This function stores and optionally postprocesses the reduction's default value.
  *
  * @param post          posptprocessing unary functor
  */
@@ -249,9 +249,9 @@ __global__ void ReduceMiddleNoneKernel(const ReduceSampleDesc<Out, In> *samples,
 
 
 /**
- * @brief This kernel is used when reducing an empty middle dimension.
+ * @brief This kernel is used when reducing a degenerate middle dimension.
  *
- * This function will store the reduction's default value and optionally preprocess it.
+ * This function stores and optionally postprocesses the reduction's default value.
  *
  * @param post          posptprocessing unary functor
  */
