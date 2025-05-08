@@ -1,0 +1,46 @@
+diff --git a/example/nvimproc/main.cpp b/example/nvimproc/main.cpp
+index 25421fd..0dc478f 100644
+--- a/example/nvimproc/main.cpp
++++ b/example/nvimproc/main.cpp
+@@ -414,9 +414,7 @@ void list_cuda_devices(int num_devices)
+         cudaGetDeviceProperties(&prop, i);
+         printf("Device Number: %d\n", i);
+         printf("  Device name: %s\n", prop.name);
+-        printf("  Memory Clock Rate (KHz): %d\n", prop.memoryClockRate);
+         printf("  Memory Bus Width (bits): %d\n", prop.memoryBusWidth);
+-        printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
+     }
+ }
+ 
+diff --git a/example/nvimtrans/main.cpp b/example/nvimtrans/main.cpp
+index d6f8302..4d945bd 100644
+--- a/example/nvimtrans/main.cpp
++++ b/example/nvimtrans/main.cpp
+@@ -746,9 +746,7 @@ void list_cuda_devices(int num_devices)
+         cudaGetDeviceProperties(&prop, i);
+         printf("Device Number: %d\n", i);
+         printf("  Device name: %s\n", prop.name);
+-        printf("  Memory Clock Rate (KHz): %d\n", prop.memoryClockRate);
+         printf("  Memory Bus Width (bits): %d\n", prop.memoryBusWidth);
+-        printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
+     }
+ }
+ 
+diff --git a/test/device_guard_test.cpp b/test/device_guard_test.cpp
+index 31cd0d7..278a3e8 100644
+--- a/test/device_guard_test.cpp
++++ b/test/device_guard_test.cpp
+@@ -79,7 +79,12 @@ struct CUDAContext  {
+ 
+   static CUDAContext Create(int flags, CUdevice dev) {
+     CUcontext ctx;
+-    CHECK_CU(cuCtxCreate(&ctx, 0, dev));
++#if CUDA_VERSION >= 13000
++    CUctxCreateParams params = {};
++    CHECK_CU(cuCtxCreate(&ctx, &params, 0, dev));
++#else
++    CHECK_CU(cuCtxCreate(&ctx, 0, dev));
++#endif
+     return CUDAContext(ctx);
+   }
+ 

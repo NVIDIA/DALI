@@ -283,6 +283,8 @@ if (DALI_CLANG_ONLY)
   CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
   message(STATUS "Used CUDA toolkit: ${CUDA_TOOLKIT_PATH_VAR}")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
+  # in CTK 13 cuda/std/utility has been moved to cccl/cuda/std/utility and clang doesn't know about this (nor CUTLASS yet)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDA_TOOLKIT_PATH_VAR}/include/cccl")
 endif()
 
 CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})

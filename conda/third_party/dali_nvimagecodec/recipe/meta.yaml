@@ -22,6 +22,8 @@ package:
 source:
   git_url: https://github.com/NVIDIA/nvImageCodec.git
   git_rev: v0.5.0
+  patches:
+    - patches/CUDA-13.0.patch
 
 build:
   number: 0
