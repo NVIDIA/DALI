@@ -5,8 +5,8 @@ ARG DEPS_IMAGE_NAME
 # clean builder without source code inside
 FROM ${DEPS_IMAGE_NAME} as builder
 
-ARG PYVER=3.8
-ARG PYV=38
+ARG PYVER=3.10
+ARG PYV=310
 
 ENV PYVER=${PYVER} \
     PYV=${PYV} \
