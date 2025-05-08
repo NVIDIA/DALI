@@ -20,3 +20,6 @@ from ._eval_mode import EvalMode, set_eval_mode, eval_mode
 from ._type import *  # noqa: F403
 from ._tensor import Tensor
 from ._device import Device
+
+from . import fn
+fn.initialize()

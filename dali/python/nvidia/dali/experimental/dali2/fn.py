@@ -23,7 +23,30 @@ def initialize():
         if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
             continue
 
-        schema = _b.TryGetSchema(_all_ops)
+        schema = _b.TryGetSchema(op_name)
         if schema is None:
             print(f"Warning: no schema found for {op_name}")
             continue
+
+        print(schema.OperatorName())
+        print(schema.ModulePath())
+        print("stateful: ", schema.IsStateful())
+        for i in range(schema.MaxNumInput()):
+            print(f"input {i}:")
+            if schema.HasInputDox():
+                print(schema.GetInputName(i))
+                print("type: ", schema.GetInputType(i))
+                print("dox: ", schema.GetInputDox(i))
+            print("device: ", schema.GetInputDevice(i))
+
+
+        for arg in schema.GetArgumentNames():
+            print(arg)
+            print("type: ", schema.GetArgumentType(arg))
+            print("optional: ", schema.IsArgumentOptional(arg))
+            if schema.HasArgumentDefaultValue(arg):
+                print("default: ", schema.GetArgumentDefaultValueString(arg))
+            else:
+                print("no default value")
+            print("tensor: ", schema.IsTensorArgument(arg))
+
