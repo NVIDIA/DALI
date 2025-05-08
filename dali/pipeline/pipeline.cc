@@ -16,7 +16,6 @@
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/io/coded_stream.h>
-
 #include <algorithm>
 #include <exception>
 #include <fstream>
@@ -34,6 +33,10 @@
 #include "dali/pipeline/graph/graph2dot.h"
 #include "dali/pipeline/graph/cse.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
+
+#ifdef DALI_DEBUG_SERIALIZE
+#include <google/protobuf/util/json_util.h>
+#endif
 
 namespace dali {
 
@@ -296,11 +299,12 @@ void Pipeline::Init(const PipelineParams &params) {
     Validate(params_);
 
     using Clock = std::chrono::high_resolution_clock;
-    original_seed_ = params.seed.value_or(Clock::now().time_since_epoch().count());
+    original_seed_ = params.seed;
 
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    std::seed_seq ss{this->original_seed_};
+    auto initial_seed = original_seed_.value_or(Clock::now().time_since_epoch().count());
+    std::seed_seq ss{initial_seed};
     ss.generate(seed_.begin(), seed_.end());
   }
 
@@ -854,7 +858,9 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_num_threads(this->num_threads());
   pipe.set_batch_size(this->max_batch_size());
   pipe.set_device_id(this->device_id());
-  pipe.set_seed(this->original_seed_);
+  if (this->original_seed_.has_value()) {
+    pipe.set_seed(this->original_seed_.value());
+  }
   pipe.set_enable_checkpointing(this->checkpointing_enabled());
   pipe.set_bytes_per_sample_hint(this->bytes_per_sample_hint());
   pipe.set_prefetch_queue_depth_cpu(this->GetQueueSizes().cpu_size);
@@ -887,6 +893,13 @@ string Pipeline::SerializeToProtobuf() const {
   }
   pipe.set_device_id(this->device_id());
   string output = pipe.SerializeAsString();
+
+#ifdef DALI_DEBUG_SERIALIZE
+  std::string json_output;
+  using google::protobuf::util::MessageToJsonString;
+  MessageToJsonString(pipe, &json_output);
+  std::cout << "Serialized pipeline: " << json_output << std::endl;
+#endif
 
   return output;
 }

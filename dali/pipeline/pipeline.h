@@ -724,7 +724,7 @@ class DLL_PUBLIC Pipeline {
   int next_internal_logical_id_ = -1;
 
   std::vector<int64_t> seed_;
-  int64_t original_seed_ = -1;
+  std::optional<int64_t> original_seed_;
   size_t current_seed_ = 0;
   bool requires_gpu_ = false;
 
