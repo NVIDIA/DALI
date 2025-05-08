@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import nvidia.dali.fn as fn
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nose_utils import nottest, assert_raises
+from nose2.tools import params
 
 import numpy as np
 
@@ -599,6 +600,55 @@ def test_reduce_large_data():
                 yield _test_reduce_large_data, rank, axes, device, layout
 
 
+def empty_batches(rank, axes, batch_size, num_batches):
+    data = []
+    for _ in range(num_batches):
+        batch = []
+        for _ in range(batch_size):
+            shape = np.random.randint(1, 10, size=rank)
+            for a in axes:
+                shape[a] = 0
+            sample = np.empty(shape, dtype=np.float32)
+            batch.append(sample)
+        data.append(batch)
+    return data
+
+
+@nottest
+def _test_reduce_empty_data(rank, axes, device, in_layout):
+    batch_size = 16
+    num_batches = 2
+    data = empty_batches(rank, axes, batch_size, num_batches)
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == "gpu" else None)
+    input = fn.external_source(data, cycle=True, device=device, layout=in_layout)
+    reduced = fn.reductions.sum(input, axes=axes)
+    pipe.set_outputs(reduced)
+
+    for b, batch in enumerate(data):
+        (out,) = pipe.run()
+        check_layout(out, in_layout, axes, False)
+        if device == "gpu":
+            out = out.as_cpu()
+        for i in range(batch_size):
+            ref = np.sum(batch[i].astype(np.float64), axis=axes)
+            assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
+
+def test_reduce_empty_data():
+    np.random.seed(12344)
+    for device in ["cpu", "gpu"]:
+        for rank in [1, 2, 3]:
+            for axis_mask in range(1, 2**rank):
+                layout = np.random.choice([None, "DALI"[:rank]])
+                axes = tuple(
+                    filter(
+                        lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
+                    )
+                )
+                yield _test_reduce_empty_data, rank, axes, device, layout
+
+
 @nottest
 def _test_std_dev_large_data(rank, axes, device, in_layout):
     batch_size = 16
@@ -633,3 +683,46 @@ def test_std_dev_large_data():
                     )
                 )
                 yield _test_std_dev_large_data, rank, axes, device, layout
+
+
+@params(
+    ("cpu", (0,)),
+    ("cpu", (1,)),
+    ("cpu", (0, 1)),
+    ("gpu", (0,)),
+    ("gpu", (1,)),
+    ("gpu", (0, 1)),
+)
+def test_sum_degenerate_data(device, axes):
+    data = [
+        np.ones(shape=(5, 3), dtype=np.int32),
+        np.ones(shape=(3, 4), dtype=np.int32),
+    ]
+
+    @pipeline_def(batch_size=2, num_threads=2, prefetch_queue_depth=1)
+    def pipe():
+        d = fn.external_source(data, cycle=True, batch=False, device=device)
+        r = fn.reductions.sum(d, axes=axes)
+        return r
+
+    p = pipe()
+
+    # This is a bugfix test.
+    # Before the fix the data was not written at all, so we need to write something (nonzero) to the
+    # outputs first, then switch to degenerate inputs and re-check if it's all zero now.
+
+    # first run with normal inputs
+    (o,) = p.run()
+    o = o.as_cpu()
+    assert np.array_equal(o[0], np.sum(data[0], axis=axes))
+    assert np.array_equal(o[1], np.sum(data[1], axis=axes))
+
+    # switch to degenerate inputs
+    data[0] = np.ones(shape=(0, 2), dtype=np.int32)
+    data[1] = np.ones(shape=(0, 5), dtype=np.int32)
+
+    # ... and re-run
+    (o,) = p.run()
+    o = o.as_cpu()
+    assert np.array_equal(o[0], np.sum(data[0], axis=axes))
+    assert np.array_equal(o[1], np.sum(data[1], axis=axes))
