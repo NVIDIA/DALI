@@ -18,8 +18,8 @@ from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
+from . import _expression
 import copy
-import _expression
 
 class TensorMetadata:
     def __init__(self, shape: Tuple[int, ...], dtype: DType, layout: str):
