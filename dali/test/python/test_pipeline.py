@@ -2123,6 +2123,24 @@ def test_dangling_subgraph():
     assert np.array_equal(o2[0], np.int32([7, 7, 7]))
 
 
+def test_equal_serialized_pipelines_without_explicit_seed():
+    # This test ensures that pipelines with the same operators but no explicit random seeds
+    # are serialized to the same protobuf.
+
+    pipes = []
+    for i in range(2):
+        with Pipeline(batch_size=1, device_id=None, num_threads=1) as p:
+            p.set_outputs(fn.random.uniform() * fn.random.uniform() - 100)
+        pipes.append(p)
+
+    pipes[0].build()
+    pipes[1].build()
+
+    ser1 = pipes[0].serialize()
+    ser2 = pipes[1].serialize()
+    assert ser1 == ser2
+
+
 def test_regression_without_current_pipeline1():
     def get_pipe(device):
         pipe = Pipeline(batch_size=1, num_threads=1, device_id=0)
