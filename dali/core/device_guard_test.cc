@@ -74,7 +74,12 @@ struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
   DALI_INHERIT_UNIQUE_HANDLE(CUcontext, CUDAContext);
   static CUDAContext Create(int flags, CUdevice dev) {
     CUcontext ctx;
+#if defined(cuCtxCreate_v4)
+    CUctxCreateParams params = {};
+    CUDA_CALL(cuCtxCreate_v4(&ctx, &params, 0, dev));
+#else
     CUDA_CALL(cuCtxCreate(&ctx, 0, dev));
+#endif
     return CUDAContext(ctx);
   }
 
