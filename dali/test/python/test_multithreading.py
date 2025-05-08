@@ -17,7 +17,10 @@ test_input = [np.fromfile(image_file, dtype=np.uint8)] * batch_size
 
 
 @pipeline_def(
-    batch_size=batch_size, num_threads=num_dali_threads, device_id=0, prefetch_queue_depth=prefetch_queue_depth
+    batch_size=batch_size,
+    num_threads=num_dali_threads,
+    device_id=0,
+    prefetch_queue_depth=prefetch_queue_depth,
 )
 def dali_pipeline():
     enc = fn.external_source(name="INPUT")
