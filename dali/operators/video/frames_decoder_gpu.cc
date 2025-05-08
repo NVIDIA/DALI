@@ -465,12 +465,12 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
-  if (current_pts_ == AV_NOPTS_VALUE) {
-    // if != AV_NOPTS_VALUE, it's not the first frame from the packet
-    // first frame from this packet, pop it from the queue and remember it.
+  // If there are no piped pts, use the last pts available (unexpected extra frame)
+  if (!piped_pts_.empty()) {
     current_pts_ = piped_pts_.front();
     piped_pts_.pop();
   }
+  assert(current_pts_ != AV_NOPTS_VALUE);
 
   LOG_LINE << "HandlePictureDisplay-"
            << (picture_display_info->progressive_frame ?
