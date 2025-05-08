@@ -603,9 +603,9 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
   DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
                make_string("Constant frame must be provided if boundary type is CONSTANT"));
 
-  uint8_t* last_out_frame_start = nullptr;
+  uint8_t *last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
-    auto out_frame_start = data + ptrdiff_t(i) * FrameSize();
+    uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSize();
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;

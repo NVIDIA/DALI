@@ -465,7 +465,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
-  if (current_pts_ == -1) {  // if != -1, it's not the first frame from the packet
+  if (current_pts_ == AV_NOPTS_VALUE) {
+    // if != AV_NOPTS_VALUE, it's not the first frame from the packet
     // first frame from this packet, pop it from the queue and remember it.
     current_pts_ = piped_pts_.front();
     piped_pts_.pop();
@@ -641,7 +642,7 @@ bool FramesDecoderGpu::SendFrameToParser() {
   LOG_LINE << "Sending packet to the nv decoder, next pts=" << piped_pts_.front() << std::endl;
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
   LOG_LINE << "Packet sent to the nv decoder" << std::endl;
-  current_pts_ = -1;  // we are done with this packet. Next frame will come from a new packet
+  current_pts_ = AV_NOPTS_VALUE;  // we are done with this packet. Next frame will come from a new packet
   return true;
 }
 
