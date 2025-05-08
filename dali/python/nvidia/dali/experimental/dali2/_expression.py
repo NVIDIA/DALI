@@ -13,9 +13,8 @@
 # limitations under the License.
 
 from typing import Any, Optional, Tuple
-from ._tensor import Tensor, TensorSlice
-from ._eval_context import _EvalContext
-from ._type import DataType
+from ._eval_context import EvalContext as _EvalContext
+from ._type import DType
 
 
 class Expression:
@@ -53,8 +52,9 @@ class Expression:
         return self._result.shape
 
     @property
-    def dtype(self) -> DataType:
+    def dtype(self) -> DType:
         if self._result is None:
+            # TODO(michalz): Try to get dtype without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
         return self._result.dtype

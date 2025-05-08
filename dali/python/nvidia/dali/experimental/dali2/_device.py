@@ -87,14 +87,20 @@ class Device:
 
     def __enter__(self):
         if self.device_type == "gpu":
-            _backend.SetCurrentCUDADevice(self.device_id)
+            Device._thread_local.previous_device_ids.append(
+                _backend.GetCUDACurrentDevice()
+            )
+            _backend.SetCUDACurrentDevice(self.device_id)
         Device._thread_local.devices.append(self)
 
     def __exit__(self, exc_type, exc_value, traceback):
+        if self.device_type == "gpu":
+            _backend.SetCUDACurrentDevice(Device._thread_local.previous_device_ids.pop())
         Device._thread_local.devices.pop()
         dev = Device.current()
         if dev.device_type == "gpu":
-            _backend.SetCurrentCUDADevice(dev.device_id)
+            _backend.SetCUDACurrentDevice(dev.device_id)
 
 
 Device._thread_local.devices = [Device("cpu")]
+Device._thread_local.previous_device_ids = None
