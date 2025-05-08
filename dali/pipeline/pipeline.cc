@@ -299,12 +299,11 @@ void Pipeline::Init(const PipelineParams &params) {
     Validate(params_);
 
     using Clock = std::chrono::high_resolution_clock;
-    original_seed_ = params.seed;
+    original_seed_ = params.seed.value_or(Clock::now().time_since_epoch().count());
 
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    auto initial_seed = original_seed_.value_or(Clock::now().time_since_epoch().count());
-    std::seed_seq ss{initial_seed};
+    std::seed_seq ss{this->original_seed_};
     ss.generate(seed_.begin(), seed_.end());
   }
 
@@ -858,8 +857,8 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_num_threads(this->num_threads());
   pipe.set_batch_size(this->max_batch_size());
   pipe.set_device_id(this->device_id());
-  if (this->original_seed_.has_value()) {
-    pipe.set_seed(this->original_seed_.value());
+  if (params_.seed.has_value()) {
+    pipe.set_seed(params_.seed.value());
   }
   pipe.set_enable_checkpointing(this->checkpointing_enabled());
   pipe.set_bytes_per_sample_hint(this->bytes_per_sample_hint());
