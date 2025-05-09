@@ -23,9 +23,11 @@ class EvalContext:
 
     def __init__(self):
         self._expressions = {}
+        self._cached_results = {}
 
-    def current(self):
-        return self._tls.stack[-1] if self._tls.stack else None
+    @staticmethod
+    def current():
+        return _tls.stack[-1] if _tls.stack else None
 
     def __enter__(self):
         _tls.stack.append(self)
