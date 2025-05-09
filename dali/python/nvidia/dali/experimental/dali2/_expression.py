@@ -44,7 +44,7 @@ class Expression:
         return self._result.ndim
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self):
         if self._result is None:
             # TODO(michalz): Try to get shape without full evaluation.
             with _EvalContext.get() as ctx:

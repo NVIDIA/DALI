@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import nvidia.dali.backend as _b
-from nvidia.dali.fn import to_snake_case
+from nvidia.dali.fn import _to_snake_case
 import makefun
-from _tensor_list import TensorList
-from _tensor import Tensor
+from ._tensor_list import TensorList
+from ._tensor import Tensor
 import warnings
-import ops
+from . import ops
 import types
 import copy
-import _expression
+from . import _expression
+import nvidia.dali.ops as _ops
 
 
 def _is_tensor_type(x, nested_list_warning=False):
@@ -53,7 +54,7 @@ def _is_batch(x):
 
 
 def build_operator_class(schema):
-    op_name = schema.GetName()
+    op_name = schema.OperatorName()
     *module_path, class_name = op_name.split("__")
     module = ops
     for path_part in module_path:
@@ -66,6 +67,9 @@ def build_operator_class(schema):
     op_class.schema = schema
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
+    op_class.__module__ = module.__name__
+    op_class.__qualname__ = op_name
+    module.__setattr__(class_name, op_class)
     return op_class
 
 
@@ -87,11 +91,10 @@ def build_constructor(schema, op_class):
 
     if call_args:
         call_args = ["*"] + call_args
-    header = f"__init__({', '.join(['self'] + call_args)})"
+    header = f"__init__({', '.join(['self', 'max_batch_size', 'name=None'] + call_args)})"
 
-    def init(self, name, max_batch_size, **kwargs):
-        super().__init__(name, max_batch_size)
-        self._init_args = kwargs
+    def init(self, max_batch_size, name, **kwargs):
+        ops.Operator.__init__(self, max_batch_size, name, **kwargs)
         if stateful:
             self._call_id = 0
 
@@ -119,9 +122,12 @@ def build_call_function(schema, op_class):
     min_inputs = schema.MinNumInput()
     max_inputs = schema.MaxNumInput()
     input_indices = {}
+    arguments = schema.GetArgumentNames()
     for i in range(min_inputs, max_inputs):
-        if schema.HasInputDox(i):
+        if schema.HasInputDox():
             input_name = schema.GetInputName(i)
+            if input_name in arguments:
+                input_name += "_input"
         else:
             input_name = f"input_{i}"
         input_indices[input_name] = i
@@ -134,10 +140,10 @@ def build_call_function(schema, op_class):
         call_args = ["*"] + call_args
     if inputs:
         inputs = ["/"] + inputs
-    header = f"__call__({', '.join(['self'] + inputs + [call_args])})"
+    header = f"__call__({', '.join(['self'] + inputs + call_args)})"
 
     def call(self, *args, batch_size=None, **kwargs):
-        inputs = args
+        inputs = list(args)
         is_batch = batch_size is not None
         if batch_size is None:
             for i, x in enumerate(inputs + list(kwargs.values())):
@@ -165,3 +171,12 @@ def build_call_function(schema, op_class):
 
     return function
 
+
+def build_operators():
+    _all_ops = _ops._registry._all_registered_ops()
+    for op_name in _all_ops:
+        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
+            continue
+
+        schema = _b.GetSchema(op_name)
+        build_operator_class(schema)

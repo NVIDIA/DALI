@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 class Operator:
-    def __init__(self, name, max_batch_size):
+    def __init__(self, max_batch_size, name=None, **kwargs):
         self._name = name
         self._max_batch_size = max_batch_size
+        self._init_args = kwargs
 
+
+def initialize():
+    from . import _op_builder
+    _op_builder.build_operators()
