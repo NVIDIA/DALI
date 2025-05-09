@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023, 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ class binning_resource : public binning_resource_base<Kind, nstatic_bins, Interf
   binning_resource(const SplitPointCollection &split_points,
                    const ResourceCollection &resources,
                    Extra &&extra)
-  : base(split_points, resources), extra_args_(std::forward<ExtraArgs>(extra)) {
+  : base(split_points, resources), extra_args_(std::forward<Extra>(extra)) {
   }
 
   template <typename SplitPointCollection, typename ResourceCollection>
