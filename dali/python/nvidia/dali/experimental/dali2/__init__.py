@@ -22,4 +22,7 @@ from ._tensor import Tensor
 from ._device import Device
 
 from . import fn
+from . import ops
+
+ops.initialize()
 fn.initialize()
