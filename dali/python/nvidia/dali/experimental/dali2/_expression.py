@@ -59,6 +59,15 @@ class Expression:
                 self.run(ctx)
         return self._result.dtype
 
+    @property
+    def batch_size(self):
+        return self._batch_size if self._is_batch else None
+
+    @property
+    def is_batch(self):
+        return self._is_batch
+
+
     def run(self, ctx: _EvalContext):
         if self._result is None:
             cached = ctx.cached_result(self)
