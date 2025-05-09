@@ -9,10 +9,10 @@ import nvidia.dali.fn as fn
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 image_file = os.path.join(test_data_root, "db", "single", "jpeg", "100", "swan-3584559_640.jpg")
 
-batch_size = 64
+batch_size = 12
 prefetch_queue_depth = 3
 num_dali_threads = 8
-num_workers = 4
+num_workers = 100
 test_input = [np.fromfile(image_file, dtype=np.uint8)] * batch_size
 
 
