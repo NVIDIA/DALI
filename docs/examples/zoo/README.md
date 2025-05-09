@@ -44,14 +44,6 @@ This folder contains DALI pipelines for processing image data. These pipelines d
 
 Here you'll find DALI pipelines specifically designed for video processing. These examples showcase video decoding, frame extraction, and other video-related operations.
 
-### audio
-
-This folder includes DALI pipelines for audio processing tasks. You'll find examples of audio loading, spectogram generation, and other audio-related preprocessing steps.
-
-### misc
-
-The misc folder contains additional DALI pipelines that don't fit into the above categories. This may include mixed-modal pipelines or specialized use cases.
-
 ## Contributing
 
 We welcome contributions to this repository. To contribute to DALI Pipeline ZOO and make pull requests, follow the guidelines outlined in [DALI Contribution Guide](https://github.com/NVIDIA/DALI/blob/main/CONTRIBUTING.md).
