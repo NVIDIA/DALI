@@ -72,9 +72,9 @@ class Tensor:
                 self._backend = TensorCPU(np.array(data), layout, False)
 
             if device is not None:
-                self.device = device if isinstance(device, Device) else Device(device)
+                device = self.device = device if isinstance(device, Device) else Device(device)
             else:
-                self.device = Device("cpu")
+                device = self.device = Device("cpu")
 
             if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
                 self.assign(self.to_device(device))

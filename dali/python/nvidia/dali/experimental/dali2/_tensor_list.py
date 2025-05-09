@@ -17,8 +17,8 @@ from ._type import DType
 from ._tensor import Tensor, _is_full_slice
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
-from ._device import Device, DeviceType
-import _expression
+from ._device import Device
+from . import _expression
 
 class _TensorListSlice:
     def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
@@ -157,6 +157,12 @@ class TensorList:
                 or [t._is_same_tensor(ot) for t, ot in zip(self._tensors, other._tensors)]
             )
         )
+
+    @property
+    def shape(self):
+        if self._expression is not None:
+            return self._expression.shape
+        return [t.shape for t in self._tensors]
 
     def __getitem__(self, ranges: Any) -> "TensorList":
         if not isinstance(ranges, (tuple)):
