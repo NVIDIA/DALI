@@ -20,6 +20,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <stdexcept>
 
 #define STR_IMPL_(x) #x
 #define STR(x) STR_IMPL_(x)

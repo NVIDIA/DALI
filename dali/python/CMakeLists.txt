@@ -80,6 +80,7 @@ if(NOT ${CMAKE_CROSSCOMPILING} AND NOT ${BUILD_WITH_ASAN})
   # backend from the current build.
   add_custom_command(
     TARGET dali_python_generate_stubs
+    POST_BUILD
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     COMMAND PYTHONPATH=${PYTHONPATH} ${PYTHON_STUBGEN_INTERPRETER} ${PROJECT_SOURCE_DIR}/internal_tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
   )
@@ -89,6 +90,7 @@ if(NOT ${CMAKE_CROSSCOMPILING} AND NOT ${BUILD_WITH_ASAN})
     add_custom_target(dali_python_format_stubs ALL DEPENDS dali_python dali_python_generate_stubs)
     add_custom_command(
       TARGET dali_python_format_stubs
+      POST_BUILD
       WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
       COMMAND find dali/python/nvidia/dali -name '*.pyi' -print0 | xargs -0 black --line-length 100 --target-version py38 --verbose
     )

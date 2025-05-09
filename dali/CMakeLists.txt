@@ -181,18 +181,21 @@ if (BUILD_PYTHON)
     file(RELATIVE_PATH HEADER_RELATIVE ${PROJECT_SOURCE_DIR} ${INSTALL_HEADER})
     add_custom_command(
       TARGET install_headers
+      POST_BUILD
       COMMAND install -D "${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${HEADER_RELATIVE}")
   endforeach(INSTALL_HEADER)
 
   # Copy proper `include` dir
   add_custom_command(
     TARGET install_headers
+    POST_BUILD
     COMMAND cp -r "${PROJECT_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
   )
 
   # Copy boost/preprocessor include files
   add_custom_command(
     TARGET install_headers
+    POST_BUILD
     COMMAND cp -rL "${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/"
   )
 endif()
