@@ -465,28 +465,31 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
-  // Take pts of the currently decoded frame
-  int current_pts = piped_pts_.front();
-  piped_pts_.pop();
+  // If there are no piped pts, use the last pts available (unexpected extra frame)
+  if (!piped_pts_.empty()) {
+    current_pts_ = piped_pts_.front();
+    piped_pts_.pop();
+  }
+  assert(current_pts_ != AV_NOPTS_VALUE);
 
   LOG_LINE << "HandlePictureDisplay-"
            << (picture_display_info->progressive_frame ?
                    "I" :
                    "NI")  // I=progressive frame, NI=interlaced
            << ": " << (current_copy_to_output_ ? "Read" : "Skip") << " frame, index "
-           << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts << std::endl;
+           << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts_ << std::endl;
 
-  // current_pts is pts of frame that came from the decoder
+  // current_pts_ is pts of frame that came from the decoder
   // index_[NextFrameIdx()].pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
   void *frame_output = nullptr;
-  if (HasIndex() && current_pts == index_[NextFrameIdx()].pts) {
+  if (HasIndex() && current_pts_ == index_[NextFrameIdx()].pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
-    LOG_LINE << "Found frame with correct display timestamp " << current_pts
+    LOG_LINE << "Found frame with correct display timestamp " << current_pts_
               << " for index " << next_frame_idx_ << std::endl;
     if (current_copy_to_output_ == false) {
       return 1;
@@ -495,7 +498,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   } else {
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
-    slot.pts_ = current_pts;
+    slot.pts_ = current_pts_;
     frame_output = slot.frame_.data();
   }
 
@@ -554,6 +557,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
+        LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
@@ -635,9 +639,10 @@ bool FramesDecoderGpu::SendFrameToParser() {
 
   // Send packet to the nv decoder
   frame_returned_ = false;
-  LOG_LINE << "Sending packet to the nv decoder" << std::endl;
+  LOG_LINE << "Sending packet to the nv decoder, next pts=" << piped_pts_.front() << std::endl;
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
   LOG_LINE << "Packet sent to the nv decoder" << std::endl;
+  current_pts_ = AV_NOPTS_VALUE;  // we are done with this packet. Next frame will come from a new packet
   return true;
 }
 
@@ -728,6 +733,9 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     if (dtype_ == DALI_FLOAT) {
       total_size *= 4;
     }
+    LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
+             << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
+             << ")" << std::endl;
     copyD2D(
       static_cast<uint8_t *>(current_frame_output_),
       frame_buffer_[frame_to_return_index].frame_.data(),
