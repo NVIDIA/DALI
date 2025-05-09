@@ -54,21 +54,31 @@ def _is_batch(x):
 
 
 def build_operator_class(schema):
-    op_name = schema.OperatorName()
-    *module_path, class_name = op_name.split("__")
+    class_name = schema.OperatorName()
+    module_path  = schema.ModulePath()
     module = ops
+    legacy_op_class = None
+    import nvidia.dali.ops
+    legacy_op_module = nvidia.dali.ops
+    print(module_path, class_name)
     for path_part in module_path:
+        legacy_op_module = getattr(legacy_op_module, path_part)
+        print(legacy_op_module)
         new_module = getattr(module, path_part, None)
         if new_module is None:
             new_module = types.ModuleType(path_part)
             setattr(module, path_part, new_module)
         module = new_module
-    op_class = type(class_name, (module.Operator,), {})
+    legacy_op_class = getattr(legacy_op_module, class_name)
+    op_class = type(class_name, (ops.Operator,), {})
     op_class.schema = schema
+    op_class.op_name = class_name
+    op_class.fn_name = _to_snake_case(class_name)
+    op_class.legacy_op = legacy_op_class
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
-    op_class.__qualname__ = op_name
+    op_class.__qualname__ = class_name
     module.__setattr__(class_name, op_class)
     return op_class
 
