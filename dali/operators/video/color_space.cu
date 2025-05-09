@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include <cuda_runtime.h>
 #include "dali/core/static_switch.h"
+#include "dali/core/cuda_error.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
@@ -99,6 +100,7 @@ void VideoColorSpaceConversionImpl(Out *out, int out_pitch, const uint8_t *yuv, 
         VideoColorSpaceConversionKernel<Out, static_conversion_type, static_normalized_range>
         <<<grid_layout, block_layout, 0, stream>>>(out, out_pitch, yuv, yuv_pitch, height, width);
         ), (DALI_FAIL("wrong value")));));
+    CUDA_CALL(cudaGetLastError());
 }
 
 void VideoColorSpaceConversion(uint8_t *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
