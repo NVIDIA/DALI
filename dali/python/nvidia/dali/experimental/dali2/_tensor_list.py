@@ -18,7 +18,7 @@ from ._tensor import Tensor, _is_full_slice
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
-from . import _expression
+from . import _invocation
 
 class _TensorListSlice:
     def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
@@ -83,7 +83,7 @@ class TensorList:
         dtype: Optional[DType] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
-        expression: Optional[_expression.Expression] = None,
+        expression: Optional[_invocation.Invocation] = None,
     ):
         self._tensors = []
         if tensors is not None:
