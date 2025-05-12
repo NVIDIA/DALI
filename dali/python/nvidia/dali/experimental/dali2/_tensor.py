@@ -18,7 +18,7 @@ from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
-from . import _expression
+from . import _invocation
 import copy
 
 class TensorMetadata:
@@ -42,7 +42,7 @@ class Tensor:
         dtype: Optional[DType] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
-        expression: Optional[_expression.Expression] = None,
+        expression: Optional[_invocation.Invocation] = None,
     ):
         if layout is None:
             layout = ""

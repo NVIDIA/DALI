@@ -13,6 +13,9 @@
 # limitations under the License.
 
 from . import _device
+from . import _invocation
+from . import _tensor, _tensor_list
+import nvidia.dali as dali
 
 class Operator:
     def __init__(self, max_batch_size, name=None, **kwargs):
@@ -33,10 +36,18 @@ class Operator:
             import nvidia.dali as dali
             self._minipipe = dali.Pipeline(
                  batch_size=self._max_batch_size,
-                 num_threads=1,
+                 exec_dynamic=True,
+                 num_threads=4,
+                 prefetch_queue_depth=1,
                  device_id=None if self._device.device_type == "cpu" else self._device.device_id)
             with self._minipipe:
+                inps = [dali.fn.external_source(name=f"input_{i}", device=self._device.device_type, device_id=self._device.device_id) for i in range(len(inputs))]
+                args = [dali.fn.external_source(name=f"arg_{name}", device=self._device.device_type, device_id=self._device.device_id) for name in args]
                 op = self.legacy_op(max_batch_size=self._max_batch_size, name=self._name, **self._init_args)
+                out = op(*inps, **args)
+                self._minipipe.set_outputs(out)
+                self._minipipe.build()
+        return self._minipipe.run()
 
     def _set_meta(self, inputs, args):
         self._input_meta = [self._make_meta(input) for input in inputs]
@@ -47,12 +58,19 @@ class Operator:
 
     def _make_meta(self, x):
         is_batch = False
-        if isinstance(x, _expression.Expression):
+        if isinstance(x, _invocation.Invocation):
             is_batch = x.is_batch
-        elif isinstance(x, TensorList):
+        elif isinstance(x, _tensor_list.TensorList):
             is_batch = True
         else:
             is_batch = False
+
+        return {
+            "is_batch": is_batch,
+            "ndim": x.ndim,
+            "layout": x.layout,
+            "dtype": x.dtype,
+        }
 
 
 
