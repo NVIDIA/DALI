@@ -1,0 +1,33 @@
+diff -rNu a/src/PyNvVideoCodec/src/PyNvEncoder.cpp b/src/PyNvVideoCodec/src/PyNvEncoder.cpp
+--- a/src/PyNvVideoCodec/src/PyNvEncoder.cpp	2024-03-24 08:08:04.000000000 +0100
++++ b/src/PyNvVideoCodec/src/PyNvEncoder.cpp	2025-05-12 15:05:20.083952444 +0200
+@@ -129,7 +129,12 @@
+         {
+             CUdevice cuDevice = 0;
+             cuDeviceGet(&cuDevice, iGPU);
++#if CUDA_VERSION >= 13000
++            CUctxCreateParams params = {};
++            CUDA_DRVAPI_CALL(cuCtxCreate(&cudacontext, &params, 0, cuDevice));
++#else
+             CUDA_DRVAPI_CALL(cuCtxCreate(&cudacontext, 0, cuDevice));
++#endif
+             CUDA_DRVAPI_CALL(cuCtxPopCurrent(&cudacontext));
+             m_bDestroyContext = true;
+         }
+diff -rNu a/src/VideoCodecSDKUtils/helper_classes/Utils/NvCodecUtils.h b/src/VideoCodecSDKUtils/helper_classes/Utils/NvCodecUtils.h
+--- a/src/VideoCodecSDKUtils/helper_classes/Utils/NvCodecUtils.h	2024-03-14 11:19:35.000000000 +0100
++++ b/src/VideoCodecSDKUtils/helper_classes/Utils/NvCodecUtils.h	2025-05-12 15:04:27.695058922 +0200
+@@ -542,7 +542,13 @@
+     char szDeviceName[80];
+     ck(cuDeviceGetName(szDeviceName, sizeof(szDeviceName), cuDevice));
+     std::cout << "GPU in use: " << szDeviceName << std::endl;
++
++#if CUDA_VERSION >= 13000
++    CUctxCreateParams params = {};
++    ck(cuCtxCreate(cuContext, &params, flags, cuDevice));
++#else
+     ck(cuCtxCreate(cuContext, flags, cuDevice));
++#endif
+ }
+
+ static void createCudaStream(CUstream* cuStream, CUcontext* cuContext,int iGpu, unsigned int flags)

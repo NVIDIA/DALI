@@ -42,6 +42,7 @@ FetchContent_Declare(
     pynvvideocodec
     URL      ${PYNVVIDEOCODEC_SOURCE_URL}
     URL_HASH SHA256=${PYNVVIDEOCODEC_SOURCE_SHA256}
+    PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_SOURCE_DIR}/CUDA-13.0.patch
 )
 FetchContent_Populate(pynvvideocodec)
 
