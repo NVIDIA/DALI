@@ -21,7 +21,7 @@ import warnings
 from . import ops
 import types
 import copy
-from . import _expression
+from . import _invocation
 import nvidia.dali.ops as _ops
 
 
@@ -171,7 +171,7 @@ def build_call_function(schema, op_class):
             self._call_id += 1
         else:
             call_id = None
-        expr = _expression.Expression(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
+        expr = _invocation.Invocation(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
         if is_batch:
             return TensorList(expression=expr)
         else:
