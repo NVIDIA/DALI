@@ -24,7 +24,6 @@ import copy
 from . import _invocation
 import nvidia.dali.ops as _ops
 
-
 def _is_tensor_type(x, nested_list_warning=False):
     if isinstance(x, TensorList):
         raise ValueError("A list of TensorLists is not a valid argument type")
@@ -52,6 +51,24 @@ def _is_batch(x):
         return any(_is_tensor_type(t, True) for t in x)
     return False
 
+def _to_tensor(x):
+    if isinstance(x, Tensor):
+        return x
+    if isinstance(x, _invocation.InvocationResult):
+        if x.is_batch:
+            raise ValueError("Batch invocation result cannot be used as a single tensor")
+        return Tensor(invocation_result=x)
+    return Tensor(x)
+
+def _to_batch(x, batch_size):
+    if isinstance(x, TensorList):
+        return x
+    if isinstance(x, _invocation.InvocationResult):
+        if x.is_batch:
+            return TensorList(invocation_result=x)
+        else:
+            x = _to_tensor(x)  # fall back to regular replication
+    return TensorList([_to_tensor(x)] * batch_size)
 
 def build_operator_class(schema):
     class_name = schema.OperatorName()
@@ -60,10 +77,8 @@ def build_operator_class(schema):
     legacy_op_class = None
     import nvidia.dali.ops
     legacy_op_module = nvidia.dali.ops
-    print(module_path, class_name)
     for path_part in module_path:
         legacy_op_module = getattr(legacy_op_module, path_part)
-        print(legacy_op_module)
         new_module = getattr(module, path_part, None)
         if new_module is None:
             new_module = types.ModuleType(path_part)
@@ -162,7 +177,15 @@ def build_call_function(schema, op_class):
                     break
         if not is_batch:
             batch_size = self._max_batch_size
-            is_batch = True
+            is_batch = False
+
+        if is_batch:
+            for i in range(len(inputs)):
+                if not _is_batch(inputs[i]):
+                    inputs[i] = _to_batch(inputs[i], batch_size)
+            for k, v in kwargs.items():
+                if not _is_batch(v):
+                    kwargs[k] = _to_batch(v, batch_size)
 
         args = [copy.copy(x) for x in args]
         kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
@@ -171,11 +194,17 @@ def build_call_function(schema, op_class):
             self._call_id += 1
         else:
             call_id = None
-        expr = _invocation.Invocation(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
+        invocation = _invocation.Invocation(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
         if is_batch:
-            return TensorList(expression=expr)
+            if len(invocation) == 1:
+                return TensorList(invocation_result=invocation[0])
+            else:
+                return TensorList(invocation_result=invocation)
         else:
-            return Tensor(expression=expr)
+            if len(invocation) == 1:
+                return Tensor(invocation_result=invocation[0])
+            else:
+                return Tensor(invocation_result=invocation)
 
     function = makefun.create_function(header, call)
 
