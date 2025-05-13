@@ -96,7 +96,10 @@ class ReadVideosAndAnnotationsExternalInput:
             fpms = fps / 1000
             # "clip.json" is a json file that contains the start and end frames of clips
             with open(
-                os.path.join(self.root_dir, self.subfolders[self.i], "clip.json"), "r"
+                os.path.join(
+                    self.root_dir, self.subfolders[self.i], "clip.json"
+                ),
+                "r",
             ) as file:
                 clip_json = json.load(file)
                 clip_frames = torch.tensor(clip_json)
@@ -122,7 +125,10 @@ def read_clips_pipeline(root_dir):
     )
     # Decode the video - start and end frames are available for DALI >= 1.48.0
     decoded = fn.experimental.decoders.video(
-        video_file, device="mixed", start_frame=clips[0][0], end_frame=clips[0][1]
+        video_file,
+        device="mixed",
+        start_frame=clips[0][0],
+        end_frame=clips[0][1],
     )
     # Resize the video to 640x480
     decoded = fn.resize(decoded, size=(640, 480))
