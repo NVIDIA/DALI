@@ -25,6 +25,7 @@ class Invocation:
         inputs=[],
         args={},
         is_batch: bool = False,
+        batch_size: Optional[int] = None,
     ):
         self._operator = operator_instance
         self._call_id = call_id
@@ -32,6 +33,8 @@ class Invocation:
         self._args = args
         self._is_batch = is_batch
         self._results = None
+        self._batch_size = batch_size
+
 
     def ndim(self, result_index: int) -> int:
         if self._results is None:
@@ -55,6 +58,10 @@ class Invocation:
         return self._results[result_index].dtype
 
     def batch_size(self, result_index: int):
+        if not self._is_batch:
+            return None
+        if self._batch_size is not None:
+            return self._batch_size
         if self._results is None:
             # TODO(michalz): Try to get batch_size without full evaluation.
             with _EvalContext.get() as ctx:
@@ -64,14 +71,16 @@ class Invocation:
     def __getitem__(self, index):
         return InvocationResult(self, index)
 
+    def __len__(self):
+        return len(self._results)
+
     @property
     def is_batch(self):
         return self._is_batch
 
-
     def values(self, ctx: _EvalContext):
         if self._results is None:
-            cached = ctx.cached_result(self)
+            cached = ctx.cached_results(self)
             if cached is not None:
                 self._results = cached
             else:
@@ -80,26 +89,44 @@ class Invocation:
                     self._results = tuple(r)
                 else:
                     self._results = (r,)
-                ctx.cache_result(self, self._result)
+                ctx.cache_results(self, self._results)
 
         return self._results
+
 
 class InvocationResult:
     def __init__(self, invocation, index: int):
         self._invocation = invocation
         self._index = index
 
+    @property
     def ndim(self) -> int:
         return self._invocation.ndim(self._index)
 
+    @property
     def shape(self):
         return self._invocation.shape(self._index)
 
+    @property
     def dtype(self) -> DType:
         return self._invocation.dtype(self._index)
 
+    @property
     def batch_size(self):
         return self._invocation.batch_size(self._index)
 
+    @property
+    def is_batch(self):
+        return self._invocation.is_batch
+
+    @property
     def value(self):
         return self._invocation.values(self._index)
+
+    @property
+    def invocation(self):
+        return self._invocation
+
+    @property
+    def index(self):
+        return self._index
