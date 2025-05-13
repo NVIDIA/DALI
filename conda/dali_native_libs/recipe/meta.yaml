@@ -90,6 +90,7 @@ requirements:
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
     - nvcomp
+    - aws-sdk-cpp
   run:
     - libjpeg-turbo
     - lmdb
@@ -108,7 +109,7 @@ requirements:
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
     - nvcomp
-
+    - aws-sdk-cpp
 about:
   home: https://github.com/NVIDIA/DALI
   license: Apache-2.0 license
