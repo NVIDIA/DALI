@@ -17,6 +17,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <stdexcept>
 
 #include "dali/kernels/signal/fft/cufft_helper.h"
 
