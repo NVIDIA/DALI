@@ -19,7 +19,6 @@ from PIL import Image
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 
 
 @pipeline_def(batch_size=1, num_threads=4, device_id=0, exec_dynamic=True)
@@ -59,7 +58,9 @@ for i, file_name in enumerate(os.listdir(directory_path)):
         # Read the file into a numpy array of shape (1, video_size)
         # Send the tensor to the pipeline, run the pipeline and retrieve the output
         decoded = pipe.run(
-            encoded_video=np.expand_dims(np.fromfile(file_path, dtype=np.uint8), axis=0)
+            encoded_video=np.expand_dims(
+                np.fromfile(file_path, dtype=np.uint8), axis=0
+            )
         )
         video_to_show = [decoded[0][0].as_cpu(), decoded[0][1].as_cpu()]
         Image.fromarray(video_to_show[0]).save(f"{file_name}_0.jpg")

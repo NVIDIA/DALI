@@ -22,6 +22,7 @@ import nvidia.dali.plugin.pytorch.experimental.proxy as dali_proxy
 from nvidia.dali import pipeline_def, fn, types
 import pathlib
 
+
 class ImageDataset(Dataset):
     def __init__(self, image_dir, json_path, transform=None):
         """
@@ -33,7 +34,7 @@ class ImageDataset(Dataset):
         """
         self.image_dir = image_dir
         self.transform = transform
-        self.image_ids = list(pathlib.Path(image_dir).glob('*.jpg'))
+        self.image_ids = list(pathlib.Path(image_dir).glob("*.jpg"))
 
         # Load the JSON label
         with open(json_path, "r") as f:
@@ -64,7 +65,9 @@ class ImageDataset(Dataset):
             raise ValueError(f"No label found for image {image_id}")
 
         # Load the image
-        encoded_img = np.expand_dims(np.fromfile(image_id, dtype=np.uint8), axis=0)
+        encoded_img = np.expand_dims(
+            np.fromfile(image_id, dtype=np.uint8), axis=0
+        )
         label_tensor = torch.tensor(label)
         # Apply transform if provided
         if self.transform:
@@ -100,12 +103,14 @@ if __name__ == "__main__":
     json_file = "img/labels.json"
     batch_size = 8
     nworkers = 8
-    dali_server = dali_proxy.DALIServer(image_pipe(batch_size=batch_size, num_threads=4, device_id=0))
+    dali_server = dali_proxy.DALIServer(
+        image_pipe(batch_size=batch_size, num_threads=4, device_id=0)
+    )
 
     dataset = ImageDataset(image_dir, json_file, transform=dali_server.proxy)
 
     # Create a DataLoader
-    
+
     dataloader = dali_proxy.DataLoader(
         dali_server,
         dataset,

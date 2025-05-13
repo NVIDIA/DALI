@@ -29,7 +29,9 @@ batch_size = 4
 
 class ReadMetaExternalInput:
     def __init__(self, batch_size, root_dir):
-        with open(os.path.join(root_dir, "evaluation/example_gt.json"), "r") as file:
+        with open(
+            os.path.join(root_dir, "evaluation/example_gt.json"), "r"
+        ) as file:
             json_file = json.load(file)
             self.images = json_file["images"]
             self.annotations = json_file["annotations"]
@@ -90,8 +92,6 @@ def read_meta_pipeline(root_dir):
         use_fast_idct=False,
         jpeg_fancy_upsampling=True,
     )
-    img_h = decoded.shape()[0]
-    img_w = decoded.shape()[1]
 
     start = fn.cast(bbox[0:2], dtype=types.UINT32)
     end = fn.cast(bbox[0:2] + bbox[2:4], dtype=types.UINT32)
