@@ -83,7 +83,7 @@ class TensorList:
         dtype: Optional[DType] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
-        expression: Optional[_invocation.Invocation] = None,
+        invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
         self._tensors = []
         if tensors is not None:
@@ -109,7 +109,7 @@ class TensorList:
         self._device = device
         self._layout = layout
         self._backend = None
-        self._expression = expression
+        self._invocation_result = invocation_result
         self._ndim = None
         if self._tensors and self._tensors[0]._shape:
             self._ndim = len(self._tensors[0]._shape)
@@ -129,8 +129,8 @@ class TensorList:
     @property
     def ndim(self) -> int:
         if self._ndim is None:
-            if self._expression is not None:
-                self._ndim = self._expression.ndim
+            if self._invocation_result is not None:
+                self._ndim = self._invocation_result.ndim
             elif self._tensors:
                 self._ndim = self._tensors[0].ndim
             else:
@@ -151,7 +151,7 @@ class TensorList:
             return True
         return (
             self._backend is other._backend
-            and self._expression is other._expression
+            and self._invocation_result is other._invocation_result
             and (
                 self._tensors is other._tensors
                 or [t._is_same_tensor(ot) for t, ot in zip(self._tensors, other._tensors)]
@@ -160,8 +160,8 @@ class TensorList:
 
     @property
     def shape(self):
-        if self._expression is not None:
-            return self._expression.shape
+        if self._invocation_result is not None:
+            return self._invocation_result.shape
         return [t.shape for t in self._tensors]
 
     def __getitem__(self, ranges: Any) -> "TensorList":
@@ -195,8 +195,8 @@ class TensorList:
     def evaluate(self):
         with _EvalContext.get() as ctx:
             if self._backend is None:
-                if self._expression is not None:
-                    self._backend = ctx.evaluate(self._expression)._backend
+                if self._invocation_result is not None:
+                    self._backend = ctx.evaluate(self._invocation_result)._backend
                 else:
                     if self._device.device_type == "cpu":
                         backend_type = _backend.TensorListCPU
