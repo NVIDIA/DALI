@@ -40,12 +40,12 @@ class EvalContext:
     def get():
         return EvalContext.current() or EvalContext()
 
-    def cached_result(self, expression):
-        if expression in self._cached_results:
-            return self._cached_results[expression]
+    def cached_results(self, invocation):
+        if invocation in self._cached_results:
+            return self._cached_results[invocation]
 
         # TODO(michalz): Common subexpression elimination.
         return None
 
-    def cache_result(self, expression, result):
-        self._cached_results[expression] = result
+    def cache_results(self, invocation, results):
+        self._cached_results[invocation] = results

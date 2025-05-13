@@ -42,14 +42,14 @@ class Tensor:
         dtype: Optional[DType] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
-        expression: Optional[_invocation.Invocation] = None,
+        invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
         if layout is None:
             layout = ""
         elif not isinstance(layout, str):
             raise ValueError(f"Layout must be a string, got {type(layout)}")
 
-        if expression is None:
+        if invocation_result is None:
             if data is None:
                 raise ValueError("Either data or expression must be provided")
 
@@ -82,8 +82,9 @@ class Tensor:
             self._metadata = TensorMetadata(self._backend.shape(), dtype, layout)
         else:
             self._backend = None
-            self._expression = expression
-            self._device = expression.device
+            self._metadata = None
+            self._invocation_result = invocation_result
+            self._device = invocation_result.device
 
 
     def cpu(self) -> "Tensor":
@@ -105,7 +106,7 @@ class Tensor:
         self._metadata = other._metadata
         self._data = other._data
         self._backend = other._backend
-        self._expression = other._expression
+        self._invocation_result = other._invocation_result
 
     @property
     def ndim(self) -> int:
@@ -145,9 +146,13 @@ class Tensor:
 
     def evaluate(self):
         if self._backend is None:
-            assert self._expression is not None
+            assert self._invocation_result is not None
             with _EvalContext.get() as ctx:
-                self._backend = ctx.evaluate(self._expression)._backend
+                self._backend = ctx.evaluate(self._invocation_result)._backend
+                self._metadata = TensorMetadata(
+                    self._backend.shape,
+                    self._backend.dtype,
+                    self._backend.layout)
         return self
 
     def __getitem__(self, ranges: Any) -> "TensorSlice":
@@ -160,7 +165,10 @@ class Tensor:
             return TensorSlice(self, ranges)
 
     def _is_same_tensor(self, other: "Tensor") -> bool:
-        return self._backend is other._backend and self._expression is other._expression
+        return (
+            self._backend is other._backend and
+            self._invocation_result is other._invocation_result
+        )
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
