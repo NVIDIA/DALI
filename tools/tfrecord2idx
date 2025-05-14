@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 import sys
 import struct
-import tensorflow as tf
-import tensorflow_io as tfio  # noqa:F401
 
 if len(sys.argv) < 3:
     print("Usage: tfrecord2idx <tfrecord filename> <index filename>")
     exit()
 
-f = tf.io.gfile.GFile(sys.argv[1], 'rb')
-idx = tf.io.gfile.GFile(sys.argv[2], 'w')
+try:
+    import tensorflow as tf
+    import tensorflow_io as tfio  # noqa:F401
+    f = tf.io.gfile.GFile(sys.argv[1], 'rb')
+    idx = tf.io.gfile.GFile(sys.argv[2], 'w')
+except ImportError:
+    f = open(sys.argv[1], 'rb')
+    idx = open(sys.argv[2], 'w')
 
 while True:
     current = f.tell()
