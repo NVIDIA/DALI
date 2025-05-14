@@ -22,8 +22,9 @@ _tls.stack = []
 class EvalContext:
 
     def __init__(self):
-        self._expressions = {}
+        self._invocations = {}
         self._cached_results = {}
+        self.cuda_stream = None
 
     @staticmethod
     def current():
