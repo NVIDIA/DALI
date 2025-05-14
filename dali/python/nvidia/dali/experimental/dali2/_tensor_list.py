@@ -102,7 +102,7 @@ class TensorList:
                     if device is None:
                         device = sample.device
                     if layout is None:
-                        layout = sample.layout
+                        layout = sample.layout()
                     self._tensors.append(sample)
 
         self._dtype = dtype
@@ -116,14 +116,37 @@ class TensorList:
 
     @property
     def dtype(self) -> DType:
+        if self._dtype is None:
+            if self._invocation_result is not None:
+                self._dtype = self._invocation_result.dtype
+            elif self._tensors:
+                self._dtype = self._tensors[0].dtype
+            else:
+                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
         return self._dtype
 
     @property
     def device(self) -> Device:
+        if self._device is None:
+            if self._invocation_result is not None:
+                self._device = self._invocation_result.device
+                print("From invocation result", self._device)
+            elif self._tensors:
+                self._device = self._tensors[0].device
+                print("From tensors", self._device)
+            else:
+                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
         return self._device
 
     @property
     def layout(self) -> str:
+        if self._layout is None:
+            if self._invocation_result is not None:
+                self._layout = self._invocation_result.layout
+            elif self._tensors:
+                self._layout = self._tensors[0].layout
+            else:
+                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
         return self._layout
 
     @property
@@ -143,8 +166,14 @@ class TensorList:
             return _TensorListSlice(self._backend)
         return self._tensors
 
+    @property
     def batch_size(self) -> int:
-        return len(self._tensors)
+        if self._tensors is not None:
+            return len(self._tensors)
+        elif self._invocation_result is not None:
+            return self._invocation_result.batch_size
+        else:
+            raise ValueError("Neither tensors nor invocation result are set")
 
     def _is_same_tensor_list(self, other: "TensorList") -> bool:
         if self is other:
@@ -196,7 +225,7 @@ class TensorList:
         with _EvalContext.get() as ctx:
             if self._backend is None:
                 if self._invocation_result is not None:
-                    self._backend = ctx.evaluate(self._invocation_result)._backend
+                    self._backend = self._invocation_result.value(ctx)
                 else:
                     if self._device.device_type == "cpu":
                         backend_type = _backend.TensorListCPU
@@ -207,6 +236,6 @@ class TensorList:
                             f"Internal error: Unsupported device type: {self._device.device_type}"
                         )
                     self._backend = backend_type(
-                        [t.evaluate() for t in self._tensors]._backend, self.layout
+                        [t.evaluate()._backend for t in self._tensors], self.layout
                     )
         return self
