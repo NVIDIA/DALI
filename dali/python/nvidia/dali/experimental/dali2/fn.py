@@ -16,10 +16,10 @@ from . import ops
 
 
 def initialize():
-    for op in dir(ops):
-        if op.startswith("_"):
+    for op in ops.all_ops:
+        if op.op_name.startswith("_"):
             continue
-        if not isinstance(getattr(ops, op), ops.Operator):
+        if op.schema.IsStateful():
             continue
         print(op)
 
