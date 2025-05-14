@@ -21,13 +21,6 @@ from . import _eval_mode
 from . import _invocation
 import copy
 
-class TensorMetadata:
-    def __init__(self, shape: Tuple[int, ...], dtype: DType, layout: str):
-        self.shape = shape
-        self.dtype = dtype
-        self.layout = layout
-
-
 def _volume(shape: Tuple[int, ...]) -> int:
     ret = 1
     for s in shape:
@@ -72,17 +65,22 @@ class Tensor:
                 self._backend = TensorCPU(np.array(data), layout, False)
 
             if device is not None:
-                device = self.device = device if isinstance(device, Device) else Device(device)
+                device = self._device = device if isinstance(device, Device) else Device(device)
             else:
-                device = self.device = Device("cpu")
+                device = self._device = Device("cpu")
 
             if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
                 self.assign(self.to_device(device))
 
-            self._metadata = TensorMetadata(self._backend.shape(), dtype, layout)
+            self._shape = self._backend.shape()
+            self._dtype = self._backend.dtype
+            self._layout = self._backend.layout
+            self._invocation_result = None
         else:
             self._backend = None
-            self._metadata = None
+            self._shape = None
+            self._dtype = None
+            self._layout = None
             self._invocation_result = invocation_result
             self._device = invocation_result.device
 
@@ -92,6 +90,16 @@ class Tensor:
 
     def gpu(self, index: Optional[int] = None) -> "Tensor":
         return self.to_device(Device("gpu", index))
+
+    @property
+    def device(self) -> Device:
+        if self._device is not None:
+            return self._device
+        if self._invocation_result is not None:
+            self._device = self._invocation_result.device
+            return self._device
+        else:
+            raise RuntimeError("Device not set")
 
     def to_device(self, device: Device) -> "Tensor":
         if self.device == device:
@@ -103,10 +111,17 @@ class Tensor:
 
     def assign(self, other: "Tensor"):
         self._device = other._device
-        self._metadata = other._metadata
-        self._data = other._data
+        self._shape = other._shape
+        self._dtype = other._dtype
+        self._layout = other._layout
         self._backend = other._backend
         self._invocation_result = other._invocation_result
+
+    @property
+    def data(self):
+        if not self._backend:
+            self.evaluate()
+        return self._backend
 
     @property
     def ndim(self) -> int:
@@ -114,15 +129,30 @@ class Tensor:
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        return self._metadata.shape
+        if self._shape is None:
+            if self._invocation_result is not None:
+                self._shape = self._invocation_result.shape
+            else:
+                self._shape = self._backend.shape()
+        return self._shape
 
     @property
     def dtype(self) -> DType:
-        return self._metadata.dtype
+        if self._dtype is None:
+            if self._invocation_result is not None:
+                self._dtype = self._invocation_result.dtype
+            else:
+                self._dtype = self._backend.type()
+        return self._dtype
 
     @property
     def layout(self) -> str:
-        return self._metadata.layout
+        if self._layout is None:
+            if self._invocation_result is not None:
+                self._layout = self._invocation_result.layout
+            else:
+                self._layout = self._backend.layout()
+        return self._layout
 
     @property
     def size(self) -> int:
@@ -148,11 +178,10 @@ class Tensor:
         if self._backend is None:
             assert self._invocation_result is not None
             with _EvalContext.get() as ctx:
-                self._backend = ctx.evaluate(self._invocation_result)._backend
-                self._metadata = TensorMetadata(
-                    self._backend.shape,
-                    self._backend.dtype,
-                    self._backend.layout)
+                self._backend = self._invocation_result.value(ctx)
+                self._shape = self._backend.shape()
+                self._dtype = self._backend.dtype
+                self._layout = self._backend.layout()
         return self
 
     def __getitem__(self, ranges: Any) -> "TensorSlice":

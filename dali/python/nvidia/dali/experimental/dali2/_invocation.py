@@ -34,7 +34,13 @@ class Invocation:
         self._is_batch = is_batch
         self._results = None
         self._batch_size = batch_size
+        self._num_outputs = None
+        self._output_devices = None
 
+    def device(self, result_index: int):
+        if self._output_devices is None:
+            self._output_devices = self._operator.infer_output_devices(*self._inputs, **self._args)
+        return self._output_devices[result_index]
 
     def ndim(self, result_index: int) -> int:
         if self._results is None:
@@ -48,7 +54,7 @@ class Invocation:
             # TODO(michalz): Try to get shape without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
-        return self._results[result_index].shape
+        return self._results[result_index].shape()
 
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
@@ -72,13 +78,15 @@ class Invocation:
         return InvocationResult(self, index)
 
     def __len__(self):
-        return len(self._results)
+        if self._num_outputs is None:
+            self._num_outputs = self._operator.infer_num_outputs(*self._inputs, **self._args)
+        return self._num_outputs
 
     @property
     def is_batch(self):
         return self._is_batch
 
-    def values(self, ctx: _EvalContext):
+    def run(self, ctx: _EvalContext):
         if self._results is None:
             cached = ctx.cached_results(self)
             if cached is not None:
@@ -86,11 +94,16 @@ class Invocation:
             else:
                 r = self._operator.run(*self._inputs, **self._args)
                 if isinstance(r, tuple) or isinstance(r, list):
-                    self._results = tuple(r)
+                    self._results = list(r)
                 else:
-                    self._results = (r,)
+                    self._results = [r]
+                if not self._is_batch:
+                    self._results = [r[0] for r in self._results]
+                self._results = tuple(self._results)
                 ctx.cache_results(self, self._results)
 
+    def values(self, ctx: _EvalContext):
+        self.run(ctx)
         return self._results
 
 
@@ -98,6 +111,10 @@ class InvocationResult:
     def __init__(self, invocation, index: int):
         self._invocation = invocation
         self._index = index
+
+    @property
+    def device(self):
+        return self._invocation.device(self._index)
 
     @property
     def ndim(self) -> int:
@@ -119,9 +136,8 @@ class InvocationResult:
     def is_batch(self):
         return self._invocation.is_batch
 
-    @property
-    def value(self):
-        return self._invocation.values(self._index)
+    def value(self, ctx: _EvalContext):
+        return self._invocation.values(ctx)[self._index]
 
     @property
     def invocation(self):

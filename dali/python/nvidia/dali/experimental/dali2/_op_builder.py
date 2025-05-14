@@ -47,6 +47,8 @@ def _is_tensor_type(x, nested_list_warning=False):
 def _is_batch(x):
     if isinstance(x, TensorList):
         return True
+    if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
+        return TensorList(x)
     if isinstance(x, list):
         return any(_is_tensor_type(t, True) for t in x)
     return False
@@ -68,6 +70,9 @@ def _to_batch(x, batch_size):
             return TensorList(invocation_result=x)
         else:
             x = _to_tensor(x)  # fall back to regular replication
+    if _is_batch(x):
+        return TensorList(x)
+
     return TensorList([_to_tensor(x)] * batch_size)
 
 def build_operator_class(schema):
@@ -136,10 +141,7 @@ def build_call_function(schema, op_class):
         if not schema.IsTensorArgument(arg):
             continue
         if schema.IsArgumentOptional(arg):
-            if schema.HasArgumentDefaultValue(arg):
-                call_args.append(f"{arg}={schema.GetArgumentDefaultValueString(arg)}")
-            else:
-                call_args.append(f"{arg}=None")
+            call_args.append(f"{arg}=None")
         else:
             call_args.append(arg)
 
@@ -148,7 +150,7 @@ def build_call_function(schema, op_class):
     max_inputs = schema.MaxNumInput()
     input_indices = {}
     arguments = schema.GetArgumentNames()
-    for i in range(min_inputs, max_inputs):
+    for i in range(max_inputs):
         if schema.HasInputDox():
             input_name = schema.GetInputName(i)
             if input_name in arguments:
@@ -164,37 +166,60 @@ def build_call_function(schema, op_class):
     if call_args:
         call_args = ["*"] + call_args
     if inputs:
-        inputs = ["/"] + inputs
+        inputs = inputs + ["/"]
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
 
-    def call(self, *args, batch_size=None, **kwargs):
-        inputs = list(args)
+    def call(self, *raw_args, batch_size=None, **raw_kwargs):
         is_batch = batch_size is not None
         if batch_size is None:
-            for i, x in enumerate(inputs + list(kwargs.values())):
+            for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
                 if _is_batch(x):
+                    print(x, "is a batch")
                     is_batch = True
-                    break
+                    x_batch_size = x.batch_size
+                    print(x_batch_size)
+                    if batch_size is not None:
+                        if x_batch_size != batch_size:
+                            raise ValueError(f"Inconsistent batch size: {x_batch_size} != {batch_size}")
+                    else:
+                        batch_size = x_batch_size
         if not is_batch:
             batch_size = self._max_batch_size
             is_batch = False
 
+        inputs = []
+        kwargs = {}
+
         if is_batch:
-            for i in range(len(inputs)):
-                if not _is_batch(inputs[i]):
-                    inputs[i] = _to_batch(inputs[i], batch_size)
-            for k, v in kwargs.items():
+            for inp in raw_args:
+                if inp is None:
+                    continue
+                if not _is_batch(inp):
+                    inp = _to_batch(inp, batch_size)
+                inputs.append(inp)
+            for k, v in raw_kwargs.items():
+                if v is None:
+                    continue
                 if not _is_batch(v):
                     kwargs[k] = _to_batch(v, batch_size)
+        else:
+            for inp in raw_args:
+                if inp is None:
+                    continue
+                inputs.append(_to_batch(inp, 1))
+            for k, v in raw_kwargs.items():
+                if v is not None:
+                    kwargs[k] = _to_batch(v, 1)
 
-        args = [copy.copy(x) for x in args]
-        kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
+
+        inputs = [copy.copy(x) for x in inputs]
+        kwargs = {k: copy.copy(v) for k, v in kwargs.items() if v is not None}
         if stateful:
             call_id = self._call_id
             self._call_id += 1
         else:
             call_id = None
-        invocation = _invocation.Invocation(self, call_id, args, kwargs, is_batch=is_batch, batch_size=batch_size)
+        invocation = _invocation.Invocation(self, call_id, inputs, kwargs, is_batch=is_batch, batch_size=batch_size)
         if is_batch:
             if len(invocation) == 1:
                 return TensorList(invocation_result=invocation[0])
@@ -210,12 +235,14 @@ def build_call_function(schema, op_class):
 
     return function
 
-
 def build_operators():
     _all_ops = _ops._registry._all_registered_ops()
+    all_op_classes = []
     for op_name in _all_ops:
         if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
             continue
 
         schema = _b.GetSchema(op_name)
-        build_operator_class(schema)
+        cls = build_operator_class(schema)
+        all_op_classes.append(cls)
+    return all_op_classes
