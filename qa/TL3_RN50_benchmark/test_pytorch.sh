@@ -59,6 +59,7 @@ check_training_results() {
     if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" && "$PERF_RESULT" == "OK" ]]; then
         return 0
     fi
+    return 4
 }
 
 torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 5 --data_loader dali ./ 2>&1 | tee dali.log

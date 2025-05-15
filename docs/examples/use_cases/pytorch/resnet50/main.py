@@ -396,7 +396,7 @@ def main():
                 train_dataset
             )
             val_sampler = torch.utils.data.distributed.DistributedSampler(
-                val_dataset
+                val_dataset, shuffle=False
             )
 
         train_loader = dali_proxy.DataLoader(
