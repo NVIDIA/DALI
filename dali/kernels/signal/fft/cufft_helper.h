@@ -58,18 +58,24 @@ class CUFFTError : public std::runtime_error {
         return "Invalid transform size specified";
       case CUFFT_UNALIGNED_DATA:
         return "Unaligned data";
+#if CUDA_VERSION < 13000
       case CUFFT_INCOMPLETE_PARAMETER_LIST:
         return "Missing parameters in call";
+#endif
       case CUFFT_INVALID_DEVICE:
         return "Execution of a plan was on different GPU than plan creation";
+#if CUDA_VERSION < 13000
       case CUFFT_PARSE_ERROR:
         return "Internal plan database error";
+#endif
       case CUFFT_NO_WORKSPACE:
         return "No workspace has been provided prior to plan execution";
       case CUFFT_NOT_IMPLEMENTED:
         return "Function does not implement functionality for parameters given";
+#if CUDA_VERSION < 13000
       case CUFFT_LICENSE_ERROR:
         return "License error";
+#endif
       case CUFFT_NOT_SUPPORTED:
         return "Operation is not supported for parameters given";
       default:
