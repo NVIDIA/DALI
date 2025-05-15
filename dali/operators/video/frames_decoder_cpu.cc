@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iomanip>
 #include "dali/operators/video/video_utils.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 
@@ -49,6 +50,7 @@ void FramesDecoderCpu::Flush() {
 }
 
 bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
+  DomainTimeRange tr(data == nullptr ? "SkipFrame" : "ReadFrame", DomainTimeRange::kGreen1);
   LOG_LINE << "FramesDecoderCpu::ReadNextFrame: next_frame_idx_=" << next_frame_idx_ << std::endl;
   // No more frames in the file
   if (next_frame_idx_ == -1) {

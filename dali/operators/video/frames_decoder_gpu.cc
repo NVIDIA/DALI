@@ -27,6 +27,7 @@
 #include "dali/operators/video/color_space.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 
@@ -490,13 +491,23 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts_
-              << " for index " << next_frame_idx_ << std::endl;
+             << " (index=" << next_frame_idx_ << ")" << std::endl;
     if (current_copy_to_output_ == false) {
+      LOG_LINE << "Skipping frame" << std::endl;
       return 1;
+    } else {
+      LOG_LINE << "Copying frame to output" << std::endl;
     }
     frame_output = current_frame_output_;
+  } else if (decode_req_ctx_ && decode_req_ctx_->requested_pts_.find(current_pts_) == decode_req_ctx_->requested_pts_.end()) {
+    LOG_LINE << "Not interested in frame with pts=" << current_pts_ << ". Won't store it in buffer" << std::endl;
+    decode_req_ctx_->skipped_pts_.insert(current_pts_);  // remember we've skipped this frame
+    return 1;
   } else {
     // Put currently decoded frame to the buffer for later
+    LOG_LINE << "Storing frame with pts=" << current_pts_
+             << " in buffer. Waiting for frame with pts=" << index_[next_frame_idx_].pts
+             << " (index=" << next_frame_idx_ << ")" << std::endl;
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts_;
     frame_output = slot.frame_.data();
@@ -544,6 +555,7 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
 }
 
 bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
+  DomainTimeRange tr(data == nullptr ? "SkipFrame" : "ReadFrame", DomainTimeRange::kGreen1);
   bool copy_to_output = data != nullptr;
 
   // No more frames to read
@@ -552,7 +564,15 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
     return false;
   }
 
-  // Check if requested frame was buffered earlier
+  // Check if we have seen and skipped this frame already
+  if (decode_req_ctx_ && decode_req_ctx_->skipped_pts_.count(index_[next_frame_idx_].pts)) {
+    LOG_LINE << "Frame with pts=" << index_[next_frame_idx_].pts << " was skipped" << std::endl;
+    DALI_ENFORCE(data == nullptr, "Frame was skipped, but now it is requested");
+    next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
+    return true;
+  }
+
+  // Check if we have seend and stored this frame earlier
   assert(HasIndex());
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
@@ -561,12 +581,13 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
-
       frame.pts_ = -1;
       next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
       return true;
     }
   }
+
+  // If we haven't seen it earlier, send packets to the parser until we see it
 
   current_copy_to_output_ = copy_to_output;
   current_frame_output_ = data;
@@ -647,6 +668,8 @@ bool FramesDecoderGpu::SendFrameToParser() {
 }
 
 bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
+  DomainTimeRange tr(data == nullptr ? "SkipFrame (no index)" : "ReadFrame (no index)",
+                     DomainTimeRange::kGreen1);
   current_copy_to_output_ = data != nullptr;
   current_frame_output_ = data;
 
@@ -654,7 +677,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
 
   // Handle the case, when packet has more frames that we have empty spots
   // in the buffer.
-  // If so, we need to return frame from the buffer before sending last packet.
+  // If so, we need to return frame from the buffer before sending last packet
+
   if (frame_index_if_no_pts_ != 0) {
     if (NumEmptySpots() < (piped_pts_.size())) {
       for (size_t i = 0; i < frame_buffer_.size(); ++i) {

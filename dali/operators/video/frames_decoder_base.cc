@@ -18,6 +18,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 
@@ -296,6 +297,8 @@ void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
     return;
   }
+
+  DomainTimeRange tr("BuildIndex", DomainTimeRange::kGreen1);
 
   // Initialize frame index
   index_.index.clear();
@@ -600,6 +603,16 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
                                          boundary::BoundaryType boundary_type,
                                          const uint8_t *constant_frame,
                                          span<double> out_timestamps) {
+  if (!HasIndex()) {
+    BuildIndex();
+  }
+  LOG_LINE << "Decoding " << frame_ids.size() << " frames" << std::endl;
+  decode_req_ctx_ = DecodeRequestContext{};
+  for (auto &[frame_id, i] : frame_ids) {
+    LOG_LINE << "Frame " << frame_id << " at position " << i << " (pts=" << index_[frame_id].pts << ")" << std::endl;
+    decode_req_ctx_->requested_pts_.insert(index_[frame_id].pts);
+  }
+
   DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
                make_string("Constant frame must be provided if boundary type is CONSTANT"));
 
@@ -632,6 +645,7 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
       }
     }
   }
+  decode_req_ctx_ = std::nullopt;
 }
 
 void FramesDecoderBase::DecodeFrames(uint8_t *data, span<const int> frame_ids,
