@@ -20,7 +20,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
 from . import _invocation
 
-class _TensorListSlice:
+class _TensorListRange:
     def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
         if self._step == 0:
             raise ValueError("Step cannot be 0")
@@ -43,7 +43,7 @@ class _TensorListSlice:
     def __len__(self) -> int:
         return (self._stop - self._start) // self._step
 
-    def __getitem__(self, range: Any) -> Union["_TensorListSlice", "Tensor"]:
+    def __getitem__(self, range: Any) -> Union["_TensorListRange", "Tensor"]:
         if isinstance(range, tuple):
             raise ValueError(
                 "A TensorList is a 1D object. Use a single index instead or a single slice."
@@ -66,7 +66,7 @@ class _TensorListSlice:
             stop = min(max(stop, start), self._stop)
             if range.step is not None:
                 step *= range.step
-            return _TensorListSlice(self._backend, start, stop, step)
+            return _TensorListRange(self._backend, start, stop, step)
         else:
             if range < 0:
                 range += len(self)
@@ -163,7 +163,7 @@ class TensorList:
     @property
     def tensors(self):
         if self._backend is not None:
-            return _TensorListSlice(self._backend)
+            return _TensorListRange(self._backend)
         return self._tensors
 
     @property
