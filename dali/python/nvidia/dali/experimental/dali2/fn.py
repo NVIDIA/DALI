@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import ops
+from . import _op_builder
 
 
 def initialize():
@@ -21,6 +22,7 @@ def initialize():
             continue
         if op.schema.IsStateful():
             continue
-        print(op)
+
+        _op_builder.build_fn_wrapper(op)
 
 
