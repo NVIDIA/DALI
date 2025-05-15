@@ -35,6 +35,18 @@ class Operator:
         self._output_devices = None
         self._op = None
 
+    @classmethod
+    def get(cls, device : _device.Device, **init_args):
+        if device is None:
+            device = _device.Device.current()
+        key = (device, init_args)
+        inst = cls._instance_cache.get(key, None)
+        if inst is None:
+            with device:
+                inst = cls(**init_args)
+                cls._instance_cache[key] = inst
+        return inst
+
     def infer_num_outputs(self, *inputs, **args):
         self._init_pipeline(inputs, args)
         return self._num_outputs
