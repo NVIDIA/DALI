@@ -21,6 +21,7 @@ from . import _eval_mode
 from . import _invocation
 import copy
 
+
 def _volume(shape: Tuple[int, ...]) -> int:
     ret = 1
     for s in shape:
@@ -83,7 +84,6 @@ class Tensor:
             self._layout = None
             self._invocation_result = invocation_result
             self._device = invocation_result.device
-
 
     def cpu(self) -> "Tensor":
         return self.to_device(Device("cpu"))
@@ -195,9 +195,11 @@ class Tensor:
 
     def _is_same_tensor(self, other: "Tensor") -> bool:
         return (
-            self._backend is other._backend and
-            self._invocation_result is other._invocation_result
+            self._backend is other._backend and self._invocation_result is other._invocation_result
         )
+
+    def __str__(self) -> str:
+        return str(self.evaluate()._backend)
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
