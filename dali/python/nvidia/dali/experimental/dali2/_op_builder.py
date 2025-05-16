@@ -56,6 +56,7 @@ def _is_batch(x):
         return any(_is_tensor_type(t, True) for t in x)
     return False
 
+
 def _to_tensor(x):
     if isinstance(x, Tensor):
         return x
@@ -64,6 +65,7 @@ def _to_tensor(x):
             raise ValueError("Batch invocation result cannot be used as a single tensor")
         return Tensor(invocation_result=x)
     return Tensor(x)
+
 
 def _to_batch(x, batch_size):
     if isinstance(x, TensorList):
@@ -81,6 +83,7 @@ def _to_batch(x, batch_size):
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
+
 def _find_or_create_module(root_module, module_path):
     module = root_module
     for path_part in module_path:
@@ -90,12 +93,14 @@ def _find_or_create_module(root_module, module_path):
             setattr(root_module, path_part, module)
     return module
 
+
 def build_operator_class(schema):
     class_name = schema.OperatorName()
-    module_path  = schema.ModulePath()
+    module_path = schema.ModulePath()
     module = ops
     legacy_op_class = None
     import nvidia.dali.ops
+
     legacy_op_module = nvidia.dali.ops
     for path_part in module_path:
         legacy_op_module = getattr(legacy_op_module, path_part)
@@ -188,13 +193,13 @@ def build_call_function(schema, op_class):
         if batch_size is None:
             for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
                 if _is_batch(x):
-                    print(x, "is a batch")
                     is_batch = True
                     x_batch_size = x.batch_size
-                    print(x_batch_size)
                     if batch_size is not None:
                         if x_batch_size != batch_size:
-                            raise ValueError(f"Inconsistent batch size: {x_batch_size} != {batch_size}")
+                            raise ValueError(
+                                f"Inconsistent batch size: {x_batch_size} != {batch_size}"
+                            )
                     else:
                         batch_size = x_batch_size
         if not is_batch:
@@ -225,7 +230,6 @@ def build_call_function(schema, op_class):
                 if v is not None:
                     kwargs[k] = _to_batch(v, 1)
 
-
         inputs = [copy.copy(x) for x in inputs]
         kwargs = {k: copy.copy(v) for k, v in kwargs.items() if v is not None}
         if stateful:
@@ -233,7 +237,9 @@ def build_call_function(schema, op_class):
             self._call_id += 1
         else:
             call_id = None
-        invocation = _invocation.Invocation(self, call_id, inputs, kwargs, is_batch=is_batch, batch_size=batch_size)
+        invocation = _invocation.Invocation(
+            self, call_id, inputs, kwargs, is_batch=is_batch, batch_size=batch_size
+        )
         if is_batch:
             if len(invocation) == 1:
                 return TensorList(invocation_result=invocation[0])
@@ -249,6 +255,11 @@ def build_call_function(schema, op_class):
 
     return function
 
+
+def _next_pow2(x):
+    return 1 << (x - 1).bit_length()
+
+
 def build_fn_wrapper(op):
     schema = op.schema
     module_path = schema.ModulePath()
@@ -259,7 +270,6 @@ def build_fn_wrapper(op):
             new_module = types.ModuleType(path_part)
             setattr(module, path_part, new_module)
         module = new_module
-    print(module)
 
     fn_name = _to_snake_case(op.schema.OperatorName())
     inputs = []
@@ -301,20 +311,25 @@ def build_fn_wrapper(op):
         inputs = inputs + ["/"]
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
-    print(header)
-
-
     def call(*inputs, batch_size=None, **raw_kwargs):
+        max_batch_size = raw_kwargs.get("max_batch_size", batch_size)
+        if max_batch_size is None:
+            max_batch_size = 1
+            for i, x in enumerate(inputs):
+                if _is_batch(x):
+                    if not isinstance(x, TensorList):
+                        x = TensorList(x)
+                    max_batch_size = max(max_batch_size, x.batch_size)
+        max_batch_size = _next_pow2(max_batch_size)
         init_args = {
-            "max_batch_size": batch_size,
-            **{ arg: raw_kwargs[arg] for arg in fixed_args if arg in raw_kwargs },
+            arg: raw_kwargs[arg]
+            for arg in fixed_args
+            if arg != "max_batch_size" and arg in raw_kwargs
         }
-        op_inst = op.get(None, **init_args)
-        call_args = {
-            arg: raw_kwargs[arg] for arg in tensor_args if arg in raw_kwargs
-        }
-        return op_inst(*inputs, **call_args)
+        op_inst = op.get(None, max_batch_size=max_batch_size, **init_args)
+        call_args = {arg: raw_kwargs[arg] for arg in tensor_args if arg in raw_kwargs}
 
+        return op_inst(*inputs, **call_args)
 
     function = makefun.create_function(header, call)
     function.op_class = op

@@ -20,6 +20,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
 from . import _invocation
 
+
 class _TensorListRange:
     def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
         if self._step == 0:
@@ -85,8 +86,9 @@ class TensorList:
         layout: Optional[str] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
-        self._tensors = []
+        self._tensors = None
         if tensors is not None:
+            self._tensors = []
             if len(tensors) == 0:
                 if dtype is None:
                     raise ValueError("Element type must be specified if the list is empty")
@@ -220,6 +222,9 @@ class TensorList:
                 d += 1
 
         return fn.tensor_subscript(self, *args)
+
+    def __str__(self) -> str:
+        return str(self.evaluate()._backend)
 
     def evaluate(self):
         with _EvalContext.get() as ctx:
