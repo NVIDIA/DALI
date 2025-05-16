@@ -14,7 +14,6 @@
 
 import json
 import numpy as np
-import os
 import torch
 from torch.utils.data import Dataset
 
@@ -22,6 +21,7 @@ import nvidia.dali.plugin.pytorch.experimental.proxy as dali_proxy
 from nvidia.dali import pipeline_def, fn, types
 import glob
 from pathlib import Path
+
 
 class ImageDataset(Dataset):
     def __init__(self, image_dir, json_path, transform=None):
