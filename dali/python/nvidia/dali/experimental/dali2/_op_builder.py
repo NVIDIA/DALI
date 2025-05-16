@@ -221,6 +221,8 @@ def build_call_function(schema, op_class):
                     continue
                 if not _is_batch(v):
                     kwargs[k] = _to_batch(v, batch_size)
+                else:
+                    kwargs[k] = v
         else:
             for inp in raw_args:
                 if inp is None:
@@ -229,6 +231,8 @@ def build_call_function(schema, op_class):
             for k, v in raw_kwargs.items():
                 if v is not None:
                     kwargs[k] = _to_batch(v, 1)
+                else:
+                    kwargs[k] = v
 
         inputs = [copy.copy(x) for x in inputs]
         kwargs = {k: copy.copy(v) for k, v in kwargs.items() if v is not None}
