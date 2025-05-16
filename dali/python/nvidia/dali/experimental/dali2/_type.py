@@ -102,6 +102,10 @@ class DType:
     def from_type_id(type_id: int) -> "DType":
         return _id2type[type_id]
 
+    @staticmethod
+    def from_fw_type(numpy_type) -> "DType":
+        return nvidia.dali.types.to_dali_type(numpy_type)
+
 
 int8 = DType(DType.Kind.signed, 8)
 int16 = DType(DType.Kind.signed, 16)

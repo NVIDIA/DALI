@@ -101,15 +101,17 @@ class Operator:
                 self._minipipe.build()
 
     def run(self, *inputs, **args):
+        print("Running operator", self._name, type(self))
+        print("inputs", inputs)
+        print("args", args)
+        print("minipipe", self._minipipe)
+        print("input_meta", self._input_meta)
+        print("arg_meta", self._arg_meta)
         if (
             self._minipipe is not None
-            and self._input_meta
-            and self._arg_meta
             and not self.is_compatible(inputs, args)
         ):
             self._minipipe = None
-
-        print("Running operator", self._name, type(self))
 
         self._init_pipeline(inputs, args)
         self._set_meta(inputs, args)
@@ -120,14 +122,18 @@ class Operator:
         return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
 
     def _set_meta(self, inputs, args):
-        print("set_meta", inputs, args)
         self._input_meta = [self._make_meta(input) for input in inputs]
         self._arg_meta = {name: self._make_meta(arg) for name, arg in args.items()}
 
     def is_compatible(self, inputs, args):
-        return self._input_meta == [
+        ret = self._input_meta == [
             self._make_meta(input) for input in inputs
         ] and self._arg_meta == {name: self._make_meta(arg) for name, arg in args.items()}
+        print("is_compatible: ", ret)
+        print("input_meta", self._input_meta)
+        print("arg_meta", self._arg_meta)
+        print("inputs", inputs)
+        return ret
 
     def _make_meta(self, x):
         is_batch = False

@@ -119,7 +119,9 @@ class TensorList:
     @property
     def dtype(self) -> DType:
         if self._dtype is None:
-            if self._invocation_result is not None:
+            if self._backend is not None:
+                self._dtype = DType.from_type_id(self._backend.type())
+            elif self._invocation_result is not None:
                 self._dtype = self._invocation_result.dtype
             elif self._tensors:
                 self._dtype = self._tensors[0].dtype
