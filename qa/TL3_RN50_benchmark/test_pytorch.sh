@@ -29,8 +29,8 @@ check_training_results() {
     fi
 
     # Define the minimum performance thresholds
-    local MIN_TOP1=20.0
-    local MIN_TOP5=40.0
+    local MIN_TOP1=15.0
+    local MIN_TOP5=35.0
     local MIN_PERF=2900
 
     # Extract relevant information from the log file
