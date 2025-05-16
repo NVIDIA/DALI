@@ -17,6 +17,8 @@ from . import _invocation
 from . import _tensor, _tensor_list
 from . import _eval_context
 import nvidia.dali as dali
+from typing import Optional
+
 
 class Operator:
     def __init__(self, max_batch_size, name=None, **kwargs):
@@ -26,7 +28,7 @@ class Operator:
         device_type = kwargs.get("device", "cpu")
         self._device = _device.Device(
             name=device_type,
-            device_id=kwargs.get("device_id", _device.Device.default_device_id(device_type))
+            device_id=kwargs.get("device_id", _device.Device.default_device_id(device_type)),
         )
         self._minipipe = None
         self._input_meta = []
@@ -36,10 +38,20 @@ class Operator:
         self._op = None
 
     @classmethod
-    def get(cls, device : _device.Device, **init_args):
+    def get(cls, device: Optional[_device.Device], **init_args):
         if device is None:
             device = _device.Device.current()
-        key = (device, init_args)
+
+        def freeze_arg(arg):
+            if isinstance(arg, list):
+                return tuple(arg)
+            return arg
+
+        def freeze_args(args):
+            sorted_keys = sorted(args.keys())
+            return tuple([(k, freeze_arg(args[k])) for k in sorted_keys])
+
+        key = (device, freeze_args(init_args))
         inst = cls._instance_cache.get(key, None)
         if inst is None:
             with device:
@@ -57,19 +69,21 @@ class Operator:
 
     def _init_pipeline(self, inputs, args):
         if self._minipipe is None:
-            print("init pipeline")
-            print(inputs)
-            print(args)
             import nvidia.dali as dali
+
             self._minipipe = dali.Pipeline(
-                 batch_size=self._max_batch_size,
-                 exec_dynamic=True,
-                 num_threads=4,
-                 prefetch_queue_depth=1,
-                 device_id=None if self._device.device_type == "cpu" else self._device.device_id)
+                batch_size=self._max_batch_size,
+                exec_dynamic=True,
+                num_threads=4,
+                prefetch_queue_depth=1,
+                device_id=None if self._device.device_type == "cpu" else self._device.device_id,
+            )
             with self._minipipe:
-                input_nodes = [dali.fn.external_source(name=f"input_{i}", device=self._device.device_type) for i in range(len(inputs))]
-                arg_nodes = { name: dali.fn.external_source(name=f"arg_{name}") for name in args }
+                input_nodes = [
+                    dali.fn.external_source(name=f"input_{i}", device=self._device.device_type)
+                    for i in range(len(inputs))
+                ]
+                arg_nodes = {name: dali.fn.external_source(name=f"arg_{name}") for name in args}
                 op = self.legacy_op(name=self._name, **self._init_args)
                 self._op = op
                 out = op(*input_nodes, **arg_nodes)
@@ -87,8 +101,15 @@ class Operator:
                 self._minipipe.build()
 
     def run(self, *inputs, **args):
-        if self._minipipe is not None and self._input_meta and self._arg_meta and not self.is_compatible(inputs, args):
+        if (
+            self._minipipe is not None
+            and self._input_meta
+            and self._arg_meta
+            and not self.is_compatible(inputs, args)
+        ):
             self._minipipe = None
+
+        print("Running operator", self._name, type(self))
 
         self._init_pipeline(inputs, args)
         self._set_meta(inputs, args)
@@ -99,12 +120,14 @@ class Operator:
         return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
 
     def _set_meta(self, inputs, args):
-        print("set_meta",inputs, args)
+        print("set_meta", inputs, args)
         self._input_meta = [self._make_meta(input) for input in inputs]
-        self._arg_meta = { name: self._make_meta(arg) for name, arg in args.items() }
+        self._arg_meta = {name: self._make_meta(arg) for name, arg in args.items()}
 
     def is_compatible(self, inputs, args):
-        return self._input_meta == [input.meta for input in inputs] and self._arg_meta == [arg.meta for arg in args]
+        return self._input_meta == [
+            self._make_meta(input) for input in inputs
+        ] and self._arg_meta == {name: self._make_meta(arg) for name, arg in args.items()}
 
     def _make_meta(self, x):
         is_batch = False
@@ -125,7 +148,9 @@ class Operator:
 
 all_ops = []
 
+
 def initialize():
     from . import _op_builder
+
     global all_ops
     all_ops = _op_builder.build_operators()

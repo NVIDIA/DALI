@@ -47,7 +47,7 @@ class Invocation:
             # TODO(michalz): Try to get ndim without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
-        return self._results[result_index].ndim
+        return len(self._results[result_index].shape())
 
     def shape(self, result_index: int):
         if self._results is None:
@@ -73,6 +73,13 @@ class Invocation:
             with _EvalContext.get() as ctx:
                 self.run(ctx)
         return self._results[result_index].batch_size if self._is_batch else None
+
+    def layout(self, result_index: int):
+        if self._results is None:
+            # TODO(michalz): Try to get layout without full evaluation.
+            with _EvalContext.get() as ctx:
+                self.run(ctx)
+        return self._results[result_index].layout
 
     def __getitem__(self, index):
         return InvocationResult(self, index)
@@ -127,6 +134,10 @@ class InvocationResult:
     @property
     def dtype(self) -> DType:
         return self._invocation.dtype(self._index)
+
+    @property
+    def layout(self):
+        return self._invocation.layout(self._index)
 
     @property
     def batch_size(self):
