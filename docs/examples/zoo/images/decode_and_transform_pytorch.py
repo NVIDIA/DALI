@@ -20,8 +20,8 @@ from torch.utils.data import Dataset
 
 import nvidia.dali.plugin.pytorch.experimental.proxy as dali_proxy
 from nvidia.dali import pipeline_def, fn, types
-import pathlib
-
+import glob
+from pathlib import Path
 
 class ImageDataset(Dataset):
     def __init__(self, image_dir, json_path, transform=None):
@@ -34,7 +34,7 @@ class ImageDataset(Dataset):
         """
         self.image_dir = image_dir
         self.transform = transform
-        self.image_ids = list(pathlib.Path(image_dir).glob("*.jpg"))
+        self.image_ids = glob.glob("*.jpg", root_dir=image_dir)
 
         # Load the JSON label
         with open(json_path, "r") as f:
@@ -53,11 +53,11 @@ class ImageDataset(Dataset):
         :param idx: Index of the image to load.
         :return: Tuple containing the image tensor and its label.
         """
-        image_id = self.image_ids[idx]
+        image_id = Path(image_dir) / self.image_ids[idx]
         # Find the corresponding label in labels based on image_id
         for label_entry in self.labels:
             label = None
-            if label_entry["image_id"] == os.path.split(image_id)[-1]:
+            if label_entry["image_id"] == image_id.name:
                 label = label_entry["label"]
                 break
 
@@ -69,11 +69,11 @@ class ImageDataset(Dataset):
             np.fromfile(image_id, dtype=np.uint8), axis=0
         )
         label_tensor = torch.tensor(label)
-        # Apply transform if provided
+        # Apply transform if provided and if not return the encoded image
         if self.transform:
-            image_promise = self.transform(encoded_img)
-
-        return image_promise, label_tensor
+            return self.transform(encoded_img), label_tensor
+        else:
+            return encoded_img, label_tensor
 
 
 @pipeline_def

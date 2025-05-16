@@ -27,5 +27,5 @@ This example requires (DomainSpecificHighlight)[https://github.com/aliensunmin/D
 Contains functionality for decoding and transforming videos integrating PyTorch and DALI. The script:
 - Reads video files using VideosDataset which implement Pytorch Dataset
 - Uses DALI proxy to enable multiprocessing pipeline execution
-- Decdes video files with DALI decoer
+- Decdes video files with DALI decoder
 - Resizes output frames to 1280x720 resolution

@@ -13,7 +13,7 @@
 # limitations under the License
 
 import numpy as np
-import os
+from pathlib import Path
 from PIL import Image
 
 from nvidia.dali.pipeline import pipeline_def
@@ -53,22 +53,17 @@ pipe.build()
 # The directory with images to decode
 directory_path = "./img"
 # Iterate through all files in the directory
-for i, file_name in enumerate(os.listdir(directory_path)):
-    file_path = os.path.join(directory_path, file_name)
-    try:
-        # Read the file into a numpy array of shape (1, img_size)
-        # Send the tensor to the pipeline, run the pipeline and retrieve the output
-        decoded = pipe.run(
-            encoded_img=np.expand_dims(
-                np.fromfile(file_path, dtype=np.uint8), axis=0
-            )
+for i, file_name in enumerate(Path(directory_path).iterdir()):
+    # Read the file into a numpy array of shape (1, img_size)
+    # Send the tensor to the pipeline, run the pipeline and retrieve the output
+    decoded = pipe.run(
+        encoded_img=np.expand_dims(
+            np.fromfile(file_name, dtype=np.uint8), axis=0
         )
-        img_on_gpu = to_torch_tensor(decoded[0][0], copy=True)
+    )
+    img_on_gpu = to_torch_tensor(decoded[0][0], copy=True)
 
-        # Display decoded image. Note: The image is in GPU memory
-        # and needs to be retrieved to CPU first.
-        img_to_show = img_on_gpu.cpu().numpy()
-        Image.fromarray(img_to_show[0]).show()
-
-    except Exception as e:
-        print(f"Error loading {file_name}: {e}")
+    # Display decoded image. Note: The image is in GPU memory
+    # and needs to be retrieved to CPU first.
+    img_to_show = img_on_gpu.cpu().numpy()
+    Image.fromarray(img_to_show[0]).show()
