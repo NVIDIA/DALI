@@ -20,6 +20,7 @@ from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
 from . import _invocation
 import copy
+import nvidia.dali.types
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -33,7 +34,7 @@ class Tensor:
     def __init__(
         self,
         data: Optional[Any] = None,
-        dtype: Optional[DType] = None,
+        dtype: Optional[Any] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None,
@@ -42,6 +43,13 @@ class Tensor:
             layout = ""
         elif not isinstance(layout, str):
             raise ValueError(f"Layout must be a string, got {type(layout)}")
+
+        if dtype is not None:
+            if not isinstance(dtype, DType):
+                if isinstance(dtype, nvidia.dali.types.DALIDataType):
+                    dtype = DType.from_type_id(dtype)
+                else:
+                    dtype = DType.from_fw_type(dtype)
 
         if invocation_result is None:
             if data is None:
@@ -63,7 +71,11 @@ class Tensor:
             else:
                 import numpy as np
 
-                self._backend = TensorCPU(np.array(data), layout, False)
+                if dtype is not None:
+                    self._backend = TensorCPU(np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.id)), layout, False)
+                    self._dtype = dtype
+                else:
+                    self._backend = TensorCPU(np.array(data), layout, False)
 
             if device is not None:
                 device = self._device = device if isinstance(device, Device) else Device(device)
@@ -74,7 +86,8 @@ class Tensor:
                 self.assign(self.to_device(device))
 
             self._shape = self._backend.shape()
-            self._dtype = self._backend.dtype
+            if self._backend.dtype is not None:
+                self._dtype = DType.from_type_id(self._backend.dtype)
             self._layout = self._backend.layout
             self._invocation_result = None
         else:
@@ -142,7 +155,7 @@ class Tensor:
             if self._invocation_result is not None:
                 self._dtype = self._invocation_result.dtype
             else:
-                self._dtype = self._backend.type()
+                self._dtype = DType.from_type_id(self._backend.type())
         return self._dtype
 
     @property
