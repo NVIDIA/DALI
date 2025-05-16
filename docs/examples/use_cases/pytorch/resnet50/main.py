@@ -396,7 +396,7 @@ def main():
                 train_dataset
             )
             val_sampler = torch.utils.data.distributed.DistributedSampler(
-                val_dataset
+                val_dataset, shuffle=False
             )
 
         train_loader = dali_proxy.DataLoader(
@@ -517,11 +517,15 @@ class data_prefetcher():
     """Based on prefetcher from the APEX example
        https://github.com/NVIDIA/apex/blob/5b5d41034b506591a316c308c3d2cd14d5187e23/examples/imagenet/main_amp.py#L265
     """
-    def __init__(self, loader):
+    def __init__(self, loader, do_normalize=True):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
-        self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
-        self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
+        if do_normalize:
+            self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
+            self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
+        else:
+            self.mean = None
+            self.std = None
         self.preload()
 
     def preload(self):
@@ -534,8 +538,9 @@ class data_prefetcher():
         with torch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(non_blocking=True)
             self.next_target = self.next_target.cuda(non_blocking=True)
-            self.next_input = self.next_input.float()
-            self.next_input = self.next_input.sub_(self.mean).div_(self.std)
+            if self.mean is not None and self.std is not None:
+                self.next_input = self.next_input.float()
+                self.next_input = self.next_input.sub_(self.mean).div_(self.std)
 
     def __iter__(self):
         return self
@@ -567,7 +572,8 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
 
     is_pytorch_loader = args.data_loader == "pytorch" or args.data_loader == "dali_proxy"
     if is_pytorch_loader:
-        data_iterator = data_prefetcher(train_loader)
+        do_normalize = args.data_loader == "pytorch"  # DALI proxy is already normalized
+        data_iterator = data_prefetcher(train_loader, do_normalize=do_normalize)
         data_iterator = iter(data_iterator)
     else:
         data_iterator = train_loader
@@ -673,7 +679,8 @@ def validate(val_loader, model, criterion):
     end = time.time()
     is_pytorch_loader = args.data_loader == "pytorch" or args.data_loader == "dali_proxy"
     if is_pytorch_loader:
-        data_iterator = data_prefetcher(val_loader)
+        do_normalize = args.data_loader == "pytorch"  # DALI proxy is already normalized
+        data_iterator = data_prefetcher(val_loader, do_normalize=do_normalize)
         data_iterator = iter(data_iterator)
     else:
         data_iterator = val_loader
