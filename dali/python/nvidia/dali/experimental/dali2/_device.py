@@ -87,9 +87,7 @@ class Device:
 
     def __enter__(self):
         if self.device_type == "gpu":
-            Device._thread_local.previous_device_ids.append(
-                _backend.GetCUDACurrentDevice()
-            )
+            Device._thread_local.previous_device_ids.append(_backend.GetCUDACurrentDevice())
             _backend.SetCUDACurrentDevice(self.device_id)
         Device._thread_local.devices.append(self)
 
