@@ -60,16 +60,12 @@ class ReadMetaExternalInput:
                 for annotation in self.annotations
                 if annotation["image_id"] == img_id
             ]
-            bbox.append(torch.FloatTensor(annotations[0]["bbox"]))
+            bbox.append(torch.tensor(annotations[0]["bbox"], dtype=torch.float))
 
-            try:
-                with urllib.request.urlopen(img_url) as f:
-                    batch.append(
-                        torch.frombuffer(bytearray(f.read()), dtype=torch.uint8)
-                    )
-            except Exception as e:
-                print(f"Error loading image {img_url}: {e}")
-                batch.append(torch.tensor([]))
+            with urllib.request.urlopen(img_url) as f:
+                batch.append(
+                    torch.frombuffer(bytearray(f.read()), dtype=torch.uint8)
+                )
 
             self.i += 1
 

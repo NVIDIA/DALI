@@ -48,11 +48,11 @@ class VideoDataset(Dataset):
         video_id = self.video_ids[idx]
         # Load the image
         encoded_video = np.fromfile(video_id, dtype=np.uint8)
-        # Apply transform if provided
+        # Apply transform if provided and return encoded video if not
         if self.transform:
-            video_promise = self.transform(encoded_video)
-
-        return video_promise
+            return self.transform(encoded_video)
+        else:
+            return encoded_video
 
 
 @pipeline_def
