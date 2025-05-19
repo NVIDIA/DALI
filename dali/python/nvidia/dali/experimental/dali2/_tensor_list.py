@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Optional, Tuple, List, Union
-from ._type import DType
+from ._type import DType, dtype as _dtype
 from ._tensor import Tensor, _is_full_slice
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
@@ -86,6 +86,7 @@ class TensorList:
         layout: Optional[str] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
+        assert(isinstance(layout, str) or layout is None)
         self._tensors = None
         if tensors is not None:
             self._tensors = []
@@ -104,9 +105,12 @@ class TensorList:
                     if device is None:
                         device = sample.device
                     if layout is None:
-                        layout = sample.layout()
+                        layout = sample.layout
                     self._tensors.append(sample)
 
+        if dtype is not None:
+            if not isinstance(dtype, DType):
+                dtype = _dtype(dtype)
         self._dtype = dtype
         self._device = device
         self._layout = layout
@@ -120,9 +124,9 @@ class TensorList:
     def dtype(self) -> DType:
         if self._dtype is None:
             if self._backend is not None:
-                self._dtype = DType.from_type_id(self._backend.type())
+                self._dtype = DType.from_type_id(self._backend.dtype)
             elif self._invocation_result is not None:
-                self._dtype = self._invocation_result.dtype
+                self._dtype = _dtype(self._invocation_result.dtype)
             elif self._tensors:
                 self._dtype = self._tensors[0].dtype
             else:
@@ -226,7 +230,7 @@ class TensorList:
         return fn.tensor_subscript(self, *args)
 
     def __str__(self) -> str:
-        return str(self.evaluate()._backend)
+        return "TensorList(\n" + str(self.evaluate()._backend) + ")"
 
     def evaluate(self):
         with _EvalContext.get() as ctx:

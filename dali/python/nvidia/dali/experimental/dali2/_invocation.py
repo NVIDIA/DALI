@@ -79,7 +79,7 @@ class Invocation:
             # TODO(michalz): Try to get layout without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
-        return self._results[result_index].layout
+        return self._results[result_index].layout()
 
     def __getitem__(self, index):
         return InvocationResult(self, index)

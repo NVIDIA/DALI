@@ -95,6 +95,7 @@ class DType:
     def __hash__(self):
         return hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
 
+    @property
     def type_id(self) -> int:
         return _type2id[self]
 
@@ -106,6 +107,35 @@ class DType:
     def from_fw_type(numpy_type) -> "DType":
         return nvidia.dali.types.to_dali_type(numpy_type)
 
+    @staticmethod
+    def parse(name: str) -> "DType":
+        if name.startswith("i"):
+            return DType(DType.Kind.signed, int(name[1:]))
+        elif name.startswith("u"):
+            return DType(DType.Kind.unsigned, int(name[1:]))
+        elif name == "bool":
+            return DType(DType.Kind.bool, 8)
+        elif name == "bfloat16":
+            return DType(DType.Kind.float, 16, 8, 7)
+        elif name == "tf32":
+            return DType(DType.Kind.float, 32, 8, 10)
+        elif name.startswith("f"):
+            exp = name.find("e")
+            sig = name.find("m")
+            if exp != -1 or sig != -1:
+                if exp == -1 or sig == -1:
+                    raise ValueError(f"Invalid type name: {name}")
+                if exp < 2 or sig < exp + 2:
+                    raise ValueError(f"Invalid type name: {name}")
+                bits = int(name[1:exp])
+                exp_bits = int(name[exp + 1 : sig])
+                sig_bits = int(name[sig + 1 :])
+                return DType(DType.Kind.float, bits, exp_bits, sig_bits)
+            else:
+                bits = int(name[1:])
+                return DType(DType.Kind.float, bits)
+        else:
+            raise ValueError(f"Unsupported type name: {name}")
 
 int8 = DType(DType.Kind.signed, 8)
 int16 = DType(DType.Kind.signed, 16)
@@ -140,3 +170,17 @@ _type2id = {
 }
 
 _id2type = {v: k for k, v in _type2id.items()}
+
+
+def dtype(*args):
+    if len(args) == 1:
+        if isinstance(args[0], DType):
+            return args[0]
+        elif isinstance(args[0], nvidia.dali.types.DALIDataType):
+            return DType.from_type_id(args[0])
+        elif isinstance(args[0], str):
+            return DType.parse(args[0])
+        else:
+            return DType.from_fw_type(args[0])
+    else:
+        return DType(*args)
