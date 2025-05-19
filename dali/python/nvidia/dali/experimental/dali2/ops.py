@@ -129,10 +129,6 @@ class Operator:
         ret = self._input_meta == [
             self._make_meta(input) for input in inputs
         ] and self._arg_meta == {name: self._make_meta(arg) for name, arg in args.items()}
-        print("is_compatible: ", ret)
-        print("input_meta", self._input_meta)
-        print("arg_meta", self._arg_meta)
-        print("inputs", inputs)
         return ret
 
     def _make_meta(self, x):
