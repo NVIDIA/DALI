@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Optional, Tuple
-from ._type import DType
+from ._type import DType, dtype as _dtype
 from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
 from ._eval_context import EvalContext as _EvalContext
@@ -37,19 +37,20 @@ class Tensor:
         dtype: Optional[Any] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
-        invocation_result: Optional[_invocation.InvocationResult] = None,
+        invocation_result: Optional[_invocation.InvocationResult] = None
     ):
         if layout is None:
             layout = ""
         elif not isinstance(layout, str):
             raise ValueError(f"Layout must be a string, got {type(layout)}")
 
+        self._slice = None
+        self._backend = None
+        self._invocation_result = None
+
         if dtype is not None:
             if not isinstance(dtype, DType):
-                if isinstance(dtype, nvidia.dali.types.DALIDataType):
-                    dtype = DType.from_type_id(dtype)
-                else:
-                    dtype = DType.from_fw_type(dtype)
+                dtype = _dtype(dtype)
 
         if invocation_result is None:
             if data is None:
@@ -64,6 +65,9 @@ class Tensor:
                 else:
                     self.assign(fn.cast(data, dtype, device=device))
                 return
+            elif isinstance(data, TensorSlice):
+                self._slice = data
+                return
             elif hasattr(data, "__dlpack__"):
                 self._backend = TensorCPU(data, layout)
             elif hasattr(data, "__array__"):
@@ -72,7 +76,7 @@ class Tensor:
                 import numpy as np
 
                 if dtype is not None:
-                    self._backend = TensorCPU(np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.id)), layout, False)
+                    self._backend = TensorCPU(np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)), layout, False)
                     self._dtype = dtype
                 else:
                     self._backend = TensorCPU(np.array(data), layout, False)
@@ -88,7 +92,7 @@ class Tensor:
             self._shape = self._backend.shape()
             if self._backend.dtype is not None:
                 self._dtype = DType.from_type_id(self._backend.dtype)
-            self._layout = self._backend.layout
+            self._layout = self._backend.layout()
             self._invocation_result = None
         else:
             self._backend = None
@@ -138,13 +142,18 @@ class Tensor:
 
     @property
     def ndim(self) -> int:
-        return len(self.shape)
+        if self._slice:
+            return self._slice.ndim
+        else:
+            return len(self.shape)
 
     @property
     def shape(self) -> Tuple[int, ...]:
         if self._shape is None:
             if self._invocation_result is not None:
                 self._shape = self._invocation_result.shape
+            elif self._slice:
+                self._shape = self._slice.shape
             else:
                 self._shape = self._backend.shape()
         return self._shape
@@ -153,9 +162,11 @@ class Tensor:
     def dtype(self) -> DType:
         if self._dtype is None:
             if self._invocation_result is not None:
-                self._dtype = self._invocation_result.dtype
+                self._dtype = _dtype(self._invocation_result.dtype)
+            elif self._slice:
+                self._dtype = self._slice.dtype
             else:
-                self._dtype = DType.from_type_id(self._backend.type())
+                self._dtype = _dtype(self._backend.dtype)
         return self._dtype
 
     @property
@@ -163,6 +174,8 @@ class Tensor:
         if self._layout is None:
             if self._invocation_result is not None:
                 self._layout = self._invocation_result.layout
+            elif self._slice:
+                self._layout = self._slice.layout
             else:
                 self._layout = self._backend.layout()
         return self._layout
@@ -189,30 +202,40 @@ class Tensor:
 
     def evaluate(self):
         if self._backend is None:
-            assert self._invocation_result is not None
             with _EvalContext.get() as ctx:
-                self._backend = self._invocation_result.value(ctx)
+                if self._slice:
+                    self._backend = self._slice.evaluate()._backend
+                else:
+                    assert self._invocation_result is not None
+                    self._backend = self._invocation_result.value(ctx)
+                print("--------------------------------")
+                print(self._backend)
+                print(self._backend.shape)
+                print("--------------------------------")
                 self._shape = self._backend.shape()
                 self._dtype = self._backend.dtype
                 self._layout = self._backend.layout()
         return self
 
-    def __getitem__(self, ranges: Any) -> "TensorSlice":
+    def __getitem__(self, ranges: Any) -> "Tensor":
         if not isinstance(ranges, tuple):
             ranges = (ranges,)
 
         if all(_is_full_slice(r) or r is Ellipsis for r in ranges):
             return self
         else:
-            return TensorSlice(self, ranges)
+            if self._slice:
+                return self._slice.__getitem__(ranges)
+            else:
+                return Tensor(TensorSlice(self, ranges))
 
     def _is_same_tensor(self, other: "Tensor") -> bool:
         return (
-            self._backend is other._backend and self._invocation_result is other._invocation_result
+            self._backend is other._backend and self._invocation_result is other._invocation_result and self._slice is other._slice
         )
 
     def __str__(self) -> str:
-        return str(self.evaluate()._backend)
+        return "Tensor(\n" + str(self.evaluate()._backend) + ")"
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
@@ -322,12 +345,12 @@ class TensorSlice:
 
         return tuple(abs_ranges)
 
-    def __getitem__(self, ranges: Any) -> "TensorSlice":
+    def __getitem__(self, ranges: Any) -> "Tensor":
         if not isinstance(ranges, tuple):
             ranges = (ranges,)
 
         if all(_is_full_slice(r) or r is Ellipsis for r in ranges):
-            return self
+            return Tensor(self)
         else:
             ranges = self._canonicalize_ranges(ranges, self.shape)
             abs_ranges = list(self._absolute_ranges)
@@ -342,28 +365,24 @@ class TensorSlice:
                     else:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
-            slice = TensorSlice(self._tensor, tuple(abs_ranges))
-            if _eval_mode.eval_mode >= _eval_mode.EvalMode.EAGER:
-                return slice.evaluate()
-            else:
-                return slice
+            result = TensorSlice(self._tensor, tuple(abs_ranges))
+            if _eval_mode.eval_mode().value >= _eval_mode.EvalMode.eager.value:
+                result.evaluate()
+            return Tensor(result)
 
     def evaluate(self):
-        if not isinstance(ranges, (tuple)):
-            ranges = (ranges,)
-
         with _EvalContext.get() as context:
-            if len(ranges) == 0:
+            if len(self._ranges) == 0:
                 return self._tensor.evaluate()
 
-            if all(_is_full_slice(r) for r in ranges):
+            if all(_is_full_slice(r) for r in self._ranges):
                 return self._tensor.evaluate()
 
             args = {}
             d = 0
-            for i, r in enumerate(ranges):
+            for i, r in enumerate(self._ranges):
                 if r is Ellipsis:
-                    d += self.ndim - len(ranges)
+                    d += self.ndim - len(self._ranges)
                 elif isinstance(r, slice):
                     if r.start is not None:
                         args[f"lo_{d}"] = r.start
@@ -376,4 +395,5 @@ class TensorSlice:
                     args[f"at_{d}"] = r
                     d += 1
 
-            return fn.tensor_subscript(self, *args).evaluate()
+            from . import fn
+            return fn.tensor_subscript(self._tensor, **args).evaluate()
