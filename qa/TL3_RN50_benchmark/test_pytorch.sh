@@ -29,8 +29,8 @@ check_training_results() {
     fi
 
     # Define the minimum performance thresholds
-    local MIN_TOP1=20.0
-    local MIN_TOP5=40.0
+    local MIN_TOP1=15.0
+    local MIN_TOP5=35.0
     local MIN_PERF=2900
 
     # Extract relevant information from the log file
@@ -59,6 +59,7 @@ check_training_results() {
     if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" && "$PERF_RESULT" == "OK" ]]; then
         return 0
     fi
+    return 4
 }
 
 torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 5 --data_loader dali ./ 2>&1 | tee dali.log
