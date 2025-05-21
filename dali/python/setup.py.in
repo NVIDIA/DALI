@@ -88,7 +88,7 @@ For more details please check the
           'six >= 1.16, <= 1.17',
           'dm-tree <= 0.1.8; python_version<"3.10"',
           'dm-tree <= 0.1.9; python_version>="3.10"',
-          'packaging <= 24.2',
+          'packaging <= 25.0',
           @DALI_INSTALL_REQUIRES_NVIMGCODEC@
           @DALI_INSTALL_REQUIRES_NVCOMP@
           ],
