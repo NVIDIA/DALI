@@ -215,7 +215,7 @@ html_theme_options = {
         "docs/_static/switcher.json",
         "version_match": "main" if "dev" in version_long else version_short,
     },
-    "navbar_start": ["navbar-logo", "version-switcher", "sha_version"],
+    "navbar_start": ["navbar-logo", "sha_version"],
     "primary_sidebar_end": [],
 }
 
