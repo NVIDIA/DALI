@@ -793,6 +793,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           out_crop = rel_crop;
         }
 
+        if (bounding_boxes.empty()) {
+          // No bounding boxes to consider, just use the first propsed crop
+          crop.crop = out_crop;
+          crop.success = true;
+          continue;
+        }
+
         float min_overlap = 0.0, max_overlap = 0.0;
         std::tie(min_overlap, max_overlap) =
             OverlapMetricRange(rel_crop, make_cspan(bounding_boxes));

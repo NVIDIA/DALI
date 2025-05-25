@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
 import functools
 import itertools
+import os
 import random
+from tempfile import TemporaryFile
 
 import numpy as np
 from nvidia.dali import fn, ops, pipeline_def, types
@@ -30,6 +33,19 @@ bboxes_data = {
     2: [bbox_2d_ltrb_1, bbox_2d_ltrb_2, bbox_2d_ltrb_3],
     3: [bbox_3d_ltrb_1, bbox_3d_ltrb_2, bbox_3d_ltrb_3],
 }
+
+
+@contextlib.contextmanager
+def redirect_stderr_fd(target_fd: int):
+    """Redirect stderr to the given file descriptor.
+    contextlib.redirect_stderr doesn't work for std::cerr logs from DALI."""
+    original_stderr_fd = os.dup(2)  # Duplicate stderr file descriptor (2)
+    try:
+        os.dup2(target_fd, 2)  # Replace stderr with target_fd
+        yield
+    finally:
+        os.dup2(original_stderr_fd, 2)  # Restore original stderr
+        os.close(original_stderr_fd)
 
 
 class BBoxDataIterator:
@@ -492,6 +508,64 @@ def test_random_bbox_crop_no_labels():
     pipe.set_outputs(*processed)
     for _ in range(3):
         pipe.run()
+
+
+def test_crop_window_warning():
+    n_boxes = [10, 12, 0]
+    pipe = Pipeline(batch_size=len(n_boxes), num_threads=1, device_id=0)
+
+    def get_boxes():
+        return [np.random.uniform(0, 1, size=(n, 4)).astype(np.float32) for n in n_boxes]
+
+    boxes = fn.external_source(source=get_boxes)
+    n_attempt = 10
+    processed = fn.random_bbox_crop(
+        boxes,
+        thresholds=[1.0],  # Impossible threshold to force the warning
+        bbox_layout="xyXY",
+        allow_no_crop=False,
+        total_num_attempts=n_attempt,
+    )
+    pipe.set_outputs(*processed)
+    with TemporaryFile(mode="w+") as f:
+        with redirect_stderr_fd(f.fileno()):
+            pipe.run()
+        f.seek(0)
+        logs = f.read().splitlines()
+    n_lines_expected = sum(n > 0 for n in n_boxes)
+    assert (
+        len(logs) == n_lines_expected
+    ), f"Expected {n_lines_expected} lines of output (one for each non-empty sample)"
+
+    expect_str = (
+        "[/workspaces/DALI/dali/operators/image/crop/bbox_crop.cc:838] Could not find a "
+        f"valid cropping window to satisfy the specified requirements (attempted {n_attempt} "
+        "times). Using the best cropping window so far (best_metric=0)"
+    )
+    assert all(l == expect_str for l in logs), f"Not all lines match expected: {expect_str}"
+
+
+def test_empty_sample_shape():
+    pipe = Pipeline(batch_size=1, num_threads=1, device_id=0)
+
+    def get_boxes():
+        return [np.random.uniform(0, 1, size=(0, 4)).astype(np.float32)]
+
+    boxes = fn.external_source(source=get_boxes)
+    processed = fn.random_bbox_crop(
+        boxes,
+        thresholds=[1.0],
+        bbox_layout="xyXY",
+        allow_no_crop=False,
+        input_shape=[600, 400],
+        crop_shape=[200, 200],
+    )
+    pipe.set_outputs(*processed)
+    for _ in range(3):
+        anchor, shape, boxes = pipe.run()
+        assert np.all(boxes.shape() == [(0, 4)])
+        assert np.all(shape.as_array() == [200, 200])
+        assert np.all(anchor.as_array() <= [400, 200])
 
 
 def _testimpl_random_bbox_crop_square(use_input_shape):
