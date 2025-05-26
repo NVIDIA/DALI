@@ -208,10 +208,6 @@ class Tensor:
                 else:
                     assert self._invocation_result is not None
                     self._backend = self._invocation_result.value(ctx)
-                print("--------------------------------")
-                print(self._backend)
-                print(self._backend.shape)
-                print("--------------------------------")
                 self._shape = self._backend.shape()
                 self._dtype = self._backend.dtype
                 self._layout = self._backend.layout()
@@ -277,13 +273,20 @@ class TensorSlice:
         self._ndim_dropped = 0
         self._shape = None
         self._absolute_ranges = None
-        if len(ranges) > tensor.ndim:
-            raise ValueError(
-                f"Number of ranges ({len(ranges)}) is greater than the number of dimensions of the tensor ({tensor.ndim})"
-            )
+        num_ranges = len(ranges)
+        ellipsis_found = False
         for r in ranges:
             if _is_index(r):
                 self._ndim_dropped += 1
+            elif r is Ellipsis:
+                if ellipsis_found:
+                    raise ValueError("Only one Ellipsis is allowed.")
+                num_ranges -= 1
+                ellipsis_found = True
+        if num_ranges > tensor.ndim:
+            raise ValueError(
+                f"Number of ranges ({num_ranges}) is greater than the number of dimensions of the tensor ({tensor.ndim})"
+            )
 
     @property
     def ndim(self) -> int:
@@ -307,7 +310,9 @@ class TensorSlice:
         abs_ranges = []
         for i, r in enumerate(ranges):
             if r is Ellipsis:
+                print("in_shape", in_shape)
                 to_skip = len(in_shape) - len(ranges) + 1
+                print("to_skip", to_skip)
                 for _ in range(to_skip):
                     abs_ranges.append(slice(0, in_shape[d], 1))
                     d += 1
@@ -382,7 +387,7 @@ class TensorSlice:
             d = 0
             for i, r in enumerate(self._ranges):
                 if r is Ellipsis:
-                    d += self.ndim - len(self._ranges)
+                    d = self._tensor.ndim - len(self._ranges) + i + 1
                 elif isinstance(r, slice):
                     if r.start is not None:
                         args[f"lo_{d}"] = r.start
@@ -394,6 +399,8 @@ class TensorSlice:
                 else:
                     args[f"at_{d}"] = r
                     d += 1
+
+            print("args", args)
 
             from . import fn
             return fn.tensor_subscript(self._tensor, **args).evaluate()
