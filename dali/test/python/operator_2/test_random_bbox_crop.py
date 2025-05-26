@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import contextlib
 import functools
 import itertools
 import os
@@ -35,17 +34,34 @@ bboxes_data = {
 }
 
 
-@contextlib.contextmanager
-def redirect_stderr_fd(target_fd: int):
-    """Redirect stderr to the given file descriptor.
+class RedirectStdErr:
+    """Redirect stderr to a temporary file and return its handle.
     contextlib.redirect_stderr doesn't work for std::cerr logs from DALI."""
-    original_stderr_fd = os.dup(2)  # Duplicate stderr file descriptor (2)
-    try:
-        os.dup2(target_fd, 2)  # Replace stderr with target_fd
-        yield
-    finally:
-        os.dup2(original_stderr_fd, 2)  # Restore original stderr
-        os.close(original_stderr_fd)
+
+    def __init__(self):
+        self._f = TemporaryFile(mode="w+")
+        self._target_fd = self._f.fileno()
+        self._original_stderr_fd = None
+
+    def __enter__(self):
+        assert not self._f.closed, "Temporary file is already closed"
+        self._original_stderr_fd = os.dup(2)
+        os.dup2(self._target_fd, 2)
+        return self
+
+    def readlines(self):
+        """Get the lines written to stderr since the beginning of this context manager"""
+        assert not self._f.closed, "Temporary file is already closed, probably after __exit__"
+        self._f.seek(0)
+        return self._f.read().splitlines()
+
+    def __exit__(self, *_args):
+        try:
+            if self._original_stderr_fd is not None:
+                os.dup2(self._original_stderr_fd, 2)
+                os.close(self._original_stderr_fd)
+        finally:
+            self._f.close()
 
 
 class BBoxDataIterator:
@@ -527,11 +543,9 @@ def test_crop_window_warning():
         total_num_attempts=n_attempt,
     )
     pipe.set_outputs(*processed)
-    with TemporaryFile(mode="w+") as f:
-        with redirect_stderr_fd(f.fileno()):
-            pipe.run()
-        f.seek(0)
-        logs = f.read().splitlines()
+    with RedirectStdErr() as f:
+        pipe.run()
+        logs = f.readlines()
     n_lines_expected = sum(n > 0 for n in n_boxes)
     assert (
         len(logs) == n_lines_expected
@@ -560,14 +574,14 @@ def test_empty_sample_shape():
         crop_shape=[200, 200],
     )
     pipe.set_outputs(*processed)
-    with TemporaryFile(mode="w+") as f:
+    with RedirectStdErr() as f:
         for _ in range(3):
             anchor, shape, boxes = pipe.run()
             assert np.all(boxes.shape() == [(0, 4)])
             assert np.all(shape.as_array() == [200, 200])
             assert np.all(anchor.as_array() <= [400, 200])
-        f.seek(0)
-        logs = f.read().splitlines()
+        logs = f.readlines()
+
     assert len(logs) == 0, f"Expected no logs for empty samples, but got: {logs}"
 
 
