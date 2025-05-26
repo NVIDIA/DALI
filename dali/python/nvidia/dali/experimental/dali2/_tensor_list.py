@@ -20,7 +20,6 @@ from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
 from . import _invocation
 
-
 class _TensorListRange:
     def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
         if self._step == 0:
@@ -214,7 +213,7 @@ class TensorList:
         d = 0
         for i, r in enumerate(ranges):
             if r is Ellipsis:
-                d += self.ndim - len(ranges)
+                d = self.ndim - len(ranges) + i + 1
             elif isinstance(r, slice):
                 if r.start is not None:
                     args[f"lo_{d}"] = r.start
@@ -227,7 +226,8 @@ class TensorList:
                 args[f"at_{d}"] = r
                 d += 1
 
-        return fn.tensor_subscript(self, *args)
+        from . import fn
+        return fn.tensor_subscript(self, **args)
 
     def __str__(self) -> str:
         return "TensorList(\n" + str(self.evaluate()._backend) + ")"
