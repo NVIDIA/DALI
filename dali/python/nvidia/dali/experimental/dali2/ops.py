@@ -116,10 +116,16 @@ class Operator:
         self._init_pipeline(inputs, args)
         self._set_meta(inputs, args)
         for i, input in enumerate(inputs):
-            self._minipipe.feed_input(f"input_{i}", input.evaluate()._backend)
+            self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
         for name, arg in args.items():
-            self._minipipe.feed_input(f"arg_{name}", arg.evaluate()._backend)
+            self._minipipe.feed_input(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
         return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
+
+    def _to_batch(self, x):
+        if not isinstance(x, _tensor_list.TensorList):
+            return _tensor_list.TensorList([x])
+        else:
+            return x
 
     def _set_meta(self, inputs, args):
         self._input_meta = [self._make_meta(input) for input in inputs]
