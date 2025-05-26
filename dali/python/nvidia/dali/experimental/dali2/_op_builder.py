@@ -194,7 +194,10 @@ def build_call_function(schema, op_class):
             for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
                 if _is_batch(x):
                     is_batch = True
-                    x_batch_size = x.batch_size
+                    if isinstance(x, TensorList):
+                        x_batch_size = x.batch_size
+                    elif isinstance(x, list):
+                        x_batch_size = len(x)
                     if batch_size is not None:
                         if x_batch_size != batch_size:
                             raise ValueError(
@@ -213,29 +216,24 @@ def build_call_function(schema, op_class):
             for inp in raw_args:
                 if inp is None:
                     continue
-                if not _is_batch(inp):
-                    inp = _to_batch(inp, batch_size)
+                inp = _to_batch(inp, batch_size)
                 inputs.append(inp)
             for k, v in raw_kwargs.items():
                 if v is None:
                     continue
-                if not _is_batch(v):
-                    kwargs[k] = _to_batch(v, batch_size)
-                else:
-                    kwargs[k] = v
+                kwargs[k] = _to_batch(v, batch_size)
         else:
             for inp in raw_args:
                 if inp is None:
                     continue
-                inputs.append(_to_batch(inp, 1))
+                inputs.append(_to_tensor(inp))
             for k, v in raw_kwargs.items():
-                if v is not None:
-                    kwargs[k] = _to_batch(v, 1)
-                else:
-                    kwargs[k] = v
+                if v is None:
+                    continue
+                kwargs[k] = _to_tensor(v)
 
         inputs = [copy.copy(x) for x in inputs]
-        kwargs = {k: copy.copy(v) for k, v in kwargs.items() if v is not None}
+        kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
         if stateful:
             call_id = self._call_id
             self._call_id += 1
