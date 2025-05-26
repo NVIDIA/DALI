@@ -538,11 +538,10 @@ def test_crop_window_warning():
     ), f"Expected {n_lines_expected} lines of output (one for each non-empty sample)"
 
     expect_str = (
-        "[/workspaces/DALI/dali/operators/image/crop/bbox_crop.cc:838] Could not find a "
-        f"valid cropping window to satisfy the specified requirements (attempted {n_attempt} "
-        "times). Using the best cropping window so far (best_metric=0)"
+        "Could not find a valid cropping window to satisfy the specified requirements (attempted"
+        f" {n_attempt} times). Using the best cropping window so far (best_metric=0)"
     )
-    assert all(l == expect_str for l in logs), f"Not all lines match expected: {expect_str}"
+    assert all(l.endswith(expect_str) for l in logs), f"Not all lines match expected: {expect_str}"
 
 
 def test_empty_sample_shape():
@@ -561,11 +560,15 @@ def test_empty_sample_shape():
         crop_shape=[200, 200],
     )
     pipe.set_outputs(*processed)
-    for _ in range(3):
-        anchor, shape, boxes = pipe.run()
-        assert np.all(boxes.shape() == [(0, 4)])
-        assert np.all(shape.as_array() == [200, 200])
-        assert np.all(anchor.as_array() <= [400, 200])
+    with TemporaryFile(mode="w+") as f:
+        for _ in range(3):
+            anchor, shape, boxes = pipe.run()
+            assert np.all(boxes.shape() == [(0, 4)])
+            assert np.all(shape.as_array() == [200, 200])
+            assert np.all(anchor.as_array() <= [400, 200])
+        f.seek(0)
+        logs = f.read().splitlines()
+    assert len(logs) == 0, f"Expected no logs for empty samples, but got: {logs}"
 
 
 def _testimpl_random_bbox_crop_square(use_input_shape):
