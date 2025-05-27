@@ -543,9 +543,9 @@ def test_crop_window_warning():
         total_num_attempts=n_attempt,
     )
     pipe.set_outputs(*processed)
-    with RedirectStdErr() as f:
+    with RedirectStdErr() as stderr:
         pipe.run()
-        logs = f.readlines()
+        logs = stderr.readlines()
     n_lines_expected = sum(n > 0 for n in n_boxes)
     assert (
         len(logs) == n_lines_expected
@@ -555,7 +555,9 @@ def test_crop_window_warning():
         "Could not find a valid cropping window to satisfy the specified requirements (attempted"
         f" {n_attempt} times). Using the best cropping window so far (best_metric=0)"
     )
-    assert all(l.endswith(expect_str) for l in logs), f"Not all lines match expected: {expect_str}"
+    assert all(
+        line.endswith(expect_str) for line in logs
+    ), f"Not all lines match expected: {expect_str}"
 
 
 def test_empty_sample_shape():
@@ -574,13 +576,13 @@ def test_empty_sample_shape():
         crop_shape=[200, 200],
     )
     pipe.set_outputs(*processed)
-    with RedirectStdErr() as f:
+    with RedirectStdErr() as stderr:
         for _ in range(3):
             anchor, shape, boxes = pipe.run()
             assert np.all(boxes.shape() == [(0, 4)])
             assert np.all(shape.as_array() == [200, 200])
             assert np.all(anchor.as_array() <= [400, 200])
-        logs = f.readlines()
+        logs = stderr.readlines()
 
     assert len(logs) == 0, f"Expected no logs for empty samples, but got: {logs}"
 
