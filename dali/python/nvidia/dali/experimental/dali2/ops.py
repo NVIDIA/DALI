@@ -80,7 +80,7 @@ class Operator:
             )
             with self._minipipe:
                 input_nodes = [
-                    dali.fn.external_source(name=f"input_{i}", device=self._device.device_type)
+                    dali.fn.external_source(name=f"input_{i}", device=self._device.device_type, no_copy=True, blocking=True)
                     for i in range(len(inputs))
                 ]
                 arg_nodes = {name: dali.fn.external_source(name=f"arg_{name}") for name in args}
