@@ -74,10 +74,15 @@ void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, 
 void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   uint8_t *sws_output_data = data;
   AVPixelFormat sws_output_format = AV_PIX_FMT_RGB24;
-  if (image_type_ == DALI_YCbCr) {
-    tmp_buffer_.resize(FrameSize());
+  if (image_type_ == DALI_YCbCr || Width() % 32) {
+    // in some cases, when Width() % 32, sws_scale go past the provided memory for
+    // conversion output, so we need the memory allocated with extra padding
+    auto extra_padding = 32;
+    tmp_buffer_.resize(FrameSize() + extra_padding);
     sws_output_data = tmp_buffer_.data();
-    sws_output_format = AV_PIX_FMT_YUV444P;
+    if (image_type_ == DALI_YCbCr) {
+      sws_output_format = AV_PIX_FMT_YUV444P;
+    }
   }
   if (!sws_ctx_) {
     sws_ctx_ = std::unique_ptr<SwsContext, decltype(&sws_freeContext)>(
@@ -112,6 +117,8 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   if (image_type_ == DALI_YCbCr) {
     LOG_LINE << "Converting planar YUV to interleaved" << std::endl;
     PlanarToInterleaved(data, sws_output_data, Height(), Width(), Channels());
+  } else if (Width() % 32) {
+    std::copy(sws_output_data, sws_output_data + FrameSize(), data);
   }
 
   DALI_ENFORCE(ret >= 0,
