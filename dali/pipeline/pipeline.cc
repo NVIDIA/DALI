@@ -242,7 +242,7 @@ Pipeline::~Pipeline() {
 
 PipelineParams Pipeline::DefaultParams() {
   PipelineParams params{};
-  params.executor_type = ExecutorType::AsyncPipelined;
+  params.executor_type = ExecutorType::Dynamic;
   params.executor_flags = ExecutorFlags::ConcurrencyBackend;
   params.prefetch_queue_depths = QueueSizes{2};
   params.enable_checkpointing = false;

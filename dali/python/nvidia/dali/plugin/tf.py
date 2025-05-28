@@ -228,8 +228,8 @@ def DALIIteratorWrapper(
         exec_separated = True
         cpu_prefetch_queue_depth = prefetch_queue_depth["cpu_size"]
         gpu_prefetch_queue_depth = prefetch_queue_depth["gpu_size"]
-        if exec_dynamic == True:
-            raise ValueError("Separated queues are not compatible with the dynamic executor.");
+        if exec_dynamic:
+            raise ValueError("Separated queues are not compatible with the dynamic executor.")
     elif type(prefetch_queue_depth) is int:
         exec_separated = False
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used

@@ -572,7 +572,7 @@ class Pipeline(object):
               the output index.
 
         .. note::
-            Executor statistics are not available when using ``exec_dynamic=True``.
+            Executor statistics are available only when ``exec_dynamic=False``.
         """
         self.build()
         return self._pipe.executor_statistics()
@@ -1260,10 +1260,14 @@ class Pipeline(object):
 
     def _require_exec_dynamic(self, error_message_prefix):
         if not self._exec_dynamic:
-            raise ValueError(
-                error_message_prefix + " dynamic execution, enabled by passing "
-                "`exec_dynamic=True` to the Pipeline's constructor."
-            )
+            if self._exec_separated:
+                reason = "is not compatible with separated CPU/GPU queues"
+            elif not self._exec_async or not self._exec_pipelined:
+                reason = "requires `exec_async` and `exec_pipelined` to be enabled"
+            else:
+                reason = "was explicitly disabled in this pipeline"
+
+            raise RuntimeError(error_message_prefix + " dynamic execution, which " + reason + ".")
 
     def outputs(self, cuda_stream=None):
         """Returns the outputs of the pipeline and releases previous buffer.
@@ -1278,7 +1282,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with ``exec_dynamic=True``.
+            Works only with pipelines using dynamic execution.
 
         Returns
         -------
@@ -1346,7 +1350,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with ``exec_dynamic=True``.
+            Works only with pipelines using dynamic execution.
 
         Returns
         -------
