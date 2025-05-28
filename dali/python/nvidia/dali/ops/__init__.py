@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -289,6 +289,11 @@ def _process_argument_inputs(schema, spec, kwargs, operator_name):
         # Argument input constants are always placed on CPU
         # TODO(klecki): For MIS we can extract this step outside and do it once
         arg_inp = _handle_constant(arg_inp, "cpu", k, operator_name)
+
+        if arg_inp.device != "cpu":
+            raise ValueError(f"Invalid device \"{arg_inp.device}\" for argument '{k}' of operator "
+                             f"'{operator_name}'."
+                             f"Named arguments must be on CPU.")
 
         _check_arg_input(schema, operator_name, k)
 
