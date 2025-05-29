@@ -233,6 +233,92 @@ class Tensor:
     def __str__(self) -> str:
         return "Tensor(\n" + str(self.evaluate()._backend) + ")"
 
+    def __add__(self, other):
+        return _arithm_op("add", self, other)
+
+    def __radd__(self, other):
+        return _arithm_op("add", other, self)
+
+    def __sub__(self, other):
+        return _arithm_op("sub", self, other)
+
+    def __rsub__(self, other):
+        return _arithm_op("sub", other, self)
+
+    def __mul__(self, other):
+        return _arithm_op("mul", self, other)
+
+    def __rmul__(self, other):
+        return _arithm_op("mul", other, self)
+
+    def __pow__(self, other):
+        return _arithm_op("pow", self, other)
+
+    def __rpow__(self, other):
+        return _arithm_op("pow", other, self)
+
+    def __truediv__(self, other):
+        return _arithm_op("fdiv", self, other)
+
+    def __rtruediv__(self, other):
+        return _arithm_op("fdiv", other, self)
+
+    def __floordiv__(self, other):
+        return _arithm_op("div", self, other)
+
+    def __rfloordiv__(self, other):
+        return _arithm_op("div", other, self)
+
+    def __neg__(self):
+        return _arithm_op("minus", self)
+
+    # Short-circuiting the execution, unary + is basically a no-op
+    def __pos__(self):
+        return self
+
+    def __eq__(self, other):
+        return _arithm_op("eq", self, other)
+
+    def __ne__(self, other):
+        return _arithm_op("neq", self, other)
+
+    def __lt__(self, other):
+        return _arithm_op("lt", self, other)
+
+    def __le__(self, other):
+        return _arithm_op("leq", self, other)
+
+    def __gt__(self, other):
+        return _arithm_op("gt", self, other)
+
+    def __ge__(self, other):
+        return _arithm_op("geq", self, other)
+
+    def __and__(self, other):
+        return _arithm_op("bitand", self, other)
+
+    def __rand__(self, other):
+        return _arithm_op("bitand", other, self)
+
+    def __or__(self, other):
+        return _arithm_op("bitor", self, other)
+
+    def __ror__(self, other):
+        return _arithm_op("bitor", other, self)
+
+    def __xor__(self, other):
+        return _arithm_op("bitxor", self, other)
+
+    def __rxor__(self, other):
+        return _arithm_op("bitxor", other, self)
+
+def _arithm_op(name, *args, **kwargs):
+    from . import fn
+
+    argsstr = " ".join(f"&{i}" for i in range(len(args)))
+    return fn.arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+
+
 
 def _is_int_value(tested: Any, reference: int) -> bool:
     return isinstance(tested, int) and tested == reference
