@@ -75,6 +75,124 @@ class _TensorListRange:
                     f"The index {range} is out of bounds for the TensorList of size {len(self)}"
                 )
 
+class SamplewiseOp:
+    def __init__(self, tensor_list: "TensorList"):
+        self._tensor_list = tensor_list
+
+    def __getitem__(self, ranges: Any) -> "TensorList":
+        if not isinstance(ranges, (tuple)):
+            ranges = (ranges,)
+        if len(ranges) == 0:
+            return self._tensor_list
+
+        if all(_is_full_slice(r) for r in ranges):
+            return self._tensor_list
+
+        args = {}
+        d = 0
+        for i, r in enumerate(ranges):
+            if r is Ellipsis:
+                d = self.ndim - len(ranges) + i + 1
+            elif isinstance(r, slice):
+                if r.start is not None:
+                    args[f"lo_{d}"] = r.start
+                if r.stop is not None:
+                    args[f"hi_{d}"] = r.stop
+                if r.step is not None:
+                    args[f"step_{d}"] = r.step
+                d += 1
+            else:
+                args[f"at_{d}"] = r
+                d += 1
+
+        from . import fn
+        return fn.tensor_subscript(self._tensor_list, **args)
+
+    def __add__(self, other):
+        return _arithm_op("add", self._tensor_list, other)
+
+    def __radd__(self, other):
+        return _arithm_op("add", other, self._tensor_list)
+
+    def __sub__(self, other):
+        return _arithm_op("sub", self._tensor_list, other)
+
+    def __rsub__(self, other):
+        return _arithm_op("sub", other, self._tensor_list)
+
+    def __mul__(self, other):
+        return _arithm_op("mul", self._tensor_list, other)
+
+    def __rmul__(self, other):
+        return _arithm_op("mul", other, self._tensor_list)
+
+    def __pow__(self, other):
+        return _arithm_op("pow", self._tensor_list, other)
+
+    def __rpow__(self, other):
+        return _arithm_op("pow", other, self._tensor_list)
+
+    def __truediv__(self, other):
+        return _arithm_op("fdiv", self._tensor_list, other)
+
+    def __rtruediv__(self, other):
+        return _arithm_op("fdiv", other, self._tensor_list)
+
+    def __floordiv__(self, other):
+        return _arithm_op("div", self._tensor_list, other)
+
+    def __rfloordiv__(self, other):
+        return _arithm_op("div", other, self._tensor_list)
+
+    def __neg__(self):
+        return _arithm_op("minus", self._tensor_list)
+
+    # Short-circuiting the execution, unary + is basically a no-op
+    def __pos__(self):
+        return self
+
+    def __eq__(self, other):
+        return _arithm_op("eq", self._tensor_list, other)
+
+    def __ne__(self, other):
+        return _arithm_op("neq", self._tensor_list, other)
+
+    def __lt__(self, other):
+        return _arithm_op("lt", self._tensor_list, other)
+
+    def __le__(self, other):
+        return _arithm_op("leq", self._tensor_list, other)
+
+    def __gt__(self, other):
+        return _arithm_op("gt", self._tensor_list, other)
+
+    def __ge__(self, other):
+        return _arithm_op("geq", self._tensor_list, other)
+
+    def __and__(self, other):
+        return _arithm_op("bitand", self._tensor_list, other)
+
+    def __rand__(self, other):
+        return _arithm_op("bitand", other, self._tensor_list)
+
+    def __or__(self, other):
+        return _arithm_op("bitor", self._tensor_list, other)
+
+    def __ror__(self, other):
+        return _arithm_op("bitor", other, self._tensor_list)
+
+    def __xor__(self, other):
+        return _arithm_op("bitxor", self._tensor_list, other)
+
+    def __rxor__(self, other):
+        return _arithm_op("bitxor", other, self._tensor_list)
+
+def _arithm_op(name, *args, **kwargs):
+    from . import fn
+
+    argsstr = " ".join(f"&{i}" for i in range(len(args)))
+    return fn.arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+
 
 class TensorList:
     def __init__(
@@ -175,7 +293,9 @@ class TensorList:
 
     @property
     def batch_size(self) -> int:
-        if self._tensors is not None:
+        if self._backend is not None:
+            return len(self._backend)
+        elif self._tensors is not None:
             return len(self._tensors)
         elif self._invocation_result is not None:
             return self._invocation_result.batch_size
@@ -200,34 +320,12 @@ class TensorList:
             return self._invocation_result.shape
         return [t.shape for t in self._tensors]
 
-    def __getitem__(self, ranges: Any) -> "TensorList":
-        if not isinstance(ranges, (tuple)):
-            ranges = (ranges,)
-        if len(ranges) == 0:
-            return self
+    def __len__(self) -> int:
+        return self.batch_siz
 
-        if all(_is_full_slice(r) for r in ranges):
-            return self
-
-        args = {}
-        d = 0
-        for i, r in enumerate(ranges):
-            if r is Ellipsis:
-                d = self.ndim - len(ranges) + i + 1
-            elif isinstance(r, slice):
-                if r.start is not None:
-                    args[f"lo_{d}"] = r.start
-                if r.stop is not None:
-                    args[f"hi_{d}"] = r.stop
-                if r.step is not None:
-                    args[f"step_{d}"] = r.step
-                d += 1
-            else:
-                args[f"at_{d}"] = r
-                d += 1
-
-        from . import fn
-        return fn.tensor_subscript(self, **args)
+    @property
+    def samplewise(self):
+        return SamplewiseOp(self)
 
     def __str__(self) -> str:
         return "TensorList(\n" + str(self.evaluate()._backend) + ")"
