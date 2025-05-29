@@ -20,73 +20,19 @@ from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
 from . import _invocation
 
-class _TensorListRange:
-    def __init__(self, backend: Any, start: int = 0, stop: int = -1, step: int = 1):
-        if self._step == 0:
-            raise ValueError("Step cannot be 0")
-        self._backend = backend
-        n = len(backend)
-        if start < 0:
-            start += n
-        if stop < 0:
-            stop += n
-        start = min(max(start, 0), n)
-        stop = min(max(stop, 0), n)
-        self._start = start
-        self._stop = stop
-        self._step = step
-        if step > 0:
-            self._stop = max(self._start, self._stop)
-        else:
-            self._stop = min(self._start, self._stop)
 
-    def __len__(self) -> int:
-        return (self._stop - self._start) // self._step
+class BatchdedSlice:
+    def __init__(self, tensor_list: "Batch"):
+        self._batch = tensor_list
 
-    def __getitem__(self, range: Any) -> Union["_TensorListRange", "Tensor"]:
-        if isinstance(range, tuple):
-            raise ValueError(
-                "A TensorList is a 1D object. Use a single index instead or a single slice."
-            )
-        if isinstance(range, slice):
-            start = self._start
-            stop = self._stop
-            step = self._step
-            if step == 0:
-                raise ValueError("Step cannot be 0")
-            if range.start is not None:
-                start = range.start + self._start
-                if range.start < 0:
-                    start += len(self)
-            if range.stop is not None:
-                stop = range.stop + self._start
-                if range.stop < 0:
-                    stop += len(self)
-            start = min(max(start, self._start), self._stop)
-            stop = min(max(stop, start), self._stop)
-            if range.step is not None:
-                step *= range.step
-            return _TensorListRange(self._backend, start, stop, step)
-        else:
-            if range < 0:
-                range += len(self)
-            if range < 0 or range >= len(self):
-                raise IndexError(
-                    f"The index {range} is out of bounds for the TensorList of size {len(self)}"
-                )
-
-class SamplewiseOp:
-    def __init__(self, tensor_list: "TensorList"):
-        self._tensor_list = tensor_list
-
-    def __getitem__(self, ranges: Any) -> "TensorList":
+    def __getitem__(self, ranges: Any) -> "Batch":
         if not isinstance(ranges, (tuple)):
             ranges = (ranges,)
         if len(ranges) == 0:
-            return self._tensor_list
+            return self._batch
 
         if all(_is_full_slice(r) for r in ranges):
-            return self._tensor_list
+            return self._batch
 
         args = {}
         d = 0
@@ -106,86 +52,7 @@ class SamplewiseOp:
                 d += 1
 
         from . import fn
-        return fn.tensor_subscript(self._tensor_list, **args)
-
-    def __add__(self, other):
-        return _arithm_op("add", self._tensor_list, other)
-
-    def __radd__(self, other):
-        return _arithm_op("add", other, self._tensor_list)
-
-    def __sub__(self, other):
-        return _arithm_op("sub", self._tensor_list, other)
-
-    def __rsub__(self, other):
-        return _arithm_op("sub", other, self._tensor_list)
-
-    def __mul__(self, other):
-        return _arithm_op("mul", self._tensor_list, other)
-
-    def __rmul__(self, other):
-        return _arithm_op("mul", other, self._tensor_list)
-
-    def __pow__(self, other):
-        return _arithm_op("pow", self._tensor_list, other)
-
-    def __rpow__(self, other):
-        return _arithm_op("pow", other, self._tensor_list)
-
-    def __truediv__(self, other):
-        return _arithm_op("fdiv", self._tensor_list, other)
-
-    def __rtruediv__(self, other):
-        return _arithm_op("fdiv", other, self._tensor_list)
-
-    def __floordiv__(self, other):
-        return _arithm_op("div", self._tensor_list, other)
-
-    def __rfloordiv__(self, other):
-        return _arithm_op("div", other, self._tensor_list)
-
-    def __neg__(self):
-        return _arithm_op("minus", self._tensor_list)
-
-    # Short-circuiting the execution, unary + is basically a no-op
-    def __pos__(self):
-        return self
-
-    def __eq__(self, other):
-        return _arithm_op("eq", self._tensor_list, other)
-
-    def __ne__(self, other):
-        return _arithm_op("neq", self._tensor_list, other)
-
-    def __lt__(self, other):
-        return _arithm_op("lt", self._tensor_list, other)
-
-    def __le__(self, other):
-        return _arithm_op("leq", self._tensor_list, other)
-
-    def __gt__(self, other):
-        return _arithm_op("gt", self._tensor_list, other)
-
-    def __ge__(self, other):
-        return _arithm_op("geq", self._tensor_list, other)
-
-    def __and__(self, other):
-        return _arithm_op("bitand", self._tensor_list, other)
-
-    def __rand__(self, other):
-        return _arithm_op("bitand", other, self._tensor_list)
-
-    def __or__(self, other):
-        return _arithm_op("bitor", self._tensor_list, other)
-
-    def __ror__(self, other):
-        return _arithm_op("bitor", other, self._tensor_list)
-
-    def __xor__(self, other):
-        return _arithm_op("bitxor", self._tensor_list, other)
-
-    def __rxor__(self, other):
-        return _arithm_op("bitxor", other, self._tensor_list)
+        return fn.tensor_subscript(self._batch, **args)
 
 def _arithm_op(name, *args, **kwargs):
     from . import fn
@@ -194,7 +61,7 @@ def _arithm_op(name, *args, **kwargs):
     return fn.arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
 
 
-class TensorList:
+class Batch:
     def __init__(
         self,
         tensors: Optional[List[Any]] = None,
@@ -247,7 +114,7 @@ class TensorList:
             elif self._tensors:
                 self._dtype = self._tensors[0].dtype
             else:
-                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
+                raise ValueError("Cannot establish the number of dimensions of an empty Batch")
         return self._dtype
 
     @property
@@ -260,7 +127,7 @@ class TensorList:
                 self._device = self._tensors[0].device
                 print("From tensors", self._device)
             else:
-                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
+                raise ValueError("Cannot establish the number of dimensions of an empty Batch")
         return self._device
 
     @property
@@ -271,7 +138,7 @@ class TensorList:
             elif self._tensors:
                 self._layout = self._tensors[0].layout
             else:
-                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
+                raise ValueError("Cannot establish the number of dimensions of an empty Batch")
         return self._layout
 
     @property
@@ -282,14 +149,29 @@ class TensorList:
             elif self._tensors:
                 self._ndim = self._tensors[0].ndim
             else:
-                raise ValueError("Cannot establish the number of dimensions of an empty TensorList")
+                raise ValueError("Cannot establish the number of dimensions of an empty Batch")
         return self._ndim
 
     @property
     def tensors(self):
-        if self._backend is not None:
-            return _TensorListRange(self._backend)
+        if self._tensors is None:
+            self._tensors = [Tensor(batch=self, index_in_batch=i) for i in range(self.batch_size)]
         return self._tensors
+
+    @property
+    def slice(self):
+        return BatchdedSlice(self)
+
+    def __len__(self):
+        return self.batch_size
+
+    def __getitem__(self, r):
+        if isinstance(r, slice):
+            return Batch(self.tensors[r])
+        elif isinstance(r, list):
+            return Batch([self.tensors[i] for i in r])
+        else:
+            return self.tensors[r]
 
     @property
     def batch_size(self) -> int:
@@ -302,7 +184,7 @@ class TensorList:
         else:
             raise ValueError("Neither tensors nor invocation result are set")
 
-    def _is_same_tensor_list(self, other: "TensorList") -> bool:
+    def _is_same_batch(self, other: "Batch") -> bool:
         if self is other:
             return True
         return (
@@ -320,15 +202,8 @@ class TensorList:
             return self._invocation_result.shape
         return [t.shape for t in self._tensors]
 
-    def __len__(self) -> int:
-        return self.batch_siz
-
-    @property
-    def samplewise(self):
-        return SamplewiseOp(self)
-
     def __str__(self) -> str:
-        return "TensorList(\n" + str(self.evaluate()._backend) + ")"
+        return "Batch(\n" + str(self.evaluate()._backend) + ")"
 
     def evaluate(self):
         with _EvalContext.get() as ctx:
@@ -348,3 +223,82 @@ class TensorList:
                         [t.evaluate()._backend for t in self._tensors], self.layout
                     )
         return self
+
+    def __add__(self, other):
+        return _arithm_op("add", self._batch, other)
+
+    def __radd__(self, other):
+        return _arithm_op("add", other, self._batch)
+
+    def __sub__(self, other):
+        return _arithm_op("sub", self._batch, other)
+
+    def __rsub__(self, other):
+        return _arithm_op("sub", other, self._batch)
+
+    def __mul__(self, other):
+        return _arithm_op("mul", self._batch, other)
+
+    def __rmul__(self, other):
+        return _arithm_op("mul", other, self._batch)
+
+    def __pow__(self, other):
+        return _arithm_op("pow", self._batch, other)
+
+    def __rpow__(self, other):
+        return _arithm_op("pow", other, self._batch)
+
+    def __truediv__(self, other):
+        return _arithm_op("fdiv", self._batch, other)
+
+    def __rtruediv__(self, other):
+        return _arithm_op("fdiv", other, self._batch)
+
+    def __floordiv__(self, other):
+        return _arithm_op("div", self._batch, other)
+
+    def __rfloordiv__(self, other):
+        return _arithm_op("div", other, self._batch)
+
+    def __neg__(self):
+        return _arithm_op("minus", self._batch)
+
+    # Short-circuiting the execution, unary + is basically a no-op
+    def __pos__(self):
+        return self
+
+    def __eq__(self, other):
+        return _arithm_op("eq", self._batch, other)
+
+    def __ne__(self, other):
+        return _arithm_op("neq", self._batch, other)
+
+    def __lt__(self, other):
+        return _arithm_op("lt", self._batch, other)
+
+    def __le__(self, other):
+        return _arithm_op("leq", self._batch, other)
+
+    def __gt__(self, other):
+        return _arithm_op("gt", self._batch, other)
+
+    def __ge__(self, other):
+        return _arithm_op("geq", self._batch, other)
+
+    def __and__(self, other):
+        return _arithm_op("bitand", self._batch, other)
+
+    def __rand__(self, other):
+        return _arithm_op("bitand", other, self._batch)
+
+    def __or__(self, other):
+        return _arithm_op("bitor", self._batch, other)
+
+    def __ror__(self, other):
+        return _arithm_op("bitor", other, self._batch)
+
+    def __xor__(self, other):
+        return _arithm_op("bitxor", self._batch, other)
+
+    def __rxor__(self, other):
+        return _arithm_op("bitxor", other, self._batch)
