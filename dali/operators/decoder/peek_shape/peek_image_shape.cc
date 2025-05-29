@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ DALI_SCHEMA(PeekImageShape)
 This operator returns the shape that an image would have after decoding.
 
 .. note::
-    This operator is not recommended for use with the dynamic executor (`exec_dynamic=True` in the
-    pipeline constructor).
-    Use :meth:`nvidia.dali.pipeline.DataNode.shape()` instead on the decoded images.
+    This operator is useful for obtaining the shapes of images without decoding them. If the images
+    are decoded in full size anyway, use :meth:`nvidia.dali.pipeline.DataNode.shape()` instead on
+    the decoded images.
 )")
   .NumInput(1)
   .NumOutput(1)

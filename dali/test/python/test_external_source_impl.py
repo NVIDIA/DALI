@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -761,11 +761,7 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
             glob="no_copy is supported only for the same data source device type as "
             "operator. Received: {} input for {} operator".format(*input_types),
         )
-    elif additional_num_keep_samples < 0 and not (
-        device == "gpu" and not cpu_input and not as_tensor
-    ):
-        # for the GPU2GPU non contiguous input DALI makes an internal copy on provided stream so no
-        # data needs to be preserved by the user
+    elif additional_num_keep_samples < 0:
         # assert_raises doesn't work here for the assertions from the test_utils.py
         if_raised = False
         try:

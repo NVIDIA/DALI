@@ -242,7 +242,7 @@ Pipeline::~Pipeline() {
 
 PipelineParams Pipeline::DefaultParams() {
   PipelineParams params{};
-  params.executor_type = ExecutorType::AsyncPipelined;
+  params.executor_type = ExecutorType::Dynamic;
   params.executor_flags = ExecutorFlags::ConcurrencyBackend;
   params.prefetch_queue_depths = QueueSizes{2};
   params.enable_checkpointing = false;
@@ -428,9 +428,12 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
     std::string input_name = spec.InputName(input_idx);
     auto it = edge_names_.find(input_name);
 
-    // TODO(michalz): This is a bit ugly, but it provides a nice and generic error message.
-    //                In the long run, we should probably allow GPU named inputs and then
-    //                the check should be done based on the schema, without a universal ToCPU.
+    // TODO(michalz): This enables passing GPU data nodes as argument inputs, with a silent copy.
+    //                When GPU argument inputs are allowed, we should decide whether to copy or not
+    //                based on the schema.
+    // This call is necessary because  `.cpu()` and `.gpu()` don't actually create a copy node
+    // and `op(gpu_op_result.cpu())` doesn't work wihtout this copy.
+    // The backend check must happen in Python.
     if (dynamic_execution())
       ToCPU(it);
 

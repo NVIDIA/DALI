@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -266,18 +266,10 @@ def test_operator_exception_arg_input_placement():
         return fn.random.coin_flip(probability=batch_gpu)
 
     with assert_raises(
-        RuntimeError,
+        ValueError,
         glob=(
-            """Error in CPU operator `nvidia.dali.fn.random.coin_flip`,
-which was used in the pipeline definition with the following traceback:
-
-  File "*/test_operator_exception.py", line *, in pipe
-    return fn.random.coin_flip(probability=batch_gpu)
-
-encountered:
-
-Error while specifying argument 'probability'. Named argument inputs to operators must be CPU data nodes.*
-"""  # noqa(E501)
+            "Invalid device \"gpu\" for argument 'probability' of operator"
+            " 'nvidia.dali.fn.random.coin_flip'.*"
         ),
     ):
         p = pipe()

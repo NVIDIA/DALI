@@ -593,10 +593,10 @@ void ExposeTensor(py::module &m) {
       Exposes the tensor as a DLPack capsule.
 
       Note:
-        When NOT using the dynamic execution (i.e. the pipeline parameter
-        `exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        When NOT using the dynamic execution (when `exec_dynamic` is set to ``False`` or other
+        parameters are not compatible with this execution mode), the pipeline
         outputs may be reused and overwritten by DALI after `release_outputs` has been called.
-        Use `exec_dynamic=True` if you want to keep the outputs indefinitely.
+        Make sure the dynamic execution is enabled if you want to keep the outputs indefinitely.
 
       stream : int, None
           The CUDA stream the the caller is going to use to access the buffer.
@@ -810,10 +810,10 @@ void ExposeTensor(py::module &m) {
       Exposes the tensor as a DLPack capsule.
 
       Note:
-        When NOT using the dynamic execution (i.e. the pipeline parameter
-        `exec_dynamic` is not set or doesn't evaluate to `True`) the pipeline
+        When NOT using the dynamic execution (when `exec_dynamic` is set to ``False`` or other
+        parameters are not compatible with this execution mode), the pipeline
         outputs may be reused and overwritten by DALI after `release_outputs` has been called.
-        Use `exec_dynamic=True` if you want to keep the outputs indefinitely.
+        Make sure the dynamic execution is enabled if you want to keep the outputs indefinitely.
 
       stream : int, None
           The CUDA stream the the caller is going to use to access the buffer.
