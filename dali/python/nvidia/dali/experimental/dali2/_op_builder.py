@@ -15,7 +15,7 @@
 import nvidia.dali.backend as _b
 from nvidia.dali.fn import _to_snake_case
 import makefun
-from ._tensor_list import TensorList
+from ._batch import Batch
 from ._tensor import Tensor
 import warnings
 from . import ops
@@ -28,8 +28,8 @@ import nvidia.dali.ops as _ops
 
 
 def _is_tensor_type(x, nested_list_warning=False):
-    if isinstance(x, TensorList):
-        raise ValueError("A list of TensorLists is not a valid argument type")
+    if isinstance(x, Batch):
+        raise ValueError("A list of Batchs is not a valid argument type")
     if isinstance(x, Tensor):
         return True
     if hasattr(x, "__array__"):
@@ -41,17 +41,17 @@ def _is_tensor_type(x, nested_list_warning=False):
     if nested_list_warning and isinstance(x, list):
         warnings.warn(
             "A nested list is ambiguous. It is interpreted as a single tensor, "
-            "not a list of 1D tensors. Convert the list to a Tensor, TensorList or "
+            "not a list of 1D tensors. Convert the list to a Tensor, Batch or "
             "a list of Tensors to avoid this warning."
         )
     return False
 
 
 def _is_batch(x):
-    if isinstance(x, TensorList):
+    if isinstance(x, Batch):
         return True
     if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
-        return TensorList(x)
+        return Batch(x)
     if isinstance(x, list):
         return any(_is_tensor_type(t, True) for t in x)
     return False
@@ -68,17 +68,17 @@ def _to_tensor(x):
 
 
 def _to_batch(x, batch_size):
-    if isinstance(x, TensorList):
+    if isinstance(x, Batch):
         return x
     if isinstance(x, _invocation.InvocationResult):
         if x.is_batch:
-            return TensorList(invocation_result=x)
+            return Batch(invocation_result=x)
         else:
             x = _to_tensor(x)  # fall back to regular replication
     if _is_batch(x):
-        return TensorList(x)
+        return Batch(x)
 
-    return TensorList([_to_tensor(x)] * batch_size)
+    return Batch([_to_tensor(x)] * batch_size)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
@@ -194,7 +194,7 @@ def build_call_function(schema, op_class):
             for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
                 if _is_batch(x):
                     is_batch = True
-                    if isinstance(x, TensorList):
+                    if isinstance(x, Batch):
                         x_batch_size = x.batch_size
                     elif isinstance(x, list):
                         x_batch_size = len(x)
@@ -244,9 +244,9 @@ def build_call_function(schema, op_class):
         )
         if is_batch:
             if len(invocation) == 1:
-                return TensorList(invocation_result=invocation[0])
+                return Batch(invocation_result=invocation[0])
             else:
-                return TensorList(invocation_result=invocation)
+                return Batch(invocation_result=invocation)
         else:
             if len(invocation) == 1:
                 return Tensor(invocation_result=invocation[0])
@@ -319,8 +319,8 @@ def build_fn_wrapper(op):
             max_batch_size = 1
             for i, x in enumerate(inputs):
                 if _is_batch(x):
-                    if not isinstance(x, TensorList):
-                        x = TensorList(x)
+                    if not isinstance(x, Batch):
+                        x = Batch(x)
                     max_batch_size = max(max_batch_size, x.batch_size)
         max_batch_size = _next_pow2(max_batch_size)
         init_args = {
