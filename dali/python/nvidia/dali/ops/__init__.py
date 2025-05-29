@@ -291,9 +291,11 @@ def _process_argument_inputs(schema, spec, kwargs, operator_name):
         arg_inp = _handle_constant(arg_inp, "cpu", k, operator_name)
 
         if arg_inp.device != "cpu":
-            raise ValueError(f"Invalid device \"{arg_inp.device}\" for argument '{k}' of operator "
-                             f"'{operator_name}'."
-                             f"Named arguments must be on CPU.")
+            raise ValueError(
+                f"Invalid device \"{arg_inp.device}\" for argument '{k}' of operator "
+                f"'{operator_name}'. "
+                f"Named arguments must be on CPU."
+            )
 
         _check_arg_input(schema, operator_name, k)
 
