@@ -14,7 +14,7 @@
 
 from . import _device
 from . import _invocation
-from . import _tensor, _tensor_list
+from . import _tensor, _batch
 from . import _eval_context
 import nvidia.dali as dali
 from typing import Optional
@@ -122,8 +122,8 @@ class Operator:
         return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
 
     def _to_batch(self, x):
-        if not isinstance(x, _tensor_list.TensorList):
-            return _tensor_list.TensorList([x])
+        if not isinstance(x, _batch.Batch):
+            return _batch.Batch([x])
         else:
             return x
 
@@ -141,7 +141,7 @@ class Operator:
         is_batch = False
         if isinstance(x, _invocation.Invocation):
             is_batch = x.is_batch
-        elif isinstance(x, _tensor_list.TensorList):
+        elif isinstance(x, _batch.Batch):
             is_batch = True
         else:
             is_batch = False

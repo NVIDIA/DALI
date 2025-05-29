@@ -37,6 +37,8 @@ class Tensor:
         dtype: Optional[Any] = None,
         device: Optional[Device] = None,
         layout: Optional[str] = None,
+        batch: Optional[Any] = None,
+        index_in_batch: Optional[int] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None
     ):
         if layout is None:
@@ -46,15 +48,25 @@ class Tensor:
 
         self._slice = None
         self._backend = None
+        self._batch = batch
+        self._index_in_batch = index_in_batch
         self._invocation_result = None
 
         if dtype is not None:
             if not isinstance(dtype, DType):
                 dtype = _dtype(dtype)
 
-        if invocation_result is None:
-            if data is None:
-                raise ValueError("Either data or expression must be provided")
+        if batch is not None:
+            from . import _batch
+            if not isinstance(batch, _batch.Batch):
+                raise ValueError("Batch must be a Batch")
+            self._batch = batch
+            self._index_in_batch = index_in_batch
+            self._dtype = batch.dtype
+            self._device = batch.device
+            self._layout = batch.layout
+            self._shape = None
+        elif data is not None:
 
             if isinstance(data, Tensor):
                 if dtype is None or dtype == data.dtype:
@@ -94,13 +106,15 @@ class Tensor:
                 self._dtype = DType.from_type_id(self._backend.dtype)
             self._layout = self._backend.layout()
             self._invocation_result = None
-        else:
+        elif invocation_result is not None:
             self._backend = None
             self._shape = None
             self._dtype = None
             self._layout = None
             self._invocation_result = invocation_result
             self._device = invocation_result.device
+        else:
+            raise ValueError("Either data, expression or batch and index must be provided")
 
     def cpu(self) -> "Tensor":
         return self.to_device(Device("cpu"))
@@ -144,6 +158,10 @@ class Tensor:
     def ndim(self) -> int:
         if self._slice:
             return self._slice.ndim
+        elif self._invocation_result is not None:
+            return self._invocation_result.ndim
+        elif self._batch is not None:
+            return self._batch.ndim
         else:
             return len(self.shape)
 
@@ -154,6 +172,8 @@ class Tensor:
                 self._shape = self._invocation_result.shape
             elif self._slice:
                 self._shape = self._slice.shape
+            elif self._batch is not None:
+                self._shape = self._batch.shape[self._index_in_batch]
             else:
                 self._shape = self._backend.shape()
         return self._shape
@@ -165,6 +185,8 @@ class Tensor:
                 self._dtype = _dtype(self._invocation_result.dtype)
             elif self._slice:
                 self._dtype = self._slice.dtype
+            elif self._batch is not None:
+                self._dtype = self._batch.dtype
             else:
                 self._dtype = _dtype(self._backend.dtype)
         return self._dtype
@@ -176,6 +198,8 @@ class Tensor:
                 self._layout = self._invocation_result.layout
             elif self._slice:
                 self._layout = self._slice.layout
+            elif self._batch is not None:
+                self._layout = self._batch.layout
             else:
                 self._layout = self._backend.layout()
         return self._layout
@@ -205,6 +229,12 @@ class Tensor:
             with _EvalContext.get() as ctx:
                 if self._slice:
                     self._backend = self._slice.evaluate()._backend
+                elif self._batch is not None:
+                    t = self._batch.tensors[self._index_in_batch]
+                    if t is self:
+                        self._backend = self._batch.evaluate()._backend[self._index_in_batch]
+                    else:
+                        self._backend = t.evaluate()._backend
                 else:
                     assert self._invocation_result is not None
                     self._backend = self._invocation_result.value(ctx)
