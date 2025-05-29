@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -314,13 +314,10 @@ class DataNode(object):
         the check is deferred until `Pipeline.build`.
         """
         if self.device == "gpu" and self.source and self.source.pipeline:
-            if not self.source.pipeline.exec_dynamic:
-                raise RuntimeError(
-                    "This pipeline doesn't support transition from GPU to CPU.\n"
-                    'To enable GPU->CPU transitions, use the experimental "dynamic" executor.\n'
-                    "Specify exec_dynamic=True in your Pipeline constructor or "
-                    "@pipeline_def."
-                )
+            self.source.pipeline._require_exec_dynamic(
+                "This pipeline doesn't support transition from GPU to CPU.\n"
+                "GPU->CPU transitions require "
+            )
 
 
 not_iterable(DataNode)

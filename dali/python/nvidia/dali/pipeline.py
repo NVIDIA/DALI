@@ -107,13 +107,14 @@ class Pipeline(object):
         run asynchronously with respect to the calling Python thread.
         In order to synchronize with the pipeline one needs to call
         :meth:`outputs` method.
-    exec_dynamic : bool, optional, default = False
+    exec_dynamic : bool, optional, default = None
         Whether to use the dynamic executor.
         Dynamic executor allows to interleave CPU and GPU operators and to perform GPU to CPU
         copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
         buffers, which reduces memory consumption in complex pipelines.
-        When `exec_dynamic` is ``True``, `exec_async` and `exec_pipelined` must be left at
-        their default (``True``) values.
+        The dynamic executor is used by default when `exec_async` and `exec_pipelined` are ``True``
+        and separated queues are not used (see `prefetch_queue_depth`). It can be forcibly disabled
+        by specifying ``False``.
     bytes_per_sample : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
     set_affinity : bool, optional, default = False
@@ -238,7 +239,7 @@ class Pipeline(object):
         output_dtype=None,
         output_ndim=None,
         output_layout=None,
-        exec_dynamic=False,
+        exec_dynamic=None,
         experimental_exec_dynamic=None,
     ):
         if experimental_exec_dynamic is not None:
@@ -326,6 +327,9 @@ class Pipeline(object):
         self._condition_stack = None
         # Tracking the stack frame where pipeline definition starts
         self._definition_frame_start = 0
+
+        if exec_dynamic is None and exec_pipelined and exec_async and not self._exec_separated:
+            self._exec_dynamic = exec_dynamic = True
 
         self._executor_type = b._MakeExecutorType(
             self._exec_pipelined, self._exec_async, self._exec_separated, self._exec_dynamic
@@ -568,7 +572,7 @@ class Pipeline(object):
               the output index.
 
         .. note::
-            Executor statistics are not available when using ``exec_dynamic=True``.
+            Executor statistics are available only when ``exec_dynamic=False``.
         """
         self.build()
         return self._pipe.executor_statistics()
@@ -1256,10 +1260,14 @@ class Pipeline(object):
 
     def _require_exec_dynamic(self, error_message_prefix):
         if not self._exec_dynamic:
-            raise ValueError(
-                error_message_prefix + " dynamic execution, enabled by passing "
-                "`exec_dynamic=True` to the Pipeline's constructor."
-            )
+            if self._exec_separated:
+                reason = "is not compatible with separated CPU/GPU queues"
+            elif not self._exec_async or not self._exec_pipelined:
+                reason = "requires `exec_async` and `exec_pipelined` to be enabled"
+            else:
+                reason = "was explicitly disabled in this pipeline"
+
+            raise RuntimeError(error_message_prefix + " dynamic execution, which " + reason + ".")
 
     def outputs(self, cuda_stream=None):
         """Returns the outputs of the pipeline and releases previous buffer.
@@ -1274,7 +1282,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with ``exec_dynamic=True``.
+            Works only with pipelines using dynamic execution.
 
         Returns
         -------
@@ -1342,7 +1350,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines constructed with ``exec_dynamic=True``.
+            Works only with pipelines using dynamic execution.
 
         Returns
         -------

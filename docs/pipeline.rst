@@ -67,11 +67,8 @@ that can be specified for the operator, and are executed in following order:
 #. ``'mixed'`` - operators that accept CPU inputs and produce GPU outputs, for example :meth:`nvidia.dali.fn.decoders.image`.
 #. ``'gpu'`` - operators that accept GPU inputs and produce GPU outputs.
 
-Data produced by a CPU operator may be explicitly copied to the GPU by calling ``.gpu()``
+Data can be transferred between CPU and GPU by calling ``.gpu()`` and ``.cpu()``
 on a :class:`~nvidia.dali.pipeline.DataNode` (an output of a DALI operator).
-
-Data that has been produced by a later stage cannot be consumed by an operator executing
-in an earlier stage.
 
 Most DALI operators accept additional keyword arguments used to parametrize their behavior.
 Those named keyword arguments (which are distinct from the positional inputs) can be:
@@ -83,7 +80,7 @@ In the case of argument inputs, passing output of one operator as a **named keyw
 of other operator will establish a connection in the processing graph.
 
 Those parameters will be computed as a part of DALI pipeline graph every iteration and
-for every sample. Keep in mind, that only CPU operators can be used as argument inputs.
+for every sample.
 
 Example::
 
@@ -116,7 +113,7 @@ Current Pipeline
 Subgraphs that do not contribute to the pipeline output are automatically pruned.
 If an operator has side effects (e.g. ``PythonFunction`` operator family), it cannot be invoked
 without setting the current pipeline. Current pipeline is set implicitly when the graph is
-defined inside derived pipelines' :meth:`Pipeline.define_graph` method.
+defined a function decorated with :meth:`pipeline_def` or in :meth:`Pipeline.define_graph` method.
 Otherwise, it can be set using context manager (``with`` statement)::
 
     pipe = dali.Pipeline(batch_size=N, num_threads=3, device_id=0)

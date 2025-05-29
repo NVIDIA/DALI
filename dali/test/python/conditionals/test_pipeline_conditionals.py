@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -966,10 +966,10 @@ def test_error_condition():
 
     # TODO(klecki): Extend the error checking so we can provide better error message here.
     with assert_raises(
-        RuntimeError,
+        ValueError,
         glob=(
-            "Named argument inputs to operators must be CPU data nodes."
-            " However, a GPU data node was provided"
+            "Invalid device \"gpu\" for argument 'predicate' of operator "
+            "'nvidia.dali.fn._conditional.split'."
         ),
     ):
         pipe = gpu_condition()
