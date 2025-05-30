@@ -47,7 +47,7 @@ class Invocation:
             # TODO(michalz): Try to get ndim without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
-        return len(self._results[result_index].shape())
+        return self._results[result_index].ndim()
 
     def shape(self, result_index: int):
         if self._results is None:
