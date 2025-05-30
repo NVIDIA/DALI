@@ -146,6 +146,9 @@ class Tensor:
         self._dtype = other._dtype
         self._layout = other._layout
         self._backend = other._backend
+        self._slice = other._slice
+        self._batch = other._batch
+        self._index_in_batch = other._index_in_batch
         self._invocation_result = other._invocation_result
 
     @property
@@ -156,14 +159,16 @@ class Tensor:
 
     @property
     def ndim(self) -> int:
-        if self._slice:
+        if self._backend is not None:
+            return self._backend.ndim()
+        elif self._slice is not None:
             return self._slice.ndim
         elif self._invocation_result is not None:
             return self._invocation_result.ndim
         elif self._batch is not None:
             return self._batch.ndim
         else:
-            return len(self.shape)
+            raise RuntimeError("Cannot determine the number of dimensions of the tensor.")
 
     @property
     def shape(self) -> Tuple[int, ...]:
