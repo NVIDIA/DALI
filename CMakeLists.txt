@@ -25,6 +25,9 @@ include(cmake/CUDA_utils.cmake)
 if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
+if (POLICY CMP0175)
+  cmake_policy(SET CMP0175 NEW)
+endif()
 
 project(DALI CUDA CXX C)
 
