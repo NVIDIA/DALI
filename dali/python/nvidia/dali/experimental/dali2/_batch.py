@@ -21,12 +21,12 @@ from ._device import Device
 from . import _invocation
 
 
-class BatchdedSlice:
-    def __init__(self, tensor_list: "Batch"):
-        self._batch = tensor_list
+class BatchedSlice:
+    def __init__(self, batch: "Batch"):
+        self._batch = batch
 
     def __getitem__(self, ranges: Any) -> "Batch":
-        if not isinstance(ranges, (tuple)):
+        if not isinstance(ranges, tuple):
             ranges = (ranges,)
         if len(ranges) == 0:
             return self._batch
@@ -38,7 +38,7 @@ class BatchdedSlice:
         d = 0
         for i, r in enumerate(ranges):
             if r is Ellipsis:
-                d = self.ndim - len(ranges) + i + 1
+                d = self._batch.ndim - len(ranges) + i + 1
             elif isinstance(r, slice):
                 if r.start is not None:
                     args[f"lo_{d}"] = r.start
@@ -156,22 +156,81 @@ class Batch:
     def tensors(self):
         if self._tensors is None:
             self._tensors = [Tensor(batch=self, index_in_batch=i) for i in range(self.batch_size)]
+            if self._backend:
+                for i, t in enumerate(self._tensors):
+                    t._backend = self._backend[i]
         return self._tensors
 
     @property
     def slice(self):
-        return BatchdedSlice(self)
+        """Interface for samplewise slicing.
+
+        Regular slicing selects samples first and then slices each sample with common
+        slicing parameters.
+
+        Samplewise slicing interface allows the slicing parmaters to be batches (with the same
+        number of samples) and the slicing parameters are applied to respective samples.
+
+        ```Python
+        start = Batch([1, 2, 3])
+        stop = Batch([4, 5, 6])
+        step = Batch([1, 1, 2])
+        sliced = input[start, stop, step]
+        # the result is equivalent to
+        sliced = Batch([
+            sample[start[i]:stop[i]:step[i]]
+            for i, sample in enumerate(input)
+        ])
+        ```
+
+        If the slicing parameters are not batches, they are broadcast to all samples.
+        """
+        return BatchedSlice(self)
 
     def __len__(self):
         return self.batch_size
 
-    def __getitem__(self, r):
+    def __getitem__(self, ranges):
+        if not isinstance(ranges, (tuple)):
+            ranges = (ranges,)
+        if len(ranges) == 0:
+            return self
+        if ranges[0] is ...:
+            if len(ranges) == self.ndim + 2:
+                ranges = ranges[1:]
+        sel = self.select(ranges[0])
+        start = 0 if ranges[0] is ... else 1
+        if isinstance(sel, Batch):
+            ret = sel._plain_slice(ranges[start:])
+        else:
+            ret = sel.__getitem__(ranges[start:])
+        return ret
+
+    def select(self, r):
+        if r is ...:
+            return self
         if isinstance(r, slice):
             return Batch(self.tensors[r])
         elif isinstance(r, list):
             return Batch([self.tensors[i] for i in r])
         else:
             return self.tensors[r]
+
+    def _plain_slice(self, ranges):
+        from ._op_builder import _is_batch
+        for r in ranges:
+            is_batch_arg = _is_batch(r)
+            if isinstance(r, slice):
+                if _is_batch(r.start) or _is_batch(r.stop) or _is_batch(r.step):
+                    is_batch_arg = True
+            if is_batch_arg:
+                raise ValueError(
+                    "Cannot use a batch as an index or slice. in ``Batch.__getitem__``.\n"
+                    "Use ``.slice`` property to perform samplewise slicing."
+                )
+        print(ranges)
+        return self.slice.__getitem__(ranges)
+
 
     @property
     def batch_size(self) -> int:
