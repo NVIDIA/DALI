@@ -16,7 +16,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(PeekImageShape)
+DALI_SCHEMA(legacy__PeekImageShape)
   .DocStr(R"(Obtains the shape of the encoded image.
 
 This operator returns the shape that an image would have after decoding.
@@ -32,6 +32,6 @@ This operator returns the shape that an image would have after decoding.
     R"code(Data type, to which the sizes are converted.)code", DALI_INT64)
   .DeprecateArgInFavorOf("type", "dtype");  // deprecated since 1.16dev
 
-DALI_REGISTER_OPERATOR(PeekImageShape, PeekImageShape, CPU);
+DALI_REGISTER_OPERATOR(legacy__PeekImageShape, PeekImageShape, CPU);
 
 }  // namespace dali

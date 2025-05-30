@@ -318,13 +318,12 @@ if(BUILD_NVIMAGECODEC)
     if("$ENV{ARCH}" STREQUAL "aarch64-linux")
       message(STATUS "ARCH is set to aarch64-linux")
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}[all]")
-      set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
     else()
       message(STATUS "ARCH is set to $ENV{ARCH}")
       set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}[all]")
-      set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
-      message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
     endif()
+    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
+    message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
   else()
     message(STATUS "nvImageCodec - static link")
 
@@ -355,7 +354,7 @@ if(BUILD_NVIMAGECODEC)
                         "-DBUILD_NVJPEG2K_EXT=${BUILD_NVJPEG2K}"
                         "-DWITH_DYNAMIC_NVJPEG2K=OFF"
                         "-DBUILD_NVJPEG_EXT=${BUILD_NVJPEG}"
-                        "-DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG}"
+                        "-DWITH_DYNAMIC_NVJPEG=ON"
                         "-DBUILD_NVTIFF_EXT=OFF"
                         "-DWITH_DYNAMIC_NVTIFF=OFF"
                         "-DBUILD_NVBMP_EXT=OFF"

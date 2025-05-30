@@ -17,9 +17,9 @@
 
 #include <string>
 #include <utility>
-#include <vector>
 #include <memory>
-#include "dali/operators/decoder/image/image_factory.h"  // TODO(janton): use something else for the ref
+#include <vector>
+#include <opencv2/imgcodecs.hpp>
 #include "dali/test/dali_test_single_op.h"
 
 namespace dali {
@@ -67,6 +67,16 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     AddAdditionalInputs(
       vector<std::pair<string, TensorList<CPUBackend>*>>&) {}
 
+  cv::Mat rgb2bgr(const cv::Mat& img) {
+    cv::Mat bgr;
+    cv::cvtColor(img, bgr, cv::COLOR_RGB2BGR);
+    return bgr;
+  }
+
+  cv::Mat bgr2rgb(const cv::Mat& img) {
+    return rgb2bgr(img);
+  }
+
   void RunTestDecode(t_imgType imageType, float eps = 0.7) {
     TensorList<CPUBackend> encoded_data;
     switch (imageType) {
@@ -103,15 +113,12 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
       Tensor<CPUBackend> image;
 
-      // TODO(janton): use something else for the ref
-      auto decoded_image = ImageFactory::CreateImage(
-          imgs.data_[imgIdx], imgs.sizes_[imgIdx], this->img_type_);
-      decoded_image->Decode();
-      const auto shape = decoded_image->GetShape();
-      // resize the output tensor
-      image.Resize(shape, DALI_UINT8);
-
-      decoded_image->GetImage(image.mutable_data<uint8_t>());
+      cv::Mat encoded_mat(1, imgs.sizes_[imgIdx], CV_8UC1, imgs.data_[imgIdx]);
+      auto ref = bgr2rgb(cv::imdecode(encoded_mat, cv::IMREAD_COLOR));
+      TensorShape<3> sh{ref.rows, ref.cols, ref.channels()};
+      image.Resize(sh, DALI_UINT8);
+      std::memcpy(image.mutable_data<uint8_t>(), ref.data,
+                  volume(sh) * sizeof(uint8_t));
 
 #if DALI_DEBUG
       WriteHWCImage(image.data<uint8_t>(), image.dim(0), image.dim(1),

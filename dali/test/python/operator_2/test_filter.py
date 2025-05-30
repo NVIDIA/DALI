@@ -70,7 +70,7 @@ def images_pipeline(dev, shapes, border, in_dtype, mode):
     images, _ = fn.readers.file(
         name="Reader", file_root=images_dir, prefetch_queue_depth=2, random_shuffle=True, seed=42
     )
-    images = fn.experimental.decoders.image(
+    images = fn.decoders.image(
         images, device="cpu", output_type=types.RGB, dtype=np_type_to_dali(in_dtype)
     )
     if dev == "gpu":

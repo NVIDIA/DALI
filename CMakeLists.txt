@@ -131,8 +131,6 @@ cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" O
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 
-cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
-                      "WITH_DYNAMIC_CUDA_TOOLKIT;BUILD_NVJPEG" OFF)
 cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
@@ -330,7 +328,6 @@ propagate_option(BUILD_CUFILE)
 propagate_option(BUILD_NVIMAGECODEC)
 propagate_option(BUILD_AWSSDK)
 propagate_option(LINK_DRIVER)
-propagate_option(WITH_DYNAMIC_NVJPEG)
 propagate_option(WITH_DYNAMIC_CUFFT)
 propagate_option(WITH_DYNAMIC_NPP)
 propagate_option(WITH_DYNAMIC_NVIMGCODEC)

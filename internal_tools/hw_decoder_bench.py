@@ -116,13 +116,6 @@ parser.add_argument(
     default=-1,
     type=int,
 )
-
-parser.add_argument(
-    "--experimental_decoder",
-    action="store_true",
-    help="If True, uses the experimental decoder instead of the default",
-)
-
 args = parser.parse_args()
 
 
@@ -403,7 +396,7 @@ print(f"Decoder hw load to check: {decoder_hw_load}")
 perf_results = []
 for cpu_num in threads_num:
     for hw_load in decoder_hw_load:
-        decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
+        decoders_module = fn.decoders
         print(f"Using decoders_module={decoders_module}")
 
         pipes = []
