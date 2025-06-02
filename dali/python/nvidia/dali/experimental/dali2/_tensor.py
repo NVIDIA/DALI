@@ -39,7 +39,7 @@ class Tensor:
         layout: Optional[str] = None,
         batch: Optional[Any] = None,
         index_in_batch: Optional[int] = None,
-        invocation_result: Optional[_invocation.InvocationResult] = None
+        invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
         if layout is None:
             layout = ""
@@ -58,8 +58,9 @@ class Tensor:
 
         if batch is not None:
             from . import _batch
+
             if not isinstance(batch, _batch.Batch):
-                raise ValueError("Batch must be a Batch")
+                raise ValueError("The `batch` argument must be a `Batch`")
             self._batch = batch
             self._index_in_batch = index_in_batch
             self._dtype = batch.dtype
@@ -67,7 +68,6 @@ class Tensor:
             self._layout = batch.layout
             self._shape = None
         elif data is not None:
-
             if isinstance(data, Tensor):
                 if dtype is None or dtype == data.dtype:
                     if device is None or device == data.device:
@@ -88,7 +88,11 @@ class Tensor:
                 import numpy as np
 
                 if dtype is not None:
-                    self._backend = TensorCPU(np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)), layout, False)
+                    self._backend = TensorCPU(
+                        np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)),
+                        layout,
+                        False,
+                    )
                     self._dtype = dtype
                 else:
                     self._backend = TensorCPU(np.array(data), layout, False)
@@ -262,7 +266,9 @@ class Tensor:
 
     def _is_same_tensor(self, other: "Tensor") -> bool:
         return (
-            self._backend is other._backend and self._invocation_result is other._invocation_result and self._slice is other._slice
+            self._backend is other._backend
+            and self._invocation_result is other._invocation_result
+            and self._slice is other._slice
         )
 
     def __str__(self) -> str:
@@ -347,12 +353,12 @@ class Tensor:
     def __rxor__(self, other):
         return _arithm_op("bitxor", other, self)
 
+
 def _arithm_op(name, *args, **kwargs):
     from . import fn
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
     return fn.arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
-
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
@@ -524,4 +530,5 @@ class TensorSlice:
             print("args", args)
 
             from . import fn
+
             return fn.tensor_subscript(self._tensor, **args).evaluate()

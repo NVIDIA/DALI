@@ -80,7 +80,12 @@ class Operator:
             )
             with self._minipipe:
                 input_nodes = [
-                    dali.fn.external_source(name=f"input_{i}", device=self._device.device_type, no_copy=True, blocking=True)
+                    dali.fn.external_source(
+                        name=f"input_{i}",
+                        device=self._device.device_type,
+                        no_copy=True,
+                        blocking=True,
+                    )
                     for i in range(len(inputs))
                 ]
                 arg_nodes = {name: dali.fn.external_source(name=f"arg_{name}") for name in args}
@@ -107,10 +112,7 @@ class Operator:
         print("minipipe", self._minipipe)
         print("input_meta", self._input_meta)
         print("arg_meta", self._arg_meta)
-        if (
-            self._minipipe is not None
-            and not self.is_compatible(inputs, args)
-        ):
+        if self._minipipe is not None and not self.is_compatible(inputs, args):
             self._minipipe = None
 
         self._init_pipeline(inputs, args)
