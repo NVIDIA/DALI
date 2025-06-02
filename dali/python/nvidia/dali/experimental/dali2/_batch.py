@@ -52,7 +52,9 @@ class BatchedSlice:
                 d += 1
 
         from . import fn
+
         return fn.tensor_subscript(self._batch, **args)
+
 
 def _arithm_op(name, *args, **kwargs):
     from . import fn
@@ -70,7 +72,7 @@ class Batch:
         layout: Optional[str] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
-        assert(isinstance(layout, str) or layout is None)
+        assert isinstance(layout, str) or layout is None
         self._tensors = None
         if tensors is not None:
             self._tensors = []
@@ -218,6 +220,7 @@ class Batch:
 
     def _plain_slice(self, ranges):
         from ._op_builder import _is_batch
+
         for r in ranges:
             is_batch_arg = _is_batch(r)
             if isinstance(r, slice):
@@ -230,7 +233,6 @@ class Batch:
                 )
         print(ranges)
         return self.slice.__getitem__(ranges)
-
 
     @property
     def batch_size(self) -> int:
