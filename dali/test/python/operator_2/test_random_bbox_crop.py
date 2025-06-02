@@ -528,7 +528,7 @@ def test_random_bbox_crop_no_labels():
 
 def test_crop_window_warning():
     n_boxes = [10, 12, 0]
-    pipe = Pipeline(batch_size=len(n_boxes), num_threads=1, device_id=0)
+    pipe = Pipeline(batch_size=len(n_boxes), num_threads=1, device_id=0, prefetch_queue_depth=1)
 
     def get_boxes():
         return [np.random.uniform(0, 1, size=(n, 4)).astype(np.float32) for n in n_boxes]
