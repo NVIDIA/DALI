@@ -137,6 +137,7 @@ class DType:
         else:
             raise ValueError(f"Unsupported type name: {name}")
 
+
 int8 = DType(DType.Kind.signed, 8)
 int16 = DType(DType.Kind.signed, 16)
 int32 = DType(DType.Kind.signed, 32)
