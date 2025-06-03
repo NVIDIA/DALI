@@ -686,7 +686,7 @@ void VideoLoader::push_sequence_to_read(std::string filename, int frame, int cou
     int total_count = 1 + (count - 1) * stride_;
     auto req = FrameReq{std::move(filename), frame, total_count, stride_, {0, 0}};
     // give both reader thread and decoder a copy of what is coming
-    send_queue_.push(req);
+    send_queue_.push(std::move(req));
 }
 
 void VideoLoader::receive_frames(SequenceWrapper& sequence) {

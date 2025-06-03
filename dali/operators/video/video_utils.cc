@@ -41,7 +41,7 @@ inline void assemble_video_list(const std::string& path, const std::string& curr
       continue;
     }
 #endif
-    file_info.push_back(VideoFileMeta{full_path, label, 0, 0});
+    file_info.push_back(VideoFileMeta{std::move(full_path), label, 0, 0});
   }
   closedir(dir);
 }
@@ -70,7 +70,7 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         continue;
       if (S_ISDIR(s.st_mode)) {
-        entry_name_list.push_back(entry_name);
+        entry_name_list.push_back(std::move(entry_name));
       }
     }
     closedir(dir);
