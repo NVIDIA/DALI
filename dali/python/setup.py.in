@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       description='NVIDIA DALI @DALI_FLAVOR@ for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
@@ -54,7 +54,9 @@ For more details please check the
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
       license='Apache License 2.0',
-      packages=find_packages(),
+      packages=find_namespace_packages(
+        include=['nvidia.dali*'],
+      ),
       include_package_data=True,
       zip_safe=False,
       python_requires='>=3.9, <3.14',
