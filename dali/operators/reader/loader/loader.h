@@ -322,7 +322,7 @@ class Loader {
     } else {
       Skip();
     }
-    IndexedLoadTargetSharedPtr sample = {total_read_sample_counter_, tensor_ptr};
+    IndexedLoadTargetSharedPtr sample = {total_read_sample_counter_, std::move(tensor_ptr)};
     IncreaseReadSampleCounter();
     std::swap(sample_buffer_[shards_.back().end % sample_buffer_.size()], sample);
     ++shards_.back().end;

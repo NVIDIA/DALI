@@ -162,7 +162,7 @@ class VideoInput : public InputOperator<Backend> {
       OutputDesc od;
       od.shape = uniform_list_shape(batch_size_, GetSequenceShape(sequence_length_, 0));
       od.type = DALI_UINT8;
-      output_descs_.push_back(od);
+      output_descs_.push_back(std::move(od));
     }
 
     if (num_full_sequences == 0 && frames_in_last_sequence == 0) {
@@ -181,7 +181,7 @@ class VideoInput : public InputOperator<Backend> {
       od.shape.set_tensor_shape(od.shape.num_samples() - 1,
                                 GetSequenceShape(frames_in_last_sequence, 0));
     }
-    output_descs_.push_back(od);
+    output_descs_.push_back(std::move(od));
   }
 
 

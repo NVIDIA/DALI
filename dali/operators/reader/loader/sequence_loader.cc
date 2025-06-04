@@ -86,7 +86,7 @@ std::vector<std::vector<std::string>> GenerateSequences(
       for (size_t seq_elem = 0; seq_elem < sequence_length; seq_elem++) {
         sequence.push_back(s.second[i + seq_elem * stride]);
       }
-      sequences.push_back((sequence));
+      sequences.push_back(std::move(sequence));
     }
   }
   return sequences;

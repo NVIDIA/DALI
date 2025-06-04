@@ -54,7 +54,7 @@ static std::vector<std::string> getSubdirs(const std::string &file_root) {
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
       continue;
     if (S_ISDIR(s.st_mode)) {
-      entry_name_list.push_back(entry_name);
+      entry_name_list.push_back(std::move(entry_name));
     }
   }
 

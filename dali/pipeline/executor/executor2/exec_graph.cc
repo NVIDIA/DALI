@@ -236,7 +236,7 @@ tasking::SharedTask ExecGraph::InferBatchSize(const std::shared_ptr<IterationDat
   if (bsps.empty())
     return nullptr;
 
-  return Task::Create([bsps, iter = iter_data, max_batch_size]() {
+  return Task::Create([bsps = std::move(bsps), iter = iter_data, max_batch_size]() {
     std::optional<int> bs;
     assert(!bsps.empty());
     for (auto [n, bsp] : bsps) {
