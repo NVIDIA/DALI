@@ -196,6 +196,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   const int num_decode_surfaces_ = 8;
 
   std::vector<BufferedFrame> frame_buffer_;
+  std::set<int64_t> skipped_frame_pts_;
 
   std::queue<int64_t> piped_pts_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
