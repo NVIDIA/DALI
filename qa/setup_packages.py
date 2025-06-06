@@ -516,13 +516,13 @@ all_packages = [
             ],
             "120": [
                 PckgVer(
-                    "2.17.1",
+                    "2.18.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
                     dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.17"],
                 ),
                 PckgVer(
-                    "2.18.0",
+                    "2.19.0",
                     python_min_ver="3.9",
                     alias="tensorflow[and-cuda]",
                     dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18"],
@@ -586,7 +586,10 @@ all_packages = [
                     python_max_ver="3.8",
                     dependencies=["numpy<1.24"],
                 ),
-                PckgVer("0.59.1", python_min_ver="3.9", dependencies=["numpy<2"]),
+                PckgVer(
+                    "0.59.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
+                ),
+                PckgVer("0.61.2", python_min_ver="3.10", dependencies=["numpy<2"]),
             ]
         },
     ),
