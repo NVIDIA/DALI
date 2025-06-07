@@ -1,5 +1,5 @@
 #!/bin/bash -ex
-pushd /home/mdabek/workspace/DALI_mdabek_workspace/docs/examples/zoo/images
+pushd /opt/dali/docs/examples/zoo/images
 
 scripts=(
     "decode.py --images_dir $DALI_EXTRA_PATH/db/coco/images/" \
