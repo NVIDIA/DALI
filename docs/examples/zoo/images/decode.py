@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License
 
+import argparse
 import numpy as np
 from pathlib import Path
 from PIL import Image
@@ -46,24 +47,44 @@ def decode_pipeline(source_name):
     return decoded
 
 
-# Create and build the decoding pipeline
-pipe = decode_pipeline("encoded_img", prefetch_queue_depth=1)
-pipe.build()
+if __name__ == "__main__":
 
-# The directory with images to decode
-directory_path = "./img"
-# Iterate through all files in the directory
-for i, file_name in enumerate(Path(directory_path).iterdir()):
-    # Read the file into a numpy array of shape (1, img_size)
-    # Send the tensor to the pipeline, run the pipeline and retrieve the output
-    decoded = pipe.run(
-        encoded_img=np.expand_dims(
-            np.fromfile(file_name, dtype=np.uint8), axis=0
-        )
+    parser = argparse.ArgumentParser(
+        description="Example of DALI image processing with json input data"
     )
-    img_on_gpu = to_torch_tensor(decoded[0][0], copy=True)
+    parser.add_argument(
+        "--images_dir",
+        type=str,
+        default="../DALI_extra/db/coco/images",
+        help="Folder with images",
+    )
+    parser.add_argument(
+        "--show",
+        type=bool,
+        default=False,
+        help="If set to true displays images",
+    )
 
-    # Display decoded image. Note: The image is in GPU memory
-    # and needs to be retrieved to CPU first.
-    img_to_show = img_on_gpu.cpu().numpy()
-    Image.fromarray(img_to_show[0]).show()
+    args = parser.parse_args()
+
+    # Create and build the decoding pipeline
+    pipe = decode_pipeline("encoded_img", prefetch_queue_depth=1)
+    pipe.build()
+
+    # The directory with images to decode
+    # Iterate through all files in the directory
+    for i, file_name in enumerate(Path(args.images_dir).iterdir()):
+        # Read the file into a numpy array of shape (1, img_size)
+        # Send the tensor to the pipeline, run the pipeline and retrieve the output
+        decoded = pipe.run(
+            encoded_img=np.expand_dims(
+                np.fromfile(file_name, dtype=np.uint8), axis=0
+            )
+        )
+        img_on_gpu = to_torch_tensor(decoded[0][0], copy=True)
+
+        if args.show:
+            # Display decoded image. Note: The image is in GPU memory
+            # and needs to be retrieved to CPU first.
+            img_to_show = img_on_gpu.cpu().numpy()
+            Image.fromarray(img_to_show[0]).show()

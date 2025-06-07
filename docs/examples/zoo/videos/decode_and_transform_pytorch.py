@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License
 
+import argparse
 import numpy as np
 from torch.utils.data import Dataset
 
@@ -79,22 +80,43 @@ def video_pipe(video_hw=(720, 1280)):
 
 
 if __name__ == "__main__":
-    video_dir = "videos/"
-    batch_size = 1
-    nworkers = 8
-    dali_server = dali_proxy.DALIServer(
-        video_pipe(batch_size=batch_size, num_threads=4, device_id=0)
+    parser = argparse.ArgumentParser(
+        description="Example of DALI video decoding"
+    )
+    parser.add_argument(
+        "--videos_dir",
+        type=str,
+        default="../DALI_extra/db/video/sintel/video_files/",
+        help="Videos directory",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=2,
+        help="Batch size for image processing",
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=2,
+        help="Number of CPU workers for Pytorch dataloader",
     )
 
-    dataset = VideoDataset(video_dir, transform=dali_server.proxy)
+    args = parser.parse_args()
+    # Iterate through all files in the directory
+    dali_server = dali_proxy.DALIServer(
+        video_pipe(batch_size=args.batch_size, num_threads=4, device_id=0)
+    )
+
+    dataset = VideoDataset(args.videos_dir, transform=dali_server.proxy)
 
     # Create a DataLoader
 
     dataloader = dali_proxy.DataLoader(
         dali_server,
         dataset,
-        batch_size=batch_size,
-        num_workers=nworkers,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
         drop_last=True,
     )
     # Iterate over the dataset

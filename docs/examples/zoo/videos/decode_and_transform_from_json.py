@@ -13,6 +13,7 @@
 # limitations under the License
 
 # pip install ffmpeg-python # not the ffmpeg!
+import argparse
 import ffmpeg
 import json
 import numpy as np
@@ -136,19 +137,30 @@ def read_clips_pipeline(root_dir):
     return decoded
 
 
-crop = []
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Example of DALI video decoding"
+    )
+    parser.add_argument(
+        "--videos_dir",
+        type=str,
+        # The root dir of the DomainSpecificHighlight repository
+        # The repository can be found in: https://github.com/aliensunmin/DomainSpecificHighlight/
+        default="../DomainSpecificHighlight/surfing/",
+        help="Videos directory",
+    )
 
-# The root dir of the DomainSpecificHighlight repository
-# The repository can be found in: https://github.com/aliensunmin/DomainSpecificHighlight/
-root_dir = "../../DomainSpecificHighlight/surfing/"
+    args = parser.parse_args()
 
-pipeline = read_clips_pipeline(root_dir)
-pipeline.build()
+    pipeline = read_clips_pipeline(args.videos_dir)
+    pipeline.build()
 
-dali_iter = dali_pytorch.DALIGenericIterator(pipeline, ["decoded"])
-# Iterate over the data
-for i, data in enumerate(dali_iter):
-    for j in range(len(data[0]["decoded"])):
-        for element in range(batch_size):
-            img = Image.fromarray(data[0]["decoded"][element][j].cpu().numpy())
-            img.save(f"{i}_{element}_{j}.jpg")
+    dali_iter = dali_pytorch.DALIGenericIterator(pipeline, ["decoded"])
+    # Iterate over the data
+    for i, data in enumerate(dali_iter):
+        for j in range(len(data[0]["decoded"])):
+            for element in range(batch_size):
+                img = Image.fromarray(
+                    data[0]["decoded"][element][j].cpu().numpy()
+                )
+                img.save(f"{i}_{element}_{j}.jpg")

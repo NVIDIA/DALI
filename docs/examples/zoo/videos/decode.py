@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License
 
+import argparse
 import numpy as np
 import os
 from PIL import Image
@@ -19,6 +20,7 @@ from PIL import Image
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 
 
 @pipeline_def(batch_size=1, num_threads=4, device_id=0, exec_dynamic=True)
@@ -45,26 +47,45 @@ def decode_pipeline(source_name):
     return decoded
 
 
-# Create and build the decoding pipeline
-pipe = decode_pipeline("encoded_video", prefetch_queue_depth=1)
-pipe.build()
+if __name__ == "__main__":
+    # Create and build the decoding pipeline
+    pipe = decode_pipeline("encoded_video", prefetch_queue_depth=1)
+    pipe.build()
 
-# The directory with images to decode
-directory_path = "./videos"
-# Iterate through all files in the directory
-for i, file_name in enumerate(os.listdir(directory_path)):
-    file_path = os.path.join(directory_path, file_name)
-    try:
-        # Read the file into a numpy array of shape (1, video_size)
-        # Send the tensor to the pipeline, run the pipeline and retrieve the output
-        decoded = pipe.run(
-            encoded_video=np.expand_dims(
-                np.fromfile(file_path, dtype=np.uint8), axis=0
+    parser = argparse.ArgumentParser(
+        description="Example of DALI video decoding"
+    )
+    parser.add_argument(
+        "--videos_dir",
+        type=str,
+        default="../DALI_extra/db/video/sintel/video_files/",
+        help="Videos directory",
+    )
+
+    parser.add_argument(
+        "--save",
+        type=bool,
+        default=False,
+        help="Saves first 2 frames from each of processed videos",
+    )
+
+    args = parser.parse_args()
+    # Iterate through all files in the directory
+    for i, file_name in enumerate(os.listdir(args.videos_dir)):
+        file_path = os.path.join(args.videos_dir, file_name)
+        try:
+            # Read the file into a numpy array of shape (1, video_size)
+            # Send the tensor to the pipeline, run the pipeline and retrieve the output
+            decoded = pipe.run(
+                encoded_video=np.expand_dims(
+                    np.fromfile(file_path, dtype=np.uint8), axis=0
+                )
             )
-        )
-        video_to_show = [decoded[0][0].as_cpu(), decoded[0][1].as_cpu()]
-        Image.fromarray(video_to_show[0]).save(f"{file_name}_0.jpg")
-        Image.fromarray(video_to_show[1]).save(f"{file_name}_1.jpg")
 
-    except Exception as e:
-        print(f"Error loading {file_name}: {e}")
+            if args.save:
+                video = to_torch_tensor(decoded[0][0], True).cpu()
+                Image.fromarray(video[0].numpy()).save(f"{file_name}_0.jpg")
+                Image.fromarray(video[1].numpy()).save(f"{file_name}_1.jpg")
+
+        except Exception as e:
+            print(f"Error loading {file_name}: {e}")

@@ -12,33 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License
 
-import json
+import argparse
+import glob
+from pathlib import Path
+
 import numpy as np
-import torch
 from torch.utils.data import Dataset
 
 import nvidia.dali.plugin.pytorch.experimental.proxy as dali_proxy
 from nvidia.dali import pipeline_def, fn, types
-import glob
-from pathlib import Path
 
 
 class ImageDataset(Dataset):
-    def __init__(self, image_dir, json_path, transform=None):
+    def __init__(self, landmarks_dir, transform=None):
         """
         Initialize the dataset.
 
-        :param image_dir: Directory containing the images.
-        :param json_dir: Directory containing the JSON labels.
+        :param landmarks_dir: Directory containing the images and landmarks.
         :param transform: Optional transform to apply on images.
         """
-        self.image_dir = image_dir
+        self.landmarks_dir = landmarks_dir
         self.transform = transform
-        self.image_ids = glob.glob("*.jpg", root_dir=image_dir)
-
-        # Load the JSON label
-        with open(json_path, "r") as f:
-            self.labels = json.load(f)
+        self.image_ids = glob.glob("*.jpeg", root_dir=landmarks_dir)
 
     def __len__(self):
         """
@@ -53,27 +48,24 @@ class ImageDataset(Dataset):
         :param idx: Index of the image to load.
         :return: Tuple containing the image tensor and its label.
         """
-        image_id = Path(image_dir) / self.image_ids[idx]
-        # Find the corresponding label in labels based on image_id
-        for label_entry in self.labels:
-            label = None
-            if label_entry["image_id"] == image_id.name:
-                label = label_entry["label"]
-                break
-
-        if label is None:
-            raise ValueError(f"No label found for image {image_id}")
+        image_id = Path(self.landmarks_dir) / self.image_ids[idx]
+        landmark_id = (
+            Path(self.landmarks_dir) / f"{self.image_ids[idx][:-4]}npy"
+        )
 
         # Load the image
         encoded_img = np.expand_dims(
             np.fromfile(image_id, dtype=np.uint8), axis=0
         )
-        label_tensor = torch.tensor(label)
+
+        # Load landmark
+        landmarks = np.fromfile(landmark_id)
+
         # Apply transform if provided and if not return the encoded image
         if self.transform:
-            return self.transform(encoded_img), label_tensor
+            return self.transform(encoded_img), landmarks
         else:
-            return encoded_img, label_tensor
+            return encoded_img, landmarks
 
 
 @pipeline_def
@@ -99,29 +91,48 @@ def image_pipe(img_hw=(320, 200)):
 
 
 if __name__ == "__main__":
-    image_dir = "img/"
-    json_file = "img/labels.json"
-    batch_size = 8
-    nworkers = 8
-    dali_server = dali_proxy.DALIServer(
-        image_pipe(batch_size=batch_size, num_threads=4, device_id=0)
+    parser = argparse.ArgumentParser(
+        description="Example of DALI and Pytorch image processing integration"
+    )
+    parser.add_argument(
+        "--landmarks_dir",
+        type=str,
+        default="../DALI_extra/db/face_landmark/",
+        help="Images and face landmark directory",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=2,
+        help="Batch size for image processing",
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=2,
+        help="Number of CPU workers for Pytorch dataloader",
     )
 
-    dataset = ImageDataset(image_dir, json_file, transform=dali_server.proxy)
+    args = parser.parse_args()
+
+    dali_server = dali_proxy.DALIServer(
+        image_pipe(batch_size=args.batch_size, num_threads=4, device_id=0)
+    )
+
+    dataset = ImageDataset(args.landmarks_dir, transform=dali_server.proxy)
 
     # Create a DataLoader
-
     dataloader = dali_proxy.DataLoader(
         dali_server,
         dataset,
-        batch_size=batch_size,
-        num_workers=nworkers,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
         drop_last=True,
     )
     # Iterate over the dataset
-    for images, labels in dataloader:
+    for images, landmarks in dataloader:
         print(f"Batch size: {images.size(0)}")
         print(f"Image shape: {images.shape}")
-        print(f"Label shape: {labels.shape}")
+        print(f"Landmark shape: {landmarks.shape}")
 
     del dataloader
