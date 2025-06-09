@@ -815,7 +815,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           cs_view.region.end[0] = roi.end[0];
           cs_view.region.end[1] = roi.end[1];
           nvimgcodecCodeStream_t sub_code_stream;
-          CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(st.parsed_sample.encoded_stream, &sub_code_stream, &cs_view));
+          CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(st.parsed_sample.encoded_stream,
+                                                                &sub_code_stream, &cs_view));
           batch_encoded_streams_.push_back(std::move(sub_code_stream));
         } else {
           batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);

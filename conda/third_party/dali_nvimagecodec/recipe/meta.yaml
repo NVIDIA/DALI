@@ -20,7 +20,7 @@ package:
   version: {{ build_version }}
 
 source:
-  git_url: https://gitlab-master.nvidia.com/cuda-hpc-libraries/nvimagecodec.git
+  git_url: https://DALI_CI:{{ environ.get('NVIMGCODEC_REPO_TOKEN', '') }}@gitlab-master.nvidia.com/cuda-hpc-libraries/nvimagecodec.git
   git_rev: main
 
 build:
