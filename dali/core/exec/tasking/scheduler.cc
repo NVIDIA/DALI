@@ -47,7 +47,6 @@ void Scheduler::Notify(Waitable *w) {
   bool is_task = is_completion_event && dynamic_cast<Task *>(w);
 
   int new_ready = 0;
-  int num_ready = 0;
   {
     std::lock_guard g(mtx_);
     if (is_task)
@@ -99,7 +98,6 @@ void Scheduler::Notify(Waitable *w) {
       if (AcquireAllAndMoveToReady(task))
         new_ready++;
     }
-    num_ready = ready_.size();
   }
 
   if (new_ready == 1)
