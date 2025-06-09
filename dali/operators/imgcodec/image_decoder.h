@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -539,7 +539,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
            MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
   }
 
-  void PrepareOutput(SampleState &st, void *out_ptr, const ROI &roi, const Workspace &ws) {
+  /**
+   * @brief Populate the descriptor
+   *
+   * The memory is allocated later and image object is created when the pointer is available.
+   */
+  void PrepareOutput(SampleState &st, const ROI &roi, const Workspace &ws) {
     // Make a copy of the parsed img info. We might modify it
     // (for example, request planar vs. interleaved, etc)
     st.image_info = st.parsed_sample.nvimgcodec_img_info;
@@ -622,7 +627,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         st.decode_out_cpu = {st.image_info.buffer, decode_shape, st.parsed_sample.orig_dtype};
       }
     } else {
-      st.image_info.buffer = out_ptr;
+      st.image_info.buffer = nullptr;
     }
 
     st.image_info.num_planes = 1;
@@ -729,7 +734,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
           st->out_shape[1] = roi_sh[1];
         }
         out_shape.set_tensor_shape(i, st->out_shape);
-        PrepareOutput(*state_[i], nullptr, rois_[i], ws);
+        PrepareOutput(*state_[i], rois_[i], ws);
         assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);
       }
     };
@@ -760,7 +765,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
       tp_->WaitForWork();  // wait for the other threads
     }
 
+    // Allocate the memory for the outputs...
     output.Resize(out_shape);
+    // ... and create image descriptors.
+
+    // The image descriptors are created in parallel, in block-wise fashion.
     auto init_desc_task = [&](int start_sample, int end_sample) {
       for (int i = start_sample; i < end_sample; i++) {
         auto &st = *state_[i];
@@ -771,9 +780,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
           st.image = NvImageCodecImage::Create(instance_, &st.image_info);
       }
     };
+
+    // Just one task? Run it in this thread!
     if (ntasks < 2) {
       init_desc_task(0, nsamples);
     } else {
+      // Many tasks? Run in thread pool.
+      // The first span of tasks is processed in the main operator thread.
       for (int i = 1; i < ntasks; i++) {
         int start = i * nsamples / ntasks;
         int end = (i + 1) * nsamples / ntasks;
@@ -781,12 +794,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
           init_desc_task(start, end);
         });
       }
+      // Start processing of subsequent segments...
       tp_->RunAll(false);
-      // run the 1st segment in this thread
+      // ...and process the 1st segment in this thread.
       init_desc_task(0, nsamples / ntasks);
       tp_->WaitForWork();
     }
-
 
     bool any_need_processing = false;
     bool has_any_roi = false;
