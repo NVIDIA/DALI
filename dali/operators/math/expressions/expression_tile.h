@@ -86,7 +86,7 @@ using ArgPack = SmallVector<OperandData, kMaxArity>;
 struct SampleDesc {
   SampleDesc() = default;
   SampleDesc(OutputData output, const ArgPack &args)
-      : output(output), args(args) {}
+      : output(std::move(output)), args(args) {}
   OutputData output;
   ArgPack args;
 };

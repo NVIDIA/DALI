@@ -18,8 +18,8 @@
 #include <lmdb.h>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
-
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
 
@@ -152,7 +152,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     bool ret = options.TryGetRepeatedArgument(db_paths_, "path");
     if (!ret) {
       std::string path = options.GetArgument<std::string>("path");
-      db_paths_.push_back(path);
+      db_paths_.push_back(std::move(path));
     }
   }
 

@@ -183,7 +183,7 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
       samples_container.back().components =
           VectorRange<ComponentDesc>(components_container, last_components_size,
                                      components_container.size() - last_components_size);
-      last_filename = basename;
+      last_filename = std::move(basename);
       last_components_size = components_container.size();
     }
 

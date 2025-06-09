@@ -59,12 +59,13 @@ std::vector<std::string> list_subdirectories(const std::string &parent_dir,
       continue;
     if (S_ISDIR(s.st_mode)) {
       if (dir_filters.empty()) {
-        subdirs.push_back(entry_name);
+        subdirs.push_back(std::move(entry_name));
       } else {
         for (auto &filter : dir_filters) {
           if (fnmatch(filter.c_str(), entry_name.c_str(),
                       case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-            subdirs.push_back(entry_name);
+            subdirs.push_back(std::move(entry_name));
+            break;
           }
         }
       }
@@ -101,7 +102,7 @@ std::vector<std::string> list_files(const std::string &parent_dir,
     std::string fname(entry->d_name);
     for (auto &filter : filters) {
       if (fnmatch(filter.c_str(), fname.c_str(), case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-        files.push_back(fname);
+        files.push_back(std::move(fname));
         break;
       }
     }
