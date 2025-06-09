@@ -286,8 +286,8 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.5.0")
-  set(NVIMGCODEC_MAX_VERSION "0.6.0")
+  set(NVIMGCODEC_MIN_VERSION "0.6.0")
+  set(NVIMGCODEC_MAX_VERSION "0.7.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
@@ -297,27 +297,29 @@ if(BUILD_NVIMAGECODEC)
       cmake_policy(SET CMP0135 NEW)
     endif()
 
-    find_package(nvimgcodec ${NVIMGCODEC_MIN_VERSION}...<${NVIMGCODEC_MAX_VERSION})
-    if (NOT nvimgcodec_FOUND)
-      message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
-      # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
-      include(FetchContent)
-      FetchContent_Declare(
-        nvimgcodec_headers
-        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
-        URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
-      )
-      FetchContent_Populate(nvimgcodec_headers)
-      if(CUDA_VERSION_MAJOR VERSION_LESS_EQUAL "13")
-        set(NVIMGCODE_CUDA_VERSION_MAJOR "12")
-      else()
-        set(NVIMGCODE_CUDA_VERSION_MAJOR "${CUDA_VERSION_MAJOR}")
-      endif()
-      set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${NVIMGCODE_CUDA_VERSION_MAJOR}/include")
-      if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
-        message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
-      endif()
-    endif()
+    # find_package(nvimgcodec ${NVIMGCODEC_MIN_VERSION}...<${NVIMGCODEC_MAX_VERSION})
+    # if (NOT nvimgcodec_FOUND)
+    #   message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
+    #   # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
+    #   include(FetchContent)
+    #   FetchContent_Declare(
+    #     nvimgcodec_headers
+    #     URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
+    #     URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
+    #   )
+    #   FetchContent_Populate(nvimgcodec_headers)
+    #   if(CUDA_VERSION_MAJOR VERSION_LESS_EQUAL "13")
+    #     set(NVIMGCODE_CUDA_VERSION_MAJOR "12")
+    #   else()
+    #     set(NVIMGCODE_CUDA_VERSION_MAJOR "${CUDA_VERSION_MAJOR}")
+    #   endif()
+    #   set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${NVIMGCODE_CUDA_VERSION_MAJOR}/include")
+    #   if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
+    #     message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
+    #   endif()
+    # endif()
+    # TODO: remove this once we have nvImageCodec 0.6.0 release available
+    set(nvimgcodec_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/third_party/nvimgcodec/include")
     message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
     include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
 
@@ -327,11 +329,11 @@ if(BUILD_NVIMAGECODEC)
 
     if("$ENV{ARCH}" STREQUAL "aarch64-linux")
       message(STATUS "ARCH is set to aarch64-linux")
-      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${NVIMGCODE_CUDA_VERSION_MAJOR}[all]")
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-tegra-cu${CUDA_VERSION_MAJOR}[all]")
       set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
     else()
       message(STATUS "ARCH is set to $ENV{ARCH}")
-      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${NVIMGCODE_CUDA_VERSION_MAJOR}[all]")
+      set(NVIMGCODEC_PACKAGE_NAME "nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR}[all]")
       set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'${NVIMGCODEC_PACKAGE_NAME} >= ${NVIMGCODEC_MIN_VERSION}, < ${NVIMGCODEC_MAX_VERSION}',")
       message(STATUS "Adding nvimagecodec requirement as: ${DALI_INSTALL_REQUIRES_NVIMGCODEC}")
     endif()
@@ -350,8 +352,8 @@ if(BUILD_NVIMAGECODEC)
     include(ExternalProject)
     ExternalProject_Add(
       nvImageCodec
-      GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.5.0
+      GIT_REPOSITORY    https://gitlab-master.nvidia.com/cuda-hpc-libraries/nvimagecodec.git
+      GIT_TAG           main
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"

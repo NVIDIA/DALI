@@ -580,14 +580,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.cuda_stream = std::is_same<MixedBackend, Backend>::value ? ws.stream() : nullptr;
 
-    st.image_info.region.ndim = roi.use_roi() ? 2 : 0;
-    if (roi.use_roi()) {
-      st.image_info.region.start[0] = roi.begin[0];
-      st.image_info.region.start[1] = roi.begin[1];
-      st.image_info.region.end[0] = roi.end[0];
-      st.image_info.region.end[1] = roi.end[1];
-    }
-
     // At the moment we are not dealing with floating point outputs in nvimagecodec
     assert(IsIntegral(st.parsed_sample.orig_dtype));
 
@@ -802,7 +794,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
 
     bool any_need_processing = false;
-    bool has_any_roi = false;
     for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
       auto &st = *state_[orig_idx];
       any_need_processing |= state_[orig_idx]->need_processing;
@@ -811,8 +802,24 @@ class ImageDecoder : public StatelessOperator<Backend> {
         auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
         cache_->DeferCacheLoad(src_info, static_cast<uint8_t *>(data_ptr));
       } else {
-        has_any_roi |= rois_[orig_idx].use_roi();
-        batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
+        if (rois_[orig_idx].use_roi()) {
+          auto &roi = rois_[orig_idx];
+          nvimgcodecCodeStreamView_t cs_view = {
+              NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW,
+              sizeof(nvimgcodecCodeStreamView_t),
+              nullptr,
+              0,  // image_idx
+              {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
+          cs_view.region.start[0] = roi.begin[0];
+          cs_view.region.start[1] = roi.begin[1];
+          cs_view.region.end[0] = roi.end[0];
+          cs_view.region.end[1] = roi.end[1];
+          nvimgcodecCodeStream_t sub_code_stream;
+          CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(st.parsed_sample.encoded_stream, &sub_code_stream, &cs_view));
+          batch_encoded_streams_.push_back(std::move(sub_code_stream));
+        } else {
+          batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
+        }
         batch_images_.push_back(st.image);
         decode_sample_idxs_.push_back(orig_idx);
       }
@@ -839,7 +846,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
       nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
                                                 sizeof(nvimgcodecDecodeParams_t), nullptr};
       decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
-      decode_params.enable_roi = static_cast<int>(has_any_roi);
 
       {
         DomainTimeRange tr("nvimgcodecDecoderDecode", DomainTimeRange::kOrange);

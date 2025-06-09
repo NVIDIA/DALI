@@ -13,17 +13,15 @@
 # limitations under the License.
 
 
-{% set build_version = "0.5.0" %}
+{% set build_version = "0.6.0" %}
 
 package:
   name: nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   version: {{ build_version }}
 
 source:
-  git_url: https://github.com/NVIDIA/nvImageCodec.git
-  git_rev: v0.5.0
-  patches:
-    - patches/CUDA-13.0.patch
+  git_url: https://gitlab-master.nvidia.com/cuda-hpc-libraries/nvimagecodec.git
+  git_rev: main
 
 build:
   number: 0
