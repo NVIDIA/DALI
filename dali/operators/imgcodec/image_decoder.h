@@ -649,12 +649,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     auto &output = ws.template Output<typename OutBackend<Backend>::type>(0);
     // it complains if we try to set the sample dim after it is already allocated
     // even if the sample dim didn't change
-    static bool reset = []() {
-      const char *env = getenv("DALI_IMGCODEC_RESET");
-      return env && atoi(env);
-    }();
-    if (reset)
-      output.Reset();
     if (output.sample_dim() != 3)
       output.set_sample_dim(3);
     output.set_type(dtype_);
