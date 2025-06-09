@@ -632,7 +632,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.image_info.plane_info[0].height = decode_shape[0];
     st.image_info.plane_info[0].width = decode_shape[1];
     st.image_info.plane_info[0].num_channels = decode_shape[2];
-    st.image = NvImageCodecImage::Create(instance_, &st.image_info);
   }
 
   bool HasContiguousOutputs() const override {
@@ -645,6 +644,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
     auto &output = ws.template Output<typename OutBackend<Backend>::type>(0);
     // it complains if we try to set the sample dim after it is already allocated
     // even if the sample dim didn't change
+    static bool reset = []() {
+      const char *env = getenv("DALI_IMGCODEC_RESET");
+      return env && atoi(env);
+    }();
+    if (reset)
+      output.Reset();
     if (output.sample_dim() != 3)
       output.set_sample_dim(3);
     output.set_type(dtype_);
@@ -672,6 +677,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     decode_sample_idxs_.reserve(nsamples);
     decode_status_.clear();
 
+    TensorListShape<> out_shape(nsamples, 3);
+
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
     auto setup_block = [&](int block_idx, int nblocks, int tid) {
       int i_start = nsamples * block_idx / nblocks;
@@ -680,6 +687,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                           DomainTimeRange::kOrange);
       for (int i = i_start; i < i_end; i++) {
         auto *st = state_[i].get();
+          st->image_info.buffer = nullptr;
         assert(st != nullptr);
         const auto &input_sample = input[i];
 
@@ -688,9 +696,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           auto cached_shape = cache_->CacheImageShape(src_info);
           auto roi = GetRoi(spec_, ws, i, cached_shape);
           if (!roi.use_roi()) {
+            out_shape.set_tensor_shape(i, st->out_shape);
             st->load_from_cache = true;
-            output.ResizeSample(i, st->out_shape);
-            st->image_info.buffer = output.raw_mutable_tensor(i);
             continue;
           }
         }
@@ -721,8 +728,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           st->out_shape[0] = roi_sh[0];
           st->out_shape[1] = roi_sh[1];
         }
-        output.ResizeSample(i, st->out_shape);
-        PrepareOutput(*state_[i], output.raw_mutable_tensor(i), rois_[i], ws);
+        out_shape.set_tensor_shape(i, st->out_shape);
+        PrepareOutput(*state_[i], nullptr, rois_[i], ws);
         assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);
       }
     };
@@ -752,6 +759,34 @@ class ImageDecoder : public StatelessOperator<Backend> {
       setup_task(-1);      // last task in current thread
       tp_->WaitForWork();  // wait for the other threads
     }
+
+    output.Resize(out_shape);
+    auto init_desc_task = [&](int start_sample, int end_sample) {
+      for (int i = start_sample; i < end_sample; i++) {
+        auto &st = *state_[i];
+        if (!st.need_processing)
+          st.image_info.buffer = output.raw_mutable_tensor(i);
+
+        if (!st.load_from_cache)
+          st.image = NvImageCodecImage::Create(instance_, &st.image_info);
+      }
+    };
+    if (ntasks < 2) {
+      init_desc_task(0, nsamples);
+    } else {
+      for (int i = 1; i < ntasks; i++) {
+        int start = i * nsamples / ntasks;
+        int end = (i + 1) * nsamples / ntasks;
+        tp_->AddWork([&, start, end](int) {
+          init_desc_task(start, end);
+        });
+      }
+      tp_->RunAll(false);
+      // run the 1st segment in this thread
+      init_desc_task(0, nsamples / ntasks);
+      tp_->WaitForWork();
+    }
+
 
     bool any_need_processing = false;
     bool has_any_roi = false;
