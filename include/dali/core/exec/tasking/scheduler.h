@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -257,7 +257,7 @@ class Scheduler {
     task->Submit(*this);
     if (task->Ready()) {  // if the task has no preconditions...
       {
-        // ...then we add it directly to the read_ queue.
+        // ...then we add it directly to the ready queue.
         std::lock_guard lock(mtx_);
         task->state_ = TaskState::Ready;
         ready_.push(task);

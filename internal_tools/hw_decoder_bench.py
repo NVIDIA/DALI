@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ parser.add_argument(
     default="4",
     type=str,
 )
+parser.add_argument("-exec2", dest="exec_dynamic", help="use dynamic excutor", default=1, type=int)
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument("-i", dest="images_dir", help="images dir")
 input_files_arg.add_argument(
@@ -151,6 +152,7 @@ def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
     num_threads=1,
     device_id=args.device_id,
     seed=0,
+    exec_dynamic=args.exec_dynamic,
 )
 def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
     device = "mixed" if args.device == "gpu" else "cpu"
