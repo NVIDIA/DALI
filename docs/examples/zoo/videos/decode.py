@@ -26,7 +26,7 @@ from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 @pipeline_def(batch_size=1, num_threads=4, device_id=0, exec_dynamic=True)
 def decode_pipeline(source_name):
 
-    # Read the input image
+    # Read the input video
     encoded_video = fn.external_source(
         device="cpu",
         name=source_name,

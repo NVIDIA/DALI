@@ -23,7 +23,7 @@ import nvidia.dali.types as types
 from nvidia.dali.plugin.pytorch.torch_utils import to_torch_tensor
 
 
-@pipeline_def(batch_size=1, num_threads=4, device_id=0, exec_dynamic=True)
+@pipeline_def(batch_size=4, num_threads=4, device_id=0, exec_dynamic=True)
 def decode_pipeline(source_name):
 
     # Read the input image

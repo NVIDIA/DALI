@@ -124,4 +124,4 @@ if __name__ == "__main__":
         print(f"Batch size: {videos.size(0)}")
         print(f"Video shape: {videos.shape}")
 
-    del dataloader
+    dali_server.stop_thread()

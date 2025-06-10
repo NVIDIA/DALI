@@ -17,6 +17,7 @@ import argparse
 import ffmpeg
 import json
 import numpy as np
+from pathlib import Path
 import os
 from PIL import Image
 import torch
@@ -26,8 +27,17 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.pytorch as dali_pytorch
 
+# We need to set batch_size to 1, due to the different frames range in clip.json files
+# Different frame ranges, are making it impossible to construct uniform batches and we
+# end up with differnet dimensions on the F axis of [F, H, W, C] tensors, e.g.:
+# TensorListGPU(
+#    dtype=DALIDataType.UINT8,
+#    layout="FHWC",
+#    num_samples=2,
+#    shape=[(5, 640, 480, 3), (2, 640, 480, 3)])
+# This is handled well in DALI, but not so well outside of it.
 
-batch_size = 2
+batch_size = 1
 
 
 class ReadVideosAndAnnotationsExternalInput:
@@ -49,10 +59,12 @@ class ReadVideosAndAnnotationsExternalInput:
 
     def __init__(self, batch_size, root_dir):
         # Get all subfolders in the root directory
-        self.subfolders = [f.path for f in os.scandir(root_dir) if f.is_dir()]
+        self.video_paths = []
+        for path in Path(root_dir).rglob("*.mp4"):
+            self.video_paths.append(path)
 
         self.batch_size = batch_size
-        self.full_iterations = len(self.subfolders) // self.batch_size
+        self.full_iterations = len(self.video_paths) // self.batch_size
         self.root_dir = root_dir
 
     def __iter__(self):
@@ -67,20 +79,7 @@ class ReadVideosAndAnnotationsExternalInput:
                 self.__iter__()
                 raise StopIteration()
 
-            # Skip folders without mp4 files
-            video_files = [
-                f
-                for f in os.listdir(
-                    os.path.join(self.root_dir, self.subfolders[self.i])
-                )
-                if ".mp4" in f
-            ]
-            if not video_files:
-                continue
-
-            video_path = os.path.join(
-                self.root_dir, self.subfolders[self.i], video_files[0]
-            )
+            video_path = self.video_paths[self.i]
             batch.append(np.fromfile(video_path, dtype=np.uint8))
             meta_data = ffmpeg.probe(video_path)
             video_stream = next(
@@ -97,9 +96,7 @@ class ReadVideosAndAnnotationsExternalInput:
             fpms = fps / 1000
             # "clip.json" is a json file that contains the start and end frames of clips
             with open(
-                os.path.join(
-                    self.root_dir, self.subfolders[self.i], "clip.json"
-                ),
+                os.path.join(os.path.dirname(video_path), "clip.json"),
                 "r",
             ) as file:
                 clip_json = json.load(file)
@@ -146,8 +143,14 @@ if __name__ == "__main__":
         type=str,
         # The root dir of the DomainSpecificHighlight repository
         # The repository can be found in: https://github.com/aliensunmin/DomainSpecificHighlight/
-        default="../DomainSpecificHighlight/surfing/",
+        default="../DomainSpecificHighlight/",
         help="Videos directory",
+    )
+    parser.add_argument(
+        "--save",
+        type=bool,
+        default=True,
+        help="If set to true saves sample frames in the current directory",
     )
 
     args = parser.parse_args()
@@ -163,4 +166,5 @@ if __name__ == "__main__":
                 img = Image.fromarray(
                     data[0]["decoded"][element][j].cpu().numpy()
                 )
-                img.save(f"{i}_{element}_{j}.jpg")
+                if args.save:
+                    img.save(f"{i}_{element}_{j}.jpg")

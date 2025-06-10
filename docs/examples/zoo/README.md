@@ -1,5 +1,10 @@
 # DALI Pipeline ZOO
 
+## Overview
+
+This repository contains a collection of examples and code snippets demonstrating various NVIDIA DALI pipelines. DALI (Data Loading Library) is a library for data loading and pre-processing to accelerate deep learning applications.
+The code snippets provided in this repository are designed to be used right out of the box. You can run them as-is or modify them to suit your specific needs and integrate them into your own projects. Each example is structured to help you understand how to leverage DALI for different data processing tasks efficiently.
+
 ## Prerequisites
 
 To run the examples in this repository, you need:
@@ -18,19 +23,7 @@ For CUDA installation, refer to the [NVIDIA CUDA installation guide](https://doc
 
 ### Installing NVIDIA DALI
 
-To install NVIDIA DALI with CUDA 12.0 support, run:
-
-```
-pip install nvidia-dali-cuda120
-```
-
-## Overview
-
-This repository contains a collection of examples and code snippets demonstrating various NVIDIA DALI pipelines. DALI (Data Loading Library) is a library for data loading and pre-processing to accelerate deep learning applications.
-
-## Usage
-
-The code snippets provided in this repository are designed to be used right out of the box. You can run them as-is or modify them to suit your specific needs and integrate them into your own projects. Each example is structured to help you understand how to leverage DALI for different data processing tasks efficiently.
+To install NVIDIA DALI refer to the [Installation - NVIDIA DALI](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html#nvidia-dali).
 
 ## Repository Content
 

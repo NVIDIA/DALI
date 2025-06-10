@@ -97,12 +97,13 @@ def read_meta_pipeline(coco_dir):
         jpeg_fancy_upsampling=True,
     )
     start = fn.cast(bbox[0:2], dtype=types.UINT32)
+    left, top = start[0], start[1]
     end = fn.cast(bbox[0:2] + bbox[2:4], dtype=types.UINT32)
+    right, bottom = end[0], end[1]
 
     # Crop image
-    img_crop = decoded[start[1] : end[1], start[0] : end[0]]
+    img_crop = decoded[top:bottom, left:right]
     img_crop = fn.resize(img_crop, size=(640, 480))
-    # Randomly horizontaly flip
     hflip = fn.random.coin_flip()
     if hflip:
         img_crop = fn.flip(img_crop)

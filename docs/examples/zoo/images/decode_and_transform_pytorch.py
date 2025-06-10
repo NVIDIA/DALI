@@ -135,4 +135,4 @@ if __name__ == "__main__":
         print(f"Image shape: {images.shape}")
         print(f"Landmark shape: {landmarks.shape}")
 
-    del dataloader
+    dali_server.stop_thread()

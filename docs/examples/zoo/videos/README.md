@@ -21,7 +21,7 @@ Contains functionality for decoding and transforming videos based on JSON config
 - Processes videos in batches
 - Saves individual frames as JPEG images
 
-This example requires (DomainSpecificHighlight)[https://github.com/aliensunmin/DomainSpecificHighlight/] repostitory to be available in the `root_dir`.
+This example requires [DomainSpecificHighlight](https://github.com/aliensunmin/DomainSpecificHighlight/) repostitory to be available in the `root_dir`.
 
 ### decode_and_transform_pytorch.py 
 Contains functionality for decoding and transforming videos integrating PyTorch and DALI. The script:
@@ -29,3 +29,5 @@ Contains functionality for decoding and transforming videos integrating PyTorch 
 - Uses DALI proxy to enable multiprocessing pipeline execution
 - Decdes video files with DALI decoder
 - Resizes output frames to 1280x720 resolution
+
+This example requires [DALI_extra](https://github.com/NVIDIA/DALI_extra/) repostitory to be available on a local machine.
