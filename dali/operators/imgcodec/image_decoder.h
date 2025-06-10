@@ -686,7 +686,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                           DomainTimeRange::kOrange);
       for (int i = i_start; i < i_end; i++) {
         auto *st = state_[i].get();
-          st->image_info.buffer = nullptr;
+        st->image_info.buffer = nullptr;
         assert(st != nullptr);
         const auto &input_sample = input[i];
 
@@ -738,6 +738,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     int ntasks = std::min<int>(nblocks, std::min<int>(8, tp_->NumThreads() + 1));
 
     if (ntasks < 2) {
+      DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
       setup_block(0, 1, -1);  // run all in current thread
     } else {
       int block_idx = 0;
@@ -760,7 +761,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
 
     // Allocate the memory for the outputs...
-    output.Resize(out_shape);
+    {
+      DomainTimeRange tr("Alloc output", DomainTimeRange::kOrange);
+      output.Resize(out_shape);
+    }
     // ... and create image descriptors.
 
     // The image descriptors are created in parallel, in block-wise fashion.
@@ -777,8 +781,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     // Just one task? Run it in this thread!
     if (ntasks < 2) {
+      DomainTimeRange tr("Create images", DomainTimeRange::kOrange);
       init_desc_task(0, nsamples);
     } else {
+      DomainTimeRange tr("Create images", DomainTimeRange::kOrange);
       // Many tasks? Run in thread pool.
       // The first span of tasks is processed in the main operator thread.
       for (int i = 1; i < ntasks; i++) {
