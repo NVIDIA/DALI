@@ -64,7 +64,7 @@ void Scheduler::Notify(Waitable *w) {
       if (!is_completion_event && !w->IsAcquirable())
         break;
       if (task->Ready()) {
-        new_ready++;
+        assert(!"A task found in a waiting list must not be ready.");
         continue;
       }
 

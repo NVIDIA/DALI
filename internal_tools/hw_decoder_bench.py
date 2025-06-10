@@ -44,7 +44,13 @@ parser.add_argument(
     default="4",
     type=str,
 )
-parser.add_argument("-exec2", dest="exec_dynamic", help="use dynamic excutor", default=1, type=int)
+parser.add_argument(
+    "--exec_dynamic",
+    dest="exec_dynamic",
+    help="use dynamic excutor",
+    default=1,
+    type=int,
+)
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument("-i", dest="images_dir", help="images dir")
 input_files_arg.add_argument(
