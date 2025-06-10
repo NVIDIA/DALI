@@ -14,6 +14,8 @@
 
 from contextlib import contextmanager
 from threading import local
+from . import _device
+import nvidia.dali.backend_impl as _b
 
 _tls = local()
 _tls.stack = []
@@ -24,7 +26,10 @@ class EvalContext:
     def __init__(self):
         self._invocations = {}
         self._cached_results = {}
-        self.cuda_stream = None
+        self._cuda_stream = None
+
+        if _device.Device.current().device_type == "gpu":
+            self._cuda_stream = _b.GetStream(_device.Device.current().device_id)
 
     @staticmethod
     def current():
@@ -36,6 +41,9 @@ class EvalContext:
 
     def __exit__(self, exc_type, exc_value, traceback):
         _tls.stack.pop()
+
+    def cuda_stream(self):
+        return self._cuda_stream
 
     @staticmethod
     def get():
