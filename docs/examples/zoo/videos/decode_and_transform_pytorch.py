@@ -13,12 +13,15 @@
 # limitations under the License
 
 import argparse
+import os
+import pathlib
+import sys
+
 import numpy as np
 from torch.utils.data import Dataset
 
 import nvidia.dali.plugin.pytorch.experimental.proxy as dali_proxy
 from nvidia.dali import pipeline_def, fn, types
-import pathlib
 
 
 class VideoDataset(Dataset):
@@ -103,25 +106,29 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    # Iterate through all files in the directory
-    dali_server = dali_proxy.DALIServer(
+
+    if not os.path.exists(args.videos_dir):
+        sys.exit(f"Invalid videos path: {args.videos_dir}")
+
+    # DALI Server is the key member of DALI Proxy
+    # For further information, please refer to:
+    # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/plugins/pytorch_dali_proxy.html
+    with dali_proxy.DALIServer(
         video_pipe(batch_size=args.batch_size, num_threads=4, device_id=0)
-    )
+    ) as dali_server:
 
-    dataset = VideoDataset(args.videos_dir, transform=dali_server.proxy)
+        dataset = VideoDataset(args.videos_dir, transform=dali_server.proxy)
 
-    # Create a DataLoader
+        # Create a DataLoader
 
-    dataloader = dali_proxy.DataLoader(
-        dali_server,
-        dataset,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        drop_last=True,
-    )
-    # Iterate over the dataset
-    for videos in dataloader:
-        print(f"Batch size: {videos.size(0)}")
-        print(f"Video shape: {videos.shape}")
-
-    dali_server.stop_thread()
+        dataloader = dali_proxy.DataLoader(
+            dali_server,
+            dataset,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            drop_last=True,
+        )
+        # Iterate over the dataset
+        for videos in dataloader:
+            print(f"Batch size: {videos.size(0)}")
+            print(f"Video shape: {videos.shape}")

@@ -15,6 +15,8 @@
 import argparse
 import glob
 from pathlib import Path
+import os
+import sys
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -115,24 +117,28 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    dali_server = dali_proxy.DALIServer(
+    if not os.path.exists(args.landmarks_dir):
+        sys.exit(f"Invalid DALI_extra landmarks path: {args.landmarks_dir}")
+
+    # DALI Server is the key member of DALI Proxy
+    # For further information, please refer to:
+    # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/plugins/pytorch_dali_proxy.html
+    with dali_proxy.DALIServer(
         image_pipe(batch_size=args.batch_size, num_threads=4, device_id=0)
-    )
+    ) as dali_server:
 
-    dataset = ImageDataset(args.landmarks_dir, transform=dali_server.proxy)
+        dataset = ImageDataset(args.landmarks_dir, transform=dali_server.proxy)
 
-    # Create a DataLoader
-    dataloader = dali_proxy.DataLoader(
-        dali_server,
-        dataset,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        drop_last=True,
-    )
-    # Iterate over the dataset
-    for images, landmarks in dataloader:
-        print(f"Batch size: {images.size(0)}")
-        print(f"Image shape: {images.shape}")
-        print(f"Landmark shape: {landmarks.shape}")
-
-    dali_server.stop_thread()
+        # Create a DataLoader
+        dataloader = dali_proxy.DataLoader(
+            dali_server,
+            dataset,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            drop_last=True,
+        )
+        # Iterate over the dataset
+        for images, landmarks in dataloader:
+            print(f"Batch size: {images.size(0)}")
+            print(f"Image shape: {images.shape}")
+            print(f"Landmark shape: {landmarks.shape}")

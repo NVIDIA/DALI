@@ -15,6 +15,7 @@
 import argparse
 import numpy as np
 import os
+import sys
 from PIL import Image
 
 from nvidia.dali.pipeline import pipeline_def
@@ -70,6 +71,10 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    if not os.path.exists(args.videos_dir):
+        sys.exit(f"Invalid videos path: {args.videos_dir}")
+
     # Iterate through all files in the directory
     for i, file_name in enumerate(os.listdir(args.videos_dir)):
         file_path = os.path.join(args.videos_dir, file_name)

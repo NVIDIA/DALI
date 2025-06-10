@@ -13,11 +13,13 @@
 # limitations under the License
 
 import argparse
+import os
+from pathlib import Path
+import sys
+
 import json
 import numpy as np
-import os
 from PIL import Image
-from pathlib import Path
 import torch
 
 from nvidia.dali.pipeline import pipeline_def
@@ -125,11 +127,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save",
         type=bool,
-        default=True,
-        help="If set to true saves images in the current directory, displays them otherwise",
+        default=False,
+        help="If set to true saves images in the current directory",
     )
 
     args = parser.parse_args()
+
+    if not os.path.exists(args.coco_dir):
+        sys.exit(f"Invalid DALI_extra COCO path: {args.coco_dir}")
 
     crop = []
 
@@ -145,5 +150,3 @@ if __name__ == "__main__":
         img = Image.fromarray(crp.cpu().numpy())
         if args.save:
             img.save(f"{i}.jpg")
-        else:
-            img.show()

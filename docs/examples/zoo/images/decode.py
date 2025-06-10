@@ -13,8 +13,11 @@
 # limitations under the License
 
 import argparse
-import numpy as np
+import os
 from pathlib import Path
+import sys
+
+import numpy as np
 from PIL import Image
 
 from nvidia.dali.pipeline import pipeline_def
@@ -50,7 +53,7 @@ def decode_pipeline(source_name):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description="Example of DALI image processing with json input data"
+        description="Example of DALI image processing"
     )
     parser.add_argument(
         "--images_dir",
@@ -66,6 +69,9 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    if not os.path.exists(args.images_dir):
+        sys.exit(f"Invalid images path: {args.images_dir}")
 
     # Create and build the decoding pipeline
     pipe = decode_pipeline("encoded_img", prefetch_queue_depth=1)

@@ -20,6 +20,7 @@ import numpy as np
 from pathlib import Path
 import os
 from PIL import Image
+import sys
 import torch
 
 from nvidia.dali.pipeline import pipeline_def
@@ -149,11 +150,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save",
         type=bool,
-        default=True,
+        default=False,
         help="If set to true saves sample frames in the current directory",
     )
 
     args = parser.parse_args()
+
+    if not os.path.exists(args.videos_dir):
+        sys.exit(f"Invalid videos path: {args.videos_dir}")
 
     pipeline = read_clips_pipeline(args.videos_dir)
     pipeline.build()
