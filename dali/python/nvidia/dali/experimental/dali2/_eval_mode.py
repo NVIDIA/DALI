@@ -23,20 +23,17 @@ class EvalMode(Enum):
     sync_cpu = auto()
     sync_full = auto()
 
+    def __enter__(self):
+        _tls.eval_mode_stack.append(self)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _tls.eval_mode_stack.pop()
+
+    @staticmethod
+    def current() -> "EvalMode":
+        return _tls.eval_mode_stack[-1]
+
 
 _tls = threading.local()
-_tls.eval_mode = EvalMode.default
+_tls.eval_mode_stack = [EvalMode.default]
 
-
-def set_eval_mode(mode: EvalMode):
-    """Set the evaluation mode for the current thread.
-
-    Args:
-        mode: The evaluation mode to set.
-    """
-    _tls.eval_mode = mode
-
-
-def eval_mode() -> EvalMode:
-    """Get the evaluation mode for the current thread."""
-    return _tls.eval_mode
