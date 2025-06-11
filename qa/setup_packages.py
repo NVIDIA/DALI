@@ -516,16 +516,16 @@ all_packages = [
             ],
             "120": [
                 PckgVer(
-                    "2.17.1",
+                    "2.18.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
-                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.17"],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18"],
                 ),
                 PckgVer(
-                    "2.18.0",
+                    "2.19.0",
                     python_min_ver="3.9",
                     alias="tensorflow[and-cuda]",
-                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18"],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.19"],
                 ),
             ],
         },
@@ -562,12 +562,18 @@ all_packages = [
         {
             "118": [
                 PckgVer(
-                    "0.4.13", python_min_ver="3.8", python_max_ver="3.8", dependencies=["jaxlib"]
+                    "0.4.13",
+                    python_min_ver="3.8",
+                    python_max_ver="3.8",
+                    dependencies=["jaxlib", "numpy<2"],
                 ),
                 # dax.fn.jax_function requires at least 0.4.16 which is the first one supporting
                 # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
                 PckgVer(
-                    "0.4.16", python_min_ver="3.9", python_max_ver="3.11", dependencies=["jaxlib"]
+                    "0.4.16",
+                    python_min_ver="3.9",
+                    python_max_ver="3.11",
+                    dependencies=["jaxlib", "numpy<2"],
                 ),
             ]
         },
@@ -586,7 +592,10 @@ all_packages = [
                     python_max_ver="3.8",
                     dependencies=["numpy<1.24"],
                 ),
-                PckgVer("0.59.1", python_min_ver="3.9", dependencies=["numpy<2"]),
+                PckgVer(
+                    "0.59.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
+                ),
+                PckgVer("0.61.2", python_min_ver="3.10", dependencies=["numpy<2"]),
             ]
         },
     ),
