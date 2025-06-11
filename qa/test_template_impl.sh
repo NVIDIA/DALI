@@ -197,9 +197,9 @@ do
                 # don't reinstall DALI wheen in conda as we use conda package
                 if [ -z "${CONDA_PREFIX}" ]; then
                     pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
-                    pip install /opt/dali/nvidia_dali*.whl;
+                    pip install /opt/dali/nvidia_dali*.whl -f /extra-pip-packages;
                 fi
-                pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz
+                pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz -f /extra-pip-packages;
             fi
             # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)
             # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels
