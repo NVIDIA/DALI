@@ -120,6 +120,9 @@ class Tensor:
         else:
             raise ValueError("Either data, expression or batch and index must be provided")
 
+        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+            self.evaluate()
+
     def cpu(self) -> "Tensor":
         return self.to_device(Device("cpu"))
 
@@ -498,7 +501,7 @@ class TensorSlice:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
             result = TensorSlice(self._tensor, tuple(abs_ranges))
-            if _eval_mode.eval_mode().value >= _eval_mode.EvalMode.eager.value:
+            if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
                 result.evaluate()
             return Tensor(result)
 
