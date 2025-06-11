@@ -652,7 +652,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     if (output.sample_dim() != 3)
       output.set_sample_dim(3);
     output.set_type(dtype_);
-    output.SetContiguity(BatchContiguity::Noncontiguous);
     output.SetLayout("HWC");
     output.SetSize(nsamples);
 
