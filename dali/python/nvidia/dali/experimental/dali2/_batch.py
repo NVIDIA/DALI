@@ -17,6 +17,7 @@ from ._type import DType, dtype as _dtype
 from ._tensor import Tensor, _is_full_slice
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
+from ._eval_mode import EvalMode
 from ._device import Device
 from . import _invocation
 
@@ -105,6 +106,9 @@ class Batch:
         self._ndim = None
         if self._tensors and self._tensors[0]._shape:
             self._ndim = len(self._tensors[0]._shape)
+
+        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+            self.evaluate()
 
     @property
     def dtype(self) -> DType:
