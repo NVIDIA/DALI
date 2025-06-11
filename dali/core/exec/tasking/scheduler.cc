@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,8 +63,10 @@ void Scheduler::Notify(Waitable *w) {
       // Otherwise, we have to re-check it.
       if (!is_completion_event && !w->IsAcquirable())
         break;
-      if (task->Ready())
+      if (task->Ready()) {
+        assert(!"A task found in a waiting list must not be ready.");
         continue;
+      }
 
       // If the task has only one precondition or the waitable is a completion event,
       // then we can just try to acquire that waitable on behalf of the task.
@@ -97,7 +99,6 @@ void Scheduler::Notify(Waitable *w) {
         new_ready++;
     }
   }
-
 
   if (new_ready == 1)
     this->task_ready_.notify_one();

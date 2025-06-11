@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,13 @@ parser.add_argument(
     "End of range is included.",
     default="4",
     type=str,
+)
+parser.add_argument(
+    "--exec_dynamic",
+    dest="exec_dynamic",
+    help="use dynamic excutor",
+    default=1,
+    type=int,
 )
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument("-i", dest="images_dir", help="images dir")
@@ -131,6 +138,7 @@ args = parser.parse_args()
     num_threads=1,
     device_id=args.device_id,
     seed=0,
+    exec_dynamic=args.exec_dynamic,
 )
 def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
     device = "mixed" if args.device == "gpu" else "cpu"
@@ -151,6 +159,7 @@ def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
     num_threads=1,
     device_id=args.device_id,
     seed=0,
+    exec_dynamic=args.exec_dynamic,
 )
 def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
     device = "mixed" if args.device == "gpu" else "cpu"
@@ -186,6 +195,7 @@ def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
     seed=0,
     enable_conditionals=True,
     decoders_module=fn.decoders,
+    exec_dynamic=args.exec_dynamic,
 )
 def EfficientnetTrainingPipeline(
     minibatch_size,
@@ -263,6 +273,7 @@ def EfficientnetTrainingPipeline(
     num_threads=1,
     device_id=args.device_id,
     prefetch_queue_depth=1,
+    exec_dynamic=args.exec_dynamic,
 )
 def EfficientnetInferencePipeline(decoders_module=fn.decoders, hw_load=0):
     images = fn.external_source(device="cpu", name=DALI_INPUT_NAME)
@@ -331,6 +342,7 @@ def vit_pipeline(
     num_classes=1000,
     decoders_module=fn.decoders,
     hw_load=0,
+    exec_dynamic=args.exec_dynamic,
 ):
     files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(args.images_dir)]
 

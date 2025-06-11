@@ -33,7 +33,9 @@ auto MakeExec2Config(int batch_size, int num_thread, int device_id,
   cfg.async_output = false;
   cfg.set_affinity = Test(flags, ExecutorFlags::SetAffinity);
   cfg.thread_pool_threads = num_thread;
-  cfg.operator_threads = num_thread;
+  // TODO(michalz): Expose the thread configuration in the Pipeline (?)
+  //                Alternatively, use cooperative parallelism with the CPU thread pool (?)
+  cfg.operator_threads = std::min(num_thread, 4);
   if (device_id != CPU_ONLY_DEVICE_ID)
     cfg.device = device_id;
   cfg.max_batch_size = batch_size;

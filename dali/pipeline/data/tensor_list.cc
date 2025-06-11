@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -187,6 +187,11 @@ TensorList<Backend>::TensorList(int batch_size) : curr_num_tensors_(0) {
 template <typename Backend>
 TensorList<Backend>::TensorList(TensorList<Backend> &&other) noexcept {
   *this = std::move(other);
+}
+
+template <typename Backend>
+TensorList<Backend>::~TensorList() {
+  Reset();
 }
 
 
@@ -775,8 +780,20 @@ void TensorList<Backend>::DoMakeNoncontiguous() {
 
 template <typename Backend>
 void TensorList<Backend>::Reset() {
-  contiguous_buffer_.reset();
-  // TODO(klecki): Is there any benefit to call Reset on all?
+  if (contiguous_buffer_.data_) {
+    // Optimization: prevent per-sample synchronization for samples sharing the buffer
+    // with the batch.
+    for (auto &t : tensors_) {
+      if (t.order_ == order_ && same_managed_object(t.data_, contiguous_buffer_.data_)) {
+        // reset the internal pointer - we're still holding a reference
+        t.data_.reset();
+      }
+    }
+
+    contiguous_buffer_.reset();
+  }
+
+  // Clear the tensors - after the code above they might be in an inconsistent state.
   tensors_.clear();
 
   curr_num_tensors_ = 0;

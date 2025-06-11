@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ class ExecNodeTask {
                  "See C++23 std::move_only_function." << std::endl;
     std::abort();
   }
+  ~ExecNodeTask();
 
   /** Creates a tasking::Task from an ExecNode and WorkspaceParams.
    *
