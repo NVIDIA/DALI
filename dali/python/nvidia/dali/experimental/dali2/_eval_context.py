@@ -29,7 +29,7 @@ class EvalContext:
         self._cuda_stream = None
 
         if _device.Device.current().device_type == "gpu":
-            self._cuda_stream = _b.GetStream(_device.Device.current().device_id)
+            self._cuda_stream = _b.Stream(_device.Device.current().device_id)
 
     @staticmethod
     def current():
@@ -42,6 +42,7 @@ class EvalContext:
     def __exit__(self, exc_type, exc_value, traceback):
         _tls.stack.pop()
 
+    @property
     def cuda_stream(self):
         return self._cuda_stream
 
