@@ -21,14 +21,15 @@ from typing import Optional
 
 
 class Operator:
-    def __init__(self, max_batch_size, name=None, **kwargs):
+    def __init__(self, max_batch_size, name=None, device=None, num_inputs=None, call_arg_names=None, **kwargs):
         self._name = name
         self._max_batch_size = max_batch_size
         self._init_args = kwargs
-        device_type = kwargs.get("device", "cpu")
+        self._num_inputs = num_inputs
+        self._call_arg_names = call_arg_names
         self._device = _device.Device(
-            name=device_type,
-            device_id=kwargs.get("device_id", _device.Device.default_device_id(device_type)),
+            name=device,
+            device_id=kwargs.get("device_id", _device.Device.default_device_id(device)),
         )
         self._minipipe = None
         self._input_meta = []
@@ -38,7 +39,13 @@ class Operator:
         self._op = None
 
     @classmethod
-    def get(cls, device: Optional[_device.Device], **init_args):
+    def get(cls,
+            max_batch_size:int,
+            name: Optional[str]=None,
+            device: Optional[_device.Device]=None,
+            num_inputs: Optional[int]=None,
+            call_arg_names: Optional[list[str]]=None,
+            **init_args,):
         if device is None:
             device = _device.Device.current()
 
@@ -51,11 +58,12 @@ class Operator:
             sorted_keys = sorted(args.keys())
             return tuple([(k, freeze_arg(args[k])) for k in sorted_keys])
 
-        key = (device, freeze_args(init_args))
+        call_arg_names = freeze_arg(call_arg_names)
+        key = (device, max_batch_size, num_inputs, call_arg_names, freeze_args(init_args))
         inst = cls._instance_cache.get(key, None)
         if inst is None:
             with device:
-                inst = cls(**init_args)
+                inst = cls(max_batch_size, name=name, device=device, num_inputs=num_inputs, call_arg_names=call_arg_names, **init_args)
                 cls._instance_cache[key] = inst
         return inst
 
@@ -88,7 +96,11 @@ class Operator:
                     )
                     for i in range(len(inputs))
                 ]
+                print("-- input_nodes --")
+                print(input_nodes)
                 arg_nodes = {name: dali.fn.external_source(name=f"arg_{name}") for name in args}
+                print("-- arg_nodes --")
+                print(arg_nodes)
                 op = self.legacy_op(name=self._name, **self._init_args)
                 self._op = op
                 out = op(*input_nodes, **arg_nodes)
@@ -106,7 +118,7 @@ class Operator:
                 self._minipipe.build()
 
     def run(self, *inputs, **args):
-        print("Running operator", self._name, type(self))
+        print("Running operator", self._name, type(self), id(self))
         print("inputs", inputs)
         print("args", args)
         print("minipipe", self._minipipe)
