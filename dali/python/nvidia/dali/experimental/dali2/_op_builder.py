@@ -138,7 +138,7 @@ def build_constructor(schema, op_class):
 
     if call_args:
         call_args = ["*"] + call_args
-    header = f"__init__({', '.join(['self', 'max_batch_size', 'name=None', 'num_inputs=None', 'call_arg_names=None'] + call_args)})"
+    header = f"__init__({', '.join(['self', 'max_batch_size', 'name=None', 'device=None', 'num_inputs=None', 'call_arg_names=None'] + call_args)})"
 
     def init(self, max_batch_size, name, **kwargs):
         ops.Operator.__init__(self, max_batch_size, name, **kwargs)
@@ -326,9 +326,13 @@ def build_fn_wrapper(op):
         init_args = {
             arg: raw_kwargs[arg]
             for arg in fixed_args
-            if arg != "max_batch_size" and arg in raw_kwargs
+            if arg != "max_batch_size" and arg in raw_kwargs and raw_kwargs[arg] is not None
         }
-        call_args = {arg: raw_kwargs[arg] for arg in tensor_args if arg in raw_kwargs}
+        call_args = {
+            arg: raw_kwargs[arg]
+            for arg in tensor_args
+            if arg in raw_kwargs and raw_kwargs[arg] is not None
+        }
         device = raw_kwargs.get("device", None)
         if device is None:
             device = "cpu"
@@ -337,7 +341,7 @@ def build_fn_wrapper(op):
         op_inst = op.get(
             max_batch_size=max_batch_size,
             name=None,
-            device=device,
+            device=_device.Device(device),
             num_inputs=len(inputs),
             call_arg_names=tuple(call_args.keys()),
             **init_args,

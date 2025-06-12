@@ -137,6 +137,16 @@ class DType:
         else:
             raise ValueError(f"Unsupported type name: {name}")
 
+    def __call__(self, *args, **kwargs):
+        """
+        Create a new Tensor with this type.
+        """
+        if "dtype" in kwargs:
+            raise ValueError("dtype cannot be overridden")
+        from . import _tensor
+
+        return _tensor.Tensor(self, *args, dtype=self, **kwargs)
+
 
 int8 = DType(DType.Kind.signed, 8)
 int16 = DType(DType.Kind.signed, 16)
