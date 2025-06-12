@@ -83,14 +83,14 @@ class Device:
 
     @staticmethod
     def current():
-        if Device._thread_local.devices is None:
+        if not Device._thread_local.devices:
             return Device("gpu")
         return Device._thread_local.devices[-1]
 
     def __enter__(self):
         if self.device_type == "gpu":
             if Device._thread_local.previous_device_ids is None:
-                Device._thread_local.previous_device_ids = [Device.current()]
+                Device._thread_local.previous_device_ids = []
             Device._thread_local.previous_device_ids.append(_backend.GetCUDACurrentDevice())
             _backend.SetCUDACurrentDevice(self.device_id)
         if Device._thread_local.devices is None:
