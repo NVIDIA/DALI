@@ -479,7 +479,7 @@ all_packages = [
     PlainPackage(
         "numpy",
         [
-            PckgVer(">=1.23,<1.24", python_min_ver="3.8", python_max_ver="3.11"),
+            PckgVer(">=1.23,<1.25", python_min_ver="3.8", python_max_ver="3.11"),
             PckgVer(">=1.23,<2", python_min_ver="3.12", python_max_ver="3.12"),
         ],
     ),
@@ -519,13 +519,13 @@ all_packages = [
                     "2.18.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
-                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18"],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.18", "numpy<2"],
                 ),
                 PckgVer(
                     "2.19.0",
                     python_min_ver="3.9",
                     alias="tensorflow[and-cuda]",
-                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.19"],
+                    dependencies=["protobuf<4", "urllib3<2.0", "tf_keras==2.19", "numpy<2"],
                 ),
             ],
         },
