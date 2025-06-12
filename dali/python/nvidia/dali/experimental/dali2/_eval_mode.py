@@ -36,4 +36,3 @@ class EvalMode(Enum):
 
 _tls = threading.local()
 _tls.eval_mode_stack = [EvalMode.default]
-
