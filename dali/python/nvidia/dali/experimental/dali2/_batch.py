@@ -17,8 +17,8 @@ from ._type import DType, dtype as _dtype
 from ._tensor import Tensor, _is_full_slice
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
-from ._eval_mode import EvalMode
 from ._device import Device
+from . import _eval_mode
 from . import _invocation
 
 
@@ -53,6 +53,8 @@ class BatchedSlice:
                 d += 1
 
         from . import fn
+
+        print(args)
 
         return fn.tensor_subscript(self._batch, **args)
 
