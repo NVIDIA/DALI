@@ -270,7 +270,7 @@ void PushFramesToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t
       do {
         ++sample_id;
         auto sample_shape = input_shape[sample_id];
-        DALI_ENFORCE(sample_id < t_list.num_samples());
+        assert(sample_id < t_list.num_samples());
         std::copy(&sample_shape[first_spatial_dim], &sample_shape[input_shape.sample_dim()],
                   frame_shape.begin());
         frame_stride = volume(frame_shape) * type_size;

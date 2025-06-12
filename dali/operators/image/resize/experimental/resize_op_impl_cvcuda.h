@@ -23,7 +23,6 @@
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/operators/image/resize/resize_op_impl.h"
 #include "dali/operators/nvcvop/nvcvop.h"
-#include "dali/core/nvtx.h"
 
 namespace dali {
 
@@ -164,8 +163,10 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     for (size_t b = 0; b < minibatches_.size(); b++) {
       MiniBatch &mb = minibatches_[b];
       auto reqs = nvcv::TensorBatch::CalcRequirements(mb.count);
+
       auto mb_output = nvcv::TensorBatch(reqs, allocator);
       auto mb_input = nvcv::TensorBatch(reqs, allocator);
+
       nvcvop::PushFramesToBatch(mb_input, input, first_spatial_dim_, mb.sample_offset,
                                 mb.frame_offset, mb.count, sample_layout_);
       nvcvop::PushFramesToBatch(mb_output, output, first_spatial_dim_, mb.sample_offset,
