@@ -897,7 +897,7 @@ def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale,
     ref_scale = scale or 1.0
     ref_shift = shift or 0.0
     for _ in range(3):
-        outs = tuple(np.array(out.as_cpu()) for out in p.run())
+        outs = tuple(np.array(out.as_tensor().as_cpu()) for out in p.run())
         for s in range(batch_size):
             out, image_like, mean, std = tuple(np.array(o[s]) for o in outs)
             ref_out = ref_scale * (image_like - mean) / std + ref_shift
