@@ -87,10 +87,11 @@ _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 def _find_or_create_module(root_module, module_path):
     module = root_module
     for path_part in module_path:
-        module = getattr(module, path_part, None)
-        if module is None:
-            module = types.ModuleType(path_part)
-            setattr(root_module, path_part, module)
+        submodule = getattr(module, path_part, None)
+        if submodule is None:
+            submodule = types.ModuleType(path_part)
+            setattr(module, path_part, submodule)
+        module = submodule
     return module
 
 
@@ -107,7 +108,10 @@ def build_operator_class(schema):
     module = _find_or_create_module(module, module_path)
 
     legacy_op_class = getattr(legacy_op_module, class_name)
-    op_class = type(class_name, (ops.Operator,), {})
+    base = ops.Operator
+    if "readers" in module.__name__:
+        base = ops.Reader
+    op_class = type(class_name, (base,), {})
     op_class.schema = schema
     op_class.op_name = class_name
     op_class.fn_name = _to_snake_case(class_name)
@@ -138,10 +142,18 @@ def build_constructor(schema, op_class):
 
     if call_args:
         call_args = ["*"] + call_args
-    header = f"__init__({', '.join(['self', 'max_batch_size', 'name=None', 'device=None', 'num_inputs=None', 'call_arg_names=None'] + call_args)})"
+    header_args = [
+        "self",
+        "max_batch_size=None",
+        "name=None",
+        'device="cpu"',
+        "num_inputs=None",
+        "call_arg_names=None",
+    ] + call_args
+    header = f"__init__({', '.join(header_args)})"
 
     def init(self, max_batch_size, name, **kwargs):
-        ops.Operator.__init__(self, max_batch_size, name, **kwargs)
+        op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if stateful:
             self._call_id = 0
 
@@ -182,8 +194,7 @@ def build_call_function(schema, op_class):
         else:
             inputs.append(f"{input_name}=None")
 
-    if call_args:
-        call_args = ["*"] + call_args
+    call_args = ["*", "batch_size=None"] + call_args
     if inputs:
         inputs = inputs + ["/"]
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
@@ -336,8 +347,6 @@ def build_fn_wrapper(op):
         device = raw_kwargs.get("device", None)
         if device is None:
             device = "cpu"
-        print("inputs", inputs)
-        print("call_args", call_args)
         op_inst = op.get(
             max_batch_size=max_batch_size,
             name=None,
