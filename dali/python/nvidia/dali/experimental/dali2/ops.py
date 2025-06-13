@@ -22,13 +22,19 @@ from typing import Optional
 
 class Operator:
     def __init__(
-        self, max_batch_size, name=None, device=None, num_inputs=None, call_arg_names=None, **kwargs
+        self,
+        max_batch_size,
+        name=None,
+        device="cpu",
+        num_inputs=None,
+        call_arg_names=None,
+        **kwargs,
     ):
         self._name = name
         self._max_batch_size = max_batch_size
         self._init_args = kwargs
         self._num_inputs = num_inputs
-        self._call_arg_names = call_arg_names
+        self._call_arg_names = None if call_arg_names is None else tuple(call_arg_names)
         if isinstance(device, str):
             self._device = _device.Device(
                 name=device,
@@ -73,7 +79,6 @@ class Operator:
 
         call_arg_names = freeze_arg(call_arg_names)
         key = (device, max_batch_size, num_inputs, call_arg_names, freeze_args(init_args))
-        print("key", key)
         inst = cls._instance_cache.get(key, None)
         if inst is None:
             with device:
@@ -98,6 +103,8 @@ class Operator:
 
     def _init_pipeline(self, inputs, args):
         if self._minipipe is None:
+            self._num_inputs = len(inputs)
+            self._call_arg_names = tuple(args.keys())
             import nvidia.dali as dali
 
             self._minipipe = dali.Pipeline(
@@ -117,12 +124,10 @@ class Operator:
                     )
                     for i in range(len(inputs))
                 ]
-                print("-- input_nodes --")
-                print(input_nodes)
                 arg_nodes = {name: dali.fn.external_source(name=f"arg_{name}") for name in args}
-                print("-- arg_nodes --")
-                print(arg_nodes)
-                op = self.legacy_op(name=self._name, **self._init_args)
+                op = self.legacy_op(
+                    name=self._name, device=self._device.device_type, **self._init_args
+                )
                 self._op = op
                 out = op(*input_nodes, **arg_nodes)
                 if isinstance(out, (tuple, list)):
@@ -135,21 +140,30 @@ class Operator:
                 else:
                     self._num_outputs = 1
                     self._output_devices = [_device.Device(out.device, self._device.device_id)]
-                self._minipipe.set_outputs(out)
+                if isinstance(out, (tuple, list)):
+                    self._minipipe.set_outputs(*out)
+                else:
+                    self._minipipe.set_outputs(out)
                 self._minipipe.build()
 
+            self._set_meta(inputs, args)
+
     def run(self, *inputs, **args):
-        print("Running operator", self._name, type(self), id(self))
-        print("inputs", inputs)
-        print("args", args)
-        print("minipipe", self._minipipe)
-        print("input_meta", self._input_meta)
-        print("arg_meta", self._arg_meta)
-        if self._minipipe is not None and not self.is_compatible(inputs, args):
-            self._minipipe = None
+        # print("Running operator", self._name, type(self), id(self))
+        # print("inputs", inputs)
+        # print("args", args)
+        # print("minipipe", self._minipipe)
+        # print("input_meta", self._input_meta)
+        # print("arg_meta", self._arg_meta)
+        if self._minipipe is not None:
+            if self.schema.IsStateful():
+                # clearing the _minipipe in a stateful op would destroy the state
+                self.check_compatible(inputs, args)
+            elif not self.is_compatible(inputs, args):
+                # we can reinitialize a stateless operator - not very efficient :(
+                self._minipipe = None
 
         self._init_pipeline(inputs, args)
-        self._set_meta(inputs, args)
         for i, input in enumerate(inputs):
             self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
         for name, arg in args.items():
@@ -172,6 +186,38 @@ class Operator:
         ] and self._arg_meta == {name: self._make_meta(arg) for name, arg in args.items()}
         return ret
 
+    def check_compatible(self, inputs, args):
+        def error_header():
+            return f"The invocation of operator {self.display_name} is not compatible with the previous call:\n"
+
+        if len(inputs) != len(self._input_meta):
+            raise RuntimeError(
+                error_header()
+                + f"The number of inputs ({len(inputs)}) does not match the number of inputs used in the previous call ({len(self._input_meta)})"
+            )
+        for i, input in enumerate(inputs):
+            if self._input_meta[i] != self._make_meta(input):
+                raise RuntimeError(
+                    error_header()
+                    + f"The input {i} is not compatible with the input used in the previous call"
+                )
+        for name, arg in args.items():
+            if name not in self._arg_meta:
+                raise RuntimeError(
+                    error_header() + f"The argument `{name}` was not used in the previous call"
+                )
+            if self._arg_meta[name] != self._make_meta(arg):
+                raise RuntimeError(
+                    error_header()
+                    + f"The argument `{name}` is not compatible with the argument used in the previous call"
+                )
+        for name in self._arg_meta:
+            if name not in args:
+                raise RuntimeError(
+                    error_header()
+                    + f"The argument `{name}` used in the previous call was not supplied in the current one"
+                )
+
     def _make_meta(self, x):
         is_batch = False
         if isinstance(x, _invocation.Invocation):
@@ -187,6 +233,77 @@ class Operator:
             "layout": x.layout,
             "dtype": x.dtype,
         }
+
+    @property
+    def display_name(self):
+        if "display_name" in self._init_args:
+            type_name = self._init_args["display_name"]
+        else:
+            type_name = self.schema.OperatorName()
+        if self._name is not None:
+            return f'type_name "{self._name}"'
+        else:
+            return type_name
+
+
+class Reader(Operator):
+    def __init__(
+        self,
+        batch_size=None,
+        name=None,
+        device="cpu",
+        num_inputs=None,
+        call_arg_names=None,
+        **kwargs,
+    ):
+        if name is None:
+            name = f"Reader_{id(self)}"
+        self._actual_batch_size = batch_size
+        self._batch_size = batch_size
+        super().__init__(
+            self._actual_batch_size, name, device, num_inputs, call_arg_names, **kwargs
+        )
+
+    def samples(self):
+        if not self._minipipe:
+            if self._actual_batch_size is None:
+                self._actual_batch_size = 1
+            if self._max_batch_size is None:
+                self._max_batch_size = self._actual_batch_size
+            self._init_pipeline((), {})
+        meta = self._minipipe.reader_meta(self._name)
+        idx = 0
+        while idx < meta["epoch_size_padded"]:
+            outputs = self._minipipe.run()
+            batch_size = len(outputs[0])
+            idx += batch_size
+            for x in zip(*outputs):
+                yield x
+
+    def batches(self, batch_size=None):
+        if batch_size is None:
+            batch_size = self._batch_size
+        if batch_size is None:
+            raise ValueError("Batch size was not specified")
+        if not self._minipipe:
+            if self._max_batch_size and self._max_batch_size < batch_size:
+                raise ValueError(
+                    f"`batch_size` {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+                )
+            self._max_batch_size = batch_size
+            self._init_pipeline((), {})
+        else:
+            if self._max_batch_size and self._max_batch_size != batch_size:
+                raise ValueError(
+                    f"`batch_size` {batch_size} is different than the `max_batch_size` {self._max_batch_size} used in the previous call"
+                )
+        meta = self._minipipe.reader_meta(self._name)
+        idx = 0
+        while idx < meta["epoch_size_padded"]:
+            outputs = self._minipipe.run()
+            batch_size = len(outputs[0])
+            idx += batch_size
+            yield outputs
 
 
 all_ops = []
