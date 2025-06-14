@@ -100,11 +100,12 @@ void RunDecoding(SampleView<CPUBackend> outputSample, ConstSampleView<CPUBackend
   if (outputSample.type() != inputView.type()) {
     // If the types do not match, we need to convert the data
     TYPE_SWITCH(outputSample.type(), type2id, OType, NUMPY_ALLOWED_TYPES, (
-            TYPE_SWITCH(inputView.type(), type2id, IType, NUMPY_ALLOWED_TYPES, (
-                std::transform(inputView.data<IType>(), inputView.data<IType>() + volume(inputView.shape()),
-                    outputSample.mutable_data<OType>(), ConvertSat<OType, IType>);
-            ), DALI_FAIL(make_string("Unsupported input type: ", inputView.type()));); 
-        ), DALI_FAIL(make_string("Unsupported output type: ", outputSample.type())););
+      TYPE_SWITCH(inputView.type(), type2id, IType, NUMPY_ALLOWED_TYPES, (
+        std::transform(inputView.data<IType>(),
+          inputView.data<IType>() + volume(inputView.shape()),
+          outputSample.mutable_data<OType>(), ConvertSat<OType, IType>);),
+      DALI_FAIL(make_string("Unsupported input type: ", inputView.type())););),
+    DALI_FAIL(make_string("Unsupported output type: ", outputSample.type())););
   } else {
     // If the types match, we can just copy the data
     auto *out_ptr = outputSample.raw_mutable_data();
@@ -133,10 +134,16 @@ void NumpyDecoder::RunImpl(Workspace &ws) {
 DALI_REGISTER_OPERATOR(decoders__Numpy, NumpyDecoder, CPU);
 
 DALI_SCHEMA(decoders__Numpy)
-    .DocStr(R"code(Decodes NumPy arrays from a binary format.
-This operator is used to decode NumPy arrays that have been serialized into a binary format.
-The input should be a 1D tensor containing the binary data of the NumPy array.
+    .DocStr(R"code(Decodes NumPy arrays from a serialized npy file.
+The input should be a 1D uint8 tensor containing the binary data of the NumPy file.
+All samples in the batch must have the same number of dimensions and data type (unless `dtype` is specified
+which casts all samples in the batch to this dtype).
 The output will be a tensor with the same shape and data type as the original NumPy array.
+
+If the `dtype` argument is not specified, it will be inferred from the input data.
+The operator supports both C-style (C-contiguous) and Fortran-style (Fortran-contiguous) arrays.
+The operator does not support decoding of NumPy arrays with complex data types (e.g., structured arrays) and will raise an error
+if the file is not `Format Version 1.0 <https://numpy.org/devdocs/reference/generated/numpy.lib.format.html#format-version-1-0>`_.
 )code")
     .NumInput(1)
     .NumOutput(1)

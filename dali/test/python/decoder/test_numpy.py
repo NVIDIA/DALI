@@ -152,7 +152,7 @@ def test_raise_bad_numpy_magic():
 
 
 @raises(RuntimeError, "All samples in the batch must have the same data type")
-def test_raise_different_dtype_no_force():
+def test_raise_different_dtype_without_arg():
     data = [np.empty((2, 3), dtype=np.float32), np.empty((2, 3), dtype=np.int32)]
 
     @pipeline_def(batch_size=2, num_threads=1)

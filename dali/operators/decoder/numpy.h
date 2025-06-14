@@ -53,4 +53,4 @@ class NumpyDecoder : public StatelessOperator<CPUBackend> {
 
 }  // namespace dali
 
-#endif
+#endif  // DALI_OPERATORS_DECODER_NUMPY_H_
