@@ -41,7 +41,6 @@ numpy::HeaderData ParseHeader(const std::string_view data) {
 bool NumpyDecoder::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
 
-
   headers_.clear();
   headers_.reserve(input.num_samples());
   for (int sampleIdx = 0; sampleIdx < input.num_samples(); sampleIdx++) {
@@ -86,41 +85,49 @@ bool NumpyDecoder::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspa
   return true;
 }
 
-void NumpyDecoder::RunImpl(Workspace &ws) {
-  const auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
+void RunDecoding(SampleView<CPUBackend> outputSample, ConstSampleView<CPUBackend> inputView,
+                 const numpy::HeaderData &header) {
   Tensor<CPUBackend> transposeBuffer;
+  if (header.fortran_order) {
+    transposeBuffer.Resize(outputSample.shape(), inputView.type());
+    auto transposeBufferView = SampleView<CPUBackend>(
+        transposeBuffer.raw_mutable_data(), transposeBuffer.shape(), transposeBuffer.type());
+    numpy::FromFortranOrder(transposeBufferView, inputView);
+    inputView = ConstSampleView<CPUBackend>(transposeBuffer.raw_data(), transposeBuffer.shape(),
+                                            transposeBuffer.type());
+  }
 
-  for (int sampleIdx = 0; sampleIdx < input.num_samples(); ++sampleIdx) {
-    const numpy::HeaderData &header = headers_[sampleIdx];
-    ConstSampleView<CPUBackend> inputView(input.raw_tensor(sampleIdx) + header.data_offset,
-                                          header.shape, header.type());
-
-    auto outputSample = output[sampleIdx];
-    if (header.fortran_order) {
-      transposeBuffer.Resize(outputSample.shape(), header.type());
-      auto transposeBufferView = SampleView<CPUBackend>(
-          transposeBuffer.raw_mutable_data(), transposeBuffer.shape(), transposeBuffer.type());
-      numpy::FromFortranOrder(transposeBufferView, inputView);
-      inputView = ConstSampleView<CPUBackend>(transposeBuffer.raw_data(), transposeBuffer.shape(),
-                                              transposeBuffer.type());
-    }
-
-    if (outputSample.type() != header.type()) {
-      // If the types do not match, we need to convert the data
-      TYPE_SWITCH(output.type(), type2id, OType, NUMPY_ALLOWED_TYPES, (
+  if (outputSample.type() != inputView.type()) {
+    // If the types do not match, we need to convert the data
+    TYPE_SWITCH(outputSample.type(), type2id, OType, NUMPY_ALLOWED_TYPES, (
             TYPE_SWITCH(inputView.type(), type2id, IType, NUMPY_ALLOWED_TYPES, (
                 std::transform(inputView.data<IType>(), inputView.data<IType>() + volume(inputView.shape()),
                     outputSample.mutable_data<OType>(), ConvertSat<OType, IType>);
-            ), DALI_FAIL(make_string("Unsupported input type: ", input.type())););  // NOLINT
-        ), DALI_FAIL(make_string("Unsupported output type: ", output.type())););  // NOLINT
-    } else {
-      // If the types match, we can just copy the data
-      auto *out_ptr = outputSample.raw_mutable_data();
-      const auto *in_ptr = inputView.raw_data();
-      std::memcpy(out_ptr, in_ptr, header.nbytes());
-    }
+            ), DALI_FAIL(make_string("Unsupported input type: ", inputView.type()));); 
+        ), DALI_FAIL(make_string("Unsupported output type: ", outputSample.type())););
+  } else {
+    // If the types match, we can just copy the data
+    auto *out_ptr = outputSample.raw_mutable_data();
+    const auto *in_ptr = inputView.raw_data();
+    std::memcpy(out_ptr, in_ptr, header.nbytes());
   }
+}
+
+
+void NumpyDecoder::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
+  auto &tPool = ws.GetThreadPool();
+
+  for (int sampleIdx = 0; sampleIdx < input.num_samples(); ++sampleIdx) {
+    tPool.AddWork([&, sampleIdx](int) {
+      const numpy::HeaderData &header = headers_[sampleIdx];
+      ConstSampleView<CPUBackend> inputView(input.raw_tensor(sampleIdx) + header.data_offset,
+                                            header.shape, header.type());
+      RunDecoding(output[sampleIdx], inputView, header);
+    });
+  }
+  tPool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(decoders__Numpy, NumpyDecoder, CPU);
