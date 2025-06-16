@@ -253,6 +253,10 @@ def build_call_function(schema, op_class):
         invocation = _invocation.Invocation(
             self, call_id, inputs, kwargs, is_batch=is_batch, batch_size=batch_size
         )
+        if stateful:
+            invocation._previous_invocation = self._last_invocation
+            self._last_invocation = invocation
+
         if is_batch:
             if len(invocation) == 1:
                 return Batch(invocation_result=invocation[0])
