@@ -36,6 +36,7 @@ class Invocation:
         self._batch_size = batch_size
         self._num_outputs = None
         self._output_devices = None
+        self._previous_invocation = None
 
     def device(self, result_index: int):
         if self._output_devices is None:
@@ -94,6 +95,11 @@ class Invocation:
         return self._is_batch
 
     def run(self, ctx: _EvalContext):
+        if self._previous_invocation is not None:
+            if self._previous_invocation._results is None:
+                print("Evaluating previous invocation of a stateful operator")
+            self._previous_invocation.run(ctx)
+            self._previous_invocation = None
         if self._results is None:
             cached = ctx.cached_results(self)
             if cached is not None:
