@@ -52,6 +52,7 @@ class Operator:
         self._num_outputs = None
         self._output_devices = None
         self._op = None
+        self._last_invocation = None
 
     @classmethod
     def get(
@@ -130,6 +131,7 @@ class Operator:
                 )
                 self._op = op
                 out = op(*input_nodes, **arg_nodes)
+                print(out.source._spec)
                 if isinstance(out, (tuple, list)):
                     self._output_devices = []
                     self._num_outputs = len(out)
@@ -149,7 +151,7 @@ class Operator:
             self._set_meta(inputs, args)
 
     def run(self, *inputs, **args):
-        # print("Running operator", self._name, type(self), id(self))
+        print("Running operator", self._name, type(self), id(self))
         # print("inputs", inputs)
         # print("args", args)
         # print("minipipe", self._minipipe)
@@ -274,7 +276,7 @@ class Reader(Operator):
         meta = self._minipipe.reader_meta(self._name)
         idx = 0
         while idx < meta["epoch_size_padded"]:
-            outputs = self._minipipe.run()
+            outputs = self.run()
             batch_size = len(outputs[0])
             idx += batch_size
             for x in zip(*outputs):
@@ -300,7 +302,7 @@ class Reader(Operator):
         meta = self._minipipe.reader_meta(self._name)
         idx = 0
         while idx < meta["epoch_size_padded"]:
-            outputs = self._minipipe.run()
+            outputs = self.run()
             batch_size = len(outputs[0])
             idx += batch_size
             yield outputs
