@@ -70,12 +70,17 @@ test_checkpointing() {
     fi
 }
 
+test_experimental_mode() {
+    ${python_new_invoke_test} -s experimental_mode
+}
+
 test_no_fw() {
     test_py_with_framework
     test_py
     test_autograph
     test_type_annotations
     test_checkpointing
+    test_experimental_mode
 }
 
 run_all() {
