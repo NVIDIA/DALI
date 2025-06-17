@@ -2173,6 +2173,7 @@ void ExposeStream(py::module &m) {
     }))
     // __cuda_stream__ protocol, as per cuda.core 0.3.0
     .def("__cuda_stream__", [](dali::CUDAStreamLease &self) {
+      // version, stream - version is 0
       return std::make_tuple(0, reinterpret_cast<uintptr_t>(self.get()));
     })
     .def_property_readonly("device_id", [](dali::CUDAStreamLease &self) {
@@ -2183,6 +2184,7 @@ void ExposeStream(py::module &m) {
     });
 }
 
+/** Python wrapper for the Workspace */
 class PyWorkspace : public Workspace {
  public:
   PyWorkspace() = default;
@@ -2191,12 +2193,34 @@ class PyWorkspace : public Workspace {
   PyWorkspace(const Workspace &other) :  Workspace(other) {}  // NOLINT
   PyWorkspace(Workspace &&other) :  Workspace(std::move(other)) {}  // NOLINT
 
+  /** Set the thread pool and store the shared pointer to keep it alive */
   void SetThreadPool(std::shared_ptr<ThreadPool> thread_pool) {
     shared_thread_pool_ = thread_pool;;
     Workspace::SetThreadPool(thread_pool.get());
   }
+
+  void SetStream(py::object cuda_stream) {
+    AccessOrder order;
+    if (!cuda_stream.is_none()) {
+      auto cuda_stream_interface = getattr(cuda_stream, "__cuda_stream__", py::none());
+      if (!cuda_stream_interface.is_none()) {
+        auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
+        cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+        order = AccessOrder(stream);
+      } else {
+        cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+        order = AccessOrder(stream);
+      }
+    } else {
+      order = AccessOrder::host();
+    }
+    set_output_order(order);
+    py_stream_ = cuda_stream;  // keep the stream python object alive
+  }
+
  private:
   std::shared_ptr<ThreadPool> shared_thread_pool_;
+  py::object py_stream_;
 };
 
 void ExposeThreadPool(py::module &m) {
@@ -2221,6 +2245,7 @@ void ExposeThreadPool(py::module &m) {
 }
 
 void ExposeWorkspace(py::module &m) {
+  // Expose PyWorkspace as a private class within the backend_impl module
   py::class_<PyWorkspace>(m, "_Workspace")
     .def(py::init([](std::shared_ptr<ThreadPool> thread_pool, py::object stream) {
       auto ws = std::make_unique<PyWorkspace>();
@@ -2231,16 +2256,7 @@ void ExposeWorkspace(py::module &m) {
       }
       return ws;
     }), "thread_pool"_a = nullptr, "stream"_a = py::none())
-    .def("SetStream", [](PyWorkspace &self, py::object cuda_stream) {
-      AccessOrder order;
-      if (!cuda_stream.is_none()) {
-        cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-        order = AccessOrder(stream);
-      } else {
-        order = AccessOrder::host();
-      }
-      self.set_output_order(order);
-    }, "cuda_stream"_a = py::none())
+    .def("SetStream", &PyWorkspace::SetStream, "cuda_stream"_a = py::none())
     .def("AddInput", [](PyWorkspace &self, const TensorList<CPUBackend> &tl) {
       self.AddInput(CloneTL(tl));
     })
