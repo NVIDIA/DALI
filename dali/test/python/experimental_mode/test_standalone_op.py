@@ -31,7 +31,7 @@ def test_standalone_op():
     op = _b._Operator(spec)
     # create the workspace and populat ethe environment
     ws = _b._Workspace(tp)
-    ws.SetStream(stream.__cuda_stream__())
+    ws.SetStream(stream)
     # actual inputs
     A = dali.tensors.TensorListCPU([np.int32([1, 2, 3])])._as_gpu()
     B = dali.tensors.TensorListCPU([np.int32([4, 5, 6])])._as_gpu()
