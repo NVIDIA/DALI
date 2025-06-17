@@ -1,6 +1,5 @@
 # import nvidia.dali.experimental.dali2 as dali2
 import nvidia.dali as dali
-import nvidia.dali.fn as fn
 import nvidia.dali.backend_impl as _b
 import numpy as np
 
