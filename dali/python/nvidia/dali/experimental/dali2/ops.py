@@ -18,6 +18,7 @@ from . import _tensor, _batch
 from . import _eval_context
 import nvidia.dali as dali
 from typing import Optional
+import nvida.dali.backend_impl as _b
 
 
 class Operator:
@@ -46,12 +47,12 @@ class Operator:
                     f"`device` must be a Device instance or a string, got {type(device)}"
                 )
             self._device = device
-        self._minipipe = None
         self._input_meta = []
         self._arg_meta = {}
         self._num_outputs = None
         self._output_devices = None
-        self._op = None
+        self._op_inst = None
+        self._op_backend = None
         self._last_invocation = None
 
     @classmethod
@@ -95,43 +96,49 @@ class Operator:
         return inst
 
     def infer_num_outputs(self, *inputs, **args):
-        self._init_pipeline(inputs, args)
+        self._init_backend(inputs, args)
         return self._num_outputs
 
     def infer_output_devices(self, *inputs, **args):
-        self._init_pipeline(inputs, args)
+        self._init_backend(inputs, args)
         return self._output_devices
 
-    def _init_pipeline(self, inputs, args):
-        if self._minipipe is None:
+    def _is_backend_initialized(self):
+        return self._op_backend is not None
+
+    def _reset_backend(self):
+        self._op_backend = None
+
+    def _init_backend(self, inputs, args):
+        if self._op is None:
             self._num_inputs = len(inputs)
             self._call_arg_names = tuple(args.keys())
             import nvidia.dali as dali
 
-            self._minipipe = dali.Pipeline(
-                batch_size=self._max_batch_size,
-                exec_dynamic=True,
-                num_threads=4,
-                prefetch_queue_depth=1,
-                device_id=None if self._device.device_type == "cpu" else self._device.device_id,
-            )
-            with self._minipipe:
+            with self._device:
                 input_nodes = [
-                    dali.fn.external_source(
+                    dali.data_node.DataNode(
                         name=f"input_{i}",
                         device=self._device.device_type,
-                        no_copy=True,
-                        blocking=True,
+                        source=None
                     )
                     for i in range(len(inputs))
                 ]
-                arg_nodes = {name: dali.fn.external_source(name=f"arg_{name}") for name in args}
+                arg_nodes = {
+                    name: dali.data_node.DataNode(name=f"arg_{name}", device="cpu", source=None)
+                    for name in args
+                }
                 op = self.legacy_op(
                     name=self._name, device=self._device.device_type, **self._init_args
                 )
-                self._op = op
+                self._op_inst = op
                 out = op(*input_nodes, **arg_nodes)
-                print(out.source._spec)
+                if isinstance(out, (list, tuple)):
+                    spec = out[0].source.spec
+                else:
+                    spec = out.source.spec
+                self._op_backend = _b.Operator(spec)
+
                 if isinstance(out, (tuple, list)):
                     self._output_devices = []
                     self._num_outputs = len(out)
@@ -142,35 +149,31 @@ class Operator:
                 else:
                     self._num_outputs = 1
                     self._output_devices = [_device.Device(out.device, self._device.device_id)]
-                if isinstance(out, (tuple, list)):
-                    self._minipipe.set_outputs(*out)
-                else:
-                    self._minipipe.set_outputs(out)
-                self._minipipe.build()
 
             self._set_meta(inputs, args)
 
-    def run(self, *inputs, **args):
+    def run(self, ctx, *inputs, **args):
         print("Running operator", self._name, type(self), id(self))
         # print("inputs", inputs)
         # print("args", args)
         # print("minipipe", self._minipipe)
         # print("input_meta", self._input_meta)
         # print("arg_meta", self._arg_meta)
-        if self._minipipe is not None:
+        if self._is_backend_initialized():
             if self.schema.IsStateful():
-                # clearing the _minipipe in a stateful op would destroy the state
+                # clearing the backend in a stateful op would destroy the state
                 self.check_compatible(inputs, args)
             elif not self.is_compatible(inputs, args):
                 # we can reinitialize a stateless operator - not very efficient :(
-                self._minipipe = None
+                self._reset_backend()
 
-        self._init_pipeline(inputs, args)
-        for i, input in enumerate(inputs):
-            self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
-        for name, arg in args.items():
-            self._minipipe.feed_input(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
-        return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
+        self._init_backend(inputs, args)
+        # for i, input in enumerate(inputs):
+        #     self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
+        # for name, arg in args.items():
+        #     self._minipipe.feed_input(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
+        # return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
+
 
     def _to_batch(self, x):
         if not isinstance(x, _batch.Batch):
@@ -267,13 +270,13 @@ class Reader(Operator):
         )
 
     def samples(self):
-        if not self._minipipe:
+        if not self._is_backend_initialized()
             if self._actual_batch_size is None:
                 self._actual_batch_size = 1
             if self._max_batch_size is None:
                 self._max_batch_size = self._actual_batch_size
-            self._init_pipeline((), {})
-        meta = self._minipipe.reader_meta(self._name)
+            self._init_backend((), {})
+        meta = self._op_backend.reader_meta(self._name)
         idx = 0
         while idx < meta["epoch_size_padded"]:
             outputs = self.run()
@@ -287,19 +290,19 @@ class Reader(Operator):
             batch_size = self._batch_size
         if batch_size is None:
             raise ValueError("Batch size was not specified")
-        if not self._minipipe:
+        if not self._op_backend:
             if self._max_batch_size and self._max_batch_size < batch_size:
                 raise ValueError(
                     f"`batch_size` {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
                 )
             self._max_batch_size = batch_size
-            self._init_pipeline((), {})
+            self._init_backend((), {})
         else:
             if self._max_batch_size and self._max_batch_size != batch_size:
                 raise ValueError(
                     f"`batch_size` {batch_size} is different than the `max_batch_size` {self._max_batch_size} used in the previous call"
                 )
-        meta = self._minipipe.reader_meta(self._name)
+        meta = self._op_backend.reader_meta(self._name)
         idx = 0
         while idx < meta["epoch_size_padded"]:
             outputs = self.run()
