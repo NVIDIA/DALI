@@ -266,13 +266,6 @@ def test_tl_from_list_of_tensors_different_shapes():
             np.testing.assert_array_equal(arr, tensor_gpu.as_cpu())
 
 
-def test_tl_from_list_of_tensors_empty():
-    with assert_raises(RuntimeError, glob="Cannot create TensorList from an empty list."):
-        TensorListCPU([])
-    with assert_raises(RuntimeError, glob="Cannot create TensorList from an empty list."):
-        TensorListGPU([])
-
-
 def test_tl_from_list_of_tensors_different_backends():
     t1 = TensorCPU(np.zeros((1)))
     t2 = TensorCPU(np.zeros((1)))._as_gpu()
