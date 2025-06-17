@@ -168,6 +168,11 @@ class Operator:
                 self._reset_backend()
 
         self._init_backend(inputs, args)
+        self._workspace = _b.Workspace(ctx._thread_pool, ctx._cuda_stream)
+        for i, input in enumerate(inputs):
+            self._ws.AddInput(self._to_batch(input).evaluate()._backend)
+        for name, arg in args.items():
+            self._minipipe.AddArgumentInput(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
         # for i, input in enumerate(inputs):
         #     self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
         # for name, arg in args.items():
