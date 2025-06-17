@@ -685,6 +685,10 @@ void ExposeTensor(py::module &m) {
          R"code(
          Shape of the tensor.
          )code")
+    .def("ndim", &Tensor<CPUBackend>::ndim,
+         R"code(
+         Number of dimensions of the tensor.
+         )code")
     .def("squeeze",
       [](Tensor<CPUBackend> &t, py::object dim_arg) -> bool {
         if (!dim_arg.is_none()) {
@@ -849,6 +853,10 @@ void ExposeTensor(py::module &m) {
          R"code(
          Shape of the tensor.
          )code")
+    .def("ndim", &Tensor<GPUBackend>::ndim,
+         R"code(
+         Number of dimensions of the tensor.
+         )code")
     .def("layout", [](Tensor<GPUBackend> &t) {
       return t.GetLayout().str();
     })
@@ -971,7 +979,10 @@ template <typename Backend>
 std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
                                                                  string &layout) {
   if (list_of_tensors.empty()) {
-    throw std::runtime_error("Cannot create TensorList from an empty list.");
+    auto ptr = std::make_shared<TensorList<Backend>>();
+    ptr->set_sample_dim(layout.length());
+    ptr->SetLayout(layout);
+    return ptr;
   }
 
   auto contiguous_out = std::make_shared<TensorList<Backend>>();
@@ -1200,6 +1211,10 @@ void ExposeTensorList(py::module &m) {
     .def("shape", &py_shape_list<CPUBackend>,
       R"code(
       Shape of the tensor list.
+      )code")
+    .def("ndim", [](TensorList<CPUBackend> &tl) { return tl.shape().sample_dim(); },
+      R"code(
+      Number of dimensions of the tensor list.
       )code")
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
@@ -1458,6 +1473,10 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Shape of the tensor list.
       )code")
+    .def("ndim", [](TensorList<GPUBackend> &tl) { return tl.shape().sample_dim(); },
+      R"code(
+      Number of dimensions of the tensor list.
+      )code")
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.num_samples();
         })
@@ -1673,7 +1692,19 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
   m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
-
+  m.def("GetCUDADeviceCount", []() {
+    int count = 0;
+    CUDA_CALL(cudaGetDeviceCount(&count));
+    return count;
+  });
+  m.def("SetCUDACurrentDevice", [](int device_id) {
+    CUDA_CALL(cudaSetDevice(device_id));
+  });
+  m.def("GetCUDACurrentDevice", []() {
+    int device_id = 0;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    return device_id;
+  });
   m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
 R"(Preallocate memory on given device
 
@@ -2127,6 +2158,171 @@ void ExposePipeline(py::module &m) {
         });
 }
 
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> CloneTL(const TensorList<Backend> &tl) {
+  auto tl_clone = std::make_shared<TensorList<Backend>>();
+  tl_clone->ShareData(tl);
+  return tl_clone;
+}
+
+void ExposeStream(py::module &m) {
+  py::class_<dali::CUDAStreamLease>(m, "Stream")
+    .def(py::init([](std::optional<int> device_id) {
+      return std::make_unique<dali::CUDAStreamLease>(
+        dali::CUDAStreamPool::instance().Get(device_id.value_or(-1)));
+    }))
+    // __cuda_stream__ protocol, as per cuda.core 0.3.0
+    .def("__cuda_stream__", [](dali::CUDAStreamLease &self) {
+      return std::make_tuple(0, reinterpret_cast<uintptr_t>(self.get()));
+    })
+    .def_property_readonly("device_id", [](dali::CUDAStreamLease &self) {
+      return self.device_id();
+    })
+    .def_property_readonly("handle", [](dali::CUDAStreamLease &self) {
+      return reinterpret_cast<uintptr_t>(self.get());
+    });
+}
+
+class PyWorkspace : public Workspace {
+ public:
+  PyWorkspace() = default;
+  PyWorkspace(const PyWorkspace &other) = default;
+  PyWorkspace(PyWorkspace &&other) = default;
+  PyWorkspace(const Workspace &other) :  Workspace(other) {}  // NOLINT
+  PyWorkspace(Workspace &&other) :  Workspace(std::move(other)) {}  // NOLINT
+
+  void SetThreadPool(std::shared_ptr<ThreadPool> thread_pool) {
+    shared_thread_pool_ = thread_pool;;
+    Workspace::SetThreadPool(thread_pool.get());
+  }
+ private:
+  std::shared_ptr<ThreadPool> shared_thread_pool_;
+};
+
+void ExposeThreadPool(py::module &m) {
+  py::class_<ThreadPool, std::shared_ptr<ThreadPool>>(m, "_ThreadPool")
+    .def(py::init([](
+          int num_threads,
+          std::optional<int> device_id,
+          bool set_affinity,
+          std::string_view name) {
+      if (!device_id.has_value()) {
+        int dev = 0;
+        CUDA_CALL(cudaGetDevice(&dev));
+        device_id = dev;
+      }
+      return std::make_shared<ThreadPool>(num_threads, *device_id, set_affinity, name.data());
+    }),
+    "num_threads"_a,
+    "device_id"_a = py::none(),
+    "set_affinity"_a = false,
+    "name"_a = "")
+    .def_property_readonly("num_threads", &ThreadPool::NumThreads);
+}
+
+void ExposeWorkspace(py::module &m) {
+  py::class_<PyWorkspace>(m, "_Workspace")
+    .def(py::init([](std::shared_ptr<ThreadPool> thread_pool, py::object stream) {
+      auto ws = std::make_unique<PyWorkspace>();
+      ws->SetThreadPool(thread_pool);
+      if (!stream.is_none()) {
+        cudaStream_t s = static_cast<cudaStream_t>(ctypes_void_ptr(stream));
+        ws->set_output_order(s);
+      }
+      return ws;
+    }), "thread_pool"_a = nullptr, "stream"_a = py::none())
+    .def("SetStream", [](PyWorkspace &self, py::object cuda_stream) {
+      AccessOrder order;
+      if (!cuda_stream.is_none()) {
+        cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+        order = AccessOrder(stream);
+      } else {
+        order = AccessOrder::host();
+      }
+      self.set_output_order(order);
+    }, "cuda_stream"_a = py::none())
+    .def("AddInput", [](PyWorkspace &self, const TensorList<CPUBackend> &tl) {
+      self.AddInput(CloneTL(tl));
+    })
+    .def("AddInput", [](PyWorkspace &self, const TensorList<GPUBackend> &tl) {
+      self.AddInput(CloneTL(tl));
+    })
+    .def("AddArgumentInput", [](
+          PyWorkspace &self,
+          std::string name,
+          const TensorList<CPUBackend> &tl) {
+      self.AddArgumentInput(std::move(name), CloneTL(tl));
+    })
+    .def("AddOutput", [](PyWorkspace &self, const TensorList<CPUBackend> &tl) {
+      self.AddOutput(CloneTL(tl));
+    })
+    .def("AddOutput", [](PyWorkspace &self, const TensorList<GPUBackend> &tl) {
+      self.AddOutput(CloneTL(tl));
+    })
+    .def("AddEmptyOutput", [](PyWorkspace &self, std::string_view device) {
+      auto storage_device = ParseStorageDevice(device);
+      if (storage_device == StorageDevice::CPU) {
+        self.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+      } else {
+        assert(storage_device == StorageDevice::GPU);
+        self.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+      }
+    }, "device"_a)
+    .def("SetThreadPool", [](PyWorkspace &self, std::shared_ptr<ThreadPool> thread_pool) {
+      self.SetThreadPool(thread_pool);
+    }, "thread_pool"_a)
+    .def("GetOutputs", [](PyWorkspace &self) {
+      py::tuple ret(self.NumOutput());
+      for (int i = 0; i < self.NumOutput(); i++) {
+        if (self.OutputIsType<CPUBackend>(i)) {
+          ret[i] = self.OutputPtr<CPUBackend>(i);
+        } else {
+          ret[i] = self.OutputPtr<GPUBackend>(i);
+        }
+      }
+      return ret;
+    }, py::return_value_policy::take_ownership);
+}
+
+void SetupAndRun(OperatorBase &self, Workspace &ws) {
+  std::vector<dali::OutputDesc> out_descs;
+  const auto &spec = self.GetSpec();
+  if (ws.NumOutput() != 0)
+    throw std::runtime_error("Workspace already has outputs defined");
+
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    if (spec.OutputDevice(i) == StorageDevice::CPU) {
+      ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+    } else {
+      ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+    }
+  }
+  if (self.Setup(out_descs, ws)) {
+    for (int i = 0; i < ws.NumOutput(); i++) {
+      if (ws.OutputIsType<CPUBackend>(i))
+        ws.Output<CPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+      else
+        ws.Output<GPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+    }
+  }
+  self.Run(ws);
+}
+
+void ExposeOperator(py::module &m) {
+  py::class_<OperatorBase, std::unique_ptr<OperatorBase>>(m, "_Operator")
+    .def(py::init([](const OpSpec &spec) {
+      return dali::InstantiateOperator(spec);
+    }))
+    .def("Setup", &OperatorBase::Setup)
+    .def("Run", &OperatorBase::Run)
+    .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws) {
+      SetupAndRun(self, ws);
+    })
+    .def("SetupAndRun", [](OperatorBase &self, Workspace &ws) {
+      SetupAndRun(self, ws);
+    });
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -2358,8 +2554,12 @@ PYBIND11_MODULE(backend_impl, m) {
         });
 
   // Pipeline class and parameters
+  ExposeStream(m);
   ExposePipelineParams(m);
   ExposePipeline(m);
+  ExposeThreadPool(m);
+  ExposeWorkspace(m);
+  ExposeOperator(m);
 
 #define DALI_OPSPEC_ADDARG(T) \
     .def("AddArg", \
