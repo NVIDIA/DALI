@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <utility>
 
@@ -35,7 +36,30 @@ auto MakeExec2Config(int batch_size, int num_thread, int device_id,
   cfg.thread_pool_threads = num_thread;
   // TODO(michalz): Expose the thread configuration in the Pipeline (?)
   //                Alternatively, use cooperative parallelism with the CPU thread pool (?)
-  cfg.operator_threads = std::min(num_thread, 4);
+
+  static int exec2_max_threads = []() {
+    const char *env = getenv("DALI_EXEC2_MAX_THREADS");
+    constexpr int kDefaultMaxThreads = 4;
+    if (env) {
+      int value = atoi(env);
+      if (value <= 0)
+        value = kDefaultMaxThreads;
+      return value;
+    } else {
+      return kDefaultMaxThreads;
+    }
+  }();
+  static std::optional<int> exec2_num_threads = []()->std::optional<int> {
+    const char *env = getenv("DALI_EXEC2_NUM_THREADS");
+    if (env) {
+      int value = atoi(env);
+      if (value >= 0)
+        return value;
+    }
+    return std::nullopt;;
+  }();
+
+  cfg.operator_threads = exec2_num_threads.value_or(std::min(num_thread, exec2_max_threads));
   if (device_id != CPU_ONLY_DEVICE_ID)
     cfg.device = device_id;
   cfg.max_batch_size = batch_size;
