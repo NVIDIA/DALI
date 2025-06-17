@@ -20,16 +20,19 @@ import nvidia.dali.backend_impl as _b
 _tls = local()
 _tls.stack = []
 
+default_num_threads = 4
 
 class EvalContext:
 
-    def __init__(self):
+    def __init__(self, num_threads=None):
         self._invocations = {}
         self._cached_results = {}
         self._cuda_stream = None
 
         if _device.Device.current().device_type == "gpu":
             self._cuda_stream = _b.Stream(_device.Device.current().device_id)
+
+        self._thread_pool = _b.ThreadPool(num_threads or default_num_threads)
 
     @staticmethod
     def current():
