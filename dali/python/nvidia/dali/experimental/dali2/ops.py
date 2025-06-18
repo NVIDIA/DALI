@@ -18,7 +18,7 @@ from . import _tensor, _batch
 from . import _eval_context
 import nvidia.dali as dali
 from typing import Optional
-import nvida.dali.backend_impl as _b
+import nvidia.dali.backend_impl as _b
 
 
 class Operator:
@@ -53,6 +53,7 @@ class Operator:
         self._output_devices = None
         self._op_inst = None
         self._op_backend = None
+        self._op_spec = None
         self._last_invocation = None
 
     @classmethod
@@ -96,11 +97,11 @@ class Operator:
         return inst
 
     def infer_num_outputs(self, *inputs, **args):
-        self._init_backend(inputs, args)
+        self._init_spec(inputs, args)
         return self._num_outputs
 
     def infer_output_devices(self, *inputs, **args):
-        self._init_backend(inputs, args)
+        self._init_spec(inputs, args)
         return self._output_devices
 
     def _is_backend_initialized(self):
@@ -108,9 +109,10 @@ class Operator:
 
     def _reset_backend(self):
         self._op_backend = None
+        self._op_spec = None
 
-    def _init_backend(self, inputs, args):
-        if self._op is None:
+    def _init_spec(self, inputs, args):
+        if self._op_spec is None:
             self._num_inputs = len(inputs)
             self._call_arg_names = tuple(args.keys())
             import nvidia.dali as dali
@@ -137,7 +139,8 @@ class Operator:
                     spec = out[0].source.spec
                 else:
                     spec = out.source.spec
-                self._op_backend = _b.Operator(spec)
+
+                self._op_spec = spec
 
                 if isinstance(out, (tuple, list)):
                     self._output_devices = []
@@ -150,7 +153,25 @@ class Operator:
                     self._num_outputs = 1
                     self._output_devices = [_device.Device(out.device, self._device.device_id)]
 
-            self._set_meta(inputs, args)
+                self._set_meta(inputs, args)
+
+    def _init_backend(self, ctx, inputs, args):
+        if self._op_backend is not None:
+            return
+
+        if ctx is None:
+            ctx = _eval_context.EvalContext.get()
+        with self._device:
+            with ctx:
+                self._init_spec(inputs, args)
+                if ctx._thread_pool is not None:
+                    self._op_spec.AddArg("num_threads", ctx._thread_pool.num_threads)
+                else:
+                    self._op_spec.AddArg("num_threads", 1)
+                self._op_spec.AddArg("device_id", self._device.device_id if self._device.device_type == "gpu" else dali.types.CPU_ONLY_DEVICE_ID)
+                self._op_spec.AddArg("max_batch_size", self._max_batch_size)
+                print(self._op_spec)
+                self._op_backend = _b._Operator(self._op_spec)
 
     def run(self, ctx, *inputs, **args):
         print("Running operator", self._name, type(self), id(self))
@@ -167,12 +188,14 @@ class Operator:
                 # we can reinitialize a stateless operator - not very efficient :(
                 self._reset_backend()
 
-        self._init_backend(inputs, args)
-        self._workspace = _b.Workspace(ctx._thread_pool, ctx._cuda_stream)
+        self._init_backend(ctx, inputs, args)
+        self._workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
         for i, input in enumerate(inputs):
-            self._ws.AddInput(self._to_batch(input).evaluate()._backend)
+            self._workspace.AddInput(self._to_batch(input).evaluate()._backend)
         for name, arg in args.items():
-            self._minipipe.AddArgumentInput(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
+            self._workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
+        self._op_backend.SetupAndRun(self._workspace)
+        return self._workspace.GetOutputs()
         # for i, input in enumerate(inputs):
         #     self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
         # for name, arg in args.items():
@@ -274,46 +297,52 @@ class Reader(Operator):
             self._actual_batch_size, name, device, num_inputs, call_arg_names, **kwargs
         )
 
-    def samples(self):
-        if not self._is_backend_initialized()
-            if self._actual_batch_size is None:
-                self._actual_batch_size = 1
-            if self._max_batch_size is None:
-                self._max_batch_size = self._actual_batch_size
-            self._init_backend((), {})
-        meta = self._op_backend.reader_meta(self._name)
-        idx = 0
-        while idx < meta["epoch_size_padded"]:
-            outputs = self.run()
-            batch_size = len(outputs[0])
-            idx += batch_size
-            for x in zip(*outputs):
-                yield x
+    def samples(self, ctx: Optional[_eval_context.EvalContext] = None):
+        if ctx is None:
+            ctx = _eval_context.EvalContext.get()
+        with ctx:
+            if not self._is_backend_initialized():
+                if self._actual_batch_size is None:
+                    self._actual_batch_size = 1
+                if self._max_batch_size is None:
+                    self._max_batch_size = self._actual_batch_size
+                self._init_backend(ctx, (), {})
+            meta = self._op_backend.GetReaderMeta()
+            idx = 0
+            while idx < meta["epoch_size_padded"]:
+                outputs = self.run(ctx)
+                batch_size = len(outputs[0])
+                idx += batch_size
+                for x in zip(*outputs):
+                    yield x
 
-    def batches(self, batch_size=None):
-        if batch_size is None:
-            batch_size = self._batch_size
-        if batch_size is None:
-            raise ValueError("Batch size was not specified")
-        if not self._op_backend:
-            if self._max_batch_size and self._max_batch_size < batch_size:
-                raise ValueError(
-                    f"`batch_size` {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
-                )
-            self._max_batch_size = batch_size
-            self._init_backend((), {})
-        else:
-            if self._max_batch_size and self._max_batch_size != batch_size:
-                raise ValueError(
-                    f"`batch_size` {batch_size} is different than the `max_batch_size` {self._max_batch_size} used in the previous call"
-                )
-        meta = self._op_backend.reader_meta(self._name)
-        idx = 0
-        while idx < meta["epoch_size_padded"]:
-            outputs = self.run()
-            batch_size = len(outputs[0])
-            idx += batch_size
-            yield outputs
+    def batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+        if ctx is None:
+            ctx = _eval_context.EvalContext.get()
+        with ctx:
+            if batch_size is None:
+                batch_size = self._batch_size
+            if batch_size is None:
+                raise ValueError("Batch size was not specified")
+            if not self._op_backend:
+                if self._max_batch_size and self._max_batch_size < batch_size:
+                    raise ValueError(
+                        f"`batch_size` {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+                    )
+                self._max_batch_size = batch_size
+                self._init_backend(ctx, (), {})
+            else:
+                if self._max_batch_size and self._max_batch_size != batch_size:
+                    raise ValueError(
+                        f"`batch_size` {batch_size} is different than the `max_batch_size` {self._max_batch_size} used in the previous call"
+                    )
+            meta = self._op_backend.GetReaderMeta()
+            idx = 0
+            while idx < meta["epoch_size_padded"]:
+                outputs = self.run(ctx)
+                batch_size = len(outputs[0])
+                idx += batch_size
+                yield outputs
 
 
 all_ops = []
