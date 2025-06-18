@@ -32,7 +32,7 @@ class EvalContext:
         if _device.Device.current().device_type == "gpu":
             self._cuda_stream = _b.Stream(_device.Device.current().device_id)
 
-        self._thread_pool = _b.ThreadPool(num_threads or default_num_threads)
+        self._thread_pool = _b._ThreadPool(num_threads or default_num_threads)
 
     @staticmethod
     def current():
