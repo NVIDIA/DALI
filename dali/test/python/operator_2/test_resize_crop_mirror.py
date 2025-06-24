@@ -16,10 +16,12 @@ import os
 
 from nose2.tools import params
 from nvidia.dali import fn, types, pipeline_def
+import numpy as np
 from test_utils import check_batch, get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 db_2d_folder = os.path.join(test_data_root, "db", "lmdb")
+db_vid_folder = os.path.join(test_data_root, "db", "video", "sintel", "video_files")
 
 
 @pipeline_def(num_threads=4, batch_size=8, device_id=0, seed=1234)
@@ -75,3 +77,36 @@ def test_vs_separate_ops(dev, mode, roi_start, roi_end):
     for _ in range(5):
         rcm, separate = pipe.run()
         check_batch(rcm, separate, len(rcm), 1e-3, 1)
+
+
+@pipeline_def(num_threads=1, batch_size=1, device_id=0, seed=1234)
+def rcm_video_pipe(source_name, device, mode, height, width):
+    # Read the input video
+    encoded_video = fn.external_source(
+        device="cpu",
+        name=source_name,
+        no_copy=False,
+        blocking=True,
+        dtype=types.UINT8,
+    )
+    decoded = fn.experimental.decoders.video(
+        encoded_video, device="mixed", start_frame=0, sequence_length=30
+    )
+
+    # Resize the video to 1280x720
+    decoded = fn.resize_crop_mirror(decoded, size=(height, width), mirror=2)
+
+    return decoded
+
+
+@params(("cpu", None, 720, 1280), ("gpu", None, 720, 1280))
+def test_video_rcm(dev, mode, height, width):
+    pipe = rcm_video_pipe("encoded_video", dev, mode, height, width, prefetch_queue_depth=1)
+
+    for i, file_name in enumerate(os.listdir(db_vid_folder)):
+        file_path = os.path.join(db_vid_folder, file_name)
+        decoded = pipe.run(
+            encoded_video=np.expand_dims(np.fromfile(file_path, dtype=np.uint8), axis=0)
+        )
+        v_shape = decoded[0].shape()[0][1:3]
+        assert v_shape == (height, width)
