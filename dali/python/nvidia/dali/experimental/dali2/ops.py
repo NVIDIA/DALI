@@ -121,9 +121,7 @@ class Operator:
             with self._device:
                 input_nodes = [
                     dali.data_node.DataNode(
-                        name=f"input_{i}",
-                        device=self._device.device_type,
-                        source=None
+                        name=f"input_{i}", device=self._device.device_type, source=None
                     )
                     for i in range(len(inputs))
                 ]
@@ -169,7 +167,14 @@ class Operator:
                     self._op_spec.AddArg("num_threads", ctx._thread_pool.num_threads)
                 else:
                     self._op_spec.AddArg("num_threads", 1)
-                self._op_spec.AddArg("device_id", self._device.device_id if self._device.device_type == "gpu" else dali.types.CPU_ONLY_DEVICE_ID)
+                self._op_spec.AddArg(
+                    "device_id",
+                    (
+                        self._device.device_id
+                        if self._device.device_type == "gpu"
+                        else dali.types.CPU_ONLY_DEVICE_ID
+                    ),
+                )
                 self._op_spec.AddArg("max_batch_size", self._max_batch_size)
                 print(self._op_spec)
                 self._op_backend = _b._Operator(self._op_spec)
@@ -202,7 +207,6 @@ class Operator:
         # for name, arg in args.items():
         #     self._minipipe.feed_input(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
         # return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
-
 
     def _to_batch(self, x):
         if not isinstance(x, _batch.Batch):
@@ -302,7 +306,9 @@ class Reader(Operator):
         if self._api_type is None:
             self._api_type = "run"
         elif self._api_type != "run":
-            raise RuntimeError("Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch.")
+            raise RuntimeError(
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
+            )
 
         return super()(ctx, *inputs, **args)
 
@@ -310,7 +316,9 @@ class Reader(Operator):
         if self._api_type is None:
             self._api_type = "run"
         elif self._api_type != "run":
-            raise RuntimeError("Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch.")
+            raise RuntimeError(
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
+            )
 
         x = super().run(ctx, *inputs, **args)
 
@@ -318,7 +326,9 @@ class Reader(Operator):
         if self._api_type is None:
             self._api_type = "samples"
         elif self._api_type != "samples":
-            raise RuntimeError("Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch.")
+            raise RuntimeError(
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
+            )
 
         if ctx is None:
             ctx = _eval_context.EvalContext.get()
@@ -342,7 +352,9 @@ class Reader(Operator):
         if self._api_type is None:
             self._api_type = "batches"
         elif self._api_type != "batches":
-            raise RuntimeError("Cannot mix samples(), batches() and run() on the same reader until the end of the epoch.")
+            raise RuntimeError(
+                "Cannot mix samples(), batches() and run() on the same reader until the end of the epoch."
+            )
 
         if ctx is None:
             ctx = _eval_context.EvalContext.get()
