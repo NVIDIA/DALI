@@ -105,6 +105,9 @@ class Operator:
         self._init_spec(inputs, args)
         return self._output_devices
 
+    def _pre_call(self, *inputs, **args):
+        pass
+
     def _is_backend_initialized(self):
         return self._op_backend is not None
 
@@ -302,15 +305,13 @@ class Reader(Operator):
             self._actual_batch_size, name, device, num_inputs, call_arg_names, **kwargs
         )
 
-    def __call__(self, ctx=None, *inputs, **args):
+    def _pre_call(self, *inputs, **args):
         if self._api_type is None:
             self._api_type = "run"
         elif self._api_type != "run":
             raise RuntimeError(
                 "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
             )
-
-        return super()(ctx, *inputs, **args)
 
     def run(self, ctx=None, *inputs, **args):
         if self._api_type is None:
@@ -342,7 +343,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super()(ctx)
+                outputs = super().run(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
                 for x in zip(*outputs):
@@ -378,7 +379,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super()(ctx)
+                outputs = super().run(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
                 yield outputs
