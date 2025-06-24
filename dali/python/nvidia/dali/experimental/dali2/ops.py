@@ -36,6 +36,7 @@ class Operator:
         self._init_args = kwargs
         self._num_inputs = num_inputs
         self._call_arg_names = None if call_arg_names is None else tuple(call_arg_names)
+        self._api_type = None
         if isinstance(device, str):
             self._device = _device.Device(
                 name=device,
@@ -297,7 +298,28 @@ class Reader(Operator):
             self._actual_batch_size, name, device, num_inputs, call_arg_names, **kwargs
         )
 
+    def __call__(self, ctx=None, *inputs, **args):
+        if self._api_type is None:
+            self._api_type = "run"
+        elif self._api_type != "run":
+            raise RuntimeError("Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch.")
+
+        return super()(ctx, *inputs, **args)
+
+    def run(self, ctx=None, *inputs, **args):
+        if self._api_type is None:
+            self._api_type = "run"
+        elif self._api_type != "run":
+            raise RuntimeError("Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch.")
+
+        x = super().run(ctx, *inputs, **args)
+
     def samples(self, ctx: Optional[_eval_context.EvalContext] = None):
+        if self._api_type is None:
+            self._api_type = "samples"
+        elif self._api_type != "samples":
+            raise RuntimeError("Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch.")
+
         if ctx is None:
             ctx = _eval_context.EvalContext.get()
         with ctx:
@@ -310,13 +332,18 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = self.run(ctx)
+                outputs = super().run(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
                 for x in zip(*outputs):
                     yield x
 
     def batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+        if self._api_type is None:
+            self._api_type = "batches"
+        elif self._api_type != "batches":
+            raise RuntimeError("Cannot mix samples(), batches() and run() on the same reader until the end of the epoch.")
+
         if ctx is None:
             ctx = _eval_context.EvalContext.get()
         with ctx:
@@ -339,7 +366,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = self.run(ctx)
+                outputs = super().run(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
                 yield outputs
