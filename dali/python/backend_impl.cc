@@ -2313,6 +2313,14 @@ void SetupAndRun(OperatorBase &self, Workspace &ws) {
       ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
     }
   }
+
+  if (ws.GetRequestedBatchSize(0) == 0) {
+    if (ws.NumInput() == 0) {
+      int max_bs = self.GetSpec().GetArgument<int>("max_batch_size");
+      ws.SetBatchSizes(max_bs);
+    }
+  }
+
   if (self.Setup(out_descs, ws)) {
     for (int i = 0; i < ws.NumOutput(); i++) {
       if (ws.OutputIsType<CPUBackend>(i))
@@ -2336,6 +2344,9 @@ void ExposeOperator(py::module &m) {
     })
     .def("SetupAndRun", [](OperatorBase &self, Workspace &ws) {
       SetupAndRun(self, ws);
+    })
+    .def("GetReaderMeta", [](OperatorBase &self) {
+      return ReaderMetaToDict(self.GetReaderMeta());
     });
 }
 
