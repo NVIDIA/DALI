@@ -200,6 +200,7 @@ def build_call_function(schema, op_class):
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
 
     def call(self, *raw_args, batch_size=None, **raw_kwargs):
+        self._pre_call(*raw_args, **raw_kwargs)
         is_batch = batch_size is not None
         if batch_size is None:
             for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
