@@ -332,7 +332,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super().run(ctx)
+                outputs = super()(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
                 for x in zip(*outputs):
@@ -366,7 +366,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super().run(ctx)
+                outputs = super()(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
                 yield outputs
