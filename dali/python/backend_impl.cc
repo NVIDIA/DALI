@@ -1214,7 +1214,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("ndim", [](TensorList<CPUBackend> &tl) { return tl.shape().sample_dim(); },
       R"code(
-      Number of dimensions of the tensor list.
+      Number of dimensions of the tensors in the list.
       )code")
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
@@ -1475,7 +1475,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("ndim", [](TensorList<GPUBackend> &tl) { return tl.shape().sample_dim(); },
       R"code(
-      Number of dimensions of the tensor list.
+      Number of dimensions of the tensors in the list.
       )code")
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.num_samples();
