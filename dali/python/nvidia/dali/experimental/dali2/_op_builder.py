@@ -261,12 +261,12 @@ def build_call_function(schema, op_class):
             if len(invocation) == 1:
                 return Batch(invocation_result=invocation[0])
             else:
-                return Batch(invocation_result=invocation)
+                return tuple(Batch(invocation_result=invocation[i]) for i in range(len(invocation)))
         else:
             if len(invocation) == 1:
                 return Tensor(invocation_result=invocation[0])
             else:
-                return Tensor(invocation_result=invocation)
+                return tuple(Tensor(invocation_result=invocation[i]) for i in range(len(invocation)))
 
     function = makefun.create_function(header, call)
 
