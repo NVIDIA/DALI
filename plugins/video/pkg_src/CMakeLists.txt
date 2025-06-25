@@ -77,7 +77,7 @@ else()
     set(NEW_LD_PRELOAD "${cuda_LIBRARY}")
 endif()
 
-# it allows injecting extra pereload that is not suppose to be system wide
+# it allows injecting extra preload that is not suppose to be system wide
 if(NOT $ENV{LD_EXTRA_PRELOAD} STREQUAL "")
     set(NEW_LD_PRELOAD "${NEW_LD_PRELOAD} $ENV{LD_EXTRA_PRELOAD}")
 endif()
