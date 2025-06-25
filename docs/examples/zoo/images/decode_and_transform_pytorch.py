@@ -64,7 +64,7 @@ class ImageDataset(Dataset):
         landmarks = np.fromfile(landmark_id)
 
         # Apply transform if provided and if not return the encoded image
-        if self.transform:
+        if self.transform is not None:
             return self.transform(encoded_img), landmarks
         else:
             return encoded_img, landmarks
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--landmarks_dir",
         type=str,
-        default="../DALI_extra/db/face_landmark/",
+        required=True,
         help="Images and face landmark directory",
     )
     parser.add_argument(
@@ -114,6 +114,12 @@ if __name__ == "__main__":
         default=2,
         help="Number of CPU workers for Pytorch dataloader",
     )
+    parser.add_argument(
+        "--num_threads",
+        type=int,
+        default=4,
+        help="Number of CPU threads used by the pipeline",
+    )
 
     args = parser.parse_args()
 
@@ -124,7 +130,11 @@ if __name__ == "__main__":
     # For further information, please refer to:
     # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/plugins/pytorch_dali_proxy.html
     with dali_proxy.DALIServer(
-        image_pipe(batch_size=args.batch_size, num_threads=4, device_id=0)
+        image_pipe(
+            batch_size=args.batch_size,
+            num_threads=args.num_threads,
+            device_id=0,
+        )
     ) as dali_server:
 
         dataset = ImageDataset(args.landmarks_dir, transform=dali_server.proxy)

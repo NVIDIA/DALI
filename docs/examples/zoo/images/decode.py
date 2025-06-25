@@ -43,7 +43,6 @@ def decode_pipeline(source_name):
         inputs,
         device="mixed",
         output_type=types.RGB,
-        use_fast_idct=False,
         jpeg_fancy_upsampling=True,
     )
 
@@ -58,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--images_dir",
         type=str,
-        default="../DALI_extra/db/coco/images",
+        required=True,
         help="Folder with images",
     )
     parser.add_argument(
@@ -87,7 +86,7 @@ if __name__ == "__main__":
                 np.fromfile(file_name, dtype=np.uint8), axis=0
             )
         )
-        img_on_gpu = to_torch_tensor(decoded[0][0], copy=True)
+        img_on_gpu = to_torch_tensor(decoded[0][0], copy=False)
 
         if args.show:
             # Display decoded image. Note: The image is in GPU memory

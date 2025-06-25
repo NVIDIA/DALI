@@ -13,9 +13,11 @@
 # limitations under the License
 
 import argparse
-import numpy as np
 import os
+from pathlib import Path
 import sys
+
+import numpy as np
 from PIL import Image
 
 from nvidia.dali.pipeline import pipeline_def
@@ -41,9 +43,8 @@ def decode_pipeline(source_name):
         encoded_video, device="mixed", start_frame=0, sequence_length=30
     )
 
-    # Resize the video to 1280x720
-    decoded = fn.resize(decoded, size=(720, 1280))
-    decoded = fn.flip(decoded, horizontal=0, vertical=1)
+    # Resize the video to 1280x720 and flip vertically
+    decoded = fn.resize_crop_mirror(decoded, size=(720, 1280), mirror=2)
 
     return decoded
 
@@ -59,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--videos_dir",
         type=str,
-        default="../DALI_extra/db/video/sintel/video_files/",
+        required=True,
         help="Videos directory",
     )
 
@@ -68,6 +69,12 @@ if __name__ == "__main__":
         type=bool,
         default=False,
         help="Saves first 2 frames from each of processed videos",
+    )
+    parser.add_argument(
+        "--save_path",
+        type=str,
+        default="./",
+        help="Path where frames will be saved",
     )
 
     args = parser.parse_args()
@@ -89,8 +96,12 @@ if __name__ == "__main__":
 
             if args.save:
                 video = to_torch_tensor(decoded[0][0], True).cpu()
-                Image.fromarray(video[0].numpy()).save(f"{file_name}_0.jpg")
-                Image.fromarray(video[1].numpy()).save(f"{file_name}_1.jpg")
+                Image.fromarray(video[0].numpy()).save(
+                    Path(args.save_path) / f"{file_name}_0.jpg"
+                )
+                Image.fromarray(video[1].numpy()).save(
+                    Path(args.save_path) / f"{file_name}_1.jpg"
+                )
 
         except Exception as e:
             print(f"Error loading {file_name}: {e}")

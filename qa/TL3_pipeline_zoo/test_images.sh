@@ -8,9 +8,11 @@ scripts=(
     )
 
 for SCRIPT_NAME in "${scripts[@]}"; do
-    if ! eval "python $SCRIPT_NAME"; then
+    python $SCRIPT_NAME
+    RV=$?
+    if [ $RV -gt 0 ]; then
         echo "Failed! $SCRIPT_NAME"
-        exit $exit_code
+        exit $RV
     fi
  done;
 

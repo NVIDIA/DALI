@@ -53,7 +53,7 @@ class VideoDataset(Dataset):
         # Load the image
         encoded_video = np.fromfile(video_id, dtype=np.uint8)
         # Apply transform if provided and return encoded video if not
-        if self.transform:
+        if self.transform is not None:
             return self.transform(encoded_video)
         else:
             return encoded_video
@@ -70,7 +70,7 @@ def video_pipe(video_hw=(720, 1280)):
     )
 
     # Resize the video to the desired size preserving aspect ratio
-    # Since the video resoultions will differ with, due to that method of  resize,
+    # Since the video resolutions will differ in width and the method of resize
     # the batch size is set to 1, to avoid creating batches of tensors with various shapes.
     out = fn.resize(
         decoded,
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--videos_dir",
         type=str,
-        default="../DALI_extra/db/video/sintel/video_files/",
+        required=True,
         help="Videos directory",
     )
     parser.add_argument(
@@ -104,6 +104,12 @@ if __name__ == "__main__":
         default=2,
         help="Number of CPU workers for Pytorch dataloader",
     )
+    parser.add_argument(
+        "--num_threads",
+        type=int,
+        default=4,
+        help="Number of CPU threads used by the pipeline",
+    )
 
     args = parser.parse_args()
 
@@ -114,7 +120,11 @@ if __name__ == "__main__":
     # For further information, please refer to:
     # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/plugins/pytorch_dali_proxy.html
     with dali_proxy.DALIServer(
-        video_pipe(batch_size=args.batch_size, num_threads=4, device_id=0)
+        video_pipe(
+            batch_size=args.batch_size,
+            num_threads=args.num_threads,
+            device_id=0,
+        )
     ) as dali_server:
 
         dataset = VideoDataset(args.videos_dir, transform=dali_server.proxy)

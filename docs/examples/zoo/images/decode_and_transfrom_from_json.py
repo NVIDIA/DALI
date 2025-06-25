@@ -98,19 +98,21 @@ def read_meta_pipeline(coco_dir):
         use_fast_idct=False,
         jpeg_fancy_upsampling=True,
     )
-    start = fn.cast(bbox[0:2], dtype=types.UINT32)
+    start = fn.cast(bbox[0:2], dtype=types.FLOAT)
     left, top = start[0], start[1]
-    end = fn.cast(bbox[0:2] + bbox[2:4], dtype=types.UINT32)
+    end = fn.cast(bbox[0:2] + bbox[2:4], dtype=types.FLOAT)
     right, bottom = end[0], end[1]
 
-    # Crop image
-    img_crop = decoded[top:bottom, left:right]
-    img_crop = fn.resize(img_crop, size=(640, 480))
     hflip = fn.random.coin_flip()
-    if hflip:
-        img_crop = fn.flip(img_crop)
+    img = fn.resize_crop_mirror(
+        decoded,
+        roi_start=fn.stack(top, left),
+        roi_end=fn.stack(bottom, right),
+        size=(480, 640),
+        mirror=1 * hflip,
+    )
 
-    return img_crop
+    return img
 
 
 if __name__ == "__main__":
@@ -121,14 +123,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--coco_dir",
         type=str,
-        default="../DALI_extra/db/coco/",
+        required=True,
         help="COCO DALI_extra root directory",
     )
     parser.add_argument(
         "--save",
         type=bool,
         default=False,
-        help="If set to true saves images in the current directory",
+        help="If set to true saves images",
+    )
+    parser.add_argument(
+        "--save_path",
+        type=str,
+        default="./",
+        help="Path where images will be saved",
     )
 
     args = parser.parse_args()
@@ -149,4 +157,4 @@ if __name__ == "__main__":
     for i, crp in enumerate(crop):
         img = Image.fromarray(crp.cpu().numpy())
         if args.save:
-            img.save(f"{i}.jpg")
+            img.save(Path(args.save_path) / f"{i}.jpg")

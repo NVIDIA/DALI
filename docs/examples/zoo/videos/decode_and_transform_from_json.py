@@ -139,19 +139,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Example of DALI video decoding"
     )
+    # The root dir of the DomainSpecificHighlight repository
+    # The repository can be found in: https://github.com/aliensunmin/DomainSpecificHighlight/
     parser.add_argument(
         "--videos_dir",
         type=str,
-        # The root dir of the DomainSpecificHighlight repository
-        # The repository can be found in: https://github.com/aliensunmin/DomainSpecificHighlight/
-        default="../DomainSpecificHighlight/",
+        required=True,
         help="Videos directory",
     )
     parser.add_argument(
         "--save",
         type=bool,
         default=False,
-        help="If set to true saves sample frames in the current directory",
+        help="If set to true saves sample frames",
+    )
+    parser.add_argument(
+        "--save_path",
+        type=str,
+        default="./",
+        help="Path where frames will be saved",
     )
 
     args = parser.parse_args()
@@ -171,4 +177,4 @@ if __name__ == "__main__":
                     data[0]["decoded"][element][j].cpu().numpy()
                 )
                 if args.save:
-                    img.save(f"{i}_{element}_{j}.jpg")
+                    img.save(Path(args.save_path) / f"{i}_{element}_{j}.jpg")
