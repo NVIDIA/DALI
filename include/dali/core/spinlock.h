@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2015, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,9 @@
 
 #include <atomic>
 #include <thread>
+#ifdef __X86_64__
+#include <emmintrin.h>
+#endif
 
 namespace dali {
 
@@ -26,21 +29,28 @@ namespace dali {
 class busy_spinlock {
  public:
   void lock() noexcept {
-    while (flag_.test_and_set(std::memory_order_acquire)) {
-      // busy-wait
+    for (;;) {
+      bool was_locked = flag_.load(std::memory_order_relaxed);
+      if (!was_locked && !flag_.exchange(true, std::memory_order_acquire))
+        break;
+      #ifdef __X86_64__
+      _mm_pause();  // Let other hyperthreads run
+      #endif
     }
   }
 
   bool try_lock() noexcept {
-      return !flag_.test_and_set(std::memory_order_acquire);
+    // First load the flag - if it's locked, just fail. This helps in high contention scenarios.
+    bool was_locked = flag_.load(std::memory_order_relaxed);
+    return !was_locked && !flag_.exchange(true, std::memory_order_acquire);
   }
 
   void unlock() noexcept {
-    flag_.clear(std::memory_order_release);
+    flag_.store(false, std::memory_order_release);
   }
 
  private:
-  std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
+  std::atomic<bool> flag_{false};
 };
 
 /**
@@ -51,25 +61,32 @@ class yielding_spinlock {
  public:
   void lock() noexcept {
     int spin = yield_after_n_spins;
-    while (flag_.test_and_set(std::memory_order_acquire)) {
-      if (spin > 0) {
-        spin--;
+    for (;;) {
+      bool was_locked = flag_.load(std::memory_order_relaxed);
+      if (!was_locked && !flag_.exchange(true, std::memory_order_acquire))
+        break;
+      if (spin-- > 0) {
+        #ifdef __X86_64__
+        _mm_pause();  // Let other hyperthreads run
+        #endif
       } else {
         std::this_thread::yield();
+        spin = yield_after_n_spins;
       }
     }
   }
 
   bool try_lock() noexcept {
-      return !flag_.test_and_set(std::memory_order_acquire);
+    bool was_locked = flag_.load(std::memory_order_relaxed);
+    return !was_locked && !flag_.exchange(true, std::memory_order_acquire);
   }
 
   void unlock() noexcept {
-    flag_.clear(std::memory_order_release);
+    flag_.store(false, std::memory_order_release);
   }
 
  private:
-  std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
+  std::atomic<bool> flag_{false};
 };
 
 using spinlock = yielding_spinlock<100>;
