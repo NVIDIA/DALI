@@ -191,24 +191,28 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       //                                                               ^^^^ deadlock
 
 
-      // The brief lock/unlock sequence avoids this scenario:
+      // The brief lock/unlock sequence avoids the above.
+      // The call to lock.lock() prevents the worker thread from signalling the event while
+      // the control thread is evaluating the condition (which happens with the mutex owned).
+      // Now it looks like this:
       //
       // worker                           WaitForWork
       //
       //                                  lock.lock()
       //                                  return outstanding_work_ == 0  (false!)
       // --outstanding_work == 0 (true)
-      // lock.lock()
+      // lock.lock(
       //                                  atomically unlock `lock` and wait for `completed_`
-      //                                                               ^^^^ deadlock
-      // at this point we know that if
+      // At this point we know that if
       // anyone was executing WaitForWork
       // they're not evaluating the
       // condition but rather waiting on
-      // the condvar
+      // the completed_ condvar.
       //
       // lock.unlock()
       // compleded_.notify_all()
+      //                                  notified - wake up
+      //                                  lock.lock()
       //                                  continue execution
 
       lock.lock();
