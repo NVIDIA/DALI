@@ -138,12 +138,18 @@ def test_standalone_op_reader():
 
     pipe = dali.Pipeline(batch_size, 4, 0)
     ref_reader_outs = fn.readers.file(
+        name="reader",
         file_root=path,
         file_list=os.path.join(path, "image_list.txt"),
         random_shuffle=False,
         seed=123,
     )
     pipe.set_outputs(*ref_reader_outs)
+
+    pipe.build()
+    out_meta = op.GetReaderMeta()
+    ref_meta = pipe.reader_meta("reader")
+    assert out_meta == ref_meta
 
     for i in range(10):
         ws = _b._Workspace(tp)

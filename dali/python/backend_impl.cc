@@ -2342,9 +2342,6 @@ void ExposeOperator(py::module &m) {
     .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws) {
       SetupAndRun(self, ws);
     })
-    .def("SetupAndRun", [](OperatorBase &self, Workspace &ws) {
-      SetupAndRun(self, ws);
-    })
     .def("GetReaderMeta", [](OperatorBase &self) {
       return ReaderMetaToDict(self.GetReaderMeta());
     });
