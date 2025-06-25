@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,8 +26,7 @@
 namespace dali {
 
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
-    : threads_(num_thread), running_(true), work_complete_(true), started_(false)
-    , active_threads_(0) {
+    : threads_(num_thread), running_(true), started_(false), outstanding_work_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
   // We use NVML only for setting thread affinity
@@ -61,7 +60,7 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     work_queue_.push({priority, std::move(work)});
-    work_complete_ = false;
+    outstanding_work_.fetch_add(1);
     started_before = started_;
     started_ |= start_immediately;
   }
@@ -75,8 +74,10 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
 
 // Blocks until all work issued to the thread pool is complete
 void ThreadPool::WaitForWork(bool checkForErrors) {
-  std::unique_lock<std::mutex> lock(mutex_);
-  completed_.wait(lock, [this] { return this->work_complete_; });
+  if (outstanding_work_.load()) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    completed_.wait(lock, [this] { return this->outstanding_work_ == 0; });
+  }
   started_ = false;
   if (checkForErrors) {
     // Check for errors
@@ -150,11 +151,9 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     // If we're no longer running, exit the run loop
     if (!running_) break;
 
-    // Get work from the queue & mark
-    // this thread as active
+    // Get work from the queue.
     Work work = std::move(work_queue_.top().second);
     work_queue_.pop();
-    ++active_threads_;
 
     // Unlock the lock
     lock.unlock();
@@ -174,13 +173,51 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       lock.unlock();
     }
 
-    // Mark this thread as idle & check for complete work
-    lock.lock();
-    --active_threads_;
-    if (work_queue_.empty() && active_threads_ == 0) {
-      work_complete_ = true;
+    // The task is now complete - we can atomically decrement the number of outstanding work.
+    // If it reaches zero, we must safely notify the potential threads waiting for the work
+    // to complete.
+    // NOTE: We don't have to acquire the mutex until the number of waiting threads reaches 0.
+    if (--outstanding_work_ == 0) {
+      // We don't need to guard the modification of the atomic value with a mutex -
+      // however, we need to lock it briefly to make sure we don't have this scenario:
+      //
+      // worker                           WaitForWork
+      //
+      //                                  lock.lock()
+      //                                  return outstanding_work_ == 0  (false!)
+      // --outstanding_work == 0 (true)
+      // compleded_.notify_all()          NOT WAITING FOR compleded_ YET!!!!!!!!!!!!!
+      //                                  atomically unlock `lock` and wait for `completed_`
+      //                                                               ^^^^ deadlock
+
+
+      // The brief lock/unlock sequence avoids the above.
+      // The call to lock.lock() prevents the worker thread from signalling the event while
+      // the control thread is evaluating the condition (which happens with the mutex owned).
+      // Now it looks like this:
+      //
+      // worker                           WaitForWork
+      //
+      //                                  lock.lock()
+      //                                  return outstanding_work_ == 0  (false!)
+      // --outstanding_work == 0 (true)
+      // lock.lock(
+      //                                  atomically unlock `lock` and wait for `completed_`
+      // At this point we know that if
+      // anyone was executing WaitForWork
+      // they're not evaluating the
+      // condition but rather waiting on
+      // the completed_ condvar.
+      //
+      // lock.unlock()
+      // compleded_.notify_all()
+      //                                  notified - wake up
+      //                                  lock.lock()
+      //                                  continue execution
+
+      lock.lock();
       lock.unlock();
-      completed_.notify_one();
+      completed_.notify_all();
     }
   }
 }
