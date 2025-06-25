@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_UTIL_THREAD_POOL_H_
 #define DALI_PIPELINE_UTIL_THREAD_POOL_H_
 
+#include <atomic>
 #include <cstdlib>
 #include <utility>
 #include <condition_variable>
@@ -87,9 +88,8 @@ class DLL_PUBLIC ThreadPool {
   std::priority_queue<PrioritizedWork, std::vector<PrioritizedWork>, SortByPriority> work_queue_;
 
   bool running_;
-  bool work_complete_;
   bool started_;
-  int active_threads_;
+  std::atomic_int outstanding_work_;
   std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable completed_;
