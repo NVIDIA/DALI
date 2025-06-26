@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2015, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 #include <atomic>
 #include <thread>
-#ifdef __X86_64__
+#ifdef __x86_64
 #include <emmintrin.h>
 #endif
 
@@ -33,7 +33,7 @@ class busy_spinlock {
       bool was_locked = flag_.load(std::memory_order_relaxed);
       if (!was_locked && !flag_.exchange(true, std::memory_order_acquire))
         break;
-      #ifdef __X86_64__
+      #ifdef __x86_64
       _mm_pause();  // Let other hyperthreads run
       #endif
     }
@@ -66,7 +66,7 @@ class yielding_spinlock {
       if (!was_locked && !flag_.exchange(true, std::memory_order_acquire))
         break;
       if (spin-- > 0) {
-        #ifdef __X86_64__
+        #ifdef __x86_64
         _mm_pause();  // Let other hyperthreads run
         #endif
       } else {
