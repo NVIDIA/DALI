@@ -80,7 +80,7 @@ def test_vs_separate_ops(dev, mode, roi_start, roi_end):
 
 
 @pipeline_def(num_threads=1, batch_size=1, device_id=0, seed=1234)
-def rcm_video_pipe(source_name, device, mode, height, width):
+def rcm_video_pipe(source_name, device, mode, height, width, roi_start, roi_end, crop):
     # Read the input video
     encoded_video = fn.external_source(
         device="cpu",
@@ -94,14 +94,27 @@ def rcm_video_pipe(source_name, device, mode, height, width):
     )
 
     # Resize the video to 1280x720
-    decoded = fn.resize_crop_mirror(decoded, size=(height, width), mirror=2)
+    decoded = fn.resize_crop_mirror(
+        decoded, size=(height, width), roi_start=roi_start, roi_end=roi_end, crop=crop, mirror=2
+    )
 
     return decoded
 
 
-@params(("cpu", None, 720, 1280), ("gpu", None, 720, 1280))
-def test_video_rcm(dev, mode, height, width):
-    pipe = rcm_video_pipe("encoded_video", dev, mode, height, width, prefetch_queue_depth=1)
+@params(
+    ("cpu", None, 720, 1280, (0.0, 0.0), (1.0, 1.0), (720.0, 1280.0)),
+    ("gpu", None, 720, 1280, (0.0, 0.0), (1.0, 1.0), (720.0, 1280.0)),
+    ("cpu", None, 720, 1280, (0.0, 0.0), (1.0, 1.0), (200.0, 320.0)),
+    ("gpu", None, 720, 1280, (0.0, 0.0), (1.0, 1.0), (200.0, 320.0)),
+    ("cpu", None, 720, 1280, (0.0, 0.0), (0.5, 0.5), (720.0, 1280.0)),
+    ("gpu", None, 720, 1280, (0.0, 0.0), (0.5, 0.5), (720.0, 1280.0)),
+    ("cpu", None, 720, 1280, (0.0, 0.0), (0.5, 0.5), (480.0, 640.0)),
+    ("gpu", None, 720, 1280, (0.0, 0.0), (0.5, 0.5), (480.0, 640.0)),
+)
+def test_video_rcm(dev, mode, height, width, roi_start, roi_end, crop):
+    pipe = rcm_video_pipe(
+        "encoded_video", dev, mode, height, width, roi_start, roi_end, crop, prefetch_queue_depth=1
+    )
 
     for i, file_name in enumerate(os.listdir(db_vid_folder)):
         file_path = os.path.join(db_vid_folder, file_name)
@@ -109,4 +122,4 @@ def test_video_rcm(dev, mode, height, width):
             encoded_video=np.expand_dims(np.fromfile(file_path, dtype=np.uint8), axis=0)
         )
         v_shape = decoded[0].shape()[0][1:3]
-        assert v_shape == (height, width)
+        assert v_shape == crop
