@@ -19,7 +19,7 @@ C++ idioms or language features it is discouraged.
 
 ### C++ Version
 
-DALI uses C++17 standard as this is the most recent version supported with CUDA versions used
+DALI uses C++20 standard as this is the most recent version supported with CUDA versions used
 in the project.
 
 ### Line length
