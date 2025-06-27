@@ -363,8 +363,8 @@ class InstallerHelper:
             lib_filename = "libdali_tf_current.so"
             lib_path = os.path.join(self.plugin_dest_dir, lib_filename)
 
-            # for a newer TF we need to compiler with C++20
-            cpp_ver = "--std=c++14" if Version(self.tf_version) < Version("2.10") else "--std=c++20"
+            # for a newer TF we need to compiler with C++17
+            cpp_ver = "--std=c++14" if Version(self.tf_version) < Version("2.10") else "--std=c++17"
             # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.
