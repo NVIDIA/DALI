@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ endif()
 # cuFFT library
 adjust_source_file_language_property("${DALI_KERNEL_SRCS}")
 set_source_files_properties("dummy.cu" PROPERTIES LANGUAGE CUDA)
+set_source_files_properties("dummy.cu" PROPERTIES COMPILE_FLAGS "")
 add_library(dali_kernels ${LIBTYPE} ${DALI_KERNEL_SRCS})
 target_link_libraries(dali_kernels PUBLIC dali_core)
 
