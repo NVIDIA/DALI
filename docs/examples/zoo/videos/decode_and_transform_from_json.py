@@ -27,18 +27,10 @@ from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.pytorch as dali_pytorch
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 
-# We need to set batch_size to 1, due to the different frames range in clip.json files
-# Different frame ranges, are making it impossible to construct uniform batches and we
-# end up with differnet dimensions on the F axis of [F, H, W, C] tensors, e.g.:
-# TensorListGPU(
-#    dtype=DALIDataType.UINT8,
-#    layout="FHWC",
-#    num_samples=2,
-#    shape=[(5, 640, 480, 3), (2, 640, 480, 3)])
-# This is handled well in DALI, but not so well outside of it.
 
-batch_size = 1
+batch_size = 4
 
 
 class ReadVideosAndAnnotationsExternalInput:
@@ -114,20 +106,32 @@ class ReadVideosAndAnnotationsExternalInput:
         return batch, clips
 
 
-@pipeline_def(batch_size=4, num_threads=4, device_id=0, exec_dynamic=True)
-def read_clips_pipeline(root_dir):
+@pipeline_def(
+    batch_size=4,
+    num_threads=4,
+    device_id=0,
+    exec_dynamic=True,
+    enable_conditionals=True,
+)
+def read_clips_pipeline(root_dir, sequence_length):
 
     video_file, clips = fn.external_source(
         source=ReadVideosAndAnnotationsExternalInput(batch_size, root_dir),
         num_outputs=2,
         dtype=[types.UINT8, types.INT32],
     )
+    start_frame = clips[0][0]
+    end_frame = clips[0][1]
+    # If not enough frames extend to the desired sequnce length by padding with the last frame
+    if start_frame - end_frame < sequence_length:
+        end_frame = start_frame + sequence_length
     # Decode the video - start and end frames are available for DALI >= 1.48.0
     decoded = fn.experimental.decoders.video(
         video_file,
         device="mixed",
-        start_frame=clips[0][0],
-        end_frame=clips[0][1],
+        start_frame=start_frame,
+        end_frame=end_frame,
+        pad_mode="edge",
     )
     # Resize the video to 640x480
     decoded = fn.resize(decoded, size=(640, 480))
@@ -165,16 +169,18 @@ if __name__ == "__main__":
     if not os.path.exists(args.videos_dir):
         sys.exit(f"Invalid videos path: {args.videos_dir}")
 
-    pipeline = read_clips_pipeline(args.videos_dir)
+    pipeline = read_clips_pipeline(args.videos_dir, sequence_length=7)
     pipeline.build()
 
-    dali_iter = dali_pytorch.DALIGenericIterator(pipeline, ["decoded"])
+    dali_iter = dali_pytorch.DALIRaggedIterator(
+        pipeline, ["decoded"], last_batch_policy=LastBatchPolicy.FILL
+    )
     # Iterate over the data
     for i, data in enumerate(dali_iter):
-        for j in range(len(data[0]["decoded"])):
-            for element in range(batch_size):
-                img = Image.fromarray(
-                    data[0]["decoded"][element][j].cpu().numpy()
-                )
-                if args.save:
+        for element in range(batch_size):
+            if args.save:
+                for j in range(2):
+                    img = Image.fromarray(
+                        data[0]["decoded"][element][j].cpu().numpy()
+                    )
                     img.save(Path(args.save_path) / f"{i}_{element}_{j}.jpg")
