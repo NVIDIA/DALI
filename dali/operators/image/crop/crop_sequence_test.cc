@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,13 +28,13 @@ template <typename Backend_, typename T_,
 struct CropSequenceTestArgs {
   using Backend = Backend_;
   using T = T_;
-  enum { N = N_ };
-  enum { F = F_ };
-  enum { H = H_ };
-  enum { W = W_ };
-  enum { C = C_ };
-  enum { crop_H = crop_H_ };
-  enum { crop_W = crop_W_ };
+  static constexpr auto N = N_;
+  static constexpr auto F = F_;
+  static constexpr auto H = H_;
+  static constexpr auto W = W_;
+  static constexpr auto C = C_;
+  static constexpr auto crop_H = crop_H_;
+  static constexpr auto crop_W = crop_W_;
 };
 
 template <typename TestArgs>
