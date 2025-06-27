@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -296,7 +296,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
       const uint8_t *input_data = static_cast<const uint8_t *>(input.raw_tensor(sample_idx));
 
       tp.AddWork(
-          [=](int thread_id) {
+          [=, this](int thread_id) {
             auto &rng = rng_[sample_idx];
             if (p_dist_.HasValue()) {
               auto dist = ChoiceSampleDist<int64_t, false, false>(

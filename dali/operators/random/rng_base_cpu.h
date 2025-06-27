@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -171,7 +171,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
 
     if (total_p_count < kThreshold) {
       tp.AddWork(
-        [=](int thread_id) {
+        [=, this](int thread_id) {
           auto dist = use_default_dist ? Dist() : dists[sample_id];
           if (independent_channels) {
             dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, total_p_count);
@@ -189,7 +189,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
         for (auto &s : seed)
           s = rng_[sample_id]();
         tp.AddWork(
-          [=](int thread_id) {
+          [=, this](int thread_id) {
             std::seed_seq seq(seed.begin(), seed.end());
             std::mt19937_64 chunk_rng(seq);
             auto dist = use_default_dist ? Dist() : dists[sample_id];
