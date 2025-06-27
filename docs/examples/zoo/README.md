@@ -25,7 +25,7 @@ For CUDA installation, refer to the [NVIDIA CUDA installation guide](https://doc
 
 To install NVIDIA DALI refer to the [Installation - NVIDIA DALI](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html#nvidia-dali).
 
-##Content Structure
+## Content Structure
 
 The repository is organized into the following folders:
 
