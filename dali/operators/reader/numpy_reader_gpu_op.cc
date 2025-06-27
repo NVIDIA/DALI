@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,7 +141,7 @@ void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
     ssize_t copy_skip = copy_start - file_offset;
     ssize_t copy_end = file_offset + chunk_read_length;
     ssize_t chunk_copy_length = copy_end - copy_start;
-    thread_pool_.AddWork([=, &load_target](int tid) {
+    thread_pool_.AddWork([=, &load_target, this](int tid) {
       assert(chunk_read_length <= static_cast<ssize_t>(staging_.chunk_size()));
       auto buffer = staging_.get_staging_buffer();
       load_target.ReadRawChunk(buffer.at(0), chunk_read_length, 0, file_offset);

@@ -142,7 +142,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
   auto layout = output.GetLayout();
   channel_dim = layout.empty() ? ndim - 1 : layout.find('C');
 
-  DistGen<IsNoiseGen> dist_gen_;
+  DistGen<IsNoiseGen> dist_gen;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
     auto sample_sz = out_shape.tensor_size(sample_id);
     int64_t total_p_count = sample_sz;
@@ -174,9 +174,9 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
         [=, this](int thread_id) {
           auto dist = use_default_dist ? Dist() : dists[sample_id];
           if (independent_channels) {
-            dist_gen_.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, total_p_count);
+            dist_gen.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, total_p_count);
           } else {
-            dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0,
+            dist_gen.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0,
                                                    total_p_count, nchannels, c_stride, p_stride);
           }
         }, total_p_count);
@@ -189,15 +189,15 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
         for (auto &s : seed)
           s = rng_[sample_id]();
         tp.AddWork(
-          [=, this](int thread_id) {
+          [=](int thread_id) {
             std::seed_seq seq(seed.begin(), seed.end());
             std::mt19937_64 chunk_rng(seq);
             auto dist = use_default_dist ? Dist() : dists[sample_id];
             if (independent_channels) {
-              dist_gen_.template gen<T>(out_span, in_span, dist, chunk_rng,
+              dist_gen.template gen<T>(out_span, in_span, dist, chunk_rng,
                                         p_offset, p_count);
             } else {
-              dist_gen_.template gen_all_channels<T>(out_span, in_span, dist, chunk_rng, p_offset,
+              dist_gen.template gen_all_channels<T>(out_span, in_span, dist, chunk_rng, p_offset,
                                                      p_count, nchannels, c_stride, p_stride);
             }
           }, p_count);
