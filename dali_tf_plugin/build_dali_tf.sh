@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ TF_VERSION_MAJOR=$(echo $TF_VERSION | cut -d' ' -f1)
 TF_VERSION_MINOR=$(echo $TF_VERSION | cut -d' ' -f2)
 TF_VERSION_PATCH=$(echo $TF_VERSION | cut -d' ' -f3)
 
-CPP_VER=( $($PYTHON -c "import tensorflow as tf; from packaging.version import Version; print('--std=c++14' if Version(tf.__version__) < Version('2.10') else '--std=c++20')") )
+CPP_VER=( $($PYTHON -c "import tensorflow as tf; from packaging.version import Version; print('--std=c++14' if Version(tf.__version__) < Version('2.10') else '--std=c++17')") )
 
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316
