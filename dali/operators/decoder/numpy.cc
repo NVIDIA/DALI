@@ -19,16 +19,31 @@
 
 namespace dali {
 
+std::string to_hex_string(const std::string_view data) {
+  std::string hex;
+  hex.reserve(2 + data.size() * 2);
+  hex += "0x";
+  const auto lut = "0123456789abcdef";
+  for (unsigned char c : data) {
+    hex += lut[c >> 4];
+    hex += lut[c & 0x0F];
+  }
+  return hex;
+}
+
 numpy::HeaderData ParseHeader(const std::string_view data) {
-  if (data.size() < 10 || data.substr(1, 5) != "NUMPY") {
-    DALI_FAIL("Got bad magic string for numpy header: ", data.substr(1, 5));
+  const auto numpy_magic = "\x93NUMPY";
+  if (data.size() < 10 || data.substr(0, 6) != numpy_magic) {
+    DALI_FAIL("Got bad magic string for numpy header ",
+              to_hex_string(data.substr(0, std::min(6UL, data.size()))), ", expected ",
+              to_hex_string(numpy_magic));
   } else if (data[6] != 1) {
     DALI_FAIL("Unsupported numpy file version. Only major version 1 is supported.");
   }
 
   uint16_t header_len = 0;
   std::memcpy(&header_len, &data[8], 2);
-  if (header_len + 10 > data.size()) {
+  if (header_len + 10UL > data.size()) {
     DALI_FAIL("Header length exceeds input size.");
   }
 
@@ -123,8 +138,9 @@ void NumpyDecoder::RunImpl(Workspace &ws) {
   for (int sampleIdx = 0; sampleIdx < input.num_samples(); ++sampleIdx) {
     tPool.AddWork([&, sampleIdx](int) {
       const numpy::HeaderData &header = headers_[sampleIdx];
-      ConstSampleView<CPUBackend> inputView(input.raw_tensor(sampleIdx) + header.data_offset,
-                                            header.shape, header.type());
+      ConstSampleView<CPUBackend> inputView(
+          static_cast<const uint8_t *>(input.raw_tensor(sampleIdx)) + header.data_offset,
+          header.shape, header.type());
       RunDecoding(output[sampleIdx], inputView, header);
     });
   }
