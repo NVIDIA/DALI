@@ -39,10 +39,6 @@ class NumpyDecoder : public StatelessOperator<CPUBackend> {
   inline ~NumpyDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(NumpyDecoder);
 
-  bool HasContiguousOutputs() const override {
-    return false;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;
