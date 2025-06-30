@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -621,11 +621,11 @@ constexpr vec<sizeof...(indices), T> shuffle(const vec<N, T> &v) {
   return { v[indices]... };
 }
 
-static_assert(std::is_pod<vec<1>>::value, "vec<1, T> must be a POD type");
-static_assert(std::is_pod<vec<2>>::value, "vec<2, T> must be a POD type");
-static_assert(std::is_pod<vec<3>>::value, "vec<3, T> must be a POD type");
-static_assert(std::is_pod<vec<4>>::value, "vec<4, T> must be a POD type");
-static_assert(std::is_pod<vec<5>>::value, "vec<N, T> must be a POD type");
+static_assert(is_pod_v<vec<1>>, "vec<1, T> must be a POD type");
+static_assert(is_pod_v<vec<2>>, "vec<2, T> must be a POD type");
+static_assert(is_pod_v<vec<3>>, "vec<3, T> must be a POD type");
+static_assert(is_pod_v<vec<4>>, "vec<4, T> must be a POD type");
+static_assert(is_pod_v<vec<5>>, "vec<N, T> must be a POD type");
 
 template <int N, typename T>
 std::ostream &operator<<(std::ostream& os, const dali::vec<N, T> &v) {
