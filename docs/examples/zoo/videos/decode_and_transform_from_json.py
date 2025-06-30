@@ -121,16 +121,13 @@ def read_clips_pipeline(root_dir, sequence_length):
         dtype=[types.UINT8, types.INT32],
     )
     start_frame = clips[0][0]
-    end_frame = clips[0][1]
     # If not enough frames extend to the desired sequnce length by padding with the last frame
-    if start_frame - end_frame < sequence_length:
-        end_frame = start_frame + sequence_length
     # Decode the video - start and end frames are available for DALI >= 1.48.0
     decoded = fn.experimental.decoders.video(
         video_file,
         device="mixed",
         start_frame=start_frame,
-        end_frame=end_frame,
+        sequence_length=sequence_length,
         pad_mode="edge",
     )
     # Resize the video to 640x480
