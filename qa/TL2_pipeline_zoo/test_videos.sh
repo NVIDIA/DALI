@@ -1,5 +1,5 @@
 #!/bin/bash -ex
-pip_packages='${python_test_runner_package} numpy ffmpeg'
+pip_packages='${python_test_runner_package} pillow numpy torch'
 target_dir=./dali/docs/examples/zoo/videos
 test_body() {
     scripts=(
