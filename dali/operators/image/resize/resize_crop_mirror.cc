@@ -88,23 +88,24 @@ void ResizeCropMirrorAttr::PrepareResizeParams(
     auto window = GetCropWindowGenerator(i)(resized_input_shape, layout_);
     int mirror = *mirror_[i].data;
     for (int d = 0; d < spatial_ndim_; d++) {
+      auto d_spatial = d + first_spatial_dim_;
       double src_extent = params.src_hi[d] - params.src_lo[d];
       // Fun fact: it should work even if src_extent is negative,
       // i.e. the resize part already flips.
       double resize_ratio = src_extent / params.dst_size[d];
       double resize_offset = params.src_lo[d];
 
-      double crop_lo = window.anchor[d];
-      double crop_hi = window.anchor[d] + window.shape[d];
+      double crop_lo = window.anchor[d_spatial];
+      double crop_hi = window.anchor[d_spatial] + window.shape[d_spatial];
 
       params.src_lo[d] = crop_lo * resize_ratio + resize_offset;
       params.src_hi[d] = crop_hi * resize_ratio + resize_offset;
 
-      bool mirror_this_dim = mirror & (1 << (spatial_ndim_ - 1 - d));
+      bool mirror_this_dim = mirror & (1 << (spatial_ndim_ - 1 - d_spatial));
       if (mirror_this_dim)
         std::swap(params.src_lo[d], params.src_hi[d]);
 
-      params.dst_size[d] = window.shape[d];
+      params.dst_size[d] = window.shape[d_spatial];
     }
   }
 }
