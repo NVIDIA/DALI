@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 pip_packages='${python_test_runner_package} pillow numpy torch'
-target_dir=./dali/docs/examples/zoo/videos
+target_dir=./docs/examples/zoo/videos
 test_body() {
     scripts=(
         "decode.py --videos_dir $DALI_EXTRA_PATH/db/video/sintel/video_files" \
