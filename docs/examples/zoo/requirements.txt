@@ -1,0 +1,5 @@
+numpy>=2.0
+torch>=1.9.0
+nvidia-dali-cuda120>=1.48.0
+ffmpeg-python>=0.2.0
+pillow
