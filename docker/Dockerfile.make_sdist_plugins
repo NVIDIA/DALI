@@ -6,7 +6,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install -y python3 python3-pip build-essential git wget && \
     python3 -m pip install "setuptools>=70" scikit-build && \
     rm -rf /var/lib/apt/lists/* && \
-    rm -rf /root/.cache/pip/
+    rm -rf /root/.cache/pip/ && \
+    pushd /tmp && \
+    wget https://github.com/Kitware/CMake/releases/download/v3.25.2/cmake-3.25.2-Linux-x86_64.sh && \
+    bash cmake-*.sh --skip-license --prefix=/usr && \
+    rm cmake-*.sh && \
+    popd
 
 RUN CMAKE_VERSION=3.25.2 && CMAKE_ARCH=$(uname -m) && \
     wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
