@@ -103,6 +103,9 @@ Data
 `Makansi et al. <https://arxiv.org/abs/1707.00471>`_ uses the `Myanmar 60p video` as
 its raw data source. It is a 60 FPS, 4K resolution cinematic video.
 
+Example preparation steps can be found `here
+<https://github.com/NVIDIA/nvvl/tree/master/examples/pytorch_superres>`_.
+
 Training
 --------
 
