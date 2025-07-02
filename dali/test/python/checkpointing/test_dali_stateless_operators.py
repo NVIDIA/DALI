@@ -14,8 +14,10 @@
 
 import os
 import glob
-import numpy as np
+import io
 import itertools
+
+import numpy as np
 from nvidia.dali import fn, pipeline_def, types
 from test_utils import (
     compare_pipelines,
@@ -837,6 +839,29 @@ def test_audio_decoder_stateless():
 @stateless_signed_off("decoders.image", "image_decoder")
 def test_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image, device)
+
+
+@stateless_signed_off("decoders.numpy")
+def test_numpy_decoder_stateless():
+
+    class RandomEncode(RandomBatch):
+        def encode_sample(self, data):
+            buff = io.BytesIO()
+            np.save(buff, data)
+            buff.seek(0)
+            return np.frombuffer(buff.read(), dtype=np.uint8)
+
+        def __call__(self):
+            data = super().__call__()
+            return [self.encode_sample(sample) for sample in data]
+
+    @pipeline_def(enable_checkpointing=True)
+    def pipeline_factory():
+        enc_data = fn.external_source(source=RandomEncode())
+        dec_data = fn.decoders.numpy(enc_data)
+        return dec_data
+
+    check_is_pipeline_stateless(pipeline_factory)
 
 
 @params("cpu", "mixed")
