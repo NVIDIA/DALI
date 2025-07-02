@@ -100,47 +100,8 @@ The default location that the training code will look for these weights is ``flo
 Data
 ----
 
-Following `Makansi et al. <https://arxiv.org/abs/1707.00471>`_ we use the `Myanmar
-60p video <https://www.harmonicinc.com/resources/videos/4k-video-clip-center>`_ as our
-raw data source.
-
-The raw video is a 60 FPS, 4K resolution cinematic video.  In order to prepare
-the data for training you should run the following steps:
-
-
-#.
-   Create a data folder ``<data_dir>`` and download the 4K Myanmar video.
-
-#.
-   Run ``prepare_data.sh`` by providing the 4K Myanmar video file as argument.
-
-This will create a 5 directories inside of ``<data_dir>``\ :
-
-
-* orig
-* 540p
-* 720p
-* 1080p
-* 4k
-  Each of these directories contain scenes (short extracts of the origin video) separated in two directories ``train`` and ``val``.
-
-The script used in prepare_data.sh are the following:
-
-tools/split_scenes.py : split the video into scenes and remove audio track:
-
-.. code-block:: bash
-
-   python ./tools/split_scenes.py --raw_data <path_to_mp4_file> --out_data <data_dir>
-
-The scenes will be written to <data_dir>/orig/scenes. The scenes will be split into training and validation folders.
-
-tools/transcode_scenes.py : transcode the scenes to have a smaller keyframe interval and possibly a lower resolution:
-
-.. code-block:: bash
-
-   python ./tools/transcode_scenes.py --main_data <data_dir> --resolution <resolution>
-
-where <resolution> can be one of: '4K', 1080p, 720p or 540p. The transcoded scenes will be written to <data_dir>/<resolution>/scenes and split into training and validation folders. Run the script with --help to see more options. Note that while you can split and transcode the original video in one step, we found it to be much faster to split first, then transcode.
+`Makansi et al. <https://arxiv.org/abs/1707.00471>`_ uses the `Myanmar 60p video` as
+its raw data source. It is a 60 FPS, 4K resolution cinematic video.
 
 Training
 --------
