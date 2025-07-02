@@ -339,7 +339,7 @@ def test_numpy_decoder_cpu():
                 f.write(f"{npy_file} 0\n")
         pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
         data, _ = fn.readers.file(file_list=str(file_list))
-        fn.decoders.numpy(data)
+        data = fn.decoders.numpy(data)
         pipe.set_outputs(data)
         pipe.build()
         for _ in range(3):
