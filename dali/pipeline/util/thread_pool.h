@@ -93,6 +93,7 @@ class DLL_PUBLIC ThreadPool {
   std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable completed_;
+  std::mutex completed_mutex_;
 
   //  Stored error strings for each thread
   vector<std::queue<string>> tl_errors_;
