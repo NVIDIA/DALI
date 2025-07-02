@@ -51,6 +51,13 @@ numpy::HeaderData ParseHeader(const std::string_view data) {
   numpy::HeaderData header;
   numpy::ParseHeaderContents(header, data.substr(10, header_len));
   header.data_offset = 10 + header_len;
+
+  const auto expected_size = header.data_offset + header.nbytes();
+  if (expected_size != data.size()) {
+    DALI_FAIL("Expected data numpy size ", expected_size, " bytes does not match the actual size ",
+              data.size(), " bytes.");
+  }
+
   return header;
 }
 
@@ -67,23 +74,31 @@ bool NumpyDecoder::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspa
   }
 
   output_desc.resize(1);
-  if (dtype_.has_value()) {
-    output_desc[0].type = dtype_.value();
+  if (dtype_override_.has_value()) {
+    output_desc[0].type = dtype_override_.value();
   } else {
-    const auto firstDtype = headers_.front().type();
+    if (!dtype_.has_value()) {
+      dtype_ = headers_.front().type();
+    }
+    output_desc[0].type = dtype_.value();
     DALI_ENFORCE(
-        std::all_of(headers_.begin(), headers_.end(),
-                    [&](const numpy::HeaderData &header) { return header.type() == firstDtype; }),
-        "All samples in the batch must have the same data type, but got differing types");
-    output_desc[0].type = firstDtype;
+        std::all_of(
+            headers_.begin(), headers_.end(),
+            [&](const numpy::HeaderData &header) { return header.type() == dtype_.value(); }),
+        "All samples in the dataset must have the same data type, but got differing types");
   }
 
-  TensorListShape<-1> output_shape(headers_.size(), headers_.front().shape.sample_dim());
+  // Set the number of dimensions for the output shape based on the very first sample
+  if (!ndim_.has_value()) {
+    ndim_ = headers_.front().shape.sample_dim();
+  }
+  TensorListShape<-1> output_shape(headers_.size(), ndim_.value());
+
   for (int sampleIdx = 0; sampleIdx < input.num_samples(); ++sampleIdx) {
     const auto &header = headers_[sampleIdx];
     if (header.shape.sample_dim() != output_shape.sample_dim()) {
       DALI_FAIL(
-          make_string("All samples in the batch must have the same number of dimensions, "
+          make_string("All samples in the dataset must have the same number of dimensions, "
                       "but got differing sample dimensions: ",
                       output_shape.sample_dim(), " and ", header.shape.sample_dim()));
     }

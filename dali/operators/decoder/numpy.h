@@ -19,20 +19,20 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/numpy.h"
 
 namespace dali {
 
-class NumpyDecoder : public StatelessOperator<CPUBackend> {
+class NumpyDecoder : public Operator<CPUBackend> {
  public:
-  explicit inline NumpyDecoder(const OpSpec &spec) : StatelessOperator<CPUBackend>(spec) {
+  explicit inline NumpyDecoder(const OpSpec &spec)
+      : Operator<CPUBackend>(spec), dtype_{std::nullopt}, ndim_{std::nullopt} {
     if (spec.HasArgument("dtype")) {
-      dtype_ = spec.GetArgument<DALIDataType>("dtype");
+      dtype_override_ = spec.GetArgument<DALIDataType>("dtype");
     } else {
-      // If dtype is not specified, it will be inferred from the input data
-      dtype_ = std::nullopt;
+      // If dtype is not specified, it will be inferred from the first sample
+      dtype_override_ = std::nullopt;
     }
   }
 
@@ -43,7 +43,9 @@ class NumpyDecoder : public StatelessOperator<CPUBackend> {
 
   void RunImpl(Workspace &ws) override;
 
+  std::optional<DALIDataType> dtype_override_;
   std::optional<DALIDataType> dtype_;
+  std::optional<std::size_t> ndim_;
   std::vector<numpy::HeaderData> headers_;
 };
 

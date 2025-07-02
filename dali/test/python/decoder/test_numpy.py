@@ -15,9 +15,9 @@
 import io
 
 import numpy as np
-import nvidia.dali.fn as fn
+from nose2.tools import params
 from nose_utils import raises
-from nvidia.dali import pipeline_def
+from nvidia.dali import fn, pipeline_def
 from nvidia.dali.types import DALIDataType
 
 
@@ -69,7 +69,7 @@ def test_fortran_decoding():
     for i in range(num_samples):
         output = p.run()
         test = np.asarray(output[0][0])
-        assert np.all(test == data[i])
+        assert np.array_equal(test, data[i])
 
 
 def test_variable_shape():
@@ -90,7 +90,7 @@ def test_variable_shape():
     output = p.run()
     for i in range(num_samples):
         test = np.asarray(output[0][i])
-        assert np.all(test == data[i])
+        assert np.array_equal(test, data[i])
 
 
 def test_casting_decoding():
@@ -113,14 +113,15 @@ def test_casting_decoding():
     for i in range(num_samples):
         output = p.run()
         test = np.asarray(output[0][0])
-        assert np.all(test == data[i].astype(np.float32))
+        assert np.array_equal(test, data[i].astype(np.float32))
 
 
-@raises(RuntimeError, "All samples in the batch must have the same number of dimensions")
-def test_raise_different_dims():
-    data = [np.empty((2, 3), dtype=np.float32), np.empty((2, 3, 4), dtype=np.float32)]
+@raises(RuntimeError, "All samples in the dataset must have the same number of dimensions")
+@params(1, 2)
+def test_raise_different_dims(batch_size):
+    data = [np.empty(shape, dtype=np.float32) for shape in [(2, 3), (2, 3), (2, 3, 4), (2, 3)]]
 
-    @pipeline_def(batch_size=2, num_threads=1)
+    @pipeline_def(batch_size=batch_size, num_threads=1)
     def pipe():
         encoded_npy = fn.external_source(
             source=box_source(data), num_outputs=1, batch=False, ndim=1, dtype=DALIDataType.UINT8
@@ -130,7 +131,8 @@ def test_raise_different_dims():
 
     p = pipe()
     p.build()
-    p.run()
+    for _ in range(len(data) // batch_size):
+        p.run()
 
 
 @raises(RuntimeError, "Got bad magic string for numpy header")
@@ -151,11 +153,14 @@ def test_raise_bad_numpy_magic():
     p.run()
 
 
-@raises(RuntimeError, "All samples in the batch must have the same data type")
-def test_raise_different_dtype_without_arg():
-    data = [np.empty((2, 3), dtype=np.float32), np.empty((2, 3), dtype=np.int32)]
+@raises(RuntimeError, "All samples in the dataset must have the same data type")
+@params(1, 2)
+def test_raise_different_dtype_without_arg(batch_size):
+    data = [
+        np.empty((2, 3), dtype=dtype) for dtype in [np.float32, np.float32, np.int32, np.float32]
+    ]
 
-    @pipeline_def(batch_size=2, num_threads=1)
+    @pipeline_def(batch_size=batch_size, num_threads=1)
     def pipe():
         encoded_npy = fn.external_source(
             source=box_source(data), num_outputs=1, batch=False, ndim=1, dtype=DALIDataType.UINT8
@@ -165,7 +170,8 @@ def test_raise_different_dtype_without_arg():
 
     p = pipe()
     p.build()
-    p.run()
+    for _ in range(len(data) // batch_size):
+        p.run()
 
 
 def test_different_dtype_with_cast():
@@ -182,4 +188,32 @@ def test_different_dtype_with_cast():
     p = pipe()
     p.build()
     a, b = p.run()[0]
-    assert np.all(np.array(a) == np.array(b))
+    assert np.array_equal(np.array(a), np.array(b))
+
+
+@raises(RuntimeError, "Expected data numpy size ")
+@params(True, False)
+def test_malformed_data(truncate):
+    def malformed_source():
+        data = np.empty(100, dtype=np.uint8)
+        buff = io.BytesIO()
+        np.save(buff, data, allow_pickle=False)
+        buff.seek(0)
+        raw = np.frombuffer(buff.read(), dtype=np.uint8)
+        if truncate:
+            raw = raw[:-100]  # Truncate the data
+        else:
+            raw = np.concatenate((raw, np.empty(100, dtype=np.uint8)))  # Add extra data
+        yield (raw,)
+
+    @pipeline_def(batch_size=1, num_threads=1)
+    def pipe():
+        encoded_npy = fn.external_source(
+            source=malformed_source(), num_outputs=1, batch=False, ndim=1, dtype=DALIDataType.UINT8
+        )
+        decoded = fn.decoders.numpy(encoded_npy)
+        return decoded
+
+    p = pipe()
+    p.build()
+    p.run()
