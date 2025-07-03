@@ -153,12 +153,14 @@ void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBa
 
 void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list) {
   auto channel_dim = t_list.GetLayout().find('C');
+  auto num_channels = (channel_dim >= 0) ? t_list[0].shape()[channel_dim] : 1;
+  auto format = GetImageFormat(t_list.type(), num_channels);
+  std::vector<nvcv::Image> images;
   for (int s = 0; s < t_list.num_samples(); ++s) {
-    auto num_channels = (channel_dim >= 0) ? t_list[s].shape()[channel_dim] : 1;
-    auto format = GetImageFormat(t_list.type(), num_channels);
     auto image = AsImage(t_list[s], format);
-    batch.pushBack(image);
+    images.push_back(image);
   }
+  batch.pushBack(images.begin(), images.end());
 }
 
 nvcv::Tensor AsTensor(const Tensor<GPUBackend> &tensor, TensorLayout layout,
