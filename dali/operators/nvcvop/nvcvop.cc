@@ -303,21 +303,4 @@ cvcuda::Workspace NVCVOpWorkspace::Allocate(const cvcuda::WorkspaceRequirements 
   return workspace_;
 }
 
-nvcv::Allocator GetScratchpadAllocator(kernels::Scratchpad &scratchpad) {
-  auto hostAllocator = nvcv::CustomHostMemAllocator(
-      [&](int64_t size, int32_t align) { return scratchpad.AllocateHost<uint8_t>(size, align); },
-      [](void *, int64_t, int32_t) {});
-
-  auto pinnedAllocator = nvcv::CustomHostPinnedMemAllocator(
-      [&](int64_t size, int32_t align) { return scratchpad.AllocatePinned<uint8_t>(size, align); },
-      [](void *, int64_t, int32_t) {});
-
-  auto gpuAllocator = nvcv::CustomCudaMemAllocator(
-      [&](int64_t size, int32_t align) { return scratchpad.AllocateGPU<uint8_t>(size, align); },
-      [](void *, int64_t, int32_t) {});
-
-  return nvcv::CustomAllocator(std::move(hostAllocator), std::move(pinnedAllocator),
-                               std::move(gpuAllocator));
-}
-
 }  // namespace dali::nvcvop

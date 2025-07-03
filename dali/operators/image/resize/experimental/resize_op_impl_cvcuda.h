@@ -24,6 +24,7 @@
 #include "dali/operators/image/resize/resize_op_impl.h"
 #include "dali/operators/nvcvop/nvcvop.h"
 
+
 namespace dali {
 
 template <int spatial_ndim>
@@ -82,7 +83,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     }
   }
 
-  int64_t num_frames(const TensorShape<> &shape, int first_spatial_dim) {
+  int64_t num_frames(const TensorShape<> &shape, int first_spatial_dim) const {
     return volume(&shape[0], &shape[first_spatial_dim]);
   }
 
@@ -156,16 +157,18 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
   void RunResize(Workspace &ws, TensorList<GPUBackend> &output,
                  const TensorList<GPUBackend> &input) override {
     kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
-    auto allocator = nvcvop::GetScratchpadAllocator(scratchpad);
 
     auto workspace_mem = AllocateWorkspaces(scratchpad);
 
+    std::vector<CachedBatches> batches;
+
     for (size_t b = 0; b < minibatches_.size(); b++) {
       MiniBatch &mb = minibatches_[b];
-      auto reqs = nvcv::TensorBatch::CalcRequirements(mb.count);
-
-      auto mb_output = nvcv::TensorBatch(reqs, allocator);
-      auto mb_input = nvcv::TensorBatch(reqs, allocator);
+      batches.push_back(GetBatches(mb.count));
+      auto &mb_input = batches.back().input;
+      auto &mb_output = batches.back().output;
+      mb_input.clear();
+      mb_output.clear();
 
       nvcvop::PushFramesToBatch(mb_input, input, first_spatial_dim_, mb.sample_offset,
                                 mb.frame_offset, mb.count, sample_layout_);
@@ -173,6 +176,10 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
                                 mb.frame_offset, mb.count, sample_layout_);
       resize_op_(ws.stream(), workspace_mem[b % 2], mb_input, mb_output, mb.min_interpolation,
                  mb.mag_interpolation, mb.antialias, mb.rois);
+    }
+
+    for (auto &batch : batches) {
+      ReturnBatches(std::move(batch));
     }
   }
 
@@ -221,6 +228,28 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     }
   }
 
+  struct CachedBatches {
+    nvcv::TensorBatch input;
+    nvcv::TensorBatch output;
+  };
+
+  using BatchCache = std::vector<CachedBatches>;
+
+  CachedBatches GetBatches(int batch_size) {
+    auto &cache = batch_cache_[batch_size];
+    if (!cache.empty()) {
+      auto result = std::move(cache.back());
+      cache.pop_back();
+      return result;
+    }
+    auto reqs = nvcv::TensorBatch::CalcRequirements(batch_size);
+    return CachedBatches{nvcv::TensorBatch(reqs), nvcv::TensorBatch(reqs)};
+  }
+
+  void ReturnBatches(CachedBatches &&batches) {
+    batch_cache_[batches.input.numTensors()].push_back(std::move(batches));
+  }
+
   TensorListShape<frame_ndim> in_shape_, out_shape_;
   int total_frames_;  // number of non-empty frames
   std::vector<ResamplingParamsND<spatial_ndim>> params_;
@@ -247,6 +276,8 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
   std::vector<MiniBatch> minibatches_;
   int minibatch_size_;
+  // cache of batches for different batch sizes
+  std::unordered_map<int, BatchCache> batch_cache_;
 };
 
 }  // namespace dali

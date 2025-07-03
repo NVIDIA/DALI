@@ -186,11 +186,6 @@ class NVCVOpWorkspace {
 };
 
 /**
- * @brief Create an NVCV allocator using the given scratchpad.
- */
-nvcv::Allocator GetScratchpadAllocator(kernels::Scratchpad &scratchpad);
-
-/**
  * @brief A base class for the CVCUDA operators.
  * It adds convenience methods to access inputs, outputs and arguments as nvcv types.
  */
