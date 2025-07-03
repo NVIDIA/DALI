@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ struct SmallVectorAlloc<T, device_side_allocator<T>, true> {
 };
 
 
-template <typename T, bool is_pod = std::is_pod<T>::value>
+template <typename T, bool is_pod = is_pod_v<T>>
 class SmallVectorBase {
  protected:
   DALI_NO_EXEC_CHECK
@@ -263,7 +263,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     clear();
     reserve(count);
     T *ptr = this->data();
-    if (std::is_pod<T>::value) {
+    if (is_pod_v<T>) {
       this->copy(ptr, data, count);
       set_size(count);
     } else {
@@ -304,7 +304,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       clear();
       reserve(v.size());
       T *ptr = data();
-      if (std::is_pod<T>::value) {
+      if (is_pod_v<T>) {
         set_size(v.size());
         for (size_t i = 0; i < size(); i++) {
           ptr[i] = src[i];
@@ -365,7 +365,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       }
       T *src = v.data();
       T *dst = data();
-      if (std::is_pod<T>::value) {
+      if (is_pod_v<T>) {
         this->copy(dst, src, v.size());
         set_size(v.size());
       } else {
@@ -532,7 +532,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       index_type i = -1;
       index_type n = size();
 
-      if (std::is_pod<T>::value) {
+      if (is_pod_v<T>) {
         for (i = 0; i < index; i++)
           new_data[i] = ptr[i];
 
@@ -583,7 +583,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     for (index_type dst = first, src = first + count; src < n; dst++, src++)
       ptr[dst] = cuda_move(ptr[src]);
 
-    if (!std::is_pod<T>::value) {
+    if (!is_pod_v<T>) {
       for (index_type i = n - count; i < n; i++)
         ptr[i].~T();
     }
