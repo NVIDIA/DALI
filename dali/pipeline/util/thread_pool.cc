@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
 #include <cstdlib>
 #include <utility>
 #include "dali/pipeline/util/thread_pool.h"
+#include "dali/test/timing.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
@@ -25,9 +27,73 @@
 
 namespace dali {
 
+using perf_timer_t = std::chrono::high_resolution_clock;
+
+namespace detail {
+struct alignas(64) LockStats {
+  LockStats() = default;
+  explicit LockStats(bool print) : print(print) {}
+
+  ~LockStats() {
+    if (print) {
+      std::cout << "ThreadPool mutex timing statistics:";
+      if (queue_pop_locks) {
+        std::cout << "\nPop:                ";
+        test::print_time(std::cout, 1e-9 * queue_pop_lock_time/queue_pop_locks);
+        std::cout << " (" << queue_pop_locks << " events)";
+      }
+      if (queue_push_locks) {
+        std::cout << "\nPush:               ";
+        test::print_time(std::cout, 1e-9 * queue_push_lock_time/queue_push_locks);
+        std::cout << " (" << queue_push_locks << " events)";
+      }
+      if (completed_notify_locks) {
+        std::cout << "\nCompleted (notify): ";
+        test::print_time(std::cout, 1e-9 * completed_notify_lock_time/completed_notify_locks);
+        std::cout << " (" << completed_notify_locks << " events)";
+      }
+      if (completed_wait_locks) {
+        std::cout << "\nCompleted (wait):   ";
+        test::print_time(std::cout, 1e-9 * completed_wait_lock_time/completed_wait_locks);
+        std::cout << " (" << completed_wait_locks << " events)";
+      }
+      std::cout << std::endl;
+    }
+  }
+
+  bool print = false;
+
+  LockStats &operator+=(const LockStats &x) {
+    queue_pop_lock_time += x.queue_pop_lock_time;
+    queue_push_lock_time += x.queue_push_lock_time;
+    completed_notify_lock_time += x.completed_notify_lock_time;
+    completed_wait_lock_time += x.completed_wait_lock_time;
+    queue_push_locks += x.queue_push_locks;
+    queue_pop_locks += x.queue_pop_locks;
+    completed_notify_locks += x.completed_notify_locks;
+    completed_wait_locks += x.completed_wait_locks;
+    return *this;
+  }
+
+  std::atomic<int64_t>  queue_pop_lock_time{0},
+                        queue_push_lock_time{0},
+                        completed_notify_lock_time{0},
+                        completed_wait_lock_time{0};
+  std::atomic<int64_t>  queue_pop_locks{0},
+                        queue_push_locks{0},
+                        completed_notify_locks{0},
+                        completed_wait_locks{0};
+};
+
+LockStats g_stats(true);
+}  // namespace detail
+
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
     : threads_(num_thread), running_(true), started_(false), outstanding_work_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
+  stats_ = std::make_unique<detail::LockStats>(true);
+  if (name)
+      name_ = name;
 #if NVML_ENABLED
   // We use NVML only for setting thread affinity
   if (device_id != CPU_ONLY_DEVICE_ID && set_affinity) {
@@ -53,13 +119,18 @@ ThreadPool::~ThreadPool() {
   for (auto &thread : threads_) {
     thread.join();
   }
+  std::cout << "Shutting down thread pool " << name_ << "\n";
+  detail::g_stats += *stats_;
 }
 
 void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   bool started_before = started_;
   outstanding_work_.fetch_add(1);
   if (started_before) {
+    auto lock_start = perf_timer_t::now();
     std::lock_guard<std::mutex> lock(mutex_);
+    stats_->queue_push_lock_time += (perf_timer_t::now() - lock_start).count();
+    stats_->queue_push_lock_time++;
     work_queue_.push({priority, std::move(work)});
   } else {
     work_queue_.push({priority, std::move(work)});
@@ -79,8 +150,16 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
 // Blocks until all work issued to the thread pool is complete
 void ThreadPool::WaitForWork(bool checkForErrors) {
   if (outstanding_work_.load()) {
+    auto lock_start = perf_timer_t::now();
     std::unique_lock<std::mutex> lock(completed_mutex_);
-    completed_.wait(lock, [this] { return this->outstanding_work_ == 0; });
+    completed_.wait(lock, [&, this] {
+      bool ready = this->outstanding_work_ == 0;
+      if (ready)
+        lock_start = perf_timer_t::now();
+      return ready;
+    });
+    stats_->completed_wait_lock_time += (perf_timer_t::now() - lock_start).count();
+    stats_->completed_wait_locks++;
   }
   started_ = false;
   if (checkForErrors) {
@@ -148,6 +227,8 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     tl_errors_[thread_id].push("Caught unknown exception");
   }
 
+  detail::LockStats thread_stats;
+
   while (running_) {
 #if defined(__aarch64__)
     // We have noticed that for large number of threads on aarch64, the threads trying to
@@ -164,10 +245,21 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       }
     }
 #else
+    auto lock_start = perf_timer_t::now();
     std::unique_lock<std::mutex> lock(mutex_);
+    thread_stats.queue_pop_lock_time += (perf_timer_t::now() - lock_start).count();
+    thread_stats.queue_pop_locks++;
 #endif
 
-    condition_.wait(lock, [this] { return !running_ || (!work_queue_.empty() && started_); });
+    condition_.wait(lock, [&, this] {
+      bool ret = !running_ || (!work_queue_.empty() && started_);
+      if (ret)
+        lock_start = perf_timer_t::now();
+      return ret;
+    });
+    thread_stats.queue_pop_lock_time += (perf_timer_t::now() - lock_start).count();
+    thread_stats.queue_pop_locks++;
+
     // If we're no longer running, exit the run loop
     if (!running_) break;
 
@@ -235,11 +327,15 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       //                                  lock.lock()
       //                                  continue execution
       {
+        lock_start = perf_timer_t::now();
         std::lock_guard<std::mutex> lock2(completed_mutex_);
+        thread_stats.completed_notify_lock_time += (perf_timer_t::now() - lock_start).count();
+        thread_stats.completed_notify_locks++;
       }
       completed_.notify_all();
     }
   }
+  *stats_ += thread_stats;
 }
 
 }  // namespace dali

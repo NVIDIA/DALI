@@ -20,6 +20,7 @@
 #include <utility>
 #include <condition_variable>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -32,6 +33,10 @@
 
 
 namespace dali {
+
+namespace detail {
+  struct alignas(64) LockStats;
+}  // namespace detail
 
 class DLL_PUBLIC ThreadPool {
  public:
@@ -100,6 +105,8 @@ class DLL_PUBLIC ThreadPool {
 #if NVML_ENABLED
   nvml::NvmlInstance nvml_handle_;
 #endif
+  std::unique_ptr<detail::LockStats> stats_;
+  std::string name_;
 };
 
 }  // namespace dali
