@@ -16,8 +16,6 @@ import os
 import json
 import numpy as np
 import tempfile
-import scipy
-import scipy.io.wavfile
 
 import nvidia.dali.fn as fn
 import nvidia.dali.math as dmath
@@ -25,6 +23,11 @@ from nvidia.dali.pipeline import pipeline_def
 
 
 def setup_test_nemo_asr_reader_cpu():
+    # avoid importing scipy in the global scope not to introduce
+    # scipy dependency on any test using those utils
+    import scipy
+    import scipy.io.wavfile
+
     tmp_dir = tempfile.TemporaryDirectory()
     dir_name = tmp_dir.name
 
