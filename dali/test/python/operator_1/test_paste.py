@@ -81,6 +81,19 @@ def test_paste_op_invalid_ratio():
     pipe.build()
     pipe.run()
 
+@cartesian_params([-0.1, 1.1], ["paste_x", "paste_y"])
+@raises(RuntimeError, "must be in range")
+def test_paste_op_invalid_anchor(paste_val, paste_axis):
+    kwargs = {"ratio": 2.0, "fill_value": 0, paste_axis: paste_val}
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def paste_pipeline():
+        images, _ = fn.readers.file(file_list=file_list)
+        images = fn.decoders.image(images, device="mixed")
+        return fn.paste(images, **kwargs)
+
+    pipe = paste_pipeline()
+    pipe.build()
+    pipe.run()
 
 @raises(ValueError, "The number of dimensions 4 does not match any of the allowed layouts")
 def test_paste_op_invalid_dimension():
