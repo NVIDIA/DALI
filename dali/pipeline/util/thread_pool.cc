@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <limits>
 #include <utility>
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/test/timing.h"
@@ -29,7 +30,54 @@ namespace dali {
 
 using perf_timer_t = std::chrono::high_resolution_clock;
 
+template <typename T>
+T atomic_max(std::atomic<T> &target, T value) {
+  T old = target;
+  while (old < value && !target.compare_exchange_weak(old, value)) {}
+  return old;
+}
+
+template <typename T>
+T atomic_min(std::atomic<T> &target, T value) {
+  T old = target;
+  while (old > value && !target.compare_exchange_weak(old, value)) {}
+  return old;
+}
+
 namespace detail {
+
+struct EventTiming {
+  std::atomic<int64_t> time{0}, max{0}, min{std::numeric_limits<int64_t>::max()}, count{0};
+
+  void AddTime(int64_t ticks) {
+    time += ticks;
+    atomic_max(max, ticks);
+    atomic_min(min, ticks);
+    count++;
+  }
+
+  EventTiming &operator+=(const EventTiming &x) {
+    time += x.time;
+    atomic_max(max, x.max.load());
+    atomic_min(min, x.min.load());
+    count += x.count;
+    return *this;
+  }
+
+  void Print(std::ostream &os, std::string_view header) {
+    os << header;
+    if (count) {
+      test::print_time(os, 1e-9 * time.load()/count);
+      os << ", max: ";
+      test::print_time(os, 1e-9 * max.load());
+      os << ", min: ";
+      test::print_time(os, 1e-9 * min.load());
+    } else {
+      os << "no events";
+    }
+  }
+};
+
 struct alignas(64) LockStats {
   LockStats() = default;
   explicit LockStats(bool print) : print(print) {}
@@ -37,42 +85,10 @@ struct alignas(64) LockStats {
   ~LockStats() {
     if (print) {
       std::cout << "ThreadPool mutex timing statistics:";
-      if (queue_pop_locks) {
-        std::cout << "\nPop:                ";
-        test::print_time(std::cout, 1e-9 * queue_pop_lock_time/queue_pop_locks);
-        std::cout << " (max: ";
-        test::print_time(std::cout, 1e-9 * queue_pop_lock_time_max);
-        std::cout << ", min: ";
-        test::print_time(std::cout, 1e-9 * queue_pop_lock_time_min);
-        std::cout << ", events: " << queue_pop_locks << ")\n";
-      }
-      if (queue_push_locks) {
-        std::cout << "\nPush:                ";
-        test::print_time(std::cout, 1e-9 * queue_push_lock_time/queue_push_locks);
-        std::cout << " (max: ";
-        test::print_time(std::cout, 1e-9 * queue_push_lock_time_max);
-        std::cout << ", min: ";
-        test::print_time(std::cout, 1e-9 * queue_push_lock_time_min);
-        std::cout << ", events: " << queue_push_locks << ")\n";
-      }
-      if (completed_notify_locks) {
-        std::cout << "\nCompleted (notify): ";
-        test::print_time(std::cout, 1e-9 * completed_notify_lock_time/completed_notify_locks);
-        std::cout << " (max: ";
-        test::print_time(std::cout, 1e-9 * completed_notify_lock_time_max);
-        std::cout << ", min: ";
-        test::print_time(std::cout, 1e-9 * completed_notify_lock_time_min);
-        std::cout << ", events: " << completed_notify_locks << ")\n";
-      }
-      if (completed_wait_locks) {
-        std::cout << "\nCompleted (wait):   ";
-        test::print_time(std::cout, 1e-9 * completed_wait_lock_time/completed_wait_locks);
-        std::cout << " (max: ";
-        test::print_time(std::cout, 1e-9 * completed_wait_lock_time_max);
-        std::cout << ", min: ";
-        test::print_time(std::cout, 1e-9 * completed_wait_lock_time_min);
-        std::cout << ", events: " << completed_wait_locks << ")\n";
-      }
+      queue_pop_lock.Print(std::cout,         "\nPop:                ");
+      queue_push_lock.Print(std::cout,        "\nPop:                ");
+      completed_notify_lock.Print(std::cout,  "\nCompleted (notify): ");
+      completed_wait_lock.Print(std::cout,    "\nCompleted (wait):   ");
       std::cout << std::endl;
     }
   }
@@ -80,39 +96,14 @@ struct alignas(64) LockStats {
   bool print = false;
 
   LockStats &operator+=(const LockStats &x) {
-    queue_pop_lock_time += x.queue_pop_lock_time;
-    queue_pop_lock_time_max.store(std::max(queue_pop_lock_time_max.load(), x.queue_pop_lock_time_max.load()));
-    queue_pop_lock_time_min.store(std::min(queue_pop_lock_time_min.load(), x.queue_pop_lock_time_min.load()));
-    queue_push_lock_time += x.queue_push_lock_time;
-    queue_push_lock_time_max.store(std::max(queue_push_lock_time_max.load(), x.queue_push_lock_time_max.load()));
-    queue_push_lock_time_min.store(std::min(queue_push_lock_time_min.load(), x.queue_push_lock_time_min.load()));
-    completed_notify_lock_time += x.completed_notify_lock_time;
-    completed_notify_lock_time_max.store(std::max(completed_notify_lock_time_max.load(), x.completed_notify_lock_time_max.load()));
-    completed_notify_lock_time_min.store(std::min(completed_notify_lock_time_min.load(), x.completed_notify_lock_time_min.load()));
-    completed_wait_lock_time += x.completed_wait_lock_time;
-    queue_push_locks += x.queue_push_locks;
-    queue_pop_locks += x.queue_pop_locks;
-    completed_notify_locks += x.completed_notify_locks;
-    completed_wait_locks += x.completed_wait_locks;
+    queue_pop_lock += x.queue_pop_lock;
+    queue_push_lock += x.queue_push_lock;
+    completed_wait_lock += x.completed_wait_lock;
+    completed_notify_lock += x.completed_notify_lock;
     return *this;
   }
 
-  std::atomic<int64_t>  queue_pop_lock_time{0},
-                        queue_pop_lock_time_max{0},
-                        queue_pop_lock_time_min{0},
-                        queue_push_lock_time{0},
-                        queue_push_lock_time_max{0},
-                        queue_push_lock_time_min{0},
-                        completed_notify_lock_time{0},
-                        completed_notify_lock_time_max{0},
-                        completed_notify_lock_time_min{0},
-                        completed_wait_lock_time{0},
-                        completed_wait_lock_time_max{0},
-                        completed_wait_lock_time_min{0};
-  std::atomic<int64_t>  queue_pop_locks{0},
-                        queue_push_locks{0},
-                        completed_notify_locks{0},
-                        completed_wait_locks{0};
+  EventTiming queue_pop_lock, queue_push_lock, completed_wait_lock, completed_notify_lock;
 };
 
 LockStats g_stats(true);
@@ -160,10 +151,7 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
     auto lock_start = perf_timer_t::now();
     std::lock_guard<std::mutex> lock(mutex_);
     auto lock_time = (perf_timer_t::now() - lock_start).count();
-    stats_->queue_push_lock_time += lock_time;
-    stats_->queue_push_lock_time_max.store(std::max(stats_->queue_push_lock_time_max.load(), lock_time));
-    stats_->queue_push_lock_time_min.store(std::min(stats_->queue_push_lock_time_min.load(), lock_time));
-    stats_->queue_push_locks++;
+    stats_->queue_push_lock.AddTime(lock_time);
     work_queue_.push({priority, std::move(work)});
   } else {
     work_queue_.push({priority, std::move(work)});
@@ -171,10 +159,7 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
       auto lock_start = perf_timer_t::now();
       std::lock_guard<std::mutex> lock(mutex_);
       auto lock_time = (perf_timer_t::now() - lock_start).count();
-      stats_->queue_push_lock_time += lock_time;
-      stats_->queue_push_lock_time_max.store(std::max(stats_->queue_push_lock_time_max.load(), lock_time));
-      stats_->queue_push_lock_time_min.store(std::min(stats_->queue_push_lock_time_min.load(), lock_time));
-      stats_->queue_push_locks++;
+      stats_->queue_push_lock.AddTime(lock_time);
       started_ = true;
     }
   }
@@ -186,7 +171,7 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   }
 }
 
-// Blocks until all work issued to the thread pool is complete
+// Blocks until all work issued to the thread pool is   lete
 void ThreadPool::WaitForWork(bool checkForErrors) {
   if (outstanding_work_.load()) {
     auto lock_start = perf_timer_t::now();
@@ -198,10 +183,7 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
       return ready;
     });
     auto lock_time = (perf_timer_t::now() - lock_start).count();
-    stats_->completed_wait_lock_time += lock_time;
-    stats_->completed_wait_lock_time_max.store(std::max(stats_->completed_wait_lock_time_max.load(), lock_time));
-    stats_->completed_wait_lock_time_min.store(std::min(stats_->completed_wait_lock_time_min.load(), lock_time));
-    stats_->completed_wait_locks++;
+    stats_->completed_notify_lock.AddTime(lock_time);
   }
   started_ = false;
   if (checkForErrors) {
@@ -290,10 +272,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     auto lock_start = perf_timer_t::now();
     std::unique_lock<std::mutex> lock(mutex_);
     auto lock_time = (perf_timer_t::now() - lock_start).count();
-    thread_stats.queue_pop_lock_time += lock_time;
-    thread_stats.queue_pop_lock_time_max.store(std::max(thread_stats.queue_pop_lock_time_max.load(), lock_time));
-    thread_stats.queue_pop_lock_time_min.store(std::min(thread_stats.queue_pop_lock_time_min.load(), lock_time));
-    thread_stats.queue_pop_locks++;
+    thread_stats.queue_pop_lock.AddTime(lock_time);
 #endif
 
     condition_.wait(lock, [&, this] {
@@ -302,8 +281,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
         lock_start = perf_timer_t::now();
       return ret;
     });
-    thread_stats.queue_pop_lock_time += (perf_timer_t::now() - lock_start).count();
-    thread_stats.queue_pop_locks++;
+    thread_stats.queue_pop_lock.AddTime(lock_time);
 
     // If we're no longer running, exit the run loop
     if (!running_) break;
@@ -375,10 +353,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
         lock_start = perf_timer_t::now();
         std::lock_guard<std::mutex> lock2(completed_mutex_);
         auto lock_time = (perf_timer_t::now() - lock_start).count();
-        thread_stats.completed_notify_lock_time += lock_time;
-        thread_stats.completed_notify_lock_time_max.store(std::max(thread_stats.completed_notify_lock_time_max.load(), lock_time));
-        thread_stats.completed_notify_lock_time_min.store(std::min(thread_stats.completed_notify_lock_time_min.load(), lock_time));
-        thread_stats.completed_notify_locks++;
+        thread_stats.completed_notify_lock.AddTime(lock_time);
       }
       completed_.notify_all();
     }
