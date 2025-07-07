@@ -48,12 +48,19 @@ namespace detail {
 
 struct EventTiming {
   std::atomic<int64_t> time{0}, max{0}, min{std::numeric_limits<int64_t>::max()}, count{0};
+  std::array<std::atomic<int64_t>, 8> bins{};
 
   void AddTime(int64_t ticks) {
     time += ticks;
     atomic_max(max, ticks);
     atomic_min(min, ticks);
     count++;
+    int bin = 0;
+    while (ticks > 10 && bin < static_cast<int>(bins.size()) - 1) {
+      ticks /= 10;
+      bin++;
+    }
+    bins[bin]++;
   }
 
   EventTiming &operator+=(const EventTiming &x) {
@@ -61,6 +68,8 @@ struct EventTiming {
     atomic_max(max, x.max.load());
     atomic_min(min, x.min.load());
     count += x.count;
+    for (size_t i = 0; i < bins.size(); i++)
+      bins[i] += x.bins[i];
     return *this;
   }
 
@@ -72,6 +81,18 @@ struct EventTiming {
       test::print_time(os, 1e-9 * max.load());
       os << ", min: ";
       test::print_time(os, 1e-9 * min.load());
+      os << "\nDistribution:";
+      double lo = 0;
+      double hi = 10e-9;
+      for (size_t i = 0; i < bins.size(); i++) {
+        os << "\n";
+        test::print_time(os, lo);
+        os << "..";
+        test::print_time(os, hi);
+        os << "\t" << bins[i];
+        lo = hi;
+        hi *= 10;
+      }
     } else {
       os << "no events";
     }
