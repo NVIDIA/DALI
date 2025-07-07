@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import glob
+from pathlib import Path
 import numpy as np
 import nvidia.dali.tensors as tensors
 import nvidia.dali.fn as fn
@@ -327,6 +328,22 @@ def test_image_decoder_random_crop_cpu():
 
 def test_experimental_image_decoder_random_crop_cpu():
     _test_image_decoder_args_cpu(fn.experimental.decoders.image_random_crop)
+
+
+def test_numpy_decoder_cpu():
+    with setup_test_numpy_reader_cpu() as tmp_dir:
+        npy_files = Path(tmp_dir).glob("*.npy")
+        file_list = Path(tmp_dir) / "list.txt"
+        with open(file_list, "w", encoding="utf-8") as f:
+            for npy_file in npy_files:
+                f.write(f"{npy_file} 0\n")
+        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+        data, _ = fn.readers.file(file_list=str(file_list))
+        data = fn.decoders.numpy(data)
+        pipe.set_outputs(data)
+        pipe.build()
+        for _ in range(3):
+            pipe.run()
 
 
 def test_coin_flip_cpu():
@@ -1398,6 +1415,7 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_slice",
     "decoders.image_random_crop",
+    "decoders.numpy",
     "experimental.debayer",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
