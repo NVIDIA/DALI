@@ -88,7 +88,10 @@ struct EventTiming {
         os << "\n";
         test::print_time(os, lo);
         os << "..";
-        test::print_time(os, hi);
+        if (i == bins.size() - 1)
+          os << "inf";
+        else
+          test::print_time(os, hi);
         os << "\t" << bins[i];
         lo = hi;
         hi *= 10;
@@ -107,7 +110,7 @@ struct alignas(64) LockStats {
     if (print) {
       std::cout << "ThreadPool mutex timing statistics:";
       queue_pop_lock.Print(std::cout,         "\nPop:                ");
-      queue_push_lock.Print(std::cout,        "\nPop:                ");
+      queue_push_lock.Print(std::cout,        "\nPush:               ");
       completed_notify_lock.Print(std::cout,  "\nCompleted (notify): ");
       completed_wait_lock.Print(std::cout,    "\nCompleted (wait):   ");
       std::cout << std::endl;
