@@ -40,22 +40,38 @@ struct alignas(64) LockStats {
       if (queue_pop_locks) {
         std::cout << "\nPop:                ";
         test::print_time(std::cout, 1e-9 * queue_pop_lock_time/queue_pop_locks);
-        std::cout << " (" << queue_pop_locks << " events)";
+        std::cout << " (max: ";
+        test::print_time(std::cout, 1e-9 * queue_pop_lock_time_max);
+        std::cout << ", min: ";
+        test::print_time(std::cout, 1e-9 * queue_pop_lock_time_min);
+        std::cout << ", events: " << queue_pop_locks << ")\n";
       }
       if (queue_push_locks) {
-        std::cout << "\nPush:               ";
+        std::cout << "\nPush:                ";
         test::print_time(std::cout, 1e-9 * queue_push_lock_time/queue_push_locks);
-        std::cout << " (" << queue_push_locks << " events)";
+        std::cout << " (max: ";
+        test::print_time(std::cout, 1e-9 * queue_push_lock_time_max);
+        std::cout << ", min: ";
+        test::print_time(std::cout, 1e-9 * queue_push_lock_time_min);
+        std::cout << ", events: " << queue_push_locks << ")\n";
       }
       if (completed_notify_locks) {
         std::cout << "\nCompleted (notify): ";
         test::print_time(std::cout, 1e-9 * completed_notify_lock_time/completed_notify_locks);
-        std::cout << " (" << completed_notify_locks << " events)";
+        std::cout << " (max: ";
+        test::print_time(std::cout, 1e-9 * completed_notify_lock_time_max);
+        std::cout << ", min: ";
+        test::print_time(std::cout, 1e-9 * completed_notify_lock_time_min);
+        std::cout << ", events: " << completed_notify_locks << ")\n";
       }
       if (completed_wait_locks) {
         std::cout << "\nCompleted (wait):   ";
         test::print_time(std::cout, 1e-9 * completed_wait_lock_time/completed_wait_locks);
-        std::cout << " (" << completed_wait_locks << " events)";
+        std::cout << " (max: ";
+        test::print_time(std::cout, 1e-9 * completed_wait_lock_time_max);
+        std::cout << ", min: ";
+        test::print_time(std::cout, 1e-9 * completed_wait_lock_time_min);
+        std::cout << ", events: " << completed_wait_locks << ")\n";
       }
       std::cout << std::endl;
     }
@@ -65,8 +81,14 @@ struct alignas(64) LockStats {
 
   LockStats &operator+=(const LockStats &x) {
     queue_pop_lock_time += x.queue_pop_lock_time;
+    queue_pop_lock_time_max.store(std::max(queue_pop_lock_time_max.load(), x.queue_pop_lock_time_max.load()));
+    queue_pop_lock_time_min.store(std::min(queue_pop_lock_time_min.load(), x.queue_pop_lock_time_min.load()));
     queue_push_lock_time += x.queue_push_lock_time;
+    queue_push_lock_time_max.store(std::max(queue_push_lock_time_max.load(), x.queue_push_lock_time_max.load()));
+    queue_push_lock_time_min.store(std::min(queue_push_lock_time_min.load(), x.queue_push_lock_time_min.load()));
     completed_notify_lock_time += x.completed_notify_lock_time;
+    completed_notify_lock_time_max.store(std::max(completed_notify_lock_time_max.load(), x.completed_notify_lock_time_max.load()));
+    completed_notify_lock_time_min.store(std::min(completed_notify_lock_time_min.load(), x.completed_notify_lock_time_min.load()));
     completed_wait_lock_time += x.completed_wait_lock_time;
     queue_push_locks += x.queue_push_locks;
     queue_pop_locks += x.queue_pop_locks;
@@ -76,9 +98,17 @@ struct alignas(64) LockStats {
   }
 
   std::atomic<int64_t>  queue_pop_lock_time{0},
+                        queue_pop_lock_time_max{0},
+                        queue_pop_lock_time_min{0},
                         queue_push_lock_time{0},
+                        queue_push_lock_time_max{0},
+                        queue_push_lock_time_min{0},
                         completed_notify_lock_time{0},
-                        completed_wait_lock_time{0};
+                        completed_notify_lock_time_max{0},
+                        completed_notify_lock_time_min{0},
+                        completed_wait_lock_time{0},
+                        completed_wait_lock_time_max{0},
+                        completed_wait_lock_time_min{0};
   std::atomic<int64_t>  queue_pop_locks{0},
                         queue_push_locks{0},
                         completed_notify_locks{0},
@@ -129,13 +159,22 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   if (started_before) {
     auto lock_start = perf_timer_t::now();
     std::lock_guard<std::mutex> lock(mutex_);
-    stats_->queue_push_lock_time += (perf_timer_t::now() - lock_start).count();
-    stats_->queue_push_lock_time++;
+    auto lock_time = (perf_timer_t::now() - lock_start).count();
+    stats_->queue_push_lock_time += lock_time;
+    stats_->queue_push_lock_time_max.store(std::max(stats_->queue_push_lock_time_max.load(), lock_time));
+    stats_->queue_push_lock_time_min.store(std::min(stats_->queue_push_lock_time_min.load(), lock_time));
+    stats_->queue_push_locks++;
     work_queue_.push({priority, std::move(work)});
   } else {
     work_queue_.push({priority, std::move(work)});
     if (start_immediately) {
+      auto lock_start = perf_timer_t::now();
       std::lock_guard<std::mutex> lock(mutex_);
+      auto lock_time = (perf_timer_t::now() - lock_start).count();
+      stats_->queue_push_lock_time += lock_time;
+      stats_->queue_push_lock_time_max.store(std::max(stats_->queue_push_lock_time_max.load(), lock_time));
+      stats_->queue_push_lock_time_min.store(std::min(stats_->queue_push_lock_time_min.load(), lock_time));
+      stats_->queue_push_locks++;
       started_ = true;
     }
   }
@@ -158,7 +197,10 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
         lock_start = perf_timer_t::now();
       return ready;
     });
-    stats_->completed_wait_lock_time += (perf_timer_t::now() - lock_start).count();
+    auto lock_time = (perf_timer_t::now() - lock_start).count();
+    stats_->completed_wait_lock_time += lock_time;
+    stats_->completed_wait_lock_time_max.store(std::max(stats_->completed_wait_lock_time_max.load(), lock_time));
+    stats_->completed_wait_lock_time_min.store(std::min(stats_->completed_wait_lock_time_min.load(), lock_time));
     stats_->completed_wait_locks++;
   }
   started_ = false;
@@ -230,7 +272,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
   detail::LockStats thread_stats;
 
   while (running_) {
-#if defined(__aarch64__)
+#if 0
     // We have noticed that for large number of threads on aarch64, the threads trying to
     // lock the mutex are waiting for a long time.
     // This snippet tries to alleviate this issue by trying to lock the mutex
@@ -247,7 +289,10 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
 #else
     auto lock_start = perf_timer_t::now();
     std::unique_lock<std::mutex> lock(mutex_);
-    thread_stats.queue_pop_lock_time += (perf_timer_t::now() - lock_start).count();
+    auto lock_time = (perf_timer_t::now() - lock_start).count();
+    thread_stats.queue_pop_lock_time += lock_time;
+    thread_stats.queue_pop_lock_time_max.store(std::max(thread_stats.queue_pop_lock_time_max.load(), lock_time));
+    thread_stats.queue_pop_lock_time_min.store(std::min(thread_stats.queue_pop_lock_time_min.load(), lock_time));
     thread_stats.queue_pop_locks++;
 #endif
 
@@ -329,7 +374,10 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       {
         lock_start = perf_timer_t::now();
         std::lock_guard<std::mutex> lock2(completed_mutex_);
-        thread_stats.completed_notify_lock_time += (perf_timer_t::now() - lock_start).count();
+        auto lock_time = (perf_timer_t::now() - lock_start).count();
+        thread_stats.completed_notify_lock_time += lock_time;
+        thread_stats.completed_notify_lock_time_max.store(std::max(thread_stats.completed_notify_lock_time_max.load(), lock_time));
+        thread_stats.completed_notify_lock_time_min.store(std::min(thread_stats.completed_notify_lock_time_min.load(), lock_time));
         thread_stats.completed_notify_locks++;
       }
       completed_.notify_all();
