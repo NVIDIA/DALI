@@ -30,6 +30,7 @@
 #include "dali/util/nvml.h"
 #endif
 #include "dali/core/semaphore.h"
+#include "dali/core/spinlock.h"
 
 
 namespace dali {
@@ -92,6 +93,7 @@ class DLL_PUBLIC ThreadPool {
   bool started_;
   std::atomic_int outstanding_work_;
   std::mutex queue_mutex_, error_mutex_, completed_mutex_;
+  spinlock queue_lock_;
   std::condition_variable completed_;
   dali::counting_semaphore queue_semaphore_{0};
 
