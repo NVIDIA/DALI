@@ -188,18 +188,19 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
     }
   }
   if (started_) {
-    if (started_before)
+    if (started_before) {
       condition_.notify_one();
-    else {
-      if (work_queue_.size() >= threads_.size())
+    } else {
+      if (work_queue_.size() >= threads_.size()) {
         condition_.notify_all();
-      else {
+      } else {
         // At this point the threads are not running yet, so we know that the work_queue_.size()
         // is OK - but once we notify the first thread, the size of the work_queue may decrease
         // but we still need to issue the notification to all potentially interested threads.
         int n = work_queue_.size();
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < n; i++) {
           condition_.notify_one();
+        }
       }
     }
   }
@@ -239,9 +240,9 @@ void ThreadPool::RunAll(bool wait) {
       std::lock_guard<std::mutex> lock(mutex_);
       started_ = true;
     }
-    if (work_queue_.size() >= threads_.size())
+    if (work_queue_.size() >= threads_.size()) {
       condition_.notify_all();
-    else {
+    } else {
       int n = work_queue_.size();
       for (int i = 0; i < n; i++)
         condition_.notify_one();
