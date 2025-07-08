@@ -23,8 +23,16 @@ from . import fn
 import types
 import copy
 import sys
-from . import _invocation, _device
+from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
+
+
+def is_external(x):
+    if isinstance(x, Tensor):
+        return x._is_external()
+    if isinstance(x, Batch):
+        return x._is_external()
+    return False
 
 
 def _is_tensor_type(x, nested_list_warning=False):
@@ -47,38 +55,82 @@ def _is_tensor_type(x, nested_list_warning=False):
     return False
 
 
-def _is_batch(x):
+def _get_input_device(x):
+    if x is None:
+        return None
     if isinstance(x, Batch):
-        return True
-    if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
-        return Batch(x)
-    if isinstance(x, list):
-        return any(_is_tensor_type(t, True) for t in x)
-    return False
-
-
-def _to_tensor(x):
+        return x.device
     if isinstance(x, Tensor):
+        return x.device
+    if isinstance(x, _b.TensorListCPU):
+        return _device.Device("cpu")
+    if isinstance(x, _b.TensorListGPU):
+        return _device.Device("gpu")
+    if hasattr(x, "__cuda_array_interface__"):
+        return _device.Device("gpu")
+    if hasattr(x, "__dlpack_device__"):
+        dev = x.__dlpack_device__
+        if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
+            return _device.Device("cpu")
+        elif int(dev[0]) == 2:
+            return _device.Device("gpu", dev[1])
+        else:
+            raise ValueError(f"Unknown DLPack device type: {dev.type}")
+    if hasattr(x, "__dlpack__"):
+        return _device.Device("cpu")
+    if isinstance(x, list) and x:
+        return _get_input_device(x[0])
+    return None
+
+
+def _get_input_device_type(x):
+    dev = _get_input_device(x)
+    return dev.device_type if dev is not None else None
+
+
+def _get_batch_size(x):
+    if isinstance(x, Batch):
+        return x.batch_size
+    if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
+        return len(x)
+    if isinstance(x, list) and any(_is_tensor_type(t, True) for t in x):
+        return len(x)
+    return None
+
+
+def _to_tensor(x, device=None):
+    if x is None:
+        return None
+    if isinstance(x, Tensor):
+        if device is not None:
+            return x.to_device(device)
         return x
     if isinstance(x, _invocation.InvocationResult):
         if x.is_batch:
             raise ValueError("Batch invocation result cannot be used as a single tensor")
-        return Tensor(invocation_result=x)
-    return Tensor(x)
+        return Tensor(invocation_result=x, device=device)
+    return Tensor(x, device=device)
 
 
-def _to_batch(x, batch_size):
+def _to_batch(x, batch_size, device=None):
+    if x is None:
+        return None
     if isinstance(x, Batch):
+        if device is not None:
+            return x.to_device(device)
         return x
     if isinstance(x, _invocation.InvocationResult):
         if x.is_batch:
-            return Batch(invocation_result=x)
+            return Batch(invocation_result=x, device=device)
         else:
             x = _to_tensor(x)  # fall back to regular replication
-    if _is_batch(x):
-        return Batch(x)
+    actual_batch_size = _get_batch_size(x)
+    if actual_batch_size is not None:
+        if batch_size is not None and actual_batch_size != batch_size:
+            raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
+        return Batch(x, device=device)
 
-    return Batch([_to_tensor(x)] * batch_size)
+    return Batch([_to_tensor(x, device=device)] * batch_size)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
@@ -204,12 +256,9 @@ def build_call_function(schema, op_class):
         is_batch = batch_size is not None
         if batch_size is None:
             for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
-                if _is_batch(x):
+                x_batch_size = _get_batch_size(x)
+                if x_batch_size is not None:
                     is_batch = True
-                    if isinstance(x, Batch):
-                        x_batch_size = x.batch_size
-                    elif isinstance(x, list):
-                        x_batch_size = len(x)
                     if batch_size is not None:
                         if x_batch_size != batch_size:
                             raise ValueError(
@@ -225,15 +274,16 @@ def build_call_function(schema, op_class):
         kwargs = {}
 
         if is_batch:
-            for inp in raw_args:
+            for i, inp in enumerate(raw_args):
                 if inp is None:
                     continue
-                inp = _to_batch(inp, batch_size)
+                input_device = self.input_device(i, _get_input_device_type(inp))
+                inp = _to_batch(inp, batch_size, device=input_device)
                 inputs.append(inp)
             for k, v in raw_kwargs.items():
                 if v is None:
                     continue
-                kwargs[k] = _to_batch(v, batch_size)
+                kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
         else:
             for inp in raw_args:
                 if inp is None:
@@ -252,11 +302,31 @@ def build_call_function(schema, op_class):
         else:
             call_id = None
         invocation = _invocation.Invocation(
-            self, call_id, inputs, kwargs, is_batch=is_batch, batch_size=batch_size
+            self,
+            call_id,
+            inputs,
+            kwargs,
+            is_batch=is_batch,
+            batch_size=batch_size,
+            previous_invocation=self._last_invocation,
         )
+
         if stateful:
-            invocation._previous_invocation = self._last_invocation
             self._last_invocation = invocation
+
+        if (
+            _eval_mode.EvalMode.current() == _eval_mode.EvalMode.eager
+            or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_cpu
+            or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_full
+            or (
+                _eval_mode.EvalMode.current() == _eval_mode.EvalMode.default
+                and (
+                    any(is_external(x) for x in inputs)
+                    or any(is_external(x) for x in kwargs.values())
+                )
+            )
+        ):
+            invocation.run(_eval_context.EvalContext.get())
 
         if is_batch:
             if len(invocation) == 1:
@@ -312,7 +382,7 @@ def build_fn_wrapper(op):
 
     fixed_args = []
     tensor_args = []
-    signature_args = []
+    signature_args = ["batch_size=None, device=None"]
     for arg in op.schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
@@ -331,16 +401,23 @@ def build_fn_wrapper(op):
         inputs = inputs + ["/"]
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
-    def call(*inputs, batch_size=None, **raw_kwargs):
-        max_batch_size = raw_kwargs.get("max_batch_size", batch_size)
-        if max_batch_size is None:
-            max_batch_size = 1
-            for i, x in enumerate(inputs):
-                if _is_batch(x):
-                    if not isinstance(x, Batch):
-                        x = Batch(x)
-                    max_batch_size = max(max_batch_size, x.batch_size)
-        max_batch_size = _next_pow2(max_batch_size)
+    def call(*inputs, batch_size=None, device=None, **raw_kwargs):
+        is_batch = batch_size is not None
+        if batch_size is None:
+            for x in inputs:
+                x_batch_size = _get_batch_size(x)
+                if x_batch_size is not None:
+                    is_batch = True
+                    batch_size = x_batch_size
+                    break
+        if batch_size is None:
+            for arg in raw_kwargs.values():
+                x_batch_size = _get_batch_size(arg)
+                if x_batch_size is not None:
+                    is_batch = True
+                    batch_size = x_batch_size
+                    break
+        max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
             arg: raw_kwargs[arg]
             for arg in fixed_args
@@ -351,18 +428,38 @@ def build_fn_wrapper(op):
             for arg in tensor_args
             if arg in raw_kwargs and raw_kwargs[arg] is not None
         }
-        device = raw_kwargs.get("device", None)
+
+        # If device is not specified, infer it from the inputs and call_args
         if device is None:
-            device = "cpu"
+            def _infer_device():
+                for inp in inputs:
+                    if inp is None:
+                        continue
+                    dev = _get_input_device(inp)
+                    if dev.device_type == "gpu":
+                        return dev
+                for arg in raw_kwargs.values():
+                    if arg is None:
+                        continue
+                    dev = _get_input_device(arg)
+                    if dev.device_type == "gpu":
+                        return dev
+                return _device.Device("cpu")
+            device = _infer_device()
+        elif not isinstance(device, _device.Device):
+            device = _device.Device(device)
+
+        # Get or create the operator instance that matches the arguments
         op_inst = op.get(
             max_batch_size=max_batch_size,
             name=None,
-            device=_device.Device(device),
+            device=device,
             num_inputs=len(inputs),
             call_arg_names=tuple(call_args.keys()),
             **init_args,
         )
 
+        # Call the operator (the result is an Invocation object)
         return op_inst(*inputs, **call_args)
 
     function = makefun.create_function(header, call)
