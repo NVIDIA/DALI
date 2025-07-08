@@ -26,6 +26,7 @@ class Invocation:
         args={},
         is_batch: bool = False,
         batch_size: Optional[int] = None,
+        previous_invocation: Optional["Invocation"] = None,
     ):
         self._operator = operator_instance
         self._call_id = call_id
@@ -36,7 +37,7 @@ class Invocation:
         self._batch_size = batch_size
         self._num_outputs = None
         self._output_devices = None
-        self._previous_invocation = None
+        self._previous_invocation = previous_invocation
 
     def device(self, result_index: int):
         if self._output_devices is None:
