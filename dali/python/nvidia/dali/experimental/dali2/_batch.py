@@ -76,6 +76,7 @@ class Batch:
         invocation_result: Optional[_invocation.InvocationResult] = None,
     ):
         assert isinstance(layout, str) or layout is None
+        self._wraps_external_data = False
         self._tensors = None
         if tensors is not None:
             self._tensors = []
@@ -96,6 +97,8 @@ class Batch:
                     if layout is None:
                         layout = sample.layout
                     self._tensors.append(sample)
+                    if sample._wraps_external_data:
+                        self._wraps_external_data = True
 
         if dtype is not None:
             if not isinstance(dtype, DType):
@@ -111,6 +114,9 @@ class Batch:
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
+
+    def _is_external(self) -> bool:
+        return self._wraps_external_data
 
     @property
     def dtype(self) -> DType:
@@ -169,6 +175,21 @@ class Batch:
                     t._backend = self._backend[i]
         return self._tensors
 
+    def to_device(self, device: Device) -> "Batch":
+        if self.device == device:
+            return self
+        else:
+            with device:
+                from . import fn
+
+                return fn.copy(self, device=device.device_type)
+
+    def cpu(self) -> "Batch":
+        return self.to_device(Device("cpu"))
+
+    def gpu(self, index: Optional[int] = None) -> "Batch":
+        return self.to_device(Device("gpu", index))
+
     @property
     def slice(self):
         """Interface for samplewise slicing.
@@ -225,7 +246,10 @@ class Batch:
             return self.tensors[r]
 
     def _plain_slice(self, ranges):
-        from ._op_builder import _is_batch
+        from ._op_builder import _get_batch_size
+
+        def _is_batch(x):
+            return _get_batch_size(x) is not None
 
         for r in ranges:
             is_batch_arg = _is_batch(r)

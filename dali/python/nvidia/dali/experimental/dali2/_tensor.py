@@ -51,6 +51,9 @@ class Tensor:
         self._batch = batch
         self._index_in_batch = index_in_batch
         self._invocation_result = None
+        self._wraps_external_data = False
+
+        from . import fn
 
         if dtype is not None:
             if not isinstance(dtype, DType):
@@ -72,18 +75,21 @@ class Tensor:
                 if dtype is None or dtype == data.dtype:
                     if device is None or device == data.device:
                         self.assign(data)
+                        self._wraps_external_data = data._wraps_external_data
                     else:
-                        self.assign(data.to_device(device))
+                        self.assign(data.to_device(device).evaluate())
                 else:
-                    self.assign(fn.cast(data, dtype, device=device))
+                    self.assign(fn.cast(data, dtype, device=device).evaluate())
                 return
             elif isinstance(data, TensorSlice):
                 self._slice = data
                 return
             elif hasattr(data, "__dlpack__"):
                 self._backend = TensorCPU(data, layout)
+                self._wraps_external_data = True
             elif hasattr(data, "__array__"):
                 self._backend = TensorCPU(data, layout)
+                self._wraps_external_data = True
             else:
                 import numpy as np
 
@@ -93,9 +99,11 @@ class Tensor:
                         layout,
                         False,
                     )
+                    self._wraps_external_data = False
                     self._dtype = dtype
                 else:
                     self._backend = TensorCPU(np.array(data), layout, False)
+                    self._wraps_external_data = False
 
             if device is not None:
                 device = self._device = device if isinstance(device, Device) else Device(device)
@@ -103,7 +111,7 @@ class Tensor:
                 device = self._device = Device("cpu")
 
             if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
-                self.assign(self.to_device(device))
+                self.assign(self.to_device(device).evaluate())
 
             self._shape = self._backend.shape()
             if self._backend.dtype is not None:
@@ -122,6 +130,9 @@ class Tensor:
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
+
+    def _is_external(self) -> bool:
+        return self._wraps_external_data
 
     def cpu(self) -> "Tensor":
         return self.to_device(Device("cpu"))
@@ -144,8 +155,9 @@ class Tensor:
             return self
         else:
             with device:
-                raise NotImplementedError("Copying to a different device is not implemented yet")
-                # return fn.copy(self, device=device.device_type)
+                from . import fn
+
+                return fn.copy(self, device=device.device_type)
 
     def assign(self, other: "Tensor"):
         self._device = other._device
@@ -157,6 +169,7 @@ class Tensor:
         self._batch = other._batch
         self._index_in_batch = other._index_in_batch
         self._invocation_result = other._invocation_result
+        self._wraps_external_data = other._wraps_external_data
 
     @property
     def data(self):

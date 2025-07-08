@@ -19,6 +19,8 @@ from . import _eval_context
 import nvidia.dali as dali
 from typing import Optional
 import nvidia.dali.backend_impl as _b
+from ._tensor import Tensor
+from ._batch import Batch
 
 
 class Operator:
@@ -100,6 +102,12 @@ class Operator:
     def infer_num_outputs(self, *inputs, **args):
         self._init_spec(inputs, args)
         return self._num_outputs
+
+    def input_device(self, index: int, actual_device: Optional[str] = None):
+        dev_type = self.schema.GetInputDevice(index, actual_device, self._device.device_type)
+        if dev_type is None:
+            return self._device
+        return _device.Device(dev_type, self._device.device_id)  # inherit the device id
 
     def infer_output_devices(self, *inputs, **args):
         self._init_spec(inputs, args)
@@ -198,13 +206,13 @@ class Operator:
                 self._reset_backend()
 
         self._init_backend(ctx, inputs, args)
-        self._workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
+        workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
         for i, input in enumerate(inputs):
-            self._workspace.AddInput(self._to_batch(input).evaluate()._backend)
+            workspace.AddInput(self._to_batch(input).evaluate()._backend)
         for name, arg in args.items():
-            self._workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
-        self._op_backend.SetupAndRun(self._workspace)
-        return self._workspace.GetOutputs()
+            workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
+        self._op_backend.SetupAndRun(workspace)
+        return workspace.GetOutputs()
         # for i, input in enumerate(inputs):
         #     self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
         # for name, arg in args.items():
@@ -347,14 +355,16 @@ class Reader(Operator):
                 batch_size = len(outputs[0])
                 idx += batch_size
                 for x in zip(*outputs):
-                    yield x
+                    outs = tuple(Tensor(o) for o in x)
+                    yield outs
 
     def batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
         if self._api_type is None:
             self._api_type = "batches"
         elif self._api_type != "batches":
             raise RuntimeError(
-                "Cannot mix samples(), batches() and run() on the same reader until the end of the epoch."
+                "Cannot mix samples(), batches() and run() on the same reader "
+                "until the end of the epoch."
             )
 
         if ctx is None:
@@ -367,14 +377,16 @@ class Reader(Operator):
             if not self._op_backend:
                 if self._max_batch_size and self._max_batch_size < batch_size:
                     raise ValueError(
-                        f"`batch_size` {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+                        f"`batch_size` {batch_size} is larger than the `max_batch_size` "
+                        f"{self._max_batch_size} specified when the operator was created"
                     )
                 self._max_batch_size = batch_size
                 self._init_backend(ctx, (), {})
             else:
                 if self._max_batch_size and self._max_batch_size != batch_size:
                     raise ValueError(
-                        f"`batch_size` {batch_size} is different than the `max_batch_size` {self._max_batch_size} used in the previous call"
+                        f"`batch_size` {batch_size} is different than the `max_batch_size` "
+                        f"{self._max_batch_size} used in the previous call"
                     )
             meta = self._op_backend.GetReaderMeta()
             idx = 0
@@ -382,7 +394,7 @@ class Reader(Operator):
                 outputs = super().run(ctx)
                 batch_size = len(outputs[0])
                 idx += batch_size
-                yield outputs
+                yield tuple(Batch(o) for o in outputs)
 
 
 all_ops = []
