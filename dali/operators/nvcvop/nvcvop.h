@@ -18,6 +18,7 @@
 #include <nvcv/DataType.h>
 #include <nvcv/BorderType.h>
 #include <cvcuda/Types.h>
+#include <nvcv/alloc/Allocator.hpp>
 #include <cvcuda/Workspace.hpp>
 #include <nvcv/Tensor.hpp>
 #include <nvcv/TensorBatch.hpp>
@@ -33,6 +34,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 #include "dali/core/cuda_event_pool.h"
+
 
 namespace dali::nvcvop {
 
@@ -112,7 +114,7 @@ nvcv::Tensor AsTensor(SampleView<GPUBackend> sample, TensorLayout layout = "",
 nvcv::Tensor AsTensor(ConstSampleView<GPUBackend> sample, TensorLayout layout = "",
                       const std::optional<TensorShape<>> &reshape = std::nullopt);
 
-nvcv::Tensor AsTensor(void *data, const TensorShape<> shape, DALIDataType dtype,
+nvcv::Tensor AsTensor(void *data, const TensorShape<> &shape, DALIDataType dtype,
                       TensorLayout layout);
 
 /**
@@ -133,8 +135,26 @@ void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBa
 void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list);
 
 
-void PushTensorsToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
-                        TensorLayout layout);
+/**
+ * @brief Push a range of frames from the input TensorList as samples in the output TensorBatch.
+ *
+ * The input TensorList is interpreted as sequence of frames where innermost dimensions
+ * starting from `first_spatial_dim` are the frames' dimensions.
+ *
+ * The range of frames is determined by the `starting_sample`, `frame_offset`
+ * and `num_frames` arguments.
+ * `starting_sample` is an index of the first source sample from the input TensorList. All the samples before that are skipped.
+ * `frame_offset` is an index of a first frame in the starting sample to be taken.
+ * `num_frames` is the total number of frames that will be pushed to the output TensorBatch.
+ *
+ * @param batch output TensorBatch
+ * @param t_list input TensorList
+ * @param layout layout of the output TensorBatch
+ */
+void PushFramesToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
+                       int first_spatial_dim, int64_t starting_sample, int64_t frame_offset,
+                       int64_t num_frames, const TensorLayout &layout);
+
 
 class NVCVOpWorkspace {
  public:
@@ -164,18 +184,6 @@ class NVCVOpWorkspace {
   cvcuda::Workspace workspace_{};
   int device_id_{};
 };
-
-inline cvcuda::WorkspaceRequirements MaxWorkspaceRequirements(
-    const cvcuda::WorkspaceRequirements &a, const cvcuda::WorkspaceRequirements &b) {
-  cvcuda::WorkspaceRequirements max;
-  max.hostMem.size = std::max(a.hostMem.size, b.hostMem.size);
-  max.hostMem.alignment = std::max(a.hostMem.alignment, b.hostMem.alignment);
-  max.pinnedMem.size = std::max(a.pinnedMem.size, b.pinnedMem.size);
-  max.pinnedMem.alignment = std::max(a.pinnedMem.alignment, b.pinnedMem.alignment);
-  max.cudaMem.size = std::max(a.cudaMem.size, b.cudaMem.size);
-  max.cudaMem.alignment = std::max(a.cudaMem.alignment, b.cudaMem.alignment);
-  return max;
-}
 
 /**
  * @brief A base class for the CVCUDA operators.
