@@ -27,10 +27,8 @@
 
 namespace dali {
 
-#define QUEUE_LOCK queue_lock_
-
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
-    : threads_(num_thread), running_(true), started_(false), outstanding_work_(0) {
+    : threads_(num_thread) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
   // We use NVML only for setting thread affinity
@@ -49,7 +47,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const c
 ThreadPool::~ThreadPool() {
   WaitForWork(false);
 
-  std::unique_lock lock(QUEUE_LOCK);
+  std::unique_lock lock(queue_lock_);
   running_ = false;
   lock.unlock();
   // Each thread will lower the semaphore by at most 1
@@ -64,12 +62,12 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   bool started_before = started_;
   outstanding_work_.fetch_add(1);
   if (started_before) {
-    std::lock_guard lock(QUEUE_LOCK);
+    std::lock_guard lock(queue_lock_);
     work_queue_.push({priority, std::move(work)});
   } else {
     work_queue_.push({priority, std::move(work)});
     if (start_immediately) {
-      std::lock_guard lock(QUEUE_LOCK);
+      std::lock_guard lock(queue_lock_);
       started_ = true;
     }
   }
@@ -107,7 +105,7 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
 void ThreadPool::RunAll(bool wait) {
   if (!started_) {
     {
-      std::lock_guard lock(QUEUE_LOCK);
+      std::lock_guard lock(queue_lock_);
       started_ = true;
     }
     queue_semaphore_.release(work_queue_.size());
@@ -165,7 +163,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     queue_semaphore_.acquire();
 
     // This lock guards only the queue, not the condition - that's handled by the semaphore
-    std::unique_lock lock(QUEUE_LOCK);
+    std::unique_lock lock(queue_lock_);
 
     if (!running_)
       break;

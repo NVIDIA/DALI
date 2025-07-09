@@ -89,13 +89,13 @@ class DLL_PUBLIC ThreadPool {
   };
   std::priority_queue<PrioritizedWork, std::vector<PrioritizedWork>, SortByPriority> work_queue_;
 
-  bool running_;
-  bool started_;
-  std::atomic_int outstanding_work_;
-  std::mutex queue_mutex_, error_mutex_, completed_mutex_;
-  spinlock queue_lock_;
-  std::condition_variable completed_;
+  alignas(64) spinlock queue_lock_;
   dali::counting_semaphore queue_semaphore_{0};
+  bool running_ = true;
+  bool started_ = false;
+  alignas(64) std::atomic_int outstanding_work_{0};
+  std::mutex error_mutex_, completed_mutex_;
+  std::condition_variable completed_;
 
   //  Stored error strings for each thread
   vector<std::queue<string>> tl_errors_;
