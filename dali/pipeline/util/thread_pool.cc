@@ -163,7 +163,23 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     queue_semaphore_.acquire();
 
     // This lock guards only the queue, not the condition - that's handled by the semaphore
-    std::unique_lock<std::mutex> lock(queue_mutex_);
+#if defined(__aarch64__)
+    // We have noticed that for large number of threads on aarch64, the threads trying to
+    // lock the mutex are waiting for a long time.
+    // This snippet tries to alleviate this issue by trying to lock the mutex
+    // with a try_to_lock. If the mutex is not locked, the thread will sleep for
+    // a short time and try again.
+    std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+    if (!lock.owns_lock()) {
+      for (int wait = 1;; wait = std::max(wait * 2, 16)) {
+        std::this_thread::sleep_for(std::chrono::microseconds(wait));
+        if (lock.try_lock())
+          break;
+      }
+    }
+#else
+    std::unique_lock<std::mutex> lock(mutex_);
+#endif
 
     if (!running_)
       break;
