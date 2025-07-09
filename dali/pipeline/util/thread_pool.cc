@@ -169,7 +169,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     // This snippet tries to alleviate this issue by trying to lock the mutex
     // with a try_to_lock. If the mutex is not locked, the thread will sleep for
     // a short time and try again.
-    std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+    std::unique_lock<std::mutex> lock(queue_mutex_, std::try_to_lock);
     if (!lock.owns_lock()) {
       for (int wait = 1;; wait = std::max(wait * 2, 16)) {
         std::this_thread::sleep_for(std::chrono::microseconds(wait));
@@ -178,7 +178,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       }
     }
 #else
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(queue_mutex_);
 #endif
 
     if (!running_)
