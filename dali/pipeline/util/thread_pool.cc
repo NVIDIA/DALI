@@ -27,22 +27,6 @@
 
 namespace dali {
 
-using perf_timer_t = std::chrono::high_resolution_clock;
-
-template <typename T>
-T atomic_max(std::atomic<T> &target, T value) {
-  T old = target;
-  while (old < value && !target.compare_exchange_weak(old, value)) {}
-  return old;
-}
-
-template <typename T>
-T atomic_min(std::atomic<T> &target, T value) {
-  T old = target;
-  while (old > value && !target.compare_exchange_weak(old, value)) {}
-  return old;
-}
-
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
     : threads_(num_thread), running_(true), started_(false), outstanding_work_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
@@ -95,7 +79,7 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   }
 }
 
-// Blocks until all work issued to the thread pool is   lete
+// Blocks until all work issued to the thread pool is complete
 void ThreadPool::WaitForWork(bool checkForErrors) {
   if (outstanding_work_.load()) {
     std::unique_lock<std::mutex> lock(completed_mutex_);
