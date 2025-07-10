@@ -118,9 +118,9 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   return out;
 }
 
-void ParseHeaderContents(HeaderData& target, const std::string &header) {
+void ParseHeaderContents(HeaderData& target, const std::string_view header) {
   target.shape = {};
-  const char* hdr = header.c_str();
+  const char* hdr = header.data();
   SkipSpaces(hdr);
   Skip(hdr, "{");
   SkipFieldName(hdr, "descr");
@@ -294,7 +294,7 @@ size_t HeaderData::nbytes() const {
   return type_info ? type_info->size() * size() : 0_uz;
 }
 
-  Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned) {
+Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned) {
   numpy::HeaderData header;
   numpy::ParseHeader(header, src);
   src->SeekRead(header.data_offset, SEEK_SET);

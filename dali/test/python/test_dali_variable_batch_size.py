@@ -27,6 +27,7 @@ from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipel
 
 import test_utils
 from segmentation_test_utils import make_batch_select_masks
+from test_dali_cpu_only_utils import setup_test_numpy_reader_cpu
 from test_detection_pipeline import coco_anchors
 from test_utils import (
     module_functions,
@@ -1185,6 +1186,20 @@ def test_image_decoders():
     yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
 
 
+def test_numpy_decoder():
+    def numpy_decoder_pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
+        decoded = fn.decoders.numpy(encoded)
+        if device == "gpu":
+            decoded = decoded.gpu()
+        pipe.set_outputs(decoded)
+        return pipe
+
+    with setup_test_numpy_reader_cpu() as numpy_path:
+        test_decoders_check(numpy_decoder_pipe, numpy_path, ".npy")
+
+
 def test_python_function():
     def resize(data):
         data += 13
@@ -1670,6 +1685,7 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_random_crop",
     "decoders.image_slice",
+    "decoders.numpy",
     "dl_tensor_python_function",
     "dump_image",
     "experimental.equalize",

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import io
 import os
 import re
 from functools import reduce
@@ -416,6 +417,33 @@ def test_experimental_decoders_image_random_crop():
 
 def test_paste():
     check_single_input("paste", fill_value=0, ratio=2.0)
+
+
+def test_decoders_numpy():
+    def encode_sample(data):
+        buff = io.BytesIO()
+        np.save(buff, data)
+        buff.seek(0)
+        return np.frombuffer(buff.read(), dtype=np.uint8)
+
+    in_data = [
+        [encode_sample(np.arange(i * j).reshape(i, j)) for j in range(1, batch_size + 1)]
+        for i in range(1, data_size + 1)
+    ]
+    eager_in_data = [tensors.TensorListCPU(batch) for batch in in_data]
+
+    def fn_source(i):
+        return in_data[i]
+
+    def eager_source(i, layout):
+        return eager_in_data[i]
+
+    check_single_input(
+        "decoders.numpy",
+        fn_source=fn_source,
+        eager_source=eager_source,
+        layout=None,
+    )
 
 
 def test_rotate():
@@ -1561,6 +1589,7 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_slice",
     "decoders.image_random_crop",
+    "decoders.numpy",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
