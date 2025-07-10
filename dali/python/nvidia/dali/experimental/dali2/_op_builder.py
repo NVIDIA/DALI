@@ -436,13 +436,13 @@ def build_fn_wrapper(op):
                     if inp is None:
                         continue
                     dev = _get_input_device(inp)
-                    if dev.device_type == "gpu":
+                    if dev is not None and dev.device_type == "gpu":
                         return dev
                 for arg in raw_kwargs.values():
                     if arg is None:
                         continue
                     dev = _get_input_device(arg)
-                    if dev.device_type == "gpu":
+                    if dev is not None and dev.device_type == "gpu":
                         return dev
                 return _device.Device("cpu")
             device = _infer_device()
