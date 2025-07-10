@@ -20,6 +20,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
 from . import _eval_mode
 from . import _invocation
+import copy
 
 
 class BatchedSlice:
@@ -74,10 +75,12 @@ class Batch:
         device: Optional[Device] = None,
         layout: Optional[str] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None,
+        copy: bool = False,
     ):
         assert isinstance(layout, str) or layout is None
         self._wraps_external_data = False
         self._tensors = None
+        copied = False
         if tensors is not None:
             self._tensors = []
             if len(tensors) == 0:
@@ -99,6 +102,8 @@ class Batch:
                     self._tensors.append(sample)
                     if sample._wraps_external_data:
                         self._wraps_external_data = True
+                    else:
+                        copied = True
 
         if dtype is not None:
             if not isinstance(dtype, DType):
@@ -111,6 +116,9 @@ class Batch:
         self._ndim = None
         if self._tensors and self._tensors[0]._shape:
             self._ndim = len(self._tensors[0]._shape)
+
+        if copy and self._backend is not None and not copied:
+            self.assign(self.to_device(self.device, force_copy=True).evaluate())
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
@@ -175,8 +183,8 @@ class Batch:
                     t._backend = self._backend[i]
         return self._tensors
 
-    def to_device(self, device: Device) -> "Batch":
-        if self.device == device:
+    def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
+        if self.device == device and not force_copy:
             return self
         else:
             with device:
@@ -393,3 +401,15 @@ class Batch:
 
     def __rxor__(self, other):
         return _arithm_op("bitxor", other, self)
+
+
+def batch(
+    tensors: Union[List[Any], Batch],
+    dtype: Optional[DType] = None,
+    device: Optional[Device] = None,
+    layout: Optional[str] = None,
+):
+    if isinstance(tensors, Batch):
+        batch = tensors.to_device(device, force_copy=True).evaluate()
+    else:
+        return Batch(tensors, dtype=dtype, device=device, layout=layout, copy=True)
