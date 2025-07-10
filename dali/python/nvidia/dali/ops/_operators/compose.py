@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ class _CompoundOp:
                 if (
                     inputs[i].device == "cpu"
                     and op.device == "gpu"
-                    and op.schema.GetInputDevice(i) != "cpu"
+                    and op.schema.GetInputDevice(i, inputs[i].device, op.device) != "cpu"
                 ):
                     inputs[i] = inputs[i].gpu()
             inputs = op(*inputs, **kwargs)
