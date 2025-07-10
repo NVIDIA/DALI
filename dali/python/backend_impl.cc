@@ -2690,7 +2690,7 @@ PYBIND11_MODULE(backend_impl, m) {
               return py::none();
           case InputDevice::MatchBackendOrCPU:
             if (actual_device) {
-              // If the operator is not GPU, the input must also be on CPU
+              // If the operator is not GPU, the input must be CPU
               if (operator_device && *operator_device != "gpu")
                 return py::str("cpu");
               // Otherwise we can just take anything.
