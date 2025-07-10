@@ -16,8 +16,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from nose2.tools import cartesian_params
-from nose_utils import raises
+from nose2.tools import cartesian_params, params
+from nose_utils import assert_raises, raises
 from nvidia.dali import fn, pipeline_def
 from test_utils import get_dali_extra_path
 
@@ -81,10 +81,12 @@ def test_paste_op_invalid_ratio():
     pipe.build()
     pipe.run()
 
+
 @cartesian_params([-0.1, 1.1], ["paste_x", "paste_y"])
 @raises(RuntimeError, "must be in range")
 def test_paste_op_invalid_anchor(paste_val, paste_axis):
     kwargs = {"ratio": 2.0, "fill_value": 0, paste_axis: paste_val}
+
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def paste_pipeline():
         images, _ = fn.readers.file(file_list=file_list)
@@ -94,6 +96,7 @@ def test_paste_op_invalid_anchor(paste_val, paste_axis):
     pipe = paste_pipeline()
     pipe.build()
     pipe.run()
+
 
 @raises(ValueError, "The number of dimensions 4 does not match any of the allowed layouts")
 def test_paste_op_invalid_dimension():
@@ -109,3 +112,45 @@ def test_paste_op_invalid_dimension():
     pipe = paste_pipeline()
     pipe.build()
     pipe.run()
+
+
+@params(-1.0, 0.0, 1024.0)
+def test_min_canvas_size(min_canvas_size):
+    """Test that the min_canvas_size argument is passed correctly to the operator."""
+    ratio = 1.1
+
+    @pipeline_def(batch_size=2, num_threads=1, device_id=0)
+    def paste_pipeline():
+        images, _ = fn.readers.file(file_list=file_list)
+        images = fn.decoders.image(images, device="cpu")
+        pasted_img = fn.paste(images, ratio=ratio, fill_value=0, min_canvas_size=min_canvas_size)
+        return images, pasted_img
+
+    pipe = paste_pipeline()
+    if min_canvas_size < 0:
+        with assert_raises(RuntimeError, glob="min_canvas_size_ of less than 0 is not supported"):
+            pipe.build()
+            pipe.run()
+        return
+
+    pipe.build()
+    output = pipe.run()
+
+    if min_canvas_size != 0:
+        coverage = set()
+    else:
+        coverage = {0, 1}
+
+    for orig, pasted in zip(output[0], output[1]):
+        for dim in [0, 1]:
+            scaled_orig = int(orig.shape()[dim] * ratio)
+            if scaled_orig < min_canvas_size:
+                assert pasted.shape()[dim] == min_canvas_size
+                coverage.add(0)
+            else:
+                assert pasted.shape()[dim] == scaled_orig
+                coverage.add(1)
+
+    # Make sure we got an image that needs pasting onto larger canvas
+    # for the test case where min_canvas_size != 0
+    assert coverage == {0, 1}, "Didn't cover all cases of min_canvas_size"
