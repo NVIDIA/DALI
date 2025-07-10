@@ -416,3 +416,62 @@ def test_schema_is_stateful():
     assert not get_schema(fn.tensor_subscript).IsStateful()
     assert not get_schema(fn.slice).IsStateful()
     assert not get_schema(fn.decoders.image).IsStateful()
+
+
+def test_schema_get_input_device():
+    # Slice's input 0 always matches the backend, but the other inputs can be on CPU
+    # even if the operator is on GPU
+    schema = GetSchema("Slice")
+    # if the operator's backend is not known, the MatchBackend input's device is not known
+    assert schema.GetInputDevice(0, None, None) is None
+    assert schema.GetInputDevice(0, "cpu", None) is None
+    assert schema.GetInputDevice(0, "gpu", None) is None
+    assert schema.GetInputDevice(0, "cpu", "cpu") == "cpu"
+    assert schema.GetInputDevice(0, "gpu", "gpu") == "gpu"
+    assert schema.GetInputDevice(0, "cpu", "gpu") == "gpu"
+    assert schema.GetInputDevice(0, "gpu", "cpu") == "cpu"
+    assert schema.GetInputDevice(0, None, "cpu") == "cpu"
+    assert schema.GetInputDevice(0, None, "gpu") == "gpu"
+
+    assert schema.GetInputDevice(1, None, None) is None
+    assert schema.GetInputDevice(1, "cpu", None) == "cpu"
+    assert schema.GetInputDevice(1, "gpu", None) == "gpu"
+    assert schema.GetInputDevice(1, "cpu", "cpu") == "cpu"
+    assert schema.GetInputDevice(1, "gpu", "gpu") == "gpu"
+    # GPU op, CPU input -> no conversion
+    assert schema.GetInputDevice(1, "cpu", "gpu") == "cpu"
+    # CPU op, GPU input -> need to copy back to CPU
+    assert schema.GetInputDevice(1, "gpu", "cpu") == "cpu"
+    assert schema.GetInputDevice(1, None, "cpu") == "cpu"
+    assert schema.GetInputDevice(1, None, "gpu") == "gpu"
+
+    # metadata op
+    schema = GetSchema("Shapes")
+    assert schema.GetInputDevice(0, None, None) is None
+    for input_device in [None, "cpu", "gpu"]:
+        for operator_device in [None, "cpu", "gpu"]:
+            # Metadata operators can take whatever input is given to them, no conversion is
+            # required.
+            # If the input's actual device is not known, the operator's device is used.
+            expected_device = input_device or operator_device
+            dev = schema.GetInputDevice(0, input_device, operator_device)
+            assert dev == expected_device, (
+                f"{dev} != {expected_device}, "
+                f"input_device: {input_device}, "
+                f"operator_device: {operator_device}"
+            )
+
+    # op with input device "Any"
+    schema = GetSchema("Copy")
+    assert schema.GetInputDevice(0, None, None) is None
+    for input_device in [None, "cpu", "gpu"]:
+        for operator_device in [None, "cpu", "gpu"]:
+            # Copy can take any input, no conversion required (it _does_ the conversion).
+            # If the input's actual device is not known, the operator's device is used.
+            expected_device = input_device or operator_device
+            dev = schema.GetInputDevice(0, input_device, operator_device)
+            assert dev == expected_device, (
+                f"{dev} != {expected_device}, "
+                f"input_device: {input_device}, "
+                f"operator_device: {operator_device}"
+            )

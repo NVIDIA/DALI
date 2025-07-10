@@ -2674,16 +2674,47 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("GetCallSignatureInputs", &OpSchema::GetCallSignatureInputs)
     .def("GetInputName", &OpSchema::GetInputName)
     .def("GetInputType", &OpSchema::GetInputType)
-    .def("GetInputDevice", [](OpSchema *schema, int index)->py::object {
-      switch (schema->GetInputDevice(index)) {
-        case InputDevice::CPU:
-          return py::str("cpu");
-        case InputDevice::GPU:
-          return py::str("gpu");
-        default:
-          return py::none();
-      }
-    })
+    .def("GetInputDevice", [](OpSchema *schema,
+                              int index,
+                              std::optional<std::string_view> actual_device,
+                              std::optional<std::string_view> operator_device)->py::object {
+        switch (schema->GetInputDevice(index)) {
+          case InputDevice::CPU:
+            return py::str("cpu");
+          case InputDevice::GPU:
+            return py::str("gpu");
+          case InputDevice::MatchBackend:
+            if (operator_device)
+              return py::str(*operator_device);
+            else
+              return py::none();
+          case InputDevice::MatchBackendOrCPU:
+            if (actual_device) {
+              // If the operator is not GPU, the input must be CPU
+              if (operator_device && *operator_device != "gpu")
+                return py::str("cpu");
+              // Otherwise we can just take anything.
+              return py::str(*actual_device);
+            } else {
+              if (operator_device)
+                return py::str(*operator_device);
+              else
+                return py::none();
+            }
+          case InputDevice::Metadata:
+          case InputDevice::Any:
+          default:
+            if (actual_device)
+              return py::str(*actual_device);
+            else if (operator_device)
+              return py::str(*operator_device);
+            else
+              return py::none();
+        }
+      },
+      "index"_a,
+      "actual_device"_a = py::none(),
+      "operator_device"_a = py::none())
     .def("GetInputDox", &OpSchema::GetInputDox)
     .def("MaxNumInput", &OpSchema::MaxNumInput)
     .def("MinNumInput", &OpSchema::MinNumInput)

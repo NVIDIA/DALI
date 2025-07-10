@@ -818,10 +818,10 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
     def get_input_device(schema, input_idx):
         default_input_device = "gpu" if device == "gpu" else "cpu"
         if schema:
-            input_device = schema.GetInputDevice(input_idx) or default_input_device
+            input_device = schema.GetInputDevice(input_idx, None, default_input_device)
         else:
             input_device = default_input_device
-        return input_device
+        return input_device or default_input_device
 
     def _promote_scalar_constant(value, input_device):
         """When ScalarConstant is encountered, promote it to a DataNode, otherwise do
