@@ -413,8 +413,10 @@ def test_experimental_decoders_image_random_crop():
         output_type=types.RGB,
     )
 
+
 def test_paste():
     check_single_input("paste", fill_value=0, ratio=2.0)
+
 
 def test_rotate():
     check_single_input("rotate", angle=25)
