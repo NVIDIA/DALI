@@ -40,6 +40,7 @@ class Tensor:
         batch: Optional[Any] = None,
         index_in_batch: Optional[int] = None,
         invocation_result: Optional[_invocation.InvocationResult] = None,
+        copy: bool = False,
     ):
         if layout is None:
             layout = ""
@@ -52,6 +53,7 @@ class Tensor:
         self._index_in_batch = index_in_batch
         self._invocation_result = None
         self._wraps_external_data = False
+        copied = False
 
         from . import fn
 
@@ -77,13 +79,15 @@ class Tensor:
                         self.assign(data)
                         self._wraps_external_data = data._wraps_external_data
                     else:
-                        self.assign(data.to_device(device).evaluate())
+                        dev = data.to_device(device).evaluate()
+                        if dev is not self:
+                            copied = True
+                        self.assign(dev)
+                        self._wraps_external_data = not copied
                 else:
                     self.assign(fn.cast(data, dtype, device=device).evaluate())
-                return
             elif isinstance(data, TensorSlice):
                 self._slice = data
-                return
             elif hasattr(data, "__dlpack__"):
                 self._backend = TensorCPU(data, layout)
                 self._wraps_external_data = True
@@ -99,10 +103,12 @@ class Tensor:
                         layout,
                         False,
                     )
+                    copied = True
                     self._wraps_external_data = False
                     self._dtype = dtype
                 else:
                     self._backend = TensorCPU(np.array(data), layout, False)
+                    copied = True
                     self._wraps_external_data = False
 
             if device is not None:
@@ -131,6 +137,9 @@ class Tensor:
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
+        if copy and self._backend is not None and not copied:
+            self.assign(self.to_device(self.device, force_copy=True).evaluate())
+
     def _is_external(self) -> bool:
         return self._wraps_external_data
 
@@ -150,8 +159,8 @@ class Tensor:
         else:
             raise RuntimeError("Device not set")
 
-    def to_device(self, device: Device) -> "Tensor":
-        if self.device == device:
+    def to_device(self, device: Device, force_copy: bool = False) -> "Tensor":
+        if self.device == device and not force_copy:
             return self
         else:
             with device:
@@ -548,3 +557,12 @@ class TensorSlice:
             from . import fn
 
             return fn.tensor_subscript(self._tensor, **args).evaluate()
+
+
+def tensor(
+    data: Any,
+    dtype: Optional[Any] = None,
+    device: Optional[Device] = None,
+    layout: Optional[str] = None,
+):
+    return Tensor(data, dtype=dtype, device=device, layout=layout, copy=True)
