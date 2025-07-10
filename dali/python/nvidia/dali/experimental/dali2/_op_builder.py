@@ -431,6 +431,7 @@ def build_fn_wrapper(op):
 
         # If device is not specified, infer it from the inputs and call_args
         if device is None:
+
             def _infer_device():
                 for inp in inputs:
                     if inp is None:
@@ -445,6 +446,7 @@ def build_fn_wrapper(op):
                     if dev is not None and dev.device_type == "gpu":
                         return dev
                 return _device.Device("cpu")
+
             device = _infer_device()
         elif not isinstance(device, _device.Device):
             device = _device.Device(device)
