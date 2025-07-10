@@ -31,7 +31,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     python3.10 python3.10-dev \
     python3.11 python3.11-dev \
     python3.12 python3.12-dev \
-    python3.13 python3.13-dev && \
+    python3.13 python3.13-dev python3.13-nogil && \
     apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
     add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/cross-linux-aarch64/ /' && \
     apt-get update && \
@@ -97,6 +97,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
 
 # hack - install cross headers in the default python paths, so host python3-config would point to them
+#        free-threaded sources are included in 3.13.0
 RUN export PYVERS="3.8.5 3.9.0 3.10.0 3.11.0 3.12.0 3.13.0" && \
     for PYVER in ${PYVERS}; do \
         cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
