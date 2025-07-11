@@ -521,12 +521,18 @@ all_packages = [
     ),
     CudaPackageExtraIndex(
         "torch",
-        {"120": [PckgVer("2.7.1", python_min_ver="3.9", python_max_ver="3.13")]},
+        {
+            "120": [PckgVer("2.7.1", python_min_ver="3.9", python_max_ver="3.13")],
+            "130": [PckgVer("2.8.0", python_min_ver="3.9", python_max_ver="3.13")],
+        },
         extra_index="https://download.pytorch.org/whl/cu128/",
     ),
     CudaPackageExtraIndex(
         "torchvision",
-        {"120": [PckgVer("0.22.1", python_min_ver="3.9", python_max_ver="3.13")]},
+        {
+            "120": [PckgVer("0.22.1", python_min_ver="3.9", python_max_ver="3.13")],
+            "130": [PckgVer("0.23.0", python_min_ver="3.9", python_max_ver="3.13")],
+        },
         extra_index="https://download.pytorch.org/whl/cu128/",
     ),
     CudaPackageExtraIndex(
@@ -534,9 +540,7 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    #  cuda 120 build requires newer glibc version than what is
-                    #  available on ubuntu 20.04
-                    "2.6.1.post117",
+                    "2.6.1.post120",
                     dependencies=["protobuf<4", "numpy<2"],
                     python_min_ver="3.8",
                     python_max_ver="3.12",
