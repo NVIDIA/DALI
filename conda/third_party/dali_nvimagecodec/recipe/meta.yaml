@@ -33,7 +33,7 @@ requirements:
     - {{ compiler('c') }}
     - {{ compiler('cxx')}}
     - pkg-config
-    - cmake >=3.18
+    - cmake >=3.25.2
     - make
     - python-clang
     - git-lfs

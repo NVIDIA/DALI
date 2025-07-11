@@ -32,8 +32,8 @@ fi
 ln -s $CC $BUILD_PREFIX/bin/gcc
 ln -s $CXX $BUILD_PREFIX/bin/g++
 
-# Force -std=c++17 in CXXFLAGS
-export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++17}
+# Force -std=c++20 in CXXFLAGS
+export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++20}
 
 # For some reason `aligned_alloc` is present when we use compiler version 5.4.x
 # Adding NO_ALIGNED_ALLOC definition for cutt
