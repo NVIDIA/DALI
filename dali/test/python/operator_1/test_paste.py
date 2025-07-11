@@ -19,6 +19,7 @@ import numpy as np
 from nose2.tools import cartesian_params, params
 from nose_utils import assert_raises, raises
 from nvidia.dali import fn, pipeline_def
+from nvidia.dali.types import DALIDataType
 from test_utils import get_dali_extra_path
 
 data_root = Path(get_dali_extra_path())
@@ -36,6 +37,9 @@ def opencv_paste(image, ratio, paste_x, paste_y, fill_value):
     left_pad = int(paste_x * (paste_w - w))
     right_pad = paste_w - w - left_pad
 
+    if not isinstance(fill_value, (list, tuple)):
+        fill_value = [fill_value] * 3
+
     return cv2.copyMakeBorder(
         image,
         top_pad,
@@ -47,7 +51,7 @@ def opencv_paste(image, ratio, paste_x, paste_y, fill_value):
     )
 
 
-@cartesian_params(["gpu", "cpu"], [0, [128, 0, 0]], [1.5, 2], [0.5, 0.6], [0.4, 0.6])
+@cartesian_params(["gpu", "cpu"], [111, [128, 73, 39]], [1.5, 2], [0.5, 0.6], [0.4, 0.6])
 def test_paste_op(device, fill_value, ratio, paste_x, paste_y):
 
     @pipeline_def(batch_size=2, num_threads=1, device_id=0)
@@ -154,3 +158,28 @@ def test_min_canvas_size(min_canvas_size):
     # Make sure we got an image that needs pasting onto larger canvas
     # for the test case where min_canvas_size != 0
     assert coverage == {0, 1}, "Didn't cover all cases of min_canvas_size"
+
+
+@params(DALIDataType.UINT8, DALIDataType.INT32, DALIDataType.FLOAT)
+def test_paste_dtypes(dtype):
+    """Test that unsupported dtypes will fail."""
+
+    @pipeline_def(batch_size=2, num_threads=1, device_id=0)
+    def paste_pipeline():
+        images, _ = fn.readers.file(file_list=file_list)
+        images = fn.decoders.image(images, device="cpu")
+        images = fn.cast(images, dtype=dtype)
+        pasted_img = fn.paste(images, ratio=1.1, fill_value=10)
+        return images, pasted_img
+
+    pipe = paste_pipeline()
+    if dtype == DALIDataType.UINT8:
+        pipe.build()
+        pipe.run()
+        return
+
+    with assert_raises(
+        RuntimeError, glob=f"requested type: uint8 current buffer type: {dtype.name.lower()}"
+    ):
+        pipe.build()
+        pipe.run()
