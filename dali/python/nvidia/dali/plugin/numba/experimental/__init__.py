@@ -204,7 +204,14 @@ class NumbaFunction(
             old_device = nb.cuda.api.get_current_device().id
             cc = nb.cuda.api.select_device(device_id).compute_capability
             nb.cuda.api.select_device(old_device)
-            cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments, cc=cc)
+            cres = cuda.compiler.compile_cuda(
+                run_fn,
+                numba_types.void,
+                cuda_arguments,
+                nvvm_options=nvvm_options,
+                fastmath=False,
+                cc=cc,
+            )
 
         tgt_ctx = cres.target_context
         code = run_fn.__code__
@@ -217,9 +224,13 @@ class NumbaFunction(
                 cres.library, cres.fndesc, True, nvvm_options, filename, linenum
             )
         else:
-            lib, _ = tgt_ctx.prepare_cuda_kernel(
-                cres.library, cres.fndesc, False, True, nvvm_options, filename, linenum
-            )
+            if hasattr(tgt_ctx, "prepare_cuda_kernel"):
+                lib, _ = tgt_ctx.prepare_cuda_kernel(
+                    cres.library, cres.fndesc, False, True, nvvm_options, filename, linenum
+                )
+            else:
+                lib = cres.library
+                lib._entry_name = cres.fndesc.llvm_func_name
 
         handle = lib.get_cufunc().handle
         return handle.value
