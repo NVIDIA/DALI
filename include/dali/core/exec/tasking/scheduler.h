@@ -283,7 +283,6 @@ class Scheduler {
         // ...and we check whether its preconditions are, in fact, met.
         AcquireAllAndMoveToReady(task);
       }
-
     }
   }
 
