@@ -180,6 +180,8 @@ class Scheduler {
   };
 
  public:
+  virtual ~Scheduler() = default;
+
   /** Removes a ready task with the highest priorty or waits for one to appear or
    *  for a shutdown notification.
    */
