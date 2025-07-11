@@ -1,0 +1,65 @@
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from contextlib import contextmanager
+from threading import local
+from . import _device
+import nvidia.dali.backend_impl as _b
+
+_tls = local()
+_tls.stack = []
+
+default_num_threads = 4
+
+
+class EvalContext:
+
+    def __init__(self, num_threads=None):
+        self._invocations = {}
+        self._cached_results = {}
+        self._cuda_stream = None
+
+        if _device.Device.current().device_type == "gpu":
+            self._cuda_stream = _b.Stream(_device.Device.current().device_id)
+
+        self._thread_pool = _b._ThreadPool(num_threads or default_num_threads)
+
+    @staticmethod
+    def current():
+        return _tls.stack[-1] if _tls.stack else None
+
+    def __enter__(self):
+        _tls.stack.append(self)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _tls.stack.pop()
+
+    @property
+    def cuda_stream(self):
+        return self._cuda_stream
+
+    @staticmethod
+    def get():
+        return EvalContext.current() or EvalContext()
+
+    def cached_results(self, invocation):
+        if invocation in self._cached_results:
+            return self._cached_results[invocation]
+
+        # TODO(michalz): Common subexpression elimination.
+        return None
+
+    def cache_results(self, invocation, results):
+        self._cached_results[invocation] = results
