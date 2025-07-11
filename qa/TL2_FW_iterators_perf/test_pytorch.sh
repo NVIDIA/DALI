@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='pillow torchvision torch opencv-python nose'
+pip_packages='pillow torchvision torch opencv-python-headless nose'
 target_dir=./dali/test/python
 one_config_only=true
 

@@ -482,53 +482,20 @@ all_packages = [
             PckgVer("<2"),
         ],
     ),
-    PlainPackage("opencv-python", [PckgVer("4.12.0.88", dependencies=["numpy<2"])]),
+    PlainPackage("opencv-python-headless", [PckgVer("4.12.0.88", dependencies=["numpy<2"])]),
     CudaPackage(
         "cupy",
         {
-            "118": [PckgVer("12.3.0", python_min_ver="3.8", alias="cupy-cuda11x")],
-            "120": [PckgVer("12.3.0", python_min_ver="3.8", alias="cupy-cuda12x")],
+            "120": [PckgVer("13.6.0", python_min_ver="3.9", alias="cupy-cuda12x")],
+            "130": [PckgVer("13.6.0", python_min_ver="3.9", alias="cupy-cuda13x")],
         },
     ),
     CudaPackage(
         "tensorflow-gpu",
         {
-            "110": [
-                PckgVer(
-                    "2.13.1",
-                    python_min_ver="3.8",
-                    python_max_ver="3.10",
-                    alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "urllib3<2.0",
-                    ],
-                ),
-                PckgVer(
-                    "2.14.1",
-                    python_min_ver="3.9",
-                    python_max_ver="3.11",
-                    alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "urllib3<2.0",
-                    ],
-                ),
-            ],
             "120": [
                 PckgVer(
-                    "2.18.1",
-                    python_min_ver="3.9",
-                    alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "urllib3<2.0",
-                        "tf_keras==2.18",
-                        "numpy<2",
-                    ],
-                ),
-                PckgVer(
-                    "2.19.0",
+                    "2.19.1",
                     python_min_ver="3.9",
                     alias="tensorflow[and-cuda]",
                     dependencies=[
@@ -538,46 +505,51 @@ all_packages = [
                         "numpy<2",
                     ],
                 ),
+                PckgVer(
+                    "2.20.0",
+                    python_min_ver="3.9",
+                    alias="tensorflow[and-cuda]",
+                    dependencies=[
+                        "protobuf",
+                        "urllib3<2.0",
+                        "tf_keras==2.20",
+                        "numpy<2",
+                    ],
+                ),
             ],
         },
     ),
     CudaPackageExtraIndex(
         "torch",
-        {"118": [PckgVer("2.2.0", python_min_ver="3.8", python_max_ver="3.12")]},
-        extra_index="https://download.pytorch.org/whl/cu{cuda_v}/",
+        {"120": [PckgVer("2.7.1", python_min_ver="3.9", python_max_ver="3.13")]},
+        extra_index="https://download.pytorch.org/whl/cu128/",
     ),
     CudaPackageExtraIndex(
         "torchvision",
-        {"118": [PckgVer("0.17.0", python_min_ver="3.8")]},
-        extra_index="https://download.pytorch.org/whl/cu{cuda_v}/",
+        {"120": [PckgVer("0.22.1", python_min_ver="3.9", python_max_ver="3.13")]},
+        extra_index="https://download.pytorch.org/whl/cu128/",
     ),
     CudaPackageExtraIndex(
         "paddlepaddle-gpu",
         {
-            "110": [
+            "120": [
                 PckgVer(
-                    "2.6.0.post117",
+                    #  cuda 120 build requires newer glibc version than what is
+                    #  available on ubuntu 20.04
+                    "2.6.1.post117",
                     dependencies=["protobuf<4", "numpy<2"],
                     python_min_ver="3.8",
                     python_max_ver="3.12",
                 )
             ],
-            # skip tests for CUDA 12 as PaddlePaddle doesn't support this CUDA yet
-            # and we may hit a runner that requires it
-            "120": [],
         },
-        links_index="https://www.paddlepaddle.org.cn/" "whl/linux/mkl/avx/stable.html",
+        links_index="https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html",
     ),
     CudaPackageExtraIndex(
         "jax",  # name used in our test script
         {
-            "118": [
-                PckgVer(
-                    "0.4.13",
-                    python_min_ver="3.8",
-                    python_max_ver="3.8",
-                    dependencies=["jaxlib", "numpy<2"],
-                ),
+            # ToDo update to newer JAX version some day
+            "120": [
                 # dax.fn.jax_function requires at least 0.4.16 which is the first one supporting
                 # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
                 PckgVer(
@@ -595,14 +567,7 @@ all_packages = [
     CudaPackage(
         "numba",
         {
-            "110": [
-                # the more recent NUMBA doesn't support python 3.8 so keep it for this version here
-                PckgVer(
-                    "0.57.0",
-                    python_min_ver="3.8",
-                    python_max_ver="3.8",
-                    dependencies=["numpy<1.24"],
-                ),
+            "120": [
                 PckgVer(
                     "0.59.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
                 ),
