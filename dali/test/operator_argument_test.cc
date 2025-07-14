@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ TEST(TestOpArg, BadCast) {
   {
     TestOpArg arg = 42.0f;
     EXPECT_NO_THROW(arg.GetValue<float>());
-    EXPECT_THROW(arg.GetValue<double>(), std::bad_cast);
+    EXPECT_THROW(arg.GetValue<unsigned>(), std::bad_cast);
     EXPECT_THROW(arg.GetValue<int>(), std::bad_cast);
   }
   {

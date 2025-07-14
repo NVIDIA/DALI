@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,9 +81,9 @@ struct DefaultResources {
         int ndevs = 0;
         CUDA_CALL(cudaGetDeviceCount(&ndevs));
         decltype(device) tmp(new std::shared_ptr<device_async_resource>[ndevs]);
-        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+        std::atomic_thread_fence(std::memory_order_seq_cst);
         num_devices = ndevs;
-        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+        std::atomic_thread_fence(std::memory_order_seq_cst);
         device = std::move(tmp);
       }
     }
