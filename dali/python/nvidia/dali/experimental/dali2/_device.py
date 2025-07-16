@@ -45,7 +45,7 @@ class Device:
     def default_device_id(device_type: str) -> int:
         if device_type == "cpu":
             return 0
-        elif device_type == "gpu":
+        elif device_type == "gpu" or device_type == "mixed":
             return _backend.GetCUDACurrentDevice()
         else:
             raise ValueError(f"Invalid device type: {device_type}")
@@ -54,7 +54,7 @@ class Device:
     def validate_device_id(device_id: int, device_type: str):
         if device_id < 0:
             raise ValueError(f"Invalid device id: {device_id}")
-        if device_type == "gpu":
+        if device_type == "gpu" or device_type == "mixed":
             if device_id >= _backend.GetCUDADeviceCount():
                 raise ValueError(f"Invalid device id: {device_id} for device type: {device_type}")
         elif device_type == "cpu":
@@ -63,7 +63,7 @@ class Device:
 
     @staticmethod
     def validate_device_type(device_type: str):
-        if device_type not in ["cpu", "gpu"]:
+        if device_type not in ["cpu", "gpu", "mixed"]:
             raise ValueError(f"Invalid device type: {device_type}")
 
     def __str__(self):
@@ -88,7 +88,7 @@ class Device:
         return Device._thread_local.devices[-1]
 
     def __enter__(self):
-        if self.device_type == "gpu":
+        if self.device_type == "gpu" or self.device_type == "mixed":
             if Device._thread_local.previous_device_ids is None:
                 Device._thread_local.previous_device_ids = []
             Device._thread_local.previous_device_ids.append(_backend.GetCUDACurrentDevice())
@@ -98,7 +98,7 @@ class Device:
         Device._thread_local.devices.append(self)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.device_type == "gpu":
+        if self.device_type == "gpu" or self.device_type == "mixed":
             _backend.SetCUDACurrentDevice(Device._thread_local.previous_device_ids.pop())
         Device._thread_local.devices.pop()
         dev = Device.current()

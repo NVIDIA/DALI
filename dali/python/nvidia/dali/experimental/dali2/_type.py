@@ -145,7 +145,7 @@ class DType:
             raise ValueError("dtype cannot be overridden")
         from . import _tensor
 
-        return _tensor.Tensor(self, *args, dtype=self, **kwargs)
+        return _tensor.tensor(self, *args, dtype=self, **kwargs)
 
 
 int8 = DType(DType.Kind.signed, 8)

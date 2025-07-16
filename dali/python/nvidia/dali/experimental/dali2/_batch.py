@@ -55,7 +55,7 @@ class BatchedSlice:
 
         from . import fn
 
-        print(args)
+        # print(args)
 
         return fn.tensor_subscript(self._batch, **args)
 
@@ -92,7 +92,7 @@ class Batch:
                     layout = ""
             else:
                 for t in tensors:
-                    sample = Tensor(t, dtype, device, layout)
+                    sample = Tensor(t, dtype=dtype, device=device, layout=layout)
                     if dtype is None:
                         dtype = sample.dtype
                     if device is None:
@@ -103,11 +103,12 @@ class Batch:
                     if sample._wraps_external_data:
                         self._wraps_external_data = True
                     else:
-                        copied = True
+                        if not isinstance(t, Tensor) or t._backend is not sample._backend:
+                            copied = True
 
         if dtype is not None:
             if not isinstance(dtype, DType):
-                dtype = _dtype(dtype)
+                dtype = DType(dtype)
         self._dtype = dtype
         self._device = device
         self._layout = layout
@@ -144,10 +145,10 @@ class Batch:
         if self._device is None:
             if self._invocation_result is not None:
                 self._device = self._invocation_result.device
-                print("From invocation result", self._device)
+                # print("From invocation result", self._device)
             elif self._tensors:
                 self._device = self._tensors[0].device
-                print("From tensors", self._device)
+                # print("From tensors", self._device)
             else:
                 raise ValueError("Cannot establish the number of dimensions of an empty Batch")
         return self._device
@@ -269,7 +270,7 @@ class Batch:
                     "Cannot use a batch as an index or slice. in ``Batch.__getitem__``.\n"
                     "Use ``.slice`` property to perform samplewise slicing."
                 )
-        print(ranges)
+        # print(ranges)
         return self.slice.__getitem__(ranges)
 
     @property
