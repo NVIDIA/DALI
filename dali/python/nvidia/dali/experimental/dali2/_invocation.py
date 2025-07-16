@@ -106,7 +106,12 @@ class Invocation:
             if cached is not None:
                 self._results = cached
             else:
-                r = self._operator.run(ctx, *self._inputs, **self._args)
+                r = self._operator.run(
+                    ctx,
+                    *self._inputs,
+                    batch_size=self._batch_size,
+                    **self._args,
+                )
                 if isinstance(r, tuple) or isinstance(r, list):
                     self._results = list(r)
                 else:
