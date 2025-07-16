@@ -104,7 +104,8 @@ class Operator:
         return self._num_outputs
 
     def input_device(self, index: int, actual_device: Optional[str] = None):
-        dev_type = self.schema.GetInputDevice(index, actual_device, self._device.device_type)
+        default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
+        dev_type = self.schema.GetInputDevice(index, actual_device, default_input_device)
         if dev_type is None:
             return self._device
         return _device.Device(dev_type, self._device.device_id)  # inherit the device id
@@ -132,7 +133,7 @@ class Operator:
             with self._device:
                 input_nodes = [
                     dali.data_node.DataNode(
-                        name=f"input_{i}", device=self._device.device_type, source=None
+                        name=f"input_{i}", device=inputs[i].device.device_type, source=None
                     )
                     for i in range(len(inputs))
                 ]
@@ -186,22 +187,33 @@ class Operator:
                         else dali.types.CPU_ONLY_DEVICE_ID
                     ),
                 )
+                if self._max_batch_size is None:
+                    self._max_batch_size = 1
                 self._op_spec.AddArg("max_batch_size", self._max_batch_size)
-                print(self._op_spec)
+                # print(self._op_spec)
                 self._op_backend = _b._Operator(self._op_spec)
 
-    def run(self, ctx, *inputs, **args):
-        print("Running operator", self._name, type(self), id(self))
+    def run(self, ctx, *inputs, batch_size=None, **args):
+        # print("Running operator", self._name, type(self), id(self))
         # print("inputs", inputs)
         # print("args", args)
         # print("minipipe", self._minipipe)
         # print("input_meta", self._input_meta)
         # print("arg_meta", self._arg_meta)
+        if (
+            batch_size is not None
+            and self._max_batch_size is not None
+            and batch_size > self._max_batch_size
+            and self.schema.IsStateful()
+        ):
+            raise RuntimeError(
+                f"The batch size {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+            )
         if self._is_backend_initialized():
             if self.schema.IsStateful():
                 # clearing the backend in a stateful op would destroy the state
-                self.check_compatible(inputs, args)
-            elif not self.is_compatible(inputs, args):
+                self.check_compatible(inputs, batch_size, args)
+            elif not self.is_compatible(inputs, batch_size, args):
                 # we can reinitialize a stateless operator - not very efficient :(
                 self._reset_backend()
 
@@ -211,7 +223,7 @@ class Operator:
             workspace.AddInput(self._to_batch(input).evaluate()._backend)
         for name, arg in args.items():
             workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
-        self._op_backend.SetupAndRun(workspace)
+        self._op_backend.SetupAndRun(workspace, batch_size)
         return workspace.GetOutputs()
         # for i, input in enumerate(inputs):
         #     self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
@@ -229,15 +241,26 @@ class Operator:
         self._input_meta = [self._make_meta(input) for input in inputs]
         self._arg_meta = {name: self._make_meta(arg) for name, arg in args.items()}
 
-    def is_compatible(self, inputs, args):
-        ret = self._input_meta == [
-            self._make_meta(input) for input in inputs
-        ] and self._arg_meta == {name: self._make_meta(arg) for name, arg in args.items()}
-        return ret
+    def is_compatible(self, inputs, batch_size, args):
+        if batch_size is not None:
+            if batch_size > self._max_batch_size:
+                return False
+        if self._input_meta != [self._make_meta(input) for input in inputs]:
+            return False
+        if self._arg_meta != {name: self._make_meta(arg) for name, arg in args.items()}:
+            return False
+        return True
 
-    def check_compatible(self, inputs, args):
+    def check_compatible(self, inputs, batch_size, args):
         def error_header():
             return f"The invocation of operator {self.display_name} is not compatible with the previous call:\n"
+
+        if batch_size is not None:
+            if batch_size > self._max_batch_size:
+                raise RuntimeError(
+                    error_header()
+                    + f"The batch size {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+                )
 
         if len(inputs) != len(self._input_meta):
             raise RuntimeError(

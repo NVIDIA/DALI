@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 from ._type import DType, dtype as _dtype
 from ._device import Device
 from nvidia.dali.backend import TensorCPU, TensorGPU
@@ -28,6 +28,15 @@ def _volume(shape: Tuple[int, ...]) -> int:
     for s in shape:
         ret *= s
     return ret
+
+
+def _backend_device(backend: Union[TensorCPU, TensorGPU]) -> Device:
+    if isinstance(backend, TensorCPU):
+        return Device("cpu")
+    elif isinstance(backend, TensorGPU):
+        return Device("gpu", backend.device())
+    else:
+        raise ValueError(f"Unsupported backend type: {type(backend)}")
 
 
 class Tensor:
@@ -52,7 +61,12 @@ class Tensor:
         self._batch = batch
         self._index_in_batch = index_in_batch
         self._invocation_result = None
+        self._device = None
+        self._shape = None
+        self._dtype = None
+        self._layout = None
         self._wraps_external_data = False
+
         copied = False
 
         from . import fn
@@ -71,7 +85,6 @@ class Tensor:
             self._dtype = batch.dtype
             self._device = batch.device
             self._layout = batch.layout
-            self._shape = None
         elif data is not None:
             if isinstance(data, Tensor):
                 if dtype is None or dtype == data.dtype:
@@ -107,7 +120,14 @@ class Tensor:
                     self._wraps_external_data = False
                     self._dtype = dtype
                 else:
-                    self._backend = TensorCPU(np.array(data), layout, False)
+                    arr = np.array(data)
+                    # DALI doesn't support int64 and float64, so we need to convert them to int32
+                    # and float32, respectively.
+                    if arr.dtype == np.int64:
+                        arr = arr.astype(np.int32)
+                    elif arr.dtype == np.float64:
+                        arr = arr.astype(np.float32)
+                    self._backend = TensorCPU(arr, layout, False)
                     copied = True
                     self._wraps_external_data = False
 
@@ -116,19 +136,14 @@ class Tensor:
             else:
                 device = self._device = Device("cpu")
 
-            if isinstance(self._backend, TensorCPU) and device.device_type != "cpu":
-                self.assign(self.to_device(device).evaluate())
-
-            self._shape = self._backend.shape()
-            if self._backend.dtype is not None:
+            if self._backend is not None:
+                self._shape = self._backend.shape()
                 self._dtype = DType.from_type_id(self._backend.dtype)
-            self._layout = self._backend.layout()
-            self._invocation_result = None
+                self._layout = self._backend.layout()
+
+            if isinstance(self._backend, TensorCPU) and device != _backend_device(self._backend):
+                self.assign(self.to_device(device).evaluate())
         elif invocation_result is not None:
-            self._backend = None
-            self._shape = None
-            self._dtype = None
-            self._layout = None
             self._invocation_result = invocation_result
             self._device = invocation_result.device
         else:
@@ -138,7 +153,7 @@ class Tensor:
             self.evaluate()
 
         if copy and self._backend is not None and not copied:
-            self.assign(self.to_device(self.device, force_copy=True).evaluate())
+            self.assign(self.to_device(device, True).evaluate())
 
     def _is_external(self) -> bool:
         return self._wraps_external_data
@@ -273,7 +288,7 @@ class Tensor:
                     assert self._invocation_result is not None
                     self._backend = self._invocation_result.value(ctx)
                 self._shape = self._backend.shape()
-                self._dtype = self._backend.dtype
+                self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
         return self
 
@@ -552,8 +567,6 @@ class TensorSlice:
                     args[f"at_{d}"] = r
                     d += 1
 
-            print("args", args)
-
             from . import fn
 
             return fn.tensor_subscript(self._tensor, **args).evaluate()
@@ -565,4 +578,24 @@ def tensor(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
+    """Copies an existing tensor-like object into a DALI tensor.
+
+    @param data:    A tensor-like object, a list or a scalar value.
+    @param dtype:   The requested data type of the tensor.
+    @param device:  The device to use for the tensor.
+    @param layout:  The layout of the tensor.
+    """
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=True)
+
+
+def as_tensor(
+    data: Any,
+    dtype: Optional[Any] = None,
+    device: Optional[Device] = None,
+    layout: Optional[str] = None,
+):
+    """Wraps an existing tensor-like object into a DALI tensor.
+
+    This function avoids copying the data if possible.
+    """
+    return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)

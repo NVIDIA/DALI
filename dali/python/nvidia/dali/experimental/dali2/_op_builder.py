@@ -69,7 +69,7 @@ def _get_input_device(x):
     if hasattr(x, "__cuda_array_interface__"):
         return _device.Device("gpu")
     if hasattr(x, "__dlpack_device__"):
-        dev = x.__dlpack_device__
+        dev = x.__dlpack_device__()
         if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
             return _device.Device("cpu")
         elif int(dev[0]) == 2:
@@ -267,8 +267,7 @@ def build_call_function(schema, op_class):
                     else:
                         batch_size = x_batch_size
         if not is_batch:
-            batch_size = self._max_batch_size
-            is_batch = False
+            batch_size = self._max_batch_size or 1
 
         inputs = []
         kwargs = {}
@@ -401,7 +400,7 @@ def build_fn_wrapper(op):
         inputs = inputs + ["/"]
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
-    def call(*inputs, batch_size=None, device=None, **raw_kwargs):
+    def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
         is_batch = batch_size is not None
         if batch_size is None:
             for x in inputs:
@@ -428,7 +427,6 @@ def build_fn_wrapper(op):
             for arg in tensor_args
             if arg in raw_kwargs and raw_kwargs[arg] is not None
         }
-
         # If device is not specified, infer it from the inputs and call_args
         if device is None:
 
@@ -464,7 +462,7 @@ def build_fn_wrapper(op):
         # Call the operator (the result is an Invocation object)
         return op_inst(*inputs, **call_args)
 
-    function = makefun.create_function(header, call)
+    function = makefun.create_function(header, fn_call)
     function.op_class = op
     function.schema = schema
     setattr(module, fn_name, function)
