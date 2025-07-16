@@ -2344,7 +2344,8 @@ void ExposeWorkspace(py::module &m) {
     }, py::return_value_policy::take_ownership);
 }
 
-void SetupAndRun(OperatorBase &self, Workspace &ws) {
+void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_size) {
+  DomainTimeRange setup_and_run_tr("SetupAndRun " + GetOpDisplayName(self.GetSpec(), true));
   std::vector<dali::OutputDesc> out_descs;
   const auto &spec = self.GetSpec();
   if (ws.NumOutput() != 0)
@@ -2358,22 +2359,36 @@ void SetupAndRun(OperatorBase &self, Workspace &ws) {
     }
   }
 
-  if (ws.GetRequestedBatchSize(0) == 0) {
-    if (ws.NumInput() == 0) {
-      int max_bs = self.GetSpec().GetArgument<int>("max_batch_size");
-      ws.SetBatchSizes(max_bs);
+  if (batch_size.has_value()) {
+    ws.SetBatchSizes(batch_size.value());
+  } else {
+    if (ws.NumOutput() > 0 && ws.GetRequestedBatchSize(0) == 0) {
+      if (ws.NumInput() > 0) {
+        ws.SetBatchSizes(ws.GetInputBatchSize(0));
+      } else if (ws.NumArgumentInput() > 0) {
+        ws.SetBatchSizes(ws.ArgumentInput(0).num_samples());
+      } else {
+        int max_bs = self.GetSpec().GetArgument<int>("max_batch_size");
+        ws.SetBatchSizes(max_bs);
+      }
     }
   }
 
-  if (self.Setup(out_descs, ws)) {
-    for (int i = 0; i < ws.NumOutput(); i++) {
-      if (ws.OutputIsType<CPUBackend>(i))
-        ws.Output<CPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
-      else
-        ws.Output<GPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+  {
+    DomainTimeRange setup_tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
+    if (self.Setup(out_descs, ws)) {
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        if (ws.OutputIsType<CPUBackend>(i))
+          ws.Output<CPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+        else
+          ws.Output<GPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+      }
     }
   }
-  self.Run(ws);
+  {
+    DomainTimeRange run_tr("Run " + GetOpDisplayName(self.GetSpec(), true));
+    self.Run(ws);
+  }
 }
 
 void ExposeOperator(py::module &m) {
@@ -2381,11 +2396,17 @@ void ExposeOperator(py::module &m) {
     .def(py::init([](const OpSpec &spec) {
       return dali::InstantiateOperator(spec);
     }))
-    .def("Setup", &OperatorBase::Setup)
-    .def("Run", &OperatorBase::Run)
-    .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws) {
-      SetupAndRun(self, ws);
+    .def("Setup", [](OperatorBase &self, std::vector<dali::OutputDesc> &out_descs, Workspace &ws) {
+      DomainTimeRange tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
+      return self.Setup(out_descs, ws);
     })
+    .def("Run", [](OperatorBase &self, Workspace &ws) {
+      DomainTimeRange tr("Run " + GetOpDisplayName(self.GetSpec(), true));
+      self.Run(ws);
+    } )
+    .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws, std::optional<int> batch_size) {
+      SetupAndRun(self, ws, batch_size);
+    }, "ws"_a, "batch_size"_a = py::none())
     .def("GetReaderMeta", [](OperatorBase &self) {
       return ReaderMetaToDict(self.GetReaderMeta());
     });
