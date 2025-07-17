@@ -438,9 +438,10 @@ def test_transpose_stateless(device):
     check_single_input(fn.transpose, device, perm=[2, 0, 1])
 
 
+@params("cpu", "gpu")
 @stateless_signed_off("paste")
-def test_paste_stateless():
-    check_single_input(fn.paste, "gpu", fill_value=0, ratio=2)
+def test_paste_stateless(device):
+    check_single_input(fn.paste, device, fill_value=0, ratio=2.0)
 
 
 @params("cpu", "gpu")
