@@ -152,6 +152,11 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   return d;
 }
 
+namespace {
+  const uint32_t kCPUTensorColor = DomainTimeRange::kBlue1;
+  const uint32_t kGPUTensorColor = DomainTimeRange::knvGreen;
+}  // namespace
+
 template<typename SrcBackend>
 const TensorListShape<> ConvertShape(const TensorShape<> &shape,
                                       TensorList<SrcBackend> *shape_type_placeholder) {
@@ -596,6 +601,7 @@ void ExposeTensor(py::module &m) {
   auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
+          DomainTimeRange range("TensorCPU::init", kCPUTensorColor);
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
           return t.release();
@@ -820,6 +826,7 @@ void ExposeTensor(py::module &m) {
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout, py::object stream) {
+          DomainTimeRange range("TensorGPU::init from capsule", kGPUTensorColor);
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
           if (!stream.is_none())  // use a separately provided stream - there's none in the capsule
@@ -875,6 +882,7 @@ void ExposeTensor(py::module &m) {
           * ``0``    - forbidden value
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
+          DomainTimeRange range("TensorGPU::init from CUDA array", kGPUTensorColor);
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t.release();
@@ -1140,6 +1148,7 @@ void ExposeTensorList(py::module &m) {
           m, "TensorListCPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
+            DomainTimeRange range("TensorListCPU::init from capsule", kCPUTensorColor);
             auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
             return t;
@@ -1155,6 +1164,7 @@ void ExposeTensorList(py::module &m) {
               Layout of the data
         )code")
     .def(py::init([](TensorList<CPUBackend> *tl, py::object layout) {
+          DomainTimeRange range("TensorListCPU::init from a list of tensors", kCPUTensorColor);
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<CPUBackend>>();
@@ -1169,6 +1179,7 @@ void ExposeTensorList(py::module &m) {
       "tl"_a,
       "layout"_a = py::none())
     .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
+        DomainTimeRange range("TensorListCPU::init from a buffer", kCPUTensorColor);
         // We need to verify that the input data is C_CONTIGUOUS
         // and of a type that we can work with in the backend
         py::buffer_info info = b.request();
@@ -1222,6 +1233,7 @@ void ExposeTensorList(py::module &m) {
             If provided memory is page-locked (pinned)
       )code")
     .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        DomainTimeRange range("TensorListCPU::init from a Python list of tensors", kCPUTensorColor);
         return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
       }),
       "list_of_tensors"_a,
@@ -1439,6 +1451,7 @@ void ExposeTensorList(py::module &m) {
           m, "TensorListGPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
+            DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
             auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
             return t;
@@ -1454,6 +1467,7 @@ void ExposeTensorList(py::module &m) {
               Layout of the data
         )code")
     .def(py::init([](TensorList<GPUBackend> *tl, py::object layout) {
+          DomainTimeRange range("TensorListGPU::init from a list of tensors", kGPUTensorColor);
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<GPUBackend>>();
@@ -1468,6 +1482,7 @@ void ExposeTensorList(py::module &m) {
       "tl"_a,
       "layout"_a = py::none())
     .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        DomainTimeRange range("TensorListGPU::init from a Python list of tensors", kGPUTensorColor);
         return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
       }),
       "list_of_tensors"_a,
@@ -1481,6 +1496,7 @@ void ExposeTensorList(py::module &m) {
             Layout of the data
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
+          DomainTimeRange range("TensorListGPU::init from a CUDA array", kGPUTensorColor);
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t;
@@ -2394,17 +2410,21 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
 void ExposeOperator(py::module &m) {
   py::class_<OperatorBase, std::unique_ptr<OperatorBase>>(m, "_Operator")
     .def(py::init([](const OpSpec &spec) {
+      DomainTimeRange tr("Instantiate " + GetOpDisplayName(spec, true));
       return dali::InstantiateOperator(spec);
     }))
     .def("Setup", [](OperatorBase &self, std::vector<dali::OutputDesc> &out_descs, Workspace &ws) {
+      py::gil_scoped_release interpreter_unlock{};
       DomainTimeRange tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
       return self.Setup(out_descs, ws);
     })
     .def("Run", [](OperatorBase &self, Workspace &ws) {
+      py::gil_scoped_release interpreter_unlock{};
       DomainTimeRange tr("Run " + GetOpDisplayName(self.GetSpec(), true));
       self.Run(ws);
     } )
     .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws, std::optional<int> batch_size) {
+      py::gil_scoped_release interpreter_unlock{};
       SetupAndRun(self, ws, batch_size);
     }, "ws"_a, "batch_size"_a = py::none())
     .def("GetReaderMeta", [](OperatorBase &self) {
