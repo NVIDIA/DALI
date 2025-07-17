@@ -42,7 +42,15 @@ class Paste : public StatelessOperator<Backend> {
     DALI_ENFORCE(C_ <= 1024, "n_channels of more than 1024 is not supported");
     std::vector<uint8_t> rgb;
     GetSingleOrRepeatedArg(spec, rgb, "fill_value", C_);
-    fill_value_.set_order(cudaStream_t(0));
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      fill_value_.set_order(cudaStream_t(0));
+    } else {
+      // Disable pinned memory for CPU backend for no-gpu compatibility
+      fill_value_.set_pinned(false);
+      input_ptrs_.set_pinned(false);
+      output_ptrs_.set_pinned(false);
+      in_out_dims_paste_yx_.set_pinned(false);
+    }
     fill_value_.Copy(rgb);
 
     input_ptrs_.reserve(max_batch_size_ * sizeof(uint8_t *));
