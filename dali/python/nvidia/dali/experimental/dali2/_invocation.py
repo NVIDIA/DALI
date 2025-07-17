@@ -15,7 +15,7 @@
 from typing import Any, Optional, Tuple
 from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
-
+import nvtx
 
 class Invocation:
     def __init__(
@@ -96,30 +96,31 @@ class Invocation:
         return self._is_batch
 
     def run(self, ctx: _EvalContext):
-        if self._previous_invocation is not None:
-            if self._previous_invocation._results is None:
-                print("Evaluating previous invocation of a stateful operator")
-            self._previous_invocation.run(ctx)
-            self._previous_invocation = None
-        if self._results is None:
-            cached = ctx.cached_results(self)
-            if cached is not None:
-                self._results = cached
-            else:
-                r = self._operator.run(
-                    ctx,
-                    *self._inputs,
-                    batch_size=self._batch_size,
-                    **self._args,
-                )
-                if isinstance(r, tuple) or isinstance(r, list):
-                    self._results = list(r)
+        with nvtx.annotate("Invocation.run"):
+            if self._previous_invocation is not None:
+                if self._previous_invocation._results is None:
+                    print("Evaluating previous invocation of a stateful operator")
+                self._previous_invocation.run(ctx)
+                self._previous_invocation = None
+            if self._results is None:
+                cached = ctx.cached_results(self)
+                if cached is not None:
+                    self._results = cached
                 else:
-                    self._results = [r]
-                if not self._is_batch:
-                    self._results = [r[0] for r in self._results]
-                self._results = tuple(self._results)
-                ctx.cache_results(self, self._results)
+                    r = self._operator.run(
+                        ctx,
+                        *self._inputs,
+                        batch_size=self._batch_size,
+                        **self._args,
+                    )
+                    if isinstance(r, tuple) or isinstance(r, list):
+                        self._results = list(r)
+                    else:
+                        self._results = [r]
+                    if not self._is_batch:
+                        self._results = [r[0] for r in self._results]
+                    self._results = tuple(self._results)
+                    ctx.cache_results(self, self._results)
 
     def values(self, ctx: _EvalContext):
         self.run(ctx)
