@@ -15,7 +15,7 @@
 from typing import Any, Optional, Tuple, Union
 from ._type import DType, dtype as _dtype
 from ._device import Device
-from nvidia.dali.backend import TensorCPU, TensorGPU
+import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
 from . import _invocation
@@ -30,10 +30,10 @@ def _volume(shape: Tuple[int, ...]) -> int:
     return ret
 
 
-def _backend_device(backend: Union[TensorCPU, TensorGPU]) -> Device:
-    if isinstance(backend, TensorCPU):
+def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> Device:
+    if isinstance(backend, _backend.TensorCPU):
         return Device("cpu")
-    elif isinstance(backend, TensorGPU):
+    elif isinstance(backend, _backend.TensorGPU):
         return Device("gpu", backend.device())
     else:
         raise ValueError(f"Unsupported backend type: {type(backend)}")
@@ -86,7 +86,13 @@ class Tensor:
             self._device = batch.device
             self._layout = batch.layout
         elif data is not None:
-            if isinstance(data, Tensor):
+            if isinstance(data, _backend.TensorCPU):
+                self._backend = data
+                self._wraps_external_data = True
+            elif isinstance(data, _backend.TensorGPU):
+                self._backend = data
+                self._wraps_external_data = True
+            elif isinstance(data, Tensor):
                 if dtype is None or dtype == data.dtype:
                     if device is None or device == data.device:
                         self.assign(data)
@@ -102,16 +108,16 @@ class Tensor:
             elif isinstance(data, TensorSlice):
                 self._slice = data
             elif hasattr(data, "__dlpack__"):
-                self._backend = TensorCPU(data, layout)
+                self._backend = _backend.TensorCPU(data, layout)
                 self._wraps_external_data = True
             elif hasattr(data, "__array__"):
-                self._backend = TensorCPU(data, layout)
+                self._backend = _backend.TensorCPU(data, layout)
                 self._wraps_external_data = True
             else:
                 import numpy as np
 
                 if dtype is not None:
-                    self._backend = TensorCPU(
+                    self._backend = _backend.TensorCPU(
                         np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)),
                         layout,
                         False,
@@ -127,7 +133,7 @@ class Tensor:
                         arr = arr.astype(np.int32)
                     elif arr.dtype == np.float64:
                         arr = arr.astype(np.float32)
-                    self._backend = TensorCPU(arr, layout, False)
+                    self._backend = _backend.TensorCPU(arr, layout, False)
                     copied = True
                     self._wraps_external_data = False
 
@@ -141,7 +147,8 @@ class Tensor:
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
 
-            if isinstance(self._backend, TensorCPU) and device != _backend_device(self._backend):
+            if (isinstance(self._backend, _backend.TensorCPU) and
+                device != _backend_device(self._backend)):
                 self.assign(self.to_device(device).evaluate())
         elif invocation_result is not None:
             self._invocation_result = invocation_result

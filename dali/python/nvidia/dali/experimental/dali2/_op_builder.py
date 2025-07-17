@@ -25,7 +25,7 @@ import copy
 import sys
 from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
-
+import nvtx
 
 def is_external(x):
     if isinstance(x, Tensor):
@@ -253,62 +253,68 @@ def build_call_function(schema, op_class):
 
     def call(self, *raw_args, batch_size=None, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
-        is_batch = batch_size is not None
-        if batch_size is None:
-            for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
-                x_batch_size = _get_batch_size(x)
-                if x_batch_size is not None:
-                    is_batch = True
-                    if batch_size is not None:
-                        if x_batch_size != batch_size:
-                            raise ValueError(
-                                f"Inconsistent batch size: {x_batch_size} != {batch_size}"
-                            )
-                    else:
-                        batch_size = x_batch_size
-        if not is_batch:
-            batch_size = self._max_batch_size or 1
+        with nvtx.annotate("get batch size"):
+            is_batch = batch_size is not None
+            if batch_size is None:
+                for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
+                    x_batch_size = _get_batch_size(x)
+                    if x_batch_size is not None:
+                        is_batch = True
+                        if batch_size is not None:
+                            if x_batch_size != batch_size:
+                                raise ValueError(
+                                    f"Inconsistent batch size: {x_batch_size} != {batch_size}"
+                                )
+                        else:
+                            batch_size = x_batch_size
+            if not is_batch:
+                batch_size = self._max_batch_size or 1
 
         inputs = []
         kwargs = {}
 
         if is_batch:
-            for i, inp in enumerate(raw_args):
-                if inp is None:
-                    continue
-                input_device = self.input_device(i, _get_input_device_type(inp))
-                inp = _to_batch(inp, batch_size, device=input_device)
-                inputs.append(inp)
-            for k, v in raw_kwargs.items():
-                if v is None:
-                    continue
-                kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
+            with nvtx.annotate("to_batch"):
+                for i, inp in enumerate(raw_args):
+                    if inp is None:
+                        continue
+                    input_device = self.input_device(i, _get_input_device_type(inp))
+                    inp = _to_batch(inp, batch_size, device=input_device)
+                    inputs.append(inp)
+                for k, v in raw_kwargs.items():
+                    if v is None:
+                        continue
+                    kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
         else:
-            for inp in raw_args:
-                if inp is None:
-                    continue
-                inputs.append(_to_tensor(inp))
-            for k, v in raw_kwargs.items():
-                if v is None:
-                    continue
-                kwargs[k] = _to_tensor(v)
+            with nvtx.annotate("to_tensor"):
+                for inp in raw_args:
+                    if inp is None:
+                        continue
+                    inputs.append(_to_tensor(inp))
+                for k, v in raw_kwargs.items():
+                    if v is None:
+                        continue
+                    kwargs[k] = _to_tensor(v)
 
-        inputs = [copy.copy(x) for x in inputs]
-        kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
+        with nvtx.annotate("shallowcopy"):
+            inputs = [copy.copy(x) for x in inputs]
+            kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
+
         if stateful:
             call_id = self._call_id
             self._call_id += 1
         else:
             call_id = None
-        invocation = _invocation.Invocation(
-            self,
-            call_id,
-            inputs,
-            kwargs,
-            is_batch=is_batch,
-            batch_size=batch_size,
-            previous_invocation=self._last_invocation,
-        )
+        with nvtx.annotate("invocation"):
+            invocation = _invocation.Invocation(
+                self,
+                call_id,
+                inputs,
+                kwargs,
+                is_batch=is_batch,
+                batch_size=batch_size,
+                previous_invocation=self._last_invocation,
+            )
 
         if stateful:
             self._last_invocation = invocation
