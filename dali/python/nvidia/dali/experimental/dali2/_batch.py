@@ -80,10 +80,38 @@ class Batch:
         assert isinstance(layout, str) or layout is None
         self._wraps_external_data = False
         self._tensors = None
+        self._backend = None
         copied = False
         if tensors is not None:
-            self._tensors = []
-            if len(tensors) == 0:
+            if isinstance(tensors, _backend.TensorListCPU) and (
+                (dtype is None or dtype.type_id == _backend.dtype) and
+                (layout is None or layout == self._backend.layout)
+            ):
+                print("Constructing Batch from TensorListCPU")
+                self._backend = tensors
+                self._ndim = self._backend.ndim()
+                self._dtype = dtype = DType.from_type_id(self._backend.dtype)
+                self._layout = layout = self._backend.layout()
+                if device is None:
+                    device = Device("cpu")
+                else:
+                    if device.device_type != "cpu":
+                        copy = True
+            elif isinstance(tensors, _backend.TensorListGPU) and (
+                (dtype is None or dtype.type_id == _backend.dtype) and
+                (layout is None or layout == self._backend.layout)
+            ):
+                print("Constructing Batch from TensorListGPU")
+                self._backend = tensors
+                self._ndim = self._backend.ndim()
+                self._dtype = dtype = DType.from_type_id(self._backend.dtype)
+                self._layout = layout = self._backend.layout()
+                if device is None:
+                    device = Device("gpu", self._backend.device_id)
+                else:
+                    if device.device_type != "gpu":
+                        copy = True
+            elif len(tensors) == 0:
                 if dtype is None:
                     raise ValueError("Element type must be specified if the list is empty")
                 if device is None:
@@ -91,6 +119,7 @@ class Batch:
                 if layout is None:
                     layout = ""
             else:
+                self._tensors = []
                 for t in tensors:
                     sample = Tensor(t, dtype=dtype, device=device, layout=layout)
                     if dtype is None:
@@ -112,7 +141,6 @@ class Batch:
         self._dtype = dtype
         self._device = device
         self._layout = layout
-        self._backend = None
         self._invocation_result = invocation_result
         self._ndim = None
         if self._tensors and self._tensors[0]._shape:
@@ -169,6 +197,8 @@ class Batch:
         if self._ndim is None:
             if self._invocation_result is not None:
                 self._ndim = self._invocation_result.ndim
+            elif self._backend is not None:
+                self._ndim = self._backend.ndim()
             elif self._tensors:
                 self._ndim = self._tensors[0].ndim
             else:
@@ -300,7 +330,11 @@ class Batch:
     def shape(self):
         if self._invocation_result is not None:
             return self._invocation_result.shape
-        return [t.shape for t in self._tensors]
+        if self._backend is not None:
+            return self._backend.shape()
+        else:
+            assert self._tensors is not None
+            return [t.shape for t in self._tensors]
 
     def __str__(self) -> str:
         return "Batch(\n" + str(self.evaluate()._backend) + ")"
