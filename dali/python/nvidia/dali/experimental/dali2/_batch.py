@@ -14,7 +14,7 @@
 
 from typing import Any, Optional, Tuple, List, Union
 from ._type import DType, dtype as _dtype
-from ._tensor import Tensor, _is_full_slice
+from ._tensor import Tensor, _is_full_slice, _is_tensor_type
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
@@ -87,7 +87,6 @@ class Batch:
                 (dtype is None or dtype.type_id == _backend.dtype) and
                 (layout is None or layout == self._backend.layout)
             ):
-                print("Constructing Batch from TensorListCPU")
                 self._backend = tensors
                 self._ndim = self._backend.ndim()
                 self._dtype = dtype = DType.from_type_id(self._backend.dtype)
@@ -101,7 +100,6 @@ class Batch:
                 (dtype is None or dtype.type_id == _backend.dtype) and
                 (layout is None or layout == self._backend.layout)
             ):
-                print("Constructing Batch from TensorListGPU")
                 self._backend = tensors
                 self._ndim = self._backend.ndim()
                 self._dtype = dtype = DType.from_type_id(self._backend.dtype)
@@ -154,6 +152,23 @@ class Batch:
 
     def _is_external(self) -> bool:
         return self._wraps_external_data
+
+    @staticmethod
+    def broadcast(sample, batch_size: int) -> "Batch":
+        if isinstance(sample, Batch):
+            raise ValueError("Cannot broadcast a Batch")
+        if _is_tensor_type(sample):
+            return Batch([Tensor(sample)] * batch_size)
+        import numpy as np
+        arr = np.array(batch_size)
+        if arr.dtype == np.float64:
+            arr = arr.astype(np.float32)
+        elif arr.dtype == np.int64:
+            arr = arr.astype(np.int32)
+        elif arr.dtype == np.uint64:
+            arr = arr.astype(np.uint32)
+        arr = np.stack([arr] * batch_size)
+        return Batch(_backend.TensorListCPU(arr))
 
     @property
     def dtype(self) -> DType:
