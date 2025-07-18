@@ -16,7 +16,7 @@ import nvidia.dali.backend as _b
 from nvidia.dali.fn import _to_snake_case
 import makefun
 from ._batch import Batch
-from ._tensor import Tensor
+from ._tensor import Tensor, _is_tensor_type
 import warnings
 from . import ops
 from . import fn
@@ -35,52 +35,33 @@ def is_external(x):
     return False
 
 
-def _is_tensor_type(x, nested_list_warning=False):
-    if isinstance(x, Batch):
-        raise ValueError("A list of Batchs is not a valid argument type")
-    if isinstance(x, Tensor):
-        return True
-    if hasattr(x, "__array__"):
-        return True
-    if hasattr(x, "__cuda_array_interface__"):
-        return True
-    if hasattr(x, "__dlpack__"):
-        return True
-    if nested_list_warning and isinstance(x, list):
-        warnings.warn(
-            "A nested list is ambiguous. It is interpreted as a single tensor, "
-            "not a list of 1D tensors. Convert the list to a Tensor, Batch or "
-            "a list of Tensors to avoid this warning."
-        )
-    return False
-
-
 def _get_input_device(x):
-    if x is None:
-        return None
-    if isinstance(x, Batch):
-        return x.device
-    if isinstance(x, Tensor):
-        return x.device
-    if isinstance(x, _b.TensorListCPU):
-        return _device.Device("cpu")
-    if isinstance(x, _b.TensorListGPU):
-        return _device.Device("gpu")
-    if hasattr(x, "__cuda_array_interface__"):
-        return _device.Device("gpu")
-    if hasattr(x, "__dlpack_device__"):
-        dev = x.__dlpack_device__()
-        if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
+    with nvtx.annotate("get_input_device", domain="op_builder"):
+        if x is None:
+            return None
+        if isinstance(x, Batch):
+            return x.device
+        if isinstance(x, Tensor):
+            return x.device
+        if isinstance(x, _b.TensorListCPU):
             return _device.Device("cpu")
-        elif int(dev[0]) == 2:
-            return _device.Device("gpu", dev[1])
-        else:
-            raise ValueError(f"Unknown DLPack device type: {dev.type}")
-    if hasattr(x, "__dlpack__"):
-        return _device.Device("cpu")
-    if isinstance(x, list) and x:
-        return _get_input_device(x[0])
-    return None
+        if isinstance(x, _b.TensorListGPU):
+            return _device.Device("gpu")
+        if hasattr(x, "__cuda_array_interface__"):
+            return _device.Device("gpu")
+        if hasattr(x, "__dlpack_device__"):
+            dev = x.__dlpack_device__()
+            if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
+                return _device.Device("cpu")
+            elif int(dev[0]) == 2:
+                return _device.Device("gpu", dev[1])
+            else:
+                raise ValueError(f"Unknown DLPack device type: {dev.type}")
+        if hasattr(x, "__dlpack__"):
+            return _device.Device("cpu")
+        if isinstance(x, list) and x:
+            return _get_input_device(x[0])
+        return None
 
 
 def _get_input_device_type(x):
@@ -89,48 +70,51 @@ def _get_input_device_type(x):
 
 
 def _get_batch_size(x):
-    if isinstance(x, Batch):
-        return x.batch_size
-    if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
-        return len(x)
-    if isinstance(x, list) and any(_is_tensor_type(t, True) for t in x):
-        return len(x)
-    return None
+    with nvtx.annotate("get_batch_size", domain="op_builder"):
+        if isinstance(x, Batch):
+            return x.batch_size
+        if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
+            return len(x)
+        if isinstance(x, list) and any(_is_tensor_type(t, True) for t in x):
+            return len(x)
+        return None
 
 
 def _to_tensor(x, device=None):
-    if x is None:
-        return None
-    if isinstance(x, Tensor):
-        if device is not None:
-            return x.to_device(device)
-        return x
-    if isinstance(x, _invocation.InvocationResult):
-        if x.is_batch:
-            raise ValueError("Batch invocation result cannot be used as a single tensor")
-        return Tensor(invocation_result=x, device=device)
-    return Tensor(x, device=device)
+    with nvtx.annotate("to_tensor", domain="op_builder"):
+        if x is None:
+            return None
+        if isinstance(x, Tensor):
+            if device is not None:
+                return x.to_device(device)
+            return x
+        if isinstance(x, _invocation.InvocationResult):
+            if x.is_batch:
+                raise ValueError("Batch invocation result cannot be used as a single tensor")
+            return Tensor(invocation_result=x, device=device)
+        return Tensor(x, device=device)
 
 
 def _to_batch(x, batch_size, device=None):
-    if x is None:
-        return None
-    if isinstance(x, Batch):
-        if device is not None:
-            return x.to_device(device)
-        return x
-    if isinstance(x, _invocation.InvocationResult):
-        if x.is_batch:
-            return Batch(invocation_result=x, device=device)
-        else:
-            x = _to_tensor(x)  # fall back to regular replication
-    actual_batch_size = _get_batch_size(x)
-    if actual_batch_size is not None:
-        if batch_size is not None and actual_batch_size != batch_size:
-            raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
-        return Batch(x, device=device)
+    with nvtx.annotate("to_batch", domain="op_builder"):
+        if x is None:
+            return None
+        if isinstance(x, Batch):
+            if device is not None:
+                return x.to_device(device)
+            return x
+        if isinstance(x, _invocation.InvocationResult):
+            if x.is_batch:
+                return Batch(invocation_result=x, device=device)
+            else:
+                x = _to_tensor(x)  # fall back to regular replication
+        actual_batch_size = _get_batch_size(x)
+        if actual_batch_size is not None:
+            if batch_size is not None and actual_batch_size != batch_size:
+                raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
+            return Batch(x, device=device)
 
-    return Batch([_to_tensor(x, device=device)] * batch_size)
+        return Batch.broadcast(_to_tensor(x, device=device), batch_size)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
@@ -253,7 +237,7 @@ def build_call_function(schema, op_class):
 
     def call(self, *raw_args, batch_size=None, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
-        with nvtx.annotate("get batch size"):
+        with nvtx.annotate("get batch size", domain="op_builder"):
             is_batch = batch_size is not None
             if batch_size is None:
                 for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
@@ -274,29 +258,27 @@ def build_call_function(schema, op_class):
         kwargs = {}
 
         if is_batch:
-            with nvtx.annotate("to_batch"):
-                for i, inp in enumerate(raw_args):
-                    if inp is None:
-                        continue
-                    input_device = self.input_device(i, _get_input_device_type(inp))
-                    inp = _to_batch(inp, batch_size, device=input_device)
-                    inputs.append(inp)
-                for k, v in raw_kwargs.items():
-                    if v is None:
-                        continue
-                    kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
+            for i, inp in enumerate(raw_args):
+                if inp is None:
+                    continue
+                input_device = self.input_device(i, _get_input_device_type(inp))
+                inp = _to_batch(inp, batch_size, device=input_device)
+                inputs.append(inp)
+            for k, v in raw_kwargs.items():
+                if v is None:
+                    continue
+                kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
         else:
-            with nvtx.annotate("to_tensor"):
-                for inp in raw_args:
-                    if inp is None:
-                        continue
-                    inputs.append(_to_tensor(inp))
-                for k, v in raw_kwargs.items():
-                    if v is None:
-                        continue
-                    kwargs[k] = _to_tensor(v)
+            for inp in raw_args:
+                if inp is None:
+                    continue
+                inputs.append(_to_tensor(inp))
+            for k, v in raw_kwargs.items():
+                if v is None:
+                    continue
+                kwargs[k] = _to_tensor(v)
 
-        with nvtx.annotate("shallowcopy"):
+        with nvtx.annotate("shallowcopy", domain="op_builder"):
             inputs = [copy.copy(x) for x in inputs]
             kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
 
@@ -305,7 +287,7 @@ def build_call_function(schema, op_class):
             self._call_id += 1
         else:
             call_id = None
-        with nvtx.annotate("invocation"):
+        with nvtx.annotate("invocation", domain="op_builder"):
             invocation = _invocation.Invocation(
                 self,
                 call_id,

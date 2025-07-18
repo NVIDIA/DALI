@@ -21,6 +21,7 @@ from . import _eval_mode
 from . import _invocation
 import copy
 import nvidia.dali.types
+import warnings
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -28,6 +29,26 @@ def _volume(shape: Tuple[int, ...]) -> int:
     for s in shape:
         ret *= s
     return ret
+
+
+def _is_tensor_type(x, nested_list_warning=False):
+    if isinstance(x, Batch):
+        raise ValueError("A list of Batchs is not a valid argument type")
+    if isinstance(x, Tensor):
+        return True
+    if hasattr(x, "__array__"):
+        return True
+    if hasattr(x, "__cuda_array_interface__"):
+        return True
+    if hasattr(x, "__dlpack__"):
+        return True
+    if nested_list_warning and isinstance(x, list):
+        warnings.warn(
+            "A nested list is ambiguous. It is interpreted as a single tensor, "
+            "not a list of 1D tensors. Convert the list to a Tensor, Batch or "
+            "a list of Tensors to avoid this warning."
+        )
+    return False
 
 
 def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> Device:
@@ -131,6 +152,8 @@ class Tensor:
                     # and float32, respectively.
                     if arr.dtype == np.int64:
                         arr = arr.astype(np.int32)
+                    elif arr.dtype == np.uint64:
+                        arr = arr.astype(np.uint32)
                     elif arr.dtype == np.float64:
                         arr = arr.astype(np.float32)
                     self._backend = _backend.TensorCPU(arr, layout, False)
