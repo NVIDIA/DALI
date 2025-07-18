@@ -1034,6 +1034,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
                                                                  string &layout) {
+  DomainTimeRange range("TensorListFromListOfTensors");
   if (list_of_tensors.empty()) {
     auto ptr = std::make_shared<TensorList<Backend>>();
     ptr->set_sample_dim(layout.length());
@@ -1041,49 +1042,53 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     return ptr;
   }
 
-  auto contiguous_out = std::make_shared<TensorList<Backend>>();
-  contiguous_out->SetContiguity(BatchContiguity::Contiguous);
-  TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
-  int expected_type = -2;
+    TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
+    int expected_type = -2;
 
-  AccessOrder wait_order = AccessOrder::host();
-  AccessOrder copy_order = AccessOrder::host();
+    AccessOrder wait_order = AccessOrder::host();
+    AccessOrder copy_order = AccessOrder::host();
 
-  for (size_t i = 0; i < list_of_tensors.size(); ++i) {
-    try {
-      auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
-      if (i == 0) {
-        non_contiguous_tmp.SetupLike(t);
-        if (std::is_same<Backend, GPUBackend>::value) {
-           // it is safe due to above if
-           Tensor<GPUBackend> *t_gpu = reinterpret_cast<Tensor<GPUBackend>*>(&t);
-           copy_order = AccessOrder(UserStream::Get()->GetStream(*t_gpu));
+  {
+    DomainTimeRange range("Build initial list");
+
+    for (size_t i = 0; i < list_of_tensors.size(); ++i) {
+      try {
+        auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
+        if (i == 0) {
+          non_contiguous_tmp.SetupLike(t);
+          if constexpr (std::is_same_v<Backend, GPUBackend>) {
+            copy_order = AccessOrder(UserStream::Get()->GetStream(t));
+          }
         }
-      }
-      DALIDataType cur_type = t.type();
+        DALIDataType cur_type = t.type();
 
-      if (expected_type == -2) {
-        expected_type = t.type();
-      } else if (expected_type != cur_type) {
-        throw py::type_error(make_string(
-            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
-            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+        if (expected_type == -2) {
+          expected_type = t.type();
+        } else if (expected_type != cur_type) {
+          throw py::type_error(make_string(
+              "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+              cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+        }
+        non_contiguous_tmp.SetSample(i, t);
+      } catch (const py::type_error &) {
+        throw;
+      } catch (const std::runtime_error &) {
+        throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
+                                        std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
       }
-      non_contiguous_tmp.SetSample(i, t);
-    } catch (const py::type_error &) {
-      throw;
-    } catch (const std::runtime_error &) {
-      throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
-                                       std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
     }
   }
 
-  contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
-  contiguous_out->Copy(non_contiguous_tmp, copy_order);
-  contiguous_out->SetLayout(layout);
-  copy_order.wait(wait_order);
-
-  return contiguous_out;
+  {
+    DomainTimeRange range("Copy to contiguous");
+    auto contiguous_out = std::make_shared<TensorList<Backend>>();
+    contiguous_out->SetContiguity(BatchContiguity::Contiguous);
+    contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
+    contiguous_out->Copy(non_contiguous_tmp, copy_order);
+    contiguous_out->SetLayout(layout);
+    copy_order.wait(wait_order);
+    return contiguous_out;
+  }
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
