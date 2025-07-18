@@ -32,7 +32,8 @@ def _volume(shape: Tuple[int, ...]) -> int:
 
 
 def _is_tensor_type(x, nested_list_warning=False):
-    if isinstance(x, Batch):
+    from . import _batch
+    if isinstance(x, _batch.Batch):
         raise ValueError("A list of Batchs is not a valid argument type")
     if isinstance(x, Tensor):
         return True
