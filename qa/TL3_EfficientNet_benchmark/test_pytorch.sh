@@ -91,6 +91,20 @@ python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 -
 
 # -----
 
+# MPS
+echo "MPS (no daemon)"
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend dali_mps --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_mps1.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend dali_mps --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_mps1_aa.json $PATH_TO_IMAGENET
+echo "MPS (no daemon) done"
+
+echo "MPS (with daemon)"
+nvidia-cuda-mps-control -d
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend dali_mps --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_mps2.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 512 --workers 10 --epochs 3 --no-checkpoints --training-only --data-backend dali_mps --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_mps2_aa.json $PATH_TO_IMAGENET
+echo quit | nvidia-cuda-mps-control
+echo "MPS (with daemon) done"
+
 # The line below finds the lines with `train.total_ips`, takes the last one (with the result we
 # want) cuts the DLLL (this is highly useful for JSON parsing) from the JSON logs, and parses it
 # as JSON using Python. We can now parse the values or directly evaluate the thresholds.
