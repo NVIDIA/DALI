@@ -415,6 +415,10 @@ def test_multi_paste_cpu():
     check_single_input(fn.multi_paste, in_ids=np.array([0, 1]), output_size=test_data_shape)
 
 
+def test_paste_cpu():
+    check_single_input(fn.paste, fill_value=0, ratio=2.0)
+
+
 def test_roi_random_crop_cpu():
     check_single_input(
         fn.roi_random_crop,
@@ -1541,6 +1545,7 @@ tested_methods = [
     "expand_dims",
     "coord_transform",
     "grid_mask",
+    "paste",
     "multi_paste",
     "roi_random_crop",
     "segmentation.random_object_bbox",
@@ -1598,7 +1603,6 @@ excluded_methods = [
     "readers.video",  # not supported for CPU
     "readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
-    "paste",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.equalize",  # not supported for CPU
     "experimental.filter",  # not supported for CPU

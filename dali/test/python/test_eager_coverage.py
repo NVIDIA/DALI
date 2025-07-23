@@ -415,6 +415,10 @@ def test_experimental_decoders_image_random_crop():
     )
 
 
+def test_paste():
+    check_single_input("paste", fill_value=0, ratio=2.0)
+
+
 def test_decoders_numpy():
     def encode_sample(data):
         buff = io.BytesIO()
@@ -1590,6 +1594,7 @@ tested_methods = [
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
+    "paste",
     "rotate",
     "brightness_contrast",
     "hue",
@@ -1715,7 +1720,6 @@ excluded_methods = [
     "readers.video",  # not supported for CPU
     "readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
-    "paste",  # not supported for CPU
     "experimental.debayer",  # not supported for CPU
     "experimental.equalize",  # not supported for CPU
     "experimental.filter",  # not supported for CPU
