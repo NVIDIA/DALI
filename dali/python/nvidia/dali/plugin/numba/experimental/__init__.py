@@ -553,7 +553,15 @@ class NumbaFunction(
         driver_version = cuda.driver.driver.get_version()
 
         # numba_cuda should handle the compatibility between toolkit and driver versions
-        if not importlib.util.find_spec("numba_cuda") and toolkit_version > driver_version:
+        # otherwise check if if driver and runtime matches, or if the last working numba version
+        # matches the driver for CUDA 12
+        if not importlib.util.find_spec("numba_cuda") and (
+            toolkit_version > driver_version
+            or (
+                Version(nb.__version__) <= Version("0.61.2")
+                and cuda.driver.driver.get_version()[0] > 12
+            )
+        ):
             if throw:
                 raise RuntimeError(
                     f"Environment is not compatible with Numba GPU operator. "
