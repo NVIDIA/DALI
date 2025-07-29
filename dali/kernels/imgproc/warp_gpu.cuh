@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,8 +50,8 @@ class WarpGPU {
   using InputType = _InputType;
   using BorderType = _BorderType;
   using MappingParams = warp::mapping_params_t<Mapping>;
-  static_assert(std::is_pod<MappingParams>::value, "Mapping parameters must be POD.");
-  static_assert(std::is_pod<BorderType>::value, "BorderType must be POD.");
+  static_assert(is_pod_v<MappingParams>, "Mapping parameters must be POD.");
+  static_assert(is_pod_v<BorderType>, "BorderType must be POD.");
 
   using SampleDesc = typename WarpSetup::SampleDesc;
   using BlockDesc = typename WarpSetup::BlockDesc;

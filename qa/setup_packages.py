@@ -485,8 +485,10 @@ all_packages = [
     PlainPackage("opencv-python", [PckgVer("4.11.0.86", dependencies=["numpy<2"])]),
     CudaPackage(
         "cupy",
-        {"118": [PckgVer("12.3.0", python_min_ver="3.8")]},
-        "cupy-cuda11x",
+        {
+            "118": [PckgVer("12.3.0", python_min_ver="3.8", alias="cupy-cuda11x")],
+            "120": [PckgVer("12.3.0", python_min_ver="3.8", alias="cupy-cuda12x")],
+        },
     ),
     CudaPackage(
         "tensorflow-gpu",
@@ -544,11 +546,13 @@ all_packages = [
     CudaPackageExtraIndex(
         "torch",
         {"118": [PckgVer("2.2.0", python_min_ver="3.8", python_max_ver="3.12")]},
+        {"120": [PckgVer("2.2.0", python_min_ver="3.8", python_max_ver="3.12")]},
         extra_index="https://download.pytorch.org/whl/cu{cuda_v}/",
     ),
     CudaPackageExtraIndex(
         "torchvision",
         {"118": [PckgVer("0.17.0", python_min_ver="3.8")]},
+        {"120": [PckgVer("0.17.0", python_min_ver="3.8")]},
         extra_index="https://download.pytorch.org/whl/cu{cuda_v}/",
     ),
     CudaPackageExtraIndex(
@@ -572,6 +576,22 @@ all_packages = [
         "jax",  # name used in our test script
         {
             "118": [
+                PckgVer(
+                    "0.4.13",
+                    python_min_ver="3.8",
+                    python_max_ver="3.8",
+                    dependencies=["jaxlib", "numpy<2"],
+                ),
+                # dax.fn.jax_function requires at least 0.4.16 which is the first one supporting
+                # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
+                PckgVer(
+                    "0.4.16",
+                    python_min_ver="3.9",
+                    python_max_ver="3.11",
+                    dependencies=["jaxlib", "numpy<2"],
+                ),
+            ],
+            "120": [
                 PckgVer(
                     "0.4.13",
                     python_min_ver="3.8",

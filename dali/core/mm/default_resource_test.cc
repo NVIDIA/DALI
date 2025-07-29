@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -244,9 +244,9 @@ TEST(MMDefaultResource, InitStampede) {
             return;
           std::this_thread::yield();
         }
-        std::atomic_thread_fence(std::memory_order::memory_order_acquire);
+        std::atomic_thread_fence(std::memory_order_acquire);
         GetDefaultResource<memory_kind::device>();
-        std::atomic_thread_fence(std::memory_order::memory_order_release);
+        std::atomic_thread_fence(std::memory_order_release);
         cnt++;
         while (!f2) {
           if (stop)
@@ -264,7 +264,7 @@ TEST(MMDefaultResource, InitStampede) {
     f1 = false;
     SetDefaultResource<memory_kind::device>(nullptr);
     _Test_FreeDeviceResources();
-    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     f2 = true;
     while (cnt != 0)
       std::this_thread::yield();
