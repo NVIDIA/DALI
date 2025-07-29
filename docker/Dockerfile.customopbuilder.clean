@@ -13,8 +13,8 @@ ENV PYVER=${PYVER} \
     PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib \
     PATH=/opt/python/cp${PYV}-cp${PYV}/bin:${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib::${PYLIB}:${LD_LIBRARY_PATH} \
-    LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib::${PYLIB}:${LIBRARY_PATH} \
+    LD_LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib:${PYLIB}:${LIBRARY_PATH} \
     PYTHONIOENCODING=utf-8 \
     LC_ALL=C.UTF-8
 
