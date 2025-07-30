@@ -22,6 +22,7 @@ from numba import types as numba_types
 from numba import njit, cfunc, carray, cuda
 import numpy as np
 import numba as nb
+import importlib
 
 
 _to_numpy = {
@@ -204,25 +205,43 @@ class NumbaFunction(
             old_device = nb.cuda.api.get_current_device().id
             cc = nb.cuda.api.select_device(device_id).compute_capability
             nb.cuda.api.select_device(old_device)
-            cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments, cc=cc)
+            cres = cuda.compiler.compile_cuda(
+                run_fn,
+                numba_types.void,
+                cuda_arguments,
+                nvvm_options=nvvm_options,
+                fastmath=False,
+                cc=cc,
+            )
 
         tgt_ctx = cres.target_context
         code = run_fn.__code__
         filename = code.co_filename
         linenum = code.co_firstlineno
+        return_value = 0
         if Version(nb.__version__) < Version("0.57.0"):
             nvvm_options["debug"] = False
             nvvm_options["lineinfo"] = False
             lib, _ = tgt_ctx.prepare_cuda_kernel(
                 cres.library, cres.fndesc, True, nvvm_options, filename, linenum
             )
+            return_value = lib.get_cufunc().handle.value
         else:
-            lib, _ = tgt_ctx.prepare_cuda_kernel(
-                cres.library, cres.fndesc, False, True, nvvm_options, filename, linenum
-            )
+            if hasattr(tgt_ctx, "prepare_cuda_kernel"):
+                lib, _ = tgt_ctx.prepare_cuda_kernel(
+                    cres.library, cres.fndesc, False, True, nvvm_options, filename, linenum
+                )
+                return_value = lib.get_cufunc().handle.value
+            else:
+                from numba.cuda.compiler import kernel_fixup
 
-        handle = lib.get_cufunc().handle
-        return handle.value
+                lib = cres.library
+                kernel = lib.get_function(cres.fndesc.llvm_func_name)
+                kernel_fixup(kernel, debug=False)
+                lib._entry_name = cres.fndesc.llvm_func_name
+                return_value = int(lib.get_cufunc().handle)
+
+        return return_value
 
     def _get_run_fn_cpu(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing):
         (
@@ -533,7 +552,16 @@ class NumbaFunction(
         toolkit_version = cuda.runtime.get_version()
         driver_version = cuda.driver.driver.get_version()
 
-        if toolkit_version > driver_version:
+        # numba_cuda should handle the compatibility between toolkit and driver versions
+        # otherwise check if if driver and runtime matches, or if the last working numba version
+        # matches the driver for CUDA 12
+        if not importlib.util.find_spec("numba_cuda") and (
+            toolkit_version > driver_version
+            or (
+                Version(nb.__version__) <= Version("0.61.2")
+                and cuda.driver.driver.get_version()[0] > 12
+            )
+        ):
             if throw:
                 raise RuntimeError(
                     f"Environment is not compatible with Numba GPU operator. "
