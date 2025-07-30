@@ -1,143 +1,23 @@
-ARG CUDA_IMAGE
 ARG TF_CUSTOM_OP_IMAGE
-FROM ${CUDA_IMAGE} as cuda
 FROM ${TF_CUSTOM_OP_IMAGE}
 
-# TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu14 for manylinux1 tagged TF pip artifacts
-# TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu16 for manylinux2010 tagged TF pip artifacts
-# More info here: https://github.com/tensorflow/custom-op
+# Just use manylinux + cuda image created during DALI build process
+# More info here: https://www.tensorflow.org/guide/create_op
 
-ARG PYVER=3.8
-ENV PYVER=${PYVER}
-ARG PYV=38
-ENV PYV=${PYV}
+ARG PYVER=3.10
+ARG PYV=310
 
-# Python 3.6 and 3.7 are not available in Ubuntu 14
-# Python 3.7 can't be installed with PPA method in this Ubuntu 14
-# NOTE: jonathonf has removed his PPAs, but TensorFlow still has the repo in its docker image
-# NOTE: Ubuntu 14.04 doesn't support cyphers used by developer.download.nvidia.com, and update returns warning on them
-#       so "update; do_something" instead of "update && do_something"
-RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
-    # to install newer gcc that suppport C++17 required by TF>=2.10 properly
-    echo "deb https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu xenial main " >> /etc/apt/sources.list && \
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 1E9377A2BA9EF27F && \
-    # update cuda key
-    wget -qO - http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub | apt-key add - && \
-    apt-get update && \
-    apt install g++-7 -y && \
-    rm /usr/bin/gcc /usr/bin/g++ && ln -s gcc-7 /usr/bin/gcc && ln -s g++-7 /usr/bin/g++ && \
-    apt-get install -y --no-install-recommends curl && \
-    if [ "${PYVER}" = "3.7" ]; then \
-        apt-get install -y --no-install-recommends libffi-dev && \
-        wget https://www.python.org/ftp/python/3.7.2/Python-3.7.2.tar.xz && \
-        tar -xf Python-3.7.2.tar.xz && \
-        cd Python-3.7.2 && \
-        ./configure --enable-optimizations && \
-        make -j8 build_all && \
-        make -j8 altinstall && \
-        cd .. && \
-        rm -rf Python-3.7.2 && \
-        rm -rf Python-3.7.2.tar.xz; \
-    elif [ "${PYVER}" = "3.8" ]; then \
-        apt-get install -y --no-install-recommends libffi-dev && \
-        wget https://www.python.org/ftp/python/3.8.16/Python-3.8.16.tar.xz && \
-        tar -xf Python-3.8.16.tar.xz && \
-        cd Python-3.8.16 && \
-        ./configure --enable-optimizations --prefix=/usr && \
-        make -j8 build_all && \
-        make -j8 altinstall && \
-        cd .. && \
-        rm -rf Python-3.8.16 && \
-        rm -rf Python-3.8.16.tar.xz; \
-    elif [ "${PYVER}" = "3.9" ]; then \
-        apt-get install -y --no-install-recommends libffi-dev && \
-        wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tar.xz && \
-        tar -xf Python-3.9.18.tar.xz && \
-        cd Python-3.9.18 && \
-        ./configure --enable-optimizations --prefix=/usr && \
-        make -j8 build_all && \
-        make -j8 altinstall && \
-        cd .. && \
-        rm -rf Python-3.9.18 && \
-        rm -rf Python-3.9.18.tar.xz; \
-    elif [ "${PYVER}" = "3.10" ]; then \
-        apt-get install -y --no-install-recommends libffi-dev && \
-        wget https://www.openssl.org/source/openssl-1.1.1b.tar.gz && \
-        tar -xf openssl-1.1.1b.tar.gz && \
-        cd openssl-1.1.1b && \
-        ./config --prefix=/usr -fPIC && \
-        make -j > /dev/null && \
-        rm -rf /usr/include/openssl/* && \
-        make -j install > /dev/null && \
-        # remove old openssl headers and static libraries
-        rm /usr/lib/x86_64-linux-gnu/libssl.a && \
-        rm /usr/lib/x86_64-linux-gnu/libcrypto.a && \
-        cp /usr/include/openssl/opensslconf.h /usr/include/x86_64-linux-gnu/openssl && \
-        cd .. && \
-        rm -rf openssl-1.1.1b && \
-        rm -rf openssl-1.1.1b.tar.gz && \
-        wget https://www.python.org/ftp/python/3.10.9/Python-3.10.9.tar.xz && \
-        tar -xf Python-3.10.9.tar.xz && \
-        cd Python-3.10.9 && \
-        ./configure --enable-optimizations --prefix=/usr && \
-        # avoid linking to old openssl
-        mv /lib/x86_64-linux-gnu/libssl.so.1.0.0 /lib/x86_64-linux-gnu/libssl.so.1.0.0_bak && \
-        mv /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 /lib/x86_64-linux-gnu/libcrypto.so.1.0.0_bak && \
-        make -j8 build_all && \
-        make -j8 altinstall && \
-        mv /lib/x86_64-linux-gnu/libssl.so.1.0.0_bak /lib/x86_64-linux-gnu/libssl.so.1.0.0 && \
-        mv /lib/x86_64-linux-gnu/libcrypto.so.1.0.0_bak /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 && \
-        cd .. && \
-        rm -rf Python-3.10.9 && \
-        rm -rf Python-3.10.9.tar.xz; \
-    else \
-        if [ $(apt-cache search python$PYVER | wc -l) -eq 0 ]; then \
-            apt-get install software-properties-common -y --no-install-recommends && \
-            mv /usr/bin/python3 /usr/bin/python3_bak && ln -s /usr/bin/python3.5 /usr/bin/python3 && \
-            add-apt-repository ppa:deadsnakes/ppa -y && \
-            mv /usr/bin/python3_bak /usr/bin/python3 && \
-            apt-get update; \
-        fi && \
-        curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-        apt-get install -y --no-install-recommends \
-                git \
-                git-lfs \
-                python$PYVER \
-                python$PYVER-dev && \
-        # In Ubuntu 18.04 and Python 3.6 and 3.7 we need to install it. It is not available for 16.04
-        apt-get install python3-distutils -y --no-install-recommends || true; \
-    fi && \
-    rm -rf /var/lib/apt/lists/*
+ENV PYVER=${PYVER} \
+    PYV=${PYV} \
+    PYTHONPATH=/opt/python/v \
+    PYBIN=${PYTHONPATH}/bin \
+    PYLIB=${PYTHONPATH}/lib \
+    PATH=/opt/python/cp${PYV}-cp${PYV}/bin:${PYBIN}:${PATH} \
+    LD_LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib:${PYLIB}:${LIBRARY_PATH} \
+    PYTHONIOENCODING=utf-8 \
+    LC_ALL=C.UTF-8
 
-ENV PYTHONIOENCODING=utf-8
-ENV LC_ALL=C.UTF-8
-RUN rm -f /usr/bin/python && \
-    rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
-    rm -f /usr/local/bin/pip || true && \
-    if [ "${PYVER}" = "3.7" ]; then \
-        ln -s /usr/local/bin/python3.7 /usr/bin/python3.7 && \
-        ln -s /usr/local/bin/python3.7 /usr/bin/python && \
-        ln -s /usr/local/bin/pip3.7 /usr/local/bin/pip && \
-        ln -s /usr/local/bin/pip3.7 /usr/bin/pip3.7 && \
-        ln -s /usr/local/bin/pip3.7 /usr/bin/pip; \
-    else \
-        ln -s /usr/bin/python$PYVER /usr/bin/python && \
-        ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1` && \
-        PYTHON_VER=$(python -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
-        if [ "${PYTHON_VER}" == "36" ]; then \
-            curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
-        else \
-            curl -O https://bootstrap.pypa.io/get-pip.py; \
-        fi && \
-        python get-pip.py && \
-        rm get-pip.py; \
-    fi && \
-    pip install --upgrade pip && \
-    pip install packaging && \
-    python --version && \
-    pip --version
-
-COPY --from=cuda /usr/local/cuda /usr/local/cuda
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs/:${LD_LIBRARY_PATH}
 
 WORKDIR /opt/dali
