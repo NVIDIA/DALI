@@ -523,7 +523,6 @@ all_packages = [
                         "urllib3<2.0",
                         "tf_keras==2.18",
                         "numpy<2",
-                        "optree<0.17",
                     ],
                 ),
                 PckgVer(
@@ -535,7 +534,6 @@ all_packages = [
                         "urllib3<2.0",
                         "tf_keras==2.19",
                         "numpy<2",
-                        "optree<0.17",
                     ],
                 ),
             ],

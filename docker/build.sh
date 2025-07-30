@@ -134,11 +134,10 @@ if [[ "$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER} 2> /dev/null
 fi
 
 if [[ "$BUILD_TF_PLUGIN" == "YES" && "${PREBUILD_TF_PLUGINS}" == "YES" && ("$REBUILD_BUILDERS" != "NO" || "$(docker images -q ${BUILDER_DALI_TF_BASE_MANYLINUX2010} 2> /dev/null)"  == "") ]]; then
-    echo "Build DALI TF base (manylinux2010)"
-    TF_CUSTOM_OP_IMAGE_MANYLINUX2010="tensorflow/tensorflow:custom-op-gpu-ubuntu16"
+    echo "Build DALI TF base (manylinux)"
+    TF_CUSTOM_OP_IMAGE_MANYLINUX=${CUDA_DEPS_IMAGE}
     docker build -t ${BUILDER_DALI_TF_BASE_MANYLINUX2010} \
-           --build-arg "TF_CUSTOM_OP_IMAGE=${TF_CUSTOM_OP_IMAGE_MANYLINUX2010}" \
-           --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" \
+           --build-arg "TF_CUSTOM_OP_IMAGE=${TF_CUSTOM_OP_IMAGE_MANYLINUX}" \
            -f docker/Dockerfile.customopbuilder.clean .
 fi
 
