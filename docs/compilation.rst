@@ -90,7 +90,7 @@ set the following environment variables:
     (SBSA - Server Base System Architecture) are supported.
   | The default is ``x86_64``.
 * | WHL_PLATFORM_NAME - the name of the Python wheel platform tag.
-  | The default is ``manylinux2014_x86_64``.
+  | The default is ``manylinux_2_28_x86_64``.
 
 It is worth to mention that build.sh should accept the same set of environment variables as the project CMake.
 
