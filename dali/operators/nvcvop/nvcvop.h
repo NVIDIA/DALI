@@ -84,7 +84,7 @@ nvcv::ImageFormat GetImageFormat(DALIDataType dtype, int num_channels);
  * @param sample sample view
  * @param format image format. It needs to match the shape and data type of the sample view
  */
-nvcv::Image AsImage(SampleView<GPUBackend> sample, const nvcv::ImageFormat &format);
+nvcv::Image AsImage(const SampleView<GPUBackend> &sample, const nvcv::ImageFormat &format);
 
 /**
  * @brief Wrap a const sample view into an nvcv Image
@@ -92,7 +92,7 @@ nvcv::Image AsImage(SampleView<GPUBackend> sample, const nvcv::ImageFormat &form
  * @param sample sample view
  * @param format image format. It needs to match the shape and data type of the sample view
  */
-nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat &format);
+nvcv::Image AsImage(const ConstSampleView<GPUBackend> &sample, const nvcv::ImageFormat &format);
 
 /**
  * @brief Wrap a DALI tensor as an NVCV Tensor
