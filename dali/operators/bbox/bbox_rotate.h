@@ -22,13 +22,13 @@ namespace dali {
 
 template <typename Backend>
 class BBoxRotate : public StatelessOperator<Backend> {
+ public:
   enum class Mode {
     Expand,
     Halfway,
     Fixed
   };
-
- public:
+  
   explicit inline BBoxRotate(const OpSpec &spec)
       : StatelessOperator<Backend>(spec),
         use_ltrb_(spec.GetArgument<bool>("ltrb")),

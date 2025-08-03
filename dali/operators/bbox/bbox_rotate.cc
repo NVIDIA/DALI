@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "bbox_rotate.h"
+#include "dali/core/geom/vec.h"
 
 namespace dali {
 
@@ -55,10 +56,54 @@ set to True as boxes may be truncated, this ensures the corresponding labels wil
 )code",
                     dali::string("expand"), false);
 
-void rotateBoxesKernel(ConstSampleView<CPUBackend> inputBoxes, SampleView<CPUBackend> rotateBuffer,
-                       SampleView<CPUBackend> outputBoxes, float angle,
+using Mode = BBoxRotate<CPUBackend>::Mode;
+
+template <bool ltrb>
+void expandToAllCorners(const vec<4>* inBoxes, vec<2>* outBoxes, int numBoxes) {
+  for (int i = 0; i < numBoxes; ++i) {
+    const auto box = inBoxes[i];
+    if constexpr (ltrb) {
+      outBoxes[4 * i + 0] = {box.x, box.y};
+      outBoxes[4 * i + 1] = {box.z, box.y};
+      outBoxes[4 * i + 2] = {box.x, box.w};
+      outBoxes[4 * i + 3] = {box.z, box.w};
+    } else {
+      outBoxes[4 * i + 0] = {box.x, box.y};
+      outBoxes[4 * i + 1] = {box.x + box.z, box.y};
+      outBoxes[4 * i + 2] = {box.x, box.y + box.w};
+      outBoxes[4 * i + 3] = {box.x + box.z, box.y + box.w};
+    }
+  }
+}
+
+void rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBackend> rotateBuffer,
+                       SampleView<CPUBackend> outBoxTensor, float angle,
                        std::optional<ConstSampleView<CPUBackend>> inputLabels,
-                       std::optional<SampleView<CPUBackend>> outputLabels) {}
+                       std::optional<SampleView<CPUBackend>> outputLabels, bool ltrb,
+                       bool keep_size, Mode mode) {
+  auto numBoxes = inBoxTensor.shape()[0];
+  auto inBoxes = inBoxTensor.data<vec<4>>();
+  auto bufferCorners = rotateBuffer.mutable_data<vec<2>>();
+  if (ltrb) {
+    expandToAllCorners<true>(inBoxes, bufferCorners, numBoxes);
+  } else {
+    expandToAllCorners<false>(inBoxes, bufferCorners, numBoxes);
+  }
+
+  // Center the coordinates on zero
+  auto rotateBufferData = rotateBuffer.mutable_data<float>();
+  std::transform(rotateBufferData, rotateBufferData + numBoxes * 4, rotateBufferData,
+                 [](float elem) { return elem - 0.5f; });
+
+  // Apply rotation
+  float rad = angle * M_PI / 180.0f;
+  float cos_a = std::cos(rad);
+  float sin_a = std::sin(rad);
+  std::transform(
+      bufferCorners, bufferCorners + numBoxes * 4, bufferCorners, [cos_a, sin_a](vec<2> corner) {
+        return vec<2>{corner.x * cos_a - corner.y * sin_a, corner.x * sin_a + corner.y * cos_a};
+      });
+}
 
 template <>
 void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
@@ -80,7 +125,8 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         angle = spec_.GetArgument<float>("angle");
       }
       rotateBoxesKernel(inputBoxes[sampleIdx], bbox_rotate_buffer_[sampleIdx],
-                        ws.Output<CPUBackend>(0)[sampleIdx], angle, inputLabels, outputLabels);
+                        ws.Output<CPUBackend>(0)[sampleIdx], angle, inputLabels, outputLabels,
+                        use_ltrb_, keep_size_, mode_);
     });
   }
   tpool.RunAll();
