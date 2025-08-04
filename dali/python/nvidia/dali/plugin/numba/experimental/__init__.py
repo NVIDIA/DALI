@@ -203,9 +203,9 @@ class NumbaFunction(
         else:
             pipeline = Pipeline.current()
             device_id = pipeline.device_id
-            old_device = nb.nb_cuda.api.get_current_device().id
-            cc = nb.nb_cuda.api.select_device(device_id).compute_capability
-            nb.nb_cuda.api.select_device(old_device)
+            old_device = nb_cuda.api.get_current_device().id
+            cc = nb_cuda.api.select_device(device_id).compute_capability
+            nb_cuda.api.select_device(old_device)
             cres = nb_cuda.compiler.compile_cuda(
                 run_fn,
                 numba_types.void,
@@ -554,37 +554,40 @@ class NumbaFunction(
         driver_version = nb_cuda.driver.driver.get_version()
 
         # numba_cuda should handle the compatibility between toolkit and driver versions
-        # otherwise check if if driver and runtime matches, or if the last working numba version
+        # otherwise check if the driver and runtime matches, or if the last working numba version
         # matches the driver for CUDA 12
         try:
             # try importing cuda.core as it can be used later to check the compatibility
-            # if is okay to fail as it may not be installed, the check later can handle this
+            # it is okay to fail as it may not be installed, the check later can handle this
             import cuda.core
         except ImportError:
             pass
-        if (
-            not importlib.util.find_spec("numba_cuda")
-            or (
-                importlib.util.find_spec("cuda.core")
-                and Version(cuda.core.__version__) <= Version("0.31.1")
-                and nb_cuda.driver.driver.get_version()[0] > 1
-            )
-        ) and (
-            toolkit_version > driver_version
-            or (
-                Version(nb.__version__) <= Version("0.61.2")
-                and nb_cuda.driver.driver.get_version()[0] > 12
-            )
-        ):
-            if throw:
-                raise RuntimeError(
-                    f"Environment is not compatible with Numba GPU operator. "
-                    f"Driver version is {driver_version} and CUDA Toolkit "
-                    f"version is {toolkit_version}. "
-                    "Driver cannot be older than the CUDA Toolkit"
-                )
-            else:
-                return False
+
+        # numba_cuda similarly to numba provides numba.cuda module so we need
+        # to check is package is present to learn who provides it
+        numba_cuda_missing = not importlib.util.find_spec("numba_cuda")
+        cuda_core_too_old = (
+            importlib.util.find_spec("cuda.core")
+            and Version(cuda.core.__version__) <= Version("0.3.1")
+            and nb_cuda.driver.driver.get_version()[0] > 12
+        )
+        toolkit_newer_than_driver = toolkit_version > driver_version
+        numba_too_old_for_driver = (
+            Version(nb.__version__) <= Version("0.61.2")
+            and nb_cuda.driver.driver.get_version()[0] > 12
+        )
+
+        if numba_cuda_missing or cuda_core_too_old:
+            if toolkit_newer_than_driver or numba_too_old_for_driver:
+                if throw:
+                    raise RuntimeError(
+                        f"Environment is not compatible with Numba GPU operator. "
+                        f"Driver version is {driver_version} and CUDA Toolkit "
+                        f"version is {toolkit_version}. "
+                        "Driver cannot be older than the CUDA Toolkit"
+                    )
+                else:
+                    return False
         return True
 
 
