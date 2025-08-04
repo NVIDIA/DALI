@@ -127,7 +127,7 @@ nvcv::Image WrapImage(void *data, const TensorShape<> &shape, const nvcv::ImageF
 }
 
 nvcv::Image AsImage(const SampleView<GPUBackend> &sample, const nvcv::ImageFormat &format) {
-  auto shape = sample.shape();
+  auto &shape = sample.shape();
   auto data = sample.raw_mutable_data();
   return WrapImage(data, shape, format);
 }
