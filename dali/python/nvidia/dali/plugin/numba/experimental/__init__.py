@@ -19,7 +19,8 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import ops
 from nvidia.dali import types as dali_types
 from numba import types as numba_types
-from numba import njit, cfunc, carray, cuda
+from numba import njit, cfunc, carray
+from numba import cuda as nb_cuda
 import numpy as np
 import numba as nb
 import importlib
@@ -198,14 +199,14 @@ class NumbaFunction(
             cuda_arguments.append(numba_types.Array(_to_numba[dali_type], ndim, "C"))
 
         if Version(nb.__version__) < Version("0.57.0"):
-            cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
+            cres = nb_cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
         else:
             pipeline = Pipeline.current()
             device_id = pipeline.device_id
-            old_device = nb.cuda.api.get_current_device().id
-            cc = nb.cuda.api.select_device(device_id).compute_capability
-            nb.cuda.api.select_device(old_device)
-            cres = cuda.compiler.compile_cuda(
+            old_device = nb.nb_cuda.api.get_current_device().id
+            cc = nb.nb_cuda.api.select_device(device_id).compute_capability
+            nb.nb_cuda.api.select_device(old_device)
+            cres = nb_cuda.compiler.compile_cuda(
                 run_fn,
                 numba_types.void,
                 cuda_arguments,
@@ -529,7 +530,7 @@ class NumbaFunction(
     @staticmethod
     def _check_minimal_numba_version(throw: bool = True):
         current_version = Version(nb.__version__)
-        toolkit_version = cuda.runtime.get_version()
+        toolkit_version = nb_cuda.runtime.get_version()
         if toolkit_version[0] not in minimal_numba_version:
             if throw:
                 raise RuntimeError(f"Unsupported CUDA toolkit version: {toolkit_version}")
@@ -549,17 +550,30 @@ class NumbaFunction(
 
     @staticmethod
     def _check_cuda_compatibility(throw: bool = True):
-        toolkit_version = cuda.runtime.get_version()
-        driver_version = cuda.driver.driver.get_version()
+        toolkit_version = nb_cuda.runtime.get_version()
+        driver_version = nb_cuda.driver.driver.get_version()
 
         # numba_cuda should handle the compatibility between toolkit and driver versions
         # otherwise check if if driver and runtime matches, or if the last working numba version
         # matches the driver for CUDA 12
-        if not importlib.util.find_spec("numba_cuda") and (
+        try:
+            # try importing cuda.core as it can be used later to check the compatibility
+            # if is okay to fail as it may not be installed, the check later can handle this
+            import cuda.core
+        except ImportError:
+            pass
+        if (
+            not importlib.util.find_spec("numba_cuda")
+            or (
+                importlib.util.find_spec("cuda.core")
+                and Version(cuda.core.__version__) <= Version("0.31.1")
+                and nb_cuda.driver.driver.get_version()[0] > 1
+            )
+        ) and (
             toolkit_version > driver_version
             or (
                 Version(nb.__version__) <= Version("0.61.2")
-                and cuda.driver.driver.get_version()[0] > 12
+                and nb_cuda.driver.driver.get_version()[0] > 12
             )
         ):
             if throw:
