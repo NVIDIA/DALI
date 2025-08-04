@@ -20,6 +20,7 @@ from ._tensor import Tensor, _is_tensor_type
 import warnings
 from . import ops
 from . import fn
+from . import _type
 import types
 import copy
 import sys
@@ -33,6 +34,16 @@ def is_external(x):
     if isinstance(x, Batch):
         return x._is_external()
     return False
+
+
+def _scalar_decay(x):
+    if isinstance(x, _device.Device):
+        return x.device_type
+    if isinstance(x, _type.DType):
+        return x.type_id
+    if x is str:
+        return types.STRING
+    return x
 
 
 def _get_input_device(x):
@@ -189,6 +200,7 @@ def build_constructor(schema, op_class):
     header = f"__init__({', '.join(header_args)})"
 
     def init(self, max_batch_size, name, **kwargs):
+        kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if stateful:
             self._call_id = 0
@@ -406,12 +418,12 @@ def build_fn_wrapper(op):
                     break
         max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
-            arg: raw_kwargs[arg]
+            arg: _scalar_decay(raw_kwargs[arg])
             for arg in fixed_args
             if arg != "max_batch_size" and arg in raw_kwargs and raw_kwargs[arg] is not None
         }
         call_args = {
-            arg: raw_kwargs[arg]
+            arg: _scalar_decay(raw_kwargs[arg])
             for arg in tensor_args
             if arg in raw_kwargs and raw_kwargs[arg] is not None
         }
