@@ -567,7 +567,8 @@ class NumbaFunction(
         # to check is package is present to learn who provides it
         numba_cuda_missing = not importlib.util.find_spec("numba_cuda")
         cuda_core_too_old = (
-            importlib.util.find_spec("cuda.core")
+            importlib.util.find_spec("core")
+            and importlib.util.find_spec("cuda.core")
             and Version(cuda.core.__version__) <= Version("0.3.1")
             and nb_cuda.driver.driver.get_version()[0] > 12
         )
