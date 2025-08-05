@@ -215,8 +215,6 @@ def DALIIteratorWrapper(
     batch_size=-1,
     prefetch_queue_depth=2,
     exec_dynamic=None,
-    stream_policy=None,
-    concurrency=None,
     **kwargs,
 ):
     """
@@ -292,8 +290,6 @@ def DALIIteratorWrapper(
         gpu_prefetch_queue_depth=gpu_prefetch_queue_depth,
         cpu_prefetch_queue_depth=cpu_prefetch_queue_depth,
         exec_dynamic=exec_dynamic,
-        stream_policy=stream_policy,
-        concurrency=concurrency,
         **kwargs,
     )
     new_out = []
@@ -1022,12 +1018,6 @@ DALIDataset.__doc__ = """Creates a ``DALIDataset`` compatible with
         resistant to uneven execution time of each batch, but it also
         consumes more memory for internal buffers.
         Value will be used with `exec_separated` set to ``True``.
-    stream_policy : nvidia.dali.StreamPolicy, optional, default = None
-        Stream policy (only for dynamic executor).
-        If not specified, the default value is ``StreamPolicy.PER_BACKEND``.
-    concurrency : nvidia.dali.OperatorConcurrency, optional, default = None
-        Operator concurrency policy (only for dynamic executor).
-        If not specified, the default value is ``OperatorConcurrency.BACKEND``.
 
     Returns
     -------
