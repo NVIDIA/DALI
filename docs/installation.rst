@@ -112,6 +112,34 @@ Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencie
   Therefore, installing the latest ``nvidia-dali-tf-plugin-cudaXXX``, will replace any older ``nvidia-dali-cudaXXX`` version already installed.
   To work with older versions of DALI, provide the version explicitly to the ``pip install`` command.
 
+nvidia-dali-video
+^^^^^^^^^^^^^^^^^
+
+DALI now ships its new video decoding functionality as a separate DALI plugin distributed as a source distribution.
+To install it, first install NVIDIA DALI, then:
+
+.. code-block:: bash
+
+   pip install scikit-build cmake ninja  # dependencies to be able to build the plugin
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-video
+
+
+nvidia-dali-video uses NVIDIA VideoCodecSDK and FFmpeg to implement its decoding functionality.
+The plugin installation is able to detect FFmpeg installed in the system, provide a prebuilt version
+if not found, or build from source if explicitly requested. This behavior can be controlled via
+environment variables:
+
+.. code-block:: bash
+   # Default: try finding FFmpeg in the system, or use prebuilt if not found
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-video
+   # Force building FFmpeg from source
+   BUILD_FFMPEG=1 pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-video
+   # Force using minimal prebuilt FFmpeg libraries
+   USE_PREBUILT_FFMPEG=1 pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-video
+
+
+nvidia-dali-video is only available starting from DALI 1.39.
+
 pip - Nightly and Weekly Releases
 ---------------------------------
 
@@ -138,6 +166,7 @@ To access most recent nightly builds please use flowing release channel:
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda110
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda110
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-video-nightly
 
 * for CUDA 12.0:
 
@@ -145,7 +174,7 @@ To access most recent nightly builds please use flowing release channel:
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda120
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda120
-
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-video-nightly
 
 Weekly Builds
 ^^^^^^^^^^^^^
@@ -157,7 +186,7 @@ builds please use the following release channel (available only for CUDA 12):
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-weekly-cuda120
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-tf-plugin-weekly-cuda120
-
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-video-weekly
 
 pip - Legacy Releases
 ---------------------
