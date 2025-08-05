@@ -60,17 +60,19 @@ def _show_warning(message):
 class StreamPolicy(Enum):
     """Stream policy for the pipeline.
 
-    PER_OPERATOR:
-        Each operator will have its own stream.
     SINGLE:
         All operators will share a single stream.
     PER_BACKEND:
         Each backend will have its own stream.
+    PER_OPERATOR:
+        The operators that can run in parallel will have distinct streams.
+        The number of streams is kept at minimum required for independent scheduling - for example
+        strictly sequential pipelines will have only one stream.
     """
 
-    PER_OPERATOR = b._ExecutorFlags.StreamPolicyPerOperator
     SINGLE = b._ExecutorFlags.StreamPolicySingle
     PER_BACKEND = b._ExecutorFlags.StreamPolicyPerBackend
+    PER_OPERATOR = b._ExecutorFlags.StreamPolicyPerOperator
     UNSPECIFIED = b._ExecutorFlags.NoFlags
 
 
@@ -79,16 +81,16 @@ class OperatorConcurrency(Enum):
 
     NONE:
         No concurrency.
+    BACKEND:
+        Independent operators with different backends (cpu, gpu, mixed) will run in parallel.
     FULL:
         All independent operators will run in parallel.
         NOTE: Due to internal limitations, CPU operators cannot run in paralle with each other.
-    BACKEND:
-        Independent operators with different backends will run in parallel.
     """
 
     NONE = b._ExecutorFlags.ConcurrencyNone
-    FULL = b._ExecutorFlags.ConcurrencyFull
     BACKEND = b._ExecutorFlags.ConcurrencyBackend
+    FULL = b._ExecutorFlags.ConcurrencyFull
     UNSPECIFIED = b._ExecutorFlags.NoFlags
 
 
