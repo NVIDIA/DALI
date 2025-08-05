@@ -40,10 +40,14 @@ import sys
 _ExecutorType.__bool__ = lambda self: self.value != 0
 _ExecutorType.__and__ = lambda x, y: _ExecutorType(x.value & y.value)
 _ExecutorType.__or__ = lambda x, y: _ExecutorType(x.value | y.value)
+_ExecutorType.__xor__ = lambda x, y: _ExecutorType(x.value ^ y.value)
+_ExecutorType.__invert__ = lambda x: _ExecutorType(~x.value)
 
 _ExecutorFlags.__bool__ = lambda self: self.value != 0
 _ExecutorFlags.__and__ = lambda x, y: _ExecutorFlags(x.value & y.value)
 _ExecutorFlags.__or__ = lambda x, y: _ExecutorFlags(x.value | y.value)
+_ExecutorFlags.__xor__ = lambda x, y: _ExecutorFlags(x.value ^ y.value)
+_ExecutorFlags.__invert__ = lambda x: _ExecutorFlags(~x.value)
 
 
 def deprecation_warning(what):

@@ -41,7 +41,31 @@ struct PipelineParams {
     UPDATE_IF_SET(device_id);
     UPDATE_IF_SET(seed);
     UPDATE_IF_SET(executor_type);
-    UPDATE_IF_SET(executor_flags);
+    if (p.executor_flags.has_value()) {
+      if (!executor_flags.has_value()) {
+        executor_flags = p.executor_flags;
+      } else {
+        auto flags = executor_flags.value();
+        flags = flags | (p.executor_flags.value() & ExecutorFlags::SetAffinity);
+        // Treat stream policy and concurency as separate optional entries, keeping the original
+        // values if the respective submasks are not set.
+        if ((p.executor_flags.value() & ExecutorFlags::StreamPolicyMask)
+            != ExecutorFlags::StreamPolicyDefault) {
+          // Clear the stream policy mask
+          flags = flags & ~ExecutorFlags::StreamPolicyMask;
+          // Use the new stream policy mask
+          flags = flags | (p.executor_flags.value() & ExecutorFlags::StreamPolicyMask);
+        }
+        if ((p.executor_flags.value() & ExecutorFlags::ConcurrencyMask)
+            != ExecutorFlags::ConcurrencyDefault) {
+          // Clear the concurrency mask
+          flags = flags & ~ExecutorFlags::ConcurrencyMask;
+          // Use the new concurrency mask
+          flags = flags | (p.executor_flags.value() & ExecutorFlags::ConcurrencyMask);
+        }
+        executor_flags = flags;
+      }
+    }
     UPDATE_IF_SET(prefetch_queue_depths);
     UPDATE_IF_SET(enable_checkpointing);
     UPDATE_IF_SET(enable_memory_stats);

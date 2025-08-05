@@ -40,6 +40,10 @@ constexpr ExecutorFlags operator&(ExecutorFlags a, ExecutorFlags b) {
   return static_cast<ExecutorFlags>(static_cast<int>(a) & static_cast<int>(b));
 }
 
+constexpr ExecutorFlags operator~(ExecutorFlags flags) {
+  return static_cast<ExecutorFlags>(~static_cast<int>(flags));
+}
+
 constexpr bool Test(ExecutorFlags all_flags, ExecutorFlags flags_to_test) {
   return (all_flags & flags_to_test) == flags_to_test;
 }

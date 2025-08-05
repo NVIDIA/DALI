@@ -2480,3 +2480,25 @@ def test_device_auto():
     (o,) = p.run()
     assert p.device_id == 0
     assert np.array(o.as_cpu()[0]) == 42
+
+
+def test_executor_flags():
+    @pipeline_def(batch_size=1, num_threads=1)
+    def dummy():
+        return types.Constant(42, device="cpu")
+
+    for stream_policy, concurrency in [
+        (dali.StreamPolicy.PER_BACKEND, dali.OperatorConcurrency.BACKEND),
+        (dali.StreamPolicy.PER_OPERATOR, dali.OperatorConcurrency.NONE),
+        (dali.StreamPolicy.SINGLE, dali.OperatorConcurrency.FULL),
+    ]:
+        p = dummy(stream_policy=stream_policy, concurrency=concurrency)
+        # check that the properties are set correctly
+        assert p.stream_policy == stream_policy
+        assert p.concurrency == concurrency
+
+        # check that the flags survive serialization
+        s = p.serialize()
+        p2 = Pipeline.deserialize(s)
+        assert p2.stream_policy == stream_policy
+        assert p2.concurrency == concurrency

@@ -28,5 +28,5 @@ from . import tfrecord
 from . import types
 from . import plugin_manager
 from . import sysconfig
-from .pipeline import Pipeline, pipeline_def
+from .pipeline import Pipeline, pipeline_def, StreamPolicy, OperatorConcurrency
 from .data_node import newaxis
