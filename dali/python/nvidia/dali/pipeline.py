@@ -81,6 +81,7 @@ class OperatorConcurrency(Enum):
         No concurrency.
     FULL:
         All independent operators will run in parallel.
+        NOTE: Due to internal limitations, CPU operators cannot run in paralle with each other.
     BACKEND:
         Independent operators with different backends will run in parallel.
     """
