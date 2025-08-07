@@ -273,7 +273,8 @@ void PushFramesToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t
             frame_shape.begin());
   auto frame_stride = volume(frame_shape) * type_size;
   auto sample_nframes = calc_num_frames(sample_shape, first_spatial_dim);
-  const uint8_t *data = static_cast<const uint8_t *>(t_list.raw_tensor(sample_id)) + frame_stride * starting_frame_idx;
+  const uint8_t *data = static_cast<const uint8_t *>(t_list.raw_tensor(sample_id)) +
+                        frame_stride * starting_frame_idx;
 
   int64_t frame_idx = starting_frame_idx;
   for (int64_t i = 0; i < num_frames; ++i) {
@@ -283,7 +284,8 @@ void PushFramesToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t
       do {
         ++sample_id;
         DALI_ENFORCE(sample_id < t_list.num_samples(),
-                     make_string("Sample index out of bounds: ", sample_id, " >= ", t_list.num_samples()));
+                     make_string("Sample index out of bounds: ",
+                                  sample_id, " >= ", t_list.num_samples()));
         auto sample_shape = input_shape[sample_id];
         std::copy(&sample_shape[first_spatial_dim], &sample_shape[input_shape.sample_dim()],
                   frame_shape.begin());

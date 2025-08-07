@@ -74,7 +74,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
       mb.sample_offset = sample_id;
       mb.starting_frame_idx = starting_frame_idx;
       starting_frame_idx += mb.count;
-      int frames_n = num_frames(original_shape[sample_id], first_spatial_dim); 
+      int frames_n = num_frames(original_shape[sample_id], first_spatial_dim);
       while (starting_frame_idx >= frames_n) {
         starting_frame_idx -= frames_n;
         if (++sample_id >= original_shape.num_samples()) {
