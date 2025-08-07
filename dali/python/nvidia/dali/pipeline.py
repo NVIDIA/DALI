@@ -35,6 +35,7 @@ import traceback
 import warnings
 import weakref
 from .data_node import DataNode
+from enum import Enum
 
 pipeline_tls = tls()
 
@@ -54,6 +55,43 @@ def _show_deprecation_warning(deprecated, in_favor_of):
 
 def _show_warning(message):
     warnings.warn(message, Warning, stacklevel=2)
+
+
+class StreamPolicy(Enum):
+    """Stream policy for the pipeline.
+
+    SINGLE:
+        All operators will share a single stream.
+    PER_BACKEND:
+        Each backend will have its own stream.
+    PER_OPERATOR:
+        The operators that can run in parallel will have distinct streams.
+        The number of streams is kept at minimum required for independent scheduling - for example
+        strictly sequential pipelines will have only one stream.
+    """
+
+    SINGLE = b._ExecutorFlags.StreamPolicySingle
+    PER_BACKEND = b._ExecutorFlags.StreamPolicyPerBackend
+    PER_OPERATOR = b._ExecutorFlags.StreamPolicyPerOperator
+    UNSPECIFIED = b._ExecutorFlags.NoFlags
+
+
+class OperatorConcurrency(Enum):
+    """Operator concurrency policy for the pipeline.
+
+    NONE:
+        No concurrency.
+    BACKEND:
+        Independent operators with different backends (cpu, gpu, mixed) will run in parallel.
+    FULL:
+        All independent operators will run in parallel.
+        NOTE: Due to internal limitations, CPU operators cannot run in paralle with each other.
+    """
+
+    NONE = b._ExecutorFlags.ConcurrencyNone
+    BACKEND = b._ExecutorFlags.ConcurrencyBackend
+    FULL = b._ExecutorFlags.ConcurrencyFull
+    UNSPECIFIED = b._ExecutorFlags.NoFlags
 
 
 class Pipeline(object):
@@ -115,6 +153,12 @@ class Pipeline(object):
         The dynamic executor is used by default when `exec_async` and `exec_pipelined` are ``True``
         and separated queues are not used (see `prefetch_queue_depth`). It can be forcibly disabled
         by specifying ``False``.
+    stream_policy : StreamPolicy, optional, default = None
+        Stream policy (only for dynamic executor).
+        If not specified, the default value is ``StreamPolicy.PER_BACKEND``.
+    concurrency : OperatorConcurrency, optional, default = None
+        Operator concurrency policy (only for dynamic executor).
+        If not specified, the default value is ``OperatorConcurrency.BACKEND``.
     bytes_per_sample : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
     set_affinity : bool, optional, default = False
@@ -241,6 +285,8 @@ class Pipeline(object):
         output_layout=None,
         exec_dynamic=None,
         experimental_exec_dynamic=None,
+        stream_policy=None,
+        concurrency=None,
     ):
         if experimental_exec_dynamic is not None:
             _show_deprecation_warning("experimental_exec_dynamic", "exec_dynamic")
@@ -285,6 +331,8 @@ class Pipeline(object):
         self._exec_dynamic = exec_dynamic
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
+        self._stream_policy = stream_policy
+        self._concurrency = concurrency
         self._py_num_workers = py_num_workers
         self._py_start_method = py_start_method
         if py_callback_pickler is not None and py_start_method == "fork":
@@ -338,6 +386,13 @@ class Pipeline(object):
         self._executor_flags = b._ExecutorFlags.NoFlags
         if self._set_affinity:
             self._executor_flags |= b._ExecutorFlags.SetAffinity
+
+        if self._stream_policy is not None:
+            self._executor_flags &= ~b._ExecutorFlags.StreamPolicyMask
+            self._executor_flags |= self._stream_policy.value
+        if self._concurrency is not None:
+            self._executor_flags &= ~b._ExecutorFlags.ConcurrencyMask
+            self._executor_flags |= self._concurrency.value
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -456,6 +511,16 @@ class Pipeline(object):
     def exec_dynamic(self):
         """If true, the dynamic executor is used."""
         return self._exec_dynamic
+
+    @property
+    def stream_policy(self):
+        """Stream policy for the pipeline."""
+        return self._stream_policy
+
+    @property
+    def concurrency(self):
+        """Operator concurrency for the pipeline."""
+        return self._concurrency
 
     @property
     def set_affinity(self):
@@ -959,6 +1024,12 @@ class Pipeline(object):
         self._exec_separated = bool(params.executor_type & b._ExecutorType.SeparatedFlag)
         self._exec_dynamic = bool(params.executor_type & b._ExecutorType.DynamicFlag)
         self._set_affinity = bool(params.executor_flags & b._ExecutorFlags.SetAffinity)
+        self._stream_policy = StreamPolicy(
+            params.executor_flags & b._ExecutorFlags.StreamPolicyMask
+        )
+        self._concurrency = OperatorConcurrency(
+            params.executor_flags & b._ExecutorFlags.ConcurrencyMask
+        )
         if self.exec_separated:
             self._prefetch_queue_depth = {"cpu": self._cpu_queue_size, "gpu": self._gpu_queue_size}
         else:
@@ -1700,12 +1771,21 @@ class Pipeline(object):
         exec_pipelined = kw.get("exec_pipelined", None)
         exec_async = kw.get("exec_async", None)
         exec_dynamic = kw.get("exec_dynamic", None)
+        stream_policy = kw.get("stream_policy", None)
+        concurrency = kw.get("concurrency", None)
         executor_type = b._MakeExecutorType(
             exec_pipelined or False, exec_async or False, exec_separated, exec_dynamic or False
         )
         executor_flags = b._ExecutorFlags.NoFlags
         if kw.get("set_affinity", False):
             executor_flags |= b._ExecutorFlags.SetAffinity
+
+        if stream_policy is not None:
+            executor_flags &= ~b._ExecutorFlags.StreamPolicyMask
+            executor_flags |= stream_policy.value
+        if concurrency is not None:
+            executor_flags &= ~b._ExecutorFlags.ConcurrencyMask
+            executor_flags |= concurrency.value
 
         seed = kw.get("seed", None)
         if seed is not None and seed < 0:
