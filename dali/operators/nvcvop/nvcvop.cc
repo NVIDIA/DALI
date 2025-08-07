@@ -254,7 +254,7 @@ int64_t calc_num_frames(const TensorShape<> &shape, int first_spatial_dim) {
 }
 
 void PushFramesToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t_list,
-                       int first_spatial_dim, int64_t starting_sample, int64_t frame_offset,
+                       int first_spatial_dim, int64_t starting_sample, int64_t starting_frame_idx,
                        int64_t num_frames, const TensorLayout &layout) {
   int ndim = layout.ndim();
   auto nvcv_layout = nvcv::TensorLayout(layout.c_str());
@@ -264,32 +264,37 @@ void PushFramesToBatch(nvcv::TensorBatch &batch, const TensorList<GPUBackend> &t
   tensors.reserve(num_frames);
 
   const auto &input_shape = t_list.shape();
-  int64_t sample_id = starting_sample - 1;
+  int64_t sample_id = starting_sample;
   auto type_size = dtype.strideBytes();
   std::vector<int64_t> frame_shape(ndim, 1);
 
-  auto frame_stride = 0;
-  int sample_nframes = 0;
-  const uint8_t *data = nullptr;
+  auto sample_shape = input_shape[sample_id];
+  std::copy(&sample_shape[first_spatial_dim], &sample_shape[sample_shape.sample_dim()],
+            frame_shape.begin());
+  auto frame_stride = volume(frame_shape) * type_size;
+  auto sample_nframes = calc_num_frames(sample_shape, first_spatial_dim);
+  const uint8_t *data = static_cast<const uint8_t *>(t_list.raw_tensor(sample_id)) + frame_stride * starting_frame_idx;
 
+  int64_t frame_idx = starting_frame_idx;
   for (int64_t i = 0; i < num_frames; ++i) {
-    if (frame_offset == sample_nframes) {
-      frame_offset = 0;
+    if (frame_idx == sample_nframes) {
+      // jump to the next sample
+      frame_idx = 0;
       do {
         ++sample_id;
+        DALI_ENFORCE(sample_id < t_list.num_samples(),
+                     make_string("Sample index out of bounds: ", sample_id, " >= ", t_list.num_samples()));
         auto sample_shape = input_shape[sample_id];
-        assert(sample_id < t_list.num_samples());
         std::copy(&sample_shape[first_spatial_dim], &sample_shape[input_shape.sample_dim()],
                   frame_shape.begin());
         frame_stride = volume(frame_shape) * type_size;
         sample_nframes = calc_num_frames(sample_shape, first_spatial_dim);
       } while (sample_nframes * frame_stride == 0);  // we skip empty samples
-      data =
-          static_cast<const uint8_t *>(t_list.raw_tensor(sample_id)) + frame_stride * frame_offset;
+      data = static_cast<const uint8_t *>(t_list.raw_tensor(sample_id));
     }
     tensors.push_back(AsTensor(data, make_span(frame_shape), dtype, nvcv_layout));
     data += frame_stride;
-    frame_offset++;
+    ++frame_idx;
   }
   batch.pushBack(tensors.begin(), tensors.end());
 }

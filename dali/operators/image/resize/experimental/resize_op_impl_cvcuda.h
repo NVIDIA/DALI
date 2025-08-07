@@ -63,19 +63,20 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
   // Assign each minibatch a range of frames in the original input/output TensorLists
   void CalculateSourceSamples(const TensorListShape<> &original_shape, int first_spatial_dim) {
     int64_t sample_id = 0;
-    int64_t frame_offset = 0;
+    int64_t starting_frame_idx = 0;
     for (auto &mb : minibatches_) {
+      assert(sample_id < original_shape.num_samples());
       auto v = original_shape[sample_id].num_elements();
       while (v == 0) {
         sample_id++;
         v = original_shape[sample_id].num_elements();
       }
       mb.sample_offset = sample_id;
-      mb.frame_offset = frame_offset;
-      frame_offset = mb.frame_offset + mb.count;
-      int frames_n = num_frames(original_shape[sample_id], first_spatial_dim);
-      while (frame_offset >= frames_n) {
-        frame_offset -= frames_n;
+      mb.starting_frame_idx = starting_frame_idx;
+      starting_frame_idx += mb.count;
+      int frames_n = num_frames(original_shape[sample_id], first_spatial_dim); 
+      while (starting_frame_idx >= frames_n) {
+        starting_frame_idx -= frames_n;
         if (++sample_id >= original_shape.num_samples()) {
           break;
         }
@@ -172,9 +173,9 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
       mb_output.clear();
 
       nvcvop::PushFramesToBatch(mb_input, input, first_spatial_dim_, mb.sample_offset,
-                                mb.frame_offset, mb.count, sample_layout_);
+                                mb.starting_frame_idx, mb.count, sample_layout_);
       nvcvop::PushFramesToBatch(mb_output, output, first_spatial_dim_, mb.sample_offset,
-                                mb.frame_offset, mb.count, sample_layout_);
+                                mb.starting_frame_idx, mb.count, sample_layout_);
       resize_op_(ws.stream(), workspace_mem[b % 2], mb_input, mb_output, mb.min_interpolation,
                  mb.mag_interpolation, mb.antialias, mb.rois);
     }
@@ -272,7 +273,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     bool antialias;
     HQResizeRoisF rois;
     int64_t sample_offset;  // id of a starting sample in the original IOs
-    int64_t frame_offset;  // id of a starting frame in the starting sample
+    int64_t starting_frame_idx;  // id of a starting frame in the starting sample
   };
 
   std::vector<MiniBatch> minibatches_;
