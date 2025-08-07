@@ -205,13 +205,7 @@ Executor configuration flags
 ----------------------------
 
 .. autoenum:: nvidia.dali.StreamPolicy
-   :members:
-   :undoc-members:
-
 .. autoenum:: nvidia.dali.OperatorConcurrency
-   :members:
-   :undoc-members:
-
 
 Experimental Pipeline Features
 ------------------------------
