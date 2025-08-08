@@ -26,6 +26,80 @@
 #include <nvimgcodec.h>
 
 
+
+namespace {
+
+typedef void* NVJPEGDRIVER;
+
+static const char __NvjpegLibName[] = "libnvjpeg.so";
+#if CUDA_VERSION >= 13000
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.13";
+#elif CUDA_VERSION >= 12000 && CUDA_VERSION < 13000
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.12";
+#elif CUDA_VERSION >= 11000 && CUDA_VERSION < 12000
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.11";
+#else
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.10";
+#endif
+
+NVJPEGDRIVER loadNvjpegLibrary() {
+  NVJPEGDRIVER ret = nullptr;
+
+  ret = dlopen(__NvjpegLibNameCuVer, RTLD_NOW);
+
+  if (!ret) {
+    ret = dlopen(__NvjpegLibName, RTLD_NOW);
+    if (!ret) {
+      throw std::runtime_error("dlopen libnvjpeg.so failed!. Please install "
+                                "CUDA toolkit or nvJPEG python wheel.");
+    }
+  }
+  return ret;
+}
+
+typedef void* CUFILE;
+
+static const char __CufileLibName[] = "libcufile.so";
+static const char __CufileLibName1[] = "libcufile.so.0";
+
+CUFILE loadCufileLibrary() {
+  CUFILE ret = nullptr;
+
+  ret = dlopen(__CufileLibName1, RTLD_NOW);
+
+  if (!ret) {
+    ret = dlopen(__CufileLibName, RTLD_NOW);
+
+    if (!ret) {
+      fprintf(stderr, "dlopen libcufile.so failed with error %s!. Please install libcufile.\n",
+              dlerror());
+    }
+  }
+  return ret;
+}
+
+typedef void* CUDADRIVER;
+
+static const char __CudaLibName[] = "libcuda.so";
+static const char __CudaLibName1[] = "libcuda.so.1";
+
+CUDADRIVER loadCudaLibrary() {
+  CUDADRIVER ret = nullptr;
+
+  ret = dlopen(__CudaLibName1, RTLD_NOW);
+
+  if (!ret) {
+    ret = dlopen(__CudaLibName, RTLD_NOW);
+
+    if (!ret) {
+      fprintf(stderr, "dlopen libcuda.so failed. Please install GPU driver.");
+    }
+  }
+  return ret;
+}
+
+}  // namespace
+
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
  * and not optimize-out symbols from dali_operators
@@ -37,6 +111,10 @@
 namespace dali {
 
 DLL_PUBLIC void InitOperatorsLib() {
+  loadCudaLibrary();
+  loadNvjpegLibrary();
+  loadCufileLibrary();
+
   (void)CUDAStreamPool::instance();
   dali::PluginManager::LoadDefaultPlugins();
 }
