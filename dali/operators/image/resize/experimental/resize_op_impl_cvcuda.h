@@ -48,6 +48,8 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     // Create "frames" from outer dimensions and "channels" from inner dimensions.
     GetFrameShapesAndParams<spatial_ndim>(in_shape_, params_, in_shape, params, first_spatial_dim);
 
+    ValidateShapes(in_shape_);
+
     // Now that we have per-frame parameters, we can calculate the output shape of the
     // effective frames (from videos, channel planes, etc).
     GetResizedShape(out_shape_, in_shape_, make_cspan(params_), 0);
@@ -60,27 +62,41 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
     SetupKernel();
   }
 
+  void ValidateShapes(const TensorListShape<> &in_shape) {
+    // Ensure all frames have the same number of channels
+    if (in_shape_.num_samples() == 0)
+      return;
+    int num_channels = in_shape_.tensor_shape_span(0)[frame_ndim - 1];
+    for (int i = 1; i < in_shape_.num_samples(); ++i) {
+      int ch = in_shape_.tensor_shape_span(i)[frame_ndim - 1];
+      DALI_ENFORCE(ch == num_channels, "All frames must have the same number of channels");
+    }
+  }
+
   // Assign each minibatch a range of frames in the original input/output TensorLists
   void CalculateSourceSamples(const TensorListShape<> &original_shape, int first_spatial_dim) {
     int64_t sample_id = 0;
     int64_t starting_frame_idx = 0;
+    int64_t sample_volume = 0;
+    int64_t sample_num_frames = 0;
     for (auto &mb : minibatches_) {
       assert(sample_id < original_shape.num_samples());
-      auto v = original_shape[sample_id].num_elements();
-      while (v == 0) {
+      sample_volume = original_shape[sample_id].num_elements();
+      while (sample_volume == 0) {
         sample_id++;
-        v = original_shape[sample_id].num_elements();
+        assert(sample_id < original_shape.num_samples());
+        sample_volume = original_shape[sample_id].num_elements();
       }
       mb.sample_offset = sample_id;
       mb.starting_frame_idx = starting_frame_idx;
       starting_frame_idx += mb.count;
-      int frames_n = num_frames(original_shape[sample_id], first_spatial_dim);
-      while (starting_frame_idx >= frames_n) {
-        starting_frame_idx -= frames_n;
+      sample_num_frames = num_frames(original_shape[sample_id], first_spatial_dim);
+      while (starting_frame_idx >= sample_num_frames) {
+        starting_frame_idx -= sample_num_frames;
         if (++sample_id >= original_shape.num_samples()) {
           break;
         }
-        frames_n = num_frames(original_shape[sample_id], first_spatial_dim);
+        sample_num_frames = num_frames(original_shape[sample_id], first_spatial_dim);
       }
     }
   }
@@ -116,7 +132,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
       mb.rois = HQResizeRoisF{mb.count, spatial_ndim, rois_ptr};
       rois_ptr += mb.count;
 
-      auto param = params_[mb.start][0];
+      const auto &param = params_[mb.start][0];
       mb.min_interpolation = GetInterpolationType(param.min_filter);
       mb.mag_interpolation = GetInterpolationType(param.mag_filter);
       mb.antialias = param.min_filter.antialias || param.mag_filter.antialias;
