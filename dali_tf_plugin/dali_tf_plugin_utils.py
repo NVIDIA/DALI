@@ -58,7 +58,13 @@ def get_tf_compiler_version():
     cmd = ["strings", "-a", lib]
     process_strings = subprocess.Popen(cmd, stdout=subprocess.PIPE)  # nosec B603
     cmd = ["grep", "GCC: ("]
-    s = str(subprocess.check_output(cmd, stdin=process_strings.stdout, shell=False))  # nosec B603
+    s = subprocess.run(  # nosec B603
+        cmd,
+        stdin=process_strings.stdout,
+        shell=False,
+        check=False,
+        stdout=subprocess.PIPE,
+    ).stdout.decode("utf-8")
     process_strings.stdout.close()
     lines = s.split("\\n")
     ret_ver = ""
