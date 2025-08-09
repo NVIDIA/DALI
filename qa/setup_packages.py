@@ -482,7 +482,7 @@ all_packages = [
             PckgVer("<2"),
         ],
     ),
-    PlainPackage("opencv-python", [PckgVer("4.11.0.86", dependencies=["numpy<2"])]),
+    PlainPackage("opencv-python", [PckgVer("4.12.0.88", dependencies=["numpy<2"])]),
     CudaPackage(
         "cupy",
         {"118": [PckgVer("12.3.0", python_min_ver="3.8")]},
