@@ -618,7 +618,7 @@ def _tests(dim, backend):
                 backend,
                 dim,
                 batch_size,
-                False,
+                channel_first,
                 mode,
                 interp,
                 dtype,

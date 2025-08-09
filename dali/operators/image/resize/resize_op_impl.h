@@ -63,7 +63,8 @@ void GetFrameShapesAndParams(
 
   for (int i = 0; i < N; i++) {
     auto in_sample_shape = in_shape.tensor_shape_span(i);
-    total_frames += volume(&in_sample_shape[0], &in_sample_shape[first_spatial_dim]);
+    if (volume(in_sample_shape) > 0)
+      total_frames += volume(&in_sample_shape[0], &in_sample_shape[first_spatial_dim]);
   }
 
   frame_params.resize(total_frames);
@@ -72,10 +73,11 @@ void GetFrameShapesAndParams(
   int ndim = in_shape.sample_dim();
   for (int i = 0, flat_frame_idx = 0; i < N; i++) {
     auto in_sample_shape = in_shape.tensor_shape_span(i);
+    if (volume(in_sample_shape) == 0) {
+      continue;  // skip empty samples
+    }
     // Collapse leading dimensions, if any, as frame dim. This handles channel-first.
     int seq_len = volume(&in_sample_shape[0], &in_sample_shape[first_spatial_dim]);
-    if (seq_len == 0)
-      continue;  // skip empty sequences
     TensorShape<out_ndim> frame_shape;
     frame_shape.resize(frame_ndim);
 
