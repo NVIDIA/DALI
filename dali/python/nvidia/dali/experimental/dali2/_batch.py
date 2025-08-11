@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Optional, Tuple, List, Union
-from ._type import DType, dtype as _dtype
+from ._type import DType, dtype as _dtype, type_id as _type_id
 from ._tensor import Tensor, _is_full_slice, _is_tensor_type
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
@@ -85,8 +85,8 @@ class Batch:
         copied = False
         if tensors is not None:
             if isinstance(tensors, _backend.TensorListCPU) and (
-                (dtype is None or dtype.type_id == _backend.dtype) and
-                (layout is None or layout == self._backend.layout)
+                (dtype is None or _type_id(dtype) == _backend.dtype)
+                and (layout is None or layout == self._backend.layout)
             ):
                 self._backend = tensors
                 self._ndim = self._backend.ndim()
@@ -98,8 +98,8 @@ class Batch:
                     if device.device_type != "cpu":
                         copy = True
             elif isinstance(tensors, _backend.TensorListGPU) and (
-                (dtype is None or dtype.type_id == _backend.dtype) and
-                (layout is None or layout == self._backend.layout)
+                (dtype is None or _type_id(dtype) == _backend.dtype)
+                and (layout is None or layout == self._backend.layout)
             ):
                 self._backend = tensors
                 self._ndim = self._backend.ndim()
@@ -136,7 +136,8 @@ class Batch:
 
         if dtype is not None:
             if not isinstance(dtype, DType):
-                dtype = DType(dtype)
+                dtype = _dtype(dtype)
+
         self._dtype = dtype
         self._device = device
         self._layout = layout

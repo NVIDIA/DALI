@@ -29,6 +29,7 @@ import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
 
+
 def is_external(x):
     if isinstance(x, Tensor):
         return x._is_external()
@@ -47,8 +48,10 @@ def _scalar_decay(x):
     if x is bool:
         return nvidia.dali.types.BOOL
     if x is int or x is float:
-        raise ValueError(f"Do not use Python built-in type {x} as an argument. "
-                         f"Use one of the DALI types instead.")
+        raise ValueError(
+            f"Do not use Python built-in type {x} as an argument. "
+            f"Use one of the DALI types instead."
+        )
     return x
 
 

@@ -17,6 +17,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
 import nvtx
 
+
 class Invocation:
     def __init__(
         self,
