@@ -15,6 +15,8 @@
 from enum import Enum, auto
 import nvidia.dali.types
 
+_id2type = {}
+
 
 class DType:
     class Kind(Enum):
@@ -22,6 +24,7 @@ class DType:
         unsigned = auto()
         float = auto()
         bool = auto()
+        enum = auto()
 
     @staticmethod
     def default_exponent_bits(bits: int) -> int:
@@ -47,10 +50,19 @@ class DType:
         return bits - DType.default_exponent_bits(bits) - 1
 
     def __init__(
-        self, kind: Kind, bits: int, exponent_bits: int = None, significand_bits: int = None
+        self,
+        kind: Kind,
+        bits: int,
+        exponent_bits: int = None,
+        significand_bits: int = None,
+        type_id: nvidia.dali.types.DALIDataType = None,
     ):
         self.kind = kind
         self.bits = bits
+        self.type_id = type_id
+        if type_id is not None:
+            _id2type[type_id] = self
+
         if kind == DType.Kind.float:
             self.exponent_bits = exponent_bits or DType.default_exponent_bits(bits)
             self.significand_bits = significand_bits or DType.default_significand_bits(bits)
@@ -95,12 +107,8 @@ class DType:
     def __hash__(self):
         return hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
 
-    @property
-    def type_id(self) -> int:
-        return _type2id[self]
-
     @staticmethod
-    def from_type_id(type_id: int) -> "DType":
+    def from_type_id(type_id: nvidia.dali.types.DALIDataType) -> "DType":
         return _id2type[type_id]
 
     @staticmethod
@@ -148,39 +156,25 @@ class DType:
         return _tensor.tensor(self, *args, dtype=self, **kwargs)
 
 
-int8 = DType(DType.Kind.signed, 8)
-int16 = DType(DType.Kind.signed, 16)
-int32 = DType(DType.Kind.signed, 32)
-int64 = DType(DType.Kind.signed, 64)
-uint8 = DType(DType.Kind.unsigned, 8)
-uint16 = DType(DType.Kind.unsigned, 16)
-uint32 = DType(DType.Kind.unsigned, 32)
-uint64 = DType(DType.Kind.unsigned, 64)
-float16 = DType(DType.Kind.float, 16)
-float32 = DType(DType.Kind.float, 32)
-float64 = DType(DType.Kind.float, 64)
-bool = DType(DType.Kind.bool, 8)
+int8 = DType(DType.Kind.signed, 8, type_id=nvidia.dali.types.INT8)
+int16 = DType(DType.Kind.signed, 16, type_id=nvidia.dali.types.INT16)
+int32 = DType(DType.Kind.signed, 32, type_id=nvidia.dali.types.INT32)
+int64 = DType(DType.Kind.signed, 64, type_id=nvidia.dali.types.INT64)
+uint8 = DType(DType.Kind.unsigned, 8, type_id=nvidia.dali.types.UINT8)
+uint16 = DType(DType.Kind.unsigned, 16, type_id=nvidia.dali.types.UINT16)
+uint32 = DType(DType.Kind.unsigned, 32, type_id=nvidia.dali.types.UINT32)
+uint64 = DType(DType.Kind.unsigned, 64, type_id=nvidia.dali.types.UINT64)
+float16 = DType(DType.Kind.float, 16, type_id=nvidia.dali.types.FLOAT16)
+float32 = DType(DType.Kind.float, 32, type_id=nvidia.dali.types.FLOAT)
+float64 = DType(DType.Kind.float, 64, type_id=nvidia.dali.types.FLOAT64)
+bool = DType(DType.Kind.bool, 8, type_id=nvidia.dali.types.BOOL)
 bfloat16 = DType(DType.Kind.float, 16, 8, 7)
 tf32 = DType(DType.Kind.float, 32, 8, 10)
 f8e4m3 = DType(DType.Kind.float, 8, 4, 3)
 f8e5m2 = DType(DType.Kind.float, 8, 5, 2)
-
-_type2id = {
-    int8: nvidia.dali.types.INT8,
-    int16: nvidia.dali.types.INT16,
-    int32: nvidia.dali.types.INT32,
-    int64: nvidia.dali.types.INT64,
-    uint8: nvidia.dali.types.UINT8,
-    uint16: nvidia.dali.types.UINT16,
-    uint32: nvidia.dali.types.UINT32,
-    uint64: nvidia.dali.types.UINT64,
-    float16: nvidia.dali.types.FLOAT16,
-    float32: nvidia.dali.types.FLOAT,
-    float64: nvidia.dali.types.FLOAT64,
-    bool: nvidia.dali.types.BOOL,
-}
-
-_id2type = {v: k for k, v in _type2id.items()}
+data_type = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE)
+image_type = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE)
+interp_type = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE)
 
 
 def dtype(*args):
@@ -195,3 +189,12 @@ def dtype(*args):
             return DType.from_fw_type(args[0])
     else:
         return DType(*args)
+
+
+def type_id(dtype) -> nvidia.dali.types.DALIDataType:
+    if isinstance(dtype, DType):
+        return dtype.type_id
+    elif isinstance(dtype, nvidia.dali.types.DALIDataType):
+        return dtype
+    else:
+        raise ValueError(f"Invalid dtype: {dtype}")

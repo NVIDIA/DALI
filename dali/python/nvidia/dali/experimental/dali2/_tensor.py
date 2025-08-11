@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Optional, Tuple, Union
-from ._type import DType, dtype as _dtype
+from ._type import DType, dtype as _dtype, type_id as _type_id
 from ._device import Device
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
@@ -33,6 +33,7 @@ def _volume(shape: Tuple[int, ...]) -> int:
 
 def _is_tensor_type(x, nested_list_warning=False):
     from . import _batch
+
     if isinstance(x, _batch.Batch):
         raise ValueError("A list of Batchs is not a valid argument type")
     if isinstance(x, Tensor):
@@ -59,6 +60,19 @@ def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> D
         return Device("gpu", backend.device())
     else:
         raise ValueError(f"Unsupported backend type: {type(backend)}")
+
+
+def _try_convert_enums(arr):
+    assert arr.dtype == object
+    item = arr.flat[0]
+    import numpy as np
+
+    if isinstance(item, nvidia.dali.types.DALIInterpType):
+        return arr.astype(np.int32), nvidia.dali.types.INTERP_TYPE
+    elif isinstance(item, dali.types.DALIDataType):
+        return arr.astype(np.int32), nvidia.dali.types.DATA_TYPE
+    elif isinstance(item, nvidia.dali.types.DALIImageType):
+        return arr.astype(np.int32), nvidia.dali.types.IMAGE_TYPE
 
 
 class Tensor:
@@ -115,7 +129,7 @@ class Tensor:
                 self._backend = data
                 self._wraps_external_data = True
             elif isinstance(data, Tensor):
-                if dtype is None or dtype == data.dtype:
+                if dtype is None or _type_id(dtype) == data.dtype.type_id:
                     if device is None or device == data.device:
                         self.assign(data)
                         self._wraps_external_data = data._wraps_external_data
@@ -139,6 +153,7 @@ class Tensor:
                 import numpy as np
 
                 if dtype is not None:
+                    # TODO(michalz): Built-in enum handling
                     self._backend = _backend.TensorCPU(
                         np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)),
                         layout,
@@ -151,13 +166,18 @@ class Tensor:
                     arr = np.array(data)
                     # DALI doesn't support int64 and float64, so we need to convert them to int32
                     # and float32, respectively.
+                    converted_dtype_id = None
                     if arr.dtype == np.int64:
                         arr = arr.astype(np.int32)
                     elif arr.dtype == np.uint64:
                         arr = arr.astype(np.uint32)
                     elif arr.dtype == np.float64:
                         arr = arr.astype(np.float32)
+                    elif arr.dtype == object:
+                        (arr, converted_dtype_id) = _try_convert_enums(arr)
                     self._backend = _backend.TensorCPU(arr, layout, False)
+                    if converted_dtype_id is not None:
+                        self._backend.reinterpret_as(converted_dtype_id)
                     copied = True
                     self._wraps_external_data = False
 
@@ -171,8 +191,9 @@ class Tensor:
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
 
-            if (isinstance(self._backend, _backend.TensorCPU) and
-                device != _backend_device(self._backend)):
+            if isinstance(self._backend, _backend.TensorCPU) and device != _backend_device(
+                self._backend
+            ):
                 self.assign(self.to_device(device).evaluate())
         elif invocation_result is not None:
             self._invocation_result = invocation_result
