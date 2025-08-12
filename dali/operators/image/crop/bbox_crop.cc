@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -312,14 +312,14 @@ The order of dimensions is determined by the layout provided in `shape_layout`.
 .. note::
   When providing `crop_shape`, `input_shape` should be provided as well. Providing explicit `crop_shape` is
   incompatible with using `scaling` and `aspect_ratio` arguments.)code",
-        std::vector<int>{}, true)
+        nullptr, true)
     .AddOptionalArg<int>(
         "input_shape",
         R"code(Specifies the shape of the original input image.
 
 The order of dimensions is determined by the layout that is provided in `shape_layout`.
 )code",
-        std::vector<int>{}, true)
+        nullptr, true)
     .AddOptionalArg<TensorLayout>(
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
