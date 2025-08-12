@@ -38,10 +38,10 @@ It's an error to remove a dimension that would cause the total volume to change.
 
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
 All indices must be in the range of valid dimensions of the input)code", nullptr, true)
-  .AddOptionalArg("axis_names", R"code(Layout columns which should be removed.
+  .AddOptionalArg<TensorLayout>("axis_names", R"code(Layout columns which should be removed.
 
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
-All layout names should be present in data layout.)code", nullptr));
+All layout names should be present in data layout.)code", nullptr);
 
 template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)
@@ -49,7 +49,7 @@ Squeeze<Backend>::Squeeze(const OpSpec &spec)
   bool has_axes = spec.TryGetRepeatedArgument(axes_, "axes");
   bool has_axis_names = spec.TryGetArgument(axis_names_, "axis_names");
 
-  DALI_ENFORCE(has_axes + has_axis_nammes == 1,
+  DALI_ENFORCE(has_axes + has_axis_names == 1,
       has_axes ? "Provided both ``axes`` and ``axis_names`` arguments"
                : "Missing argument ``axes`` or ``axis_names``.");
 
