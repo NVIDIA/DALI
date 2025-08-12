@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,24 +34,24 @@ It's an error to remove a dimension that would cause the total volume to change.
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("axes", R"code(Indices of dimensions which should be removed.
+  .AddOptionalArg<std::vector<int>>("axes", R"code(Indices of dimensions which should be removed.
 
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
-All indices must be in the range of valid dimensions of the input)code", std::vector<int>(), true)
+All indices must be in the range of valid dimensions of the input)code", nullptr, true)
   .AddOptionalArg("axis_names", R"code(Layout columns which should be removed.
 
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
-All layout names should be present in data layout.)code", TensorLayout(""));
+All layout names should be present in data layout.)code", nullptr));
 
 template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)
     : Reshape<Backend>(spec, typename Reshape<Backend>::BypassInit()) {
-  axes_ = spec.GetRepeatedArgument<int>("axes");
-  axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+  bool has_axes = spec.TryGetRepeatedArgument(axes_, "axes");
+  bool has_axis_names = spec.TryGetArgument(axis_names_, "axis_names");
 
-    DALI_ENFORCE(spec.HasArgument("axes") + spec.HasArgument("axis_names") == 1,
-      spec.HasArgument("axes") ? "Provided both ``axes`` and ``axis_names`` arguments"
-                               : "Missing argument ``axes`` or ``axis_names``.");
+  DALI_ENFORCE(has_axes + has_axis_nammes == 1,
+      has_axes ? "Provided both ``axes`` and ``axis_names`` arguments"
+               : "Missing argument ``axes`` or ``axis_names``.");
 
   this->use_src_dims_ = true;
 }
