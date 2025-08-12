@@ -303,7 +303,7 @@ be valid.)code",
         R"code(If set to True, one of the possible outcomes of the random process will
 be to not crop, as if the outcome was one more `thresholds` value from which to choose.)code",
         true)
-    .AddOptionalArg<int>(
+    .AddOptionalArg<std::vector<int>>(
         "crop_shape",
         R"code(If provided, the random crop window dimensions will be fixed to this shape.
 
@@ -313,7 +313,7 @@ The order of dimensions is determined by the layout provided in `shape_layout`.
   When providing `crop_shape`, `input_shape` should be provided as well. Providing explicit `crop_shape` is
   incompatible with using `scaling` and `aspect_ratio` arguments.)code",
         nullptr, true)
-    .AddOptionalArg<int>(
+    .AddOptionalArg<std::vector<int>>(
         "input_shape",
         R"code(Specifies the shape of the original input image.
 
@@ -331,10 +331,10 @@ The value of this argument is a string containing the following characters::
   W (width),                   H (height),                D (depth).
 
 .. note::
-  If this value is left empty, depending on the number of dimensions, "xyXY" or
+  If this value is not specified, depending on the number of dimensions, "xyXY" or
   "xyzXYZ" is assumed.
 )code",
-        TensorLayout{})
+        nullptr)
     .AddOptionalArg<TensorLayout>(
         "shape_layout",
         R"code(Determines the meaning of the dimensions provided in `crop_shape` and
@@ -347,9 +347,9 @@ The values are:
 - ``D`` (depth)
 
 .. note::
-  If left empty, depending on the number of dimensions ``"WH"`` or ``"WHD"`` will be assumed.
+  If left unset, depending on the number of dimensions ``"WH"`` or ``"WHD"`` will be assumed.
 )code",
-        TensorLayout{})
+        nullptr)
     .AddOptionalArg<bool>(
         "output_bbox_indices",
         R"code(If set to True, an extra output will be returned, containing
@@ -393,11 +393,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         has_labels_(spec_.NumRegularInput() > 1),
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
         has_input_shape_(spec_.ArgumentDefined("input_shape")),
-        bbox_layout_(spec_.GetArgument<TensorLayout>("bbox_layout")),
-        shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
         output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
         rngs_(rng) {
+    has_bbox_layout_ = spec_.TryGetArgument(bbox_layout_, "bbox_layout");
+    has_shape_layout_ = spec_.TryGetArgument(shape_layout_, "shape_layout");
+
     auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",
@@ -502,7 +503,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     auto default_bbox_layout_start_end = DefaultBBoxLayout<ndim>();
     auto default_bbox_layout_start_shape = DefaultBBoxAnchorAndShapeLayout<ndim>();
-    if (bbox_layout_.empty()) {
+    if (!has_bbox_layout_) {
       auto ltrb = spec_.GetArgument<bool>("ltrb");
       bbox_layout_ = ltrb ? default_bbox_layout_start_end : default_bbox_layout_start_shape;
     }
@@ -516,8 +517,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     if (has_input_shape_ || has_crop_shape_) {
       // Converting the shapes to "WHD" or "WH" if necessary
       auto default_shape_layout = InternalShapeLayout(ndim);
-      const TensorLayout &layout = shape_layout_.empty() ? default_shape_layout : shape_layout_;
-      if (!shape_layout_.empty() && shape_layout_ != default_shape_layout) {
+      const TensorLayout &layout = has_shape_layout_ ? shape_layout_ : default_shape_layout;
+      if (layout != default_shape_layout) {
         DALI_ENFORCE(shape_layout_.is_permutation_of(default_shape_layout),
                      make_string("`shape_layout` should be a permutation of ", default_shape_layout,
                                  "` for the provided inputs"));
@@ -914,6 +915,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   bool has_labels_;
   bool has_crop_shape_;
   bool has_input_shape_;
+  bool has_bbox_layout_;
+  bool has_shape_layout_;
 
   TensorLayout bbox_layout_;
   TensorLayout shape_layout_;
