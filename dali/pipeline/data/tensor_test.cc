@@ -27,6 +27,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 
@@ -698,6 +699,28 @@ TYPED_TEST(TensorTest, TestTypeChange) {
       ASSERT_EQ(tensor.dim(i), shape[i]);
     }
     ASSERT_EQ(volume(shape) * TypeTable::GetTypeInfo(current_type).size(), tensor.nbytes());
+  }
+}
+
+TYPED_TEST(TensorTest, TestReinterpret) {
+  using Backend = TypeParam;
+  DALIDataType types[] = {
+      DALI_UINT8, DALI_INT8, DALI_UINT16, DALI_INT16, DALI_UINT32, DALI_INT32,
+      DALI_UINT64, DALI_INT64, DALI_FLOAT, DALI_FLOAT16, DALI_FLOAT64, DALI_BOOL
+  };
+  for (auto old_t : types) {
+    auto old_size = TypeTable::GetTypeInfo(old_t).size();
+    for (auto new_t : types) {
+      auto new_size = TypeTable::GetTypeInfo(new_t).size();
+      Tensor<Backend> t;
+      t.Resize(TensorShape<>{2, 3, 4}, old_t);
+      if (old_size == new_size) {
+        EXPECT_NO_THROW(t.Reinterpret(new_t));
+        EXPECT_EQ(t.type(), new_t);
+      } else {
+        EXPECT_THROW(t.Reinterpret(new_t), std::exception);
+      }
+    }
   }
 }
 
