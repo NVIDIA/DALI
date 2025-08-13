@@ -43,7 +43,7 @@ FetchContent_Declare(
     URL      ${PYNVVIDEOCODEC_SOURCE_URL}
     URL_HASH SHA256=${PYNVVIDEOCODEC_SOURCE_SHA256}
 )
-FetchContent_Populate(pynvvideocodec)
+FetchContent_MakeAvailable(pynvvideocodec)
 
 include(ffmpeg.cmake)
 
