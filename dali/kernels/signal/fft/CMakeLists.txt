@@ -42,13 +42,13 @@ if (WITH_DYNAMIC_CUFFT)
         OUTPUT ${CUFFT_GENERATED_STUB}
         COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cufft --
                     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/cufft.json" ${CUFFT_GENERATED_STUB}
-                    "${CMAKE_CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cufft.h"
+                    "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cufft.h"
                     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
                     # for some reason QNX fails with 'too many errors emitted' is this is not set
                     "-ferror-limit=0"
                     ${DEFAULT_COMPILER_INCLUDE}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/stub_codegen.py
-                "${CMAKE_CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cufft.h"
+                "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cufft.h"
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/cufft.json"
         COMMENT "Running cufft.h stub generator"
         VERBATIM)

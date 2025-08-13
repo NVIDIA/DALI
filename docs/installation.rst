@@ -207,8 +207,8 @@ This effort is community-driven and the DALI version available there may not be 
 
 Prebuild packages (including DALI) are hosted by `**external organizations** <https://github.com/open-ce/open-ce#community-builds>`_.
 
-Conda conda-forg
-----------------
+Conda conda-forge
+-----------------
 
 DALI is available as part of the conda-forge ecosystem.
 
