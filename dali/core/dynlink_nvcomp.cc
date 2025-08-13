@@ -24,7 +24,7 @@ namespace {
 typedef void* NVCOMP;
 
 static const char __nvCompfileLibName[] = "libnvcomp.so";
-static const char __nvCompfileLibName1[] = "libnvcomp.so.4";
+static const char __nvCompfileLibName1[] = "libnvcomp.so.5";
 
 NVCOMP loadNvCompFileLibrary() {
   NVCOMP ret = nullptr;

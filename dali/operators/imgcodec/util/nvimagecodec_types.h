@@ -109,6 +109,9 @@ struct DLL_PUBLIC NvImageCodecCodeStream
   static NvImageCodecCodeStream FromHostMem(nvimgcodecInstance_t instance, const void* data,
                                             size_t length);
 
+  static NvImageCodecCodeStream FromSubCodeStream(nvimgcodecCodeStream_t code_stream,
+                                                  const nvimgcodecCodeStreamView_t* cs_view);
+
   static constexpr nvimgcodecCodeStream_t null_handle() {
     return nullptr;
   }

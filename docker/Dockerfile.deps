@@ -7,13 +7,10 @@ ARG BUILDER_EXTRA_DEPS=scratch
 FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
-ENV PATH=/opt/rh/gcc-toolset-11/root/usr/bin:$PATH
-
 # Install yum Dependencies
 RUN yum install -y wget doxygen graphviz gettext xz openssl autogen zip \
-                   gcc-toolset-11 \
-                   gcc-toolset-11-libasan-devel gcc-toolset-11-liblsan-devel \
-                   gcc-toolset-11-libtsan-devel gcc-toolset-11-libubsan-devel \
+                   gcc-toolset-12-libasan-devel gcc-toolset-12-liblsan-devel \
+                   gcc-toolset-12-libtsan-devel gcc-toolset-12-libubsan-devel \
                    perl perl-IPC-Cmd nasm
 
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
@@ -37,7 +34,8 @@ RUN CLANG_VERSION=20.1.2                                                        
     cmake -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" ../llvm && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                      && \
     cd /tmp                                                                                        && \
-    rm -rf llvm-*
+    rm -rf llvm-*                                                                                  && \
+    sed -i "/texture_fetch_functions\.h/d" /usr/local/lib/clang/20/include/__clang_cuda_runtime_wrapper.h
 
 COPY DALI_DEPS_VERSION /tmp
 

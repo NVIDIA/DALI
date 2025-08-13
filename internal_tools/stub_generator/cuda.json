@@ -28,6 +28,7 @@
       "cuDevicePrimaryCtxSetFlags": {},
       "cuDevicePrimaryCtxSetFlags_v2": {},
       "cuCtxCreate_v2": {},
+      "cuCtxCreate_v4": {},
       "cuCtxDestroy_v2": {},
       "cuCtxGetCurrent": {},
       "cuCtxSetCurrent": {},

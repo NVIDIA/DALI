@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-set(CMAKE_CUDA_ARCHITECTURES "50;52;60;61;70;75;80;86")
+set(CMAKE_CUDA_ARCHITECTURES "80;90")
 
 project(naive_histogram_plugin LANGUAGES CUDA CXX C)
 

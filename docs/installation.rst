@@ -5,16 +5,16 @@ Prerequisites
 -------------
 
 1. Linux x64.
-2. `**NVIDIA Driver** <https://www.nvidia.com/drivers>`_ supporting `CUDA 11.0 <https://developer.nvidia.com/cuda-downloads>`__
-   or later (i.e. 450.80.02 or later driver releases).
-3. `**CUDA Toolkit** <https://developer.nvidia.com/cuda-downloads>`_ - for DALI based on CUDA 12, the toolkit is linked
-   dynamically and it is required to be installed. For CUDA 11 builds it is optional.
+2. `**NVIDIA Driver** <https://www.nvidia.com/drivers>`_ supporting `CUDA 12.0 <https://developer.nvidia.com/cuda-downloads>`__
+   or later (i.e. 525.60 or later driver releases).
+3. `**CUDA Toolkit** <https://developer.nvidia.com/cuda-downloads>`_ - the toolkit is linked
+   dynamically and it is required to be installed.
 4. [Optional] One or more of the following deep learning frameworks:
 
-   * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`__
    * `PyTorch <https://pytorch.org>`__
    * `TensorFlow <https://www.tensorflow.org>`__
    * `JAX <https://github.com/google/jax>`__
+   * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`__
 
 
 DALI in NGC Containers
@@ -39,18 +39,6 @@ nvidia-dali
 Execute the following command to install the latest DALI for specified CUDA version (please check
 :doc:`support matrix <support_matrix>` to see if your platform is supported):
 
-* for CUDA 11.0:
-
-.. code-block:: bash
-
-   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda110
-
-or just
-
-.. code-block:: bash
-
-   pip install nvidia-dali-cuda110
-
 * for CUDA 12.0:
 
 .. code-block:: bash
@@ -63,10 +51,22 @@ or just
 
    pip install nvidia-dali-cuda120
 
+* for CUDA 13.0:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda130
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-cuda130
+
 .. note::
 
-  CUDA 11.0 and CUDA 12.0 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x/12.x respectively
-  toolkit while it can run on the latest, stable CUDA 11.0 and CUDA 12.0 capable drivers (450.80 or later and 525.60 or later respectively).
+  CUDA 12.0 and CUDA 13.0 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 12.x/13.x respectively
+  toolkit while it can run on the latest, stable CUDA 12.0 and CUDA 13.0 capable drivers (525.60 or later and 580.x or later respectively).
   Using the latest driver may enable additional functionality. More details can be found in
   `enhanced CUDA compatibility guide <https://docs.nvidia.com/deploy/cuda-compatibility/index.html#enhanced-compat-minor-releases>`_.
 
@@ -80,18 +80,6 @@ nvidia-dali-tf-plugin
 DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package
 which will be built against the currently installed version of TensorFlow:
 
-* for CUDA 11.0:
-
-.. code-block:: bash
-
-   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda110
-
-or just
-
-.. code-block:: bash
-
-   pip install nvidia-dali-tf-plugin-cuda110
-
 * for CUDA 12.0:
 
 .. code-block:: bash
@@ -104,7 +92,19 @@ or just
 
    pip install nvidia-dali-tf-plugin-cuda120
 
-Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
+* for CUDA 13.0:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda130
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-tf-plugin-cuda130
+
+Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
 
 .. note::
 
@@ -132,13 +132,6 @@ Nightly Builds
 
 To access most recent nightly builds please use flowing release channel:
 
-* for CUDA 11.0:
-
-.. code-block:: bash
-
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda110
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda110
-
 * for CUDA 12.0:
 
 .. code-block:: bash
@@ -146,17 +139,24 @@ To access most recent nightly builds please use flowing release channel:
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda120
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda120
 
+* for CUDA 13.0:
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda130
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda130
+
 
 Weekly Builds
 ^^^^^^^^^^^^^
 
 Also, there is a weekly release channel with more thorough testing. To access most recent weekly
-builds please use the following release channel (available only for CUDA 12):
+builds please use the following release channel (available only for CUDA 13):
 
 .. code-block:: bash
 
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-weekly-cuda120
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-tf-plugin-weekly-cuda120
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-weekly-cuda130
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-tf-plugin-weekly-cuda130
 
 
 pip - Legacy Releases
@@ -184,6 +184,11 @@ For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 --upgrade nvidia-dali
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 --upgrade nvidia-dali-tf-plugin
 
+   pip install --upgrade nvidia-dali-cuda110
+   pip install --upgrade nvidia-dali-tf-plugin-cuda110
+
+CUDA 12 build is provided starting from DALI 1.22.0.
+
 CUDA 11 build is provided starting from DALI 0.22.0.
 
 CUDA 10.2 build is provided starting from DALI 1.4.0 up to DALI 1.20.
@@ -202,3 +207,11 @@ This effort is community-driven and the DALI version available there may not be 
 
 Prebuild packages (including DALI) are hosted by `**external organizations** <https://github.com/open-ce/open-ce#community-builds>`_.
 
+Conda conda-forg
+----------------
+
+DALI is available as part of the conda-forge ecosystem.
+
+This effort is community-driven and the DALI version available there may not be up to date.
+
+`The package is available here <https://anaconda.org/conda-forge/nvidia-dali-python>`_.
