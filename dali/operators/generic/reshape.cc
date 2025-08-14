@@ -78,8 +78,7 @@ The number of dimensions is subject to the following restrictions:
 
 If a value is not specified, if number of dimension matches existing layout, the output
 layout is preserved. If the number of dimensions does not match, the argument is reset
-to empty. If a value is set, and is not empty, the layout must match the dimensionality
-of the output.)code", nullptr)
+to empty. If a value is set, the layout must match the dimensionality of the output.)code", nullptr)
   .AddOptionalArg<std::vector<int>>("src_dims", R"code(Indices of dimensions to keep.
 
 This argument can be used to manipulate the order of existing dimensions or to remove or
