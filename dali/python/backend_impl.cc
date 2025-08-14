@@ -1179,7 +1179,7 @@ void ExposeTensorList(py::module &m) {
       "tl"_a,
       "layout"_a = py::none())
     .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
-        DomainTimeRange range("TensorListCPU::init from a buffer", kCPUTensorColor);
+         DomainTimeRange range("TensorListCPU::init from a buffer", kCPUTensorColor);
         // We need to verify that the input data is C_CONTIGUOUS
         // and of a type that we can work with in the backend
         py::buffer_info info = b.request();
