@@ -397,6 +397,23 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC void ResizeSample(int sample_idx, const TensorShape<> &new_shape);
 
   /**
+   * @brief Reinterprets the contents of the tensor as having a different type.
+   *
+   * Changes the element type of the tensor. The size of the element must not change.
+   */
+  void Reinterpret(DALIDataType new_type_id) {
+    Reinterpret(TypeTable::GetTypeInfo(new_type_id));
+  }
+
+  void Reinterpret(const TypeInfo &new_type_info) {
+    DALI_ENFORCE(new_type_info.size() == type_.size(),
+      "Cannot reinterpret the tensor as having a different element size.");
+    type_ = new_type_info;
+    for (int t = 0, n = num_samples(); t < n; t++)
+      tensors_[t].type_ = new_type_info;  // just assign, no need to re-validate the size
+  }
+
+  /**
    * @brief Reserve memory as one contiguous allocation
    */
   void reserve(size_t total_bytes);
