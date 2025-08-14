@@ -131,7 +131,7 @@ def _to_batch(x, batch_size, device=None):
                 raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
             return Batch(x, device=device)
 
-        return Batch.broadcast(_to_tensor(x, device=device), batch_size)
+        return Batch.broadcast(x, batch_size, device=device)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
