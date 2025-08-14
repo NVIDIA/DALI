@@ -302,7 +302,7 @@ if(BUILD_NVIMAGECODEC)
         URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
         URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
       )
-      FetchContent_Populate(nvimgcodec_headers)
+      FetchContent_MakeAvailable(nvimgcodec_headers)
       set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
       if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
         message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
