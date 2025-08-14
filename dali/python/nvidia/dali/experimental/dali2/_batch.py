@@ -21,6 +21,7 @@ from ._device import Device
 from . import _eval_mode
 from . import _invocation
 import copy
+import nvtx
 
 
 class BatchedSlice:
@@ -154,21 +155,26 @@ class Batch:
         return self._wraps_external_data
 
     @staticmethod
-    def broadcast(sample, batch_size: int) -> "Batch":
+    def broadcast(sample, batch_size: int, device: Optional[Device] = None) -> "Batch":
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
-            return Batch([Tensor(sample)] * batch_size)
+            return Batch([Tensor(sample, device=device)] * batch_size)
         import numpy as np
-        arr = np.array(batch_size)
-        if arr.dtype == np.float64:
-            arr = arr.astype(np.float32)
-        elif arr.dtype == np.int64:
-            arr = arr.astype(np.int32)
-        elif arr.dtype == np.uint64:
-            arr = arr.astype(np.uint32)
-        arr = np.stack([arr] * batch_size)
-        return Batch(_backend.TensorListCPU(arr))
+        with nvtx.annotate("to numpy and stack", domain="batch"):
+            arr = np.array(sample)
+            if arr.dtype == np.float64:
+                arr = arr.astype(np.float32)
+            elif arr.dtype == np.int64:
+                arr = arr.astype(np.int32)
+            elif arr.dtype == np.uint64:
+                arr = arr.astype(np.uint32)
+            arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
+
+        with nvtx.annotate("to backend", domain="batch"):
+            tl = _backend.TensorListCPU(arr)
+        with nvtx.annotate("create batch", domain="batch"):
+            return Batch(tl, device=device)
 
     @property
     def dtype(self) -> DType:
