@@ -52,6 +52,8 @@ OUTDIR=${6:-/wheelhouse}
 COMPRESSION=${7:-YES} # whether to compress the resulting wheel
 BUNDLE_NVCOMP=${8:-NO}
 
+MAJOR_CUDA_VERSION="$(echo $OUTWHLNAME | grep -oP 'cuda\K[0-9]{2}')"
+
 if [[ "$COMPRESSION" == "NO" ]]; then
     ZIP_FLAG="-0"
 else
@@ -145,7 +147,7 @@ DEPS_LIST=(
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
     DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.4"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.5"
     )
 fi
 
@@ -248,8 +250,8 @@ echo "Fixed hashed names"
 patch_rpath() {
     local FILE=$1
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64" $FILE
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib" $FILE
     patchelf --print-rpath $FILE
 }
 echo "Fixing rpath of main files..."

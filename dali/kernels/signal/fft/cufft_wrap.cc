@@ -26,7 +26,9 @@ namespace {
 typedef void* CUFFTDIVER;
 
 static const char __CufftLibName[] = "libcufft.so";
-#if CUDA_VERSION >= 12000
+#if CUDA_VERSION >= 13000
+static const char __CufftLibNameCuVer[] = "libcufft.so.12";
+#elif CUDA_VERSION >= 12000 && CUDA_VERSION < 13000
 static const char __CufftLibNameCuVer[] = "libcufft.so.11";
 #else
 // in cuda 10.x and 11.x it is consistently named libcufft.so.10

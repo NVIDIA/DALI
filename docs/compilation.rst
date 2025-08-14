@@ -37,12 +37,12 @@ Building Python Wheel
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
 
-* | CUDA_VERSION - CUDA toolkit version (11.8 and 12.4 are officially supported, 11.0,
-    11.1, 11.2, 11.4, 11.5, 11.6, 11.7, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7 and 12.8 are deprecated
+* | CUDA_VERSION - CUDA toolkit version (12.9 and 13.0 are officially supported,
+    12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6 are 12.8 are deprecated
     and may not work).
-  | The default is ``12.9``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3, 11.4
-    11.5, 11.6, 11.7 and 11.8 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
-    family. Same applies to CUDA 12.x. Please update to the latest recommended driver version in that family.
+  | The default is ``13.0``. Thanks to CUDA extended compatibility mode, CUDA 12.x wheels are named as
+    CUDA 12.0 because it can work with the CUDA 12.0 R525.x driver
+    family. Same applies to CUDA 13.x. Please update to the latest recommended driver version in that family.
   | If the value of the CUDA_VERSION is prefixed with `.` then any value ``.XX.Y`` can be passed,
     the supported version check is suppressed, and the user needs to make sure that
     Dockerfile.cudaXXY.deps is present in the `docker/` directory.
@@ -104,9 +104,9 @@ For example:
 
 .. code-block:: bash
 
-  CUDA_VERSION=11.1 ./build.sh
+  CUDA_VERSION=12.1 ./build.sh
 
-Will build CUDA 11.1 based DALI for Python 3 and place relevant Python wheel inside DALI_root/wheelhouse
+Will build CUDA 12.1 based DALI for Python 3 and place relevant Python wheel inside DALI_root/wheelhouse
 The produced DALI wheel and TensorFlow Plugin are compatible with all Python versions supported by DALI.
 
 ----

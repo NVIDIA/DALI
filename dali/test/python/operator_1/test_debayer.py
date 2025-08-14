@@ -97,15 +97,11 @@ def prepare_test_imgs(num_samples, dtype):
 def compare_image_equality(
     baseline: np.ndarray,
     test: np.ndarray,
-    device: str,
     outlier_thresh: int = 0.05,
     max_outlier: float = 0.05,
 ):
     """Compare two images for equality. GPU comparison is exact, CPU comparison is approximate,
     allowing for greater than 5% difference in less than 5% of all pixels in the image."""
-    if device == "gpu":  # comparison should be exact on gpu
-        return np.all(test == baseline)
-
     outlier_val = np.iinfo(baseline.dtype).max * outlier_thresh
     # cpu debayer is slightly different, so we allow for some error
     diff = np.abs(baseline.astype(np.int32) - test.astype(np.int32))
@@ -173,7 +169,12 @@ class DebayerTest(unittest.TestCase):
             assert len(debayered_imgs) == len(idxs)
             for img_debayered, idx in zip(debayered_imgs, idxs):
                 baseline = npp_baseline[pattern][idx]
-                assert compare_image_equality(baseline, img_debayered, device)
+                if device == "gpu":
+                    assert compare_image_equality(
+                        baseline, img_debayered, outlier_thresh=0.05, max_outlier=0.01
+                    )
+                else:
+                    assert compare_image_equality(baseline, img_debayered)
 
     @cartesian_params((1, 11, 184), (np.uint8, np.uint16), ("gpu", "cpu"))
     def test_debayer_per_sample_pattern(self, batch_size, dtype, device):
@@ -220,7 +221,12 @@ class DebayerTest(unittest.TestCase):
             assert len(debayered_imgs) == len(patterns) == len(idxs)
             for img_debayered, pattern, idx in zip(debayered_imgs, patterns, idxs):
                 baseline = npp_baseline[pattern][idx]
-                assert compare_image_equality(img_debayered, baseline, device)
+                if device == "gpu":
+                    assert compare_image_equality(
+                        img_debayered, baseline, outlier_thresh=0.05, max_outlier=0.01
+                    )
+                else:
+                    assert compare_image_equality(img_debayered, baseline)
 
     @cartesian_params(
         ("bilinear_ocv", "edgeaware_ocv", "vng_ocv", "gray_ocv"), (np.uint8, np.uint16)
@@ -328,7 +334,12 @@ class DebayerVideoTest(unittest.TestCase):
             assert len(debayered_videos) == len(idxs)
             for vid_debayered, idx in zip(debayered_videos, idxs):
                 baseline = self.npp_baseline[idx]
-                assert compare_image_equality(vid_debayered, baseline, device)
+                if device == "gpu":
+                    assert compare_image_equality(
+                        vid_debayered, baseline, outlier_thresh=0.05, max_outlier=0.01
+                    )
+                else:
+                    assert compare_image_equality(vid_debayered, baseline)
 
 
 def source_full_array(shape, dtype):

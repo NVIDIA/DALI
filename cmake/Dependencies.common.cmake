@@ -155,7 +155,7 @@ if(BUILD_NVCOMP)
     include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
     list(APPEND DALI_LIBS ${nvcomp_LIBS})
   else()
-    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-nvcomp-cu${CUDA_VERSION_MAJOR} ~= 4.0\',")
+    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-nvcomp-cu${CUDA_VERSION_MAJOR} == 5.0.0.6\',")
     message(STATUS "Adding nvComp requirement as: ${DALI_INSTALL_REQUIRES_NVCOMP}")
   endif()
 endif()
@@ -281,8 +281,8 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.5.0")
-  set(NVIMGCODEC_MAX_VERSION "0.6.0")
+  set(NVIMGCODEC_MIN_VERSION "0.6.0")
+  set(NVIMGCODEC_MAX_VERSION "0.7.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
@@ -299,8 +299,8 @@ if(BUILD_NVIMAGECODEC)
       include(FetchContent)
       FetchContent_Declare(
         nvimgcodec_headers
-        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.5.0.13-archive.tar.xz
-        URL_HASH SHA512=f220f06315e18dece601971c0b31798cc819522ed0daf651fcc12e5436f62e051de8e7171a11e8e10af25930493b00c2e3a214a0e1eabb27ab57748b9966d3bd
+        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.6.0.32-archive.tar.xz
+        URL_HASH SHA512=a7c894d38c78fd6fb4e460c5aebabaf90af20462faf84dcbaa310ca4842638cccd8d9628cafda1a970f865afe44815d718f65fe12f6c84160b8cd2d8485e81ca
       )
       FetchContent_Populate(nvimgcodec_headers)
       set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
@@ -341,7 +341,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.5.0
+      GIT_TAG           v0.6.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
