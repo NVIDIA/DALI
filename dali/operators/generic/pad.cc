@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ axis to match the largest sample in the batch and an alignment of 2.
   .AddOptionalArg("fill_value",
     R"code(The value to pad the batch with.)code",
     0.0f, true)
-  .AddOptionalArg<int>("axes",
+  .AddOptionalArg<std::vector<int>>("axes",
     R"code(Indices of the axes on which the batch samples will be padded.
 
 Negative values are interpreted as counting dimensions from the back.
@@ -156,14 +156,14 @@ Valid range: ``[-ndim, ndim-1]``, where ndim is the number of dimensions in the 
 
 The `axis_names` and `axes` arguments are mutually exclusive. If `axes` and `axis_names`
 are empty, or have not been provided, the output will be padded on all of the axes.)code",
-    std::vector<int>(), true)
+    nullptr, true)
   .AddOptionalArg<TensorLayout>("axis_names",
     R"code(Names of the axes on which the batch samples will be padded.
 
 The `axis_names` and `axes` arguments are mutually exclusive. If `axes` and `axis_names`
 are empty, or have not been provided, the output will be padded on all of the axes.)code",
-    "")
-  .AddOptionalArg<int>("align",
+    nullptr)
+  .AddOptionalArg<std::vector<int>>("align",
     R"code(If specified, this argument determines the alignment on the dimensions specified
 by `axes` or `axis_names`.
 
@@ -173,8 +173,8 @@ If an integer value is provided, the alignment restrictions are applied to all t
 
 To use alignment only, that is without any default or explicit padding behavior,
 set the minimum `shape` to 1 for the specified axis.)code",
-    std::vector<int>(), true)
-  .AddOptionalArg<int>("shape",
+    nullptr, true)
+  .AddOptionalArg<std::vector<int>>("shape",
     R"code(The extents of the output shape in the axes specified by the `axes` or `axis_names`.
 
 Specifying -1 for an axis restores the default behavior of extending the axis to accommodate
@@ -183,7 +183,7 @@ the aligned size of the largest sample in the batch.
 If the provided extent is smaller than the one of the samples, padding will be applied
 only to match the required alignment. For example, to disable padding in an axis, except
 for the necessary for alignment, you can specify a value of 1.)code",
-    std::vector<int>(), true);
+    nullptr, true);
 
 template <>
 bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,

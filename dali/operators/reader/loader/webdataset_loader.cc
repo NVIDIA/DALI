@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -222,10 +222,10 @@ std::string str_tolower(std::string s) {
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     : Loader(spec),
       paths_(spec.GetRepeatedArgument<std::string>("paths")),
-      index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))),
       case_sensitive_extensions_(spec.GetArgument<bool>("case_sensitive_extensions")) {
+  spec.TryGetRepeatedArgument(index_paths_, "index_paths");
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
                make_string("The number of index files, if any, must match the number of archives ",
                "in the dataset"));

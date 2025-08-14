@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -132,12 +132,12 @@ when turned off: jpg, JPG, jPG should work.
 If the extension characters cannot be represented as ASCI the result of turing this option off
 is undefined.
 )code", true)
-    .AddOptionalArg("index_paths",
+    .AddOptionalArg<std::vector<std::string>>("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
 
 Has to be the same length as the `paths` argument. In case it is not provided,
 it will be inferred automatically from the webdataset archive.)code",
-            std::vector<std::string>())
+            nullptr)
     .AddOptionalArg(
         "missing_component_behavior",
         R"code(Specifies what to do in case there is not any file in a sample corresponding to a certain output.

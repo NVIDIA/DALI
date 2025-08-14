@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,21 +44,21 @@ the `shape` and `dtype`, will be taken from the array.
   .NumInput(0)
   .NumOutput(1)
   .MakeDocHidden()
-  .AddOptionalArg("shape",
+  .AddOptionalArg<std::vector<int>>("shape",
                   "The desired shape of the output. If not set, the data is assumed to be 1D",
-                  std::vector<int>())
-  .AddOptionalArg("fdata",
+                  nullptr)
+  .AddOptionalArg<std::vector<float>>("fdata",
                   R"code(Contents of the constant that is produced (for floating point types).
 
 .. note::
     `fdata` and `idata` are mutually exclusive, and one of them is required.)code",
-                  std::vector<float>())
-  .AddOptionalArg("idata",
+                  nullptr)
+  .AddOptionalArg<std::vector<int>>("idata",
                   R"code(Contents of the constant that is produced (for integer point types).
 
 .. note::
     `fdata` and `idata` are mutually exclusive, and one of them is required.)code",
-                  std::vector<int>())
+                  nullptr)
   .AddOptionalTypeArg("dtype", R"code(Output data type.
 
 If this value is not set, the output is float if the fdata argument is used and

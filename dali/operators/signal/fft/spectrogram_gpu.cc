@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,11 +54,11 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     args.spectrum_type = static_cast<FftSpectrumType>(power);
     args.time_major_layout = layout == "tf";
 
-    cpu_window = spec.GetRepeatedArgument<float>("window_fn");
-    if (cpu_window.empty()) {
+    if (!spec.TryGetRepeatedArgument(cpu_window, "window_fn")) {
       cpu_window.resize(args.window_length);
       kernels::signal::HannWindow(make_span(cpu_window));
     }
+
     DALI_ENFORCE(cpu_window.size() == static_cast<size_t>(args.window_length),
       "Window function should match the specified `window_length`");
 
