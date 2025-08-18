@@ -95,7 +95,7 @@ def _get_batch_size(x):
             return x.batch_size
         if isinstance(x, (_b.TensorListCPU, _b.TensorListGPU)):
             return len(x)
-        if isinstance(x, list) and any(_is_tensor_type(t, True) for t in x):
+        if isinstance(x, list) and any(isinstance(t, Tensor) for t in x):
             return len(x)
         return None
 

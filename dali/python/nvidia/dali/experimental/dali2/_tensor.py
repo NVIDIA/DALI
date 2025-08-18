@@ -35,7 +35,7 @@ def _is_tensor_type(x, nested_list_warning=False):
     from . import _batch
 
     if isinstance(x, _batch.Batch):
-        raise ValueError("A list of Batchs is not a valid argument type")
+        raise ValueError("A list of Batch objects is not a valid argument type")
     if isinstance(x, Tensor):
         return True
     if hasattr(x, "__array__"):
@@ -177,7 +177,7 @@ class Tensor:
                         (arr, converted_dtype_id) = _try_convert_enums(arr)
                     self._backend = _backend.TensorCPU(arr, layout, False)
                     if converted_dtype_id is not None:
-                        self._backend.reinterpret_as(converted_dtype_id)
+                        self._backend.reinterpret(converted_dtype_id)
                     copied = True
                     self._wraps_external_data = False
 

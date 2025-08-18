@@ -14,7 +14,7 @@
 
 from typing import Any, Optional, Tuple, List, Union
 from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._tensor import Tensor, _is_full_slice, _is_tensor_type
+from ._tensor import Tensor, _is_full_slice, _is_tensor_type, _try_convert_enums
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
@@ -164,16 +164,21 @@ class Batch:
         import numpy as np
         with nvtx.annotate("to numpy and stack", domain="batch"):
             arr = np.array(sample)
+            converted_dtype_id = None
             if arr.dtype == np.float64:
                 arr = arr.astype(np.float32)
             elif arr.dtype == np.int64:
                 arr = arr.astype(np.int32)
             elif arr.dtype == np.uint64:
                 arr = arr.astype(np.uint32)
+            elif arr.dtype == object:
+                arr, converted_dtype_id = _try_convert_enums(arr)
             arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
 
         with nvtx.annotate("to backend", domain="batch"):
             tl = _backend.TensorListCPU(arr)
+            if converted_dtype_id is not None:
+                tl.reinterpret(converted_dtype_id)
         with nvtx.annotate("create batch", domain="batch"):
             return Batch(tl, device=device)
 
