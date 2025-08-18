@@ -6,7 +6,7 @@
    "calling_conv":"",
    "not_found_error":"nvcompErrorNotSupported",
    "functions": {
-      "nvcompBatchedLZ4DecompressGetTempSize": {},
+      "nvcompBatchedLZ4DecompressGetTempSizeAsync": {},
       "nvcompBatchedLZ4DecompressAsync": {}
    }
 }

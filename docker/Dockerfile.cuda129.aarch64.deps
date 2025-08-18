@@ -24,11 +24,13 @@ RUN NVJPEG2K_VERSION=0.8.1.40-1 && \
     apt-get install libnvjpeg2k0-dev-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
-                    libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} \
-                    libnvcomp4-cuda-${CUDA_VERSION_MAJOR}=${NVCOMP_VERSION} \
-                    libnvcomp4-static-cuda-${CUDA_VERSION_MAJOR}=${NVCOMP_VERSION} -y && \
+                    libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} -y  && \
     cp /usr/include/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
     cp /usr/lib/sbsa-linux-gnu/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
-    cp -r /usr/include/nvcomp_${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
-    cp -r /usr/lib/sbsa-linux-gnu/nvcomp/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
+    mkdir /tmp/nvcomp && cd /tmp/nvcomp && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/linux-sbsa/nvcomp-linux-sbsa-5.0.0.6_cuda12-archive.tar.xz && \
+    tar -xf * && \
+    cp -r nvcomp-linux-sbsa-5.0.0.6_cuda12-archive/include/* /usr/local/cuda/include/ && \
+    cp -r nvcomp-linux-sbsa-5.0.0.6_cuda12-archive/lib/* /usr/local/cuda/lib64/ && \
+    cd / && rm -rf /tmp/nvcomp && \
     rm -rf /var/lib/apt/lists/*

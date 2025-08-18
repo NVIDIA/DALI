@@ -84,6 +84,10 @@ class ShapeParams {
     return max_output_sample_vol_;
   }
 
+  auto GetMaxOutVol() const {
+    return max_output_vol_;
+  }
+
   auto GetTotalChunkNum() const {
     auto total_chunks_num = sizes_.size();
     assert(total_chunks_num == offsets_.size());
@@ -349,6 +353,7 @@ class ShapeParams {
     }
     int sample_dim = provided_shape[0].num_elements();
     TensorListShape<> shape(num_samples, sample_dim);
+    max_output_vol_ = 0;
     for (int sample_idx = 0; sample_idx < provided_shape.num_samples(); sample_idx++) {
       const int *data = provided_shape.tensor_data(sample_idx);
       for (int d = 0; d < sample_dim; d++) {
@@ -360,6 +365,7 @@ class ShapeParams {
       }
       TensorShape<> sample_shape(data, data + sample_dim);
       max_output_sample_vol_ = std::max(max_output_sample_vol_, volume(sample_shape));
+      max_output_vol_ += volume(sample_shape);
       shape.set_tensor_shape(sample_idx, sample_shape);
     }
     return shape;
@@ -378,6 +384,7 @@ class ShapeParams {
   std::vector<size_t> sizes_;
 
   int64_t max_output_sample_vol_;
+  int64_t max_output_vol_;
   TensorListShape<> output_shape_;
   TensorLayout output_layout_ = "";
 };
