@@ -738,7 +738,8 @@ TYPED_TEST(TensorListSuite, TestReinterpret) {
   using Backend = TypeParam;
   DALIDataType types[] = {
       DALI_UINT8, DALI_INT8, DALI_UINT16, DALI_INT16, DALI_UINT32, DALI_INT32,
-      DALI_UINT64, DALI_INT64, DALI_FLOAT, DALI_FLOAT16, DALI_FLOAT64, DALI_BOOL
+      DALI_UINT64, DALI_INT64, DALI_FLOAT, DALI_FLOAT16, DALI_FLOAT64, DALI_BOOL,
+      DALI_INTERP_TYPE, DALI_DATA_TYPE, DALI_IMAGE_TYPE,
   };
   for (auto old_t : types) {
     auto old_size = TypeTable::GetTypeInfo(old_t).size();
@@ -747,8 +748,12 @@ TYPED_TEST(TensorListSuite, TestReinterpret) {
       TensorList<Backend> t;
       t.Resize(TensorListShape<>{{2, 3, 4}, {5, 6, 1}}, old_t);
       if (old_size == new_size) {
+        const void *p0 = t.raw_tensor(0);
+        const void *p1 = t.raw_tensor(1);
         EXPECT_NO_THROW(t.Reinterpret(new_t));
         EXPECT_EQ(t.type(), new_t);
+        EXPECT_EQ(t.raw_tensor(0), p0);
+        EXPECT_EQ(t.raw_tensor(1), p1);
       } else {
         EXPECT_THROW(t.Reinterpret(new_t), std::exception);
       }

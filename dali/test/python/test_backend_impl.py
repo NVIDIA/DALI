@@ -480,13 +480,15 @@ def test_schema_get_input_device():
 
 @params((TensorCPU,), (TensorGPU,))
 def test_reinterpret_tensor(TensorType):
-    t = TensorCPU(np.array([1, 2, 3], np.int32))
+    t = TensorCPU(np.array([0x3F800000, 0x3FC00000, 0x40000000], np.int32))
     if TensorType is TensorGPU:
         t = t._as_gpu()
     t.reinterpret(types.UINT32)
     assert t.dtype == types.UINT32
+    assert np.array_equal(np.array(t.as_cpu()), np.uint32([0x3F800000, 0x3FC00000, 0x40000000]))
     t.reinterpret(types.FLOAT)
     assert t.dtype == types.FLOAT
+    assert np.array_equal(np.array(t.as_cpu()), np.float32([1.0, 1.5, 2.0]))
     with assert_raises(Exception, glob="*different*size*"):
         t.reinterpret(types.UINT16)
     with assert_raises(Exception, glob="*different*size*"):
