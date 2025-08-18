@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -159,6 +159,21 @@ class Tensor : public Buffer<Backend> {
     Index new_size = volume(shape);
     resize(new_size, new_type);
     shape_ = shape;
+  }
+
+  /**
+   * @brief Reinterprets the contents of the tensor as having a different type.
+   *
+   * Changes the element type of the tensor. The size of the element must not change.
+   */
+  void Reinterpret(DALIDataType new_type_id) {
+    Reinterpret(TypeTable::GetTypeInfo(new_type_id));
+  }
+
+  void Reinterpret(const TypeInfo &new_type_info) {
+    DALI_ENFORCE(new_type_info.size() == type_.size(),
+      "Cannot reinterpret the tensor as having a different element size.");
+    type_ = new_type_info;
   }
 
   /**

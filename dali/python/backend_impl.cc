@@ -310,6 +310,16 @@ void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int de
   batch->SetLayout(layout);
 }
 
+template <typename Backend>
+void ReinterpretTensor(Tensor<Backend> &t, DALIDataType new_type) {
+  t.Reinterpret(new_type);
+}
+
+template <typename Backend>
+void ReinterpretTensorList(TensorList<Backend> &tl, DALIDataType new_type) {
+  tl.Reinterpret(new_type);
+}
+
 void ExposeTensorLayout(py::module &m) {
   py::class_<TensorLayout> tl(m, "TensorLayout");
   tl.def(py::init([](string s) {
@@ -749,6 +759,11 @@ void ExposeTensor(py::module &m) {
       R"code(
       Returns the address of the first element of tensor.
       )code")
+    .def("reinterpret", ReinterpretTensor<CPUBackend>,
+      "new_type"_a,
+      R"code(
+      Reinterpret the contents of the tensor as a new type. The element size must not change.
+      )code")
     .def("__str__", [](Tensor<CPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
     })
@@ -893,6 +908,11 @@ void ExposeTensor(py::module &m) {
 
       dim : int
             If specified, it represents the axis of a single dimension to be squeezed.
+      )code")
+    .def("reinterpret", ReinterpretTensor<GPUBackend>,
+      "new_type"_a,
+      R"code(
+      Reinterpret the contents of the tensor as a new type. The element size must not change.
       )code")
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
@@ -1359,6 +1379,11 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns the address of the first element of TensorList.
       )code")
+    .def("reinterpret", ReinterpretTensorList<CPUBackend>,
+      "new_type"_a,
+      R"code(
+      Reinterpret the contents of the tensor list as a new type. The element size must not change.
+      )code")
     .def("reset", &TensorList<CPUBackend>::Reset)
     .def("__str__", [](TensorList<CPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
@@ -1570,6 +1595,11 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def("reinterpret", ReinterpretTensorList<GPUBackend>,
+      "new_type"_a,
+      R"code(
+      Reinterpret the contents of the tensor list as a new type. The element size must not change.
       )code")
     .def("__str__", [](TensorList<GPUBackend> &t) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);

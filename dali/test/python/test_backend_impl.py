@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@ import nvidia.dali.types as types
 import warnings
 from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU, GetSchema
+from nvidia.dali.backend_impl import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU, GetSchema
 from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
+from nose2.tools import params
 from nose_utils import assert_raises, SkipTest
 from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
 
@@ -475,3 +476,35 @@ def test_schema_get_input_device():
                 f"input_device: {input_device}, "
                 f"operator_device: {operator_device}"
             )
+
+
+@params((TensorCPU,), (TensorGPU,))
+def test_reinterpret_tensor(TensorType):
+    t = TensorCPU(np.array([0x3F800000, 0x3FC00000, 0x40000000], np.int32))
+    if TensorType is TensorGPU:
+        t = t._as_gpu()
+    t.reinterpret(types.UINT32)
+    assert t.dtype == types.UINT32
+    assert np.array_equal(np.array(t.as_cpu()), np.uint32([0x3F800000, 0x3FC00000, 0x40000000]))
+    t.reinterpret(types.FLOAT)
+    assert t.dtype == types.FLOAT
+    assert np.array_equal(np.array(t.as_cpu()), np.float32([1.0, 1.5, 2.0]))
+    with assert_raises(Exception, glob="*different*size*"):
+        t.reinterpret(types.UINT16)
+    with assert_raises(Exception, glob="*different*size*"):
+        t.reinterpret(types.FLOAT64)
+
+
+@params((TensorListCPU,), (TensorListGPU,))
+def test_reinterpret_tensor_list(TensorListType):
+    t = TensorListCPU(np.array([[1, 2, 3], [5, 6, 7]], np.int32))
+    if TensorListType is TensorListGPU:
+        t = t._as_gpu()
+    t.reinterpret(types.UINT32)
+    assert t.dtype == types.UINT32
+    t.reinterpret(types.FLOAT)
+    assert t.dtype == types.FLOAT
+    with assert_raises(Exception, glob="*different*size*"):
+        t.reinterpret(types.UINT16)
+    with assert_raises(Exception, glob="*different*size*"):
+        t.reinterpret(types.FLOAT64)

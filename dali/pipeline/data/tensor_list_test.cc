@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -733,6 +733,33 @@ typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 constexpr cudaStream_t cuda_stream = 0;
 
 TYPED_TEST_SUITE(TensorListSuite, Backends);
+
+TYPED_TEST(TensorListSuite, TestReinterpret) {
+  using Backend = TypeParam;
+  DALIDataType types[] = {
+      DALI_UINT8, DALI_INT8, DALI_UINT16, DALI_INT16, DALI_UINT32, DALI_INT32,
+      DALI_UINT64, DALI_INT64, DALI_FLOAT, DALI_FLOAT16, DALI_FLOAT64, DALI_BOOL,
+      DALI_INTERP_TYPE, DALI_DATA_TYPE, DALI_IMAGE_TYPE,
+  };
+  for (auto old_t : types) {
+    auto old_size = TypeTable::GetTypeInfo(old_t).size();
+    for (auto new_t : types) {
+      auto new_size = TypeTable::GetTypeInfo(new_t).size();
+      TensorList<Backend> t;
+      t.Resize(TensorListShape<>{{2, 3, 4}, {5, 6, 1}}, old_t);
+      if (old_size == new_size) {
+        const void *p0 = t.raw_tensor(0);
+        const void *p1 = t.raw_tensor(1);
+        EXPECT_NO_THROW(t.Reinterpret(new_t));
+        EXPECT_EQ(t.type(), new_t);
+        EXPECT_EQ(t.raw_tensor(0), p0);
+        EXPECT_EQ(t.raw_tensor(1), p1);
+      } else {
+        EXPECT_THROW(t.Reinterpret(new_t), std::exception);
+      }
+    }
+  }
+}
 
 TYPED_TEST(TensorListSuite, SetupAndSetSizeNoncontiguous) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
