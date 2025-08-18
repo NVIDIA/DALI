@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,14 +90,15 @@ See `mean` argument for more information about shape constraints. If a value is 
 the standard deviation is calculated from the input. A non-scalar `stddev` cannot be used when
 `batch` argument is set to True.)code",
     nullptr, true)
-  .AddOptionalArg("axes", R"code(Indices of dimensions along which the input is normalized.
+  .AddOptionalArg<std::vector<int>>("axes",
+      R"code(Indices of dimensions along which the input is normalized.
 
-By default, all axes are used, and the axes can also be specified by name.
-See `axis_names` for more information.)code", std::vector<int>{}, false)
+By default, all axes are used. The axes can also be specified by name;
+see `axis_names` for more information.)code", nullptr, false)
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Names of the axes in the input.
 
 Axis indices are taken from the input layout, and this argument cannot be used with `axes`.)code",
-    "")
+    nullptr)
   .AddOptionalArg("shift", R"code(The value to which the mean will map in the output.
 
 This argument is useful for unsigned output types.)code", 0.0f, false)

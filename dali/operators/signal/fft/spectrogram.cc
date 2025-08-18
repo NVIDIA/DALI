@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,13 +48,13 @@ The number of bins that are created in the output is ``nfft // 2 + 1``.
   .AddOptionalArg("window_step",
     R"(Step between the STFT windows in number of samples.)",
     256)
-  .AddOptionalArg("window_fn",
+  .AddOptionalArg<std::vector<float>>("window_fn",
     R"(Samples of the window function that will be multiplied to each extracted window when
 calculating the STFT.
 
 If a value is provided, it should be a list of floating point numbers of size `window_length`.
 If a value is not provided, a Hann window will be used.)",
-    std::vector<float>{})
+    nullptr)
   .AddOptionalArg("power",
     R"(Exponent of the magnitude of the spectrum.
 
@@ -151,8 +151,7 @@ template <bool time_major>
 SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
     : window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
-    , power_(spec.GetArgument<int>("power"))
-    , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
+    , power_(spec.GetArgument<int>("power")) {
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
   nfft_ = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : window_length_;
@@ -160,10 +159,11 @@ SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
   layout_ = spec.GetArgument<TensorLayout>("layout");
   assert((time_major && layout_ == "tf") || (!time_major && layout_ == "ft"));
 
-  if (window_fn_.empty()) {
+  if (!spec.TryGetArgument(window_fn_, "window_fn")) {
     window_fn_.resize(window_length_);
     kernels::signal::HannWindow(make_span(window_fn_));
   }
+
   DALI_ENFORCE(window_fn_.size() == static_cast<size_t>(window_length_),
     "Window function should match the specified `window_length`");
 

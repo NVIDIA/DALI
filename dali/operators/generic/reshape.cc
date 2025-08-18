@@ -37,7 +37,7 @@ The buffer contents are not copied.)code")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("shape", R"code(The desired shape of the output.
+  .AddOptionalArg<std::vector<int>>("shape", R"code(The desired shape of the output.
 
 There can be one negative extent that receives the size that is required to match the input volume.
 For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
@@ -46,8 +46,8 @@ results in the output shape ``[240, 3840]``.
 .. note::
   `rel_shape` and `shape` are mutually exclusive.
 )code",
-                  std::vector<int>(), true)
-  .AddOptionalArg<float>("rel_shape", R"code(The relative shape of the output.
+                  nullptr, true)
+  .AddOptionalArg<std::vector<float>>("rel_shape", R"code(The relative shape of the output.
 
 The output shape is calculated by multiplying the input shape by `rel_shape`::
 
@@ -73,15 +73,13 @@ The number of dimensions is subject to the following restrictions:
 .. note::
   `rel_shape` and `shape` are mutually exclusive.
 )code",
-                  std::vector<float>(), true)
-  .AddOptionalArg("layout", R"code(New layout for the data.
+                  nullptr, true)
+  .AddOptionalArg<TensorLayout>("layout", R"code(New layout for the data.
 
 If a value is not specified, if number of dimension matches existing layout, the output
 layout is preserved. If the number of dimensions does not match, the argument is reset
-to empty. If a value is set, and is not empty, the layout must match the dimensionality
-of the output.)code",
-                  TensorLayout(""))
-  .AddOptionalArg("src_dims", R"code(Indices of dimensions to keep.
+to empty. If a value is set, the layout must match the dimensionality of the output.)code", nullptr)
+  .AddOptionalArg<std::vector<int>>("src_dims", R"code(Indices of dimensions to keep.
 
 This argument can be used to manipulate the order of existing dimensions or to remove or
 add dimension. A special index value -1 can be used to insert new dimensions.
@@ -96,7 +94,7 @@ extents in `rel_shape` describe to the target dimensions. In the example above, 
 ``rel_shape = [-1, 0.5, 2]`` would result in the output shape ``[1, 100, 600]``.
 
 All indices must be in the range of valid dimensions of the input, or -1.)code",
-                  std::vector<int>(), true);
+                  nullptr, true);
 
 DALI_SCHEMA(Reinterpret)
   .DocStr(R"(Treats content of the input as if it had a different type, shape, and/or layout.
