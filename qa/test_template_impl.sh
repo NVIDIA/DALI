@@ -36,8 +36,21 @@ last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CU
 
 install_pip_pkg() {
     install_cmd="$@"
-    # if no package was found in our download dir, so install it from index
-    ${install_cmd} --no-index || ${install_cmd}
+    # pycuda doesn't support CUDA 13 yet
+    if echo "$install_cmd" | grep -q "pycuda" && [ "$CUDA_VERSION_MAJOR" == "13" ]; then
+        TMPDIR=$(mktemp -d)
+        pushd $TMPDIR
+        pip download pycuda
+        tar -xf pycuda*
+        cd pycuda*/
+        patch -p1 < $topdir/qa/pycuda_CUDA13.patch
+        pip install .
+        popd
+        rm -rf $TMPDIR
+    else
+        # if no package was found in our download dir, so install it from index
+        ${install_cmd} --no-index || ${install_cmd}
+    fi
 }
 
 if [ -n "$gather_pip_packages" ]
@@ -158,13 +171,21 @@ do
         version_ge "${CUDA_VERSION}" "110" && \
           if [ "$(uname -m)" == "x86_64" ] && [ -z "${DO_NOT_INSTALL_CUDA_WHEEL}" ] && [ -z "${CONDA_PREFIX}" ]; then
             NPP_VERSION=$(if [[ $DALI_CUDA_MAJOR_VERSION == "12" ]]; then echo "==12.2.5.30"; else echo ""; fi)
-            install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}${NPP_VERSION}    \
-                                                   nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
-                                                   nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
-                                                   nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
-                                                   nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
-                                                   nvidia-nvcomp-cu${DALI_CUDA_MAJOR_VERSION}  \
-                                                   -f /pip-packages"
+            if [ "$DALI_CUDA_MAJOR_VERSION" -ge 13 ]; then
+                install_pip_pkg "pip install --upgrade nvidia-npp~=${DALI_CUDA_MAJOR_VERSION}.0   \
+                                                       nvidia-nvjpeg~=${DALI_CUDA_MAJOR_VERSION}.0  \
+                                                       nvidia-cufft~=$((DALI_CUDA_MAJOR_VERSION-1)).0 \
+                                                       nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       -f /pip-packages"
+            else
+                install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}${NPP_VERSION} \
+                                                       nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       -f /pip-packages"
+            fi
           fi
 
         # install packages
@@ -185,7 +206,7 @@ do
                     pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
                     pip install /opt/dali/nvidia_dali*.whl;
                 fi
-                pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz
+                pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz;
             fi
             # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)
             # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels

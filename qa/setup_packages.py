@@ -485,8 +485,10 @@ all_packages = [
     PlainPackage("opencv-python", [PckgVer("4.11.0.86", dependencies=["numpy<2"])]),
     CudaPackage(
         "cupy",
-        {"118": [PckgVer("12.3.0", python_min_ver="3.8")]},
-        "cupy-cuda11x",
+        {
+            "118": [PckgVer("12.3.0", python_min_ver="3.8", alias="cupy-cuda11x")],
+            "120": [PckgVer("12.3.0", python_min_ver="3.8", alias="cupy-cuda12x")],
+        },
     ),
     CudaPackage(
         "tensorflow-gpu",

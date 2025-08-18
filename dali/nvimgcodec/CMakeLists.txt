@@ -23,13 +23,29 @@ foreach(incl_dir ${INFERRED_COMPILER_INCLUDE})
 endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
+# CUDA 13 include add a cccl subdir, that is detected by CMake and CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES
+# becomes a list instead of a single dir. In our code we relay on it being a single entry, so this
+# code makes sure we extract the first path from the list and use it further (assuming it is the main dir)
+# So we check if it is a list (; inside) and act accordingly
+string(FIND "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}" ";" SEMICOLON_POS)
+if(NOT "${SEMICOLON_POS}" EQUAL -1)
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE)
+    foreach(incl_dir ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+       set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE} -I${incl_dir}")
+    endforeach(incl_dir)
+else()
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+endif()
+separate_arguments(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE UNIX_COMMAND  "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}")
+
 if(WITH_DYNAMIC_NVIMGCODEC)
   set(NVIMGCODEC_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvimgcodec_gen.cc")
   add_custom_command(
     OUTPUT ${NVIMGCODEC_GENERATED_STUB}
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Nvimgcodec --
     "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvimgcodec.json" ${NVIMGCODEC_GENERATED_STUB}
-    "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h" "-I${nvimgcodec_INCLUDE_DIR}" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
+    "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h" "-I${nvimgcodec_INCLUDE_DIR}"
+    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
 
     # for some reason QNX fails with 'too many errors emitted' if this is not set
     "-ferror-limit=0"
