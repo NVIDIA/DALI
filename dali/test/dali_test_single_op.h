@@ -15,6 +15,11 @@
 #ifndef DALI_TEST_DALI_TEST_SINGLE_OP_H_
 #define DALI_TEST_DALI_TEST_SINGLE_OP_H_
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 #include <gtest/gtest.h>
 #include <memory>
 #include <string>
@@ -783,5 +788,9 @@ class DALISingleOpTest : public DALITest {
 };
 
 }  // namespace dali
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #endif  // DALI_TEST_DALI_TEST_SINGLE_OP_H_
