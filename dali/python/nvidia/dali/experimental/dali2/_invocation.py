@@ -67,15 +67,16 @@ class Invocation:
         return self._results[result_index].dtype
 
     def batch_size(self, result_index: int):
-        if not self._is_batch:
-            return None
-        if self._batch_size is not None:
-            return self._batch_size
-        if self._results is None:
-            # TODO(michalz): Try to get batch_size without full evaluation.
-            with _EvalContext.get() as ctx:
-                self.run(ctx)
-        return self._results[result_index].batch_size if self._is_batch else None
+        with nvtx.annotate("Invocation.batch_size", domain="invocation"):
+            if not self._is_batch:
+                return None
+            if self._batch_size is not None:
+                return self._batch_size
+            if self._results is None:
+                # TODO(michalz): Try to get batch_size without full evaluation.
+                with _EvalContext.get() as ctx:
+                    self.run(ctx)
+            return self._results[result_index].batch_size if self._is_batch else None
 
     def layout(self, result_index: int):
         if self._results is None:
@@ -97,7 +98,7 @@ class Invocation:
         return self._is_batch
 
     def run(self, ctx: _EvalContext):
-        with nvtx.annotate("Invocation.run"):
+        with nvtx.annotate("Invocation.run", domain="invocation"):
             if self._previous_invocation is not None:
                 if self._previous_invocation._results is None:
                     print("Evaluating previous invocation of a stateful operator")

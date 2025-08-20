@@ -31,28 +31,6 @@ def _volume(shape: Tuple[int, ...]) -> int:
     return ret
 
 
-def _is_tensor_type(x, nested_list_warning=False):
-    from . import _batch
-
-    if isinstance(x, _batch.Batch):
-        raise ValueError("A list of Batch objects is not a valid argument type")
-    if isinstance(x, Tensor):
-        return True
-    if hasattr(x, "__array__"):
-        return True
-    if hasattr(x, "__cuda_array_interface__"):
-        return True
-    if hasattr(x, "__dlpack__"):
-        return True
-    if nested_list_warning and isinstance(x, list):
-        warnings.warn(
-            "A nested list is ambiguous. It is interpreted as a single tensor, "
-            "not a list of 1D tensors. Convert the list to a Tensor, Batch or "
-            "a list of Tensors to avoid this warning."
-        )
-    return False
-
-
 def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> Device:
     if isinstance(backend, _backend.TensorCPU):
         return Device("cpu")
@@ -492,6 +470,7 @@ class TensorSlice:
         self._ndim_dropped = 0
         self._shape = None
         self._absolute_ranges = None
+        self._layout = None
         num_ranges = len(ranges)
         ellipsis_found = False
         for r in ranges:
@@ -522,6 +501,36 @@ class TensorSlice:
                     shape.append((r.stop + r.step - r.start - 1) // r.step)
             self._shape = tuple(shape)
         return self._shape
+
+    @property
+    def dtype(self) -> DType:
+        return self._tensor.dtype
+
+    @property
+    def device(self) -> Device:
+        return self._tensor.device
+
+    @property
+    def layout(self) -> str:
+        if self._layout is not None:
+            return self._layout
+        input_layout = self._tensor.layout
+        if self._ndim_dropped == 0 or input_layout == "" or input_layout is None:
+            self._layout = input_layout
+            return self._layout
+
+        j = 0
+        layout = ""
+        for i, r in enumerate(self._ranges):
+            if isinstance(self._ranges[i], slice):
+                layout += input_layout[j]
+                j += 1
+            elif r is Ellipsis:
+                j += self._tensor.ndim - len(self._ranges) + 1
+            else:
+                j += 1  # skip this dimension
+        self._layout = layout
+        return self._layout
 
     @staticmethod
     def _canonicalize_ranges(ranges, in_shape) -> Tuple[int, ...]:
