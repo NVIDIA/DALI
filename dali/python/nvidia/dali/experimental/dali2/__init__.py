@@ -18,8 +18,8 @@ DALI2 is a new experimental API that is currently under development.
 
 from ._eval_mode import EvalMode
 from ._type import *  # noqa: F403
-from ._tensor import Tensor, tensor
-from ._batch import Batch, batch
+from ._tensor import Tensor, tensor, as_tensor
+from ._batch import Batch, batch, as_batch
 from ._device import Device
 
 from . import fn
