@@ -16,6 +16,7 @@ from enum import Enum, auto
 import nvidia.dali.types
 
 _id2type = {}
+_type2id = {}
 
 
 class DType:
@@ -27,7 +28,7 @@ class DType:
         enum = auto()
 
     @staticmethod
-    def default_exponent_bits(bits: int) -> int:
+    def default_exponent_bits(bits: int, error_on_unknown: bool = False) -> int:
         """
         Returns the default number of exponent bits for a given number of bits.
         """
@@ -40,14 +41,20 @@ class DType:
         elif bits == 8:
             return 4
         else:
-            raise ValueError(f"Unsupported number of bits: {bits}")
+            if error_on_unknown:
+                raise ValueError(f"Unsupported number of bits: {bits}")
+            else:
+                return None
 
     @staticmethod
-    def default_significand_bits(bits: int) -> int:
+    def default_significand_bits(bits: int, error_on_unknown: bool = False) -> int:
         """
         Returns the default number of significand bits for a given number of bits.
         """
-        return bits - DType.default_exponent_bits(bits) - 1
+        exp = DType.default_exponent_bits(bits, error_on_unknown)
+        if exp is None:
+            return None
+        return bits - exp - 1
 
     def __init__(
         self,
@@ -55,22 +62,25 @@ class DType:
         bits: int,
         exponent_bits: int = None,
         significand_bits: int = None,
+        bytes: int = None,
         type_id: nvidia.dali.types.DALIDataType = None,
     ):
         self.kind = kind
         self.bits = bits
         self.type_id = type_id
-        if type_id is not None:
-            _id2type[type_id] = self
 
         if kind == DType.Kind.float:
-            self.exponent_bits = exponent_bits or DType.default_exponent_bits(bits)
-            self.significand_bits = significand_bits or DType.default_significand_bits(bits)
+            self.exponent_bits = exponent_bits or DType.default_exponent_bits(bits, True)
+            self.significand_bits = significand_bits or DType.default_significand_bits(bits, True)
         else:
             self.exponent_bits = None
             self.significand_bits = None
         self.name = DType.make_name(kind, bits, exponent_bits, significand_bits)
-        self.bytes = (bits + 7) // 8
+        self.bytes = bytes or ((bits + 7) // 8)
+
+        if type_id is not None:
+            _id2type[type_id] = self
+            _type2id[self] = type_id
 
     @staticmethod
     def make_name(kind: Kind, bits: int, exponent_bits: int, significand_bits: int) -> str:
@@ -85,7 +95,7 @@ class DType:
                 return f"f{bits}"
             elif bits == 16 and exponent_bits == 8 and significand_bits == 7:
                 return "bfloat16"
-            elif bits == 32 and exponent_bits == 8 and significand_bits == 10:
+            elif bits == 19 and exponent_bits == 8 and significand_bits == 10:
                 return "tf32"
             else:
                 return f"f{bits}e{exponent_bits}m{significand_bits}"
@@ -99,13 +109,25 @@ class DType:
         return f"Type(kind={self.kind}, bits={self.bits}, exponent_bits={self.exponent_bits}, significand_bits={self.significand_bits})"
 
     def __eq__(self, other):
-        return self.kind == other.kind and self.bits == other.bits
+        if not (
+            self.kind == other.kind
+            and self.bits == other.bits
+            and self.significand_bits == other.significand_bits
+            and self.exponent_bits == other.exponent_bits
+        ):
+            return False
+        if self.kind == DType.Kind.enum:
+            return self.type_id == other.type_id
+        return True
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
+        h = hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
+        if self.kind == DType.Kind.enum:
+            h = hash((h, self.type_id))
+        return h
 
     @staticmethod
     def from_type_id(type_id: nvidia.dali.types.DALIDataType) -> "DType":
@@ -117,33 +139,45 @@ class DType:
 
     @staticmethod
     def parse(name: str) -> "DType":
-        if name.startswith("i"):
-            return DType(DType.Kind.signed, int(name[1:]))
-        elif name.startswith("u"):
-            return DType(DType.Kind.unsigned, int(name[1:]))
-        elif name == "bool":
-            return DType(DType.Kind.bool, 8)
-        elif name == "bfloat16":
-            return DType(DType.Kind.float, 16, 8, 7)
-        elif name == "tf32":
-            return DType(DType.Kind.float, 32, 8, 10)
-        elif name.startswith("f"):
-            exp = name.find("e")
-            sig = name.find("m")
-            if exp != -1 or sig != -1:
-                if exp == -1 or sig == -1:
-                    raise ValueError(f"Invalid type name: {name}")
-                if exp < 2 or sig < exp + 2:
-                    raise ValueError(f"Invalid type name: {name}")
-                bits = int(name[1:exp])
-                exp_bits = int(name[exp + 1 : sig])
-                sig_bits = int(name[sig + 1 :])
-                return DType(DType.Kind.float, bits, exp_bits, sig_bits)
+        def parse_internal(name: str) -> "DType":
+            if name.startswith("i"):
+                return DType(DType.Kind.signed, int(name[1:]))
+            elif name.startswith("u"):
+                return DType(DType.Kind.unsigned, int(name[1:]))
+            elif name == "bool":
+                return DType(DType.Kind.bool, 8)
+            elif name == "bfloat16":
+                return DType(DType.Kind.float, 16, 8, 7)
+            elif name == "tf32":
+                return DType(DType.Kind.float, 19, 8, 10, bytes=4)
+            elif name.startswith("f"):
+                exp = name.find("e")
+                sig = name.find("m")
+                if exp != -1 or sig != -1:
+                    if exp == -1 or sig == -1:
+                        raise ValueError(f"Invalid type name: {name}")
+                    if exp < 2 or sig < exp + 2:
+                        raise ValueError(f"Invalid type name: {name}")
+                    bits = int(name[1:exp])
+                    exp_bits = int(name[exp + 1 : sig])
+                    sig_bits = int(name[sig + 1 :])
+                    return DType(DType.Kind.float, bits, exp_bits, sig_bits)
+                else:
+                    bits = int(name[1:])
+                    return DType(DType.Kind.float, bits)
+            elif name == "DataType":
+                return DataType
+            elif name == "ImageType":
+                return ImageType
+            elif name == "InterpType":
+                return InterpType
             else:
-                bits = int(name[1:])
-                return DType(DType.Kind.float, bits)
-        else:
-            raise ValueError(f"Unsupported type name: {name}")
+                raise ValueError(f"Unsupported type name: {name}")
+
+        t = parse_internal(name)
+        if t.type_id is None:
+            t.type_id = _type2id[t]
+        return t
 
     def __call__(self, *args, **kwargs):
         """
@@ -168,13 +202,13 @@ float16 = DType(DType.Kind.float, 16, type_id=nvidia.dali.types.FLOAT16)
 float32 = DType(DType.Kind.float, 32, type_id=nvidia.dali.types.FLOAT)
 float64 = DType(DType.Kind.float, 64, type_id=nvidia.dali.types.FLOAT64)
 bool = DType(DType.Kind.bool, 8, type_id=nvidia.dali.types.BOOL)
-bfloat16 = DType(DType.Kind.float, 16, 8, 7)
-tf32 = DType(DType.Kind.float, 32, 8, 10)
-f8e4m3 = DType(DType.Kind.float, 8, 4, 3)
-f8e5m2 = DType(DType.Kind.float, 8, 5, 2)
-data_type = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE)
-image_type = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE)
-interp_type = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE)
+bfloat16 = DType(DType.Kind.float, 16, 8, 7)  # TODO(michalz): Add type_id for bfloat16
+tf32 = DType(DType.Kind.float, 19, 8, 10, bytes=4)  # TODO(michalz): Add type_id for tf32
+f8e4m3 = DType(DType.Kind.float, 8, 4, 3)  # TODO(michalz): Add type_id for f8e4m3
+f8e5m2 = DType(DType.Kind.float, 8, 5, 2)  # TODO(michalz): Add type_id for f8e5m2
+DataType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE)
+ImageType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE)
+InterpType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE)
 
 
 def dtype(*args):
