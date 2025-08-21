@@ -89,7 +89,7 @@ requirements:
     - openjpeg
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
-    - nvcomp
+    - libnvcomp
     - aws-sdk-cpp
   run:
     - libjpeg-turbo
@@ -108,7 +108,7 @@ requirements:
     - libprotobuf =5.27.4
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
-    - nvcomp
+    - libnvcomp
     - aws-sdk-cpp
 about:
   home: https://github.com/NVIDIA/DALI
