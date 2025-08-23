@@ -28,11 +28,12 @@ class BBoxRotate : public StatelessOperator<Backend> {
     Halfway,
     Fixed
   };
-  
+
   explicit inline BBoxRotate(const OpSpec &spec)
       : StatelessOperator<Backend>(spec),
         use_ltrb_(spec.GetArgument<bool>("ltrb")),
-        keep_size_(spec.GetArgument<bool>("keep_size")) {
+        keep_size_(spec.GetArgument<bool>("keep_size")),
+        remove_threshold_(spec.GetArgument<float>("remove_threshold")) {
     const auto &mode_str = spec.GetArgument<std::string>("mode");
     if (mode_str == "expand") {
       mode_ = Mode::Expand;
@@ -63,6 +64,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
 
   bool use_ltrb_;
   bool keep_size_;
+  float remove_threshold_;
   Mode mode_ = Mode::Expand;
   TensorList<Backend> bbox_rotate_buffer_;
 };
