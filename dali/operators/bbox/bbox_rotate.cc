@@ -174,11 +174,42 @@ void applyExpansionCorrectionToBoxSize(dali::span<vec<4>> boxes, float expansion
   }
 }
 
-void rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBackend> rotateBuffer,
-                       SampleView<CPUBackend> outBoxTensor, float angle,
+/**
+ * @brief Clips and removes boxes that fall below a certain threshold of area change.
+ * @param boxes normalized xyxy boxes
+ * @param remove_threshold threshold of area change to remove boxes
+ * @param inputLabels optional input labels to filter synchronously with truncated boxes
+ * @param outputLabels option result of the filtered labels
+ * @return the new number of valid boxes
+ */
+int clipAndRemoveBoxes(dali::span<vec<4>> boxes, float remove_threshold,
                        std::optional<ConstSampleView<CPUBackend>> inputLabels,
-                       std::optional<SampleView<CPUBackend>> outputLabels, bool ltrb,
-                       bool keep_size, Mode mode, float remove_threshold) {
+                       std::optional<SampleView<CPUBackend>> outputLabels) {
+  int outIdx = 0;
+  for (int inIdx = 0; inIdx < boxes.size(); ++inIdx) {
+    auto box = boxes[inIdx];
+    const float old_area = (box.z - box.x) * (box.w - box.y);
+    box.x = std::clamp(box.x, 0.0f, 1.0f);
+    box.y = std::clamp(box.y, 0.0f, 1.0f);
+    box.z = std::clamp(box.z, 0.0f, 1.0f);
+    box.w = std::clamp(box.w, 0.0f, 1.0f);
+    const float new_area = (box.z - box.x) * (box.w - box.y);
+    if (new_area / old_area > remove_threshold) {
+      boxes[outIdx] = box;
+      if (inputLabels && outputLabels) {
+        outputLabels.value().mutable_data<int>()[outIdx] = inputLabels.value().data<int>()[inIdx];
+      }
+      ++outIdx;
+    }
+  }
+  return outIdx;
+}
+
+int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBackend> rotateBuffer,
+                      SampleView<CPUBackend> outBoxTensor, float angle,
+                      std::optional<ConstSampleView<CPUBackend>> inputLabels,
+                      std::optional<SampleView<CPUBackend>> outputLabels, bool ltrb, bool keep_size,
+                      Mode mode, float remove_threshold) {
   const auto numBoxes = inBoxTensor.shape()[0];
   auto inBoxes = dali::span(inBoxTensor.data<vec<4>>(), numBoxes);
   auto xCoords = dali::span(rotateBuffer.mutable_data<float>(), 4 * numBoxes);
@@ -223,13 +254,18 @@ void rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBa
 
   // TODO Clip to image coordiantes, optionally removing labels that fall outside the new ROI with
   // the box.
+  const auto numOutBoxes =
+      clipAndRemoveBoxes(outBoxes, remove_threshold, inputLabels, outputLabels);
 
-  if (!ltrb) {  // Convert to xywh format if needed
+  if (!ltrb) {                                            // Convert to xywh format if needed
+    outBoxes = dali::span(outBoxes.data(), numOutBoxes);  // handle if some boxes culled
     std::for_each(outBoxes.begin(), outBoxes.end(), [](vec<4>& box) {
       box.z -= box.x;
       box.w -= box.y;
     });
   }
+
+  return numOutBoxes;
 }
 
 template <>
@@ -252,9 +288,14 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         angle = spec_.GetArgument<float>("angle");
       }
       angle *= M_PI / 180.0f;  // Convert to radians
-      rotateBoxesKernel(inputBoxes[sampleIdx], bbox_rotate_buffer_[sampleIdx],
-                        ws.Output<CPUBackend>(0)[sampleIdx], angle, inputLabels, outputLabels,
-                        use_ltrb_, keep_size_, mode_, remove_threshold_);
+      const auto numOutBoxes =
+          rotateBoxesKernel(inputBoxes[sampleIdx], bbox_rotate_buffer_[sampleIdx],
+                            ws.Output<CPUBackend>(0)[sampleIdx], angle, inputLabels, outputLabels,
+                            use_ltrb_, keep_size_, mode_, remove_threshold_);
+      ws.Output<CPUBackend>(0).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 4));
+      if (outputLabels.has_value()) {
+        ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<1>(numOutBoxes));
+      }
     });
   }
   tpool.RunAll();
