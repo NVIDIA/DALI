@@ -52,12 +52,37 @@ class BBoxRotate : public StatelessOperator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    TensorListShape buffer_shape(ws.GetInputShape(0));
-    for (int i = 0; i < ws.GetRequestedBatchSize(1); i++) {
-      buffer_shape.tensor_shape_span(i)[1] = 8;  // Need all four corners
+    const TensorListShape<-1> boxShapeList = ws.GetInputShape(0);
+    TensorListShape<1> buffer_shape(boxShapeList.num_samples());
+    for (int i = 0; i < ws.GetRequestedBatchSize(0); i++) {
+      const auto &sampleShape = boxShapeList[i];
+      if (sampleShape.size() != 2 || sampleShape[1] != 4) {
+        DALI_ERROR("First Input to fn.bbox_rotate should be [N,4], got ", sampleShape);
+      }
+      buffer_shape.tensor_shape_span(i)[0] = sampleShape[0] * 8;  // num_boxes * 4 corners
     }
     bbox_rotate_buffer_.Resize(buffer_shape, DALI_FLOAT);
-    return false;
+
+    const auto numInput = ws.NumInput();
+    output_desc.resize(numInput);
+    output_desc[0].shape = boxShapeList;
+    output_desc[0].type = DALI_FLOAT;
+    if (numInput == 2) {
+      const auto &labelShapeList = ws.GetInputShape(1);
+      output_desc[1].shape = labelShapeList;
+      output_desc[1].type = DALI_INT32;
+      for (int i = 0; i < labelShapeList.size(); i++) {
+        if (labelShapeList[i].size() != 1) {
+          DALI_FAIL("Label input to fn.bbox_rotate should be [N], got ", labelShapeList[i]);
+        }
+        if (labelShapeList[i][0] != boxShapeList[i][0]) {
+          DALI_FAIL("Number of labels must match number of boxes. Got: ", labelShapeList[i][0],
+                    " and ", boxShapeList[i][0]);
+        }
+      }
+    }
+
+    return true;
   }
 
   void RunImpl(Workspace &ws) override;

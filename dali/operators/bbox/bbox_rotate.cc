@@ -15,6 +15,8 @@
 #include "bbox_rotate.h"
 #include "dali/core/geom/vec.h"
 
+#include <string>
+
 #if defined(__x86_64__) || defined(_M_X64)
 // x86_64 (amd64) specific SIMD code (SSE, AVX, etc.)
 #include <xmmintrin.h>
@@ -116,6 +118,22 @@ void expandToAllCorners(dali::span<const vec<4>> inBoxes, dali::span<float> xCoo
   }
 }
 
+void printCoords(dali::span<float> xCoords, dali::span<float> yCoords) {
+  std::stringstream ss;
+  for (int i = 0; i < xCoords.size(); ++i) {
+    ss << dali::make_string("[", xCoords[i], ",", yCoords[i], "] ");
+  }
+  std::cout << ss.str() << std::endl;
+}
+
+void printBoxes(dali::span<const vec<4>> boxes) {
+  std::stringstream ss;
+  for (const auto& box : boxes) {
+    ss << dali::make_string("[", box.x, ",", box.y, ",", box.z, ",", box.w, "] ");
+  }
+  std::cout << ss.str() << std::endl;
+}
+
 /**
  * @brief Rotates the corners of the bounding boxes by a given angle.
  *
@@ -145,10 +163,8 @@ void cornersToBoxes(dali::span<float> xCoords, dali::span<float> yCoords,
                     dali::span<vec<4>> outBoxes) {
   for (int i = 0; i < outBoxes.size(); ++i) {
     const auto offset = 4 * i;
-    vec<4> xvec(xCoords[offset]);
-    vec<4> yvec(yCoords[offset]);
-    auto [x1, x2] = std::minmax_element(xvec.begin(), xvec.end());
-    auto [y1, y2] = std::minmax_element(yvec.begin(), yvec.end());
+    auto [x1, x2] = std::minmax_element(&xCoords[offset], &xCoords[offset+4]);
+    auto [y1, y2] = std::minmax_element(&yCoords[offset], &yCoords[offset+4]);
     outBoxes[i] = vec<4>(*x1, *y1, *x2, *y2);
   }
 }
@@ -185,6 +201,13 @@ void applyExpansionCorrectionToBoxSize(dali::span<vec<4>> boxes, float expansion
 int clipAndRemoveBoxes(dali::span<vec<4>> boxes, float remove_threshold,
                        std::optional<ConstSampleView<CPUBackend>> inputLabels,
                        std::optional<SampleView<CPUBackend>> outputLabels) {
+  DALI_ASSERT(inputLabels.has_value() == outputLabels.has_value());
+  const bool handleLabels = inputLabels.has_value();
+  if (handleLabels) {
+    DALI_ASSERT(inputLabels->shape()[0] == boxes.size());
+    DALI_ASSERT(outputLabels->shape()[0] == boxes.size());
+  }
+
   int outIdx = 0;
   for (int inIdx = 0; inIdx < boxes.size(); ++inIdx) {
     auto box = boxes[inIdx];
@@ -194,9 +217,12 @@ int clipAndRemoveBoxes(dali::span<vec<4>> boxes, float remove_threshold,
     box.z = std::clamp(box.z, 0.0f, 1.0f);
     box.w = std::clamp(box.w, 0.0f, 1.0f);
     const float new_area = (box.z - box.x) * (box.w - box.y);
-    if (new_area / old_area > remove_threshold) {
+    const float area_change = new_area / old_area;
+    std::cout << dali::make_string("old: ", old_area, "new: ", new_area, " change: ", area_change,
+                                   "\n");
+    if (area_change > remove_threshold) {
       boxes[outIdx] = box;
-      if (inputLabels && outputLabels) {
+      if (handleLabels) {
         outputLabels.value().mutable_data<int>()[outIdx] = inputLabels.value().data<int>()[inIdx];
       }
       ++outIdx;
@@ -211,7 +237,7 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
                       std::optional<SampleView<CPUBackend>> outputLabels, bool ltrb, bool keep_size,
                       Mode mode, float remove_threshold) {
   const auto numBoxes = inBoxTensor.shape()[0];
-  auto inBoxes = dali::span(inBoxTensor.data<vec<4>>(), numBoxes);
+  auto inBoxes = dali::span(reinterpret_cast<const vec<4>*>(inBoxTensor.raw_data()), numBoxes);
   auto xCoords = dali::span(rotateBuffer.mutable_data<float>(), 4 * numBoxes);
   auto yCoords = dali::span(xCoords.end(), 4 * numBoxes);
   if (ltrb) {
@@ -219,6 +245,7 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
   } else {
     expandToAllCorners<false>(inBoxes, xCoords, yCoords);
   }
+  printCoords(xCoords, yCoords);
 
   // Center the coordinates on zero
   std::transform(xCoords.begin(), xCoords.end(), xCoords.begin(),
@@ -228,8 +255,10 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
 
   // Apply rotation
   rotateCorners(xCoords, yCoords, angle);
+  printCoords(xCoords, yCoords);
 
   const float expansion = std::sin(angle) + std::cos(angle);
+  std::cout << dali::make_string("expansion: ", expansion, "\n");
   // Move coordinates back to [0-1]
   if (keep_size) {
     std::transform(xCoords.begin(), xCoords.end(), xCoords.begin(),
@@ -238,24 +267,26 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
                    [](float elem) { return elem + 0.5f; });
   } else {
     std::transform(xCoords.begin(), xCoords.end(), xCoords.begin(),
-                   [expansion](float elem) { return elem / expansion + 0.5f; });
+                   [expansion](float elem) { return elem / expansion + 0.5; });
     std::transform(yCoords.begin(), yCoords.end(), yCoords.begin(),
-                   [expansion](float elem) { return elem / expansion + 0.5f; });
+                   [expansion](float elem) { return elem / expansion + 0.5; });
   }
+  printCoords(xCoords, yCoords);
 
   // Convert back to bounding boxes
-  auto outBoxes = dali::span(outBoxTensor.mutable_data<vec<4>>(), numBoxes);
+  auto outBoxes = dali::span(reinterpret_cast<vec<4>*>(outBoxTensor.raw_mutable_data()), numBoxes);
   cornersToBoxes(xCoords, yCoords, outBoxes);
+  printBoxes(outBoxes);
 
   // Apply correction to expansion factor if required
   if (mode != Mode::Expand) {
     applyExpansionCorrectionToBoxSize(outBoxes, expansion, mode == Mode::Halfway);
   }
 
-  // TODO Clip to image coordiantes, optionally removing labels that fall outside the new ROI with
-  // the box.
+  // Clip to image coordinates and remove boxes (and labels) with too large a reduction.
   const auto numOutBoxes =
       clipAndRemoveBoxes(outBoxes, remove_threshold, inputLabels, outputLabels);
+  std::cout << dali::make_string("numBoxes: ", numBoxes, " numOutBoxes: ", numOutBoxes, "\n");
 
   if (!ltrb) {                                            // Convert to xywh format if needed
     outBoxes = dali::span(outBoxes.data(), numOutBoxes);  // handle if some boxes culled
