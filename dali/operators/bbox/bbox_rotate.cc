@@ -15,7 +15,15 @@
 #include "bbox_rotate.h"
 #include "dali/core/geom/vec.h"
 
+#if defined(__x86_64__) || defined(_M_X64)
+// x86_64 (amd64) specific SIMD code (SSE, AVX, etc.)
 #include <xmmintrin.h>
+#elif defined(__aarch64__)
+// ARM64 (aarch64) specific SIMD code (NEON, etc.)
+#include <arm_neon.h>
+#else
+#error "Unsupported architecture"
+#endif
 
 namespace dali {
 
@@ -90,12 +98,21 @@ void expandToAllCorners(dali::span<const vec<4>> inBoxes, dali::span<float> xCoo
       box.w += box.y;
     }
     const auto offset = 4 * i;
+#if defined(__x86_64__) || defined(_M_X64)
     // Copy X coordinates
     const __m128 xvec = _mm_setr_ps(box.x, box.z, box.x, box.z);
     _mm_storeu_ps(&xCoords[offset], xvec);
     // Copy Y coordinates
     const __m128 yvec = _mm_setr_ps(box.y, box.y, box.w, box.w);
     _mm_storeu_ps(&yCoords[offset], yvec);
+#elif defined(__aarch64__)
+    // Copy X coordinates
+    float32x4_t xvec = {box.x, box.z, box.x, box.z};
+    vst1q_f32(&xCoords[offset], xvec);
+    // Copy Y coordinates
+    float32x4_t yvec = {box.y, box.y, box.w, box.w};
+    vst1q_f32(&yCoords[offset], yvec);
+#endif
   }
 }
 
@@ -204,8 +221,8 @@ void rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBa
     applyExpansionCorrectionToBoxSize(outBoxes, expansion, mode == Mode::Halfway);
   }
 
-  // TODO Clip to image coordiantes, optionally removing labels that fall outside the new ROI with the
-  // box.
+  // TODO Clip to image coordiantes, optionally removing labels that fall outside the new ROI with
+  // the box.
 
   if (!ltrb) {  // Convert to xywh format if needed
     std::for_each(outBoxes.begin(), outBoxes.end(), [](vec<4>& box) {
