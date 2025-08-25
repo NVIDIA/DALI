@@ -105,7 +105,7 @@ install_cuda_compat() {
         if [ "$ARCH" == "x86_64" ]; then
             REPO_ARCH="x86_64"
         elif [ "$ARCH" == "aarch64" ]; then
-            REPO_ARCH="SBSA"
+            REPO_ARCH="sbsa"
         else
             echo "Unsupported architecture: $ARCH"
             exit 1
