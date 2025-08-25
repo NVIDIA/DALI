@@ -1,5 +1,10 @@
 #!/bin/bash -e
 
+# enable compat for CUDA 13 if the test image doesn't support it yet
+source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
+
+install_cuda_compat
+
 cd /opt/dali/docs/examples/use_cases/tensorflow/resnet-n
 
 mkdir -p idx-files/

@@ -98,3 +98,22 @@ disable_virtualenv() {
     echo "Deactivate virtual env"
     deactivate
 }
+
+install_cuda_compat() {
+    if [ "${DALI_CUDA_MAJOR_VERSION}" == "13" ] && [ "${CUDA_VERSION}" != "130" ]; then
+        ARCH=$(uname -m)
+        if [ "$ARCH" == "x86_64" ]; then
+            REPO_ARCH="x86_64"
+        elif [ "$ARCH" == "aarch64" ]; then
+            REPO_ARCH="sbsa"
+        else
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+        fi
+        apt-get update && \
+        apt-get install software-properties-common -y --no-install-recommends && \
+        apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${REPO_ARCH}/3bf863cc.pub && \
+        add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${REPO_ARCH}/ /" && \
+        apt update && apt install -y cuda-compat-13-0
+    fi
+}
