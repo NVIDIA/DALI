@@ -1,12 +1,17 @@
 #!/bin/bash -e
 
-set -o nounset
 set -o errexit
 set -o pipefail
 
 function CLEAN_AND_EXIT {
     exit $1
 }
+
+
+# enable compat for CUDA 13 if the test image doesn't support it yet
+source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
+
+install_cuda_compat
 
 cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 
