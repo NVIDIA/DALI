@@ -31,7 +31,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
 
   explicit inline BBoxRotate(const OpSpec &spec)
       : StatelessOperator<Backend>(spec),
-        use_ltrb_(spec.GetArgument<bool>("ltrb")),
+        bbox_normalized_(spec.GetArgument<bool>("bbox_normalized")),
         keep_size_(spec.GetArgument<bool>("keep_size")),
         remove_threshold_(spec.GetArgument<float>("remove_threshold")) {
     const auto &mode_str = spec.GetArgument<std::string>("mode");
@@ -43,6 +43,21 @@ class BBoxRotate : public StatelessOperator<Backend> {
       mode_ = Mode::Fixed;
     } else {
       DALI_FAIL("Unknown mode: ", mode_str, ". Supported modes are: expand, halfway, fixed.");
+    }
+    const auto &bbox_layout = spec.GetArgument<TensorLayout>("bbox_layout");
+    if (bbox_layout == "xyWH") {
+      use_ltrb_ = false;
+    } else if (bbox_layout == "xyXY") {
+      use_ltrb_ = true;
+    } else {
+      DALI_FAIL("Unknown bbox_layout: ", bbox_layout, ". Supported layouts are: xyWH, xyXY.");
+    }
+
+    const auto &shape_layout = spec.GetArgument<dali::TensorLayout>("shape_layout");
+    shape_wh_index_.first = shape_layout.find('W');
+    shape_wh_index_.second = shape_layout.find('H');
+    if (shape_wh_index_.first == -1 || shape_wh_index_.second == -1) {
+      DALI_FAIL("shape_layout does not contain 'W' and/or 'H'");
     }
   }
 
@@ -87,9 +102,11 @@ class BBoxRotate : public StatelessOperator<Backend> {
 
   void RunImpl(Workspace &ws) override;
 
+  bool bbox_normalized_;
   bool use_ltrb_;
   bool keep_size_;
   float remove_threshold_;
+  std::pair<int, int> shape_wh_index_;
   Mode mode_ = Mode::Expand;
   TensorList<Backend> bbox_rotate_buffer_;
 };
