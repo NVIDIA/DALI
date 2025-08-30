@@ -35,7 +35,16 @@ DALI_SCHEMA(BBoxRotate)
 the image is rotated. Boxes that land outside the image with `keep_size=True` will be removed from the
 output, a mask of valid boxes will be returned that can be used to remove other data such as class labels.
 
-Box coordinates must be (0,1) normalized and the image is assumed to be center rotated with `fn.rotate`.
+.. note:
+  Boxes should be rotated first before the image as this op requires the original image shape to calculate
+  the rotation correctly.
+
+.. code-block:: python
+  boxes, labels = fn.bbox_rotate(
+    boxes, labels, angle=angle, input_shape=image.shape(), keep_size=keep_size
+  )
+  image = fn.rotate(image, angle=angle, keep_size=keep_size)
+
 )code")
     .NumInput(1, 2)
     .InputDox(
