@@ -1675,6 +1675,7 @@ tested_methods = [
     "copy",
     "element_extract",
     "bbox_paste",
+    "bbox_rotate",
     "sequence_rearrange",
     "box_encoder",
     "readers.numpy",
