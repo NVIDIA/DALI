@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "bbox_rotate.h"
+#include "dali/operators/bbox/bbox_rotate.h"
 #include "dali/core/geom/vec.h"
-
-#include <string>
 
 #if defined(__x86_64__) || defined(_M_X64)
 // x86_64 (amd64) specific SIMD code (SSE, AVX, etc.)
@@ -387,7 +385,7 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
 
       std::pair<float, float> image_wh;
       if (spec_.HasTensorArgument("input_shape")) {
-        auto shape_tensor = ws.ArgumentInput("input_shape")[sampleIdx].data<long int>();
+        auto shape_tensor = ws.ArgumentInput("input_shape")[sampleIdx].data<std::int64_t>();
         image_wh.first = shape_tensor[shape_wh_index_.first];
         image_wh.second = shape_tensor[shape_wh_index_.second];
       } else {
@@ -403,9 +401,9 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
           keep_size_, mode_, remove_threshold_, image_wh, bbox_normalized_);
       ws.Output<CPUBackend>(0).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 4));
       if (outputLabels.has_value()) {
-        if (ws.GetInputShape(1)[sampleIdx].size() == 2)
+        if (ws.GetInputShape(1)[sampleIdx].size() == 2) {
           ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 1));
-        else {
+        } else {
           ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<1>(numOutBoxes));
         }
       }
