@@ -42,7 +42,7 @@ def show_outputs(images: np.ndarray, boxes: np.ndarray, labels: np.ndarray, file
 
 
 @pipeline_def(**_PIPE_ARGS)
-def coco_rotate_pipeline_visual(angle=45.0, keep_size=False, ltrb=True, ratio=False):
+def coco_rotate_pipeline_visual(angle=45.0, keep_size=False, ltrb=True, ratio=False, mode="expand"):
     image_enc, boxes, labels = fn.readers.coco(
         file_root=str(file_root), annotations_file=str(train_annotations), ltrb=ltrb, ratio=ratio
     )
@@ -56,17 +56,19 @@ def coco_rotate_pipeline_visual(angle=45.0, keep_size=False, ltrb=True, ratio=Fa
         bbox_layout="xyXY" if ltrb else "xyWH",
         keep_size=keep_size,
         bbox_normalized=ratio,
+        mode=mode,
     )
     return image, boxes, labels, image_rot, boxes_rot, labels_rot
 
 
-def bbox_rotate_visual():
+def box_rotate_visual():
     """Prefix with 'test' if you want to run this ad-hoc and write image results"""
-    angle = 45.0
+    angle = 300.0
     ratio = True
     ltrb = True
-    keep_size = True
-    pipeline = coco_rotate_pipeline_visual(angle=angle, ratio=ratio, ltrb=ltrb, keep_size=keep_size)
+    pipeline = coco_rotate_pipeline_visual(
+        angle=angle, ratio=ratio, ltrb=ltrb, keep_size=True, mode="fixed"
+    )
     pipeline.build()
     outs = pipeline.run()
     images, boxes, labels, images_rot, boxes_rot, labels_rot = map(lambda x: np.array(x[0]), outs)
@@ -131,6 +133,7 @@ def test_bbox_rotate(ratio, ltrb, keep_size):
 
     np.testing.assert_allclose(boxes_rot, expected, rtol=1e-4, atol=1e-2)
 
+
 def draw_box(im: np.ndarray, boxes: np.ndarray):
     """Overlay xyXY image-coordinates boxes as masks on image"""
     impil = Image.fromarray(im)
@@ -138,6 +141,7 @@ def draw_box(im: np.ndarray, boxes: np.ndarray):
     for box in boxes:
         imdraw.rectangle(box, fill=1)
     return np.array(impil)
+
 
 @params(0.4, 0.6)
 def test_cull_threshold(threshold):
@@ -161,7 +165,6 @@ def test_cull_threshold(threshold):
             layout=["HWC", ""],
             dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
         )
-        im_ = fn.rotate(im_, angle=angle, keep_size=keep_size, fill_value=0)
         box_ = fn.bbox_rotate(
             box_,
             angle=angle,
@@ -171,6 +174,7 @@ def test_cull_threshold(threshold):
             bbox_layout="xyXY",
             bbox_normalized=False,
         )
+        im_ = fn.rotate(im_, angle=angle, keep_size=keep_size, fill_value=0)
         return im_, box_
 
     pipe = datapipe()
@@ -198,3 +202,60 @@ def test_cull_threshold(threshold):
         assert box_out.shape[0] > 0
     else:
         assert box_out.shape[0] == 0
+
+
+@cartesian_params(("expand", "halfway", "fixed"), (45.0, 90.0))
+def test_box_expansion_control(expansion: str, angle: float):
+    """Tests the bounding box expansion controls, ensuring aspect ratio flipping is recognised"""
+    keep_size = True
+
+    im = np.zeros((128, 128), dtype=np.uint8)
+    boxes = np.array(((32, 48, 96, 80),), dtype=np.float32)
+    im = draw_box(im, boxes)
+
+    def datasource():
+        # Add batch and channel dim for dataloader (fn.rotate needs HWC)
+        yield im[None, ..., None], boxes[None]
+
+    @pipeline_def(**_PIPE_ARGS)
+    def datapipe():
+        im_, box_ = fn.external_source(
+            datasource,
+            num_outputs=2,
+            layout=["HWC", ""],
+            dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
+        )
+        box_ = fn.bbox_rotate(
+            box_,
+            angle=angle,
+            input_shape=im_.shape(),
+            keep_size=keep_size,
+            bbox_layout="xyXY",
+            bbox_normalized=False,
+            mode=expansion,
+        )
+        return box_
+
+    pipe = datapipe()
+    pipe.build()
+    box_out = np.array(pipe.run()[0])[0]  # Remove batch
+    out_box_wh = box_out[..., 2:] - box_out[..., :2]
+    in_box_wh = boxes[..., 2:] - boxes[..., :2]
+
+    flipped_aspect = 45 < angle < 135 or 225 < angle < 315
+
+    rad = np.deg2rad(angle)
+    expansion_mat = np.abs(np.array([[np.cos(rad), np.sin(rad)], [np.sin(rad), np.cos(rad)]]))
+    exp_box_wh = in_box_wh @ expansion_mat
+    if expansion == "expand":
+        np.testing.assert_allclose(out_box_wh, exp_box_wh)
+    elif expansion == "halfway":
+        if flipped_aspect:  # Flip wh when aspect ratio changes
+            in_box_wh = in_box_wh[..., ::-1]
+        diff = exp_box_wh - in_box_wh
+        exp_box_wh -= diff / 2
+        np.testing.assert_allclose(out_box_wh, exp_box_wh, rtol=1e-4, atol=1e-3)
+    elif expansion == "fixed":
+        if flipped_aspect:  # Flip wh when aspect ratio changes
+            in_box_wh = in_box_wh[..., ::-1]
+        np.testing.assert_allclose(out_box_wh, in_box_wh, rtol=1e-4, atol=1e-3)

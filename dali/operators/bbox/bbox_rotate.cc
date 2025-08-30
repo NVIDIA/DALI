@@ -82,6 +82,9 @@ The order of dimensions is determined by the layout that is provided in `shape_l
 - ``expand``: expands the bounding box to definitely enclose the target, but may be larger than rotated target.
 - ``fixed``: retains the original size of the bounding box, but may be smaller than the rotated target. 
 - ``halfway``: halfway between the expanded size and the original size.
+
+.. note::
+  Modes other than ``expand`` are not recommended for datasets with high aspect ratio boxes and high rotation angles.
 )code",
                     dali::string("expand"), false)
     .AddOptionalArg(
@@ -197,19 +200,28 @@ void cornersToBoxes(dali::span<float> xCoords, dali::span<float> yCoords,
 void applyExpansionCorrectionToBoxSize(dali::span<vec<4>> boxes,
                                        std::vector<std::pair<float, float>> old_whs, bool halfway) {
   for (int i = 0; i < boxes.size(); ++i) {
-    float new_w = boxes[i].z - boxes[i].x;
-    float new_h = boxes[i].w - boxes[i].y;
-    auto& old_wh = old_whs[i];
-    float correction_w = old_wh.first - new_w;
-    float correction_h = old_wh.second - new_h;
-    if (halfway) {
-      correction_w *= 0.5f;
-      correction_h *= 0.5f;
+    const float new_w = boxes[i].z - boxes[i].x;
+    const float new_h = boxes[i].w - boxes[i].y;
+    const auto& old_wh = old_whs[i];
+    float diff_w, diff_h;
+
+    // Check if aspect ratio has flipped e.g. 45 < angle < 135
+    if ((old_wh.first < old_wh.second) ^ (new_w < new_h)) {
+      diff_w = (new_w - old_wh.second) * 0.5f;
+      diff_h = (new_h - old_wh.first) * 0.5f;
+    } else {
+      diff_w = (new_w - old_wh.first) * 0.5f;
+      diff_h = (new_h - old_wh.second) * 0.5f;
     }
-    boxes[i].x += correction_w;
-    boxes[i].y += correction_h;
-    boxes[i].z -= correction_w;
-    boxes[i].w -= correction_h;
+
+    if (halfway) {
+      diff_w *= 0.5f;
+      diff_h *= 0.5f;
+    }
+    boxes[i].x += diff_w;
+    boxes[i].y += diff_h;
+    boxes[i].z -= diff_w;
+    boxes[i].w -= diff_h;
   }
 }
 
@@ -282,12 +294,12 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
                    [half_h = image_wh.second / 2](float elem) { return elem - half_h; });
   }
 
-  // Need to log old wh for expansion correction, xy coords are x1y1,x1y2,x2y1,x2y2
+  // Need to log old wh for expansion correction with vecs x1x2x1x2 y1y1y2y2
   std::optional<std::vector<std::pair<float, float>>> old_wh;
   if (mode != Mode::Expand) {
     old_wh->resize(numBoxes);
     for (int i = 0; i < numBoxes; ++i) {
-      (*old_wh)[i] = {xCoords[4 * i + 2] - xCoords[4 * i], yCoords[4 * i + 1] - yCoords[4 * i]};
+      (*old_wh)[i] = {xCoords[4 * i + 1] - xCoords[4 * i], yCoords[4 * i + 2] - yCoords[4 * i]};
     }
   }
 
