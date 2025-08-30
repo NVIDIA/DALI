@@ -267,8 +267,8 @@ int clipAndRemoveBoxes(dali::span<vec<4>> boxes, float remove_threshold,
     box.z = std::clamp(box.z, 0.0f, image_wh.first);
     box.w = std::clamp(box.w, 0.0f, image_wh.second);
     const float new_area = (box.z - box.x) * (box.w - box.y);
-    const float area_change = new_area / old_area;
-    if (area_change > remove_threshold) {
+    const float fraction_remain = new_area / old_area;
+    if (fraction_remain >= remove_threshold) {
       boxes[outIdx] = box;
       if (handleLabels) {
         outputLabels.value().mutable_data<int>()[outIdx] = inputLabels.value().data<int>()[inIdx];
