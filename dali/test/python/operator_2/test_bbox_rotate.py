@@ -14,20 +14,23 @@
 
 from pathlib import Path
 
+import cv2
 import numpy as np
-from nose2.tools import cartesian_params
+from nose2.tools import cartesian_params, params
 from nvidia.dali import fn
 from nvidia.dali.pipeline import pipeline_def
+from nvidia.dali.types import DALIDataType
+from PIL import Image, ImageDraw
 from test_utils import get_dali_extra_path
 
 test_data_root = Path(get_dali_extra_path())
 file_root = test_data_root / "db" / "coco" / "images"
 train_annotations = test_data_root / "db" / "coco" / "instances.json"
 
+_PIPE_ARGS = {"num_threads": 1, "batch_size": 1, "device_id": 0}
+
 
 def show_outputs(images: np.ndarray, boxes: np.ndarray, labels: np.ndarray, filename: str):
-    from PIL import Image, ImageDraw
-
     image = Image.fromarray(images)
     draw = ImageDraw.Draw(image)
 
@@ -38,7 +41,7 @@ def show_outputs(images: np.ndarray, boxes: np.ndarray, labels: np.ndarray, file
     image.save(filename)
 
 
-@pipeline_def(num_threads=1, batch_size=1, device_id=0)
+@pipeline_def(**_PIPE_ARGS)
 def coco_rotate_pipeline_visual(angle=45.0, keep_size=False, ltrb=True, ratio=False):
     image_enc, boxes, labels = fn.readers.coco(
         file_root=str(file_root), annotations_file=str(train_annotations), ltrb=ltrb, ratio=ratio
@@ -81,7 +84,7 @@ def bbox_rotate_visual():
     show_outputs(images_rot, boxes_rot, labels_rot, "rotated.webp")
 
 
-@pipeline_def(num_threads=1, batch_size=1, device_id=0)
+@pipeline_def(**_PIPE_ARGS)
 def coco_rotate_pipeline(angle=45.0, keep_size=False, ltrb=True, ratio=False):
     image_enc, boxes, labels = fn.readers.coco(
         file_root=str(file_root), annotations_file=str(train_annotations), ltrb=ltrb, ratio=ratio
@@ -127,3 +130,71 @@ def test_bbox_rotate(ratio, ltrb, keep_size):
         expected = np.array([[511.971, 507.729, 965.250, 961.007]], dtype=np.float32)
 
     np.testing.assert_allclose(boxes_rot, expected, rtol=1e-4, atol=1e-2)
+
+def draw_box(im: np.ndarray, boxes: np.ndarray):
+    """Overlay xyXY image-coordinates boxes as masks on image"""
+    impil = Image.fromarray(im)
+    imdraw = ImageDraw.Draw(impil)
+    for box in boxes:
+        imdraw.rectangle(box, fill=1)
+    return np.array(impil)
+
+@params(0.4, 0.6)
+def test_cull_threshold(threshold):
+    """Test box is removed below 0.6 threshold and kept above 0.4 threshold"""
+    angle = 45.0
+    keep_size = True
+
+    im = np.zeros((128, 128), dtype=np.uint8)
+    boxes = np.array(((0, 0, 36, 36),), dtype=np.float32)
+    im = draw_box(im, boxes)
+
+    def datasource():
+        # Add batch and channel dim for dataloader (fn.rotate needs HWC)
+        yield im[None, ..., None], boxes[None]
+
+    @pipeline_def(**_PIPE_ARGS)
+    def datapipe():
+        im_, box_ = fn.external_source(
+            datasource,
+            num_outputs=2,
+            layout=["HWC", ""],
+            dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
+        )
+        im_ = fn.rotate(im_, angle=angle, keep_size=keep_size, fill_value=0)
+        box_ = fn.bbox_rotate(
+            box_,
+            angle=angle,
+            input_shape=im_.shape(),
+            keep_size=keep_size,
+            remove_threshold=threshold,
+            bbox_layout="xyXY",
+            bbox_normalized=False,
+        )
+        return im_, box_
+
+    pipe = datapipe()
+    pipe.build()
+    outs = pipe.run()
+    im_rot, box_out = map(lambda x: np.array(x[0]), outs)
+
+    # 45 deg scales h and w by sqrt2
+    old_box_area = np.prod(boxes[..., 2:]) * (np.sqrt(2) ** 2)
+    # Get actual box with bounding rect of rotated image
+    box_rot = cv2.boundingRect(im_rot)
+    clip_box_area = box_rot[-1] * box_rot[-2]
+    # Check the threshold change
+    box_area_change = clip_box_area / old_box_area
+    should_keep = box_area_change > threshold
+
+    if threshold == 0.4:
+        assert should_keep
+    elif threshold == 0.6:
+        assert not should_keep
+    else:
+        raise RuntimeError("unexpected threshold used")
+
+    if should_keep:
+        assert box_out.shape[0] > 0
+    else:
+        assert box_out.shape[0] == 0
