@@ -15,6 +15,7 @@
 from pathlib import Path
 
 import numpy as np
+from nose2.tools import cartesian_params
 from nvidia.dali import fn
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path
@@ -38,7 +39,7 @@ def show_outputs(images: np.ndarray, boxes: np.ndarray, labels: np.ndarray, file
 
 
 @pipeline_def(num_threads=1, batch_size=1, device_id=0)
-def coco_rotate_pipeline(angle=45.0, keep_size=False, ltrb=True, ratio=False):
+def coco_rotate_pipeline_visual(angle=45.0, keep_size=False, ltrb=True, ratio=False):
     image_enc, boxes, labels = fn.readers.coco(
         file_root=str(file_root), annotations_file=str(train_annotations), ltrb=ltrb, ratio=ratio
     )
@@ -56,9 +57,13 @@ def coco_rotate_pipeline(angle=45.0, keep_size=False, ltrb=True, ratio=False):
     return image, boxes, labels, image_rot, boxes_rot, labels_rot
 
 
-def test_bbox_rotate():
-    ratio = False
-    pipeline = coco_rotate_pipeline(ratio=ratio)
+def bbox_rotate_visual():
+    """Prefix with 'test' if you want to run this ad-hoc and write image results"""
+    angle = 45.0
+    ratio = True
+    ltrb = True
+    keep_size = True
+    pipeline = coco_rotate_pipeline_visual(angle=angle, ratio=ratio, ltrb=ltrb, keep_size=keep_size)
     pipeline.build()
     outs = pipeline.run()
     images, boxes, labels, images_rot, boxes_rot, labels_rot = map(lambda x: np.array(x[0]), outs)
@@ -67,5 +72,58 @@ def test_bbox_rotate():
         boxes *= images_whwh
         images_rot_whwh = np.tile(np.array(images_rot.shape[1::-1])[None], 2)
         boxes_rot *= images_rot_whwh
+
+    if not ltrb:
+        boxes[..., 2:] += boxes[..., :2]
+        boxes_rot[..., 2:] += boxes_rot[..., :2]
+
     show_outputs(images, boxes, labels, "original.webp")
     show_outputs(images_rot, boxes_rot, labels_rot, "rotated.webp")
+
+
+@pipeline_def(num_threads=1, batch_size=1, device_id=0)
+def coco_rotate_pipeline(angle=45.0, keep_size=False, ltrb=True, ratio=False):
+    image_enc, boxes, labels = fn.readers.coco(
+        file_root=str(file_root), annotations_file=str(train_annotations), ltrb=ltrb, ratio=ratio
+    )
+    im_shape = fn.peek_image_shape(image_enc)
+    boxes_rot, labels_rot = fn.bbox_rotate(
+        boxes,
+        labels,
+        angle=angle,
+        input_shape=im_shape,
+        bbox_layout="xyXY" if ltrb else "xyWH",
+        keep_size=keep_size,
+        bbox_normalized=ratio,
+    )
+    return im_shape, boxes_rot, labels_rot
+
+
+@cartesian_params([True, False], [True, False], [True, False])
+def test_bbox_rotate(ratio, ltrb, keep_size):
+    angle = 45.0
+    pipeline = coco_rotate_pipeline(angle=angle, ratio=ratio, ltrb=ltrb, keep_size=keep_size)
+    pipeline.build()
+    outs = pipeline.run()
+    im_hwc, boxes_rot, _ = map(lambda x: np.array(x[0]), outs)
+
+    if keep_size is False:
+        rad = np.deg2rad(angle)
+        new_w = np.abs(im_hwc[1] * np.cos(rad)) + np.abs(im_hwc[0] * np.sin(rad))
+        new_h = np.abs(im_hwc[0] * np.cos(rad)) + np.abs(im_hwc[1] * np.sin(rad))
+        im_hwc[0] = np.round(new_h)
+        im_hwc[1] = np.round(new_w)
+
+    if ratio:
+        images_rot_whwh = np.tile(np.array(im_hwc[1::-1])[None], 2)
+        boxes_rot *= images_rot_whwh
+
+    if not ltrb:
+        boxes_rot[..., 2:] += boxes_rot[..., :2]
+
+    if keep_size:
+        expected = np.array([[359.986, 195.743, 813.241, 648.999]], dtype=np.float32)
+    else:
+        expected = np.array([[511.971, 507.729, 965.250, 961.007]], dtype=np.float32)
+
+    np.testing.assert_allclose(boxes_rot, expected, rtol=1e-4, atol=1e-2)
