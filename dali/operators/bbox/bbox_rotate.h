@@ -34,6 +34,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
         bbox_normalized_(spec.GetArgument<bool>("bbox_normalized")),
         keep_size_(spec.GetArgument<bool>("keep_size")),
         remove_threshold_(spec.GetArgument<float>("remove_threshold")) {
+    DALI_ENFORCE_IN_RANGE(remove_threshold_, 0.f, std::nextafterf(1.f, 2.f)); // In range [0, 1]
     const auto &mode_str = spec.GetArgument<std::string>("mode");
     if (mode_str == "expand") {
       mode_ = Mode::Expand;

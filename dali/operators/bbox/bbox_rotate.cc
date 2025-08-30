@@ -32,14 +32,22 @@ namespace dali {
 DALI_SCHEMA(BBoxRotate)
     .DocStr(
         R"code(Transforms bounding boxes so that the boxes remain in the same place in the image after
-the image is rotated. Boxes that land outside the image with `keep_size=True` will be removed from the
-output, a mask of valid boxes will be returned that can be used to remove other data such as class labels.
+the image is rotated. Boxes that land outside the image with ``keep_size=True`` will be removed from the
+output if the fraction of the remaining box after cropping is less than ``remove_threshold``. If ``labels``
+are passed as a second argument, they will also be removed synchronously.
 
-.. note:
+By default, boxes are expanded when rotated to ensure the original box is fully enclosed. This can be 
+controlled with ``mode`` which can either retain the original height and width with ``mode='fixed'``
+or between the full expansion and original shape with ``mode='halfway'``.
+
+.. warning::
   Boxes should be rotated first before the image as this op requires the original image shape to calculate
-  the rotation correctly.
+  the rotated boxes.
+
+Example usage is below:
 
 .. code-block:: python
+
   boxes, labels = fn.bbox_rotate(
     boxes, labels, angle=angle, input_shape=image.shape(), keep_size=keep_size
   )
@@ -49,21 +57,17 @@ output, a mask of valid boxes will be returned that can be used to remove other 
     .NumInput(1, 2)
     .InputDox(
         0, "bboxes", "2D TensorList of float",
-        R"code(Relative coordinates of the bounding boxes that are represented as a 2D tensor, where the
-first dimension refers to the index of the bounding box, and the second dimension refers to the index
-of the coordinate.
-)code")
-    .InputDox(
-        1, "labels", "1D TensorList of int",
-        R"code(Class labels for the bounding boxes. These should be provided if the `keep_size` argument is
-set to True as boxes may be truncated, this ensures the corresponding labels will also be removed.
+        R"code(Coordinates of the bounding boxes that are represented as a [N,4] 2D tensor.)code")
+    .InputDox(1, "labels", "1D or 2D TensorList of int",
+              R"code(Class labels for the bounding boxes, [N] or [N,1]. These should be provided if 
+``keep_size=True`` as boxes may be truncated, this ensures the corresponding class labels are also removed.
 )code")
     .NumOutput(1)
     .AdditionalOutputsFn([](const OpSpec& spec) {
       return spec.NumRegularInput() - 1;  // +1 if labels are provided
     })
     .AddArg("angle", R"code(Rotation angle in degrees.)code", DALI_FLOAT, true)
-    .AddArg("input_shape", R"code(Specifies the shape of the original input image.
+    .AddArg("input_shape", R"code(Specifies the shape of the original image the boxes belong to.
     
 The order of dimensions is determined by the layout that is provided in `shape_layout`.
 )code",
@@ -72,25 +76,26 @@ The order of dimensions is determined by the layout that is provided in `shape_l
                     R"code(Determines the meaning of the dimensions provided in `input_shape`.
 
 .. note::
-  If left empty, ``"HW"`` will be assumed, which is also compatible with HWC shape input since we
+  If unspecified, ``"HW"`` will be assumed, which is also compatible with ``"HWC"`` since we
   select H and W internally (index 0, 1).
 )code",
                     dali::TensorLayout{"HW"}, false)
     .AddOptionalArg("bbox_layout",
-                    R"code(Format of the bounding box input ``xyWH`` or `xyXY`.)code",
+                    R"code(Format of the bounding box input ``xyWH`` or ``xyXY``.)code",
                     dali::TensorLayout("xyXY"), false)
     .AddOptionalArg("bbox_normalized",
                     R"code(Input bounding boxes are in normalized [0,1] format)code", true, false)
     .AddOptionalArg(
         "keep_size",
         R"code(If true, the bounding box output coordinates will assume the image canvas size was also kept 
-(see `nvidia.dali.fn.rotate`).)code",
+(see ``nvidia.dali.fn.rotate``).)code",
         false, false)
     .AddOptionalArg("mode",
                     R"code(Mode of the bounding box transformation. Possible values are:
-- ``expand``: expands the bounding box to definitely enclose the target, but may be larger than rotated target.
-- ``fixed``: retains the original size of the bounding box, but may be smaller than the rotated target. 
-- ``halfway``: halfway between the expanded size and the original size.
+
+ - ``expand``: expands the bounding box to definitely enclose the target, but may be larger than rotated target.
+ - ``fixed``: retains the original size of the bounding box, but may be smaller than the rotated target. 
+ - ``halfway``: halfway between the expanded size and the original size.
 
 .. note::
   Modes other than ``expand`` are not recommended for datasets with high aspect ratio boxes and high rotation angles.
