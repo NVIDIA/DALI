@@ -17,6 +17,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from nose2.tools import cartesian_params, params
+from nose_utils import assert_raises
 from nvidia.dali import fn
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.types import DALIDataType
@@ -259,3 +260,42 @@ def test_box_expansion_control(expansion: str, angle: float):
         if flipped_aspect:  # Flip wh when aspect ratio changes
             in_box_wh = in_box_wh[..., ::-1]
         np.testing.assert_allclose(out_box_wh, in_box_wh, rtol=1e-4, atol=1e-3)
+
+
+@params([200], [200, 1], [200, 1, 1], [180, 1])
+def test_allowed_label_shapes(test_labels_shape: list[int]):
+    """Ensure labels can have N or Nx1 but not anything else"""
+    num_boxes = 200
+
+    def get_boxes():
+        out = [np.random.randint(0, 255, size=[num_boxes, 4]).astype(np.float32) for _ in range(1)]
+        return out
+
+    def get_labels():
+        out = [np.random.randint(0, 255, size=test_labels_shape, dtype=np.int32) for _ in range(1)]
+        return out
+
+    @pipeline_def(**_PIPE_ARGS)
+    def datapipe():
+
+        boxes = fn.external_source(source=get_boxes)
+        labels = fn.external_source(source=get_labels)
+        boxes, labels = fn.bbox_rotate(
+            boxes,
+            labels,
+            angle=45,
+            input_shape=[255, 255],
+            bbox_layout="xyXY",
+            bbox_normalized=False,
+        )
+        return boxes, labels
+
+    if len(test_labels_shape) > 2 or test_labels_shape[0] != num_boxes:
+        with assert_raises(RuntimeError):
+            pipe = datapipe()
+            pipe.build()
+            pipe.run()
+    else:
+        pipe = datapipe()
+        pipe.build()
+        pipe.run()

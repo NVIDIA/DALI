@@ -87,8 +87,10 @@ class BBoxRotate : public StatelessOperator<Backend> {
       output_desc[1].shape = labelShapeList;
       output_desc[1].type = DALI_INT32;
       for (int i = 0; i < labelShapeList.size(); i++) {
-        if (labelShapeList[i].size() != 1) {
-          DALI_FAIL("Label input to fn.bbox_rotate should be [N], got ", labelShapeList[i]);
+        if (labelShapeList[i].size() != 1 &&
+            !(labelShapeList[i].size() == 2 && labelShapeList[i][1] == 1)) {
+          DALI_FAIL("Label input to fn.bbox_rotate should be [N] or [N, 1], got ",
+                    labelShapeList[i]);
         }
         if (labelShapeList[i][0] != boxShapeList[i][0]) {
           DALI_FAIL("Number of labels must match number of boxes. Got: ", labelShapeList[i][0],

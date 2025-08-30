@@ -389,7 +389,11 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
           keep_size_, mode_, remove_threshold_, image_wh, bbox_normalized_);
       ws.Output<CPUBackend>(0).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 4));
       if (outputLabels.has_value()) {
-        ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<1>(numOutBoxes));
+        if (ws.GetInputShape(1)[sampleIdx].size() == 2)
+          ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 1));
+        else {
+          ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<1>(numOutBoxes));
+        }
       }
     });
   }
