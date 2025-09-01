@@ -48,13 +48,6 @@ NvImageCodecCodeStream NvImageCodecCodeStream::FromHostMem(nvimgcodecInstance_t 
   return ret;
 }
 
-NvImageCodecCodeStream NvImageCodecCodeStream::FromSubCodeStream(
-  nvimgcodecCodeStream_t code_stream, const nvimgcodecCodeStreamView_t* cs_view) {
-  NvImageCodecCodeStream ret;
-  CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(code_stream, &ret.handle_, cs_view));
-  return ret;
-}
-
 void NvImageCodecCodeStream::DestroyHandle(nvimgcodecCodeStream_t handle) {
   nvimgcodecCodeStreamDestroy(handle);
 }

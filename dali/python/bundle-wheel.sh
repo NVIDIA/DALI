@@ -147,7 +147,7 @@ DEPS_LIST=(
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
     DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.5"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.4"
     )
 fi
 

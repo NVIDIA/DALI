@@ -145,7 +145,7 @@ inline void get_nvimgcodec_version(int *major, int *minor, int *patch) {
 template <typename Backend>
 class ImageDecoder : public StatelessOperator<Backend> {
  public:
-  ~ImageDecoder() noexcept override {
+  ~ImageDecoder() override {
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
     decoder_.reset();  // first stop the decoder
     for (auto &extension : extensions_) {
@@ -167,7 +167,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   struct SampleState {
     ParsedSample parsed_sample = {};
-    NvImageCodecCodeStream sub_encoded_stream = {};
     NvImageCodecImage image = {};
     nvimgcodecImageInfo_t image_info = {};
     TensorShape<> out_shape = {};
@@ -410,17 +409,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
   nvimgcodecStatus_t schedule(int device_id, int sample_idx, void *task_context,
                               void (*task)(int thread_id, int sample_idx, void *task_context)) {
     assert(tp_);
-    nvimgcodec_scheduled_tasks_.emplace_back([=](int tid) { task(tid, sample_idx, task_context); });
+    tp_->AddWork([=](int tid) { task(tid, sample_idx, task_context); }, -(task_count_++), false);
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
   nvimgcodecStatus_t run(int device_id) {
     assert(tp_);
-    for (int i = 0; i < static_cast<int>(nvimgcodec_scheduled_tasks_.size()); i++) {
-      tp_->AddWork(std::move(nvimgcodec_scheduled_tasks_[i]), -i);
-    }
-    nvimgcodec_scheduled_tasks_.clear();
     tp_->RunAll(false);
+    task_count_ = 0;
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
@@ -584,6 +580,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.cuda_stream = std::is_same<MixedBackend, Backend>::value ? ws.stream() : nullptr;
 
+    st.image_info.region.ndim = roi.use_roi() ? 2 : 0;
+    if (roi.use_roi()) {
+      st.image_info.region.start[0] = roi.begin[0];
+      st.image_info.region.start[1] = roi.begin[1];
+      st.image_info.region.end[0] = roi.end[0];
+      st.image_info.region.end[1] = roi.end[1];
+    }
+
     // At the moment we are not dealing with floating point outputs in nvimagecodec
     assert(IsIntegral(st.parsed_sample.orig_dtype));
 
@@ -699,7 +703,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
         ParseSample(st->parsed_sample,
                     span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
                                         volume(input_sample.shape())});
-        st->sub_encoded_stream.reset();
         st->out_shape = st->parsed_sample.dali_img_info.shape;
         st->out_shape[2] = NumberOfChannels(format_, st->out_shape[2]);
         if (use_orientation_ &&
@@ -765,30 +768,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     // The image descriptors are created in parallel, in block-wise fashion.
     auto init_desc_task = [&](int start_sample, int end_sample) {
-      for (int orig_idx = start_sample; orig_idx < end_sample; orig_idx++) {
-        auto &st = *state_[orig_idx];
-        if (use_cache && st.load_from_cache) {
-          continue;
-        }
-        if (!st.need_processing) {
-          st.image_info.buffer = output.raw_mutable_tensor(orig_idx);
-        }
-        st.image = NvImageCodecImage::Create(instance_, &st.image_info);
-        if (rois_[orig_idx].use_roi()) {
-          auto &roi = rois_[orig_idx];
-          nvimgcodecCodeStreamView_t cs_view = {
-              NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW,
-              sizeof(nvimgcodecCodeStreamView_t),
-              nullptr,
-              0,  // image_idx
-              {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
-          cs_view.region.start[0] = roi.begin[0];
-          cs_view.region.start[1] = roi.begin[1];
-          cs_view.region.end[0] = roi.end[0];
-          cs_view.region.end[1] = roi.end[1];
-          st.sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
-              st.parsed_sample.encoded_stream.get(), &cs_view);
-        }
+      for (int i = start_sample; i < end_sample; i++) {
+        auto &st = *state_[i];
+        if (!st.need_processing)
+          st.image_info.buffer = output.raw_mutable_tensor(i);
+
+        if (!st.load_from_cache)
+          st.image = NvImageCodecImage::Create(instance_, &st.image_info);
       }
     };
 
@@ -815,6 +801,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
 
     bool any_need_processing = false;
+    bool has_any_roi = false;
     for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
       auto &st = *state_[orig_idx];
       any_need_processing |= state_[orig_idx]->need_processing;
@@ -823,11 +810,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
         auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
         cache_->DeferCacheLoad(src_info, static_cast<uint8_t *>(data_ptr));
       } else {
-        if (st.sub_encoded_stream) {
-          batch_encoded_streams_.push_back(st.sub_encoded_stream);
-        } else {
-          batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
-        }
+        has_any_roi |= rois_[orig_idx].use_roi();
+        batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
         batch_images_.push_back(st.image);
         decode_sample_idxs_.push_back(orig_idx);
       }
@@ -854,6 +838,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
                                                 sizeof(nvimgcodecDecodeParams_t), nullptr};
       decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
+      decode_params.enable_roi = static_cast<int>(has_any_roi);
 
       {
         DomainTimeRange tr("nvimgcodecDecoderDecode", DomainTimeRange::kOrange);
@@ -961,6 +946,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
   int max_batch_size_ = 1;
   int num_threads_ = -1;
   ThreadPool *tp_ = nullptr;
+  int64_t task_count_ = 0;
   std::vector<std::unique_ptr<SampleState>> state_;
   std::vector<nvimgcodecCodeStream_t> batch_encoded_streams_;
   std::vector<nvimgcodecImage_t> batch_images_;
@@ -975,8 +961,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
   // Manually loaded extensions
   std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
   std::vector<nvimgcodecExtension_t> extensions_;
-
-  std::vector<std::function<void(int)>> nvimgcodec_scheduled_tasks_;
 };
 
 }  // namespace imgcodec
