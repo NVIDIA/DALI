@@ -102,8 +102,6 @@ using Mode = BBoxRotate<CPUBackend>::Mode;
  * @brief Expands the bounding boxes to all corners x1y1, x2y1, x1y2, x2y2 in flattened x_coords and
  *        y_coords.
  *
- * @note Not sure if 16-byte aligned version of SSE intrinsics can be used, using unaligned for now.
- *
  * @tparam ltrb If true, the input boxes are in left-top-right-bottom format, otherwise in
  *         xywh format.
  * @param x_coords Output flattened x coordinates of the corners.
