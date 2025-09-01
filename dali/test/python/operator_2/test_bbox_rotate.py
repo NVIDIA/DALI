@@ -63,12 +63,17 @@ def coco_rotate_pipeline_visual(angle=45.0, keep_size=False, ltrb=True, ratio=Fa
 
 
 def box_rotate_visual():
-    """Prefix with 'test' if you want to run this ad-hoc and write image results"""
+    """Run this and modify the variables to visualize the output of this operator.
+
+    Example running from repo's root directory:
+    `PYTHONPATH=dali/test/python DALI_EXTRA_PATH=/opt/dali_extra/
+    python3 -m nose2 -s=dali/test/python/operator_2 test_bbox_rotate.box_rotate_visual`
+    """
     angle = 300.0
     ratio = True
-    ltrb = True
+    ltrb = False
     pipeline = coco_rotate_pipeline_visual(
-        angle=angle, ratio=ratio, ltrb=ltrb, keep_size=True, mode="fixed"
+        angle=angle, ratio=ratio, ltrb=ltrb, keep_size=True, mode="expand"
     )
     pipeline.build()
     outs = pipeline.run()
@@ -277,7 +282,6 @@ def test_allowed_label_shapes(test_labels_shape: list[int]):
 
     @pipeline_def(**_PIPE_ARGS)
     def datapipe():
-
         boxes = fn.external_source(source=get_boxes)
         labels = fn.external_source(source=get_labels)
         boxes, labels = fn.bbox_rotate(
