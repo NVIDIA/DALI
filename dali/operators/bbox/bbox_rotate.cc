@@ -168,7 +168,7 @@ void CornersToBoxes(dali::span<vec4> out_boxes, dali::span<const float> x_coords
     const auto offset = 4 * i;
     auto [x1, x2] = std::minmax_element(&x_coords[offset], &x_coords[offset + 4]);
     auto [y1, y2] = std::minmax_element(&y_coords[offset], &y_coords[offset + 4]);
-    out_boxes[i] = vec<4>(*x1, *y1, *x2, *y2);
+    out_boxes[i] = vec4(*x1, *y1, *x2, *y2);
   }
 }
 
@@ -266,9 +266,9 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
   // Center the coordinates on zero in image coordinates
   if (bbox_norm) {
     std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
-                   [w = image_wh.x](float elem) { return (elem - 0.5) * w; });
+                   [w = image_wh.x](float elem) { return (elem - 0.5f) * w; });
     std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
-                   [h = image_wh.y](float elem) { return (elem - 0.5) * h; });
+                   [h = image_wh.y](float elem) { return (elem - 0.5f) * h; });
   } else {
     std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
                    [half_w = image_wh.x / 2](float elem) { return elem - half_w; });
@@ -315,16 +315,21 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
 
   if (!ltrb || bbox_norm) {  // Convert back to xywh and/or normalized format if needed
     out_boxes = dali::span(out_boxes.data(), num_out_boxes);  // handle if some boxes culled
-    std::for_each(out_boxes.begin(), out_boxes.end(), [image_wh, ltrb, bbox_norm](vec<4>& box) {
+
+    // Recip of whwh to multiply with box for normalization
+    const vec4 box_norm_vec = {1.f / image_wh.x, 1.f / image_wh.y, 1.f / image_wh.x,
+                               1.f / image_wh.y};
+
+    std::for_each(out_boxes.begin(), out_boxes.end(), [ltrb, bbox_norm, box_norm_vec](vec4& box) {
       if (!ltrb) {
         box.z -= box.x;
         box.w -= box.y;
       }
       if (bbox_norm) {
-        box.x /= image_wh.x;
-        box.y /= image_wh.y;
-        box.z /= image_wh.x;
-        box.w /= image_wh.y;
+#pragma omp simd simdlen(4)
+        for (int i = 0; i < 4; ++i) {
+          box[i] *= box_norm_vec[i];
+        }
       }
     });
   }
