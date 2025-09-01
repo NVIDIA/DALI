@@ -21,8 +21,6 @@
 #elif defined(__aarch64__)
 // ARM64 (aarch64) specific SIMD code (NEON, etc.)
 #include <arm_neon.h>
-#else
-#error "Unsupported architecture"
 #endif
 
 namespace dali {
@@ -109,23 +107,22 @@ if any part of the box is outside.)code",
 using Mode = BBoxRotate<CPUBackend>::Mode;
 
 /**
- * @brief Expands the bounding boxes to all corners x1y1, x2y1, x1y2, x2y2 in flattened xCoords and
- *        yCoords.
+ * @brief Expands the bounding boxes to all corners x1y1, x2y1, x1y2, x2y2 in flattened x_coords and
+ *        y_coords.
  *
- * @note Not sure if I can use the 16-byte aligned version as an assumption.
+ * @note Not sure if I can use the 16-byte aligned version of SSE intrinsics, using unaligned for now.
  *
  * @tparam ltrb If true, the input boxes are in left-top-right-bottom format, otherwise in
  *         xywh format.
- * @param inBoxes Input bounding boxes.
- * @param xCoords Output flattened x coordinates of the corners.
- * @param yCoords Output flattened y coordinates of the corners.
- * @param numBoxes Number of bounding boxes.
+ * @param x_coords Output flattened x coordinates of the corners.
+ * @param y_coords Output flattened y coordinates of the corners.
+ * @param in_boxes Input bounding boxes.
  */
 template <bool ltrb>
-void expandToAllCorners(dali::span<const vec<4>> inBoxes, dali::span<float> xCoords,
-                        dali::span<float> yCoords) {
-  for (int i = 0; i < inBoxes.size(); ++i) {
-    auto box = inBoxes[i];
+void ExpandToAllCorners(dali::span<float> x_coords, dali::span<float> y_coords,
+                        dali::span<const vec<4>> in_boxes) {
+  for (int i = 0; i < in_boxes.size(); ++i) {
+    auto box = in_boxes[i];
     // Convert to x2y2
     if constexpr (!ltrb) {
       box.z += box.x;
@@ -135,69 +132,66 @@ void expandToAllCorners(dali::span<const vec<4>> inBoxes, dali::span<float> xCoo
 #if defined(__x86_64__) || defined(_M_X64)
     // Copy X coordinates
     const __m128 xvec = _mm_setr_ps(box.x, box.z, box.x, box.z);
-    _mm_storeu_ps(&xCoords[offset], xvec);
+    _mm_storeu_ps(&x_coords[offset], xvec);
     // Copy Y coordinates
     const __m128 yvec = _mm_setr_ps(box.y, box.y, box.w, box.w);
-    _mm_storeu_ps(&yCoords[offset], yvec);
+    _mm_storeu_ps(&y_coords[offset], yvec);
 #elif defined(__aarch64__)
     // Copy X coordinates
     float32x4_t xvec = {box.x, box.z, box.x, box.z};
-    vst1q_f32(&xCoords[offset], xvec);
+    vst1q_f32(&x_coords[offset], xvec);
     // Copy Y coordinates
     float32x4_t yvec = {box.y, box.y, box.w, box.w};
-    vst1q_f32(&yCoords[offset], yvec);
+    vst1q_f32(&y_coords[offset], yvec);
+#else
+    x_coords[offset + 0] = box.x;
+    x_coords[offset + 1] = box.z;
+    x_coords[offset + 2] = box.x;
+    x_coords[offset + 3] = box.z;
+
+    y_coords[offset + 0] = box.y;
+    y_coords[offset + 1] = box.y;
+    y_coords[offset + 2] = box.w;
+    y_coords[offset + 3] = box.w;
 #endif
   }
 }
 
-void printCoords(dali::span<float> xCoords, dali::span<float> yCoords) {
-  std::stringstream ss;
-  for (int i = 0; i < xCoords.size(); ++i) {
-    ss << dali::make_string("[", xCoords[i], ",", yCoords[i], "] ");
-  }
-  std::cout << ss.str() << std::endl;
-}
-
-void printBoxes(dali::span<const vec<4>> boxes) {
-  std::stringstream ss;
-  for (const auto& box : boxes) {
-    ss << dali::make_string("[", box.x, ",", box.y, ",", box.z, ",", box.w, "] ");
-  }
-  std::cout << ss.str() << std::endl;
-}
-
 /**
- * @brief Rotates the corners of the bounding boxes by a given angle.
+ * @brief Inplace rotates the corners of the bounding boxes by a given angle.
  *
- * @param xCoords Flattened x coordinates of the corners.
- * @param yCoords Flattened y coordinates of the corners.
+ * @note y is pointing down in an image, the -sin is bottom left rather than top right in rotation
+ * matrix
+ *
+ * @param x_coords Flattened x coordinates of the corners.
+ * @param y_coords Flattened y coordinates of the corners.
  * @param angle Rotation angle in radians.
  */
-void rotateCorners(dali::span<float> xCoords, dali::span<float> yCoords, float angle) {
-  float cos_a = std::cos(angle);
-  float sin_a = std::sin(angle);
+void RotateCorners(dali::span<float> x_coords, dali::span<float> y_coords, float angle) {
+  const float cos_a = std::cos(angle);
+  const float sin_a = std::sin(angle);
 
-  for (int i = 0; i < xCoords.size(); ++i) {
-    const float x = xCoords[i];
-    const float y = yCoords[i];
-    xCoords[i] = x * cos_a + y * sin_a;
-    yCoords[i] = -x * sin_a + y * cos_a;
+  for (int i = 0; i < x_coords.size(); ++i) {
+    const float x = x_coords[i];
+    const float y = y_coords[i];
+    x_coords[i] = x * cos_a + y * sin_a;
+    y_coords[i] = -x * sin_a + y * cos_a;
   }
 }
 
 /**
  * @brief Converts corner coordinates to ltrb bounding boxes.
- * @param xCoords Flattened x coordinates of the corners.
- * @param yCoords Flattened y coordinates of the corners.
- * @param outBoxes Output bounding boxes.
+ * @param x_coords Flattened x coordinates of the corners.
+ * @param y_coords Flattened y coordinates of the corners.
+ * @param out_boxes Output ltrb bounding boxes.
  */
-void cornersToBoxes(dali::span<float> xCoords, dali::span<float> yCoords,
-                    dali::span<vec<4>> outBoxes) {
-  for (int i = 0; i < outBoxes.size(); ++i) {
+void CornersToBoxes(dali::span<vec<4>> out_boxes, dali::span<const float> x_coords,
+                    dali::span<const float> y_coords) {
+  for (int i = 0; i < out_boxes.size(); ++i) {
     const auto offset = 4 * i;
-    auto [x1, x2] = std::minmax_element(&xCoords[offset], &xCoords[offset + 4]);
-    auto [y1, y2] = std::minmax_element(&yCoords[offset], &yCoords[offset + 4]);
-    outBoxes[i] = vec<4>(*x1, *y1, *x2, *y2);
+    auto [x1, x2] = std::minmax_element(&x_coords[offset], &x_coords[offset + 4]);
+    auto [y1, y2] = std::minmax_element(&y_coords[offset], &y_coords[offset + 4]);
+    out_boxes[i] = vec<4>(*x1, *y1, *x2, *y2);
   }
 }
 
@@ -205,15 +199,16 @@ void cornersToBoxes(dali::span<float> xCoords, dali::span<float> yCoords,
  * @brief Applies expansion correction to the bounding box sizes by shrinking them by the amount the
  * rotation expanded them.
  *
- * @param boxes boxes to be corrected inplace.
- * @param expansion general expansion factor of the rotation
- * @param halfway whether to only correct halfway, not the full expansion
+ * @param boxes ltrb img-coord boxes to be corrected inplace.
+ * @param old_whs the original width and height of each box in pixels.
+ * @param halfway whether to only correct halfway, not the full expansion.
  */
-void applyExpansionCorrectionToBoxSize(dali::span<vec<4>> boxes,
-                                       std::vector<std::pair<float, float>> old_whs, bool halfway) {
-  for (int i = 0; i < boxes.size(); ++i) {
-    const float new_w = boxes[i].z - boxes[i].x;
-    const float new_h = boxes[i].w - boxes[i].y;
+void ApplyExpansionCorrectionToBoxSize(dali::span<vec<4>> inout_boxes,
+                                       const std::vector<std::pair<float, float>>& old_whs,
+                                       bool halfway) {
+  for (int i = 0; i < inout_boxes.size(); ++i) {
+    const float new_w = inout_boxes[i].z - inout_boxes[i].x;
+    const float new_h = inout_boxes[i].w - inout_boxes[i].y;
     const auto& old_wh = old_whs[i];
     float diff_w, diff_h;
 
@@ -230,35 +225,36 @@ void applyExpansionCorrectionToBoxSize(dali::span<vec<4>> boxes,
       diff_w *= 0.5f;
       diff_h *= 0.5f;
     }
-    boxes[i].x += diff_w;
-    boxes[i].y += diff_h;
-    boxes[i].z -= diff_w;
-    boxes[i].w -= diff_h;
+    inout_boxes[i].x += diff_w;
+    inout_boxes[i].y += diff_h;
+    inout_boxes[i].z -= diff_w;
+    inout_boxes[i].w -= diff_h;
   }
 }
 
 /**
- * @brief Clips and removes boxes that fall below a certain threshold of area change.
- * @param boxes normalized xyxy boxes
+ * @brief Clips and removes boxes inplace that fall below a certain threshold of area change.
+ * @param inout_boxes ltrb img-coord boxes which are modified inplace
  * @param remove_threshold threshold of area change to remove boxes
- * @param inputLabels optional input labels to filter synchronously with truncated boxes
- * @param outputLabels option result of the filtered labels
- * @return the new number of valid boxes
+ * @param image_wh width and height of the image in pixels
+ * @param in_labels optional input labels to filter synchronously with truncated boxes
+ * @param out_labels option result of the filtered labels
+ * @return the new number of valid boxes remaining
  */
-int clipAndRemoveBoxes(dali::span<vec<4>> boxes, float remove_threshold,
+int ClipAndRemoveBoxes(dali::span<vec<4>> inout_boxes, float remove_threshold,
                        std::pair<float, float> image_wh,
-                       std::optional<ConstSampleView<CPUBackend>> inputLabels,
-                       std::optional<SampleView<CPUBackend>> outputLabels) {
-  DALI_ASSERT(inputLabels.has_value() == outputLabels.has_value());
-  const bool handleLabels = inputLabels.has_value();
-  if (handleLabels) {
-    DALI_ASSERT(inputLabels->shape()[0] == boxes.size());
-    DALI_ASSERT(outputLabels->shape()[0] == boxes.size());
+                       std::optional<ConstSampleView<CPUBackend>> in_labels,
+                       std::optional<SampleView<CPUBackend>> out_labels) {
+  DALI_ASSERT(in_labels.has_value() == out_labels.has_value());
+  const bool handle_labels = in_labels.has_value();
+  if (handle_labels) {
+    DALI_ASSERT(in_labels->shape()[0] == inout_boxes.size());
+    DALI_ASSERT(out_labels->shape()[0] == inout_boxes.size());
   }
 
-  int outIdx = 0;
-  for (int inIdx = 0; inIdx < boxes.size(); ++inIdx) {
-    auto box = boxes[inIdx];
+  int out_idx = 0;
+  for (int in_idx = 0; in_idx < inout_boxes.size(); ++in_idx) {
+    auto box = inout_boxes[in_idx];
     const float old_area = (box.z - box.x) * (box.w - box.y);
     box.x = std::clamp(box.x, 0.0f, image_wh.first);
     box.y = std::clamp(box.y, 0.0f, image_wh.second);
@@ -267,56 +263,56 @@ int clipAndRemoveBoxes(dali::span<vec<4>> boxes, float remove_threshold,
     const float new_area = (box.z - box.x) * (box.w - box.y);
     const float fraction_remain = new_area / old_area;
     if (fraction_remain >= remove_threshold) {
-      boxes[outIdx] = box;
-      if (handleLabels) {
-        outputLabels.value().mutable_data<int>()[outIdx] = inputLabels.value().data<int>()[inIdx];
+      inout_boxes[out_idx] = box;
+      if (handle_labels) {
+        out_labels.value().mutable_data<int>()[out_idx] = in_labels.value().data<int>()[in_idx];
       }
-      ++outIdx;
+      ++out_idx;
     }
   }
-  return outIdx;
+  return out_idx;
 }
 
-int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBackend> rotateBuffer,
-                      SampleView<CPUBackend> outBoxTensor, float angle,
-                      std::optional<ConstSampleView<CPUBackend>> inputLabels,
-                      std::optional<SampleView<CPUBackend>> outputLabels, bool ltrb, bool keep_size,
+int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
+                      SampleView<CPUBackend> rotate_buffer, SampleView<CPUBackend> out_box_tensor,
+                      float angle, std::optional<ConstSampleView<CPUBackend>> in_labels,
+                      std::optional<SampleView<CPUBackend>> out_labels, bool ltrb, bool keep_size,
                       Mode mode, float remove_threshold, std::pair<float, float> image_wh,
                       bool bbox_norm) {
-  const auto numBoxes = inBoxTensor.shape()[0];
-  auto inBoxes = dali::span(reinterpret_cast<const vec<4>*>(inBoxTensor.raw_data()), numBoxes);
-  auto xCoords = dali::span(rotateBuffer.mutable_data<float>(), 4 * numBoxes);
-  auto yCoords = dali::span(xCoords.end(), 4 * numBoxes);
+  const auto num_boxes = in_box_tensor.shape()[0];
+  auto in_boxes = dali::span(reinterpret_cast<const vec<4>*>(in_box_tensor.raw_data()), num_boxes);
+  auto x_coords = dali::span(rotate_buffer.mutable_data<float>(), 4 * num_boxes);
+  auto y_coords = dali::span(x_coords.end(), 4 * num_boxes);
   if (ltrb) {
-    expandToAllCorners<true>(inBoxes, xCoords, yCoords);
+    ExpandToAllCorners<true>(x_coords, y_coords, in_boxes);
   } else {
-    expandToAllCorners<false>(inBoxes, xCoords, yCoords);
+    ExpandToAllCorners<false>(x_coords, y_coords, in_boxes);
   }
 
   // Center the coordinates on zero in image coordinates
   if (bbox_norm) {
-    std::transform(xCoords.begin(), xCoords.end(), xCoords.begin(),
+    std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
                    [w = image_wh.first](float elem) { return (elem - 0.5) * w; });
-    std::transform(yCoords.begin(), yCoords.end(), yCoords.begin(),
+    std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
                    [h = image_wh.second](float elem) { return (elem - 0.5) * h; });
   } else {
-    std::transform(xCoords.begin(), xCoords.end(), xCoords.begin(),
+    std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
                    [half_w = image_wh.first / 2](float elem) { return elem - half_w; });
-    std::transform(yCoords.begin(), yCoords.end(), yCoords.begin(),
+    std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
                    [half_h = image_wh.second / 2](float elem) { return elem - half_h; });
   }
 
-  // Need to log old wh for expansion correction with vecs x1x2x1x2 y1y1y2y2
+  // Need to log old wh for expansion correction if needed
   std::optional<std::vector<std::pair<float, float>>> old_wh;
   if (mode != Mode::Expand) {
-    old_wh->resize(numBoxes);
-    for (int i = 0; i < numBoxes; ++i) {
-      (*old_wh)[i] = {xCoords[4 * i + 1] - xCoords[4 * i], yCoords[4 * i + 2] - yCoords[4 * i]};
+    old_wh->resize(num_boxes);
+    for (int i = 0; i < num_boxes; ++i) {  // x,y coords are in order x1x2x1x2 y1y1y2y2
+      (*old_wh)[i] = {x_coords[4 * i + 1] - x_coords[4 * i], y_coords[4 * i + 2] - y_coords[4 * i]};
     }
   }
 
   // Apply rotation
-  rotateCorners(xCoords, yCoords, angle);
+  RotateCorners(x_coords, y_coords, angle);
 
   // Move coordinates back to [0,{w|h}], updating to new coordinate system
   if (!keep_size) {
@@ -326,27 +322,28 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
     image_wh.second =
         std::abs(image_wh.second * std::cos(angle)) + std::abs(old_w * std::sin(angle));
   }
-  std::transform(xCoords.begin(), xCoords.end(), xCoords.begin(),
+  std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
                  [half_w = image_wh.first / 2](float elem) { return elem + half_w; });
-  std::transform(yCoords.begin(), yCoords.end(), yCoords.begin(),
+  std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
                  [half_h = image_wh.second / 2](float elem) { return elem + half_h; });
 
   // Convert back to bounding boxes
-  auto outBoxes = dali::span(reinterpret_cast<vec<4>*>(outBoxTensor.raw_mutable_data()), numBoxes);
-  cornersToBoxes(xCoords, yCoords, outBoxes);
+  auto out_boxes =
+      dali::span(reinterpret_cast<vec<4>*>(out_box_tensor.raw_mutable_data()), num_boxes);
+  CornersToBoxes(out_boxes, x_coords, y_coords);
 
   // Apply correction to expansion factor if required
   if (mode != Mode::Expand) {
-    applyExpansionCorrectionToBoxSize(outBoxes, *old_wh, mode == Mode::Halfway);
+    ApplyExpansionCorrectionToBoxSize(out_boxes, *old_wh, mode == Mode::Halfway);
   }
 
   // Clip to image coordinates and remove boxes (and labels) with too large a reduction.
-  const auto numOutBoxes =
-      clipAndRemoveBoxes(outBoxes, remove_threshold, image_wh, inputLabels, outputLabels);
+  const auto num_out_boxes =
+      ClipAndRemoveBoxes(out_boxes, remove_threshold, image_wh, in_labels, out_labels);
 
   if (!ltrb || bbox_norm) {  // Convert back to xywh and/or normalized format if needed
-    outBoxes = dali::span(outBoxes.data(), numOutBoxes);  // handle if some boxes culled
-    std::for_each(outBoxes.begin(), outBoxes.end(), [image_wh, ltrb, bbox_norm](vec<4>& box) {
+    out_boxes = dali::span(out_boxes.data(), num_out_boxes);  // handle if some boxes culled
+    std::for_each(out_boxes.begin(), out_boxes.end(), [image_wh, ltrb, bbox_norm](vec<4>& box) {
       if (!ltrb) {
         box.z -= box.x;
         box.w -= box.y;
@@ -360,32 +357,32 @@ int rotateBoxesKernel(ConstSampleView<CPUBackend> inBoxTensor, SampleView<CPUBac
     });
   }
 
-  return numOutBoxes;
+  return num_out_boxes;
 }
 
 template <>
 void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
-  const auto& inputBoxes = ws.Input<CPUBackend>(0);
+  const auto& in_boxes = ws.Input<CPUBackend>(0);
 
   auto& tpool = ws.GetThreadPool();
-  for (int sampleIdx = 0; sampleIdx < inputBoxes.num_samples(); ++sampleIdx) {
-    tpool.AddWork([&, sampleIdx](int) {
-      std::optional<ConstSampleView<CPUBackend>> inputLabels;
-      std::optional<SampleView<CPUBackend>> outputLabels;
+  for (int sample_idx = 0; sample_idx < in_boxes.num_samples(); ++sample_idx) {
+    tpool.AddWork([&, sample_idx](int) {
+      std::optional<ConstSampleView<CPUBackend>> in_labels;
+      std::optional<SampleView<CPUBackend>> out_labels;
       if (ws.NumInput() == 2) {
-        inputLabels = ws.Input<CPUBackend>(1)[sampleIdx];
-        outputLabels = ws.Output<CPUBackend>(1)[sampleIdx];
+        in_labels = ws.Input<CPUBackend>(1)[sample_idx];
+        out_labels = ws.Output<CPUBackend>(1)[sample_idx];
       }
       float angle;
       if (spec_.HasTensorArgument("angle")) {
-        angle = ws.ArgumentInput("angle")[sampleIdx].data<float>()[0];
+        angle = ws.ArgumentInput("angle")[sample_idx].data<float>()[0];
       } else {
         angle = spec_.GetArgument<float>("angle");
       }
 
       std::pair<float, float> image_wh;
       if (spec_.HasTensorArgument("input_shape")) {
-        auto shape_tensor = ws.ArgumentInput("input_shape")[sampleIdx].data<std::int64_t>();
+        auto shape_tensor = ws.ArgumentInput("input_shape")[sample_idx].data<std::int64_t>();
         image_wh.first = shape_tensor[shape_wh_index_.first];
         image_wh.second = shape_tensor[shape_wh_index_.second];
       } else {
@@ -395,16 +392,16 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
       }
 
       angle *= M_PI / 180.0f;  // Convert to radians
-      const auto numOutBoxes = rotateBoxesKernel(
-          inputBoxes[sampleIdx], bbox_rotate_buffer_[sampleIdx],
-          ws.Output<CPUBackend>(0)[sampleIdx], angle, inputLabels, outputLabels, use_ltrb_,
-          keep_size_, mode_, remove_threshold_, image_wh, bbox_normalized_);
-      ws.Output<CPUBackend>(0).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 4));
-      if (outputLabels.has_value()) {
-        if (ws.GetInputShape(1)[sampleIdx].size() == 2) {
-          ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<2>(numOutBoxes, 1));
+      const auto num_out_boxes = RotateBoxesKernel(
+          in_boxes[sample_idx], bbox_rotate_buffer_[sample_idx],
+          ws.Output<CPUBackend>(0)[sample_idx], angle, in_labels, out_labels, use_ltrb_, keep_size_,
+          mode_, remove_threshold_, image_wh, bbox_normalized_);
+      ws.Output<CPUBackend>(0).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 4));
+      if (out_labels.has_value()) {
+        if (ws.GetInputShape(1)[sample_idx].size() == 2) {
+          ws.Output<CPUBackend>(1).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 1));
         } else {
-          ws.Output<CPUBackend>(1).ResizeSample(sampleIdx, dali::TensorShape<1>(numOutBoxes));
+          ws.Output<CPUBackend>(1).ResizeSample(sample_idx, dali::TensorShape<1>(num_out_boxes));
         }
       }
     });

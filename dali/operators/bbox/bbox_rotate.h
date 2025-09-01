@@ -72,34 +72,34 @@ class BBoxRotate : public StatelessOperator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    const TensorListShape<-1> boxShapeList = ws.GetInputShape(0);
-    TensorListShape<1> buffer_shape(boxShapeList.num_samples());
+    const TensorListShape<-1> box_shape_list = ws.GetInputShape(0);
+    TensorListShape<1> buffer_shape(box_shape_list.num_samples());
     for (int i = 0; i < ws.GetRequestedBatchSize(0); i++) {
-      const auto &sampleShape = boxShapeList[i];
-      if (sampleShape.size() != 2 || sampleShape[1] != 4) {
-        DALI_ERROR("First Input to fn.bbox_rotate should be [N,4], got ", sampleShape);
+      const auto &sample_shape = box_shape_list[i];
+      if (sample_shape.size() != 2 || sample_shape[1] != 4) {
+        DALI_ERROR("First Input to fn.bbox_rotate should be [N,4], got ", sample_shape);
       }
-      buffer_shape.tensor_shape_span(i)[0] = sampleShape[0] * 8;  // num_boxes * 4 corners
+      buffer_shape.tensor_shape_span(i)[0] = sample_shape[0] * 8;  // num_boxes * 4 xy corners
     }
     bbox_rotate_buffer_.Resize(buffer_shape, DALI_FLOAT);
 
-    const auto numInput = ws.NumInput();
-    output_desc.resize(numInput);
-    output_desc[0].shape = boxShapeList;
+    const auto num_input = ws.NumInput();
+    output_desc.resize(num_input);
+    output_desc[0].shape = box_shape_list;
     output_desc[0].type = DALI_FLOAT;
-    if (numInput == 2) {
-      const auto &labelShapeList = ws.GetInputShape(1);
-      output_desc[1].shape = labelShapeList;
+    if (num_input == 2) {
+      const auto &label_shape_list = ws.GetInputShape(1);
+      output_desc[1].shape = label_shape_list;
       output_desc[1].type = DALI_INT32;
-      for (int i = 0; i < labelShapeList.size(); i++) {
-        if (labelShapeList[i].size() != 1 &&
-            !(labelShapeList[i].size() == 2 && labelShapeList[i][1] == 1)) {
+      for (int i = 0; i < label_shape_list.size(); i++) {
+        if (label_shape_list[i].size() != 1 &&
+            !(label_shape_list[i].size() == 2 && label_shape_list[i][1] == 1)) {
           DALI_FAIL("Label input to fn.bbox_rotate should be [N] or [N, 1], got ",
-                    labelShapeList[i]);
+                    label_shape_list[i]);
         }
-        if (labelShapeList[i][0] != boxShapeList[i][0]) {
-          DALI_FAIL("Number of labels must match number of boxes. Got: ", labelShapeList[i][0],
-                    " and ", boxShapeList[i][0]);
+        if (label_shape_list[i][0] != box_shape_list[i][0]) {
+          DALI_FAIL("Number of labels must match number of boxes. Got: ", label_shape_list[i][0],
+                    " and ", box_shape_list[i][0]);
         }
       }
     }
