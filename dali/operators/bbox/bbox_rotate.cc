@@ -15,14 +15,6 @@
 #include "dali/operators/bbox/bbox_rotate.h"
 #include "dali/core/geom/vec.h"
 
-#if defined(__x86_64__) || defined(_M_X64)
-// x86_64 (amd64) specific SIMD code (SSE, AVX, etc.)
-#include <xmmintrin.h>
-#elif defined(__aarch64__)
-// ARM64 (aarch64) specific SIMD code (NEON, etc.)
-#include <arm_neon.h>
-#endif
-
 namespace dali {
 
 DALI_SCHEMA(BBoxRotate)
@@ -129,31 +121,18 @@ void ExpandToAllCorners(dali::span<float> x_coords, dali::span<float> y_coords,
       box.w += box.y;
     }
     const auto offset = 4 * i;
-#if defined(__x86_64__) || defined(_M_X64)
-    // Copy X coordinates
-    const __m128 xvec = _mm_setr_ps(box.x, box.z, box.x, box.z);
-    _mm_storeu_ps(&x_coords[offset], xvec);
-    // Copy Y coordinates
-    const __m128 yvec = _mm_setr_ps(box.y, box.y, box.w, box.w);
-    _mm_storeu_ps(&y_coords[offset], yvec);
-#elif defined(__aarch64__)
-    // Copy X coordinates
-    float32x4_t xvec = {box.x, box.z, box.x, box.z};
-    vst1q_f32(&x_coords[offset], xvec);
-    // Copy Y coordinates
-    float32x4_t yvec = {box.y, box.y, box.w, box.w};
-    vst1q_f32(&y_coords[offset], yvec);
-#else
-    x_coords[offset + 0] = box.x;
-    x_coords[offset + 1] = box.z;
-    x_coords[offset + 2] = box.x;
-    x_coords[offset + 3] = box.z;
 
-    y_coords[offset + 0] = box.y;
-    y_coords[offset + 1] = box.y;
-    y_coords[offset + 2] = box.w;
-    y_coords[offset + 3] = box.w;
-#endif
+    const vec4 x = {box.x, box.z, box.x, box.z};
+#pragma omp simd simdlen(4)
+    for (int i = 0; i < 4; ++i) {
+      x_coords[offset + i] = x[i];
+    }
+
+    const vec4 y = {box.y, box.y, box.w, box.w};
+#pragma omp simd simdlen(4)
+    for (int i = 0; i < 4; ++i) {
+      y_coords[offset + i] = y[i];
+    }
   }
 }
 
