@@ -17,7 +17,7 @@ import nvidia.dali.types
 
 _id2type = {}
 _type2id = {}
-
+_name2type = {}
 
 class DType:
     class Kind(Enum):
@@ -78,9 +78,11 @@ class DType:
         self.name = DType.make_name(kind, bits, exponent_bits, significand_bits)
         self.bytes = bytes or ((bits + 7) // 8)
 
+        # Register the type with the id and name
         if type_id is not None:
             _id2type[type_id] = self
             _type2id[self] = type_id
+        _name2type[self.name] = self
 
     @staticmethod
     def make_name(kind: Kind, bits: int, exponent_bits: int, significand_bits: int) -> str:
@@ -139,6 +141,9 @@ class DType:
 
     @staticmethod
     def parse(name: str) -> "DType":
+        if _name2type.get(name) is not None:
+            return _name2type[name]
+
         def parse_internal(name: str) -> "DType":
             if name.startswith("i"):
                 return DType(DType.Kind.signed, int(name[1:]))
@@ -177,6 +182,9 @@ class DType:
         t = parse_internal(name)
         if t.type_id is None:
             t.type_id = _type2id[t]
+        if t.type_id is not None:
+            t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
+        _name2type[name] = t
         return t
 
     def __call__(self, *args, **kwargs):
@@ -203,9 +211,9 @@ float32 = DType(DType.Kind.float, 32, type_id=nvidia.dali.types.FLOAT)
 float64 = DType(DType.Kind.float, 64, type_id=nvidia.dali.types.FLOAT64)
 bool = DType(DType.Kind.bool, 8, type_id=nvidia.dali.types.BOOL)
 bfloat16 = DType(DType.Kind.float, 16, 8, 7)  # TODO(michalz): Add type_id for bfloat16
-tf32 = DType(DType.Kind.float, 19, 8, 10, bytes=4)  # TODO(michalz): Add type_id for tf32
-f8e4m3 = DType(DType.Kind.float, 8, 4, 3)  # TODO(michalz): Add type_id for f8e4m3
-f8e5m2 = DType(DType.Kind.float, 8, 5, 2)  # TODO(michalz): Add type_id for f8e5m2
+# tf32 = DType(DType.Kind.float, 19, 8, 10, bytes=4)  # Not really a storage format
+# f8e4m3 = DType(DType.Kind.float, 8, 4, 3)  # TODO(michalz): Add type_id for f8e4m3
+# f8e5m2 = DType(DType.Kind.float, 8, 5, 2)  # TODO(michalz): Add type_id for f8e5m2
 DataType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE)
 ImageType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE)
 InterpType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE)
