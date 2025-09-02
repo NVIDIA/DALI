@@ -96,7 +96,7 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
         // Throw the first error that occurred
         err = std::move(tl_errors_[i].front());
       }
-      tl_errors_.clear();
+      tl_errors_[i] = {};
     }
     if (err)
       std::rethrow_exception(err);
