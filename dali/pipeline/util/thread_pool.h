@@ -98,7 +98,7 @@ class DLL_PUBLIC ThreadPool {
   std::mutex completed_mutex_;
   std::condition_variable completed_;
 
-  // Stored error strings for each thread
+  // Stored errors for each thread
   vector<std::queue<std::exception_ptr>> tl_errors_;
 #if NVML_ENABLED
   nvml::NvmlInstance nvml_handle_;
