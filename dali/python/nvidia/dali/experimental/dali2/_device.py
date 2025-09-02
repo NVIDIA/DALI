@@ -66,6 +66,21 @@ class Device:
         if device_type not in ["cpu", "gpu", "mixed"]:
             raise ValueError(f"Invalid device type: {device_type}")
 
+    @staticmethod
+    def type_from_dlpack(dev_type) -> str:
+        dev_type_id = int(dev_type)
+        if dev_type_id == 1:
+            return "cpu"
+        elif dev_type_id == 2:
+            return "gpu"
+        else:
+            raise ValueError(f"Unsupported device type: {dev_type}")
+
+    @staticmethod
+    def from_dlpack(dlpack_device) -> "Device":
+        dev_type, dev_id = dlpack_device.__dlpack_device__()
+        return Device(Device.type_from_dlpack(dev_type), dev_id)
+
     def __str__(self):
         return f"{self.device_type}:{self.device_id}"
 
