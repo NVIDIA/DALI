@@ -24,6 +24,7 @@
 #include <queue>
 #include <thread>
 #include <vector>
+#include <stdexcept>
 #include <string>
 #include "dali/core/common.h"
 #if NVML_ENABLED
@@ -94,11 +95,11 @@ class DLL_PUBLIC ThreadPool {
   bool running_ = true;
   bool started_ = false;
   alignas(64) std::atomic_int outstanding_work_{0};
-  std::mutex error_mutex_, completed_mutex_;
+  std::mutex completed_mutex_;
   std::condition_variable completed_;
 
-  //  Stored error strings for each thread
-  vector<std::queue<string>> tl_errors_;
+  // Stored errors for each thread
+  vector<std::queue<std::exception_ptr>> tl_errors_;
 #if NVML_ENABLED
   nvml::NvmlInstance nvml_handle_;
 #endif

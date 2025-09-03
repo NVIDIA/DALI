@@ -90,15 +90,16 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
   started_ = false;
   if (checkForErrors) {
     // Check for errors
-    std::lock_guard lock(error_mutex_);
+    std::exception_ptr err;
     for (size_t i = 0; i < threads_.size(); ++i) {
-      if (!tl_errors_[i].empty()) {
+      if (!err && !tl_errors_[i].empty()) {
         // Throw the first error that occurred
-        string error = make_string("Error in thread ", i, ": ", tl_errors_[i].front());
-        tl_errors_[i].pop();
-        throw std::runtime_error(error);
+        err = std::move(tl_errors_[i].front());
       }
+      tl_errors_[i] = {};
     }
+    if (err)
+      std::rethrow_exception(err);
   }
 }
 
@@ -150,12 +151,8 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       nvml::SetCPUAffinity(core);
     }
 #endif
-  } catch (std::exception &e) {
-    std::lock_guard lock(error_mutex_);
-    tl_errors_[thread_id].push(e.what());
   } catch (...) {
-    std::lock_guard lock(error_mutex_);
-    tl_errors_[thread_id].push("Caught unknown exception");
+    tl_errors_[thread_id].push(std::current_exception());
   }
 
   while (running_) {
@@ -179,12 +176,8 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     // in the threads and return an error if one occured.
     try {
       work(thread_id);
-    } catch (std::exception &e) {
-      std::lock_guard lock(error_mutex_);
-      tl_errors_[thread_id].push(e.what());
     } catch (...) {
-      std::lock_guard lock(error_mutex_);
-      tl_errors_[thread_id].push("Caught unknown exception");
+      tl_errors_[thread_id].push(std::current_exception());
     }
 
     // The task is now complete - we can atomically decrement the number of outstanding work.
