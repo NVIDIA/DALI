@@ -765,6 +765,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     // The image descriptors are created in parallel, in block-wise fashion.
     auto init_desc_task = [&](int start_sample, int end_sample) {
+      DomainTimeRange tr(
+          "Create images " + std::to_string(start_sample) + ".." + std::to_string(end_sample),
+          DomainTimeRange::kOrange);
       for (int orig_idx = start_sample; orig_idx < end_sample; orig_idx++) {
         auto &st = *state_[orig_idx];
         if (use_cache && st.load_from_cache) {
@@ -799,19 +802,24 @@ class ImageDecoder : public StatelessOperator<Backend> {
     } else {
       DomainTimeRange tr("Create images", DomainTimeRange::kOrange);
       // Many tasks? Run in thread pool.
-      // The first span of tasks is processed in the main operator thread.
-      for (int i = 1; i < ntasks; i++) {
-        int start = i * nsamples / ntasks;
-        int end = (i + 1) * nsamples / ntasks;
-        tp_->AddWork([&, start, end](int) {
+      int block_idx = 0;
+      atomic_idx_.store(0);
+      auto create_images_task = [&, nblocks](int tid) {
+        int block_idx;
+        while ((block_idx = atomic_idx_.fetch_add(1)) < nblocks) {
+          int64_t start = nsamples * block_idx / nblocks;
+          int64_t end = nsamples * (block_idx + 1) / nblocks;
           init_desc_task(start, end);
-        });
+        }
+      };
+
+      for (int task_idx = 0; task_idx < ntasks - 1; task_idx++) {
+        tp_->AddWork(create_images_task, -task_idx);
       }
-      // Start processing of subsequent segments...
-      tp_->RunAll(false);
-      // ...and process the 1st segment in this thread.
-      init_desc_task(0, nsamples / ntasks);
-      tp_->WaitForWork();
+      assert(ntasks >= 2);
+      tp_->RunAll(false);  // start work but not wait
+      create_images_task(-1);
+      tp_->WaitForWork();  // wait for the other threads
     }
 
     bool any_need_processing = false;
