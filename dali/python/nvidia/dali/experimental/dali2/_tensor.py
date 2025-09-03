@@ -35,7 +35,7 @@ def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> D
     if isinstance(backend, _backend.TensorCPU):
         return Device("cpu")
     elif isinstance(backend, _backend.TensorGPU):
-        return Device("gpu", backend.device())
+        return Device("gpu", backend.device_id())
     else:
         raise ValueError(f"Unsupported backend type: {type(backend)}")
 
@@ -121,8 +121,22 @@ class Tensor:
                     self.assign(fn.cast(data, dtype, device=device).evaluate())
             elif isinstance(data, TensorSlice):
                 self._slice = data
-            elif hasattr(data, "__dlpack__"):
-                self._backend = _backend.TensorCPU(data, layout)
+            elif hasattr(data, "__dlpack_device__"):
+                dl_device_type, device_id = data.__dlpack_device__()
+                if int(dl_device_type) == 1:  # CPU
+                    self._backend = _backend.TensorCPU(data.__dlpack__(), layout)
+                elif int(dl_device_type) == 2:  # GPU
+                    # If the current context is on the same device, use the same stream.
+                    ctx = _EvalContext.get()
+                    if ctx.device.device_id == device_id:
+                        stream = ctx.cuda_stream
+                        args = {"stream": stream.handle}
+                    else:
+                        # TODO(michalz): Come up with better stream semantics
+                        args = {}
+                    self._backend = _backend.TensorGPU(data.__dlpack__(**args), layout)
+                else:
+                    raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
             elif hasattr(data, "__array__"):
                 self._backend = _backend.TensorCPU(data, layout)
@@ -159,10 +173,14 @@ class Tensor:
                     copied = True
                     self._wraps_external_data = False
 
-            if device is not None:
-                device = self._device = device if isinstance(device, Device) else Device(device)
+            if self._backend is not None:
+                self._device = _backend_device(self._backend)
+                if device is None:
+                    device = self._device
             else:
-                device = self._device = Device("cpu")
+                if device is None:
+                    device = Device("cpu")
+                self._device = device
 
             if self._backend is not None:
                 self._shape = self._backend.shape()
@@ -214,6 +232,8 @@ class Tensor:
                 return fn.copy(self, device=device.device_type)
 
     def assign(self, other: "Tensor"):
+        if other is self:
+            return
         self._device = other._device
         self._shape = other._shape
         self._dtype = other._dtype

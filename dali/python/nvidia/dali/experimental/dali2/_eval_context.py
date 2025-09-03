@@ -48,6 +48,10 @@ class EvalContext:
         _tls.stack.pop()
 
     @property
+    def device(self):
+        return self._device
+
+    @property
     def cuda_stream(self):
         return self._cuda_stream
 

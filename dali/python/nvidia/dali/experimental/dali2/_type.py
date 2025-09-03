@@ -19,6 +19,7 @@ _id2type = {}
 _type2id = {}
 _name2type = {}
 
+
 class DType:
     class Kind(Enum):
         signed = auto()
