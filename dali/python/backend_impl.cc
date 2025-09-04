@@ -207,7 +207,9 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
     shape[i] = dl_tensor.shape[i];
   }
 
-  CheckContiguousTensor(dl_tensor.strides, dl_tensor.ndim, dl_tensor.shape, dl_tensor.ndim, 1);
+  if (dl_tensor.strides)
+    CheckContiguousTensor(dl_tensor.strides, dl_tensor.ndim, dl_tensor.shape, dl_tensor.ndim, 1);
+
   size_t bytes = volume(shape) * dali_type.size();
 
   auto typed_shape = ConvertShape(shape, batch);
