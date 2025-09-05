@@ -130,11 +130,14 @@ class Tensor:
                     ctx = _EvalContext.get()
                     if ctx.device.device_id == device_id:
                         stream = ctx.cuda_stream
-                        args = {"stream": stream.handle}
                     else:
-                        # TODO(michalz): Come up with better stream semantics
-                        args = {}
-                    self._backend = _backend.TensorGPU(data.__dlpack__(**args), layout)
+                        stream = backend.Stream(device_id)
+                    args = {"stream": stream.handle}
+                    self._backend = _backend.TensorGPU(
+                        data.__dlpack__(**args),
+                        layout=layout,
+                        stream=stream,
+                    )
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
