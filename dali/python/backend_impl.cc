@@ -544,8 +544,10 @@ AccessOrder AccessOrderFromPythonStreamObj(const py::object &cuda_stream) {
       auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
       cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
       order = AccessOrder(stream);
-    } else {
+    } else if (py::hasattr(cuda_stream, "value")) {
       cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+    } else if (py::isinstance<py::int_>(cuda_stream)) {
+      cudaStream_t stream = reinterpret_cast<cudaStream_t>(py::cast<uintptr_t>(cuda_stream));
       order = AccessOrder(stream);
     }
   } else {
@@ -819,7 +821,7 @@ void ExposeTensor(py::module &m) {
     .def(py::init([](py::capsule &capsule, string layout, py::object stream) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
-          if (!stream.is_none())
+          if (!stream.is_none())  // use a separately provided stream - there's none in the capsule
             t->set_order(AccessOrderFromPythonStreamObj(stream));
           return t.release();
         }),
@@ -833,6 +835,8 @@ void ExposeTensor(py::module &m) {
             Python DLPack object
       layout : str
             Layout of the data
+      stream : dali.Stream, int, ctypes_void_ptr, None
+            Stream to accociate the tensor with
       )code")
     .def(
       "device_id", &Tensor<GPUBackend>::device_id)
