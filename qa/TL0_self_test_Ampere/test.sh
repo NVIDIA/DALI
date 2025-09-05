@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-pip_packages='${python_test_runner_package} numpy opencv-python nvidia-ml-py==11.450.51 numba'
+pip_packages='${python_test_runner_package} numpy opencv-python-headless nvidia-ml-py==11.450.51 numba'
 
 target_dir=./dali/test/python
 
