@@ -536,6 +536,24 @@ py::capsule ToDLPack(Tensor<Backend> &tensor,
   }());
 }
 
+AccessOrder AccessOrderFromPythonStreamObj(const py::object &cuda_stream) {
+  AccessOrder order;
+  if (!cuda_stream.is_none()) {
+    auto cuda_stream_interface = getattr(cuda_stream, "__cuda_stream__", py::none());
+    if (!cuda_stream_interface.is_none()) {
+      auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
+      cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+      order = AccessOrder(stream);
+    } else {
+      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+      order = AccessOrder(stream);
+    }
+  } else {
+    order = AccessOrder::host();
+  }
+  return order;
+}
+
 /**
  * Pipeline output descriptor.
  */
@@ -798,13 +816,16 @@ void ExposeTensor(py::module &m) {
 
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, string layout = "") {
+    .def(py::init([](py::capsule &capsule, string layout, py::object stream) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
+          if (!stream.is_none())
+            t->set_order(AccessOrderFromPythonStreamObj(stream));
           return t.release();
         }),
       "object"_a,
       "layout"_a = "",
+      "stream"_a = py::none(),
       R"code(
       Wrap a DLPack Tensor residing in the GPU memory.
 
@@ -2232,21 +2253,7 @@ class PyWorkspace : public Workspace {
   }
 
   void SetStream(py::object cuda_stream) {
-    AccessOrder order;
-    if (!cuda_stream.is_none()) {
-      auto cuda_stream_interface = getattr(cuda_stream, "__cuda_stream__", py::none());
-      if (!cuda_stream_interface.is_none()) {
-        auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
-        cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
-        order = AccessOrder(stream);
-      } else {
-        cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-        order = AccessOrder(stream);
-      }
-    } else {
-      order = AccessOrder::host();
-    }
-    set_output_order(order);
+    set_output_order(AccessOrderFromPythonStreamObj(cuda_stream));
     py_stream_ = cuda_stream;  // keep the stream python object alive
   }
 
