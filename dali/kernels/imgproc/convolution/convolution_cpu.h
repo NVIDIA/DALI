@@ -141,6 +141,10 @@ class CyclicWindowWrapper {
     }
   }
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
   /**
    * @brief Calculate dot product with 1-channel `window` length equal to the one specified
    * at construction. The result is stored in pixel stored at `accum`.
@@ -167,6 +171,9 @@ class CyclicWindowWrapper {
       }
     }
   }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
   template <typename U, typename W, typename Transform = conv_transform::TransScaleSat<U, W>>
   void CalculateDot(U* __restrict__ output, int64_t offset, const W* __restrict__ window,

@@ -87,7 +87,8 @@ class DiscoverFilesTest : public ::testing::Test {
       }
     }
     std::sort(correct_match.begin(), correct_match.end());
-    std::unique(correct_match.begin(), correct_match.end());
+    auto last = std::unique(correct_match.begin(), correct_match.end());
+    correct_match.erase(last, correct_match.end());
     return correct_match;
   }
 

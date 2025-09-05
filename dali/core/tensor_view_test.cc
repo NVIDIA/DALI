@@ -16,6 +16,7 @@
 #include <numeric>
 #include <random>
 #include <utility>
+#include <algorithm>
 
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_view.h"
@@ -535,7 +536,7 @@ class TensorListViewFromVectorOfTensorViewTest : public ::testing::Test {
     test_data_.resize(batch_size);
     for (size_t i = 0; i < batch_size; i++) {
       test_data_[i].resize(volume(shapes[i]));
-      generate(test_data_[i].begin(), test_data_[i].end(), irng);
+      std::generate(test_data_[i].begin(), test_data_[i].end(), irng);
       data_pointers_.emplace_back(test_data_[i].data());
     }
   }

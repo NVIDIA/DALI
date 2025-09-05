@@ -85,7 +85,7 @@ class DLL_PUBLIC TensorList {
   TensorList &operator=(const TensorList &) = delete;
 
   TensorList<Backend> &operator=(TensorList<Backend> &&other) noexcept;
-  DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept;
+  DLL_PUBLIC TensorList(TensorList<Backend> &&other) noexcept;
 
 
   AccessOrder order() const {
