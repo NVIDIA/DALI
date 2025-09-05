@@ -398,6 +398,26 @@ def test_tensor_dlpack_export():
     assert np.array_equal(arr, arr_from_dlapck)
 
 
+def test_tensor_from_numpy_dlpack():
+    a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    t = TensorCPU(a.__dlpack__())
+    assert tuple(t.shape()) == tuple(a.shape)
+    assert a.ctypes.data == t.data_ptr()
+
+
+@params((TensorCPU,), (TensorGPU,))
+def test_dlpack_reimport(tensor_type):
+    a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    t = TensorCPU(a)
+    if tensor_type is TensorGPU:
+        t = t._as_gpu()
+    t2 = tensor_type(t.__dlpack__())
+
+    assert t.shape() == t2.shape()
+    assert t.data_ptr() == t2.data_ptr()
+    assert t.dtype == t2.dtype
+
+
 def test_schema_is_stateful():
     def get_schema(fn):
         return GetSchema(fn._schema_name)
