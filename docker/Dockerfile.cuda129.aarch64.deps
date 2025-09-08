@@ -12,7 +12,7 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.9.1/local_ins
     rm -f cuda_*.run;
 
 RUN NVJPEG2K_VERSION=0.9.0.43-1 && \
-    CUFILE_VERSION=1.14.0.30-1 && \
+    CUFILE_VERSION=1.14.1.1-1 && \
     NVCOMP_VERSION=4.2.0.11-1 && \
     CUDA_VERSION_MAJOR=12 && \
     CUDA_VERSION_MINOR=9 && \
