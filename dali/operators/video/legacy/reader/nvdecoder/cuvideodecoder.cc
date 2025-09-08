@@ -52,7 +52,7 @@ const char* GetVideoCodecString(cudaVideoCodec eCodec) {
          i < sizeof(aCodecName) / sizeof(aCodecName[0]);
          i++) {
         if (eCodec == aCodecName[i].eCodec) {
-          return aCodecName[eCodec].name;
+          return aCodecName[i].name;
         }
     }
     return "Unknown";

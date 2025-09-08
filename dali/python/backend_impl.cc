@@ -263,7 +263,8 @@ void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int de
   // Create the Tensor and wrap the data
   TensorShape<> shape = shape_from_py(cu_a_interface["shape"].cast<py::tuple>());
 
-  const TypeInfo &type = TypeFromFormatStr(cu_a_interface["typestr"].cast<py::str>());
+  std::string typestr = cu_a_interface["typestr"].cast<py::str>();
+  const TypeInfo &type = TypeFromFormatStr(typestr);
   size_t bytes = volume(shape) * type.size();
 
   if (cu_a_interface.contains("strides") && !cu_a_interface["strides"].is_none()) {

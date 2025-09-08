@@ -30,14 +30,13 @@ RUN NVJPEG2K_VERSION=0.9.0.43-1 && \
         libnvjpeg-dev-13-0 \
         libcufft-13-0 \
         libcufft-dev-13-0 \
-        libcufile-dev-13-0 \
+        libcufile-dev-13-0=${CUFILE_VERSION} \
         libcusolver-dev-13-0 \
         libcublas-dev-13-0 \
         cuda-compat-13-0 && \
     apt-get install libnvjpeg2k0-dev-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
-                    libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
-                    libcufile-dev-13-0=${CUFILE_VERSION} -y && \
+                    libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} -y && \
     cp /usr/include/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
     mkdir /tmp/nvcomp && cd /tmp/nvcomp && \
