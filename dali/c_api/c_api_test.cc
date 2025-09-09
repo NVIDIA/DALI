@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-
 #include <gtest/gtest.h>
 #include <memory>
 #include <string>
@@ -1161,7 +1156,3 @@ TEST(CApiTest, CheckpointingTest) {
 }
 
 }  // namespace dali
-
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
