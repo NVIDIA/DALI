@@ -38,7 +38,11 @@ class BBoxRotate : public StatelessOperator<Backend> {
         bbox_normalized_(spec.GetArgument<bool>("bbox_normalized")),
         keep_size_(spec.GetArgument<bool>("keep_size")),
         remove_threshold_(spec.GetArgument<float>("remove_threshold")) {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      bbox_rotate_buffer_.set_pinned(false);
+    }
     DALI_ENFORCE_IN_RANGE(remove_threshold_, 0.f, std::nextafterf(1.f, 2.f));  // In range [0, 1]
+
     const auto &mode_str = spec.GetArgument<std::string>("mode");
     if (mode_str == "expand") {
       mode_ = Mode::Expand;
@@ -49,6 +53,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
     } else {
       DALI_FAIL("Unknown mode: ", mode_str, ". Supported modes are: expand, halfway, fixed.");
     }
+
     const auto &bbox_layout = spec.GetArgument<TensorLayout>("bbox_layout");
     if (bbox_layout == "xyWH") {
       use_ltrb_ = false;

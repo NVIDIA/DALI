@@ -14,6 +14,7 @@
 
 #include "dali/operators/bbox/bbox_rotate.h"
 #include "dali/core/geom/vec.h"
+#include "dali/operators/image/remap/rotate_params.h"
 
 namespace dali {
 
@@ -78,6 +79,10 @@ The order of dimensions is determined by the layout that is provided in `shape_l
         R"code(If true, the bounding box output coordinates will assume the image canvas size was also kept 
 (see ``nvidia.dali.fn.rotate``).)code",
         false, false)
+    .AddOptionalArg<float>(
+        "size",
+        R"code(The output canvas size optionally specified in the associated `fn.rotate`.)code",
+        dali::vector<float>(), true)
     .AddOptionalArg("mode",
                     R"code(Mode of the bounding box transformation. Possible values are:
 
@@ -251,8 +256,8 @@ int ClipAndRemoveBoxes(dali::span<vec4> inout_boxes, float remove_threshold, vec
 int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
                       SampleView<CPUBackend> rotate_buffer, SampleView<CPUBackend> out_box_tensor,
                       float angle, std::optional<ConstSampleView<CPUBackend>> in_labels,
-                      std::optional<SampleView<CPUBackend>> out_labels, bool ltrb, bool keep_size,
-                      Mode mode, float remove_threshold, vec2 image_wh, bool bbox_norm) {
+                      std::optional<SampleView<CPUBackend>> out_labels, bool ltrb, Mode mode,
+                      float remove_threshold, vec2 in_wh, vec2 out_wh, bool bbox_norm) {
   const auto num_boxes = in_box_tensor.shape()[0];
   auto in_boxes = dali::span(reinterpret_cast<const vec4*>(in_box_tensor.raw_data()), num_boxes);
   auto x_coords = dali::span(rotate_buffer.mutable_data<float>(), 4 * num_boxes);
@@ -266,14 +271,14 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
   // Center the coordinates on zero in image coordinates
   if (bbox_norm) {
     std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
-                   [w = image_wh.x](float elem) { return (elem - 0.5f) * w; });
+                   [w = in_wh.x](float elem) { return (elem - 0.5f) * w; });
     std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
-                   [h = image_wh.y](float elem) { return (elem - 0.5f) * h; });
+                   [h = in_wh.y](float elem) { return (elem - 0.5f) * h; });
   } else {
     std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
-                   [half_w = image_wh.x / 2](float elem) { return elem - half_w; });
+                   [half_w = in_wh.x / 2](float elem) { return elem - half_w; });
     std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
-                   [half_h = image_wh.y / 2](float elem) { return elem - half_h; });
+                   [half_h = in_wh.y / 2](float elem) { return elem - half_h; });
   }
 
   // Need to log old wh for expansion correction if needed
@@ -289,15 +294,10 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
   RotateCorners(x_coords, y_coords, angle);
 
   // Move coordinates back to [0,{w|h}], updating to new coordinate system
-  if (!keep_size) {
-    const auto old_w = image_wh.x;
-    image_wh.x = std::abs(image_wh.x * std::cos(angle)) + std::abs(image_wh.y * std::sin(angle));
-    image_wh.y = std::abs(image_wh.y * std::cos(angle)) + std::abs(old_w * std::sin(angle));
-  }
   std::transform(x_coords.begin(), x_coords.end(), x_coords.begin(),
-                 [half_w = image_wh.x / 2](float elem) { return elem + half_w; });
+                 [half_w = out_wh.x / 2](float elem) { return elem + half_w; });
   std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
-                 [half_h = image_wh.y / 2](float elem) { return elem + half_h; });
+                 [half_h = out_wh.y / 2](float elem) { return elem + half_h; });
 
   // Convert back to bounding boxes
   auto out_boxes =
@@ -311,14 +311,13 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
 
   // Clip to image coordinates and remove boxes (and labels) with too large a reduction.
   const auto num_out_boxes =
-      ClipAndRemoveBoxes(out_boxes, remove_threshold, image_wh, in_labels, out_labels);
+      ClipAndRemoveBoxes(out_boxes, remove_threshold, out_wh, in_labels, out_labels);
 
   if (!ltrb || bbox_norm) {  // Convert back to xywh and/or normalized format if needed
     out_boxes = dali::span(out_boxes.data(), num_out_boxes);  // handle if some boxes culled
 
     // Recip of whwh to multiply with box for normalization
-    const vec4 box_norm_vec = {1.f / image_wh.x, 1.f / image_wh.y, 1.f / image_wh.x,
-                               1.f / image_wh.y};
+    const vec4 box_norm_vec = {1.f / out_wh.x, 1.f / out_wh.y, 1.f / out_wh.x, 1.f / out_wh.y};
 
     std::for_each(out_boxes.begin(), out_boxes.end(), [ltrb, bbox_norm, box_norm_vec](vec4& box) {
       if (!ltrb) {
@@ -350,12 +349,14 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         in_labels = ws.Input<CPUBackend>(1)[sample_idx];
         out_labels = ws.Output<CPUBackend>(1)[sample_idx];
       }
+
       float angle;
       if (spec_.HasTensorArgument("angle")) {
         angle = ws.ArgumentInput("angle")[sample_idx].data<float>()[0];
       } else {
         angle = spec_.GetArgument<float>("angle");
       }
+      angle = deg2rad(angle);
 
       vec2 image_wh;
       if (spec_.HasTensorArgument("input_shape")) {
@@ -368,11 +369,34 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         image_wh.y = shape_tensor[shape_wh_index_.second];
       }
 
-      angle *= M_PI / 180.0f;  // Convert to radians
+      vec2 canvas_wh;
+      if (keep_size_) {
+        canvas_wh = image_wh;
+        if (spec_.HasTensorArgument("size") || spec_.HasArgument("size")) {
+          DALI_FAIL("fn.bbox_rotate `keep_size` is mutually exclusive with `size` argument");
+        }
+      } else if (spec_.HasTensorArgument("size")) {
+        auto size_tensor = ws.ArgumentInput("size")[sample_idx].data<float>();
+        canvas_wh.x = size_tensor[1];
+        canvas_wh.y = size_tensor[0];
+      } else if (spec_.HasArgument("size")) {
+        auto size_tensor = this->spec_.GetRepeatedArgument<float>("size");
+        canvas_wh.x = size_tensor[1];
+        canvas_wh.y = size_tensor[0];
+      } else {
+        TensorShape<2> im_shape;
+        im_shape[1] = image_wh.x;
+        im_shape[0] = image_wh.y;
+        auto [shape, parity] = RotatedCanvasSize(im_shape, angle);
+        shape += (shape % 2) ^ parity;
+        canvas_wh.x = shape.x;
+        canvas_wh.y = shape.y;
+      }
+
       const auto num_out_boxes = RotateBoxesKernel(
           in_boxes[sample_idx], bbox_rotate_buffer_[sample_idx],
-          ws.Output<CPUBackend>(0)[sample_idx], angle, in_labels, out_labels, use_ltrb_, keep_size_,
-          mode_, remove_threshold_, image_wh, bbox_normalized_);
+          ws.Output<CPUBackend>(0)[sample_idx], angle, in_labels, out_labels, use_ltrb_, mode_,
+          remove_threshold_, image_wh, canvas_wh, bbox_normalized_);
       ws.Output<CPUBackend>(0).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 4));
       if (out_labels.has_value()) {
         if (ws.GetInputShape(1)[sample_idx].size() == 2) {
