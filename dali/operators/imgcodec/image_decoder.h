@@ -605,7 +605,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST;
     int64_t image_buffer_size =
         volume(decode_shape) * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
-    st.image_info.buffer_size = image_buffer_size;
 
     st.decode_out_cpu = {};
     st.decode_out_gpu = {};
@@ -698,7 +697,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
         ParseSample(st->parsed_sample,
                     span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
                                         volume(input_sample.shape())});
-        st->sub_encoded_stream.reset();
         st->out_shape = st->parsed_sample.dali_img_info.shape;
         st->out_shape[2] = NumberOfChannels(format_, st->out_shape[2]);
         if (use_orientation_ &&
@@ -721,6 +719,27 @@ class ImageDecoder : public StatelessOperator<Backend> {
           }
           st->out_shape[0] = roi_sh[0];
           st->out_shape[1] = roi_sh[1];
+
+          nvimgcodecCodeStreamView_t cs_view = {
+              NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW,
+              sizeof(nvimgcodecCodeStreamView_t),
+              nullptr,
+              0,  // image_idx
+              {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
+          cs_view.region.start[0] = roi.begin[0];
+          cs_view.region.start[1] = roi.begin[1];
+          cs_view.region.end[0] = roi.end[0];
+          cs_view.region.end[1] = roi.end[1];
+          nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
+          if (sub_encoded_stream) {
+            // We can take the address of the local variable, since it is not going to be modified,
+            // just used as a pointer to the actual handle
+            CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
+                st->parsed_sample.encoded_stream.get(), &sub_encoded_stream, &cs_view));
+          } else {
+            st->sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
+                st->parsed_sample.encoded_stream.get(), &cs_view);
+          }
         }
         out_shape.set_tensor_shape(i, st->out_shape);
         PrepareOutput(*state_[i], rois_[i], ws);
@@ -761,68 +780,28 @@ class ImageDecoder : public StatelessOperator<Backend> {
       output.Resize(out_shape);
     }
     // ... and create image descriptors.
-
-    // The image descriptors are created in parallel, in block-wise fashion.
-    auto init_desc_task = [&](int start_sample, int end_sample) {
-      for (int orig_idx = start_sample; orig_idx < end_sample; orig_idx++) {
-        auto &st = *state_[orig_idx];
-        if (use_cache && st.load_from_cache) {
-          continue;
-        }
-        if (!st.need_processing) {
-          st.image_info.buffer = output.raw_mutable_tensor(orig_idx);
-        }
-        st.image = NvImageCodecImage::Create(instance_, &st.image_info);
-        if (rois_[orig_idx].use_roi()) {
-          auto &roi = rois_[orig_idx];
-          nvimgcodecCodeStreamView_t cs_view = {
-              NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW,
-              sizeof(nvimgcodecCodeStreamView_t),
-              nullptr,
-              0,  // image_idx
-              {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
-          cs_view.region.start[0] = roi.begin[0];
-          cs_view.region.start[1] = roi.begin[1];
-          cs_view.region.end[0] = roi.end[0];
-          cs_view.region.end[1] = roi.end[1];
-          st.sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
-              st.parsed_sample.encoded_stream.get(), &cs_view);
-        }
-      }
-    };
-
-    // Just one task? Run it in this thread!
-    if (ntasks < 2) {
-      DomainTimeRange tr("Create images", DomainTimeRange::kOrange);
-      init_desc_task(0, nsamples);
-    } else {
-      DomainTimeRange tr("Create images", DomainTimeRange::kOrange);
-      // Many tasks? Run in thread pool.
-      // The first span of tasks is processed in the main operator thread.
-      for (int i = 1; i < ntasks; i++) {
-        int start = i * nsamples / ntasks;
-        int end = (i + 1) * nsamples / ntasks;
-        tp_->AddWork([&, start, end](int) {
-          init_desc_task(start, end);
-        });
-      }
-      // Start processing of subsequent segments...
-      tp_->RunAll(false);
-      // ...and process the 1st segment in this thread.
-      init_desc_task(0, nsamples / ntasks);
-      tp_->WaitForWork();
-    }
-
     bool any_need_processing = false;
     for (int orig_idx = 0; orig_idx < nsamples; orig_idx++) {
       auto &st = *state_[orig_idx];
+      bool has_roi = rois_[orig_idx].use_roi();
       any_need_processing |= state_[orig_idx]->need_processing;
       if (use_cache && st.load_from_cache) {
         auto *data_ptr = output.raw_mutable_tensor(orig_idx);
         auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
         cache_->DeferCacheLoad(src_info, static_cast<uint8_t *>(data_ptr));
       } else {
-        if (st.sub_encoded_stream) {
+        if (!st.need_processing) {
+          st.image_info.buffer = output.raw_mutable_tensor(orig_idx);
+        }
+        nvimgcodecImage_t image = st.image.get();
+        if (image) {
+          // We can take the address of the local variable, since it is not going to be modified,
+          // just used as a pointer to the actual handle
+          nvimgcodecImageCreate(instance_, &image, &st.image_info);
+        } else {
+          st.image = NvImageCodecImage::Create(instance_, &st.image_info);
+        }
+        if (has_roi) {
           batch_encoded_streams_.push_back(st.sub_encoded_stream);
         } else {
           batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
