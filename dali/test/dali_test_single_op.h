@@ -15,11 +15,6 @@
 #ifndef DALI_TEST_DALI_TEST_SINGLE_OP_H_
 #define DALI_TEST_DALI_TEST_SINGLE_OP_H_
 
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-
 #include <gtest/gtest.h>
 #include <memory>
 #include <string>
@@ -788,9 +783,5 @@ class DALISingleOpTest : public DALITest {
 };
 
 }  // namespace dali
-
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
 #endif  // DALI_TEST_DALI_TEST_SINGLE_OP_H_
