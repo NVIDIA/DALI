@@ -22,7 +22,6 @@ unset SUBDIR
     --disable-doc \
     --disable-avdevice \
     --disable-swresample \
-    --disable-postproc \
     --disable-w32threads \
     --disable-os2threads \
     --disable-dwt \
