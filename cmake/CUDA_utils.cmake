@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES.. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES.. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ function(adjust_source_file_language_property SOURCES)
     foreach(File IN LISTS SOURCES)
       if(File MATCHES ".*\.cu$")
         set_source_files_properties(${File} PROPERTIES LANGUAGE CXX)
+        # CMake now forces C++ language and we need to override that to get a CUDA compilation
+        set_source_files_properties(${File} PROPERTIES COMPILE_FLAGS "-x cuda")
       endif()
     endforeach()
   endif()
