@@ -4,7 +4,7 @@ export THIS_PATH=`pwd`
 
 do_once() {
   apt-get update && apt-get -y install wget
-  wget https://github.com/Kitware/CMake/releases/download/v3.18.4/cmake-3.18.4-Linux-x86_64.sh
+  wget https://github.com/Kitware/CMake/releases/download/v3.25.2/cmake-3.25.2-Linux-x86_64.sh
   bash cmake-*.sh --skip-license --prefix=/usr
   rm cmake-*.sh
 }

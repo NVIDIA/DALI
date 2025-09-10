@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         requirements = [
             "setuptools>=42",
             "scikit-build",
-            "cmake>=3.21",
+            "cmake>=3.25.2",
             "ninja"
         ]
         for req in requirements:
