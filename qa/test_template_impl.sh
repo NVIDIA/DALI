@@ -36,21 +36,8 @@ last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CU
 
 install_pip_pkg() {
     install_cmd="$@"
-    # pycuda doesn't support CUDA 13 yet
-    if echo "$install_cmd" | grep -q "pycuda" && [ "$CUDA_VERSION_MAJOR" == "13" ]; then
-        TMPDIR=$(mktemp -d)
-        pushd $TMPDIR
-        pip download pycuda
-        tar -xf pycuda*
-        cd pycuda*/
-        patch -p1 < $topdir/qa/pycuda_CUDA13.patch
-        pip install .
-        popd
-        rm -rf $TMPDIR
-    else
-        # if no package was found in our download dir, so install it from index
-        ${install_cmd} --no-index || ${install_cmd}
-    fi
+    # if no package was found in our download dir, so install it from index
+    ${install_cmd} --no-index || ${install_cmd}
 }
 
 if [ -n "$gather_pip_packages" ]
