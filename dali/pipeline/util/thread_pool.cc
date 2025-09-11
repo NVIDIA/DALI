@@ -60,7 +60,7 @@ ThreadPool::~ThreadPool() {
 
 void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
   bool started_before = started_;
-  outstanding_work_.fetch_add(1);
+  outstanding_work_.fetch_add(1, std::memory_order_relaxed);
   if (started_before) {
     std::lock_guard lock(queue_lock_);
     work_queue_.push({priority, std::move(work)});
@@ -81,10 +81,12 @@ void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
 
 // Blocks until all work issued to the thread pool is complete
 void ThreadPool::WaitForWork(bool checkForErrors) {
-  if (outstanding_work_.load()) {
+  // Wait for outstanding work to complete
+  if (outstanding_work_.load(std::memory_order_relaxed) > 0) {
+    // If still not complete, use condition variable
     std::unique_lock lock(completed_mutex_);
     completed_.wait(lock, [&, this] {
-      return this->outstanding_work_ == 0;
+      return this->outstanding_work_.load(std::memory_order_relaxed) == 0;
     });
   }
   started_ = false;
@@ -184,7 +186,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
     // If it reaches zero, we must safely notify the potential threads waiting for the work
     // to complete.
     // NOTE: We don't have to acquire the mutex until the number of waiting threads reaches 0.
-    if (--outstanding_work_ == 0) {
+    if (outstanding_work_.fetch_sub(1, std::memory_order_relaxed) == 1) {
       // We don't need to guard the modification of the atomic value with a mutex -
       // however, we need to lock it briefly to make sure we don't have this scenario:
       //
