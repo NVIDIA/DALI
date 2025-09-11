@@ -125,7 +125,7 @@ DEPS_PATH=/usr/local/
 
 if [ "$BUILD_NVCOMP" = "ON" ] && [ "$WITH_DYNAMIC_NVCOMP" = "ON" ]; then
     DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.5"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.4"
     )
 fi
 
