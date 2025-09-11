@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,10 +35,13 @@ def convert_to_torch(tensor, device="cuda", dtype=None, size=None):
 
 
 def test_dlpack_tensor_gpu_direct_creation():
-    arr = torch.rand(size=[3, 5, 6], device="cuda")
-    tensor = TensorGPU(to_dlpack(arr))
-    dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
-    assert torch.all(arr.eq(dali_torch_tensor))
+    s = torch.cuda.Stream()
+    with torch.cuda.stream(s):
+        arr = torch.rand(size=[3, 5, 6], device="cuda")
+        tensor = TensorGPU(to_dlpack(arr), stream=s.cuda_stream)
+        assert int(tensor.stream) == int(s.cuda_stream)
+        dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
+        assert torch.all(arr.eq(dali_torch_tensor))
 
 
 def test_dlpack_tensor_gpu_to_cpu():
