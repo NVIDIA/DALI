@@ -13,7 +13,7 @@ do_once() {
   # install native compilers in conda instead of using system ones so we can link with conda packages
   enable_conda
   # Pinning cmake to <= 4.0.3 due to strange interactions of later versions with Jupyter
-  conda install gcc==9.4 gxx==9.4 alsa-lib wget ffmpeg "cmake<=4.0.3" -y
+  conda install gcc==9.4 gxx==9.4 alsa-lib wget ffmpeg cmake -y
   mkdir -p idx_files
   disable_conda
 }
