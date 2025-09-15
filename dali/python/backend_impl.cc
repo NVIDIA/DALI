@@ -1084,9 +1084,9 @@ void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_na
       return FromPythonTrampoline("nvidia.dali._utils.eager_utils", impl_name.c_str())(*args);
     } else {
       std::stringstream types_ss;
-      types_ss << args[0].get_type();
+      types_ss << py::type::of(args[0]);
       for (size_t i = 1; i < args.size(); ++i) {
-        types_ss << " and " << args[i].get_type();
+        types_ss << " and " << py::type::of(args[i]);
       }
       throw py::type_error(
           make_string("unsupported operand type(s) for _", impl_name, "__: ", types_ss.str(),
