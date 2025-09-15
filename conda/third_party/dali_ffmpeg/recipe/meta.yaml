@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "7.1.1" %}
+{% set build_version = "8.0" %}
 
   package:
     name: dali-ffmpeg
     version: {{ build_version }}
 
   source:
-    fn: FFmpeg-n7.1.1.tar.gz
-    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n7.1.1.tar.gz
-    sha256: f117507dc501f2a6c11f9241d8d0c3213846cfad91764361af37befd6b6c523d
+    fn: FFmpeg-n8.0.tar.gz
+    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n8.0.tar.gz
+    sha256: dd4030dbfdc34d9ff255a116bdd1caade42500ac2981efa27f8b151cc54c7b9e
 
   build:
     number: 0
