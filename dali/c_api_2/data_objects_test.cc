@@ -127,11 +127,10 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
   for (int i = 0; i < 4; i++) {
     daliTensorDesc_t desc{};
     CHECK_DALI(daliTensorListGetTensorDesc(tl, &desc, i));
-    ASSERT_NE(desc.data, nullptr);
     ASSERT_EQ(desc.ndim, 3);
     if (i == 0)
       base = static_cast<char *>(desc.data);
-    EXPECT_EQ(desc.data, base + offset);
+    ASSERT_EQ(desc.data, base + offset);
     EXPECT_EQ(desc.dtype, dtype);
     ASSERT_NE(desc.shape, nullptr);
     for (int j = 0; j < 3; j++)
