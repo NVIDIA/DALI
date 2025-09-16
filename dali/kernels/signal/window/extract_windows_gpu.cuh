@@ -509,10 +509,11 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
     constexpr int kDefaultBlockSize = 256;
     logical_block_size = kDefaultBlockSize;
     int64_t max_padded_length = 0;
-    int max_win_per_input = 0;
+    int max_win_per_input = 1;
     for (int i = 0; i < N; i++) {
       int64_t length = lengths[i];
       int nwin = args.num_windows(length);
+      assert(nwin >= 1); // the calling operator should have checked that
 
       int64_t padded_length = static_cast<int64_t>(nwin-1) * args.window_step + args.window_length;
       if (padded_length > max_padded_length)

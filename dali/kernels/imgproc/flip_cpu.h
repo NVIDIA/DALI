@@ -77,7 +77,8 @@ void FlipZAxis(Type *output, const Type *input, size_t depth, size_t height, siz
 template <typename Type>
 void FlipImpl(Type *output, const Type *input,
               TensorShape<sample_ndim> shape, bool flip_z, bool flip_y, bool flip_x) {
-  auto frame_size = volume(&shape[1], &shape[sample_ndim]);
+  static_assert(sample_ndim == 5);
+  auto frame_size = volume(shape.begin() + 1, shape.end());
   if (flip_x || flip_y) {
     for (Index f = 0; f < shape[0]; ++f) {
       OcvFlip(output, input, shape[1], shape[2], shape[3], shape[4], flip_z, flip_y, flip_x);

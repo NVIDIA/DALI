@@ -27,6 +27,9 @@ DALI_NO_EXEC_CHECK
 template <typename OutContainer, typename InContainer, typename Permutation>
 DALI_HOST_DEV
 void permute(OutContainer &&out, const InContainer &in, const Permutation &source_indices) {
+#ifndef __CUDA_ARCH__
+  assert(dali::size(source_indices) <= std::numeric_limits<int>::max());
+#endif
   int n = dali::size(source_indices);
   resize_if_possible(out, n);
 #ifndef __CUDA_ARCH__

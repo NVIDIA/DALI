@@ -342,9 +342,10 @@ template <int axis, bool has_channels, int max_lanes, typename Out, typename In,
 void ConvolveInplaceOuterLoop(Out* out, const In* in, const W* window,
                               const TensorShape<ndim>& shape, const TensorShape<ndim>& strides,
                               int diameter, In* input_window_buffer, const T& transform) {
+  static_assert(0 <= axis && axis < ndim);
   int64_t outer_elements = volume(&shape[0], &shape[axis]);
   int64_t axis_elements = shape[axis];
-  int64_t inner_elements = volume(&shape[axis + 1], &shape[ndim]);
+  int64_t inner_elements = volume(shape.begin() + axis + 1, shape.end());
   assert(strides[axis] == inner_elements);
 
   int64_t strip_size = max_lanes;
