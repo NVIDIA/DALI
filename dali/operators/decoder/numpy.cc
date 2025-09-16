@@ -14,6 +14,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "dali/core/convert.h"
 #include "dali/operators/decoder/numpy.h"
