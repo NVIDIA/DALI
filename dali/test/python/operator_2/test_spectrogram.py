@@ -25,6 +25,10 @@ from test_utils import ConstantDataIterator
 import math
 from test_audio_utils_librosa_ref import stft
 
+from nose2.tools import params
+from nose_utils import assert_raises
+
+
 audio_files = get_files("db/audio/wav", "wav")
 
 
@@ -414,3 +418,25 @@ def test_operator_decoder_and_spectrogram():
                             center,
                             layout,
                         )
+
+
+@params(
+    ("cpu",),
+    ("gpu",),
+)
+def test_no_windows(device):
+    def sample(sample_info):
+        return np.arange(sample_info.idx_in_batch + 1, dtype=np.float32)
+
+    @dali.pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def pipeline(device):
+        sig = dali.fn.external_source(source=sample, batch=False)
+        if device == "gpu":
+            sig = sig.gpu()
+        spec = dali.fn.spectrogram(sig, window_length=512, center_windows=False, window_step=3)
+        return spec
+
+    pipe = pipeline(device=device)
+    pipe.build()
+    with assert_raises(Exception, glob="Signal is too short"):
+        pipe.run()
