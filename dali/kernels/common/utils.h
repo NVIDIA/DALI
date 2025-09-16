@@ -15,7 +15,6 @@
 #ifndef DALI_KERNELS_COMMON_UTILS_H_
 #define DALI_KERNELS_COMMON_UTILS_H_
 
-#include <limits>
 #include <utility>
 #include "dali/core/util.h"
 #include "dali/core/traits.h"
@@ -38,10 +37,10 @@ inline void CalcStrides(Stride *strides, const Extent *shape, int ndim) {
 template <bool outer_first = true, typename Strides, typename Shape>
 DALI_HOST_DEV std::remove_reference_t<decltype(std::declval<Strides>()[0])> CalcStrides(
     Strides &strides, const Shape &shape) {
-#ifndef __CUDA_ARCH__
-  assert(dali::size(shape) <= std::numeric_limits<int>::max());
-#endif
   int ndim = dali::size(shape);
+#ifndef __CUDA_ARCH__
+  assert(ndim >= 0 && ndim == dali::size(shape));
+#endif
   resize_if_possible(strides, ndim);  // no-op if strides is a plain array or std::array
   int64_t ret = 1;
   if (outer_first) {
