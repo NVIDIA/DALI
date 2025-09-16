@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import overload
 import nvidia.dali.backend as _backend
 from threading import local
 
@@ -30,7 +29,10 @@ class Device:
                 device_id = int(type_and_id[1])
         else:
             if ":" in name:
-                raise ValueError(f"':' should not appear in device name when device_id is provided")
+                raise ValueError(
+                    f"Invalid device name: {name}\n"
+                    f"':' should not appear in device name when device_id is provided"
+                )
             device_type = name
 
         Device.validate_device_type(device_type)

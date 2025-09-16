@@ -21,7 +21,6 @@ from . import _eval_mode
 from . import _invocation
 import copy
 import nvidia.dali.types
-import warnings
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -47,7 +46,7 @@ def _try_convert_enums(arr):
 
     if isinstance(item, nvidia.dali.types.DALIInterpType):
         return arr.astype(np.int32), nvidia.dali.types.INTERP_TYPE
-    elif isinstance(item, dali.types.DALIDataType):
+    elif isinstance(item, nvidia.dali.types.DALIDataType):
         return arr.astype(np.int32), nvidia.dali.types.DATA_TYPE
     elif isinstance(item, nvidia.dali.types.DALIImageType):
         return arr.astype(np.int32), nvidia.dali.types.IMAGE_TYPE
@@ -131,7 +130,7 @@ class Tensor:
                     if ctx.device.device_id == device_id:
                         stream = ctx.cuda_stream
                     else:
-                        stream = backend.Stream(device_id)
+                        stream = _backend.Stream(device_id)
                     args = {"stream": stream.handle}
                     self._backend = _backend.TensorGPU(
                         data.__dlpack__(**args),
@@ -470,7 +469,7 @@ def _is_full_slice(r: Any) -> bool:
 
 
 def _is_index(r: Any) -> bool:
-    return not isinstance(r, slice) and not r is Ellipsis
+    return not isinstance(r, slice) and r is not Ellipsis
 
 
 def _clamp(value: int, lo: int, hi: int) -> int:
@@ -506,7 +505,8 @@ class TensorSlice:
                 ellipsis_found = True
         if num_ranges > tensor.ndim:
             raise ValueError(
-                f"Number of ranges ({num_ranges}) is greater than the number of dimensions of the tensor ({tensor.ndim})"
+                f"Number of ranges ({num_ranges}) "
+                f"is greater than the number of dimensions of the tensor ({tensor.ndim})"
             )
 
     @property
@@ -627,7 +627,7 @@ class TensorSlice:
             return Tensor(result)
 
     def evaluate(self):
-        with _EvalContext.get() as context:
+        with _EvalContext.get():
             if len(self._ranges) == 0:
                 return self._tensor.evaluate()
 

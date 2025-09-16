@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple
+from typing import Optional
 from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
 import nvtx

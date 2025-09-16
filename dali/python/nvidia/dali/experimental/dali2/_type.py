@@ -109,7 +109,11 @@ class DType:
         return self.name
 
     def __repr__(self):
-        return f"Type(kind={self.kind}, bits={self.bits}, exponent_bits={self.exponent_bits}, significand_bits={self.significand_bits})"
+        return (
+            f"Type(kind={self.kind}, bits={self.bits}, "
+            f"exponent_bits={self.exponent_bits}, "
+            f"significand_bits={self.significand_bits})"
+        )
 
     def __eq__(self, other):
         if not (

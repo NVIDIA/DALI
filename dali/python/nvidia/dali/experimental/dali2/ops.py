@@ -14,7 +14,6 @@
 
 from . import _device
 from . import _invocation
-from . import _tensor, _batch
 from . import _eval_context
 import nvidia.dali as dali
 from typing import Optional
@@ -207,7 +206,8 @@ class Operator:
             and self.schema.IsStateful()
         ):
             raise RuntimeError(
-                f"The batch size {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+                f"The batch size {batch_size} is larger than the `max_batch_size` "
+                f"{self._max_batch_size} specified when the operator was created."
             )
         if self._is_backend_initialized():
             if self.schema.IsStateful():
@@ -232,8 +232,8 @@ class Operator:
         # return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
 
     def _to_batch(self, x):
-        if not isinstance(x, _batch.Batch):
-            return _batch.Batch([x])
+        if not isinstance(x, Batch):
+            return Batch([x])
         else:
             return x
 
@@ -253,48 +253,55 @@ class Operator:
 
     def check_compatible(self, inputs, batch_size, args):
         def error_header():
-            return f"The invocation of operator {self.display_name} is not compatible with the previous call:\n"
+            return (
+                f"The invocation of operator {self.display_name} "
+                f"is not compatible with the previous call:\n"
+            )
 
         if batch_size is not None:
             if batch_size > self._max_batch_size:
                 raise RuntimeError(
-                    error_header()
-                    + f"The batch size {batch_size} is larger than the `max_batch_size` {self._max_batch_size} specified when the operator was created"
+                    f"{error_header()}"
+                    f"The batch size {batch_size} is larger than the `max_batch_size` "
+                    f"{self._max_batch_size} specified when the operator was created."
                 )
 
         if len(inputs) != len(self._input_meta):
             raise RuntimeError(
-                error_header()
-                + f"The number of inputs ({len(inputs)}) does not match the number of inputs used in the previous call ({len(self._input_meta)})"
+                f"{error_header()}"
+                f"The number of inputs ({len(inputs)}) does not match the number "
+                f"of inputs used in the previous call ({len(self._input_meta)})."
             )
         for i, input in enumerate(inputs):
             if self._input_meta[i] != self._make_meta(input):
                 raise RuntimeError(
-                    error_header()
-                    + f"The input {i} is not compatible with the input used in the previous call"
+                    f"{error_header()}"
+                    f"The input {i} is not compatible with the input used in the previous call."
                 )
         for name, arg in args.items():
             if name not in self._arg_meta:
                 raise RuntimeError(
-                    error_header() + f"The argument `{name}` was not used in the previous call"
+                    f"{error_header()}" f"The argument `{name}` was not used in the previous call."
                 )
             if self._arg_meta[name] != self._make_meta(arg):
                 raise RuntimeError(
-                    error_header()
-                    + f"The argument `{name}` is not compatible with the argument used in the previous call"
+                    f"{error_header()}"
+                    f"The argument `{name}` is not compatible with the argument used in the "
+                    f"previous call."
                 )
         for name in self._arg_meta:
             if name not in args:
                 raise RuntimeError(
-                    error_header()
-                    + f"The argument `{name}` used in the previous call was not supplied in the current one"
+                    f"{error_header()}"
+                    f"The argument `{name}` used in the previous call was not supplied in the "
+                    f"current one."
                 )
 
     def _make_meta(self, x):
         is_batch = False
         if isinstance(x, _invocation.Invocation):
             is_batch = x.is_batch
-        elif isinstance(x, _batch.Batch):
+        elif isinstance(x, Batch):
             is_batch = True
         else:
             is_batch = False
@@ -341,7 +348,8 @@ class Reader(Operator):
             self._api_type = "run"
         elif self._api_type != "run":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the "
+                "end of the epoch."
             )
 
     def run(self, ctx=None, *inputs, **args):
@@ -349,17 +357,19 @@ class Reader(Operator):
             self._api_type = "run"
         elif self._api_type != "run":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the "
+                "end of the epoch."
             )
 
-        x = super().run(ctx, *inputs, **args)
+        return super().run(ctx, *inputs, **args)
 
     def samples(self, ctx: Optional[_eval_context.EvalContext] = None):
         if self._api_type is None:
             self._api_type = "samples"
         elif self._api_type != "samples":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the end of the epoch."
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the "
+                "end of the epoch."
             )
 
         if ctx is None:

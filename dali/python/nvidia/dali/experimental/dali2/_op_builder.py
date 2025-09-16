@@ -17,13 +17,11 @@ from nvidia.dali.fn import _to_snake_case
 import makefun
 from ._batch import Batch, _get_batch_size
 from ._tensor import Tensor
-import warnings
 from . import ops
 from . import fn
 from . import _type
 import types
 import copy
-import sys
 from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
@@ -404,19 +402,16 @@ def build_fn_wrapper(op):
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
     def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
-        is_batch = batch_size is not None
         if batch_size is None:
             for x in inputs:
                 x_batch_size = _get_batch_size(x)
                 if x_batch_size is not None:
-                    is_batch = True
                     batch_size = x_batch_size
                     break
         if batch_size is None:
             for arg in raw_kwargs.values():
                 x_batch_size = _get_batch_size(arg)
                 if x_batch_size is not None:
-                    is_batch = True
                     batch_size = x_batch_size
                     break
         max_batch_size = _next_pow2(batch_size or 1)

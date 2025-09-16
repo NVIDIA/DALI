@@ -7,14 +7,17 @@ class EvalMode(Enum):
 
     Attributes:
         default:    Default evaluation mode. TBD.
-        deferred:   Deferred evaluation mode - operations are evaluated only when their results are needed;
-                    error reporting (including input validation) may be delayed until the results are requested.
-                    In this mode operations with unused results may be skipped and repeated operations
-                    may be merged into one.
+        deferred:   Deferred evaluation mode - operations are evaluated only when their results are
+                    needed; error reporting (including input validation) may be delayed until the
+                    results are requested.
+                    In this mode operations with unused results may be skipped and repeated
+                    operations may be merged into one.
         eager:      The evaluation starts immediately. Input validation is immediate.
                     The operations may finish asynchronously.
-        sync_cpu:   Synchronous evaluation mode - evaluation on the CPU finishes before the operation returns.
-        sync_full:  Fully synchronous evaluation mode - evaluation on all devices finishes before the operation returns.
+        sync_cpu:   Synchronous evaluation mode - evaluation on the CPU finishes before the
+                    operation returns.
+        sync_full:  Fully synchronous evaluation mode - evaluation on all devices finishes before
+                    the operation returns.
     """
 
     default = auto()

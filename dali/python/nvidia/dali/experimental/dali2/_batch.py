@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple, List, Union, Sequence
+from typing import Any, Optional, Union, Sequence
 from ._type import DType, dtype as _dtype, type_id as _type_id
 from ._tensor import (
     Tensor,
@@ -26,7 +26,6 @@ from ._eval_context import EvalContext as _EvalContext
 from ._device import Device
 from . import _eval_mode
 from . import _invocation
-import copy
 import nvtx
 
 
@@ -527,7 +526,7 @@ def batch(
     layout: Optional[str] = None,
 ):
     if isinstance(tensors, Batch):
-        batch = tensors.to_device(device, force_copy=True).evaluate()
+        return tensors.to_device(device, force_copy=True).evaluate()
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout, copy=True)
 
@@ -539,6 +538,6 @@ def as_batch(
     layout: Optional[str] = None,
 ):
     if isinstance(tensors, Batch):
-        batch = tensors.to_device(device).evaluate()
+        return tensors.to_device(device).evaluate()
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout)
