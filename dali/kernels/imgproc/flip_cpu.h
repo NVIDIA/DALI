@@ -77,6 +77,8 @@ void FlipZAxis(Type *output, const Type *input, size_t depth, size_t height, siz
 template <typename Type>
 void FlipImpl(Type *output, const Type *input,
               TensorShape<sample_ndim> shape, bool flip_z, bool flip_y, bool flip_x) {
+  // the kernel here relies on the sample_dim = 5,
+  // the calling op pads the shape to 5 dimensions
   static_assert(sample_ndim == 5);
   auto frame_size = volume(shape.begin() + 1, shape.end());
   if (flip_x || flip_y) {
