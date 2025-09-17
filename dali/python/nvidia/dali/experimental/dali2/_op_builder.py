@@ -159,6 +159,7 @@ def build_operator_class(schema):
     op_class.op_name = class_name
     op_class.fn_name = _to_snake_case(class_name)
     op_class.legacy_op = legacy_op_class
+    op_class.is_stateful = schema.IsStateful()
     op_class._instance_cache = {}
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
@@ -169,7 +170,7 @@ def build_operator_class(schema):
 
 
 def build_constructor(schema, op_class):
-    stateful = schema.IsStateful()
+    stateful = op_class.is_stateful
     function_name = "__init__"
 
     call_args = []
@@ -208,7 +209,7 @@ def build_constructor(schema, op_class):
 
 
 def build_call_function(schema, op_class):
-    stateful = schema.IsStateful()
+    stateful = op_class.is_stateful
     call_args = []
     for arg in schema.GetArgumentNames():
         if arg in _unsupported_args:

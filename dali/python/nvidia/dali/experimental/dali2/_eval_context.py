@@ -15,6 +15,7 @@
 from threading import local
 from . import _device
 import nvidia.dali.backend_impl as _b
+import weakref
 
 _tls = local()
 _tls.stack = []
@@ -25,7 +26,7 @@ default_num_threads = 4
 class EvalContext:
 
     def __init__(self, num_threads=None, device=None, cuda_stream=None):
-        self._invocations = {}
+        self._invocations = []
         self._cached_results = {}
         self._cuda_stream = cuda_stream
         self._device = device or _device.Device.current()
@@ -44,7 +45,19 @@ class EvalContext:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self._invoke_pending()
         _tls.stack.pop()
+
+    def __del__(self):
+        self._invoke_pending()
+
+    def _invoke_pending(self):
+        tmp = self._invocations
+        self._invocations = []  # prevent recursive invocation
+        for weak_inv in tmp:
+            inv = weak_inv() if isinstance(weak_inv, weakref.ReferenceType) else weak_inv
+            if inv is not None:
+                inv.run(self)
 
     @property
     def device(self):
@@ -67,3 +80,6 @@ class EvalContext:
 
     def cache_results(self, invocation, results):
         self._cached_results[invocation] = results
+
+    def _add_invocation(self, invocation, weak=True):
+        self._invocations.append(weakref.ref(invocation) if weak else invocation)
