@@ -325,7 +325,15 @@ def build_call_function(schema, op_class):
                     )
                 )
             ):
+                # Evaluate immediately
                 invocation.run(_eval_context.EvalContext.get())
+            else:
+                # Lazy evaluation
+                # If there's an active evaluation context, add this invocation to it.
+                # When leaving the context, the invocation will be evaluated if it's still alive.
+                ctx = _eval_context.EvalContext.current()
+                if ctx is not None:
+                    ctx._add_invocation(invocation, weak=not self.is_stateful)
 
             if is_batch:
                 if len(invocation) == 1:

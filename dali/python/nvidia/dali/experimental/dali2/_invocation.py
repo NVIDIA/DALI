@@ -40,14 +40,6 @@ class Invocation:
         self._output_devices = None
         self._previous_invocation = previous_invocation
 
-        # If there's an active evaluation context, add this invocation to it.
-        # When leaving the context, the invocation will be evaluated if it's still alive.
-        # This ensures that the side effects of the invocation are executed.
-        ctx = _EvalContext.current()
-        if ctx is not None:
-            print(type(operator_instance))
-            ctx._add_invocation(self, weak=not operator_instance.is_stateful)
-
     def device(self, result_index: int):
         if self._output_devices is None:
             self._output_devices = self._operator.infer_output_devices(*self._inputs, **self._args)

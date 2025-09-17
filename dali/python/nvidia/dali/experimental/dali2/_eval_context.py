@@ -47,12 +47,13 @@ class EvalContext:
     def __exit__(self, exc_type, exc_value, traceback):
         _tls.stack.pop()
         if EvalContext.current() is not self:
-            self._invoke_pending()
+            self.evaluate_all()
 
     def __del__(self):
-        self._invoke_pending()
+        self.evaluate_all()
 
-    def _invoke_pending(self):
+    def evaluate_all(self):
+        """Evaluates all pending invocations."""
         tmp = self._invocations
         self._invocations = []  # prevent recursive invocation
         for weak_inv in tmp:
