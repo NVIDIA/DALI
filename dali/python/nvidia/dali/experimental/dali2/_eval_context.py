@@ -18,6 +18,7 @@ import nvidia.dali.backend_impl as _b
 import weakref
 
 _tls = local()
+_tls.default = None
 _tls.stack = []
 
 default_num_threads = 4
@@ -38,7 +39,7 @@ class EvalContext:
 
     @staticmethod
     def current():
-        return _tls.stack[-1] if _tls.stack else None
+        return _tls.stack[-1] if _tls.stack else EvalContext.default()
 
     def __enter__(self):
         _tls.stack.append(self)
@@ -71,7 +72,13 @@ class EvalContext:
 
     @staticmethod
     def get():
-        return EvalContext.current() or EvalContext()
+        return EvalContext.current() or EvalContext.default()
+
+    @staticmethod
+    def default():
+        if _tls.default is None:
+            _tls.default = EvalContext()
+        return _tls.default
 
     def cached_results(self, invocation):
         if invocation in self._cached_results:
