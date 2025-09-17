@@ -509,7 +509,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
     constexpr int kDefaultBlockSize = 256;
     logical_block_size = kDefaultBlockSize;
     int64_t max_padded_length = 0;
-    int max_win_per_input = 1;
+    int max_win_per_input = 0;
     for (int i = 0; i < N; i++) {
       int64_t length = lengths[i];
       int nwin = args.num_windows(length);
@@ -526,6 +526,9 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
         out_shape.set_tensor_shape(i, { nwin, out_win_length });
       }
     }
+    // for each sample, the nwin >= 1 is expected
+    // and the op call should be skipped if there are no samples
+    assert(max_win_per_input >= 1);
 
     if (concatenate) {
       out_shape.set_tensor_shape(0, { total_windows, out_win_length });

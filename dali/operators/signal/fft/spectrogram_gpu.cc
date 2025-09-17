@@ -82,13 +82,16 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     TensorListShape<> out_shape;
     in_shape_1D.resize(in_shape.num_samples());
 
+    for (int i = 0; i < in_shape.num_samples(); i++) {
+      if (volume(in_shape.tensor_shape_span(i)) == 0) {
+        DALI_FAIL(make_string("Spectogram does not support empty (0-volume) samples. The sample ",
+                              i, " shape is ", in_shape[i]));
+      }
+    }
+
     int axis = -1;
     if (in_shape.sample_dim() > 1) {
       for (int i = 0; i < in_shape.num_samples(); i++) {
-        if (volume(in_shape.tensor_shape_span(i)) == 0) {
-          in_shape_1D.tensor_shape_span(i)[0] = 0;
-          continue;
-        }
         if (axis < 0) {
           int max_extent = 0;
           // looking for non-degenerate dimension
