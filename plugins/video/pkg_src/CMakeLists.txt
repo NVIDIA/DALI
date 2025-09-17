@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25.2)
 set(PLUGIN_NAME "video")
 project(dali_plugin_${PLUGIN_NAME} LANGUAGES CUDA CXX C)
 
