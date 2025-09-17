@@ -102,7 +102,6 @@ ptrdiff_t ODirectFileStream::TellRead() const {
 
 size_t ODirectFileStream::ReadAt(void * buffer, size_t n_bytes, off_t offset) {
   auto n_read = pread(fd_, buffer, n_bytes, offset);
-  static_assert(std::is_same_v<decltype(n_read), ssize_t>);
   DALI_ENFORCE(n_read >= 0, make_string(
                "ReadAt operation failed: ", std::strerror(errno)));
   return n_read;
@@ -110,7 +109,6 @@ size_t ODirectFileStream::ReadAt(void * buffer, size_t n_bytes, off_t offset) {
 
 size_t ODirectFileStream::Read(void *buffer, size_t n_bytes) {
   auto n_read = read(fd_, buffer, n_bytes);
-  static_assert(std::is_same_v<decltype(n_read), ssize_t>);
   DALI_ENFORCE(n_read >= 0, make_string(
                "Read operation failed: ", std::strerror(errno)));
   return n_read;
