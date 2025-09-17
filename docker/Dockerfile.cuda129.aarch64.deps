@@ -3,13 +3,8 @@ FROM ${TOOLKIT_BASE_IMAGE} AS cuda
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update && apt install -y libxml2 curl perl software-properties-common && \
-    add-apt-repository ppa:ubuntu-toolchain-r/test && \
-    apt install -y g++-11 && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 99 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 99 && \
+RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*
-
 
 RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux_sbsa.run && \
     chmod +x cuda_*.run && \
