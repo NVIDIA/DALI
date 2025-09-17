@@ -29,7 +29,8 @@ DALI_HOST_DEV
 void permute(OutContainer &&out, const InContainer &in, const Permutation &source_indices) {
   int n = dali::size(source_indices);
 #ifndef __CUDA_ARCH__
-  assert(n >= 0 && n == dali::size(source_indices));
+  using n_size_t = decltype(dali::size(source_indices));
+  assert(n >= 0 && static_cast<n_size_t>(n) == dali::size(source_indices));
 #endif
   resize_if_possible(out, n);
 #ifndef __CUDA_ARCH__
