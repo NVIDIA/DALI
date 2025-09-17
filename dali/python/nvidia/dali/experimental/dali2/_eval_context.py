@@ -45,8 +45,9 @@ class EvalContext:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._invoke_pending()
         _tls.stack.pop()
+        if EvalContext.current() is not self:
+            self._invoke_pending()
 
     def __del__(self):
         self._invoke_pending()
