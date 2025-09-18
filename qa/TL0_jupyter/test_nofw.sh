@@ -6,8 +6,11 @@ target_dir=./docs/examples
 do_once() {
   # We need cmake to run the custom plugin notebook + ffmpeg, wget for video example, libasound2-dev for audio test
   apt-get update
-  apt-get install -y --no-install-recommends wget ffmpeg cmake libasound2-dev
+  apt-get install -y --no-install-recommends wget ffmpeg libasound2-dev
   mkdir -p idx_files
+  wget https://github.com/Kitware/CMake/releases/download/v3.25.2/cmake-3.25.2-Linux-x86_64.sh
+  bash cmake-*.sh --skip-license --prefix=/usr
+  rm cmake-*.sh
 }
 
 test_body() {
