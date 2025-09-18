@@ -189,16 +189,9 @@ class Operator:
                 if self._max_batch_size is None:
                     self._max_batch_size = 1
                 self._op_spec.AddArg("max_batch_size", self._max_batch_size)
-                # print(self._op_spec)
                 self._op_backend = _b._Operator(self._op_spec)
 
     def run(self, ctx, *inputs, batch_size=None, **args):
-        # print("Running operator", self._name, type(self), id(self))
-        # print("inputs", inputs)
-        # print("args", args)
-        # print("minipipe", self._minipipe)
-        # print("input_meta", self._input_meta)
-        # print("arg_meta", self._arg_meta)
         if (
             batch_size is not None
             and self._max_batch_size is not None
@@ -225,11 +218,6 @@ class Operator:
             workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
         self._op_backend.SetupAndRun(workspace, batch_size)
         return workspace.GetOutputs()
-        # for i, input in enumerate(inputs):
-        #     self._minipipe.feed_input(f"input_{i}", self._to_batch(input).evaluate()._backend)
-        # for name, arg in args.items():
-        #     self._minipipe.feed_input(f"arg_{name}", self._to_batch(arg).evaluate()._backend)
-        # return self._minipipe.run(_eval_context.EvalContext.get().cuda_stream)
 
     def _to_batch(self, x):
         if not isinstance(x, Batch):
@@ -430,11 +418,11 @@ class Reader(Operator):
                 yield tuple(Batch(o) for o in outputs)
 
 
-all_ops = []
+_all_ops = []
 
 
 def initialize():
     from . import _op_builder
 
-    global all_ops
-    all_ops = _op_builder.build_operators()
+    global _all_ops
+    _all_ops = _op_builder.build_operators()

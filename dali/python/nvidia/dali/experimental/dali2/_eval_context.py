@@ -26,11 +26,19 @@ default_num_threads = 4
 
 class EvalContext:
 
-    def __init__(self, num_threads=None, device=None, cuda_stream=None):
+    def __init__(self, num_threads=None, device_id=None, cuda_stream=None):
         self._invocations = []
         self._cached_results = {}
         self._cuda_stream = cuda_stream
-        self._device = device or _device.Device.current()
+        if device_id is None:
+            try:
+                device_id = _b.GetCUDACurrentDevice()
+            except Exception:
+                device_id = None
+        if device_id is not None:
+            self._device = _device.Device("gpu", device_id)
+        else:
+            self._device = _device.Device.current()
 
         if self._device.device_type == "gpu":
             self._cuda_stream = _b.Stream(self._device.device_id)
@@ -63,8 +71,8 @@ class EvalContext:
                 inv.run(self)
 
     @property
-    def device(self):
-        return self._device
+    def device_id(self):
+        return self._device.device_id
 
     @property
     def cuda_stream(self):
