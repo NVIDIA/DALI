@@ -15,8 +15,8 @@ test_body() {
     nvcc_pkg="nvidia-cuda-nvcc"
     nvjitlink_pkg="nvidia-nvjitlink"
   fi
-  nvcc_ver=$(pip show $nvcc_pkg | awk '/^Version: /{print $2}')
-  nvjitlink_ver=$(pip show $nvjitlink_pkg | awk '/^Version: /{print $2}')
+  nvcc_ver=$(pip show $nvcc_pkg | awk '/^Version: /{print $2}') || true
+  nvjitlink_ver=$(pip show $nvjitlink_pkg | awk '/^Version: /{print $2}') || true
   if [[ -n "$nvcc_ver" && -n "$nvjitlink_ver" ]]; then
     nvcc_majmin=$(echo $nvcc_ver | awk -F. '{print $1"."$2}')
     nvjitlink_majmin=$(echo $nvjitlink_ver | awk -F. '{print $1"."$2}')
