@@ -25,7 +25,6 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     libtool-bin \
     autogen \
     zip \
-    cmake \
     python3.9 python3.9-dev \
     python3.10 python3.10-dev \
     python3.11 python3.11-dev \
