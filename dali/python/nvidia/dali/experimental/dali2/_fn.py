@@ -16,7 +16,7 @@ from . import ops
 from . import _op_builder
 
 
-def initialize():
+def _initialize():
     for op in ops._all_ops:
         if op.op_name.startswith("_"):
             continue

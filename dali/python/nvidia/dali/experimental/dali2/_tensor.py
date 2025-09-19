@@ -92,7 +92,7 @@ class Tensor:
 
         copied = False
 
-        from . import fn
+        from . import _fn
 
         if dtype is not None:
             if not isinstance(dtype, DType):
@@ -127,7 +127,8 @@ class Tensor:
                         self.assign(dev)
                         self._wraps_external_data = not copied
                 else:
-                    self.assign(fn.cast(data, dtype, device=device).evaluate())
+                    from . import cast
+                    self.assign(cast(data, dtype, device=device).evaluate())
             elif isinstance(data, TensorSlice):
                 self._slice = data
             elif hasattr(data, "__dlpack_device__"):
@@ -137,7 +138,7 @@ class Tensor:
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.
                     ctx = _EvalContext.get()
-                    if ctx.device.device_id == device_id:
+                    if ctx.device_id == device_id:
                         stream = ctx.cuda_stream
                     else:
                         stream = _backend.Stream(device_id)
@@ -239,9 +240,8 @@ class Tensor:
             return self
         else:
             with device:
-                from . import fn
-
-                return fn.copy(self, device=device.device_type)
+                from . import copy
+                return copy(self, device=device.device_type)
 
     def assign(self, other: "Tensor"):
         if other is self:
@@ -457,10 +457,11 @@ class Tensor:
 
 
 def _arithm_op(name, *args, **kwargs):
-    from . import fn
+    from . import _fn
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    return fn.arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+    from . import arithmetic_generic_op
+    return arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
@@ -661,9 +662,8 @@ class TensorSlice:
                     args[f"at_{d}"] = r
                     d += 1
 
-            from . import fn
-
-            return fn.tensor_subscript(self._tensor, **args).evaluate()
+            from . import tensor_subscript
+            return tensor_subscript(self._tensor, **args).evaluate()
 
 
 def tensor(

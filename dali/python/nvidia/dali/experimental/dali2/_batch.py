@@ -83,18 +83,17 @@ class BatchedSlice:
                 args[f"at_{d}"] = r
                 d += 1
 
-        from . import fn
-
         # print(args)
 
-        return fn.tensor_subscript(self._batch, **args)
+        from . import tensor_subscript
+        return tensor_subscript(self._batch, **args)
 
 
 def _arithm_op(name, *args, **kwargs):
-    from . import fn
+    from . import arithmetic_generic_op
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    return fn.arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+    return arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
 
 
 class Batch:
@@ -302,9 +301,8 @@ class Batch:
             return self
         else:
             with device:
-                from . import fn
-
-                return fn.copy(self, device=device.device_type)
+                from . import copy
+                return copy(self, device=device.device_type)
 
     def cpu(self) -> "Batch":
         return self.to_device(Device("cpu"))

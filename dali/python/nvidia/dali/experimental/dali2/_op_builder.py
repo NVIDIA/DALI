@@ -18,7 +18,6 @@ import makefun
 from ._batch import Batch, _get_batch_size
 from ._tensor import Tensor
 from . import ops
-from . import fn
 from . import _type
 import types
 import copy
@@ -141,7 +140,12 @@ def _find_or_create_module(root_module, module_path):
 def build_operator_class(schema):
     class_name = schema.OperatorName()
     module_path = schema.ModulePath()
-    module = ops
+    is_reader = "readers" in module_path
+    if is_reader:
+        from .. import dali2 as parent
+        module = parent
+    else:
+        module = ops
     legacy_op_class = None
     import nvidia.dali.ops
 
@@ -362,7 +366,8 @@ def _next_pow2(x):
 def build_fn_wrapper(op):
     schema = op.schema
     module_path = schema.ModulePath()
-    module = fn
+    from .. import dali2 as parent
+    module = parent
     for path_part in module_path:
         new_module = getattr(module, path_part, None)
         if new_module is None:

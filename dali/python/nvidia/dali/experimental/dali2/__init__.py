@@ -22,8 +22,8 @@ from ._tensor import Tensor, tensor, as_tensor  # noqa: F401
 from ._batch import Batch, batch, as_batch  # noqa: F401
 from ._device import Device  # noqa: F401
 
-from . import fn
+from . import _fn
 from . import ops
 
-ops.initialize()
-fn.initialize()
+ops._initialize()
+_fn._initialize()

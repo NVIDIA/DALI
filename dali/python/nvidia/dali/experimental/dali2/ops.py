@@ -421,7 +421,7 @@ class Reader(Operator):
 _all_ops = []
 
 
-def initialize():
+def _initialize():
     from . import _op_builder
 
     global _all_ops
