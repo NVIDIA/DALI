@@ -14,10 +14,10 @@
 
 /*
  * It works together with test_wrapper_pre.c. It should obtain pointers to free and malloc
- * that are not intercepted by sanitizer, as well as _Unwind_Backtrace.
+ * that are not intercepted by sanitizer, as well as __register_frame.
  * It also provides use_direct_malloc that allows learning if the program is inside of
- * the _Unwind_Backtrace function and any interception by sanitizer of the memory
- * allocation should be avoided as it leads to another call to _Unwind_Backtrace which
+ * the __register_frame function and any interception by sanitizer of the memory
+ * allocation should be avoided as it leads to another call to __register_frame & friends which
  * is not reentrant and holds a mutex which leads to a deadlock
  */
 
@@ -68,7 +68,7 @@ void direct_free(void *p) {
 }
 
 void (*orig__register_frame)(void *begin);
-static __thread int unsafeness_depth;
+static int unsafeness_depth;
 
 static void register_frame_init() {
     orig__register_frame = get_dlsym("__register_frame");
@@ -86,7 +86,7 @@ void __register_frame(void *begin) {
 
 int use_direct_malloc() {
     // as this lib is passed to LD_PREOLOAD, __thread variable is not created as thread library
-    // is not available. So defer the check of unsafeness_depth until orig_Unwind_Backtrace is
+    // is not available. So defer the check of unsafeness_depth until orig__register_frame is
     // accessed and every thing is up and running
     return orig__register_frame && unsafeness_depth;
 }
