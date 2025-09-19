@@ -14,6 +14,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "dali/core/convert.h"
 #include "dali/operators/decoder/numpy.h"
@@ -111,7 +112,7 @@ bool NumpyDecoder::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspa
       output_shape.set_tensor_shape(sampleIdx, header.shape);
     }
   }
-  output_desc[0].shape = output_shape;
+  output_desc[0].shape = std::move(output_shape);
 
   return true;
 }
@@ -123,7 +124,7 @@ void RunDecoding(SampleView<CPUBackend> outputSample, ConstSampleView<CPUBackend
     transposeBuffer.Resize(outputSample.shape(), inputView.type());
     auto transposeBufferView = SampleView<CPUBackend>(
         transposeBuffer.raw_mutable_data(), transposeBuffer.shape(), transposeBuffer.type());
-    numpy::FromFortranOrder(transposeBufferView, inputView);
+    numpy::FromFortranOrder(std::move(transposeBufferView), inputView);
     inputView = ConstSampleView<CPUBackend>(transposeBuffer.raw_data(), transposeBuffer.shape(),
                                             transposeBuffer.type());
   }
@@ -157,7 +158,7 @@ void NumpyDecoder::RunImpl(Workspace &ws) {
       ConstSampleView<CPUBackend> inputView(
           static_cast<const uint8_t *>(input.raw_tensor(sampleIdx)) + header.data_offset,
           header.shape, header.type());
-      RunDecoding(output[sampleIdx], inputView, header);
+      RunDecoding(output[sampleIdx], std::move(inputView), header);
     });
   }
   tPool.RunAll();

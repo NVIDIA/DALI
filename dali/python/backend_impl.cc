@@ -2293,7 +2293,7 @@ void ExposeWorkspace(py::module &m) {
   py::class_<PyWorkspace>(m, "_Workspace")
     .def(py::init([](std::shared_ptr<ThreadPool> thread_pool, py::object stream) {
       auto ws = std::make_unique<PyWorkspace>();
-      ws->SetThreadPool(thread_pool);
+      ws->SetThreadPool(std::move(thread_pool));
       if (!stream.is_none()) {
         cudaStream_t s = static_cast<cudaStream_t>(ctypes_void_ptr(stream));
         ws->set_output_order(s);
@@ -2329,7 +2329,7 @@ void ExposeWorkspace(py::module &m) {
       }
     }, "device"_a)
     .def("SetThreadPool", [](PyWorkspace &self, std::shared_ptr<ThreadPool> thread_pool) {
-      self.SetThreadPool(thread_pool);
+      self.SetThreadPool(std::move(thread_pool));
     }, "thread_pool"_a)
     .def("GetOutputs", [](PyWorkspace &self) {
       py::tuple ret(self.NumOutput());

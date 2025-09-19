@@ -554,7 +554,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.image_info = st.parsed_sample.nvimgcodec_img_info;
     st.req_layout = "HWC";
     st.req_img_type = format_;
-    auto info = st.parsed_sample.dali_img_info;
     int64_t &nchannels = st.out_shape[2];
     auto decode_shape = st.out_shape;
 

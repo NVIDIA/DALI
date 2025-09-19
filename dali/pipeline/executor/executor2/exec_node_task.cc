@@ -575,6 +575,9 @@ tasking::SharedTask ExecNodeTask::CreateTask(ExecNode *node, const WorkspacePara
       OutputTask(node, params).GetRunnable());
   } else {
     int nout = node->outputs.size();
+    // the size of outputs is limited by the compile-time operator schema
+    // that uses int to represent the number of outputs
+    assert(nout >= 0 && static_cast<size_t>(nout) == node->outputs.size());
     return tasking::Task::Create(
       nout,
       OpTask(node, params).GetRunnable());

@@ -130,7 +130,7 @@ void TestTensorListResize(daliStorageDevice_t storage_device) {
     ASSERT_EQ(desc.ndim, 3);
     if (i == 0)
       base = static_cast<char *>(desc.data);
-    EXPECT_EQ(desc.data, base + offset);
+    ASSERT_EQ(desc.data, base + offset);
     EXPECT_EQ(desc.dtype, dtype);
     ASSERT_NE(desc.shape, nullptr);
     for (int j = 0; j < 3; j++)
@@ -525,6 +525,7 @@ void TestTensorResize(daliStorageDevice_t storage_device) {
   daliDataType_t reported_dtype = DALI_NO_TYPE;
   CHECK_DALI(daliTensorGetDType(t, &reported_dtype));
   EXPECT_EQ(reported_dtype, dtype);
+  ASSERT_NE(desc.data, nullptr);
 
   if (storage_device == DALI_STORAGE_GPU) {
     // Check that the data is accessible for the GPU

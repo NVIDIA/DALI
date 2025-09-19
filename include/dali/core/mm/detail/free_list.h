@@ -364,6 +364,7 @@ class coalescing_free_list : public best_fit_free_list {
     }
     // found both - glue them and remove one of the blocks
     block *next = *pwhere;
+    assert(!prev || prev->next == next);
     assert((!next || next->start >= static_cast<char*>(ptr) + bytes) &&
           "Free list corruption: current block overlaps with next one.");
     assert((!prev || prev->end <= static_cast<char*>(ptr)) &&

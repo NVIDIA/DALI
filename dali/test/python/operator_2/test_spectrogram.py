@@ -25,6 +25,10 @@ from test_utils import ConstantDataIterator
 import math
 from test_audio_utils_librosa_ref import stft
 
+from nose2.tools import params
+from nose_utils import assert_raises
+
+
 audio_files = get_files("db/audio/wav", "wav")
 
 
@@ -414,3 +418,60 @@ def test_operator_decoder_and_spectrogram():
                             center,
                             layout,
                         )
+
+
+@params(
+    *[
+        (device, inp, center)
+        for device in ["cpu", "gpu"]
+        for inp in ["arange", "zero_vol", "empty_batch"]
+        for center in [False, True]
+    ],
+)
+def test_no_windows(device, inp, center):
+    def sample(sample_info):
+        if inp == "arange":
+            return np.arange(sample_info.idx_in_batch + 1, dtype=np.float32)
+        elif inp in ("zero_vol", "empty_batch"):
+            return np.arange(sample_info.idx_in_batch, dtype=np.float32)
+        else:
+            raise AssertionError(f"Invalid input: {inp}")
+
+    enable_conditionals = inp == "empty_batch"
+
+    @dali.pipeline_def(
+        batch_size=1, num_threads=4, device_id=0, enable_conditionals=enable_conditionals
+    )
+    def pipeline(device):
+        sig = dali.fn.external_source(source=sample, batch=False)
+        if device == "gpu":
+            sig = sig.gpu()
+        if enable_conditionals:
+            dummy = dali.fn.external_source(
+                source=lambda x: np.array(42, dtype=np.int32), batch=False
+            )
+            if dummy < 0:
+                spec = dali.fn.spectrogram(
+                    sig, window_length=512, center_windows=center, window_step=3
+                )
+            else:
+                spec = sig
+        else:
+            spec = dali.fn.spectrogram(sig, window_length=512, center_windows=center, window_step=3)
+        return spec
+
+    pipe = pipeline(device=device)
+    pipe.build()
+    # empty batch should be supported by any op
+    # and non-empty sample with centered window always ends up
+    # with a positive number of windows
+    if inp == "empty_batch" or (inp == "arange" and center):
+        pipe.run()
+    else:
+        error_msg = (
+            "Signal is too short"
+            if inp == "arange"
+            else "Spectogram does not support empty (0-volume) samples"
+        )
+        with assert_raises(RuntimeError, glob=error_msg):
+            pipe.run()

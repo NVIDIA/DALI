@@ -210,6 +210,10 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
 
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
     int64_t signal_length = in_shape[sample_id].num_elements();
+    if (signal_length == 0) {
+      DALI_FAIL(make_string("Spectogram does not support empty (0-volume) samples. The sample ",
+                            sample_id, " shape is ", in_shape[sample_id]));
+    }
     DALI_ENFORCE(window_args_.num_windows(signal_length) > 0,
       make_string("Signal is too short (", signal_length, ") for sample ", sample_id));
   }

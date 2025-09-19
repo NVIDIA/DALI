@@ -357,7 +357,6 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
     case AV_CODEC_ID_AV1: return cudaVideoCodec_AV1;
     default: {
       DALI_FAIL(make_string("Unsupported codec type ", avcodec_get_name(codec_id)));
-      return {};
     }
   }
 }
@@ -650,7 +649,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
   current_copy_to_output_ = data != nullptr;
   current_frame_output_ = data;
 
-  int frame_to_return_index = -1;
+  int64_t frame_to_return_index = -1;
 
   // Handle the case, when packet has more frames that we have empty spots
   // in the buffer.
