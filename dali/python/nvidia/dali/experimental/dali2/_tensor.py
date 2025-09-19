@@ -39,6 +39,16 @@ def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> D
         raise ValueError(f"Unsupported backend type: {type(backend)}")
 
 
+def _get_array_interface(data):
+    if a_func := getattr(data, "__array__", None):
+        try:
+            return a_func()
+        except TypeError:  # CUDA torch tensor, CuPy array, etc.
+            return None
+    else:
+        return None
+
+
 def _try_convert_enums(arr):
     assert arr.dtype == object
     item = arr.flat[0]
@@ -140,8 +150,8 @@ class Tensor:
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
-            elif hasattr(data, "__array__"):
-                self._backend = _backend.TensorCPU(data, layout)
+            elif a := _get_array_interface(data):
+                self._backend = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
                 import numpy as np

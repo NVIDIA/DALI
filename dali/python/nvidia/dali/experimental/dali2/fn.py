@@ -17,7 +17,7 @@ from . import _op_builder
 
 
 def initialize():
-    for op in ops.all_ops:
+    for op in ops._all_ops:
         if op.op_name.startswith("_"):
             continue
         if op.schema.IsStateful():

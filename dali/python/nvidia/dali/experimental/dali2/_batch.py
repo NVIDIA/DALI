@@ -538,6 +538,6 @@ def as_batch(
     layout: Optional[str] = None,
 ):
     if isinstance(tensors, Batch):
-        return tensors.to_device(device).evaluate()
+        return tensors.to_device(device)
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout)

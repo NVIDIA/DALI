@@ -457,14 +457,15 @@ def build_fn_wrapper(op):
             device = _device.Device(device)
 
         # Get or create the operator instance that matches the arguments
-        op_inst = op.get(
-            max_batch_size=max_batch_size,
-            name=None,
-            device=device,
-            num_inputs=len(inputs),
-            call_arg_names=tuple(call_args.keys()),
-            **init_args,
-        )
+        with nvtx.annotate(f"get instance {op.op_name}", domain="op_builder"):
+            op_inst = op.get(
+                max_batch_size=max_batch_size,
+                name=None,
+                device=device,
+                num_inputs=len(inputs),
+                call_arg_names=tuple(call_args.keys()),
+                **init_args,
+            )
 
         # Call the operator (the result is an Invocation object)
         return op_inst(*inputs, **call_args)
