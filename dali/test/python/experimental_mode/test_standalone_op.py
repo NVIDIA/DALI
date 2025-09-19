@@ -20,9 +20,9 @@ from nose2.tools import params
 import os
 
 
-def complete_spec(spec, batch_size=1):
+def complete_spec(spec, max_batch_size=1):
     spec.AddArg("num_threads", 4)
-    spec.AddArg("max_batch_size", batch_size)
+    spec.AddArg("max_batch_size", max_batch_size)
     spec.AddArg("device_id", dali.backend_impl.GetCUDACurrentDevice())
 
 
@@ -78,7 +78,7 @@ def test_argument_input():
     # the spec of the operator
     spec = x.source.spec
     # complete the spec with the execution environment
-    complete_spec(spec)
+    complete_spec(spec, max_batch_size=10)  # oversized max batch size
     # create the operator
     op = _b._Operator(spec)
     # create the workspace and populat ethe environment
@@ -98,7 +98,7 @@ def test_argument_input():
     ws.AddArgumentInput("mean", B)
     ws.AddArgumentInput("stddev", C)
     # run the operator
-    op.SetupAndRun(ws)
+    op.SetupAndRun(ws, batch_size=3)
     # get the output
     (out,) = ws.GetOutputs()
     np.array_equal(out[0], np.float32([3, 4, 5]))
@@ -131,7 +131,7 @@ def test_standalone_op_reader():
     # the spec of the operator
     spec = reader_outs[0].source.spec
     # complete the spec with the execution environment
-    complete_spec(spec, batch_size=batch_size)
+    complete_spec(spec, max_batch_size=batch_size)
     # create the operator
     op = _b._Operator(spec)
     # create the workspace and populat ethe environment
