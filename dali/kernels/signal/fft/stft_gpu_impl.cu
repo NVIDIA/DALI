@@ -46,6 +46,7 @@ KernelRequirements StftImplGPU::Setup(
   for (int i = 0; i < N; i++) {
     int64_t l = lengths[i];
     int64_t n = args_.num_windows(l);
+    DALI_ENFORCE(n > 0, make_string("Signal is too short (", l, ") for sample ", i));
     TensorShape<2> ts_in = { n, transform_in_size() };
     TensorShape<2> ts_out = { n, transform_out_size() };
     transform_out_.shape.set_tensor_shape(i, ts_out);
