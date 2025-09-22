@@ -1801,6 +1801,29 @@ TYPED_TEST(TensorListSuite, EmptyShareNonContiguous) {
   }
 }
 
+TYPED_TEST(TensorListSuite, ZeroCopyBroadcast) {
+  Tensor<TypeParam> t;
+  t.set_pinned(std::is_same_v<TypeParam, CPUBackend>);
+  t.Resize({5, 4, 3}, DALI_FLOAT);
+  t.SetLayout("HWC");
+  t.SetSourceInfo("test");
+  int n = 6;
+  TensorList<TypeParam> tl(t, n);
+  EXPECT_EQ(tl.GetLayout(), t.GetLayout());
+  EXPECT_EQ(tl.type(), t.type());
+  EXPECT_EQ(tl.shape()[0], t.shape());
+  EXPECT_EQ(tl.is_pinned(), t.is_pinned());
+  EXPECT_EQ(tl.order(), t.order());
+  EXPECT_EQ(tl.num_samples(), n);
+  EXPECT_EQ(tl.nbytes(), t.nbytes() * n);
+  for (int i = 0; i < n; i++) {
+    EXPECT_EQ(tl.raw_tensor(i), t.raw_data());
+    EXPECT_EQ(tl.shape()[i], t.shape());
+    EXPECT_EQ(tl.GetMeta(i).GetLayout(), t.GetMeta().GetLayout());
+    EXPECT_EQ(tl.GetMeta(i).GetSourceInfo(), t.GetMeta().GetSourceInfo());
+  }
+}
+
 template <typename Backend, typename F>
 void test_moving_props(const bool is_pinned, const TensorLayout layout,
                        const TensorListShape<> shape, const int sample_dim, const DALIDataType type,
