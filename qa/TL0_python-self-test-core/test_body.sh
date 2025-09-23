@@ -51,8 +51,14 @@ test_type_annotations() {
     fi
 }
 
+
+test_experimental_mode_torch() {
+    ${python_new_invoke_test}  -A 'pytorch' -s experimental_mode
+}
+
 test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    test_experimental_mode_torch
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_new_invoke_test} -A 'pytorch' -s type_annotations
         ${python_new_invoke_test} -A 'pytorch' -s dlpack
@@ -74,8 +80,9 @@ test_checkpointing() {
 }
 
 test_experimental_mode() {
-    ${python_new_invoke_test} -s experimental_mode
+    ${python_new_invoke_test}  -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s experimental_mode
 }
+
 
 test_no_fw() {
     test_py_with_framework

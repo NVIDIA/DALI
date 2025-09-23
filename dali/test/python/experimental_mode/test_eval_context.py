@@ -14,7 +14,8 @@
 
 import nvidia.dali.experimental.dali2 as dali2
 import nvidia.dali.backend as _backend
-from nose_utils import SkipTest, assert_raises
+from nose_utils import SkipTest
+
 
 def test_eval_context_get():
     if _backend.GetCUDADeviceCount() == 0:
@@ -29,46 +30,54 @@ def test_eval_context_get():
     assert ctx is dali2.EvalContext.default()
     assert dali2.EvalContext.get().cuda_stream == s  # get() should not recreate the stream
 
+
 def test_eval_context_context_manager():
     with dali2.EvalContext(device_id=0) as ctx0:
-        assert dali2.EvalContext.current is ctx0
-        assert dali2.EvalContext.current.device_id == 0
+        assert dali2.EvalContext.current() is ctx0
+        assert dali2.EvalContext.current().device_id == 0
         with dali2.EvalContext(device_id=1) as ctx1:
-            assert dali2.EvalContext.current is not ctx0
-            assert dali2.EvalContext.current is ctx1
-            assert dali2.EvalContext.current.device_id == 1
-        assert dali2.EvalContext.current is ctx0
-        assert dali2.EvalContext.current.device_id == 0
-    assert dali2.EvalContext.current is dali2.EvalContext.default()
-    assert dali2.EvalContext.current.device_id is None
+            assert dali2.EvalContext.current() is not ctx0
+            assert dali2.EvalContext.current() is ctx1
+            assert dali2.EvalContext.current().device_id == 1
+        assert dali2.EvalContext.current() is ctx0
+        assert dali2.EvalContext.current().device_id == 0
+    assert dali2.EvalContext.current() is dali2.EvalContext.default()
+
 
 def test_eval_context_explicit_stream():
     with dali2.EvalContext.get() as ctx:
         s = ctx.cuda_stream
-        s2 = _backend.Stream()
+        s2 = _backend.Stream(0)
         with dali2.EvalContext(cuda_stream=s2) as ctx2:
-            assert dali2.EvalContext.current.cuda_stream is s2
+            assert dali2.EvalContext.current() is ctx2
+            assert dali2.EvalContext.current().cuda_stream is s2
+        assert dali2.EvalContext.current().cuda_stream is s
+
 
 def test_eval_context_multi_gpu():
     if _backend.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
-    with dali2.EvalContext(device_id=0):
-        assert dali2.EvalContext.current.device_id == 0
-        with dali2.EvalContext(device_id=1):
-            assert dali2.EvalContext.current.device_id == 1
-        assert dali2.EvalContext.current.device_id == 0
-    assert dali2.EvalContext.current.device_id is None
+    assert _backend.GetCUDACurrentDevice() == 0, "Invalid initial device id"
+    with dali2.EvalContext(device_id=0) as ctx0:
+        assert dali2.EvalContext.current() is ctx0
+        with dali2.EvalContext(device_id=1) as ctx1:
+            assert dali2.EvalContext.current() is ctx1
+            assert dali2.EvalContext.current().device_id == 1
+        assert dali2.EvalContext.current() is ctx0
+        assert dali2.EvalContext.current().device_id == 0
+    assert dali2.EvalContext.current() is dali2.EvalContext.default()
+
 
 class PseudoInvocation:
     def __init__(self, value):
         self.value = value
         self.run_count = 0
 
-
     def run(self, ctx):
         assert isinstance(ctx, dali2.EvalContext)
         self.run_count += 1
         return self.value
+
 
 def test_eval_context_cached_results():
     with dali2.EvalContext.get() as ctx:

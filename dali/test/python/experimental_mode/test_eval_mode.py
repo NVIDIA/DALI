@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import nvidia.dali.experimental.dali2 as dali2
-from nose_utils import SkipTest, assert_raises
+
 
 def test_eval_mode_context_manager():
     with dali2.EvalMode.eager:
-        assert dali2.EvalMode.current == dali2.EvalMode.eager
+        assert dali2.EvalMode.current() == dali2.EvalMode.eager
         with dali2.EvalMode.deferred:
-            assert dali2.EvalMode.current == dali2.EvalMode.deferred
-        assert dali2.EvalMode.current == dali2.EvalMode.eager
+            assert dali2.EvalMode.current() == dali2.EvalMode.deferred
+        assert dali2.EvalMode.current() == dali2.EvalMode.eager
 
 
 def test_eval_mode_comparison():
