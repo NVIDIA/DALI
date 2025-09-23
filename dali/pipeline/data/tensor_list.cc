@@ -195,7 +195,7 @@ TensorList<Backend>::TensorList(const Tensor<Backend> &sample, int num_samples) 
   pinned_ = sample.is_pinned();
   device_ = sample.device_id();
   shape_ = uniform_list_shape(num_samples, sample.shape());
-  if (num_samples > 1) {  // multiple samples - non-contiguou list, repeating one sample
+  if (num_samples > 1) {  // multiple samples - non-contiguous list, repeating one sample
     for (int i = 0; i < num_samples; i++) {
       tensors_[i].ShareData(sample);
       tensors_[i].set_order(order(), false);
