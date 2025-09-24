@@ -105,6 +105,8 @@ class DType:
                 return f"f{bits}e{exponent_bits}m{significand_bits}"
         elif kind == DType.Kind.bool:
             return "bool"
+        else:
+            raise ValueError("Cannot make name for type of kind: {kind}")
 
     def __str__(self):
         return self.name
