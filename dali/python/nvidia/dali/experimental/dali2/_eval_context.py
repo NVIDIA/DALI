@@ -103,3 +103,6 @@ class EvalContext:
 
     def _add_invocation(self, invocation, weak=True):
         self._invocations.append(weakref.ref(invocation) if weak else invocation)
+
+
+__all__ = ["EvalContext"]

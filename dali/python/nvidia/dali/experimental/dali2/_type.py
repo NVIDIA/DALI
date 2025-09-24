@@ -243,3 +243,20 @@ def type_id(dtype) -> nvidia.dali.types.DALIDataType:
         return dtype
     else:
         raise ValueError(f"Invalid dtype: {dtype}")
+
+
+__all__ = sum(
+    [
+        # types and functions
+        ["DType", "dtype", "type_id"],
+        # integral types
+        ["int8", "int16", "int32", "int64"],
+        # unsigned integral types
+        ["uint8", "uint16", "uint32", "uint64"],
+        # floating point types
+        ["float16", "float32", "float64", "bfloat16"],
+        # boolean and enum types
+        ["bool", "DataType", "ImageType", "InterpType"],
+    ],
+    [],
+)
