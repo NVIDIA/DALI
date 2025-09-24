@@ -1807,20 +1807,32 @@ TYPED_TEST(TensorListSuite, ZeroCopyBroadcast) {
   t.Resize({5, 4, 3}, DALI_FLOAT);
   t.SetLayout("HWC");
   t.SetSourceInfo("test");
-  int n = 6;
-  TensorList<TypeParam> tl(t, n);
-  EXPECT_EQ(tl.GetLayout(), t.GetLayout());
-  EXPECT_EQ(tl.type(), t.type());
-  EXPECT_EQ(tl.shape()[0], t.shape());
-  EXPECT_EQ(tl.is_pinned(), t.is_pinned());
-  EXPECT_EQ(tl.order(), t.order());
-  EXPECT_EQ(tl.num_samples(), n);
-  EXPECT_EQ(tl.nbytes(), t.nbytes() * n);
-  for (int i = 0; i < n; i++) {
-    EXPECT_EQ(tl.raw_tensor(i), t.raw_data());
-    EXPECT_EQ(tl.shape()[i], t.shape());
-    EXPECT_EQ(tl.GetMeta(i).GetLayout(), t.GetMeta().GetLayout());
-    EXPECT_EQ(tl.GetMeta(i).GetSourceInfo(), t.GetMeta().GetSourceInfo());
+  for (int n : { 0, 1, 6, 42 }) {
+    TensorList<TypeParam> tl(t, n);
+    if (n == 0) {
+      EXPECT_EQ(tl.num_samples(), 0);
+      EXPECT_EQ(tl.sample_dim(), 3);
+      EXPECT_EQ(tl.GetLayout(), "HWC");
+      EXPECT_EQ(tl.is_pinned(), t.is_pinned());
+      continue;
+    }
+    if (n == 1)
+      EXPECT_TRUE(tl.IsContiguous());
+    else
+      EXPECT_FALSE(tl.IsContiguous());
+    EXPECT_EQ(tl.GetLayout(), t.GetLayout());
+    EXPECT_EQ(tl.type(), t.type());
+    EXPECT_EQ(tl.shape()[0], t.shape());
+    EXPECT_EQ(tl.is_pinned(), t.is_pinned());
+    EXPECT_EQ(tl.order(), t.order());
+    EXPECT_EQ(tl.num_samples(), n);
+    EXPECT_EQ(tl.nbytes(), t.nbytes() * n);
+    for (int i = 0; i < n; i++) {
+      EXPECT_EQ(tl.raw_tensor(i), t.raw_data());
+      EXPECT_EQ(tl.shape()[i], t.shape());
+      EXPECT_EQ(tl.GetMeta(i).GetLayout(), t.GetMeta().GetLayout());
+      EXPECT_EQ(tl.GetMeta(i).GetSourceInfo(), t.GetMeta().GetSourceInfo());
+    }
   }
 }
 
