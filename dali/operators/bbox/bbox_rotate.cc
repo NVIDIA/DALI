@@ -376,13 +376,26 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
           DALI_FAIL("fn.bbox_rotate `keep_size` is mutually exclusive with `size` argument");
         }
       } else if (spec_.HasTensorArgument("size")) {
-        auto size_tensor = ws.ArgumentInput("size")[sample_idx].data<float>();
-        canvas_wh.x = size_tensor[1];
-        canvas_wh.y = size_tensor[0];
+        const auto& size_tensor = ws.ArgumentInput("size");
+        TYPE_SWITCH(size_tensor.type(), type2id, T,
+          (int32_t, int64_t, uint32_t, float),
+          (
+            auto size_data = size_tensor[sample_idx].data<T>();
+            if constexpr (std::is_integral_v<T>) {
+              // No need for flooring since already integer type
+              canvas_wh.x = size_data[1];
+              canvas_wh.y = size_data[0];
+            } else {
+              canvas_wh.x = std::floor(size_data[1]);
+              canvas_wh.y = std::floor(size_data[0]);
+            }
+          ), // NOLINT
+          (DALI_FAIL("size must be int32, int64, uint32 or float");)
+        );  // NOLINT
       } else if (spec_.HasArgument("size")) {
         auto size_tensor = this->spec_.GetRepeatedArgument<float>("size");
-        canvas_wh.x = size_tensor[1];
-        canvas_wh.y = size_tensor[0];
+        canvas_wh.x = std::floor(size_tensor[1]);
+        canvas_wh.y = std::floor(size_tensor[0]);
       } else {
         TensorShape<2> im_shape;
         im_shape[1] = image_wh.x;

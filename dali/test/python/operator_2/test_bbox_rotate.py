@@ -22,7 +22,7 @@ from nvidia.dali import fn
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.types import DALIDataType
 from PIL import Image, ImageDraw
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, np_type_to_dali
 
 test_data_root = Path(get_dali_extra_path())
 file_root = test_data_root / "db" / "coco" / "images"
@@ -322,6 +322,36 @@ def test_allowed_label_shapes(test_labels_shape: list[int]):
         return boxes, labels
 
     if len(test_labels_shape) > 2 or test_labels_shape[0] != num_boxes:
+        with assert_raises(RuntimeError):
+            pipe = datapipe()
+            pipe.build()
+            pipe.run()
+    else:
+        pipe = datapipe()
+        pipe.build()
+        pipe.run()
+
+
+@params(np.int32, np.int64, np.uint32, np.float32, np.float64, np.uint8)
+def test_box_tensor_sizes(dtype):
+    """Test that size argument can be passed as a tensor of various types"""
+
+    def get_boxes():
+        out = [np.random.randint(0, 255, size=[10, 4]).astype(np.float32) for _ in range(1)]
+        return out
+
+    def get_shape():
+        out = [np.array([128, 128], dtype=dtype) for _ in range(1)]
+        return out
+
+    @pipeline_def(**_PIPE_ARGS)
+    def datapipe():
+        boxes = fn.external_source(source=get_boxes)
+        shape = fn.external_source(source=get_shape, dtype=np_type_to_dali(dtype))
+        boxes = fn.bbox_rotate(boxes, angle=45, input_shape=[255, 255], size=shape)
+        return boxes
+
+    if dtype in {np.uint8, np.float64}:
         with assert_raises(RuntimeError):
             pipe = datapipe()
             pipe.build()
