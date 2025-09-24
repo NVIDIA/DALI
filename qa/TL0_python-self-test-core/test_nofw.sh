@@ -8,7 +8,7 @@ target_dir=./dali/test/python
 source test_body.sh
 
 test_body() {
-  test_cupy
+  test_no_fw
 }
 
 pushd ../..
