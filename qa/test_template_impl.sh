@@ -79,13 +79,8 @@ enable_sanitizer() {
     # if something calls dlclose on a module that leaks and it happens before asan can extract symbols we get "unknown module"
     # in the stack trace, to prevent this provide dlclose that does nothing
     echo "int dlclose(void* a) { return 0; }" > /tmp/fake_dlclose.c && gcc -shared -o /tmp/libfakeclose.so /tmp/fake_dlclose.c
-    # for an unknown reason the more recent asan when we set PYTHONMALLOC=malloc, when captures the backtrace for
-    # the `new` call, calls malloc which is intercepted and backtrace is attempted to be captured
-    # however `_Unwind_Find_FDE` is not reentrant as it uses a mutex which leads to a deadlock
-    gcc -shared -fPIC $topdir/qa/test_wrapper_pre.c -o /tmp/pre.so
-    gcc -shared -fPIC $topdir/qa/test_wrapper_post.c -o /tmp/post.so
     export OLD_LD_PRELOAD=${LD_PRELOAD}
-    export LD_PRELOAD="/tmp/pre.so /usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/post.so /usr/lib/x86_64-linux-gnu/libstdc++.so /tmp/libfakeclose.so"
+    export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/libfakeclose.so"
     # Workaround for bug in asan ignoring RPATHs https://bugzilla.redhat.com/show_bug.cgi?id=1449604
     export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(python -c 'import nvidia.nvimgcodec as n; import os; print(os.path.dirname(n.__file__))')
