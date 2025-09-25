@@ -69,23 +69,60 @@ def test_eval_context_multi_gpu():
 
 
 class PseudoInvocation:
-    def __init__(self, value):
+    def __init__(self, value, run_count_container=None):
         self.value = value
         self.run_count = 0
+        self.run_count_container = run_count_container
 
     def run(self, ctx):
         assert isinstance(ctx, dali2.EvalContext)
         self.run_count += 1
+        if self.run_count_container is not None:
+            self.run_count_container.run_count += 1
+        ctx.cache_results(self, self.value)
         return self.value
 
 
 def test_eval_context_cached_results():
     with dali2.EvalContext.get() as ctx:
-        inv = PseudoInvocation(1)
+        inv = PseudoInvocation(42)
+        assert ctx.cached_results(inv) is None
+        inv.run(ctx)
+        assert inv.run_count == 1
+        assert ctx.cached_results(inv) == 42
+
+
+def test_eval_context_evaluate_all():
+    with dali2.EvalContext() as ctx:
+        inv = PseudoInvocation(4321)
+        ctx._add_invocation(inv, weak=False)
+        assert inv.run_count == 0
+    assert inv.run_count == 1
+
+
+def test_eval_evaluate_all_skip_cached():
+    with dali2.EvalContext() as ctx:
+        inv = PseudoInvocation(42)
         assert ctx.cached_results(inv) is None
         assert inv.run_count == 0
-        ctx.cache_results(inv, 2)
-        assert ctx.cached_results(inv) == 2
-        assert ctx.cached_results(inv) == 2  # should be cached
-        assert ctx.cached_results(PseudoInvocation(3)) is None
-        assert ctx.cached_results(PseudoInvocation(3)) is None  # should be cached
+        ctx.cache_results(inv, 123)
+        assert ctx.cached_results(inv) == 123
+        ctx._add_invocation(inv)
+        ctx.evaluate_all()
+        assert inv.run_count == 0  # cached
+        ctx._cached_results = {}
+        ctx._add_invocation(inv)
+        ctx.evaluate_all()
+        assert inv.run_count == 1
+        assert ctx.cached_results(inv) == 42
+        ctx.evaluate_all()
+        assert inv.run_count == 1
+
+
+def test_eval_context_evaluate_all_weakref():
+    run_count_container = PseudoInvocation(0)
+    with dali2.EvalContext() as ctx:
+        inv = PseudoInvocation(1057, run_count_container)  # lost
+        ctx._add_invocation(inv, weak=True)
+        del inv
+    assert run_count_container.run_count == 0
