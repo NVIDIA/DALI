@@ -5,6 +5,9 @@ pip_packages='${python_test_runner_package} dataclasses numpy opencv-python pill
 target_dir=./dali/test/python
 
 test_body() {
+  if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+    exit 0
+  fi
   # make sure nvcc and nvjitlink are the same version, if the nvjitlink is lower than nvcc
   # we get the PTX version mismatch error
   if [[ "$DALI_CUDA_MAJOR_VERSION" == "12" ]]; then

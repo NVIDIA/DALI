@@ -14,17 +14,20 @@ test_py_with_framework() {
                             test_functional_api.py \
                             test_dali_variable_batch_size.py \
                             test_external_source_impl_utils.py); do
-        ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
+        if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+            ${python_invoke_test} --attr "!slow,!pytorch,!mxnet,!cupy" ${test_script}
+        else
+            ${python_invoke_test} --attr "!slow,!pytorch,!mxnet,!cupy,!numba" ${test_script}
+        fi
     done
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_new_invoke_test} -A 'numba' -s type_annotations
+        ${python_new_invoke_test} -A '!slow,numba' checkpointing.test_dali_checkpointing
+        ${python_new_invoke_test} -A '!slow,numba' checkpointing.test_dali_stateless_operators
     fi
-
-    ${python_new_invoke_test} -A '!slow,numba' checkpointing.test_dali_checkpointing
-    ${python_new_invoke_test} -A '!slow,numba' checkpointing.test_dali_stateless_operators
 }
 
 test_py() {
