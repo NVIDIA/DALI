@@ -34,14 +34,17 @@ def test_device():
 
 
 def test_device_with_id():
-    with dali2.Device("gpu", 1):
+    other_device_id = 1 if _backend.GetCUDADeviceCount() > 1 else 0
+    if other_device_id == 0:
+        print("Warning: Only 1 GPU detected, weak test")
+    with dali2.Device("gpu", other_device_id):
         assert dali2.Device.current().device_type == "gpu"
-        assert dali2.Device.current().device_id == 1
+        assert dali2.Device.current().device_id == other_device_id
         with dali2.Device("gpu", 0):
             assert dali2.Device.current().device_type == "gpu"
             assert dali2.Device.current().device_id == 0
         assert dali2.Device.current().device_type == "gpu"
-        assert dali2.Device.current().device_id == 1
+        assert dali2.Device.current().device_id == other_device_id
     assert dali2.Device.current().device_type == "gpu"
     assert dali2.Device.current().device_id == 0
 
@@ -59,14 +62,16 @@ def test_device_parse():
         dali2.Device("gpu:10000000000")  # CUDA device id is 32-bit, so 10B is surely invalid
 
 
-def test_device_parse_multigpu():
+@attr("multi_gpu")
+def test_device_parse_multi_gpu():
     if _backend.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
     assert dali2.Device("gpu:1") == dali2.Device("gpu", 1)
 
 
 @attr("pytorch")
-def test_device_same_as_in_torch():
+@attr("multi_gpu")
+def test_device_same_as_in_torch_multi_gpu():
     if _backend.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
     import torch

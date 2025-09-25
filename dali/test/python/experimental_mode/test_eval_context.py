@@ -14,7 +14,7 @@
 
 import nvidia.dali.experimental.dali2 as dali2
 import nvidia.dali.backend as _backend
-from nose_utils import SkipTest
+from nose_utils import SkipTest, attr
 
 
 def test_eval_context_get():
@@ -32,13 +32,16 @@ def test_eval_context_get():
 
 
 def test_eval_context_context_manager():
+    other_device_id = 1 if _backend.GetCUDADeviceCount() > 1 else 0
+    if other_device_id == 0:
+        print("Warning: Only 1 GPU detected, weak test")
     with dali2.EvalContext(device_id=0) as ctx0:
         assert dali2.EvalContext.current() is ctx0
         assert dali2.EvalContext.current().device_id == 0
-        with dali2.EvalContext(device_id=1) as ctx1:
+        with dali2.EvalContext(device_id=other_device_id) as ctx1:
             assert dali2.EvalContext.current() is not ctx0
             assert dali2.EvalContext.current() is ctx1
-            assert dali2.EvalContext.current().device_id == 1
+            assert dali2.EvalContext.current().device_id == other_device_id
         assert dali2.EvalContext.current() is ctx0
         assert dali2.EvalContext.current().device_id == 0
     assert dali2.EvalContext.current() is dali2.EvalContext.default()
@@ -54,6 +57,7 @@ def test_eval_context_explicit_stream():
         assert dali2.EvalContext.current().cuda_stream is s
 
 
+@attr("multi_gpu")
 def test_eval_context_multi_gpu():
     if _backend.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
