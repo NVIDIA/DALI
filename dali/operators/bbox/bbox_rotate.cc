@@ -352,7 +352,11 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
 
       float angle;
       if (spec_.HasTensorArgument("angle")) {
-        angle = ws.ArgumentInput("angle")[sample_idx].data<float>()[0];
+        const auto angle_tensor = ws.ArgumentInput("angle")[sample_idx];
+        if (dali::volume(angle_tensor.shape()) != 1) {
+          DALI_FAIL("Angle tensor input must be exactly one element per sample");
+        }
+        angle = angle_tensor.data<float>()[0];
       } else {
         angle = spec_.GetArgument<float>("angle");
       }
@@ -360,11 +364,18 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
 
       vec2 image_wh;
       if (spec_.HasTensorArgument("input_shape")) {
-        auto shape_tensor = ws.ArgumentInput("input_shape")[sample_idx].data<std::int64_t>();
-        image_wh.x = shape_tensor[shape_wh_index_.first];
-        image_wh.y = shape_tensor[shape_wh_index_.second];
+        auto shape_tensor = ws.ArgumentInput("input_shape")[sample_idx];
+        if (dali::volume(shape_tensor.shape()) != 2) {
+          DALI_FAIL("`input_shape` tensor argument must be exactly two elements");
+        }
+        const auto shape_tensor_data = shape_tensor.data<std::int64_t>();
+        image_wh.x = shape_tensor_data[shape_wh_index_.first];
+        image_wh.y = shape_tensor_data[shape_wh_index_.second];
       } else {
         auto shape_tensor = this->spec_.GetRepeatedArgument<int>("input_shape");
+        if (shape_tensor.size() != 2) {
+          DALI_FAIL("`input_shape` list argument must be exactly two elements");
+        }
         image_wh.x = shape_tensor[shape_wh_index_.first];
         image_wh.y = shape_tensor[shape_wh_index_.second];
       }
@@ -376,11 +387,14 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
           DALI_FAIL("fn.bbox_rotate `keep_size` is mutually exclusive with `size` argument");
         }
       } else if (spec_.HasTensorArgument("size")) {
-        const auto& size_tensor = ws.ArgumentInput("size");
+        const auto& size_tensor = ws.ArgumentInput("size")[sample_idx];
         TYPE_SWITCH(size_tensor.type(), type2id, T,
           (int32_t, int64_t, uint32_t, float),
           (
-            auto size_data = size_tensor[sample_idx].data<T>();
+            if (dali::volume(size_tensor.shape()) != 2) {
+              DALI_FAIL("`size` tensor argument must be exactly two elements (HW)");
+            }
+            const auto size_data = size_tensor.data<T>();
             if constexpr (std::is_integral_v<T>) {
               // No need for flooring since already integer type
               canvas_wh.x = size_data[1];
@@ -390,10 +404,13 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
               canvas_wh.y = std::floor(size_data[0]);
             }
           ), // NOLINT
-          (DALI_FAIL("size must be int32, int64, uint32 or float");)
+          (DALI_FAIL("`size` must be int32, int64, uint32 or float");)
         );  // NOLINT
       } else if (spec_.HasArgument("size")) {
         auto size_tensor = this->spec_.GetRepeatedArgument<float>("size");
+        if (size_tensor.size() != 2) {
+          DALI_FAIL("`size` list argument must be exactly two elements (HW)");
+        }
         canvas_wh.x = std::floor(size_tensor[1]);
         canvas_wh.y = std::floor(size_tensor[0]);
       } else {
