@@ -339,6 +339,7 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
 template <>
 void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
   const auto& in_boxes = ws.Input<CPUBackend>(0);
+  std::vector<int> num_final_boxes(in_boxes.num_samples());
 
   auto& tpool = ws.GetThreadPool();
   for (int sample_idx = 0; sample_idx < in_boxes.num_samples(); ++sample_idx) {
@@ -365,16 +366,16 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
       vec2 image_wh;
       if (spec_.HasTensorArgument("input_shape")) {
         auto shape_tensor = ws.ArgumentInput("input_shape")[sample_idx];
-        if (dali::volume(shape_tensor.shape()) != 2) {
-          DALI_FAIL("`input_shape` tensor argument must be exactly two elements");
+        if (dali::volume(shape_tensor.shape()) < shape_max_index_ + 1) {
+          DALI_FAIL("`input_shape` ndim is smaller than the `shape_layout` ndim");
         }
         const auto shape_tensor_data = shape_tensor.data<std::int64_t>();
         image_wh.x = shape_tensor_data[shape_wh_index_.first];
         image_wh.y = shape_tensor_data[shape_wh_index_.second];
       } else {
         auto shape_tensor = this->spec_.GetRepeatedArgument<int>("input_shape");
-        if (shape_tensor.size() != 2) {
-          DALI_FAIL("`input_shape` list argument must be exactly two elements");
+        if (static_cast<int>(shape_tensor.size()) < shape_max_index_ + 1) {
+          DALI_FAIL("`input_shape` ndim is smaller than the `shape_layout` ndim");
         }
         image_wh.x = shape_tensor[shape_wh_index_.first];
         image_wh.y = shape_tensor[shape_wh_index_.second];
@@ -423,21 +424,27 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         canvas_wh.y = shape.y;
       }
 
-      const auto num_out_boxes = RotateBoxesKernel(
+      num_final_boxes[sample_idx] = RotateBoxesKernel(
           in_boxes[sample_idx], bbox_rotate_buffer_[sample_idx],
           ws.Output<CPUBackend>(0)[sample_idx], angle, in_labels, out_labels, use_ltrb_, mode_,
           remove_threshold_, image_wh, canvas_wh, bbox_normalized_);
-      ws.Output<CPUBackend>(0).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 4));
-      if (out_labels.has_value()) {
-        if (ws.GetInputShape(1)[sample_idx].size() == 2) {
+    });
+  }
+
+  tpool.RunAll();
+
+  // Resize outputs to the number of kept boxes
+  for (int sample_idx = 0; sample_idx < in_boxes.num_samples(); ++sample_idx) {
+    const auto& num_out_boxes= num_final_boxes[sample_idx];
+    ws.Output<CPUBackend>(0).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 4));
+      if (ws.NumInput() == 2) {
+        if (ws.Output<CPUBackend>(1).shape().ndim == 2) {
           ws.Output<CPUBackend>(1).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 1));
         } else {
           ws.Output<CPUBackend>(1).ResizeSample(sample_idx, dali::TensorShape<1>(num_out_boxes));
         }
       }
-    });
   }
-  tpool.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(BBoxRotate, BBoxRotate<CPUBackend>, CPU);

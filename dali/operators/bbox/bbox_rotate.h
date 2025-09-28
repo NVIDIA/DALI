@@ -66,6 +66,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
     const auto &shape_layout = spec.GetArgument<dali::TensorLayout>("shape_layout");
     shape_wh_index_.first = shape_layout.find('W');
     shape_wh_index_.second = shape_layout.find('H');
+    shape_max_index_ = std::max(shape_wh_index_.first, shape_wh_index_.second);
     if (shape_wh_index_.first == -1 || shape_wh_index_.second == -1) {
       DALI_FAIL("shape_layout does not contain 'W' and/or 'H'");
     }
@@ -118,8 +119,9 @@ class BBoxRotate : public StatelessOperator<Backend> {
   bool use_ltrb_;
   bool keep_size_;
   float remove_threshold_;
-  std::pair<int, int> shape_wh_index_;
   Mode mode_ = Mode::Expand;
+  int shape_max_index_;
+  std::pair<int, int> shape_wh_index_;
   TensorList<Backend> bbox_rotate_buffer_;
 };
 
