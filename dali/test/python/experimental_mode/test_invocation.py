@@ -1,6 +1,7 @@
 import nvidia.dali.experimental.dali2 as dali2
 import numpy as np
 import nvidia.dali.types as types
+from nvidia.dali.experimental.dali2._invocation import Invocation, InvocationResult
 
 
 class MockTensor:
@@ -62,9 +63,17 @@ class MockBatch:
 
 
 class MockOperator:
+    def __init__(self, batch_size=None, addend=None):
+        self._batch_size = batch_size
+        self._addend = addend
+
     def run(self, ctx, *inputs, batch_size=None, addend=None):
         if addend is None:
-            addend = 1
+            addend = self._addend
+            if addend is None:
+                addend = 1
+        if batch_size is None:
+            batch_size = self._batch_size
         if len(inputs) == 0:
             if isinstance(addend, MockBatch):
                 tensors = addend.tensors
@@ -126,11 +135,32 @@ def test_mock_operator():
         MockBatch([MockTensor(np.int32([17, 28, 39]))]),
     ]
 
-def test_invocation():
+def test_invocation_tensor():
     op = MockOperator()
     b1 = MockBatch([MockTensor(np.int32([1, 2, 3]))])
     b2 = MockBatch([MockTensor(np.int32([4, 5, 6]))])
     b3 = MockBatch([MockTensor(np.int32([7, 8, 9]))])
     a = MockBatch([MockTensor(np.int32([10, 20, 30]))])
 
-    inv = dali2.Invocation(op, 0, inputs=[b1, b2, b3], addend=a)
+    inv = Invocation(op, 0, inputs=[b1, b2, b3], args={"addend": a}, is_batch=False)
+    inv.run(dali2.EvalContext().get())
+    assert inv.values(dali2.EvalContext().get()) == (
+        MockTensor(np.int32([11, 22, 33])),
+        MockTensor(np.int32([14, 25, 36])),
+        MockTensor(np.int32([17, 28, 39]))
+    )
+
+def test_invocation_batch():
+    op = MockOperator()
+    b1 = MockBatch([MockTensor(np.int32([1, 2, 3]))])
+    b2 = MockBatch([MockTensor(np.int32([4, 5, 6]))])
+    b3 = MockBatch([MockTensor(np.int32([7, 8, 9]))])
+    a = MockBatch([MockTensor(np.int32([10, 20, 30]))])
+
+    inv = Invocation(op, 0, inputs=[b1, b2, b3], args={"addend": a}, is_batch=True)
+    inv.run(dali2.EvalContext().get())
+    assert inv.values(dali2.EvalContext().get()) == (
+        MockBatch([MockTensor(np.int32([11, 22, 33]))]),
+        MockBatch([MockTensor(np.int32([14, 25, 36]))]),
+        MockBatch([MockTensor(np.int32([17, 28, 39]))]),
+    )

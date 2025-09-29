@@ -154,7 +154,7 @@ class Invocation:
                 else:
                     self._results = [r]
                 if not self._is_batch:
-                    self._results = [r[0] for r in self._results]
+                    self._results = [r.tensors[0] for r in self._results]
                 self._results = tuple(self._results)
                 ctx.cache_results(self, self._results)
 
