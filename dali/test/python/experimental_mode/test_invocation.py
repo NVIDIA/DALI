@@ -76,6 +76,7 @@ class MockOperator:
             batch_size = self._batch_size
         if len(inputs) == 0:
             if isinstance(addend, MockBatch):
+                assert batch_size is not None
                 tensors = addend.tensors
             else:
                 if not isisntance(addend, MockTensor):
@@ -98,9 +99,44 @@ class MockOperator:
     def infer_output_devices(self, *inputs, **args):
         return [input.device for input in inputs]
 
+def test_mock_operator_tensor():
+    op = MockOperator(batch_size=None)
+    b1 = MockTensor(np.int32([1, 2, None]))
+    b2 = MockTensor(np.int32([4, 5, 6]))
+    b3 = MockTensor(np.int32([7, 8, 9]))
+    a = MockTensor(np.int32([10, 20, 30]))
+    assert op.infer_num_outputs() == 1
+    assert op.infer_num_outputs(b1, addend=a) == 1
+    assert op.infer_num_outputs(b1, b2, addend=a) == 2
+    assert op.infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
+    assert op.infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
 
-def test_mock_operator():
-    op = MockOperator()
+    out = op.run(dali2.EvalContext().get(), addend=a)
+    print(out)
+    assert out == [
+        MockBatch([MockTensor(np.int32([10, 20, 30]))]),
+    ]
+
+    out = op.run(dali2.EvalContext().get(), b1, addend=a)
+    assert out == [
+        MockBatch([MockTensor(np.int32([11, 22, 33]))]),
+    ]
+
+    out = op.run(dali2.EvalContext().get(), b1, b2, addend=a)
+    assert out == [
+        MockBatch([MockTensor(np.int32([11, 22, 33]))]),
+        MockBatch([MockTensor(np.int32([14, 25, 36]))]),
+    ]
+
+    out = op.run(dali2.EvalContext().get(), b1, b2, b3, addend=a)
+    assert out == [
+        MockBatch([MockTensor(np.int32([11, 22, 33]))]),
+        MockBatch([MockTensor(np.int32([14, 25, 36]))]),
+        MockBatch([MockTensor(np.int32([17, 28, 39]))]),
+    ]
+
+def test_mock_operator_batch():
+    op = MockOperator(batch_size=1)
     b1 = MockBatch([MockTensor(np.int32([1, 2, 3]))])
     b2 = MockBatch([MockTensor(np.int32([4, 5, 6]))])
     b3 = MockBatch([MockTensor(np.int32([7, 8, 9]))])
@@ -151,7 +187,7 @@ def test_invocation_tensor():
     )
 
 def test_invocation_batch():
-    op = MockOperator()
+    op = MockOperator(batch_size=1)
     b1 = MockBatch([MockTensor(np.int32([1, 2, 3]))])
     b2 = MockBatch([MockTensor(np.int32([4, 5, 6]))])
     b3 = MockBatch([MockTensor(np.int32([7, 8, 9]))])
