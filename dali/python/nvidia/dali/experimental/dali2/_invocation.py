@@ -29,6 +29,7 @@ class Invocation:
     NOTE:  This class is not thread safe. Subsequent invocations of the same operator instance
            must be synhchronized by the caller.
     """
+
     def __init__(
         self,
         operator_instance,
@@ -174,6 +175,7 @@ class InvocationResult:
     It binds the invocation and the index of the return value.
     It serves as a proxy to enable lazy evaluation.
     """
+
     def __init__(self, invocation, index: int):
         self._invocation = invocation
         self._index = index
