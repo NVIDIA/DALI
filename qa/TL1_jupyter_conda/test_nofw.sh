@@ -12,8 +12,7 @@ do_once() {
   # We need cmake to run the custom plugin notebook + ffmpeg, wget for video example, libasound2-dev for audio test
   # install native compilers in conda instead of using system ones so we can link with conda packages
   enable_conda
-  # Pinning cmake to <= 4.0.3 due to strange interactions of later versions with Jupyter
-  conda install gcc==9.4 gxx==9.4 alsa-lib wget ffmpeg cmake -y
+  conda install gcc==14.2 gxx==14.2 alsa-lib wget ffmpeg cmake -y
   mkdir -p idx_files
   disable_conda
 }

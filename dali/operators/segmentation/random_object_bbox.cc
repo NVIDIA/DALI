@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -190,7 +190,7 @@ void RandomObjectBBox::SampleContext<BlobLabel>::FindLabels(const InTensorCPU<T>
   for (int i = 0; i < num_chunks; i++) {
     int64_t start = N * i / num_chunks;
     int64_t end = N * (i + 1)  / num_chunks;
-    thread_pool->AddWork([=](int) {
+    thread_pool->AddWork([=, this](int) {
       auto &lbl = tmp_labels[i];
       lbl.clear();
       detail::FindLabels(lbl, data + start, end - start);
