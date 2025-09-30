@@ -16,7 +16,7 @@
 DALI2 is a new experimental API that is currently under development.
 """
 
-from ._eval_mode import *  # noqa: F401
-from ._eval_context import *  # noqa: F401
+from ._eval_mode import *  # noqa: F401, F403
+from ._eval_context import *  # noqa: F401, F403
 from ._type import *  # noqa: F401, F403
-from ._device import Device  # noqa: F401
+from ._device import *  # noqa: F401, F403

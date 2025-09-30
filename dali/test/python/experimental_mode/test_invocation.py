@@ -1,7 +1,6 @@
 import nvidia.dali.experimental.dali2 as dali2
 import numpy as np
-import nvidia.dali.types as types
-from nvidia.dali.experimental.dali2._invocation import Invocation, InvocationResult
+from nvidia.dali.experimental.dali2._invocation import Invocation
 
 
 class MockTensor:
