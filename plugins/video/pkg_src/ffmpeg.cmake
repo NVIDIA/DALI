@@ -101,7 +101,7 @@ if (BUILD_FFMPEG)
       URL ${FFMPEG_SOURCE_URL}
       URL_HASH SHA512=${FFMPEG_SOURCE_SHA512}
   )
-  FetchContent_Populate(ffmpeg)
+  FetchContent_MakeAvailable(ffmpeg)
 
   set(FFMPEG_SRC ${CMAKE_CURRENT_BINARY_DIR}/_deps/ffmpeg-src)
   set(FFMPEG_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/ffmpeg)
