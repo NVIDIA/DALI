@@ -79,19 +79,21 @@ class MockOperator:
                 assert batch_size is not None
                 tensors = addend.tensors
             else:
-                if not isisntance(addend, MockTensor):
+                if not isinstance(addend, MockTensor):
                     addend = MockTensor(addend)
                 tensors = [addend] * (batch_size or 1)
             return [MockBatch(tensors)]
-        return [
-            MockBatch(
+        if batch_size is not None:
+            return tuple(MockBatch(
                 [
                     MockTensor(t.data + a.data, t.layout)
                     for t, a in zip(input.tensors, addend.tensors)
                 ]
-            )
-            for input in inputs
-        ]
+            ) for input in inputs)
+        else:
+            return tuple(
+                MockTensor(t.data + addend.data, t.layout)
+                for t in inputs)
 
     def infer_num_outputs(self, *inputs, **args):
         return max(len(inputs), 1)
@@ -101,7 +103,7 @@ class MockOperator:
 
 def test_mock_operator_tensor():
     op = MockOperator(batch_size=None)
-    b1 = MockTensor(np.int32([1, 2, None]))
+    b1 = MockTensor(np.int32([1, 2, 3]))
     b2 = MockTensor(np.int32([4, 5, 6]))
     b3 = MockTensor(np.int32([7, 8, 9]))
     a = MockTensor(np.int32([10, 20, 30]))
@@ -147,36 +149,36 @@ def test_mock_operator_batch():
     assert op.infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
     assert op.infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
 
-    out = op.run(dali2.EvalContext().get(), addend=a)
+    out = op.run(dali2.EvalContext().get(), addend=a, batch_size=1)
     print(out)
-    assert out == [
+    assert out == (
         MockBatch([MockTensor(np.int32([10, 20, 30]))]),
-    ]
+    )
 
-    out = op.run(dali2.EvalContext().get(), b1, addend=a)
-    assert out == [
+    out = op.run(dali2.EvalContext().get(), b1, addend=a, batch_size=1)
+    assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
-    ]
+    )
 
-    out = op.run(dali2.EvalContext().get(), b1, b2, addend=a)
-    assert out == [
+    out = op.run(dali2.EvalContext().get(), b1, b2, addend=a, batch_size=1)
+    assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36]))]),
-    ]
+    )
 
-    out = op.run(dali2.EvalContext().get(), b1, b2, b3, addend=a)
-    assert out == [
+    out = op.run(dali2.EvalContext().get(), b1, b2, b3, addend=a, batch_size=1)
+    assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36]))]),
         MockBatch([MockTensor(np.int32([17, 28, 39]))]),
-    ]
+    )
 
 def test_invocation_tensor():
     op = MockOperator()
-    b1 = MockBatch([MockTensor(np.int32([1, 2, 3]))])
-    b2 = MockBatch([MockTensor(np.int32([4, 5, 6]))])
-    b3 = MockBatch([MockTensor(np.int32([7, 8, 9]))])
-    a = MockBatch([MockTensor(np.int32([10, 20, 30]))])
+    b1 = MockTensor(np.int32([1, 2, 3]))
+    b2 = MockTensor(np.int32([4, 5, 6]))
+    b3 = MockTensor(np.int32([7, 8, 9]))
+    a = MockTensor(np.int32([10, 20, 30]))
 
     inv = Invocation(op, 0, inputs=[b1, b2, b3], args={"addend": a}, is_batch=False)
     inv.run(dali2.EvalContext().get())
