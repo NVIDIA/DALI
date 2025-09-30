@@ -27,6 +27,8 @@ extern "C" {
 #include <string>
 #include <string_view>
 #include <vector>
+#include <set>
+#include <optional>
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
 #include "dali/core/span.h"
@@ -428,6 +430,12 @@ class DLL_PUBLIC FramesDecoderBase {
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
+
+  struct DecodeRequestContext {
+    std::set<int64_t> requested_pts_;
+    std::set<int64_t> skipped_pts_;
+  };
+  std::optional<DecodeRequestContext> decode_req_ctx_;
 
  private:
   void DetectVariableFrameRate();
