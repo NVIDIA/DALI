@@ -202,6 +202,16 @@ class Operator:
                 f"The batch size {batch_size} is larger than the `max_batch_size` "
                 f"{self._max_batch_size} specified when the operator was created."
             )
+        def _is_batch():
+            nonlocal inputs, args
+            for input in inputs:
+                if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
+                    return True
+            for input in args.values():
+                if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
+                    return True
+            return False
+        is_batch = batch_size is not None or _is_batch()
         if self._is_backend_initialized():
             if self.schema.IsStateful():
                 # clearing the backend in a stateful op would destroy the state
@@ -217,7 +227,12 @@ class Operator:
         for name, arg in args.items():
             workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
         self._op_backend.SetupAndRun(workspace, batch_size)
-        return workspace.GetOutputs()
+        out = workspace.GetOutputs()
+        if is_batch:
+            return tuple(out)
+        else:
+            tensors = tuple(o[0] for o in out)
+            return tensors
 
     def _to_batch(self, x):
         if not isinstance(x, Batch):
@@ -336,8 +351,7 @@ class Reader(Operator):
             self._api_type = "run"
         elif self._api_type != "run":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the "
-                "end of the epoch."
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader."
             )
 
     def run(self, ctx=None, *inputs, **args):
@@ -345,8 +359,7 @@ class Reader(Operator):
             self._api_type = "run"
         elif self._api_type != "run":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the "
-                "end of the epoch."
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader."
             )
 
         return super().run(ctx, *inputs, **args)
@@ -356,8 +369,7 @@ class Reader(Operator):
             self._api_type = "samples"
         elif self._api_type != "samples":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader until the "
-                "end of the epoch."
+                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader."
             )
 
         if ctx is None:
@@ -372,8 +384,9 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super().run(ctx)
+                outputs = super().run(ctx, batch_size=self._actual_batch_size)
                 batch_size = len(outputs[0])
+                assert batch_size == self._actual_batch_size
                 idx += batch_size
                 for x in zip(*outputs):
                     outs = tuple(Tensor(o) for o in x)
@@ -383,10 +396,7 @@ class Reader(Operator):
         if self._api_type is None:
             self._api_type = "batches"
         elif self._api_type != "batches":
-            raise RuntimeError(
-                "Cannot mix samples(), batches() and run() on the same reader "
-                "until the end of the epoch."
-            )
+            raise RuntimeError("Cannot mix samples(), batches() and run() on the same reader.")
 
         if ctx is None:
             ctx = _eval_context.EvalContext.get()
@@ -412,9 +422,10 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super().run(ctx)
-                batch_size = len(outputs[0])
-                idx += batch_size
+                outputs = super().run(ctx, batch_size=batch_size)
+                batch_size_returned = len(outputs[0])
+                assert batch_size_returned == batch_size
+                idx += batch_size_returned
                 yield tuple(Batch(o) for o in outputs)
 
 
