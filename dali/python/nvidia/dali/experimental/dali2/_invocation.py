@@ -19,6 +19,16 @@ import nvtx
 
 
 class Invocation:
+    """
+    A class representing a single invocation of an operator.
+
+    It binds the operator instance and the call arguments.
+    It also tracks the order of invocations of stateful operators, which is important for
+    lazy evaluation of stateful operators or operators with side-effects.
+
+    NOTE:  This class is not thread safe. Subsequent invocations of the same operator instance
+           must be synhchronized by the caller.
+    """
     def __init__(
         self,
         operator_instance,
@@ -29,6 +39,28 @@ class Invocation:
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
     ):
+        """
+        Parameters
+        ----------
+        operator_instance : OperatorInstance
+            The operator instance that is being invoked.
+        call_id : int
+            The call ID of the invocation - necessary to avoid folding of multiple invocations
+            of the same stateful operator.
+        inputs : list
+            The inputs to the operator.
+        args : dict name->argument
+            The argument inputs of the operator. Scalar arguments are part of the operator instance.
+        is_batch : bool
+            Whether this is a batch invocation.
+            NOTE: A batch of 1 and a single tensor are equivalent from the operator's perspective
+                  (operators always work with batches) but differes from the user's perspective.
+        batch_size : int
+            The batch sizes. This is useful chiefly for operators without inputs or ones that alter
+            the batch size.
+        previous_invocation : Invocation
+            The previous invocation of the same operator. Used by stateful operators.
+        """
         self._operator = operator_instance
         self._call_id = call_id
         self._inputs = inputs
@@ -86,6 +118,9 @@ class Invocation:
         return self._results[result_index].layout()
 
     def __getitem__(self, index):
+        """
+        Returns a proxy to the index-th result of the invocation.
+        """
         return InvocationResult(self, index)
 
     def __len__(self):
@@ -115,20 +150,32 @@ class Invocation:
                     **self._args,
                 )
                 if isinstance(r, tuple) or isinstance(r, list):
-                    self._results = list(r)
+                    self._results = tuple(r)
                 else:
-                    self._results = [r]
+                    self._results = (r,)
                 if not self._is_batch:
-                    self._results = [r[0] for r in self._results]
+                    self._results = tuple(r.tensors[0] for r in self._results)
                 self._results = tuple(self._results)
                 ctx.cache_results(self, self._results)
 
     def values(self, ctx: _EvalContext):
+        """
+        Returns the concrete results of the invocation.
+
+        The invocation may have multiple results (e.g. readers may produce data + labels).
+        The return value is a list of Batch or Tensor objects.
+        """
         self.run(ctx)
         return self._results
 
 
 class InvocationResult:
+    """
+    A class representing a single result of an invocation.
+
+    It binds the invocation and the index of the return value.
+    It serves as a proxy to enable lazy evaluation.
+    """
     def __init__(self, invocation, index: int):
         self._invocation = invocation
         self._index = index
