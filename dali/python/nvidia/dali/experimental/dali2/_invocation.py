@@ -150,11 +150,11 @@ class Invocation:
                     **self._args,
                 )
                 if isinstance(r, tuple) or isinstance(r, list):
-                    self._results = list(r)
+                    self._results = tuple(r)
                 else:
-                    self._results = [r]
+                    self._results = (r,)
                 if not self._is_batch:
-                    self._results = [r.tensors[0] for r in self._results]
+                    self._results = tuple(r.tensors[0] for r in self._results)
                 self._results = tuple(self._results)
                 ctx.cache_results(self, self._results)
 
