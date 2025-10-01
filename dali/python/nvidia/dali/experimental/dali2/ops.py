@@ -202,6 +202,7 @@ class Operator:
                 f"The batch size {batch_size} is larger than the `max_batch_size` "
                 f"{self._max_batch_size} specified when the operator was created."
             )
+
         def _is_batch():
             nonlocal inputs, args
             for input in inputs:
@@ -211,6 +212,7 @@ class Operator:
                 if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
                     return True
             return False
+
         is_batch = batch_size is not None or _is_batch()
         if self._is_backend_initialized():
             if self.schema.IsStateful():
