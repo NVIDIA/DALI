@@ -38,17 +38,25 @@ class Operator:
         self._num_inputs = num_inputs
         self._call_arg_names = None if call_arg_names is None else tuple(call_arg_names)
         self._api_type = None
+
+        # torch.device detected by duck-typing
+        is_torch_device = (
+            device.__class__.__module__ == "torch" and
+            device.__class__.__name__ == "device" and
+            hasattr(device, "type") and
+            hasattr(device, "index"))
+
         if isinstance(device, str):
-            self._device = _device.Device(
-                name=device,
-                device_id=kwargs.get("device_id", _device.Device.default_device_id(device)),
-            )
-        else:
-            if not isinstance(device, _device.Device):
-                raise TypeError(
-                    f"`device` must be a Device instance or a string, got {type(device)}"
-                )
+            self._device = _device.Device(device, kwargs.get("device_id", None))
+        elif is_torch_device:
+            dev_type = "gpu" if device.type == "cuda" else device.type
+            self._device = _device.Device(dev_type, device.index)
+        elif isinstance(device, _device.Device):
             self._device = device
+        else:
+            raise TypeError(
+                f"`device` must be a Device instance, a string, or a torch.device, got {type(device)}"
+            )
         self._input_meta = []
         self._arg_meta = {}
         self._num_outputs = None
