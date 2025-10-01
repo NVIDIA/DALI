@@ -14,6 +14,7 @@
 
 import nvidia.dali.backend as _backend
 from threading import local
+from typing import Union, Optional
 
 class Device:
     _thread_local = local()
@@ -141,3 +142,43 @@ class Device:
 
 Device._thread_local.devices = None
 Device._thread_local.previous_device_ids = None
+
+
+def device(obj: Union[Device, str, "torch.device"], id: Optional[int] = None) -> Device:
+    """
+    Returns a Device object from various input types.
+
+    - If `obj` is already a `Device`, returns it. In this case, `id` must be `None`.
+    - If `obj` is a `str`, parses it as a device name (e.g., `"gpu"`, `"cpu:0"`, `"cuda:1"`). In this case, `id` can be specified.
+      Note: If the string already contains a device id and `id` is also provided, a `ValueError` is raised.
+    - If `obj` is a `torch.device`, converts it to a `Device`. In this case, `id` must be `None`.
+    - If `obj` is None, returns it.
+    - If `obj` is not a `Device`, `str`, or `torch.device` or None, raises a `TypeError`.
+    """
+
+    # None
+    if obj is None:
+        return obj
+
+    # Device instance
+    if isinstance(obj, Device):
+        if id is not None:
+            raise ValueError("Cannot specify id when passing a Device instance")
+        return obj
+
+    if isinstance(obj, str):
+        return Device(obj, id)
+
+    # torch.device detected by duck-typing
+    is_torch_device = (
+        obj.__class__.__module__ == "torch" and
+        obj.__class__.__name__ == "device" and
+        hasattr(obj, "type") and
+        hasattr(obj, "index"))
+    if is_torch_device:
+        dev_type = "gpu" if obj.type == "cuda" else obj.type
+        if id is not None:
+            raise ValueError("Cannot specify id when passing a torch.device")
+        return Device(dev_type, obj.index)
+
+    raise TypeError(f"Cannot convert {type(obj)} to Device")

@@ -67,7 +67,7 @@ class Tensor:
         self,
         data: Optional[Any] = None,
         dtype: Optional[Any] = None,
-        device: Optional[Device] = None,
+        device: Optional[Union[Device, str, "torch.device"]] = None,
         layout: Optional[str] = None,
         batch: Optional[Any] = None,
         index_in_batch: Optional[int] = None,
@@ -92,22 +92,8 @@ class Tensor:
 
         copied = False
 
-        # torch.device detected by duck-typing
-        is_torch_device = (
-            device.__class__.__module__ == "torch" and
-            device.__class__.__name__ == "device" and
-            hasattr(device, "type") and
-            hasattr(device, "index"))
-
-        if isinstance(device, str):
-            device = Device(device)
-        elif is_torch_device:
-            dev_type = "gpu" if device.type == "cuda" else device.type
-            device = Device(dev_type, device.index)
-        elif device is not None and not isinstance(device, Device):
-            raise TypeError(
-                f"`device` must be a Device instance, a string, or a torch.device, got {type(device)}"
-            )
+        from ._device import device as _to_device
+        device = _to_device(device)
 
         from . import _fn
 
