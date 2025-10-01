@@ -19,6 +19,7 @@ from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomlyShapedDataIterator
 import librosa as librosa
+from nose_utils import attr
 
 
 class MelFilterBankPipeline(Pipeline):
@@ -196,31 +197,39 @@ def check_operator_mel_filter_bank_vs_python(
     )
 
 
-def test_operator_mel_filter_bank_vs_python():
+def test_operator_mel_filter_bank_vs_python_w_normalization():
+    yield from __test_operator_mel_filter_bank_vs_python(True)
+
+
+@attr("sanitizer_skip")
+def test_operator_mel_filter_bank_vs_python_no_normalization():
+    yield from __test_operator_mel_filter_bank_vs_python(False)
+
+
+def __test_operator_mel_filter_bank_vs_python(normalize):
     for device in ["cpu", "gpu"]:
         for batch_size in [1, 3]:
-            for normalize in [True, False]:
-                for mel_formula in ["htk", "slaney"]:
-                    for nfilter, sample_rate, freq_low, freq_high, shape, layout in [
-                        (4, 16000.0, 0.0, 8000.0, (17,), "f"),
-                        (4, 16000.0, 0.0, 8000.0, (17, 1), "ft"),
-                        (128, 16000.0, 0.0, 8000.0, (513, 100), "ft"),
-                        (128, 48000.0, 0.0, 24000.0, (513, 100), "ft"),
-                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100), "Ctf"),
-                        (128, 48000.0, 4000.0, 24000.0, (513, 100), "tf"),
-                        (128, 44100.0, 0.0, 22050.0, (513, 100), "tf"),
-                        (128, 44100.0, 1000.0, 22050.0, (513, 100), "tf"),
-                    ]:
-                        yield (
-                            check_operator_mel_filter_bank_vs_python,
-                            device,
-                            batch_size,
-                            shape,
-                            nfilter,
-                            sample_rate,
-                            freq_low,
-                            freq_high,
-                            normalize,
-                            mel_formula,
-                            layout,
-                        )
+            for mel_formula in ["htk", "slaney"]:
+                for nfilter, sample_rate, freq_low, freq_high, shape, layout in [
+                    (4, 16000.0, 0.0, 8000.0, (17,), "f"),
+                    (4, 16000.0, 0.0, 8000.0, (17, 1), "ft"),
+                    (128, 16000.0, 0.0, 8000.0, (513, 100), "ft"),
+                    (128, 48000.0, 0.0, 24000.0, (513, 100), "ft"),
+                    (128, 16000.0, 0.0, 8000.0, (10, 513, 100), "Ctf"),
+                    (128, 48000.0, 4000.0, 24000.0, (513, 100), "tf"),
+                    (128, 44100.0, 0.0, 22050.0, (513, 100), "tf"),
+                    (128, 44100.0, 1000.0, 22050.0, (513, 100), "tf"),
+                ]:
+                    yield (
+                        check_operator_mel_filter_bank_vs_python,
+                        device,
+                        batch_size,
+                        shape,
+                        nfilter,
+                        sample_rate,
+                        freq_low,
+                        freq_high,
+                        normalize,
+                        mel_formula,
+                        layout,
+                    )
