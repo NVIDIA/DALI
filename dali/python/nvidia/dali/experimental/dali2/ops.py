@@ -182,7 +182,7 @@ class Operator:
                     "device_id",
                     (
                         self._device.device_id
-                        if self._device.device_type == "gpu"
+                        if self._device.device_type == "gpu" or self._device.device_type == "mixed"
                         else dali.types.CPU_ONLY_DEVICE_ID
                     ),
                 )
