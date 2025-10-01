@@ -93,17 +93,22 @@ def test_device_same_as_in_torch_multi_gpu():
 
 
 def test_tensor_creation_with_device_string_gpu():
-    raise SkipTest("TODO(janton): Not yet supported")
     t = dali2.Tensor(np.array([1, 2, 3]), device="gpu")
     assert t.device.device_type == "gpu"
     assert t.device.device_id == 0
 
+def test_tensor_creation_with_device_gpu_object():
+    t = dali2.Tensor(np.array([1, 2, 3]), device=dali2.Device("gpu"))
+    assert t.device.device_type == "gpu"
+    assert t.device.device_id == 0
 
 def test_tensor_creation_with_device_string_cpu():
-    raise SkipTest("TODO(janton): Not yet supported")
     t = dali2.Tensor(np.array([1, 2, 3]), device="cpu")
     assert t.device.device_type == "cpu"
 
+def test_tensor_creation_with_device_cpu_object():
+    t = dali2.Tensor(np.array([1, 2, 3]), device=dali2.Device("cpu"))
+    assert t.device.device_type == "cpu"
 
 def test_tensor_creation_with_device_gpu_object_variants():
     arr = np.array([1, 2, 3])
@@ -119,7 +124,6 @@ def test_tensor_creation_with_device_gpu_object_variants():
 
 
 def test_tensor_creation_with_device_cuda_object_variants():
-    raise SkipTest("TODO(janton): Not yet supported")
     arr = np.array([1, 2, 3])
     t1 = dali2.Tensor(arr, device=dali2.Device("cuda:0"))
     assert t1.device.device_type == "gpu"
@@ -156,7 +160,7 @@ def test_tensor_addition_with_mixed_cpu_gpu_inputs_raises_error():
     cpu_tensor = dali2.Tensor(np.array([1, 2, 3]), device=dali2.Device("cpu"))
     gpu_tensor = dali2.Tensor(np.array([4, 5, 6]), device=dali2.Device("gpu"))
     # This should raise an error when device=None and inputs have different devices
-    with assert_raises(RuntimeError, glob="*incompatible device*"):
+    with assert_raises(RuntimeError, glob="*not on the requested device*"):
         cpu_tensor + gpu_tensor
 
 
@@ -331,7 +335,6 @@ def test_file_reader_with_gpu_device_raises_error():
 
 
 def test_tensor_addition_with_cuda_string_variations():
-    raise SkipTest("TODO(janton): Not yet supported")
     # Test 'cuda:0' vs 'gpu:0' equivalence
     gpu_tensor1 = dali2.Tensor(np.array([1, 2, 3]), device=dali2.Device("cuda:0"))
     gpu_tensor2 = dali2.Tensor(np.array([4, 5, 6]), device=dali2.Device("gpu:0"))
@@ -360,7 +363,6 @@ def test_uniform_operator_device_explicit_gpu():
 
 
 def test_uniform_operator_device_explicit_gpu_ordinal():
-    raise SkipTest("TODO(janton): Not yet supported")
     uniform_op = dali2.ops.random.Uniform(max_batch_size=8, device="gpu:0")
     result = uniform_op()
     assert result.device.device_type == "gpu"
@@ -374,7 +376,6 @@ def test_uniform_operator_device_explicit_gpu_ordinal():
 
 
 def test_uniform_operator_device_explicit_cuda_ordinal():
-    raise SkipTest("TODO(janton): Not yet supported")
     uniform_op = dali2.ops.random.Uniform(max_batch_size=8, device="cuda:0")
     result = uniform_op()
     assert result.device.device_type == "gpu"
@@ -416,7 +417,6 @@ def test_video_decoder_device_inference():
 
 
 def test_video_decoder_device_explicit_mixed():
-    raise SkipTest("TODO(janton): Not yet supported")
     video_path = os.path.join(
         test_data_root, "db", "video", "sintel", "video_files", "sintel_trailer-720p_0.mp4"
     )
@@ -424,28 +424,6 @@ def test_video_decoder_device_explicit_mixed():
     decoded = dali2.experimental.decoders.video(
         encoded_video, start_frame=0, sequence_length=10, device="mixed"
     )
-    assert decoded.device.device_type == "gpu"
-    assert decoded.device.device_id == 0
-
-    # import nvidia.dali.fn as fn
-    # import nvidia.dali.types as types
-    # from nvidia.dali.pipeline import pipeline_def
-    # @pipeline_def(batch_size=1, num_threads=4, device_id=0, exec_dynamic=True, prefetch_queue_depth=1)
-    # def decode_pipeline(source_name):
-    #     # Decode the video
-    #     decoded = fn.experimental.decoders.video(
-    #         encoded_video, device="mixed", start_frame=0, sequence_length=30
-    #     )
-
-    #     # Resize the video to 1280x720 and flip vertically
-    #     decoded = fn.resize_crop_mirror(decoded, size=(720, 1280), mirror=2)
-
-    #     return decoded
-    # pipe = decode_pipeline(source_name="encoded_video")
-    # pipe.build()
-
-    # decoded = pipe.run()[0][0]
-    # print(decoded)
     assert decoded.device.device_type == "gpu"
     assert decoded.device.device_id == 0
 
@@ -463,7 +441,6 @@ def test_video_decoder_device_explicit_gpu():
 
 @attr("pytorch")
 def test_operator_with_torch_device_cpu():
-    raise SkipTest("TODO(janton): Not yet supported")
     import torch
 
     uniform_op = dali2.ops.random.Uniform(max_batch_size=8, device=torch.device("cpu"))
@@ -473,7 +450,6 @@ def test_operator_with_torch_device_cpu():
 
 @attr("pytorch")
 def test_operator_with_torch_device_gpu():
-    raise SkipTest("TODO(janton): Not yet supported")
     import torch
 
     uniform_op = dali2.ops.random.Uniform(max_batch_size=8, device=torch.device("cuda"))
@@ -484,7 +460,6 @@ def test_operator_with_torch_device_gpu():
 
 @attr("pytorch")
 def test_operator_with_torch_device_gpu_ordinal():
-    raise SkipTest("TODO(janton): Not yet supported")
     import torch
 
     for device_id in range(_backend.GetCUDADeviceCount()):

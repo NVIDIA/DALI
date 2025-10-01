@@ -92,6 +92,23 @@ class Tensor:
 
         copied = False
 
+        # torch.device detected by duck-typing
+        is_torch_device = (
+            device.__class__.__module__ == "torch" and
+            device.__class__.__name__ == "device" and
+            hasattr(device, "type") and
+            hasattr(device, "index"))
+
+        if isinstance(device, str):
+            device = Device(device)
+        elif is_torch_device:
+            dev_type = "gpu" if device.type == "cuda" else device.type
+            device = Device(dev_type, device.index)
+        elif device is not None and not isinstance(device, Device):
+            raise TypeError(
+                f"`device` must be a Device instance, a string, or a torch.device, got {type(device)}"
+            )
+
         from . import _fn
 
         if dtype is not None:
