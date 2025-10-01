@@ -28,6 +28,7 @@ from . import _eval_mode
 from . import _invocation
 import nvtx
 
+
 def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGPU]) -> Device:
     if isinstance(backend, _backend.TensorListCPU):
         return Device("cpu")
@@ -35,6 +36,7 @@ def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGP
         return Device("gpu", backend.device_id())
     else:
         raise ValueError(f"Unsupported backend type: {type(backend)}")
+
 
 def _is_tensor_type(x):
     from . import _batch
@@ -102,6 +104,34 @@ def _arithm_op(name, *args, **kwargs):
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
     return arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+
+
+class _TensorList:
+    def __init__(self, batch: "Batch", indices: Optional[Union[list[int], range]] = None):
+        self._batch = batch
+        self._indices = indices or range(batch.batch_size)
+
+    def __getitem__(self, range):
+        return self.select(range)
+
+    def __len__(self):
+        return len(self._indices)
+
+    def select(self, range):
+        if range == slice(None, None, None):
+            return self
+        if isinstance(range, slice):
+            return _TensorList(self._batch, self._indices[range])
+        elif isinstance(range, list):
+            return _TensorList(self._batch, [self._indices[i] for i in range])
+        else:
+            return self._batch.select(range)
+
+    def tolist():
+        return [self._batch._get_tensor(i) for i in self._indices]
+
+    def as_batch(self):
+        return as_batch(self)
 
 
 class Batch:
@@ -317,12 +347,7 @@ class Batch:
 
     @property
     def tensors(self):
-        if self._tensors is None:
-            self._tensors = [Tensor(batch=self, index_in_batch=i) for i in range(self.batch_size)]
-            if self._backend:
-                for i, t in enumerate(self._tensors):
-                    t._backend = self._backend[i]
-        return self._tensors
+        return _TensorList(self)
 
     def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
         if self.device == device and not force_copy:
@@ -365,24 +390,8 @@ class Batch:
         """
         return BatchedSlice(self)
 
-    def __len__(self):
-        return self.batch_size
-
-    def __getitem__(self, ranges):
-        if not isinstance(ranges, (tuple)):
-            ranges = (ranges,)
-        if len(ranges) == 0:
-            return self
-        if ranges[0] is ...:
-            if len(ranges) == self.ndim + 2:
-                ranges = ranges[1:]
-        sel = self.select(ranges[0])
-        start = 0 if ranges[0] is ... else 1
-        if isinstance(sel, Batch):
-            ret = sel._plain_slice(ranges[start:])
-        else:
-            ret = sel.__getitem__(ranges[start:])
-        return ret
+    def __iter__(self):
+        return iter(self.tensors)
 
     def select(self, r):
         if r is ...:
@@ -390,9 +399,20 @@ class Batch:
         if isinstance(r, slice):
             return Batch(self.tensors[r])
         elif isinstance(r, list):
-            return Batch([self.tensors[i] for i in r])
+            return Batch(self.tensors[r])
         else:
-            return self.tensors[r]
+            return self._get_tensor(r)
+
+    def _get_tensor(self, i):
+        if self._tensors is None:
+            self._tensors = [None] * self.batch_size
+
+        t = self._tensors[i]
+        if t is None:
+            t = self._tensors[i] = Tensor(batch=self, index_in_batch=i)
+            if self._backend:
+                t._backend = self._backend[i]
+        return t
 
     def _plain_slice(self, ranges):
         def _is_batch(x):

@@ -343,7 +343,7 @@ class Tensor:
                 if self._slice:
                     self._backend = self._slice.evaluate()._backend
                 elif self._batch is not None:
-                    t = self._batch.tensors[self._index_in_batch]
+                    t = self._batch._tensors[self._index_in_batch]
                     if t is self:
                         self._backend = self._batch.evaluate()._backend[self._index_in_batch]
                     else:
