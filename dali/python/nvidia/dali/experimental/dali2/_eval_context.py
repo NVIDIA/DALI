@@ -58,9 +58,6 @@ class EvalContext:
         if EvalContext.current() is not self:
             self.evaluate_all()
 
-    def __del__(self):
-        self.evaluate_all()
-
     def evaluate_all(self):
         """Evaluates all pending invocations."""
         tmp = self._invocations
