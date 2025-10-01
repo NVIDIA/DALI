@@ -19,7 +19,7 @@ from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import librosa as librosa
-from nose_utils import assert_raises, attr
+from nose_utils import assert_raises, attr, SkipTest
 from nose2.tools import cartesian_params
 
 
@@ -167,21 +167,20 @@ def check_operator_mfcc_vs_python(
         (1, 20, 202.0, (513, 100)),
     ],  # axis, n_mfcc, lifter, shape
 )
-def test_operator_mfcc_vs_python(device, batch_size, dct_type, axis_nmfcc_lifter_shape):
+def test_operator_mfcc_vs_python(device, batch_size, dct_type, norm, axis_nmfcc_lifter_shape):
     axis, n_mfcc, lifter, shape = axis_nmfcc_lifter_shape
-    if dct_type == 1 and norm == True:
+    if dct_type == 1 and norm is True:
         raise SkipTest()
-    for norm in norms:
-        check_operator_mfcc_vs_python(
-            device,
-            batch_size,
-            shape,
-            axis,
-            dct_type,
-            lifter,
-            n_mfcc,
-            norm,
-        )
+    check_operator_mfcc_vs_python(
+        device,
+        batch_size,
+        shape,
+        axis,
+        dct_type,
+        lifter,
+        n_mfcc,
+        norm,
+    )
 
 
 def check_operator_mfcc_wrong_args(
