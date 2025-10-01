@@ -21,6 +21,7 @@ import numpy as np
 import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 from test_utils import compare_pipelines, get_files
+from nose_utils import attr
 
 names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
 
@@ -97,6 +98,7 @@ class DecoderPipeline(Pipeline):
         self.feed_input(self.raw_file, list)
 
 
+@attr("sanitizer_skip")
 def test_decoded_vs_generated():
     pipeline = DecoderPipeline()
     idx = 0

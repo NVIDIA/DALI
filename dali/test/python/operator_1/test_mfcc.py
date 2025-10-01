@@ -19,7 +19,8 @@ from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import librosa as librosa
-from nose_utils import assert_raises
+from nose_utils import assert_raises, attr
+from nose2.tools import cartesian_params
 
 
 class MFCCPipeline(Pipeline):
@@ -153,28 +154,34 @@ def check_operator_mfcc_vs_python(
     )
 
 
-def test_operator_mfcc_vs_python():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [1, 3]:
-            for dct_type in [1, 2, 3]:
-                for norm in [False] if dct_type == 1 else [True, False]:
-                    for axis, n_mfcc, lifter, shape in [
-                        (0, 17, 0.0, (17, 1)),
-                        (1, 80, 2.0, (513, 100)),
-                        (1, 90, 0.0, (513, 100)),
-                        (1, 20, 202.0, (513, 100)),
-                    ]:
-                        yield (
-                            check_operator_mfcc_vs_python,
-                            device,
-                            batch_size,
-                            shape,
-                            axis,
-                            dct_type,
-                            lifter,
-                            n_mfcc,
-                            norm,
-                        )
+@attr("sanitizer_skip")
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [1, 3],  # batch_size
+    [1, 2, 3],  # dct_type
+    [True, False],  # norm
+    [
+        (0, 17, 0.0, (17, 1)),
+        (1, 80, 2.0, (513, 100)),
+        (1, 90, 0.0, (513, 100)),
+        (1, 20, 202.0, (513, 100)),
+    ],  # axis, n_mfcc, lifter, shape
+)
+def test_operator_mfcc_vs_python(device, batch_size, dct_type, axis_nmfcc_lifter_shape):
+    axis, n_mfcc, lifter, shape = axis_nmfcc_lifter_shape
+    if dct_type == 1 and norm == True:
+        raise SkipTest()
+    for norm in norms:
+        check_operator_mfcc_vs_python(
+            device,
+            batch_size,
+            shape,
+            axis,
+            dct_type,
+            lifter,
+            n_mfcc,
+            norm,
+        )
 
 
 def check_operator_mfcc_wrong_args(
