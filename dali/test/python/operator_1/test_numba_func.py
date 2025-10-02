@@ -202,6 +202,7 @@ def _testimpl_numba_func(
             assert np.array_equal(out_arr, expected_out[i])
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func():
     # shape, dtype, run_fn, out_types,
@@ -365,6 +366,7 @@ def test_numba_func_with_cond_do_not_convert():
     )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_numba_func_gpu():
     # shape, dtype, run_fn, out_types,
@@ -588,6 +590,7 @@ def rot_image_setup(outs, ins):
         out0[sample_id][2] = in0[sample_id][2]
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_image():
     args = [
@@ -657,6 +660,7 @@ def test_numba_func_image():
         )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_numba_func_image_gpu():
     args = [
@@ -795,6 +799,7 @@ def test_split_images_col():
             assert np.array_equal(images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2))
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_split_images_col_gpu():
     blocks = [32, 32, 1]
@@ -886,6 +891,7 @@ def numba_multiple_ins_pipe(
     )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_multiple_ins():
     pipe = numba_multiple_ins_pipe(
@@ -908,6 +914,7 @@ def test_multiple_ins():
         assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_multiple_ins_gpu():
     blocks = [32, 32, 1]
