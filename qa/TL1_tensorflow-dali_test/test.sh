@@ -1,5 +1,4 @@
 #!/bin/bash -e
-pip_packages='horovod==0.28.1'
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
@@ -12,14 +11,8 @@ do_once() {
 
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 
-    # check if CUDA version is at least 11.x
-    if [ "${CUDA_VERSION:0:2}" == "11" ]; then
-        # install TF 2.6.x for CUDA 11.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
-    else
-        # install TF 2.3.x for CUDA 10.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
-    fi
+    idx=$($topdir/qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION})
+    install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i $idx -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
 
     # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
     pip uninstall -y `pip list | grep nvidia_dali_tf_plugin | cut -d " " -f1` || true
@@ -59,9 +52,16 @@ do_once() {
     # it addresses the issue with third_party/gloo, which is a part of horovod dependency,
     # requiring too old version of cmake
     export CMAKE_POLICY_VERSION_MINIMUM=3.5
-    # horovod is added to `pip_packages` so it can be preloaded, but install it here when
-    # TF is already available and we can set env variables
-    install_pip_pkg "pip install --force-reinstall horovod==0.28.1 -f /pip-packages"
+    # patch and install horovod
+    git clone https://github.com/abseil/abseil-cpp.git --depth 1 -b lts_2025_01_27 && \
+    cd abseil-cpp && mkdir build && cd build && \
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC -std=c++17" cmake ../ && make -j$(nproc) && make install && cd ../.. && rm -rf abseil-cpp && \
+    pip download horovod==0.28.1 && tar -xf horovod-0.28.1.tar.gz  && cd horovod-0.28.1 && \
+    sed -i "s/tensorflow\/compiler\/xla\/client\/xla_builder\.h/xla\/hlo\/builder\/xla_builder\.h/" horovod/tensorflow/xla_mpi_ops.cc && \
+    sed -i "s/::xla::StatusOr/absl::StatusOr/" horovod/tensorflow/xla_mpi_ops.cc && \
+    echo "find_package(absl REQUIRED)" >> horovod/tensorflow/CMakeLists.txt && \
+    echo "target_link_libraries(\${TF_TARGET_LIB} absl::log)" >> horovod/tensorflow/CMakeLists.txt && \
+    pip install . && cd .. && rm -rf horovod*
 
     for file in $(ls /data/imagenet/train-val-tfrecord-small);
     do

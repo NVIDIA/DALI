@@ -101,12 +101,16 @@ ptrdiff_t ODirectFileStream::TellRead() const {
 }
 
 size_t ODirectFileStream::ReadAt(void * buffer, size_t n_bytes, off_t offset) {
-  size_t n_read = pread(fd_, buffer, n_bytes, offset);
+  auto n_read = pread(fd_, buffer, n_bytes, offset);
+  DALI_ENFORCE(n_read >= 0, make_string(
+               "ReadAt operation failed: ", std::strerror(errno)));
   return n_read;
 }
 
 size_t ODirectFileStream::Read(void *buffer, size_t n_bytes) {
-  size_t n_read = read(fd_, buffer, n_bytes);
+  auto n_read = read(fd_, buffer, n_bytes);
+  DALI_ENFORCE(n_read >= 0, make_string(
+               "Read operation failed: ", std::strerror(errno)));
   return n_read;
 }
 

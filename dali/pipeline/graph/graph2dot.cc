@@ -98,6 +98,7 @@ void GenerateDOTFromGraph(std::ostream &os, const OpGraph &graph,
         PrintTo(os, *data) << "[label=" << i++ << "];\n";
         for (auto &consumer : data->consumers) {
           PrintTo(os, *data) << " -> ";
+          assert(consumer.op);
           PrintTo(os, *consumer.op) << "[label=" << consumer.idx << "];\n";
         }
       }

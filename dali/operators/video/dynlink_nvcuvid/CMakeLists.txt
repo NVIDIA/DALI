@@ -46,6 +46,8 @@ add_custom_command(
                 "-I${CMAKE_SOURCE_DIR}/include" "-I${CMAKE_SOURCE_DIR}"
                 # for some reason QNX fails with 'too many errors emitted' is this is not set
                 "-ferror-limit=0"
+                # let clang know which architecutre we compile for
+                "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                 ${DEFAULT_COMPILER_INCLUDE}
     DEPENDS  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/stub_codegen.py
             "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h"

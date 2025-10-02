@@ -152,6 +152,11 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   return d;
 }
 
+namespace {
+  const uint32_t kCPUTensorColor = DomainTimeRange::kBlue1;
+  const uint32_t kGPUTensorColor = DomainTimeRange::knvGreen;
+}  // namespace
+
 template<typename SrcBackend>
 const TensorListShape<> ConvertShape(const TensorShape<> &shape,
                                       TensorList<SrcBackend> *shape_type_placeholder) {
@@ -537,6 +542,26 @@ py::capsule ToDLPack(Tensor<Backend> &tensor,
   }());
 }
 
+AccessOrder AccessOrderFromPythonStreamObj(const py::object &cuda_stream) {
+  AccessOrder order;
+  if (!cuda_stream.is_none()) {
+    auto cuda_stream_interface = getattr(cuda_stream, "__cuda_stream__", py::none());
+    if (!cuda_stream_interface.is_none()) {
+      auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
+      cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+      order = AccessOrder(stream);
+    } else if (py::hasattr(cuda_stream, "value")) {
+      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+    } else if (py::isinstance<py::int_>(cuda_stream)) {
+      cudaStream_t stream = reinterpret_cast<cudaStream_t>(py::cast<uintptr_t>(cuda_stream));
+      order = AccessOrder(stream);
+    }
+  } else {
+    order = AccessOrder::host();
+  }
+  return order;
+}
+
 /**
  * Pipeline output descriptor.
  */
@@ -576,6 +601,7 @@ void ExposeTensor(py::module &m) {
   auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
+          DomainTimeRange range("TensorCPU::init", kCPUTensorColor);
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
           return t.release();
@@ -799,13 +825,17 @@ void ExposeTensor(py::module &m) {
 
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, string layout = "") {
+    .def(py::init([](py::capsule &capsule, string layout, py::object stream) {
+          DomainTimeRange range("TensorGPU::init from capsule", kGPUTensorColor);
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
+          if (!stream.is_none())  // use a separately provided stream - there's none in the capsule
+            t->set_order(AccessOrderFromPythonStreamObj(stream));
           return t.release();
         }),
       "object"_a,
       "layout"_a = "",
+      "stream"_a = py::none(),
       R"code(
       Wrap a DLPack Tensor residing in the GPU memory.
 
@@ -813,6 +843,8 @@ void ExposeTensor(py::module &m) {
             Python DLPack object
       layout : str
             Layout of the data
+      stream : dali.Stream, int, ctypes_void_ptr, None
+            Stream to accociate the tensor with
       )code")
     .def(
       "device_id", &Tensor<GPUBackend>::device_id)
@@ -850,6 +882,7 @@ void ExposeTensor(py::module &m) {
           * ``0``    - forbidden value
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
+          DomainTimeRange range("TensorGPU::init from CUDA array", kGPUTensorColor);
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t.release();
@@ -1001,6 +1034,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
                                                                  string &layout) {
+  DomainTimeRange range("TensorListFromListOfTensors");
   if (list_of_tensors.empty()) {
     auto ptr = std::make_shared<TensorList<Backend>>();
     ptr->set_sample_dim(layout.length());
@@ -1008,49 +1042,53 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     return ptr;
   }
 
-  auto contiguous_out = std::make_shared<TensorList<Backend>>();
-  contiguous_out->SetContiguity(BatchContiguity::Contiguous);
   TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
   AccessOrder wait_order = AccessOrder::host();
   AccessOrder copy_order = AccessOrder::host();
 
-  for (size_t i = 0; i < list_of_tensors.size(); ++i) {
-    try {
-      auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
-      if (i == 0) {
-        non_contiguous_tmp.SetupLike(t);
-        if (std::is_same<Backend, GPUBackend>::value) {
-           // it is safe due to above if
-           Tensor<GPUBackend> *t_gpu = reinterpret_cast<Tensor<GPUBackend>*>(&t);
-           copy_order = AccessOrder(UserStream::Get()->GetStream(*t_gpu));
-        }
-      }
-      DALIDataType cur_type = t.type();
+  {
+    DomainTimeRange range("Build initial list");
 
-      if (expected_type == -2) {
-        expected_type = t.type();
-      } else if (expected_type != cur_type) {
-        throw py::type_error(make_string(
-            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
-            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+    for (size_t i = 0; i < list_of_tensors.size(); ++i) {
+      try {
+        auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
+        if (i == 0) {
+          non_contiguous_tmp.SetupLike(t);
+          if constexpr (std::is_same_v<Backend, GPUBackend>) {
+            copy_order = AccessOrder(UserStream::Get()->GetStream(t));
+          }
+        }
+        DALIDataType cur_type = t.type();
+
+        if (expected_type == -2) {
+          expected_type = t.type();
+        } else if (expected_type != cur_type) {
+          throw py::type_error(make_string(
+              "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+              cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+        }
+        non_contiguous_tmp.SetSample(i, t);
+      } catch (const py::type_error &) {
+        throw;
+      } catch (const std::runtime_error &) {
+        throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
+                                         std::is_same_v<Backend, GPUBackend> ? "GPU." : "CPU."));
       }
-      non_contiguous_tmp.SetSample(i, t);
-    } catch (const py::type_error &) {
-      throw;
-    } catch (const std::runtime_error &) {
-      throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
-                                       std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
     }
   }
 
-  contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
-  contiguous_out->Copy(non_contiguous_tmp, copy_order);
-  contiguous_out->SetLayout(layout);
-  copy_order.wait(wait_order);
-
-  return contiguous_out;
+  {
+    DomainTimeRange range("Copy to contiguous");
+    auto contiguous_out = std::make_shared<TensorList<Backend>>();
+    contiguous_out->SetContiguity(BatchContiguity::Contiguous);
+    contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
+    contiguous_out->Copy(non_contiguous_tmp, copy_order);
+    contiguous_out->SetLayout(layout);
+    copy_order.wait(wait_order);
+    return contiguous_out;
+  }
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -1084,9 +1122,9 @@ void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_na
       return FromPythonTrampoline("nvidia.dali._utils.eager_utils", impl_name.c_str())(*args);
     } else {
       std::stringstream types_ss;
-      types_ss << args[0].get_type();
+      types_ss << py::type::of(args[0]);
       for (size_t i = 1; i < args.size(); ++i) {
-        types_ss << " and " << args[i].get_type();
+        types_ss << " and " << py::type::of(args[i]);
       }
       throw py::type_error(
           make_string("unsupported operand type(s) for _", impl_name, "__: ", types_ss.str(),
@@ -1115,6 +1153,7 @@ void ExposeTensorList(py::module &m) {
           m, "TensorListCPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
+            DomainTimeRange range("TensorListCPU::init from capsule", kCPUTensorColor);
             auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
             return t;
@@ -1130,6 +1169,7 @@ void ExposeTensorList(py::module &m) {
               Layout of the data
         )code")
     .def(py::init([](TensorList<CPUBackend> *tl, py::object layout) {
+          DomainTimeRange range("TensorListCPU::init from a list of tensors", kCPUTensorColor);
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<CPUBackend>>();
@@ -1144,6 +1184,7 @@ void ExposeTensorList(py::module &m) {
       "tl"_a,
       "layout"_a = py::none())
     .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
+         DomainTimeRange range("TensorListCPU::init from a buffer", kCPUTensorColor);
         // We need to verify that the input data is C_CONTIGUOUS
         // and of a type that we can work with in the backend
         py::buffer_info info = b.request();
@@ -1197,6 +1238,7 @@ void ExposeTensorList(py::module &m) {
             If provided memory is page-locked (pinned)
       )code")
     .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        DomainTimeRange range("TensorListCPU::init from a Python list of tensors", kCPUTensorColor);
         return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
       }),
       "list_of_tensors"_a,
@@ -1414,6 +1456,7 @@ void ExposeTensorList(py::module &m) {
           m, "TensorListGPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
+            DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
             auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
             return t;
@@ -1429,6 +1472,7 @@ void ExposeTensorList(py::module &m) {
               Layout of the data
         )code")
     .def(py::init([](TensorList<GPUBackend> *tl, py::object layout) {
+          DomainTimeRange range("TensorListGPU::init from a list of tensors", kGPUTensorColor);
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<GPUBackend>>();
@@ -1443,6 +1487,7 @@ void ExposeTensorList(py::module &m) {
       "tl"_a,
       "layout"_a = py::none())
     .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        DomainTimeRange range("TensorListGPU::init from a Python list of tensors", kGPUTensorColor);
         return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
       }),
       "list_of_tensors"_a,
@@ -1456,6 +1501,7 @@ void ExposeTensorList(py::module &m) {
             Layout of the data
       )code")
     .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
+          DomainTimeRange range("TensorListGPU::init from a CUDA array", kGPUTensorColor);
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t;
@@ -2233,21 +2279,7 @@ class PyWorkspace : public Workspace {
   }
 
   void SetStream(py::object cuda_stream) {
-    AccessOrder order;
-    if (!cuda_stream.is_none()) {
-      auto cuda_stream_interface = getattr(cuda_stream, "__cuda_stream__", py::none());
-      if (!cuda_stream_interface.is_none()) {
-        auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
-        cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
-        order = AccessOrder(stream);
-      } else {
-        cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-        order = AccessOrder(stream);
-      }
-    } else {
-      order = AccessOrder::host();
-    }
-    set_output_order(order);
+    set_output_order(AccessOrderFromPythonStreamObj(cuda_stream));
     py_stream_ = cuda_stream;  // keep the stream python object alive
   }
 
@@ -2282,7 +2314,7 @@ void ExposeWorkspace(py::module &m) {
   py::class_<PyWorkspace>(m, "_Workspace")
     .def(py::init([](std::shared_ptr<ThreadPool> thread_pool, py::object stream) {
       auto ws = std::make_unique<PyWorkspace>();
-      ws->SetThreadPool(thread_pool);
+      ws->SetThreadPool(std::move(thread_pool));
       if (!stream.is_none()) {
         cudaStream_t s = static_cast<cudaStream_t>(ctypes_void_ptr(stream));
         ws->set_output_order(s);
@@ -2318,7 +2350,7 @@ void ExposeWorkspace(py::module &m) {
       }
     }, "device"_a)
     .def("SetThreadPool", [](PyWorkspace &self, std::shared_ptr<ThreadPool> thread_pool) {
-      self.SetThreadPool(thread_pool);
+      self.SetThreadPool(std::move(thread_pool));
     }, "thread_pool"_a)
     .def("GetOutputs", [](PyWorkspace &self) {
       py::tuple ret(self.NumOutput());
@@ -2333,7 +2365,8 @@ void ExposeWorkspace(py::module &m) {
     }, py::return_value_policy::take_ownership);
 }
 
-void SetupAndRun(OperatorBase &self, Workspace &ws) {
+void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_size) {
+  DomainTimeRange setup_and_run_tr("SetupAndRun " + GetOpDisplayName(self.GetSpec(), true));
   std::vector<dali::OutputDesc> out_descs;
   const auto &spec = self.GetSpec();
   if (ws.NumOutput() != 0)
@@ -2347,34 +2380,58 @@ void SetupAndRun(OperatorBase &self, Workspace &ws) {
     }
   }
 
-  if (ws.GetRequestedBatchSize(0) == 0) {
-    if (ws.NumInput() == 0) {
-      int max_bs = self.GetSpec().GetArgument<int>("max_batch_size");
-      ws.SetBatchSizes(max_bs);
+  if (batch_size.has_value()) {
+    ws.SetBatchSizes(batch_size.value());
+  } else {
+    if (ws.NumOutput() > 0 && ws.GetRequestedBatchSize(0) == 0) {
+      if (ws.NumInput() > 0) {
+        ws.SetBatchSizes(ws.GetInputBatchSize(0));
+      } else if (ws.NumArgumentInput() > 0) {
+        ws.SetBatchSizes(ws.ArgumentInput(0).num_samples());
+      } else {
+        int max_bs = self.GetSpec().GetArgument<int>("max_batch_size");
+        ws.SetBatchSizes(max_bs);
+      }
     }
   }
 
-  if (self.Setup(out_descs, ws)) {
-    for (int i = 0; i < ws.NumOutput(); i++) {
-      if (ws.OutputIsType<CPUBackend>(i))
-        ws.Output<CPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
-      else
-        ws.Output<GPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+  {
+    DomainTimeRange setup_tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
+    if (self.Setup(out_descs, ws)) {
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        if (ws.OutputIsType<CPUBackend>(i))
+          ws.Output<CPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+        else
+          ws.Output<GPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+      }
     }
   }
-  self.Run(ws);
+  {
+    DomainTimeRange run_tr("Run " + GetOpDisplayName(self.GetSpec(), true));
+    self.Run(ws);
+  }
 }
 
 void ExposeOperator(py::module &m) {
   py::class_<OperatorBase, std::unique_ptr<OperatorBase>>(m, "_Operator")
     .def(py::init([](const OpSpec &spec) {
+      DomainTimeRange tr("Instantiate " + GetOpDisplayName(spec, true));
       return dali::InstantiateOperator(spec);
     }))
-    .def("Setup", &OperatorBase::Setup)
-    .def("Run", &OperatorBase::Run)
-    .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws) {
-      SetupAndRun(self, ws);
+    .def("Setup", [](OperatorBase &self, std::vector<dali::OutputDesc> &out_descs, Workspace &ws) {
+      py::gil_scoped_release interpreter_unlock{};
+      DomainTimeRange tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
+      return self.Setup(out_descs, ws);
     })
+    .def("Run", [](OperatorBase &self, Workspace &ws) {
+      py::gil_scoped_release interpreter_unlock{};
+      DomainTimeRange tr("Run " + GetOpDisplayName(self.GetSpec(), true));
+      self.Run(ws);
+    } )
+    .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws, std::optional<int> batch_size) {
+      py::gil_scoped_release interpreter_unlock{};
+      SetupAndRun(self, ws, batch_size);
+    }, "ws"_a, "batch_size"_a = py::none())
     .def("GetReaderMeta", [](OperatorBase &self) {
       return ReaderMetaToDict(self.GetReaderMeta());
     });

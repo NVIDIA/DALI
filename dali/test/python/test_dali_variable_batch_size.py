@@ -383,7 +383,7 @@ if check_numba_compatibility_gpu(False):
 if check_numba_compatibility_cpu(False):
     numba_compatible_devices.append("cpu")
 
-if len(numba_compatible_devices) > 0:
+if len(numba_compatible_devices) > 0 and not os.environ.get("DALI_ENABLE_SANITIZERS", None):
     from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
     ops_image_custom_args.append(

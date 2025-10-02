@@ -84,6 +84,17 @@ class DLL_PUBLIC TensorList {
   TensorList(const TensorList &) = delete;
   TensorList &operator=(const TensorList &) = delete;
 
+  /**
+   * @brief Repeats the `sample` `num_samples` times.
+   *
+   * The TensorList is created in non-contiguous mode.
+   * The TensorList is created with the same type, layout, pinned status, device_id as the sample.
+   *
+   * @param sample The sample to repeat.
+   * @param num_samples The number of times to repeat the sample.
+   */
+  TensorList(const Tensor<Backend> &sample, int num_samples);
+
   TensorList<Backend> &operator=(TensorList<Backend> &&other) noexcept;
   DLL_PUBLIC TensorList(TensorList<Backend> &&other) noexcept;
 

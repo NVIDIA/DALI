@@ -1,4 +1,4 @@
-# (C) Copyright IBM Corp. 2019. All Rights Reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,26 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "3.1.12" %}
+"""
+DALI2 is a new experimental API that is currently under development.
+"""
 
-  package:
-    name: jpeg-turbo
-    version: {{ build_version }}
-
-  source:
-    git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: {{ build_version }}
-
-  build:
-    number: 0
-    string: jpeg_turbo
-
-  requirements:
-    build:
-      - {{ compiler('c') }}
-      - {{ compiler('cxx') }}
-      - java-openjdk-ppc64le 1.8.0 # [ppc64le]
-      - openjdk 8.0.152  # [x86_64]
-      - cmake 3.25.2
-      - make 4.2.1
-      - yasm # [x86_64]
+from ._eval_mode import *  # noqa: F401, F403
+from ._eval_context import *  # noqa: F401, F403
+from ._type import *  # noqa: F401, F403
+from ._device import *  # noqa: F401, F403
