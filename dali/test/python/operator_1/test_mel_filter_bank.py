@@ -19,6 +19,8 @@ from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomlyShapedDataIterator
 import librosa as librosa
+from nose_utils import attr
+from nose2.tools import cartesian_params
 
 
 class MelFilterBankPipeline(Pipeline):
@@ -196,31 +198,58 @@ def check_operator_mel_filter_bank_vs_python(
     )
 
 
-def test_operator_mel_filter_bank_vs_python():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [1, 3]:
-            for normalize in [True, False]:
-                for mel_formula in ["htk", "slaney"]:
-                    for nfilter, sample_rate, freq_low, freq_high, shape, layout in [
-                        (4, 16000.0, 0.0, 8000.0, (17,), "f"),
-                        (4, 16000.0, 0.0, 8000.0, (17, 1), "ft"),
-                        (128, 16000.0, 0.0, 8000.0, (513, 100), "ft"),
-                        (128, 48000.0, 0.0, 24000.0, (513, 100), "ft"),
-                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100), "Ctf"),
-                        (128, 48000.0, 4000.0, 24000.0, (513, 100), "tf"),
-                        (128, 44100.0, 0.0, 22050.0, (513, 100), "tf"),
-                        (128, 44100.0, 1000.0, 22050.0, (513, 100), "tf"),
-                    ]:
-                        yield (
-                            check_operator_mel_filter_bank_vs_python,
-                            device,
-                            batch_size,
-                            shape,
-                            nfilter,
-                            sample_rate,
-                            freq_low,
-                            freq_high,
-                            normalize,
-                            mel_formula,
-                            layout,
-                        )
+mel_filter_bank_cases = [
+    (4, 16000.0, 0.0, 8000.0, (17,), "f"),
+    (4, 16000.0, 0.0, 8000.0, (17, 1), "ft"),
+    (128, 16000.0, 0.0, 8000.0, (513, 100), "ft"),
+    (128, 48000.0, 0.0, 24000.0, (513, 100), "ft"),
+    (128, 16000.0, 0.0, 8000.0, (10, 513, 100), "Ctf"),
+    (128, 48000.0, 4000.0, 24000.0, (513, 100), "tf"),
+    (128, 44100.0, 0.0, 22050.0, (513, 100), "tf"),
+    (128, 44100.0, 1000.0, 22050.0, (513, 100), "tf"),
+]
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [1, 3],  # batch_size
+    ["htk", "slaney"],  # mel_formula
+    mel_filter_bank_cases,  # (nfilter, sample_rate, freq_low, freq_high, shape, layout)
+)
+def test_operator_mel_filter_bank_vs_python_normalize(device, batch_size, mel_formula, case):
+    nfilter, sample_rate, freq_low, freq_high, shape, layout = case
+    check_operator_mel_filter_bank_vs_python(
+        device,
+        batch_size,
+        shape,
+        nfilter,
+        sample_rate,
+        freq_low,
+        freq_high,
+        True,
+        mel_formula,
+        layout,
+    )
+
+
+@attr("sanitizer_skip")
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [1, 3],  # batch_size
+    ["htk", "slaney"],  # mel_formula
+    mel_filter_bank_cases,  # (nfilter, sample_rate, freq_low, freq_high, shape, layout)
+)
+def test_operator_mel_filter_bank_vs_python_wo_normalize(device, batch_size, mel_formula, case):
+    nfilter, sample_rate, freq_low, freq_high, shape, layout = case
+    check_operator_mel_filter_bank_vs_python(
+        device,
+        batch_size,
+        shape,
+        nfilter,
+        sample_rate,
+        freq_low,
+        freq_high,
+        False,
+        mel_formula,
+        layout,
+    )
