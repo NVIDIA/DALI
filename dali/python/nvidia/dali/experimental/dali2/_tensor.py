@@ -92,8 +92,6 @@ class Tensor:
 
         copied = False
 
-        from . import _fn
-
         if dtype is not None:
             if not isinstance(dtype, DType):
                 dtype = _dtype(dtype)
@@ -459,8 +457,6 @@ class Tensor:
 
 
 def _arithm_op(name, *args, **kwargs):
-    from . import _fn
-
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
     from . import arithmetic_generic_op
 
