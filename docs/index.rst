@@ -45,6 +45,7 @@ NVIDIA DALI Documentation
    auto_aug/auto_aug
    supported_ops_legacy
    framework_plugins
+   themode
 
 .. toctree::
    :hidden:
