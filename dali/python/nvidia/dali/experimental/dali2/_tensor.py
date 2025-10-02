@@ -193,7 +193,10 @@ class Tensor:
                     device = self._device
             else:
                 if device is None:
-                    device = Device("cpu")
+                    if self._device is None:
+                        device = Device("cpu")
+                    else:
+                        device = self._device
                 self._device = device
 
             if self._backend is not None:
