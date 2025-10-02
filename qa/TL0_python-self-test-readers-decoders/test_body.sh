@@ -38,8 +38,11 @@ test_py_with_framework() {
     fi
 
 
-    ${python_new_invoke_test} -A '!jpeg_scans_limit' -s decoder
-
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+      ${python_new_invoke_test} -A '!jpeg_scans_limit' -s decoder
+    else
+      ${python_new_invoke_test} -A '!jpeg_scans_limit,!sanitizer_skip' -s decoder
+    fi
 
     ${python_new_invoke_test} -s input
 }

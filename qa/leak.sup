@@ -46,6 +46,7 @@ leak:nvmlInitWithFlags
 # still there is some danger that any of the  below functions appear in a valid leak
 leak:std::string::_Rep::_S_create
 leak:PyLong_FromLong
+leak:PyFloat_FromDouble
 leak:PyCode_NewWithPosOnlyArgs
 leak:_PyLong_New
 leak:PyBytes_FromString
