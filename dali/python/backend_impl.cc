@@ -816,6 +816,13 @@ void ExposeTensor(py::module &m) {
         },
       R"code(Passthrough, since the object is already an instance of `TensorCPU`.)code",
       py::return_value_policy::reference_internal)
+    .def("_make_copy", [](const Tensor<CPUBackend> &tl) {
+        auto dst = std::make_unique<Tensor<CPUBackend>>();
+        dst->set_pinned(tl.is_pinned());
+        dst->Copy(tl);
+        return dst;
+      },
+      py::return_value_policy::take_ownership)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, AccessOrder::host(), false);
@@ -978,6 +985,12 @@ void ExposeTensor(py::module &m) {
       R"code(
       Returns a `TensorCPU` object being a copy of this `TensorGPU`.
       )code",
+      py::return_value_policy::take_ownership)
+    .def("_make_copy", [](const Tensor<GPUBackend> &tl) {
+        auto dst = std::make_unique<Tensor<GPUBackend>>();
+        dst->Copy(tl);
+        return dst;
+      },
       py::return_value_policy::take_ownership)
     .def("squeeze",
       [](Tensor<GPUBackend> &t, py::object dim_arg) -> bool {
@@ -1320,6 +1333,12 @@ void ExposeTensorListCPU(py::module &m) {
         return t;
       }, R"code(Passthrough, as it is already an instance of `TensorListCPU`.)code",
       py::return_value_policy::reference_internal)
+    .def("_make_copy", [](const TensorList<CPUBackend> &tl) {
+        auto dst = std::make_shared<TensorList<CPUBackend>>();
+        dst->set_pinned(tl.is_pinned());
+        dst->Copy(tl);
+        return dst;
+      })
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
     })
@@ -1582,6 +1601,12 @@ void ExposeTesorListGPU(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("_make_copy", [](const TensorList<GPUBackend> &tl) {
+        auto dst = std::make_shared<TensorList<GPUBackend>>();
+        dst->set_pinned(tl.is_pinned());
+        dst->Copy(tl);
+        return dst;
+      })
     .def(
       "device_id", &TensorList<GPUBackend>::device_id)
     .def("shape", &py_shape_list<GPUBackend>,

@@ -23,44 +23,51 @@ from ._device import *  # noqa: F401, F403
 from ._tensor import Tensor  # noqa: F401
 from ._batch import Batch  # noqa: F401
 
-# REVIEW ONLY
-def _convert_tensor_cpu(tensor, dtype):
-    converted = np.array(tensor, dtype=_types.to_numpy_type(dtype.type_id))
-    converted_backend = _b.TensorCPU(converted, tensor.GetLayout())
-    return converted
 
 # REVIEW ONLY
-def cast(tensor_or_batch, dtype, device):
+def _convert_tensor_cpu(tensor, dtype):
+    import numpy as np
+    import nvidia.dali.types as _types
+    import nvidia.dali.backend as _b
+
+    converted = np.array(tensor, dtype=_types.to_numpy_type(dtype.type_id))
+    converted_backend = _b.TensorCPU(converted, tensor.layout())
+    return converted
+
+
+# REVIEW ONLY
+def cast(tensor_or_batch, dtype):
     from . import _type
     import nvidia.dali.backend as _b
-    import nvidia.dali.types as _types
+
     dtype = _type.dtype(dtype)
-    if device is None:
-        device = tensor_or_batch.device
     cpu = tensor_or_batch.cpu()
     cpu.evaluate()
     if isinstance(cpu, Tensor):
         converted_cpu = Tensor(_convert_tensor_cpu(cpu._backend, dtype))
     else:
-        assert(isinstance(cpu, Batch))
+        assert isinstance(cpu, Batch)
         tl = cpu._backend
-        converted_cpu = Batch([
-            _convert_tensor_cpu(tl[i] for i in range(len(tl)))
-        ])
-    return converted_cpu.to_device(device)
+        converted_cpu = Batch([_convert_tensor_cpu(tl[i] for i in range(len(tl)))])
+    return converted_cpu.to_device(tensor_or_batch.device)
+
 
 # REVIEW ONLY
-def copy(tenosr_or_batch, device):
+def copy(tensor_or_batch, device):
     tensor_or_batch.evaluate()
     b = tensor_or_batch._backend
-    if device.device_type == "cpu":
-        if isisnstance(b, _b.TensorCPU):
-            return _b.TensorCPU(b)
-        elif isinstance(b, _b.TensorListCPU):
-            return _b.TensorListCPU(b)
+    device_type = device if isinstance(device, str) else device.device_type
+    import nvidia.dali.backend as _b
+
+    if device_type == "cpu":
+        if isinstance(b, (_b.TensorCPU, _b.TensorListCPU)):
+            copied_backend = b._make_copy()
         else:
-            return _b.as_cpu()
+            copied_backend = b.as_cpu()
     else:
-        assert device.device_type == "gpu"
-        if isinstance(b, _b.TensorGPU):
-            return _b.TensorGPU(
+        assert device_type == "gpu"
+        if isinstance(b, (_b.TensorGPU, _b.TensorListGPU)):
+            copied_backend = b._make_copy()
+        else:
+            copied_backend = b._as_gpu()
+    return type(tensor_or_batch)(copied_backend)

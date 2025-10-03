@@ -90,6 +90,9 @@ class Tensor:
         self._layout = None
         self._wraps_external_data = False
 
+        if device is not None and not isinstance(device, Device):
+            device = Device(device)  # TODO(michalz): Use the `device` function, when merged
+
         copied = False
 
         if dtype is not None:
@@ -127,7 +130,8 @@ class Tensor:
                 else:
                     from . import cast
 
-                    self.assign(cast(data, dtype, device=device).evaluate())
+                    self.assign(cast(data.to_device(device), dtype).evaluate())
+                    copied = True
             elif isinstance(data, TensorSlice):
                 self._slice = data
             elif hasattr(data, "__dlpack_device__"):
@@ -208,6 +212,12 @@ class Tensor:
             self._device = invocation_result.device
         else:
             raise ValueError("Either data, expression or batch and index must be provided")
+
+        if dtype is not None and self._dtype != dtype:
+            from . import cast
+
+            self.assign(cast(self, dtype).evaluate())
+            copied = True
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()

@@ -36,7 +36,6 @@ from . import __cuda_version__
 import warnings
 import sys
 
-
 _ExecutorType.__bool__ = lambda self: self.value != 0
 _ExecutorType.__and__ = lambda x, y: _ExecutorType(x.value & y.value)
 _ExecutorType.__or__ = lambda x, y: _ExecutorType(x.value | y.value)
@@ -139,3 +138,12 @@ def check_cuda_runtime():
                 "#pip-wheels-installation-linux "
                 "for the reference."
             )
+
+
+import atexit
+import gc
+
+
+@atexit.register
+def _unload_dali():
+    gc.collect()
