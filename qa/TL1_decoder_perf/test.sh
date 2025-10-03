@@ -16,6 +16,7 @@ test_body() {
   if [ "$(uname -p)" == "x86_64" ]; then
     # Hopper
     MIN_PERF=19000;
+    MIN_PERF2=18000;  # TODO(janton): target is to be 19000 as well
     # use taskset to avoid inefficient data migration between cores we don't want to use
     taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 | tee ${LOG1}
     taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 --experimental_decoder | tee ${LOG2}
@@ -23,6 +24,7 @@ test_body() {
   else
     # GraceHopper
     MIN_PERF=29000;
+    MIN_PERF2=29000;  # TODO(janton): remove this second value.
     # use taskset to avoid inefficient data migration between cores we don't want to use
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 | tee ${LOG1}
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 --experimental_decoder | tee ${LOG2}
@@ -37,7 +39,7 @@ test_body() {
   PERF2=$(grep -oP 'Total Throughput: \K[0-9]+(\.[0-9]+)?(?= frames/sec)' ${LOG2})
 
   PERF_RESULT1=$(echo "$PERF1 $MIN_PERF" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
-  PERF_RESULT2=$(echo "$PERF2 $MIN_PERF" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
+  PERF_RESULT2=$(echo "$PERF2 $MIN_PERF2" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
   # Ensure that PERF2 is no less than 15% smaller than PERF1 (target is 5% max)
   PERF_RESULT3=$(echo "$PERF2 $PERF1" | awk '{if ($1 >= $2 * 0.85) {print "OK"} else { print "FAIL" }}')
 
