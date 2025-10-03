@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,3 +36,4 @@ if __name__ == "__main__":
 
     _signatures.gen_all_signatures(Path(args.wheel_path), "fn")
     _signatures.gen_all_signatures(Path(args.wheel_path), "ops")
+    _signatures.gen_all_signatures(Path(args.wheel_path), "dynamic")  # experimental/dali2

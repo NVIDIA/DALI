@@ -480,6 +480,7 @@ def build_fn_wrapper(op):
     function = makefun.create_function(header, fn_call)
     function.op_class = op
     function.schema = schema
+    function._generated = True
     setattr(module, fn_name, function)
     return function
 
