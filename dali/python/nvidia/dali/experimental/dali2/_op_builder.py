@@ -475,7 +475,7 @@ def build_fn_wrapper(op):
             )
 
         # Call the operator (the result is an Invocation object)
-        return op_inst(*inputs, **call_args)
+        return op_inst(*inputs, batch_size=batch_size, **call_args)
 
     function = makefun.create_function(header, fn_call)
     function.op_class = op
