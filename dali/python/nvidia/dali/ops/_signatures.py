@@ -63,6 +63,10 @@ def _create_annotation_placeholder(typename):
 # This is not the DataNode you are looking for.
 _DataNode = _create_annotation_placeholder("DataNode")
 
+# for dynamic API
+_Tensor = _create_annotation_placeholder("Tensor")
+_Batch = _create_annotation_placeholder("Batch")
+
 # The placeholder for the DALI Enum types, as the bindings from backend don't play nice,
 # we need actual Python classes.
 _DALIDataType = _create_annotation_placeholder("DALIDataType")
@@ -138,26 +142,34 @@ def _get_annotation_input_regular(schema):
     return Union[_DataNode, _TensorLikeIn]
 
 
-def _get_annotation_return_regular(schema):
-    """Produce the return annotation for DALI operator suitable for primary, non-MIS overload.
+def _get_annotation_return_helper(schema, return_type=_DataNode):
+    """Produce the return annotation for DALI operator suitable for regular API that doesn't mix
+    entities (Tensor, Batch, DataNode, but not MIS).
     Note the flattening, single output is not packed in Sequence.
     """
     if schema.HasOutputFn():
         # Dynamic number of outputs, not known at "compile time"
-        return_annotation = Union[_DataNode, Sequence[_DataNode], None]
+        return_annotation = Union[return_type, Sequence[return_type], None]
     else:
         # Call it with a dummy spec, as we don't have Output function
         num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
         if num_regular_output == 0:
             return_annotation = None
         elif num_regular_output == 1:
-            return_annotation = _DataNode
+            return_annotation = return_type
         else:
             # Here we could utilize the fact, that the tuple has known length, but we can't
             # as DALI operators return a list
             # Also, we don't advertise the actual List type, hence the Sequence.
-            return_annotation = Sequence[_DataNode]
+            return_annotation = Sequence[return_type]
     return return_annotation
+
+
+def _get_annotation_return_regular(schema):
+    """Produce the return annotation for DALI operator suitable for primary, non-MIS overload.
+    Note the flattening, single output is not packed in Sequence.
+    """
+    return _get_annotation_return_helper(schema=schema, return_type=_DataNode)
 
 
 def _get_annotation_input_mis(schema):
@@ -198,6 +210,25 @@ def _get_annotation_return_mis(schema):
             # that the outermost return type of MIS is a List.
             return_annotation = Union[Sequence[_DataNode], List[Sequence[_DataNode]]]
     return return_annotation
+
+# Dynamic API handling:
+# TODO(klecki): adjust to match the spec
+
+
+def _get_annotation_input_dynamic_sample(schema):
+    return Union[_Tensor, _TensorLikeIn]
+
+
+def _get_annotation_return_dynamic_sample(schema):
+    return _get_annotation_return_helper(schema=schema, return_type=_Tensor)
+
+
+def _get_annotation_input_dynamic_batch(schema):
+    return Union[_Batch, _TensorLikeIn]
+
+
+def _get_annotation_return_dynamic_batch(schema):
+    return _get_annotation_return_helper(schema=schema, return_type=_Batch)
 
 
 def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_input_regular):
@@ -487,6 +518,31 @@ class {cls_name}:
     )
 
 
+# TODO(klecki): Adjust _gen_dynamic_signature function to customize stubs for ndd module.
+def _gen_dynamic_signature(schema, schema_name, fn_name):
+    """Write the stub of the fn API function with the docstring, for given operator."""
+    return inspect_repr_fixups(
+        f"""
+@overload
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                            input_annotation_gen=_get_annotation_input_dynamic_sample,
+                            return_annotation_gen=_get_annotation_return_dynamic_sample)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+    ...
+
+@overload
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                            input_annotation_gen=_get_annotation_input_dynamic_batch,
+                            return_annotation_gen=_get_annotation_return_dynamic_batch)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+    ...
+
+"""
+    )
+
+
 # Preamble with license and helper imports for the stub file.
 # We need the placeholders for actual Python classes, as the ones that are exported from backend
 # don't seem to work with the intellisense.
@@ -513,6 +569,34 @@ from nvidia.dali._typing import TensorLikeIn, TensorLikeArg
 from nvidia.dali.data_node import DataNode
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
+
+"""
+
+# TODO(klecki): Fill the missing type imports in dynamic API.
+# Probably dali dtypes etc need to be added here.
+_HEADER_DYNAMIC = """
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Union, Optional, overload
+from typing import Any, List, Sequence
+
+from nvidia.dali._typing import TensorLikeIn, TensorLikeArg
+
+from ._tensor import Tensor
+from ._batch import Batch
+
 
 """
 
@@ -585,12 +669,21 @@ def _group_signatures(api: str):
         "generated": [],
     }
 
-    api_module = fn if api == "fn" else ops
+    import nvidia.dali.experimental.dali2 as ndd
+
+    if api == "fn":
+        api_module = fn
+    elif api == "ops":
+        api_module = ops
+    elif api == "dynamic":
+        api_module = ndd
+
+    api_naming_convention = "fn" if api in ("fn", "dynamic") else "ops"
 
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
 
-        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api_naming_convention)
         op = _get_op(api_module, module_nesting + [op_name])
 
         if schema is None:
@@ -612,7 +705,8 @@ def _group_signatures(api: str):
 
 
 class StubFileManager:
-    def __init__(self, nvidia_dali_path: Path, api: str):
+
+    def __init__(self, nvidia_dali_path: Path, api: Path):
         self._module_to_file = {}
         self._nvidia_dali_path = nvidia_dali_path
         self._api = api
@@ -632,7 +726,12 @@ class StubFileManager:
             open(file_path, "w").close()  # clear the file
             f = open(file_path, "a")
             self._module_to_file[module_path] = f
-            f.write(_HEADER)
+            # TODO(klecki): Adjust when it's ready
+            # if "dynamic" in str(self._api):
+            if "dali2" in str(self._api):
+                f.write(_HEADER_DYNAMIC)
+            else:
+                f.write(_HEADER)
             full_module_nesting = [""] + module_nesting
             # Find out all the direct submodules and add the imports
             submodules_dict = self._module_tree
@@ -651,41 +750,56 @@ class StubFileManager:
 
 
 def gen_all_signatures(nvidia_dali_path, api):
-    """Generate the signatures for "fn" or "ops" api.
+    """Generate the signatures for "fn", "ops" or "dynamic" api.
 
     Parameters
     ----------
     nvidia_dali_path : Path
         The path to the wheel pre-packaging to the nvidia/dali directory.
     api : str
-        "fn" or "ops"
+        "fn", "ops" or "dynamic"
     """
     nvidia_dali_path = Path(nvidia_dali_path)
+    api_path = api if api in ("fn", "ops") else Path("experimental") / "dali2"
+    api_naming_convention = "fn" if api in ("fn", "dynamic") else "ops"
 
-    with closing(StubFileManager(nvidia_dali_path, api)) as stub_manager:
+    with closing(StubFileManager(nvidia_dali_path, api_path)) as stub_manager:
         sig_groups = _group_signatures(api)
 
-        # Python-only and the manually defined ones are reexported from their respective modules
-        for schema_name, op in sig_groups["python_only"] + sig_groups["python_wrapper"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+        if api == "dynamic":
+            print(f"Generating signatures for dynamic API in {sig_groups.keys()=}")
+            for k, v in sig_groups.items():
+                print(f"{k}: {len(v)} signatures")
 
-            stub_manager.get(module_nesting).write(
-                f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
-            )
+        # Python-only and the manually defined ones are reexported from their respective modules
+        # TODO(klecki): Handle this in dynamic API, I have no idea if we have python function et al.
+        if api != "dynamic":
+            for schema_name, op in sig_groups["python_only"] + sig_groups["python_wrapper"]:
+                _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+
+                stub_manager.get(module_nesting).write(
+                    f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
+                )
 
         # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
         # directly visible
 
         # Runtime generated classes use fully specified stubs.
         for schema_name, op in sig_groups["generated"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            _, module_nesting, op_name = _names._process_op_name(
+                schema_name, api=api_naming_convention
+            )
             schema = _b.TryGetSchema(schema_name)
 
             if api == "fn":
                 stub_manager.get(module_nesting).write(
                     _gen_fn_signature(schema, schema_name, op_name)
                 )
-            else:
+            elif api == "ops":
                 stub_manager.get(module_nesting).write(
                     _gen_ops_signature(schema, schema_name, op_name)
+                )
+            elif api == "dynamic":
+                stub_manager.get(module_nesting).write(
+                    _gen_dynamic_signature(schema, schema_name, op_name)
                 )
