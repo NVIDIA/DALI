@@ -14,34 +14,42 @@
 
 import nvidia.dali.backend as _backend
 from threading import local
-
+from typing import Union, Optional
 
 class Device:
     _thread_local = local()
 
     def __init__(self, name: str, device_id: int = None):
+        device_type, name_device_id = Device.split_device_type_and_id(name)
+        if name_device_id is not None and device_id is not None:
+            raise ValueError(f"Invalid device name: {name}\n"
+                             f"Ordinal ':{name_device_id}' should not appear "
+                             "in device name when device_id is provided")
         if device_id is None:
-            type_and_id = name.split(":")
-            if len(type_and_id) < 1 or len(type_and_id) > 2:
-                raise ValueError(f"Invalid device name: {name}")
-            device_type = type_and_id[0]
-            if len(type_and_id) == 2:
-                device_id = int(type_and_id[1])
-        else:
-            if ":" in name:
-                raise ValueError(
-                    f"Invalid device name: {name}\n"
-                    f"':' should not appear in device name when device_id is provided"
-                )
-            device_type = name
+            device_id = name_device_id
+
+        if device_type == "cuda":
+            device_type = "gpu"
 
         Device.validate_device_type(device_type)
         if device_id is not None:
             Device.validate_device_id(device_id, device_type)
         else:
             device_id = Device.default_device_id(device_type)
+
         self.device_type = device_type
         self.device_id = device_id
+
+    @staticmethod
+    def split_device_type_and_id(name: str) -> tuple[str, int]:
+        type_and_id = name.split(":")
+        if len(type_and_id) < 1 or len(type_and_id) > 2:
+            raise ValueError(f"Invalid device name: {name}")
+        device_type = type_and_id[0]
+        device_id = None
+        if len(type_and_id) == 2:
+            device_id = int(type_and_id[1])
+        return device_type, device_id
 
     @staticmethod
     def default_device_id(device_type: str) -> int:
@@ -135,3 +143,43 @@ class Device:
 
 Device._thread_local.devices = None
 Device._thread_local.previous_device_ids = None
+
+
+def device(obj: Union[Device, str, "torch.device"], id: Optional[int] = None) -> Device:
+    """
+    Returns a Device object from various input types.
+
+    - If `obj` is already a `Device`, returns it. In this case, `id` must be `None`.
+    - If `obj` is a `str`, parses it as a device name (e.g., `"gpu"`, `"cpu:0"`, `"cuda:1"`). In this case, `id` can be specified.
+      Note: If the string already contains a device id and `id` is also provided, a `ValueError` is raised.
+    - If `obj` is a `torch.device`, converts it to a `Device`. In this case, `id` must be `None`.
+    - If `obj` is None, returns it.
+    - If `obj` is not a `Device`, `str`, or `torch.device` or None, raises a `TypeError`.
+    """
+
+    # None
+    if obj is None:
+        return obj
+
+    # Device instance
+    if isinstance(obj, Device):
+        if id is not None:
+            raise ValueError("Cannot specify id when passing a Device instance")
+        return obj
+
+    if isinstance(obj, str):
+        return Device(obj, id)
+
+    # torch.device detected by duck-typing
+    is_torch_device = (
+        obj.__class__.__module__ == "torch" and
+        obj.__class__.__name__ == "device" and
+        hasattr(obj, "type") and
+        hasattr(obj, "index"))
+    if is_torch_device:
+        dev_type = "gpu" if obj.type == "cuda" else obj.type
+        if id is not None:
+            raise ValueError("Cannot specify id when passing a torch.device")
+        return Device(dev_type, obj.index)
+
+    raise TypeError(f"Cannot convert {type(obj)} to Device")
