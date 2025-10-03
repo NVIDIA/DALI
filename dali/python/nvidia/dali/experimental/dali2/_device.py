@@ -25,7 +25,8 @@ class Device:
             raise ValueError(f"Invalid device name: {name}\n"
                              f"Ordinal ':{name_device_id}' should not appear "
                              "in device name when device_id is provided")
-        device_id = device_id or name_device_id
+        if device_id is None:
+            device_id = name_device_id
 
         if device_type == "cuda":
             device_type = "gpu"
