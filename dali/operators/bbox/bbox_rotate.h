@@ -39,7 +39,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
         keep_size_(spec.GetArgument<bool>("keep_size")),
         remove_threshold_(spec.GetArgument<float>("remove_threshold")) {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      bbox_rotate_buffer_.set_pinned(false);
+      scratch_buffer_.set_pinned(false);
     }
     DALI_ENFORCE_IN_RANGE(remove_threshold_, 0.f, std::nextafterf(1.f, 2.f));  // In range [0, 1]
 
@@ -78,6 +78,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    DALI_ASSERT(ws.GetInputDataType(0) == DALI_FLOAT, "Input boxes must be float32");
     const TensorListShape<-1> box_shape_list = ws.GetInputShape(0);
     TensorListShape<1> buffer_shape(box_shape_list.num_samples());
     for (int i = 0; i < ws.GetRequestedBatchSize(0); i++) {
@@ -87,7 +88,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
       }
       buffer_shape.tensor_shape_span(i)[0] = sample_shape[0] * 8;  // num_boxes * 4 xy corners
     }
-    bbox_rotate_buffer_.Resize(buffer_shape, DALI_FLOAT);
+    scratch_buffer_.Resize(buffer_shape, DALI_FLOAT);
 
     const auto num_input = ws.NumInput();
     output_desc.resize(num_input);
@@ -95,6 +96,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
     output_desc[0].type = DALI_FLOAT;
     if (num_input == 2) {
       const auto &label_shape_list = ws.GetInputShape(1);
+      DALI_ASSERT(ws.GetInputDataType(1) == DALI_INT32, "Input labels must be int32");
       output_desc[1].shape = label_shape_list;
       output_desc[1].type = DALI_INT32;
       for (int i = 0; i < label_shape_list.size(); i++) {
@@ -122,7 +124,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
   Mode mode_ = Mode::Expand;
   int shape_max_index_;
   std::pair<int, int> shape_wh_index_;
-  TensorList<Backend> bbox_rotate_buffer_;
+  TensorList<Backend> scratch_buffer_;
 };
 
 }  // namespace dali

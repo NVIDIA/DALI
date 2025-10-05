@@ -218,19 +218,12 @@ void ApplyExpansionCorrectionToBoxSize(dali::span<vec4> inout_boxes,
  * @param inout_boxes ltrb img-coord boxes which are modified inplace
  * @param remove_threshold threshold of area change to remove boxes
  * @param image_wh width and height of the image in pixels
- * @param in_labels optional input labels to filter synchronously with truncated boxes
- * @param out_labels option result of the filtered labels
- * @return the new number of valid boxes remaining
+ * @return the indicies of the boxes to keep
  */
-int ClipAndRemoveBoxes(dali::span<vec4> inout_boxes, float remove_threshold, vec2 image_wh,
-                       std::optional<ConstSampleView<CPUBackend>> in_labels,
-                       std::optional<SampleView<CPUBackend>> out_labels) {
-  DALI_ASSERT(in_labels.has_value() == out_labels.has_value());
-  const bool handle_labels = in_labels.has_value();
-  if (handle_labels) {
-    DALI_ASSERT(in_labels->shape()[0] == inout_boxes.size());
-    DALI_ASSERT(out_labels->shape()[0] == inout_boxes.size());
-  }
+std::vector<int> ClipAndRemoveBoxes(dali::span<vec4> inout_boxes, float remove_threshold,
+                                    vec2 image_wh) {
+  std::vector<int> keep_indices{};
+  keep_indices.reserve(inout_boxes.size());
 
   int out_idx = 0;
   for (int in_idx = 0; in_idx < inout_boxes.size(); ++in_idx) {
@@ -244,23 +237,20 @@ int ClipAndRemoveBoxes(dali::span<vec4> inout_boxes, float remove_threshold, vec
     const float fraction_remain = new_area / old_area;
     if (fraction_remain >= remove_threshold) {
       inout_boxes[out_idx] = box;
-      if (handle_labels) {
-        out_labels.value().mutable_data<int>()[out_idx] = in_labels.value().data<int>()[in_idx];
-      }
+      keep_indices.push_back(in_idx);
       ++out_idx;
     }
   }
-  return out_idx;
+  return keep_indices;
 }
 
-int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
-                      SampleView<CPUBackend> rotate_buffer, SampleView<CPUBackend> out_box_tensor,
-                      float angle, std::optional<ConstSampleView<CPUBackend>> in_labels,
-                      std::optional<SampleView<CPUBackend>> out_labels, bool ltrb, Mode mode,
-                      float remove_threshold, vec2 in_wh, vec2 out_wh, bool bbox_norm) {
+std::vector<int> RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
+                                   SampleView<CPUBackend> scratch_buffer, float angle, bool ltrb,
+                                   Mode mode, float remove_threshold, vec2 in_wh, vec2 out_wh,
+                                   bool bbox_norm) {
   const auto num_boxes = in_box_tensor.shape()[0];
   auto in_boxes = dali::span(reinterpret_cast<const vec4*>(in_box_tensor.raw_data()), num_boxes);
-  auto x_coords = dali::span(rotate_buffer.mutable_data<float>(), 4 * num_boxes);
+  auto x_coords = dali::span(scratch_buffer.mutable_data<float>(), 4 * num_boxes);
   auto y_coords = dali::span(x_coords.end(), 4 * num_boxes);
   if (ltrb) {
     ExpandToAllCorners<true>(x_coords, y_coords, in_boxes);
@@ -299,9 +289,11 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
   std::transform(y_coords.begin(), y_coords.end(), y_coords.begin(),
                  [half_h = out_wh.y / 2](float elem) { return elem + half_h; });
 
-  // Convert back to bounding boxes
+  // Convert back to bounding boxes, re-using scratch_buffer because the number of x corner
+  // values per box (4) is the same as the box coordinates so basically the x corner coordinate
+  // memory will be progressively overwritten by the final output boxes.
   auto out_boxes =
-      dali::span(reinterpret_cast<vec4*>(out_box_tensor.raw_mutable_data()), num_boxes);
+      dali::span(reinterpret_cast<vec4*>(scratch_buffer.raw_mutable_data()), num_boxes);
   CornersToBoxes(out_boxes, x_coords, y_coords);
 
   // Apply correction to expansion factor if required
@@ -310,11 +302,10 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
   }
 
   // Clip to image coordinates and remove boxes (and labels) with too large a reduction.
-  const auto num_out_boxes =
-      ClipAndRemoveBoxes(out_boxes, remove_threshold, out_wh, in_labels, out_labels);
+  const auto out_indices = ClipAndRemoveBoxes(out_boxes, remove_threshold, out_wh);
 
   if (!ltrb || bbox_norm) {  // Convert back to xywh and/or normalized format if needed
-    out_boxes = dali::span(out_boxes.data(), num_out_boxes);  // handle if some boxes culled
+    out_boxes = dali::span(out_boxes.data(), out_indices.size());  // handle if some boxes culled
 
     // Recip of whwh to multiply with box for normalization
     const vec4 box_norm_vec = {1.f / out_wh.x, 1.f / out_wh.y, 1.f / out_wh.x, 1.f / out_wh.y};
@@ -333,24 +324,17 @@ int RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
     });
   }
 
-  return num_out_boxes;
+  return out_indices;
 }
 
 template <>
 void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
   const auto& in_boxes = ws.Input<CPUBackend>(0);
-  std::vector<int> num_final_boxes(in_boxes.num_samples());
+  std::vector<std::vector<int>> kept_box_indices(in_boxes.num_samples());
 
   auto& tpool = ws.GetThreadPool();
   for (int sample_idx = 0; sample_idx < in_boxes.num_samples(); ++sample_idx) {
     tpool.AddWork([&, sample_idx](int) {
-      std::optional<ConstSampleView<CPUBackend>> in_labels;
-      std::optional<SampleView<CPUBackend>> out_labels;
-      if (ws.NumInput() == 2) {
-        in_labels = ws.Input<CPUBackend>(1)[sample_idx];
-        out_labels = ws.Output<CPUBackend>(1)[sample_idx];
-      }
-
       float angle;
       if (spec_.HasTensorArgument("angle")) {
         const auto angle_tensor = ws.ArgumentInput("angle")[sample_idx];
@@ -424,10 +408,9 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         canvas_wh.y = shape.y;
       }
 
-      num_final_boxes[sample_idx] = RotateBoxesKernel(
-          in_boxes[sample_idx], bbox_rotate_buffer_[sample_idx],
-          ws.Output<CPUBackend>(0)[sample_idx], angle, in_labels, out_labels, use_ltrb_, mode_,
-          remove_threshold_, image_wh, canvas_wh, bbox_normalized_);
+      kept_box_indices[sample_idx] =
+          RotateBoxesKernel(in_boxes[sample_idx], scratch_buffer_[sample_idx], angle, use_ltrb_,
+                            mode_, remove_threshold_, image_wh, canvas_wh, bbox_normalized_);
     });
   }
 
@@ -435,15 +418,37 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
 
   // Resize outputs to the number of kept boxes
   for (int sample_idx = 0; sample_idx < in_boxes.num_samples(); ++sample_idx) {
-    const auto& num_out_boxes= num_final_boxes[sample_idx];
+    const auto& out_box_indices = kept_box_indices[sample_idx];
+    const auto num_out_boxes = static_cast<span_extent_t>(out_box_indices.size());
+
+    // Resize output boxes and copy results from the scratch buffer
     ws.Output<CPUBackend>(0).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 4));
-      if (ws.NumInput() == 2) {
+    std::memcpy(ws.Output<CPUBackend>(0).raw_mutable_tensor(sample_idx),
+                scratch_buffer_[sample_idx].raw_data(), 4 * num_out_boxes * sizeof(float));
+
+    // If labels were passed, copy the kept labels using the out_box_indices
+    if (ws.NumInput() == 2) {
+      const auto in_labels = ws.Input<CPUBackend>(1)[sample_idx];
+      auto out_labels = ws.Output<CPUBackend>(1)[sample_idx];
+      const auto num_in_boxes = in_labels.shape()[0];
+      if (num_in_boxes == num_out_boxes) {
+        // Run simple memcpy if the no boxes have been pruned
+        std::memcpy(out_labels.raw_mutable_data(), in_labels.raw_data(),
+                    num_out_boxes * sizeof(int));
+      } else {
+        // Resize the output and then copy the label indicies of the kept boxes
         if (ws.Output<CPUBackend>(1).shape().ndim == 2) {
           ws.Output<CPUBackend>(1).ResizeSample(sample_idx, dali::TensorShape<2>(num_out_boxes, 1));
         } else {
           ws.Output<CPUBackend>(1).ResizeSample(sample_idx, dali::TensorShape<1>(num_out_boxes));
         }
+        const auto in_label_span = dali::span(in_labels.data<int>(), num_in_boxes);
+        const auto out_label_span = dali::span(out_labels.mutable_data<int>(), num_out_boxes);
+        for (span_extent_t out_idx = 0; out_idx < num_out_boxes; ++out_idx) {
+          out_label_span[out_idx] = in_label_span[out_box_indices[out_idx]];
+        }
       }
+    }
   }
 }
 
