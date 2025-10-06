@@ -598,3 +598,6 @@ def as_batch(
         return b
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout)
+
+
+__all__ = ["Batch", "batch", "as_batch"]

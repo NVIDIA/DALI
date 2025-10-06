@@ -18,6 +18,7 @@ import gc
 from nose_utils import SkipTest, attr
 from nose2.tools import params
 import nvidia.dali.backend as _b
+from nose_utils import assert_raises
 
 
 def asnumpy(tensor):
@@ -71,11 +72,206 @@ def test_device_change_multi_gpu():
 
 
 @params(("cpu",), ("gpu",))
-def test_tensor_cast(device_type):
+def test_tensor_converting_constructor(device_type):
     data = np.array([1, 1.25, 2.2, 0x1000001], dtype=np.float64)
+    data_i32 = np.int32([1, 1, 2, 0x1000001])
+    data_fp32 = np.float32([1, 1.25, 2.2, 0x1000000])
+    # loss of precision --------------------------^
     orig = D.Tensor(data, device=device_type)
     i32 = D.Tensor(data, device=device_type, dtype=D.int32)
     fp32 = D.Tensor(data, device=device_type, dtype=D.float32)
+    assert orig.dtype == D.float64
+    assert orig.device == D.Device(device_type)
+    assert orig._backend.dtype == D.float64.type_id
+    assert i32.dtype == D.int32
+    assert i32.device == D.Device(device_type)
+    assert i32._backend.dtype == D.int32.type_id
+    assert fp32.dtype == D.float32
+    assert fp32.device == D.Device(device_type)
+    assert fp32._backend.dtype == D.float32.type_id
     assert np.array_equal(data, asnumpy(orig))
-    assert np.array_equal(np.int32([1, 1, 2, 0x1000001]), asnumpy(i32))
-    assert np.array_equal(np.float32([1, 1.25, 2.2, 0x1000000]), asnumpy(fp32))
+    assert np.array_equal(data_i32, asnumpy(i32))
+    assert np.array_equal(data_fp32, asnumpy(fp32))
+
+
+@params(("cpu",), ("gpu",))
+def test_tensor_makes_copy(device_type):
+    data = np.array([1, 2, 3], dtype=np.int32)
+    src = D.Tensor(data, device=device_type)
+    dst = D.tensor(src._backend)
+    assert dst._backend is not src._backend
+    assert dst._backend.data_ptr() != src._backend.data_ptr()
+
+
+@params(("cpu",), ("gpu",))
+def test_as_tensor_doesnt_make_copy(device_type):
+    data = np.array([1, 2, 3], dtype=np.int32)
+    src = D.Tensor(data, device=device_type)
+    dst = D.as_tensor(src._backend)
+    assert dst._backend.data_ptr() == src._backend.data_ptr()
+
+
+@params(("cpu",), ("gpu",))
+def test_as_tensor_doesnt_make_copy(device_type):
+    data = np.array([1, 2, 3], dtype=np.int32)
+    src = D.Tensor(data, device=device_type)
+    dst = D.as_tensor(src._backend)
+    assert dst._backend.data_ptr() == src._backend.data_ptr()
+
+
+@params(("cpu",), ("gpu",))
+def test_as_tensor_with_conversion(device_type):
+    data = np.array([1, 2, 3], dtype=np.int32)
+    src = D.Tensor(data, device=device_type)
+    dst = D.as_tensor(src._backend, dtype=D.float32)
+    assert dst._backend.dtype == D.float32.type_id
+    assert np.array_equal(data.astype(np.float32), asnumpy(dst))
+
+
+def test_scalar():
+    scalar = D.tensor(5, dtype=D.int32)
+    assert scalar.ndim == 0
+    assert scalar.shape == ()
+    assert scalar.dtype == D.int32
+    assert scalar.device == D.Device("cpu")
+    assert scalar.layout is None
+    assert scalar._backend.dtype == D.int32.type_id
+
+
+def test_shapes():
+    shapes = [
+        (),
+        (1,),
+        (42,),
+        (480, 640, 3),
+        (1, 2, 3, 4),
+        (1, 2, 3, 4, 5),
+        (1, 2, 3, 4, 5, 6),
+        (1, 2, 3, 4, 5, 6, 7),
+        (1, 2, 3, 4, 5, 6, 7, 6),
+        (1, 2, 3, 4, 5, 6, 7, 6, 5),
+        (1, 2, 3, 4, 5, 6, 7, 6, 5, 4),
+    ]
+    for shape in shapes:
+        tensor = D.tensor(np.full(shape, 5, dtype=np.int32))
+        assert tensor.ndim == len(shape)
+        assert tensor.shape == shape
+        assert tensor.size == np.prod(shape)
+        assert tensor.nbytes == tensor.size * tensor.dtype.bytes
+        assert tensor.itemsize == tensor.dtype.bytes
+        assert tensor.dtype == D.int32
+        assert tensor.device == D.Device("cpu")
+        assert tensor.layout is None
+
+
+def test_layout():
+    t = D.tensor(np.zeros((480, 640, 3), dtype=np.int32))
+    assert t.layout is None
+    t = D.tensor(np.zeros((480, 640, 3), dtype=np.int32), layout="HWC")
+    assert t.layout == "HWC"
+    with assert_raises(ValueError, glob="dimensions"):
+        t = D.tensor(np.zeros((480, 640, 3), dtype=np.int32), layout="DHWC")
+
+
+def test_shape_slice():
+    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
+    s = t[1:3, 2:5, 3:7, 4:9]
+    print(s.shape)
+    assert s.shape == (2, 3, 4, 5)
+
+
+def test_shape_slices_multi():
+    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
+    s = t[1:3, ..., 4:9]
+    assert s.shape == (2, 6, 7, 5)
+    s = s[:, 2:5, 3:7, :]
+    assert s.shape == (2, 3, 4, 5)
+
+
+def test_shape_slice_dim_removal():
+    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
+    s = t[:-1, 0, -2:, 0]
+    assert s.shape == (4, 2)
+
+
+def test_shape_slice_multi_dim_removal():
+    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
+    s = t[:-1, 0, -2:, 0]
+    assert s.shape == (4, 2)
+    s = s[:-1, 0]
+    assert s.shape == (3,)
+
+
+# REVIEW ONLY
+def tensor_subscript(target, **kwargs):
+    ranges = [slice(None)] * target.ndim
+    processed = 0
+    for i in range(len(ranges)):
+        if f"at_{i}" in kwargs:
+            assert f"lo_{i}" not in kwargs and f"hi_{i}" not in kwargs and f"step_{i}" not in kwargs
+            ranges[i] = kwargs[f"at_{i}"]
+            processed += 1
+        else:
+            assert f"at_{i}" not in kwargs
+            lo = kwargs.get(f"lo_{i}", None)
+            hi = kwargs.get(f"hi_{i}", None)
+            step = kwargs.get(f"step_{i}", None)
+            ranges[i] = slice(lo, hi, step)
+            processed += 1
+
+    assert processed == len(kwargs)
+
+    ranges = tuple(ranges)
+
+    def idx_sample(s, idx):
+        if s is None:
+            return None
+        elif isinstance(s, D.Batch):
+            return int(np.array(s.tensors[idx].evaluate()._backend))
+        elif isinstance(s, D.Tensor):
+            return int(np.array(s.evaluate()._backend))
+        else:
+            return s
+
+    def slice_sample(s, idx):
+        if isinstance(s, slice):
+            start = idx_sample(s.start, idx)
+            stop = idx_sample(s.stop, idx)
+            step = idx_sample(s.step, idx)
+            return slice(start, stop, step)
+        else:
+            return idx_sample(s, idx)
+
+    def subscript_sample(idx):
+        nonlocal ranges
+        return tuple(slice_sample(s, idx) for s in ranges)
+
+    def do_slice(t, ranges):
+        c = t.cpu().evaluate()
+        return D.tensor(np.array(t._backend)[ranges], device=t.device)
+
+    if isinstance(ranges, D.Batch):
+        return D.Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])
+    else:
+        return do_slice(target, ranges)
+
+
+D.tensor_subscript = tensor_subscript
+
+
+def test_tensor_subscript():
+    t = D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32)
+    assert asnumpy(t[1, 1]) == 5
+
+
+def test_batch_subscript():
+    b = D.Batch(
+        [
+            D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
+            D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
+        ]
+    )
+    b11 = b.slice[1, 1]
+    assert isinstance(b11, D.Batch)
+    assert asnumpy(b11.tensors[0]) == 5
+    assert asnumpy(b11.tensors[1]) == 11

@@ -199,7 +199,7 @@ class Tensor:
                 self._device = device
 
             if self._backend is not None:
-                self._shape = self._backend.shape()
+                self._shape = tuple(self._backend.shape())
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
 
@@ -296,7 +296,7 @@ class Tensor:
             elif self._batch is not None:
                 self._shape = self._batch.shape[self._index_in_batch]
             else:
-                self._shape = self._backend.shape()
+                self._shape = tuple(self._backend.shape())
         return self._shape
 
     @property
@@ -323,7 +323,10 @@ class Tensor:
                 self._layout = self._batch.layout
             else:
                 self._layout = self._backend.layout()
-        return self._layout
+        # Use "" to indicate that the layout has been checked and is empty, but still return None
+        # to avoid situations where we return a string with a length that doesn't match the number
+        # of dimensions.
+        return self._layout if self._layout != "" else None
 
     @property
     def size(self) -> int:
@@ -359,7 +362,7 @@ class Tensor:
                 else:
                     assert self._invocation_result is not None
                     self._backend = self._invocation_result.value(ctx)
-                self._shape = self._backend.shape()
+                self._shape = tuple(self._backend.shape())
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
         return self
@@ -703,3 +706,6 @@ def as_tensor(
     This function avoids copying the data if possible.
     """
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)
+
+
+__all__ = ["Tensor", "tensor", "as_tensor"]
