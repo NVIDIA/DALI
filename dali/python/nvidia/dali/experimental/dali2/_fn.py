@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-DALI2 is a new experimental API that is currently under development.
-"""
-
-from ._eval_mode import *  # noqa: F401, F403
-from ._eval_context import *  # noqa: F401, F403
-from ._type import *  # noqa: F401, F403
-from ._device import *  # noqa: F401, F403
-from ._tensor import Tensor, tensor, as_tensor  # noqa: F401
-from ._batch import Batch, batch, as_batch  # noqa: F401
-
-from . import _fn
 from . import ops
+from . import _op_builder
 
-ops._initialize()
-_fn._initialize()
+
+def _initialize():
+    for op in ops._all_ops:
+        if op.op_name.startswith("_"):
+            continue
+        if op.schema.IsStateful():
+            continue
+
+        _op_builder.build_fn_wrapper(op)
