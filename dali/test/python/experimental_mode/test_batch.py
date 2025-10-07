@@ -47,7 +47,6 @@ def test_batch_construction(device_type):
     assert np.array_equal(asnumpy(b.tensors[1]), t1)
 
 
-
 def batch_equal(a, b):
     for x, y in zip(a, b, strict=True):
         if not np.array_equal(x, y):
@@ -98,12 +97,8 @@ def test_batch_subscript_per_sample():
         ]
     )
     # unzipped indices (1, 1), (0, 2)
-    i = D.as_batch([
-        1, 0
-    ])
-    j = D.as_batch([
-        1, 2
-    ])
+    i = D.as_batch([1, 0])
+    j = D.as_batch([1, 2])
     b11 = b.slice[i, j]
     assert isinstance(b11, D.Batch)
     assert asnumpy(b11.tensors[0]) == 5

@@ -73,10 +73,10 @@ def copy(tensor_or_batch, device):
     return type(tensor_or_batch)(copied_backend)
 
 
-
 # REVIEW ONLY
 def tensor_subscript(target, **kwargs):
     import numpy as np
+
     ranges = [slice(None)] * target.ndim
     processed = 0
     for i in range(len(ranges)):

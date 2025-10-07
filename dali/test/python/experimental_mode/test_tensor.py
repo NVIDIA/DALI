@@ -218,4 +218,3 @@ def test_batch_subscript_broadcast():
     assert isinstance(b11, D.Batch)
     assert asnumpy(b11.tensors[0]) == 5
     assert asnumpy(b11.tensors[1]) == 11
-
