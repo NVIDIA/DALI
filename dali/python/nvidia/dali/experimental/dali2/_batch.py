@@ -145,6 +145,8 @@ class Batch:
         copy: bool = False,
     ):
         assert isinstance(layout, str) or layout is None
+        if device is not None and not isinstance(device, Device):
+            device = Device(device)
         self._wraps_external_data = False
         self._tensors = None
         self._backend = None
