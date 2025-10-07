@@ -128,6 +128,18 @@ def test_as_tensor_with_conversion(device_type):
     assert np.array_equal(data.astype(np.float32), asnumpy(dst))
 
 
+def test_tensor_clone_properties():
+    t = D.tensor(np.array([1, 2, 3], dtype=np.int32), layout="X")
+    t2 = D.tensor(t)
+    assert t2.dtype == t.dtype
+    assert t2.device == t.device
+    assert t2.layout == t.layout
+    assert t2.shape == t.shape
+    assert t2.size == t.size
+    assert t2.nbytes == t.nbytes
+    assert t2.itemsize == t.itemsize
+
+
 def test_scalar():
     scalar = D.tensor(5, dtype=D.int32)
     assert scalar.ndim == 0

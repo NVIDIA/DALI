@@ -89,6 +89,19 @@ def test_batch_properties_from_tensor(device_type):
     assert b.shape == [(3,)]
 
 
+@params(("cpu",), ("gpu",))
+def test_batch_properties_clone(device_type):
+    t = D.tensor(np.array([1, 2, 3], dtype=np.uint8))
+    src = D.Batch([t], device=device_type, layout="X")
+    b = D.batch(src)
+    assert b.device == D.Device(device_type)
+    assert b.dtype == D.uint8
+    assert b.layout == "X"
+    assert b.batch_size == 1
+    assert b.ndim == 1
+    assert b.shape == [(3,)]
+
+
 def test_batch_subscript_per_sample():
     b = D.as_batch(
         [

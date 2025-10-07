@@ -176,7 +176,7 @@ class Batch:
                 self._dtype = dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = layout = self._backend.layout()
                 if device is None:
-                    device = Device("gpu", self._backend.device_id)
+                    device = Device("gpu", self._backend.device_id())
                 else:
                     if device.device_type != "gpu":
                         copy = True
@@ -352,6 +352,8 @@ class Batch:
         return _TensorList(self)
 
     def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
+        if device is not None and not isinstance(device, Device):
+            device = Device(device)
         if self.device == device and not force_copy:
             return self
         else:
@@ -575,7 +577,7 @@ def batch(
     layout: Optional[str] = None,
 ):
     if isinstance(tensors, Batch):
-        b = tensors.to_device(device, force_copy=True)
+        b = tensors.to_device(device or tensors.device, force_copy=True)
         if dtype is not None and b.dtype != dtype:
             from . import cast
 
