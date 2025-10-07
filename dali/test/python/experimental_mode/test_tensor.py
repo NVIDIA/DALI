@@ -202,81 +202,20 @@ def test_shape_slice_multi_dim_removal():
     assert s.shape == (3,)
 
 
-# REVIEW ONLY
-def tensor_subscript(target, **kwargs):
-    print(f"Target: {target}")
-    print(f"args: {kwargs}")
-    ranges = [slice(None)] * target.ndim
-    processed = 0
-    for i in range(len(ranges)):
-        if f"at_{i}" in kwargs:
-            assert f"lo_{i}" not in kwargs and f"hi_{i}" not in kwargs and f"step_{i}" not in kwargs
-            ranges[i] = kwargs[f"at_{i}"]
-            processed += 1
-        else:
-            assert f"at_{i}" not in kwargs
-            lo = kwargs.get(f"lo_{i}", None)
-            hi = kwargs.get(f"hi_{i}", None)
-            step = kwargs.get(f"step_{i}", None)
-            ranges[i] = slice(lo, hi, step)
-            processed += 1
-
-    assert processed == len(kwargs)
-
-    ranges = tuple(ranges)
-
-    def idx_sample(s, idx):
-        if s is None:
-            return None
-        elif isinstance(s, D.Batch):
-            return int(np.array(s.tensors[idx].evaluate()._backend))
-        elif isinstance(s, D.Tensor):
-            return int(np.array(s.evaluate()._backend))
-        else:
-            return s
-
-    def slice_sample(s, idx):
-        if isinstance(s, slice):
-            start = idx_sample(s.start, idx)
-            stop = idx_sample(s.stop, idx)
-            step = idx_sample(s.step, idx)
-            return slice(start, stop, step)
-        else:
-            return idx_sample(s, idx)
-
-    def subscript_sample(idx):
-        nonlocal ranges
-        return tuple(slice_sample(s, idx) for s in ranges)
-
-    def do_slice(t, ranges):
-        c = t.cpu().evaluate()
-        return D.tensor(np.array(t._backend)[ranges], device=t.device)
-
-    if isinstance(target, D.Batch):
-        print(f"Target: {target}")
-        print(f"Ranges: {ranges}")
-        return D.Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])
-    else:
-        return do_slice(target, ranges)
-
-
-D.tensor_subscript = tensor_subscript
-
-
 def test_tensor_subscript():
     t = D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32)
     assert asnumpy(t[1, 1]) == 5
 
 
-def test_batch_subscript():
+def test_batch_subscript_broadcast():
     b = D.as_batch(
         [
             D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
             D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
         ]
     )
-    b.evaluate()
     b11 = b.slice[1, 1]
     assert isinstance(b11, D.Batch)
     assert asnumpy(b11.tensors[0]) == 5
     assert asnumpy(b11.tensors[1]) == 11
+

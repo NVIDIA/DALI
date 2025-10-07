@@ -71,3 +71,59 @@ def copy(tensor_or_batch, device):
         else:
             copied_backend = b._as_gpu()
     return type(tensor_or_batch)(copied_backend)
+
+
+
+# REVIEW ONLY
+def tensor_subscript(target, **kwargs):
+    import numpy as np
+    ranges = [slice(None)] * target.ndim
+    processed = 0
+    for i in range(len(ranges)):
+        if f"at_{i}" in kwargs:
+            assert f"lo_{i}" not in kwargs and f"hi_{i}" not in kwargs and f"step_{i}" not in kwargs
+            ranges[i] = kwargs[f"at_{i}"]
+            processed += 1
+        else:
+            assert f"at_{i}" not in kwargs
+            lo = kwargs.get(f"lo_{i}", None)
+            hi = kwargs.get(f"hi_{i}", None)
+            step = kwargs.get(f"step_{i}", None)
+            ranges[i] = slice(lo, hi, step)
+            processed += 1
+
+    assert processed == len(kwargs)
+
+    ranges = tuple(ranges)
+
+    def idx_sample(s, idx):
+        if s is None:
+            return None
+        elif isinstance(s, Batch):
+            return int(np.array(s.tensors[idx].evaluate()._backend))
+        elif isinstance(s, Tensor):
+            return int(np.array(s.evaluate()._backend))
+        else:
+            return s
+
+    def slice_sample(s, idx):
+        if isinstance(s, slice):
+            start = idx_sample(s.start, idx)
+            stop = idx_sample(s.stop, idx)
+            step = idx_sample(s.step, idx)
+            return slice(start, stop, step)
+        else:
+            return idx_sample(s, idx)
+
+    def subscript_sample(idx):
+        nonlocal ranges
+        return tuple(slice_sample(s, idx) for s in ranges)
+
+    def do_slice(t, ranges):
+        c = t.cpu().evaluate()
+        return tensor(np.array(t._backend)[ranges], device=t.device)
+
+    if isinstance(target, Batch):
+        return Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])
+    else:
+        return do_slice(target, ranges)
