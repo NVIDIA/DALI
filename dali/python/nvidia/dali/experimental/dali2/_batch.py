@@ -127,7 +127,7 @@ class _TensorList:
         else:
             return self._batch.select(range)
 
-    def tolist():
+    def tolist(self):
         return [self._batch._get_tensor(i) for i in self._indices]
 
     def as_batch(self):
@@ -328,6 +328,10 @@ class Batch:
         if self._layout is None:
             if self._invocation_result is not None:
                 self._layout = self._invocation_result.layout
+            elif self._backend is not None:
+                self._layout = self._backend.layout()
+                if self._layout == "" and self._ndim != 0:
+                    self._layout = None
             elif self._tensors:
                 self._layout = self._tensors[0].layout
             else:

@@ -22,6 +22,8 @@ from ._type import *  # noqa: F401, F403
 from ._device import *  # noqa: F401, F403
 from ._tensor import *  # noqa: F401, F403
 from ._batch import *  # noqa: F401, F403
+from ._tensor import Tensor, tensor, as_tensor  # noqa: F401
+from ._batch import Batch, batch, as_batch  # noqa: F401
 
 
 # REVIEW ONLY
@@ -32,13 +34,12 @@ def _convert_tensor_cpu(tensor, dtype):
 
     converted = np.array(tensor, dtype=_types.to_numpy_type(dtype.type_id))
     converted_backend = _b.TensorCPU(converted, tensor.layout())
-    return converted
+    return converted_backend
 
 
 # REVIEW ONLY
 def cast(tensor_or_batch, dtype):
     from . import _type
-    import nvidia.dali.backend as _b
 
     dtype = _type.dtype(dtype)
     cpu = tensor_or_batch.cpu()
@@ -116,12 +117,11 @@ def tensor_subscript(target, **kwargs):
             return idx_sample(s, idx)
 
     def subscript_sample(idx):
-        nonlocal ranges
         return tuple(slice_sample(s, idx) for s in ranges)
 
     def do_slice(t, ranges):
         c = t.cpu().evaluate()
-        return tensor(np.array(t._backend)[ranges], device=t.device)
+        return tensor(np.array(c._backend)[ranges], device=t.device)
 
     if isinstance(target, Batch):
         return Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])

@@ -35,6 +35,9 @@ from nvidia.dali.backend_impl import *  # noqa: F401, F403
 from . import __cuda_version__
 import warnings
 import sys
+import atexit
+import gc
+
 
 _ExecutorType.__bool__ = lambda self: self.value != 0
 _ExecutorType.__and__ = lambda x, y: _ExecutorType(x.value & y.value)
@@ -138,10 +141,6 @@ def check_cuda_runtime():
                 "#pip-wheels-installation-linux "
                 "for the reference."
             )
-
-
-import atexit
-import gc
 
 
 @atexit.register

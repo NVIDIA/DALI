@@ -14,8 +14,7 @@
 
 import nvidia.dali.experimental.dali2 as D
 import numpy as np
-import gc
-from nose_utils import SkipTest, attr
+from nose_utils import attr
 from nose2.tools import params
 import nvidia.dali.backend as _b
 from nose_utils import assert_raises
@@ -52,6 +51,36 @@ def batch_equal(a, b):
         if not np.array_equal(x, y):
             return False
     return True
+
+
+@attr("pytorch")
+@params(("cpu",), ("cuda",))
+def test_batch_construction_with_torch_tensor(device_type):
+    import torch
+
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]], device=device_type, dtype=torch.int32)
+    b = D.as_batch(data)
+    assert b.device == D.Device("gpu" if device_type == "cuda" else device_type)
+    assert b.dtype == D.int32
+    assert b.batch_size == 2
+    assert b.ndim == 1
+    assert b.shape == [(3,), (3,)]
+    assert b.layout is None
+    ref = torch.from_dlpack(D.as_tensor(b)._backend)
+    assert torch.equal(data[0], ref[0])
+    assert torch.equal(data[1], ref[1])
+
+
+@params(("cpu",), ("gpu",))
+def test_batch_construction_with_tensor(device_type):
+    t = D.tensor(np.array([1, 2, 3], dtype=np.uint8), device=device_type, layout="X")
+    b = D.Batch([t])
+    assert b.device == D.Device(device_type)
+    assert b.dtype == D.uint8
+    assert b.layout == "X"
+    assert b.batch_size == 1
+    assert b.ndim == 1
+    assert b.shape == [(3,)]
 
 
 @params(("cpu",), ("gpu",))

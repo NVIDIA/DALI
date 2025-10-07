@@ -705,6 +705,10 @@ def as_tensor(
 
     This function avoids copying the data if possible.
     """
+    from . import _batch
+    if isinstance(data, _batch.Batch):
+        data = data.evaluate()._backend.as_tensor()
+
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)
 
 
