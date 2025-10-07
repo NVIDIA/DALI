@@ -204,6 +204,8 @@ def test_shape_slice_multi_dim_removal():
 
 # REVIEW ONLY
 def tensor_subscript(target, **kwargs):
+    print(f"Target: {target}")
+    print(f"args: {kwargs}")
     ranges = [slice(None)] * target.ndim
     processed = 0
     for i in range(len(ranges)):
@@ -250,7 +252,9 @@ def tensor_subscript(target, **kwargs):
         c = t.cpu().evaluate()
         return D.tensor(np.array(t._backend)[ranges], device=t.device)
 
-    if isinstance(ranges, D.Batch):
+    if isinstance(target, D.Batch):
+        print(f"Target: {target}")
+        print(f"Ranges: {ranges}")
         return D.Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])
     else:
         return do_slice(target, ranges)
@@ -265,12 +269,13 @@ def test_tensor_subscript():
 
 
 def test_batch_subscript():
-    b = D.Batch(
+    b = D.as_batch(
         [
             D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
             D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
         ]
     )
+    b.evaluate()
     b11 = b.slice[1, 1]
     assert isinstance(b11, D.Batch)
     assert asnumpy(b11.tensors[0]) == 5

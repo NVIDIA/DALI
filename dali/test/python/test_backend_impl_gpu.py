@@ -359,9 +359,12 @@ def test_tensor_list_gpu_from_cupy():
 
 
 def test_tensor_from_tensor_list_gpu():
+    orig = []
     def create_tl(idx):
+        nonlocal orig
         a = np.full((3, 4), idx)
         a_gpu = cp.array(a, dtype=a.dtype)
+        orig.append(a_gpu)
         return tensors.TensorListGPU(a_gpu, "")
 
     out = []
