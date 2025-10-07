@@ -2374,9 +2374,14 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
 
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (spec.OutputDevice(i) == StorageDevice::CPU) {
-      ws.AddOutput(std::make_shared<TensorList<CPUBackend>>());
+      auto out = std::make_shared<TensorList<CPUBackend>>();
+      out->set_order(ws.output_order(), false);
+      out->set_pinned(true);
+      ws.AddOutput(std::move(out));
     } else {
-      ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+      auto out = std::make_shared<TensorList<GPUBackend>>();
+      out->set_order(ws.output_order(), false);
+      ws.AddOutput(std::move(out));
     }
   }
 
