@@ -120,7 +120,7 @@ def test_cuda_array_interface_tensor_list_gpu_create_copy_kernel():
 
 def test_cuda_array_interface_tensor_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
-    tensor = TensorGPU(arr, "NHWC")
+    tensor = TensorGPU(arr, "HWC")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
@@ -132,31 +132,31 @@ def test_dlpack_tensor_gpu_direct_creation():
 
 def test_cuda_array_interface_tensor_gpu_to_cpu():
     arr = cp.random.rand(3, 5, 6)
-    tensor = TensorGPU(arr, "NHWC")
+    tensor = TensorGPU(arr, "HWC")
     assert np.allclose(arr.get(), tensor.as_cpu())
 
 
 def test_dlpack_tensor_gpu_to_cpu():
     arr = cp.random.rand(3, 5, 6)
-    tensor = TensorGPU(arr.toDlpack(), "NHWC")
+    tensor = TensorGPU(arr.toDlpack(), "HWC")
     assert np.allclose(arr.get(), tensor.as_cpu())
 
 
 def test_cuda_array_interface_tensor_gpu_to_cpu_device_id():
     arr = cp.random.rand(3, 5, 6)
-    tensor = TensorGPU(arr, "NHWC", 0)
+    tensor = TensorGPU(arr, "HWC", 0)
     assert np.allclose(arr.get(), tensor.as_cpu())
 
 
 def test_cuda_array_interface_tensor_list_gpu_direct_creation():
-    arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU(arr, "NHWC")
+    arr = cp.random.rand(3, 5, 6, 3)
+    tensor_list = TensorListGPU(arr, "HWC")
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
 
 def test_cuda_array_interface_tensor_list_gpu_direct_creation_list():
     arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU([arr], "NHWC")
+    tensor_list = TensorListGPU([arr], "HWC")
     assert cp.allclose(arr.reshape(tuple([1]) + arr.shape), cp.asanyarray(tensor_list.as_tensor()))
 
 
@@ -176,37 +176,37 @@ def test_cuda_array_interface_v3_stream():
 
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU(arr.toDlpack(), "NHWC")
+    tensor_list = TensorListGPU(arr.toDlpack(), "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
 
 def test_dlpack_tensor_list_gpu_direct_creation_list():
     arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU([arr.toDlpack()], "NHWC")
+    tensor_list = TensorListGPU([arr.toDlpack()], "HWC")
     assert cp.allclose(arr.reshape(tuple([1]) + arr.shape), cp.asanyarray(tensor_list.as_tensor()))
 
 
 def test_cuda_array_interface_tensor_list_gpu_to_cpu():
-    arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU(arr, "NHWC")
+    arr = cp.random.rand(3, 5, 6, 3)
+    tensor_list = TensorListGPU(arr, "HWC")
     assert np.allclose(arr.get(), tensor_list.as_cpu().as_tensor())
 
 
 def test_dlpack_tensor_list_gpu_to_cpu():
-    arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU(arr.toDlpack(), "NHWC")
+    arr = cp.random.rand(3, 5, 6, 3)
+    tensor_list = TensorListGPU(arr.toDlpack(), "HWC")
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
 
 def test_cuda_array_interface_tensor_list_gpu_to_cpu_device_id():
     arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU(arr, "NHWC", 0)
+    tensor_list = TensorListGPU(arr, "HW", 0)
     assert np.allclose(arr.get(), tensor_list.as_cpu().as_tensor())
 
 
 def check_cuda_array_types(t):
     arr = cp.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
-    tensor = TensorGPU(arr, "NHWC")
+    tensor = TensorGPU(arr, "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
@@ -230,7 +230,7 @@ def test_cuda_array_interface_types():
 
 def check_dlpack_types(t):
     arr = cp.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
-    tensor = TensorGPU(arr.toDlpack(), "NHWC")
+    tensor = TensorGPU(arr.toDlpack(), "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
@@ -254,13 +254,13 @@ def test_dlpack_interface_types():
 @raises(RuntimeError, glob="Provided object doesn't support cuda array interface protocol.")
 def test_cuda_array_interface_tensor_gpu_create_from_numpy():
     arr = np.random.rand(3, 5, 6)
-    TensorGPU(arr, "NHWC")
+    TensorGPU(arr, "HWC")
 
 
 @raises(RuntimeError, glob="Provided object doesn't support cuda array interface protocol.")
 def test_cuda_array_interface_tensor_list_gpu_create_from_numpy():
     arr = np.random.rand(3, 5, 6)
-    TensorGPU(arr, "NHWC")
+    TensorGPU(arr, "HWC")
 
 
 def test_tensor_gpu_squeeze():
@@ -374,7 +374,7 @@ def test_tensor_from_tensor_list_gpu():
 
 def test_tensor_dlpack_export():
     arr = cp.arange(20)
-    tensor = TensorGPU(arr, "NHWC")
+    tensor = TensorGPU(arr)
 
     arr_from_dlpack = cp.from_dlpack(tensor)
 
