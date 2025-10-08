@@ -45,49 +45,49 @@ def test_preallocation():
 
 def test_create_tensor():
     arr = np.random.rand(3, 5, 6)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr, "HWC")
     assert_array_equal(arr, np.array(tensor))
 
 
 def test_create_tensor_and_make_it_release_memory():
     arr = np.random.rand(3, 5, 6)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr, "HWC")
     assert_array_equal(arr, np.array(tensor))
     arr = None
     tensor = None
 
 
 def test_create_tensorlist():
-    arr = np.random.rand(3, 5, 6)
-    tensorlist = TensorListCPU(arr, "NHWC")
+    arr = np.random.rand(3, 5, 6, 3)
+    tensorlist = TensorListCPU(arr, "HWC")
     assert_array_equal(arr, tensorlist.as_array())
 
 
 def test_create_tensorlist_list():
     arr = np.random.rand(3, 5, 6)
-    tensorlist = TensorListCPU([arr], "NHWC")
+    tensorlist = TensorListCPU([arr], "HWC")
     assert_array_equal(arr.reshape(tuple([1]) + arr.shape), tensorlist.as_array())
 
 
 def test_create_tensorlist_as_tensor():
-    arr = np.random.rand(3, 5, 6)
-    tensorlist = TensorListCPU(arr, "NHWC")
+    arr = np.random.rand(3, 5, 6, 3)
+    tensorlist = TensorListCPU(arr, "HWC")
     tensor = tensorlist.as_tensor()
     assert_array_equal(np.array(tensor), tensorlist.as_array())
 
 
 def test_empty_tensor_tensorlist():
     arr = np.array([], dtype=np.float32)
-    tensor = TensorCPU(arr, "NHWC")
-    tensorlist = TensorListCPU(arr, "NHWC")
+    tensor = TensorCPU(arr, "")
+    tensorlist = TensorListCPU(arr, "")
     assert_array_equal(np.array(tensor), tensorlist.as_array())
     assert np.array(tensor).shape == (0,)
     assert tensorlist.as_array().shape == (0,)
 
 
 def test_tensorlist_getitem_cpu():
-    arr = np.random.rand(3, 5, 6)
-    tensorlist = TensorListCPU(arr, "NHWC")
+    arr = np.random.rand(3, 5, 6, 3)
+    tensorlist = TensorListCPU(arr, "HWC")
     list_of_tensors = [x for x in tensorlist]
 
     assert type(tensorlist.at(0)) is np.ndarray
@@ -103,7 +103,7 @@ def test_tensorlist_getitem_cpu():
 
 def test_data_ptr_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr, "HWC")
     from_tensor = py_buffer_from_address(
         tensor.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype)
     )
@@ -112,7 +112,7 @@ def test_data_ptr_tensor_cpu():
 
 def test_data_ptr_tensor_list_cpu():
     arr = np.random.rand(3, 5, 6)
-    tensorlist = TensorListCPU(arr, "NHWC")
+    tensorlist = TensorListCPU(arr, "HW")
     tensor = tensorlist.as_tensor()
     from_tensor_list = py_buffer_from_address(
         tensorlist.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype)
@@ -122,7 +122,7 @@ def test_data_ptr_tensor_list_cpu():
 
 def test_array_interface_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
-    tensorlist = TensorListCPU(arr, "NHWC")
+    tensorlist = TensorListCPU(arr, "HW")
     assert tensorlist[0].__array_interface__["data"][0] == tensorlist[0].data_ptr()
     assert not tensorlist[0].__array_interface__["data"][1]
     assert np.array_equal(tensorlist[0].__array_interface__["shape"], tensorlist[0].shape())
@@ -149,7 +149,7 @@ def test_transfer_cpu_gpu():
 
 def check_array_types(t):
     arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr, "HW")
     assert np.allclose(np.array(arr), np.asanyarray(tensor))
 
 
@@ -184,15 +184,6 @@ def layout_compatible(a, b):
     if b is None:
         b = ""
     return a == b
-
-
-# TODO(spanev): figure out which return_value_policy to choose
-# def test_tensorlist_getitem_slice():
-#    arr = np.random.rand(3, 5, 6)
-#    tensorlist = TensorListCPU(arr, "NHWC")
-#    two_first_tensors = tensorlist[0:2]
-#    assert type(two_first_tensors) == tuple
-#    assert type(two_first_tensors[0]) == TensorCPU
 
 
 def test_tensor_cpu_squeeze():
@@ -391,7 +382,7 @@ def test_tensor_dlpack_export():
         raise SkipTest("Test requires Numpy DLPack support.")
 
     arr = np.arange(20)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr)
 
     arr_from_dlapck = np.from_dlpack(tensor)
 
