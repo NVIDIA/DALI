@@ -511,12 +511,16 @@ def _scalar_value(value: Any) -> int:
 
 
 class TensorSlice:
-    def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...]):
+    def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...], absolute=False):
         self._tensor = copy.copy(tensor)
-        self._ranges = [copy.copy(r) for r in ranges]
         self._ndim_dropped = 0
         self._shape = None
-        self._absolute_ranges = None
+        if absolute:
+            self._absolute_ranges = [copy.copy(r) for r in ranges]
+            self._ranges = self._insane_pythonic_ranges(self._absolute_ranges, tensor.shape)
+        else:
+            self._ranges = [copy.copy(r) for r in ranges]
+            self._absolute_ranges = None
         self._layout = None
         num_ranges = len(ranges)
         ellipsis_found = False
@@ -547,8 +551,7 @@ class TensorSlice:
             for r in self._absolute_ranges:
                 if isinstance(r, slice):
                     if r.step < 0:
-                        stop = r.stop if r.stop is not None else -1
-                        shape.append((stop + r.step - r.start + 1) // r.step)
+                        shape.append((r.stop + r.step - r.start + 1) // r.step)
                     else:
                         shape.append((r.stop + r.step - r.start - 1) // r.step)
             self._shape = tuple(shape)
@@ -586,6 +589,7 @@ class TensorSlice:
 
     @staticmethod
     def _canonicalize_ranges(ranges, in_shape) -> Tuple[int, ...]:
+        """Converts the ranges to sane non-pythonic values without negative indices wrapping"""
         d = 0
         abs_ranges = []
         for i, r in enumerate(ranges):
@@ -618,8 +622,6 @@ class TensorSlice:
                 else:
                     start = _clamp(start, 0, extent)
                     stop = _clamp(stop, start, extent)
-                if stop < 0:
-                    stop = None
                 abs_ranges.append(slice(start, stop, step))
             else:
                 idx = _scalar_value(r)
@@ -637,6 +639,23 @@ class TensorSlice:
 
         return tuple(abs_ranges)
 
+    @staticmethod
+    def _insane_pythonic_ranges(abs_ranges, shape) -> Tuple[int, ...]:
+        """Converts an absolute range into ranges as expected by Pythonic slicing API"""
+        py_ranges = []
+        for r, s in zip(abs_ranges, shape):
+            if isinstance(r, slice):
+                start = r.start
+                stop = r.stop
+                step = r.step
+                if step < 0:
+                    if stop < 0:
+                        stop -= s
+                py_ranges.append(slice(r.start, stop, r.step))
+            else:
+                py_ranges.append(r)
+        return tuple(py_ranges)
+
     def __getitem__(self, ranges: Any) -> "Tensor":
         if not isinstance(ranges, tuple):
             ranges = (ranges,)
@@ -650,14 +669,14 @@ class TensorSlice:
             for d, r in enumerate(self._absolute_ranges):
                 if isinstance(r, slice):
                     if isinstance(ranges[i], slice):
-                        start = r.start + ranges[i].start
-                        stop = r.start + ranges[i].stop
+                        start = r.start + ranges[i].start * r.step
+                        stop = r.start + ranges[i].stop * r.step
                         step = r.step * ranges[i].step
                         abs_ranges[d] = slice(start, stop, step)
                     else:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
-            result = TensorSlice(self._tensor, tuple(abs_ranges))
+            result = TensorSlice(self._tensor, tuple(abs_ranges), True)
             if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
                 result.evaluate()
             return Tensor(result)
@@ -678,7 +697,7 @@ class TensorSlice:
                 elif isinstance(r, slice):
                     if r.start is not None:
                         args[f"lo_{d}"] = r.start
-                    if r.stop is not None:
+                    if r.stop is not None and r.stop >= 0:
                         args[f"hi_{d}"] = r.stop
                     if r.step is not None:
                         args[f"step_{d}"] = r.step

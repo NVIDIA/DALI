@@ -227,3 +227,11 @@ def test_tensor_subscript_negative_step():
     x = t[::-1]
     assert x.shape == (6,)
     assert np.array_equal(asnumpy(x), np.int32([5, 4, 3, 2, 1, 0]))
+
+    y = x[:-1]
+    assert y.shape == (5,)
+    assert np.array_equal(asnumpy(y), np.int32([5, 4, 3, 2, 1]))
+
+    z = x[::2]
+    assert z.shape == (3,)
+    assert np.array_equal(asnumpy(z), np.int32([5, 3, 1]))
