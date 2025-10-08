@@ -196,32 +196,42 @@ void CheckContiguousTensor(const TStrides &strides, const TShape &shape, size_t 
 }
 
 template <typename Backend>
-void SetLayout(Tensor<Backend> &t, const std::optional<std::string> &layout_str) {
+void SetLayout(
+      Tensor<Backend> &t,
+      const std::optional<std::string> &layout_str,
+      bool clear_if_none = true) {
   if (layout_str && !layout_str->empty()) {
     TensorLayout layout = *layout_str;
     if (t.ndim() != layout.ndim()) {
       throw py::value_error(make_string(
         "A non-empty layout must have the same number of dimensions as the "
-        "number of dimensions of the tensor. "
-        "Got: ", layout.ndim(), " (", layout, ")",
+        "number of dimensions of the Tensor.\n"
+        "Got: ", layout.ndim(), " (", layout, ")\n",
         "Expected: ", t.ndim(), "."));
     }
     t.SetLayout(layout);
+  } else if (clear_if_none) {
+    t.SetLayout({});
   }
 }
 
 template <typename Backend>
-void SetLayout(TensorList<Backend> &t, const std::optional<std::string> &layout_str) {
+void SetLayout(
+      TensorList<Backend> &t,
+      const std::optional<std::string> &layout_str,
+      bool clear_if_none = true) {
   if (layout_str && !layout_str->empty()) {
     TensorLayout layout = *layout_str;
     if (t.sample_dim() != layout.ndim()) {
       throw py::value_error(make_string(
         "A non-empty layout must have the same number of dimensions as the "
-        "number of dimensions of the tensor list. "
-        "Got: ", layout.ndim(), " (", layout, ")",
+        "number of dimensions of the TensorList.\n"
+        "Got: ", layout.ndim(), " (", layout, ")\n",
         "Expected: ", t.sample_dim(), "."));
     }
     t.SetLayout(layout);
+  } else if (clear_if_none) {
+    t.SetLayout({});
   }
 }
 
@@ -1128,7 +1138,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
     contiguous_out->SetContiguity(BatchContiguity::Contiguous);
     contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
     contiguous_out->Copy(non_contiguous_tmp, copy_order);
-    SetLayout(*contiguous_out, layout);
+    SetLayout(*contiguous_out, layout, false);
     copy_order.wait(wait_order);
     return contiguous_out;
   }
@@ -1217,7 +1227,8 @@ void ExposeTensorListCPU(py::module &m) {
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<CPUBackend>>();
           t->ShareData(*tl);
-          SetLayout(*t, layout);
+          // If layout is not given, use the one from tl
+          SetLayout(*t, layout, false);
           return t;
         }),
       "tl"_a,
@@ -1508,7 +1519,8 @@ void ExposeTesorListGPU(py::module &m) {
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<GPUBackend>>();
           t->ShareData(*tl);
-          SetLayout(*t, layout);
+          // If layout is not given, use the one from `t`
+          SetLayout(*t, layout, false);
           return t;
         }),
       "tl"_a,
