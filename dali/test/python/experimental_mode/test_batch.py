@@ -39,7 +39,7 @@ def test_batch_construction(device_type):
             t1,
         ],
         device=D.Device(device_type),
-        layout="AB"
+        layout="AB",
     )
 
     assert isinstance(b, D.Batch)
@@ -58,7 +58,7 @@ def test_batch_construction(device_type):
 
 
 def test_broadcast():
-    a = np.array([1,2,3])
+    a = np.array([1, 2, 3])
     b = D.Batch.broadcast(a, 5).evaluate()
     for i, t in enumerate(b._backend):
         assert np.array_equal(np.array(t), a)
@@ -151,11 +151,23 @@ def test_batch_properties_clone(device_type):
     assert b.shape == [(3,)]
 
 
+def test_batch_subscript():
+    b = D.as_batch(
+        [
+            D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
+            D.tensor([[7, 8, 9, 10], [11, 12, 13, 14]], dtype=D.int32),
+        ]
+    )
+    sliced = b.slice[..., 1:-1]
+    assert np.array_equal(asnumpy(sliced.tensors[0]), np.array([[2], [5]], dtype=np.int32))
+    assert np.array_equal(asnumpy(sliced.tensors[1]), np.array([[8, 9], [12, 13]], dtype=np.int32))
+
+
 def test_batch_subscript_per_sample():
     b = D.as_batch(
         [
             D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
-            D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
+            D.tensor([[7, 8, 9, 10], [11, 12, 13, 14]], dtype=D.int32),
         ]
     )
     # unzipped indices (1, 1), (0, 2)

@@ -1320,7 +1320,7 @@ void ExposeTensorListCPU(py::module &m) {
       layout : str
             Layout of the data
       )code")
-    .def_static("repeat", [](const Tensor<CPUBackend> &t, int num_samples) {
+    .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
         return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
       })
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
@@ -1598,7 +1598,7 @@ void ExposeTesorListGPU(py::module &m) {
       R"code(
       List of tensors residing in the GPU memory.
       )code")
-    .def_static("repeat", [](const Tensor<CPUBackend> &t, int num_samples) {
+    .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
         return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
       })
     .def("as_cpu", [](TensorList<GPUBackend> &t) {

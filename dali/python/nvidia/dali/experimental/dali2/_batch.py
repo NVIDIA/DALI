@@ -276,7 +276,7 @@ class Batch:
                 tl_type = _backend.TensorListGPU
             else:
                 tl_type = _backend.TensorListCPU
-            return Batch(tl_type.repeat(t._backend, batch_size))
+            return Batch(tl_type.broadcast(t._backend, batch_size))
         import numpy as np
 
         with nvtx.annotate("to numpy and stack", domain="batch"):

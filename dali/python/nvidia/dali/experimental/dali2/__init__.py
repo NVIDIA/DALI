@@ -121,7 +121,7 @@ def tensor_subscript(target, **kwargs):
 
     def do_slice(t, ranges):
         c = t.cpu().evaluate()
-        return tensor(np.array(c._backend)[ranges], device=t.device)
+        return tensor(np.array(np.array(c._backend)[ranges]), device=t.device)
 
     if isinstance(target, Batch):
         return Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])
