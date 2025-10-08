@@ -547,7 +547,8 @@ class TensorSlice:
             for r in self._absolute_ranges:
                 if isinstance(r, slice):
                     if r.step < 0:
-                        shape.append((r.stop + r.step - r.start + 1) // r.step)
+                        stop = r.stop if r.stop is not None else -1
+                        shape.append((stop + r.step - r.start + 1) // r.step)
                     else:
                         shape.append((r.stop + r.step - r.start - 1) // r.step)
             self._shape = tuple(shape)
@@ -599,21 +600,26 @@ class TensorSlice:
                 if step == 0:
                     raise ValueError("slice step cannot be zero")
                 extent = in_shape[d]
-                start, stop = 0, extent
                 if r.start is not None:
                     start = _scalar_value(r.start)
                     if start < 0:
                         start += extent
+                else:
+                    start = extent - 1 if step < 0 else 0
                 if r.stop is not None:
                     stop = _scalar_value(r.stop)
                     if stop < 0:
                         stop += extent
+                else:
+                    stop = -1 if step < 0 else extent
                 if step < 0:
-                    stop = _clamp(stop, 0, extent)
+                    stop = _clamp(stop, -1, extent - 1)
                     start = _clamp(start, stop, extent)
                 else:
                     start = _clamp(start, 0, extent)
                     stop = _clamp(stop, start, extent)
+                if stop < 0:
+                    stop = None
                 abs_ranges.append(slice(start, stop, step))
             else:
                 idx = _scalar_value(r)

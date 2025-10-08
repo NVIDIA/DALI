@@ -221,6 +221,9 @@ def test_tensor_subscript():
 def test_tensor_subscript_negative_step():
     t = D.tensor([0, 1, 2, 3, 4, 5], dtype=D.int32)
     x = t[-1:1:-1]
-    print(x.shape)
     assert x.shape == (4,)
     assert np.array_equal(asnumpy(x), np.int32([5, 4, 3, 2]))
+
+    x = t[::-1]
+    assert x.shape == (6,)
+    assert np.array_equal(asnumpy(x), np.int32([5, 4, 3, 2, 1, 0]))
