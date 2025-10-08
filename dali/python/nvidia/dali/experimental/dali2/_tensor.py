@@ -51,6 +51,8 @@ def _get_array_interface(data):
 
 def _try_convert_enums(arr):
     assert arr.dtype == object
+    if arr.size == 0:
+        raise ValueError("Cannot convert an empty array of `object` type.")
     item = arr.flat[0]
     import numpy as np
 
@@ -60,6 +62,8 @@ def _try_convert_enums(arr):
         return arr.astype(np.int32), nvidia.dali.types.DATA_TYPE
     elif isinstance(item, nvidia.dali.types.DALIImageType):
         return arr.astype(np.int32), nvidia.dali.types.IMAGE_TYPE
+    else:
+        raise TypeError("Unexpected element type f{type(item)}")
 
 
 class Tensor:
@@ -110,12 +114,10 @@ class Tensor:
             self._device = batch.device
             self._layout = batch.layout
         elif data is not None:
-            if isinstance(data, _backend.TensorCPU):
+            if isinstance(data, (_backend.TensorCPU, _backend.TensorGPU)):
                 self._backend = data
                 self._wraps_external_data = True
-            elif isinstance(data, _backend.TensorGPU):
-                self._backend = data
-                self._wraps_external_data = True
+                self._device = _backend_device(data)
             elif isinstance(data, Tensor):
                 if dtype is None or _type_id(dtype) == data.dtype.type_id:
                     if device is None or device == data.device:
@@ -544,7 +546,10 @@ class TensorSlice:
                 self._absolute_ranges = self._canonicalize_ranges(self._ranges, self._tensor.shape)
             for r in self._absolute_ranges:
                 if isinstance(r, slice):
-                    shape.append((r.stop + r.step - r.start - 1) // r.step)
+                    if r.step < 0:
+                        shape.append((r.stop + r.step - r.start + 1) // r.step)
+                    else:
+                        shape.append((r.stop + r.step - r.start - 1) // r.step)
             self._shape = tuple(shape)
         return self._shape
 
@@ -568,7 +573,7 @@ class TensorSlice:
         j = 0
         layout = ""
         for i, r in enumerate(self._ranges):
-            if isinstance(self._ranges[i], slice):
+            if isinstance(r, slice):
                 layout += input_layout[j]
                 j += 1
             elif r is Ellipsis:
@@ -584,9 +589,7 @@ class TensorSlice:
         abs_ranges = []
         for i, r in enumerate(ranges):
             if r is Ellipsis:
-                print("in_shape", in_shape)
                 to_skip = len(in_shape) - len(ranges) + 1
-                print("to_skip", to_skip)
                 for _ in range(to_skip):
                     abs_ranges.append(slice(0, in_shape[d], 1))
                     d += 1
@@ -601,11 +604,15 @@ class TensorSlice:
                     start = _scalar_value(r.start)
                     if start < 0:
                         start += extent
-                    start = _clamp(start, 0, extent)
                 if r.stop is not None:
                     stop = _scalar_value(r.stop)
                     if stop < 0:
                         stop += extent
+                if step < 0:
+                    stop = _clamp(stop, 0, extent)
+                    start = _clamp(start, stop, extent)
+                else:
+                    start = _clamp(start, 0, extent)
                     stop = _clamp(stop, start, extent)
                 abs_ranges.append(slice(start, stop, step))
             else:
