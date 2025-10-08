@@ -49,7 +49,7 @@ def cast(tensor_or_batch, dtype):
     else:
         assert isinstance(cpu, Batch)
         tl = cpu._backend
-        converted_cpu = Batch([_convert_tensor_cpu(tl[i] for i in range(len(tl)))])
+        converted_cpu = Batch([_convert_tensor_cpu(tl[i], dtype) for i in range(len(tl))])
     return converted_cpu.to_device(tensor_or_batch.device)
 
 

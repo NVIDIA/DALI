@@ -792,6 +792,9 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("set_layout", [](Tensor<CPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
+    })
     .def("source_info", &Tensor<CPUBackend>::GetSourceInfo,
         R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
         from which the data was loaded.)")
@@ -967,6 +970,9 @@ void ExposeTensor(py::module &m) {
          )code")
     .def("layout", [](Tensor<GPUBackend> &t) {
       return t.GetLayout().str();
+    })
+    .def("set_layout", [](Tensor<GPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
     })
     .def("source_info", &Tensor<GPUBackend>::GetSourceInfo,
         R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
@@ -1342,6 +1348,9 @@ void ExposeTensorListCPU(py::module &m) {
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("set_layout", [](TensorList<CPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
+    })
     .def("shape", &py_shape_list<CPUBackend>,
       R"code(
       Shape of the tensor list.
@@ -1677,6 +1686,9 @@ void ExposeTesorListGPU(py::module &m) {
       py::keep_alive<0, 1>())
     .def("layout", [](TensorList<GPUBackend> &t) {
       return t.GetLayout().str();
+    })
+    .def("set_layout", [](TensorList<GPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
     })
     .def("as_reshaped_tensor",
         [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) {

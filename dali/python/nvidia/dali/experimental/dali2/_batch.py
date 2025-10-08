@@ -154,32 +154,31 @@ class Batch:
         self._device = None
         copied = False
         if tensors is not None:
-            if isinstance(tensors, _backend.TensorListCPU) and (
-                (dtype is None or _type_id(dtype) == _backend.dtype)
-                and (layout is None or layout == self._backend.layout)
-            ):
-                self._backend = tensors
-                self._ndim = self._backend.ndim()
-                self._dtype = dtype = DType.from_type_id(self._backend.dtype)
-                self._layout = layout = self._backend.layout()
-                if device is None:
-                    device = Device("cpu")
+            if isinstance(tensors, (_backend.TensorListCPU, _backend.TensorListGPU)):
+                backend_dev = _backend_device(tensors)
+                if (
+                    (device is None or device == backend_dev)
+                    and (dtype is None or dtype.type_id == tensors.dtype)
+                    and (layout is None or layout == tensors.layout)
+                ):
+                    self._backend = tensors
+                    self._device = backend_dev
+                    self._layout = tensors.layout()
+                    self._dtype = _dtype(tensors.dtype)
                 else:
-                    if device.device_type != "cpu":
-                        copy = True
-            elif isinstance(tensors, _backend.TensorListGPU) and (
-                (dtype is None or _type_id(dtype) == _backend.dtype)
-                and (layout is None or layout == self._backend.layout)
-            ):
-                self._backend = tensors
-                self._ndim = self._backend.ndim()
-                self._dtype = dtype = DType.from_type_id(self._backend.dtype)
-                self._layout = layout = self._backend.layout()
-                if device is None:
-                    device = Device("gpu", self._backend.device_id())
-                else:
-                    if device.device_type != "gpu":
-                        copy = True
+                    tmp = Batch(tensors)
+                    if dtype is not None and dtype != tmp.dtype:
+                        from . import cast
+
+                        tmp = cast(tmp, dtype)
+                        copied = True
+                    # TODO(michalz): move before cast after we have proper cast op
+                    if device is not None and device != tmp.device:
+                        tmp = tmp.to_device(device)
+                        copied = True
+                    self.assign(tmp)
+                    if self._backend and layout:
+                        self._backend.set_layout(layout)
             elif _is_tensor_type(tensors):
                 if copy:
                     t = _tensor(tensors, dtype=dtype, device=device, layout=layout)
@@ -371,6 +370,17 @@ class Batch:
 
     def gpu(self, index: Optional[int] = None) -> "Batch":
         return self.to_device(Device("gpu", index))
+
+    def assign(self, other: "Batch"):
+        if other is self:
+            return
+        self._device = other._device
+        self._dtype = other._dtype
+        self._layout = other._layout
+        self._backend = other._backend
+        self._tensors = other._tensors
+        self._invocation_result = other._invocation_result
+        self._wraps_external_data = other._wraps_external_data
 
     @property
     def slice(self):
