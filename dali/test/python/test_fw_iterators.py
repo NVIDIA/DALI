@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1202,7 +1202,7 @@ def check_pytorch_iterator_feed_ndarray_types(data_type):
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
     else:
         arr = np.random.randn(*shape).astype(data_type)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr)
     pyt = torch.empty(shape, dtype=to_torch_type[data_type])
     feed_ndarray(tensor, pyt)
     assert np.all(pyt.numpy() == arr)
@@ -1358,7 +1358,7 @@ def check_mxnet_iterator_feed_ndarray_types(data_type):
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
     else:
         arr = np.random.randn(*shape).astype(data_type)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr)
     mnt = mx.nd.empty(shape, dtype=data_type)
     feed_ndarray(tensor, mnt)
     assert np.all(mnt.asnumpy() == arr)
@@ -1440,7 +1440,7 @@ def check_paddle_iterator_feed_ndarray_types(data_type):
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
     else:
         arr = np.random.randn(*shape).astype(data_type)
-    tensor = TensorCPU(arr, "NHWC")
+    tensor = TensorCPU(arr)
     pddt = paddle.framework.core.LoDTensor()
     pddt._set_dims(shape)
     ptr = pddt._mutable_data(paddle.CPUPlace(), dtype_map[data_type])
