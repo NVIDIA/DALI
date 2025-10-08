@@ -151,16 +151,51 @@ def test_batch_properties_clone(device_type):
     assert b.shape == [(3,)]
 
 
-def test_batch_subscript():
+def test_batch_subscript_broadcast():
     b = D.as_batch(
         [
             D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
-            D.tensor([[7, 8, 9, 10], [11, 12, 13, 14]], dtype=D.int32),
-        ]
+            D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
+        ],
+        layout="XY",
+    )
+    b11 = b.slice[1, 1]
+    assert b11.layout is None
+    assert b11.dtype == D.int32
+    assert isinstance(b11, D.Batch)
+    assert asnumpy(b11.tensors[0]) == 5
+    assert asnumpy(b11.tensors[1]) == 11
+
+
+def test_batch_partial_slice():
+    b = D.as_batch(
+        [
+            D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
+            D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
+        ],
+        layout="XY",
+    )
+    b11 = b.slice[..., 1]
+    assert b11.layout == "X"
+    assert b11.dtype == D.int32
+    assert isinstance(b11, D.Batch)
+    assert np.array_equal(asnumpy(b11.tensors[0]), np.array([2, 5], dtype=np.int32))
+    assert np.array_equal(asnumpy(b11.tensors[1]), np.array([8, 11], dtype=np.int32))
+
+
+def test_batch_slice():
+    b = D.as_batch(
+        [
+            D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.uint16),
+            D.tensor([[7, 8, 9, 10], [11, 12, 13, 14]], dtype=D.uint16),
+        ],
+        layout="XY",
     )
     sliced = b.slice[..., 1:-1]
-    assert np.array_equal(asnumpy(sliced.tensors[0]), np.array([[2], [5]], dtype=np.int32))
-    assert np.array_equal(asnumpy(sliced.tensors[1]), np.array([[8, 9], [12, 13]], dtype=np.int32))
+    assert sliced.layout == "XY"
+    assert sliced.dtype == D.uint16
+    assert np.array_equal(asnumpy(sliced.tensors[0]), np.array([[2], [5]], dtype=np.uint16))
+    assert np.array_equal(asnumpy(sliced.tensors[1]), np.array([[8, 9], [12, 13]], dtype=np.uint16))
 
 
 def test_batch_subscript_per_sample():

@@ -185,17 +185,23 @@ def test_shape_slice():
 
 
 def test_shape_slices_multi():
-    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
+    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32), layout="DHWC")
     s = t[1:3, ..., 4:9]
+    assert s.layout == "DHWC"
     assert s.shape == (2, 6, 7, 5)
     s = s[:, 2:5, 3:7, :]
+    assert s.layout == "DHWC"
     assert s.shape == (2, 3, 4, 5)
+    s = s[0, ..., 0]
+    assert s.shape == (3, 4)
+    assert s.layout == "HW"
 
 
 def test_shape_slice_dim_removal():
-    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
+    t = D.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32), layout="ABCD")
     s = t[:-1, 0, -2:, 0]
     assert s.shape == (4, 2)
+    assert s.layout == "AC"
 
 
 def test_shape_slice_multi_dim_removal():
@@ -208,17 +214,6 @@ def test_shape_slice_multi_dim_removal():
 
 def test_tensor_subscript():
     t = D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32)
-    assert asnumpy(t[1, 1]) == 5
-
-
-def test_batch_subscript_broadcast():
-    b = D.as_batch(
-        [
-            D.tensor([[1, 2, 3], [4, 5, 6]], dtype=D.int32),
-            D.tensor([[7, 8, 9], [10, 11, 12]], dtype=D.int32),
-        ]
-    )
-    b11 = b.slice[1, 1]
-    assert isinstance(b11, D.Batch)
-    assert asnumpy(b11.tensors[0]) == 5
-    assert asnumpy(b11.tensors[1]) == 11
+    x = t[1, 1]
+    assert asnumpy(x) == 5
+    assert x.dtype == D.int32

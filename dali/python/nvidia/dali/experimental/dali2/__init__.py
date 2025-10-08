@@ -80,6 +80,8 @@ def tensor_subscript(target, **kwargs):
 
     ranges = [slice(None)] * target.ndim
     processed = 0
+    layout = target.layout or None
+    out_layout = ""
     for i in range(len(ranges)):
         if f"at_{i}" in kwargs:
             assert f"lo_{i}" not in kwargs and f"hi_{i}" not in kwargs and f"step_{i}" not in kwargs
@@ -91,7 +93,15 @@ def tensor_subscript(target, **kwargs):
             hi = kwargs.get(f"hi_{i}", None)
             step = kwargs.get(f"step_{i}", None)
             ranges[i] = slice(lo, hi, step)
-            processed += 1
+            if lo is not None:
+                processed += 1
+            if hi is not None:
+                processed += 1
+            if step is not None:
+                processed += 1
+            if layout is not None:
+                out_layout += layout[i]
+    out_layout = out_layout or None
 
     assert processed == len(kwargs)
 
@@ -121,9 +131,12 @@ def tensor_subscript(target, **kwargs):
 
     def do_slice(t, ranges):
         c = t.cpu().evaluate()
-        return tensor(np.array(np.array(c._backend)[ranges]), device=t.device)
+        return tensor(np.array(np.array(c._backend)[ranges]), device=t.device, layout=out_layout)
 
     if isinstance(target, Batch):
-        return Batch([do_slice(t, subscript_sample(i)) for i, t in enumerate(target)])
+        return Batch(
+            [do_slice(t, subscript_sample(i)) for i, t in enumerate(target)],
+            layout=out_layout,
+        )
     else:
         return do_slice(target, ranges)
