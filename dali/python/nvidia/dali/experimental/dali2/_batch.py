@@ -92,8 +92,6 @@ class BatchedSlice:
                 args[f"at_{d}"] = r
                 d += 1
 
-        # print(args)
-
         from . import tensor_subscript
 
         return tensor_subscript(self._batch, **args)
@@ -199,7 +197,8 @@ class Batch:
                         self._backend = _backend.TensorListGPU(t._backend, layout=layout)
                     else:
                         raise ValueError(f"Unsupported device type: {t.device.device_type}")
-                    self._wraps_external_data = True
+                    if t._wraps_external_data:
+                        self._wraps_external_data = True
                 else:
                     sh = t.shape
                     tensors = [t[i] for i in range(sh[0])]
@@ -247,7 +246,7 @@ class Batch:
         if self._tensors and self._tensors[0]._shape:
             self._ndim = len(self._tensors[0]._shape)
 
-        if copy and self._backend is not None and not copied:
+        if copy and not copied:
             dev = self.to_device(self.device, force_copy=True)
             if dtype is not None and dev.dtype != dtype:
                 from . import cast
@@ -272,8 +271,12 @@ class Batch:
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
-            # TODO(michalz): Add broadcasting in native code
-            return Batch([Tensor(sample, device=device)] * batch_size)
+            t = _as_tensor(sample, device=device).evaluate()
+            if t.device.device_type == "gpu":
+                tl_type = _backend.TensorListGPU
+            else:
+                tl_type = _backend.TensorListCPU
+            return Batch(tl_type.repeat(t._backend, batch_size))
         import numpy as np
 
         with nvtx.annotate("to numpy and stack", domain="batch"):
@@ -314,10 +317,8 @@ class Batch:
         if self._device is None:
             if self._invocation_result is not None:
                 self._device = self._invocation_result.device
-                # print("From invocation result", self._device)
             elif self._tensors:
                 self._device = self._tensors[0].device
-                # print("From tensors", self._device)
             else:
                 raise ValueError("Cannot establish the number of dimensions of an empty Batch")
         return self._device
@@ -446,7 +447,6 @@ class Batch:
                     "Cannot use a batch as an index or slice. in ``Batch.__getitem__``.\n"
                     "Use ``.slice`` property to perform samplewise slicing."
                 )
-        # print(ranges)
         return self.slice.__getitem__(ranges)
 
     @property

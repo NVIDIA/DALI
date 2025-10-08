@@ -35,15 +35,33 @@ def test_batch_construction(device_type):
 
     b = D.batch(
         [
-            D.tensor(t0),
-            D.tensor(t1),
+            t0,
+            t1,
         ],
         device=D.Device(device_type),
+        layout="AB"
     )
 
     assert isinstance(b, D.Batch)
+    assert b.device.device_type == device_type
+    assert b.layout == "AB"
     assert np.array_equal(asnumpy(b.tensors[0]), t0)
     assert np.array_equal(asnumpy(b.tensors[1]), t1)
+    # check that modifying the original arrays doesn't affect the batch
+    t0[0, 0] += 1
+    t1[0, 0] += 1
+    assert not np.array_equal(asnumpy(b.tensors[0]), t0)
+    assert not np.array_equal(asnumpy(b.tensors[1]), t1)
+
+    b.evaluate()
+    assert b._backend.layout() == "AB"
+
+
+def test_broadcast():
+    a = np.array([1,2,3])
+    b = D.Batch.broadcast(a, 5).evaluate()
+    for i, t in enumerate(b._backend):
+        assert np.array_equal(np.array(t), a)
 
 
 def batch_equal(a, b):

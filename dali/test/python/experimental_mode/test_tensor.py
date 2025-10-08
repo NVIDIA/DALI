@@ -112,14 +112,6 @@ def test_as_tensor_doesnt_make_copy(device_type):
 
 
 @params(("cpu",), ("gpu",))
-def test_as_tensor_doesnt_make_copy(device_type):
-    data = np.array([1, 2, 3], dtype=np.int32)
-    src = D.Tensor(data, device=device_type)
-    dst = D.as_tensor(src._backend)
-    assert dst._backend.data_ptr() == src._backend.data_ptr()
-
-
-@params(("cpu",), ("gpu",))
 def test_as_tensor_with_conversion(device_type):
     data = np.array([1, 2, 3], dtype=np.int32)
     src = D.Tensor(data, device=device_type)
