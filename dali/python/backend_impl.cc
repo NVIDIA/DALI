@@ -195,8 +195,51 @@ void CheckContiguousTensor(const TStrides &strides, const TShape &shape, size_t 
   CheckContiguousTensor(strides, dali::size(strides), shape, dali::size(shape), element_size);
 }
 
+template <typename Backend>
+void SetLayout(
+      Tensor<Backend> &t,
+      const std::optional<std::string> &layout_str,
+      bool clear_if_none = true) {
+  if (layout_str && !layout_str->empty()) {
+    TensorLayout layout = *layout_str;
+    if (t.ndim() != layout.ndim()) {
+      throw py::value_error(make_string(
+        "A non-empty layout must have the same number of dimensions as the "
+        "number of dimensions of the Tensor.\n"
+        "Got: ", layout.ndim(), " (", layout, ")\n",
+        "Expected: ", t.ndim(), "."));
+    }
+    t.SetLayout(layout);
+  } else if (clear_if_none) {
+    t.SetLayout({});
+  }
+}
+
+template <typename Backend>
+void SetLayout(
+      TensorList<Backend> &t,
+      const std::optional<std::string> &layout_str,
+      bool clear_if_none = true) {
+  if (layout_str && !layout_str->empty()) {
+    TensorLayout layout = *layout_str;
+    if (t.sample_dim() != layout.ndim()) {
+      throw py::value_error(make_string(
+        "A non-empty layout must have the same number of dimensions as the "
+        "number of dimensions of the TensorList.\n"
+        "Got: ", layout.ndim(), " (", layout, ")\n",
+        "Expected: ", t.sample_dim(), "."));
+    }
+    t.SetLayout(layout);
+  } else if (clear_if_none) {
+    t.SetLayout({});
+  }
+}
+
 template<typename SrcBackend, template<typename> class SourceDataType>
-void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch, string layout) {
+void FillTensorFromDlPack(
+      py::capsule capsule,
+      SourceDataType<SrcBackend> *batch,
+      const std::optional<std::string> &layout) {
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
   DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
@@ -238,12 +281,14 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
                                     bytes, is_pinned, typed_shape, dali_type.id(), device_id);
 
 
-  batch->SetLayout(layout);
+  SetLayout(*batch, layout);
 }
 
 template <typename TensorType>
-void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int device_id,
-                             string layout) {
+void FillTensorFromCudaArray(const py::object &object,
+                             TensorType *batch,
+                             int device_id,
+                             const std::optional<std::string> &layout) {
   auto cu_a_interface_val = getattr(object, "__cuda_array_interface__", py::none());
   if (cu_a_interface_val.is_none()) {
     DALI_FAIL("Provided object doesn't support cuda array interface protocol.")
@@ -315,7 +360,7 @@ void FillTensorFromCudaArray(const py::object &object, TensorType *batch, int de
   }),
       bytes, false, typed_shape, type.id(), device_id);
 
-  batch->SetLayout(layout);
+  SetLayout(*batch, layout);
 }
 
 template <typename Backend>
@@ -330,7 +375,7 @@ void ReinterpretTensorList(TensorList<Backend> &tl, DALIDataType new_type) {
 
 void ExposeTensorLayout(py::module &m) {
   py::class_<TensorLayout> tl(m, "TensorLayout");
-  tl.def(py::init([](string s) {
+  tl.def(py::init([](const std::string &s) {
     return new TensorLayout(s);
   }))
   .def("__str__", &TensorLayout::str)
@@ -600,14 +645,14 @@ void ExposeTensor(py::module &m) {
 
   auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, string layout = "") {
+    .def(py::init([](py::capsule &capsule, std::optional<std::string> layout = {}) {
           DomainTimeRange range("TensorCPU::init", kCPUTensorColor);
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
           return t.release();
         }),
       "object"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       R"code(
       Wrap a DLPack Tensor residing in the CPU memory.
 
@@ -669,7 +714,7 @@ void ExposeTensor(py::module &m) {
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
+    .def(py::init([](py::buffer b, std::optional<std::string> layout = {}, bool is_pinned = false) {
           // We need to verify that the input data is c contiguous
           // and of a type that we can work with in the backend
           __backend_impl_force_tls_align_fun();
@@ -704,11 +749,11 @@ void ExposeTensor(py::module &m) {
              delete buf_ref;
           }),
                        bytes, is_pinned, i_shape, type.id(), device_id);
-          t->SetLayout(layout);
+          SetLayout(*t, layout);
           return t.release();
         }),
       "b"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       "is_pinned"_a = false,
       R"code(
       Wrap a Tensor residing in the CPU memory.
@@ -825,7 +870,10 @@ void ExposeTensor(py::module &m) {
 
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, string layout, py::object stream) {
+    .def(py::init([](
+              py::capsule &capsule,
+              std::optional<std::string> layout = {},
+              py::object stream = py::none()) {
           DomainTimeRange range("TensorGPU::init from capsule", kGPUTensorColor);
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -834,7 +882,7 @@ void ExposeTensor(py::module &m) {
           return t.release();
         }),
       "object"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       "stream"_a = py::none(),
       R"code(
       Wrap a DLPack Tensor residing in the GPU memory.
@@ -881,14 +929,16 @@ void ExposeTensor(py::module &m) {
           * ``>2``   - a CUDA stream handle converted to an integer
           * ``0``    - forbidden value
       )code")
-    .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
+    .def(py::init([](const py::object &object,
+                     const std::optional<std::string> &layout = {},
+                     int device_id = -1) {
           DomainTimeRange range("TensorGPU::init from CUDA array", kGPUTensorColor);
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t.release();
         }),
       "object"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       "device_id"_a = -1,
       R"code(
       Wrap a Tensor residing in the GPU memory that implements CUDA Array Interface.
@@ -1032,13 +1082,16 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 }
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
-                                                                 string &layout) {
+std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
+      py::list &list_of_tensors,
+      const std::optional<std::string> &layout = {}) {
   DomainTimeRange range("TensorListFromListOfTensors");
   if (list_of_tensors.empty()) {
     auto ptr = std::make_shared<TensorList<Backend>>();
-    ptr->set_sample_dim(layout.length());
-    ptr->SetLayout(layout);
+    if (layout.has_value()) {
+      ptr->set_sample_dim(layout->length());
+      ptr->SetLayout(*layout);
+    }
     return ptr;
   }
 
@@ -1085,7 +1138,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     contiguous_out->SetContiguity(BatchContiguity::Contiguous);
     contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
     contiguous_out->Copy(non_contiguous_tmp, copy_order);
-    contiguous_out->SetLayout(layout);
+    SetLayout(*contiguous_out, layout, false);
     copy_order.wait(wait_order);
     return contiguous_out;
   }
@@ -1147,19 +1200,19 @@ void ExposeTensorListOperators(tensor_list_py_class_t<Backend> &py_class) {
   }
 }
 
-void ExposeTensorList(py::module &m) {
-  auto tensor_list_cpu_class =
+void ExposeTensorListCPU(py::module &m) {
+    auto tensor_list_cpu_class =
       py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
           m, "TensorListCPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, string layout = "") {
+    .def(py::init([](py::capsule &capsule, std::optional<std::string> layout = {}) {
             DomainTimeRange range("TensorListCPU::init from capsule", kCPUTensorColor);
             auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
             return t;
           }),
         "object"_a,
-        "layout"_a = "",
+        "layout"_a = py::none(),
         R"code(
         List of tensors residing in the CPU memory.
 
@@ -1168,22 +1221,19 @@ void ExposeTensorList(py::module &m) {
         layout : str
               Layout of the data
         )code")
-    .def(py::init([](TensorList<CPUBackend> *tl, py::object layout) {
+    .def(py::init([](TensorList<CPUBackend> *tl, std::optional<std::string> layout = {}) {
           DomainTimeRange range("TensorListCPU::init from a list of tensors", kCPUTensorColor);
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<CPUBackend>>();
           t->ShareData(*tl);
-          if (!layout.is_none()) {
-            if (!py::isinstance<py::str>(layout))
-              throw py::type_error("`layout` must be a string or None");
-            t->SetLayout(std::string(layout.cast<py::str>()));
-          }
+          // If layout is not given, use the one from tl
+          SetLayout(*t, layout, false);
           return t;
         }),
       "tl"_a,
       "layout"_a = py::none())
-    .def(py::init([](py::buffer b, string layout = "", bool is_pinned = false) {
+    .def(py::init([](py::buffer b, std::optional<std::string> layout = {}, bool is_pinned = false) {
          DomainTimeRange range("TensorListCPU::init from a buffer", kCPUTensorColor);
         // We need to verify that the input data is C_CONTIGUOUS
         // and of a type that we can work with in the backend
@@ -1221,11 +1271,11 @@ void ExposeTensorList(py::module &m) {
                 (void)tmp;
               }
             }), bytes, is_pinned, i_shape, type.id(), device_id);
-        t->SetLayout(layout);
+        SetLayout(*t, layout);
         return t;
       }),
       "b"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       "is_pinned"_a = false,
       R"code(
       List of tensors residing in the CPU memory.
@@ -1237,12 +1287,12 @@ void ExposeTensorList(py::module &m) {
       is_pinned : bool
             If provided memory is page-locked (pinned)
       )code")
-    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+    .def(py::init([](py::list &list_of_tensors, std::optional<std::string> layout = {}) {
         DomainTimeRange range("TensorListCPU::init from a Python list of tensors", kCPUTensorColor);
         return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
       }),
       "list_of_tensors"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       R"code(
       List of tensors residing in the CPU memory.
 
@@ -1318,16 +1368,6 @@ void ExposeTensorList(py::module &m) {
 
       )code",
       py::keep_alive<0, 1>())
-#if 0  // TODO(spanev): figure out which return_value_policy to choose
-      .def("__getitem__",
-        [](TensorList<CPUBackend> &tl, py::slice slice) -> py::tuple {
-          return TensorListGetItemSliceImpl(tl, slice);
-        },
-      R"code(
-      Returns a tensor at given position in the list.
-
-      )code")
-#endif
     .def("as_array", [](TensorList<CPUBackend> &tl) -> py::array {
           void* raw_mutable_data = nullptr;
           std::string format;
@@ -1450,19 +1490,21 @@ void ExposeTensorList(py::module &m) {
       )code");
 
   ExposeTensorListOperators(tensor_list_cpu_class);
+}
 
+void ExposeTesorListGPU(py::module &m) {
   auto tensor_list_gpu_class =
       py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
           m, "TensorListGPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, string layout = "") {
+    .def(py::init([](py::capsule &capsule, std::optional<std::string> layout = {}) {
             DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
             auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
             return t;
           }),
         "object"_a,
-        "layout"_a = "",
+        "layout"_a = py::none(),
         R"code(
         List of tensors residing in the GPU memory.
 
@@ -1471,27 +1513,24 @@ void ExposeTensorList(py::module &m) {
         layout : str
               Layout of the data
         )code")
-    .def(py::init([](TensorList<GPUBackend> *tl, py::object layout) {
+    .def(py::init([](TensorList<GPUBackend> *tl, std::optional<std::string> layout) {
           DomainTimeRange range("TensorListGPU::init from a list of tensors", kGPUTensorColor);
           if (!tl)
             throw py::value_error("The source object must not be null");
           auto t = std::make_shared<TensorList<GPUBackend>>();
           t->ShareData(*tl);
-          if (!layout.is_none()) {
-            if (!py::isinstance<py::str>(layout))
-              throw py::type_error("`layout` must be a string or None");
-            t->SetLayout(std::string(layout.cast<py::str>()));
-          }
+          // If layout is not given, use the one from `t`
+          SetLayout(*t, layout, false);
           return t;
         }),
       "tl"_a,
       "layout"_a = py::none())
-    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+    .def(py::init([](py::list &list_of_tensors, std::optional<std::string> layout = {}) {
         DomainTimeRange range("TensorListGPU::init from a Python list of tensors", kGPUTensorColor);
         return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
       }),
       "list_of_tensors"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       R"code(
       List of tensors residing in the GPU memory.
 
@@ -1500,14 +1539,16 @@ void ExposeTensorList(py::module &m) {
       layout : str
             Layout of the data
       )code")
-    .def(py::init([](const py::object &object, string layout = "", int device_id = -1) {
+    .def(py::init([](const py::object &object,
+                     const std::optional<std::string> &layout = {},
+                     int device_id = -1) {
           DomainTimeRange range("TensorListGPU::init from a CUDA array", kGPUTensorColor);
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
           return t;
         }),
       "object"_a,
-      "layout"_a = "",
+      "layout"_a = py::none(),
       "device_id"_a = -1,
       R"code(
       List of tensors residing in the GPU memory.
@@ -1596,16 +1637,7 @@ void ExposeTensorList(py::module &m) {
       Returns a tensor at given position `i` in the list.
       )code",
       py::keep_alive<0, 1>())
-#if 0  // TODO(spanev): figure out which return_value_policy to choose
-      .def("__getitem__",
-        [](TensorList<GPUBackend> &t, py::slice slice) -> py::tuple {
-          return TensorListGetItemSliceImpl(t, slice);
-        },
-      R"code(
-      Returns a tensor at given position in the list.
-      )code")
-#endif
-      .def("at",
+    .def("at",
         [&](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
           std::cout << "Warning: `TensorListGPU.at` is deprecated for `TensorListGPU.__getitem__`. "
                        "It will be removed in future version of DALI."
@@ -1672,6 +1704,11 @@ void ExposeTensorList(py::module &m) {
       )code");
 
   ExposeTensorListOperators(tensor_list_gpu_class);
+}
+
+void ExposeTensorList(py::module &m) {
+  ExposeTensorListCPU(m);
+  ExposeTesorListGPU(m);
 }
 
 #define GetRegisteredOpsFor(OPTYPE)                                           \
