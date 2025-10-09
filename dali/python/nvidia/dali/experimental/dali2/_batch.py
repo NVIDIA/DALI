@@ -150,6 +150,7 @@ class Batch:
         self._backend = None
         self._dtype = None
         self._device = None
+        self._invocation_result = None
         copied = False
         if tensors is not None:
             if isinstance(tensors, (_backend.TensorListCPU, _backend.TensorListGPU)):
@@ -165,14 +166,13 @@ class Batch:
                     self._dtype = _dtype(tensors.dtype)
                 else:
                     tmp = Batch(tensors)
+                    if device is not None and device != tmp.device:
+                        tmp = tmp.to_device(device)
+                        copied = True
                     if dtype is not None and dtype != tmp.dtype:
                         from . import cast
 
                         tmp = cast(tmp, dtype=dtype, device=device)
-                        copied = True
-                    # TODO(michalz): move before cast after we have proper cast op
-                    if device is not None and device != tmp.device:
-                        tmp = tmp.to_device(device)
                         copied = True
                     self.assign(tmp)
                     if self._backend and layout:
@@ -237,12 +237,13 @@ class Batch:
                 self._layout = layout
                 self._dtype = dtype
                 if len(self._tensors) == 0:
-                    t = Tensor([], dtype=dtype, device=device).evaluate()
-                    if self._device.device_type == "cpu":
-                        backend_type = _backend.TensorListCPU
-                    elif self._device.device_type == "gpu":
-                        backend_type = _backend.TensorListGPU
-                    self._backend = backend_type(t._backend, layout=layout)
+                    with device:
+                        t = Tensor([], dtype=dtype, device=device).evaluate()
+                        if self._device.device_type == "cpu":
+                            backend_type = _backend.TensorListCPU
+                        elif self._device.device_type == "gpu":
+                            backend_type = _backend.TensorListGPU
+                        self._backend = backend_type(t._backend, layout=layout)
 
         if self._dtype is None:
             if self._backend is not None:
@@ -255,7 +256,10 @@ class Batch:
             else:
                 self._device = device
         self._layout = layout
-        self._invocation_result = invocation_result
+        if self._invocation_result is None:
+            self._invocation_result = invocation_result
+        else:
+            assert invocation_result is None or invocation_result is self._invocation_result
         self._ndim = None
         if self._tensors and self._tensors[0]._shape:
             self._ndim = len(self._tensors[0]._shape)
@@ -397,7 +401,10 @@ class Batch:
         self._dtype = other._dtype
         self._layout = other._layout
         self._backend = other._backend
-        self._tensors = other._tensors
+        if other._tensors is not None:
+            self._tensors = [t for t in other._tensors]  # copy the list
+        else:
+            self._tensors = None
         self._invocation_result = other._invocation_result
         self._wraps_external_data = other._wraps_external_data
 
@@ -497,17 +504,19 @@ class Batch:
                 if self._invocation_result is not None:
                     self._backend = self._invocation_result.value(ctx)
                 else:
-                    if self._device.device_type == "cpu":
-                        backend_type = _backend.TensorListCPU
-                    elif self._device.device_type == "gpu":
-                        backend_type = _backend.TensorListGPU
-                    else:
-                        raise ValueError(
-                            f"Internal error: Unsupported device type: {self._device.device_type}"
+                    with self._device:
+                        if self._device.device_type == "cpu":
+                            backend_type = _backend.TensorListCPU
+                        elif self._device.device_type == "gpu":
+                            backend_type = _backend.TensorListGPU
+                        else:
+                            raise ValueError(
+                                f"Internal error: "
+                                f"Unsupported device type: {self._device.device_type}"
+                            )
+                        self._backend = backend_type(
+                            [t.evaluate()._backend for t in self._tensors], self.layout
                         )
-                    self._backend = backend_type(
-                        [t.evaluate()._backend for t in self._tensors], self.layout
-                    )
         return self
 
     def __add__(self, other):

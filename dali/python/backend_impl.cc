@@ -981,11 +981,11 @@ void ExposeTensor(py::module &m) {
         from which the data was loaded.)")
     .def("get_property", GetTensorProperty<GPUBackend>)
     .def("as_cpu", [](Tensor<GPUBackend> &t) -> Tensor<CPUBackend>* {
+          DeviceGuard g(t.device_id());
           auto ret = std::make_unique<Tensor<CPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
-          DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
           return ret.release();
@@ -1609,12 +1609,12 @@ void ExposeTesorListGPU(py::module &m) {
         return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
       })
     .def("as_cpu", [](TensorList<GPUBackend> &t) {
+          DeviceGuard g(t.device_id());
           auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
           ret->SetContiguity(BatchContiguity::Contiguous);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
-          DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
           return ret;

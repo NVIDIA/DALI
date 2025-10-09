@@ -49,7 +49,7 @@ def test_device_change():
     c1 = D.Tensor(data)
     g = c1.gpu().evaluate()
     assert isinstance(g._backend, _b.TensorGPU)
-    c2 = g.cpu()
+    c2 = g.cpu().evaluate()
     assert isinstance(c2._backend, _b.TensorCPU)
     assert np.array_equal(c2._backend, data)
 
@@ -65,7 +65,7 @@ def test_device_change_multi_gpu():
     assert g1._backend.device_id() == 0
     g2 = c1.gpu(1).evaluate()
     assert g2._backend.device_id() == 1
-    c2 = g2.cpu()
+    c2 = g2.cpu().evaluate()
     assert isinstance(c2._backend, _b.TensorCPU)
     assert np.array_equal(c2._backend, data)
 

@@ -152,7 +152,8 @@ def test_batch_construction_with_conversion(device_type):
     # convert from a list of tensors
     i32 = D.Batch(data, device=device_type, dtype=D.int32).evaluate()
     # convert from a TensorList object
-    fp32 = D.Batch(orig._backend, device=device_type, dtype=D.float32).evaluate()
+    fp32 = D.Batch(orig._backend, device=device_type, dtype=D.float32)
+    fp32.evaluate()
     assert orig.dtype == D.float64
     assert orig.device == D.Device(device_type)
     assert orig._backend.dtype == D.float64.type_id
