@@ -898,3 +898,76 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
             compare_frames(
                 frame, reference_frames[frame_idx], frame_idx, diff_step=diff_step, threshold=0.03
             )
+
+
+def test_no_first_key_frame():
+    batch_size = 2
+    sequence_length = 8
+    initial_prefetch_size = 16
+    data_root_dir = get_dali_extra_path()
+    video_files = glob.glob(f"{data_root_dir}/db/video/sintel/labelled_videos/0/*.mp4")
+
+    @pipeline_def
+    def video_pipe(filenames):
+        videos = fn.experimental.readers.video(
+            device="gpu",
+            filenames=filenames,
+            sequence_length=sequence_length,
+            shard_id=0,
+            num_shards=1,
+            random_shuffle=True,
+            initial_fill=initial_prefetch_size,
+        )
+        return videos
+
+    pipe = video_pipe(
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
+        filenames=video_files,
+        seed=123456,
+    )
+
+    pipe.build()
+    pipe.run()
+
+
+def test_video_index_reuse():
+    batch_size = 2
+    sequence_length = 8
+    initial_prefetch_size = 16
+    data_root_dir = get_dali_extra_path()
+    video_files = glob.glob(f"{data_root_dir}/db/video/sintel/video_files/*.mp4")
+
+    @pipeline_def
+    def video_pipe(filenames):
+        videos = fn.experimental.readers.video(
+            device="gpu",
+            filenames=filenames,
+            sequence_length=sequence_length,
+            shard_id=0,
+            num_shards=1,
+            random_shuffle=True,
+            initial_fill=initial_prefetch_size,
+        )
+        return videos
+
+    pipe = video_pipe(
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
+        filenames=video_files,
+        seed=123456,
+    )
+
+    pipe.build()
+
+    # recreate the pipeline to reuse indices build already
+    pipe = video_pipe(
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
+        filenames=video_files,
+        seed=123456,
+    )
+    pipe.run()
