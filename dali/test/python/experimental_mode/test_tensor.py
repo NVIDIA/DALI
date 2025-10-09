@@ -21,8 +21,6 @@ from nose_utils import assert_raises
 
 
 def asnumpy(tensor):
-    import numpy as np
-
     return np.array(tensor.cpu().evaluate()._backend)
 
 

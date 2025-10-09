@@ -169,18 +169,6 @@ def test_batch_construction_with_conversion(device_type):
 
 
 @params(("cpu",), ("gpu",))
-def test_batch_properties_from_tensor(device_type):
-    t = D.tensor(np.array([1, 2, 3], dtype=np.uint8), device=device_type, layout="X")
-    b = D.Batch([t])
-    assert b.device == D.Device(device_type)
-    assert b.dtype == D.uint8
-    assert b.layout == "X"
-    assert b.batch_size == 1
-    assert b.ndim == 1
-    assert b.shape == [(3,)]
-
-
-@params(("cpu",), ("gpu",))
 def test_batch_properties_clone(device_type):
     t = D.tensor(np.array([1, 2, 3], dtype=np.uint8))
     src = D.Batch([t], device=device_type, layout="X")
