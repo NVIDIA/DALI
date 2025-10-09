@@ -645,10 +645,11 @@ class TensorSlice:
         py_ranges = []
         for r, s in zip(abs_ranges, shape):
             if isinstance(r, slice):
-                start = r.start
                 stop = r.stop
-                step = r.step
-                if step < 0:
+                # The exclusive `stop` for negative ranges could be -1, but it means
+                # something else in Python - so we need skip over the whole length of the
+                # array to make it really negative.
+                if r.step < 0:
                     if stop < 0:
                         stop -= s
                 py_ranges.append(slice(r.start, stop, r.step))
