@@ -548,6 +548,8 @@ class Batch:
                                 f"Internal error: "
                                 f"Unsupported device type: {self._device.device_type}"
                             )
+                        for t in self._tensors:
+                            t.evaluate()
                         self._backend = backend_type(
                             [t.evaluate()._backend for t in self._tensors], self.layout
                         )

@@ -236,3 +236,13 @@ def test_tensor_subscript_negative_step():
     z = x[::2]
     assert z.shape == (3,)
     assert np.array_equal(asnumpy(z), np.int32([5, 3, 1]))
+
+
+def test_tensor_copy_constructor_invocation_result():
+    t = D.tensor(np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32), device="cpu")
+    t_gpu = t.gpu()  # invocation result - lazy copy
+    t_gpu2 = D.Tensor(t_gpu)
+    assert t_gpu2.device == D.Device("gpu")
+    assert t_gpu2.dtype == D.int32
+    assert t_gpu2.shape == (2, 3)
+    assert np.array_equal(asnumpy(t_gpu2), asnumpy(t_gpu))

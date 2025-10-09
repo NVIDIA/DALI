@@ -68,8 +68,13 @@ DALI_DEFINE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 
 std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec) {
   string device = spec.GetArgument<string>("device");
-  // traverse devices by likelihood (gpu, cpu, mixed, support)
+  // traverse devices by likelihood (gpu, cpu, mixed)
   if (device == "gpu") {
+    // If the operator is not registered for GPU, try mixed
+    if (!GPUOperatorRegistry::Registry().IsRegistered(spec.SchemaName()))
+      if (MixedOperatorRegistry::Registry().IsRegistered(spec.SchemaName()))
+        return MixedOperatorRegistry::Registry().Create(spec.SchemaName(), spec, &device);
+    // If not found for mixed nor GPU, try GPU again - it will produce a better diagnostic message
     return GPUOperatorRegistry::Registry().Create(spec.SchemaName(), spec, &device);
   } else if (device == "cpu") {
     return CPUOperatorRegistry::Registry().Create(spec.SchemaName(), spec, &device);

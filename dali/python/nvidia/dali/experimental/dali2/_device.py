@@ -16,15 +16,18 @@ import nvidia.dali.backend as _backend
 from threading import local
 from typing import Union, Optional
 
+
 class Device:
     _thread_local = local()
 
     def __init__(self, name: str, device_id: int = None):
         device_type, name_device_id = Device.split_device_type_and_id(name)
         if name_device_id is not None and device_id is not None:
-            raise ValueError(f"Invalid device name: {name}\n"
-                             f"Ordinal ':{name_device_id}' should not appear "
-                             "in device name when device_id is provided")
+            raise ValueError(
+                f"Invalid device name: {name}\n"
+                f"Ordinal ':{name_device_id}' should not appear "
+                "in device name when device_id is provided"
+            )
         if device_id is None:
             device_id = name_device_id
 
@@ -172,10 +175,11 @@ def device(obj: Union[Device, str, "torch.device"], id: Optional[int] = None) ->
 
     # torch.device detected by duck-typing
     is_torch_device = (
-        obj.__class__.__module__ == "torch" and
-        obj.__class__.__name__ == "device" and
-        hasattr(obj, "type") and
-        hasattr(obj, "index"))
+        obj.__class__.__module__ == "torch"
+        and obj.__class__.__name__ == "device"
+        and hasattr(obj, "type")
+        and hasattr(obj, "index")
+    )
     if is_torch_device:
         dev_type = "gpu" if obj.type == "cuda" else obj.type
         if id is not None:

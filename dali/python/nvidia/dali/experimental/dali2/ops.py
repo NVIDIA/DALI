@@ -32,6 +32,20 @@ class Operator:
         call_arg_names=None,
         **kwargs,
     ):
+        """Constructs an operator instance.
+        Parameters
+        ----------
+        max_batch_size : int
+            The maximum batch size for this operator instance.
+        name : str, optional
+            The name of the operator instance.
+        device : Device or str, optional
+            The device where the operation is executed.
+        num_inputs : int, optional
+            The number of inputs for this operator.
+        call_arg_names : list of str, optional
+            The names of the arguments for this operator.
+        """
         self._name = name
         self._max_batch_size = max_batch_size
         self._init_args = kwargs
@@ -40,6 +54,7 @@ class Operator:
         self._api_type = None
 
         from ._device import device as _to_device
+
         self._device = _to_device(device)
 
         self._input_meta = []
@@ -61,6 +76,7 @@ class Operator:
         call_arg_names: Optional[list[str]] = None,
         **init_args,
     ):
+        """Gets an operator instance for a specified set of parameters."""
         if device is None:
             device = _device.Device.current()
         if not isinstance(device, _device.Device):
@@ -123,6 +139,8 @@ class Operator:
             import nvidia.dali as dali
 
             with self._device:
+                # Create fake DataNodes (they're quite lightweight) for the inputs and arguments,
+                # so we can use the ops API to obtain an OpSpec.
                 input_nodes = [
                     dali.data_node.DataNode(
                         name=f"input_{i}", device=inputs[i].device.device_type, source=None
@@ -133,6 +151,9 @@ class Operator:
                     name: dali.data_node.DataNode(name=f"arg_{name}", device="cpu", source=None)
                     for name in args
                 }
+
+                # legacy_op is a member of the old `ops` module - we use the ops API to obtain
+                # an OpSpec
                 op = self.legacy_op(
                     name=self._name, device=self._device.device_type, **self._init_args
                 )
@@ -240,6 +261,7 @@ class Operator:
         self._arg_meta = {name: self._make_meta(arg) for name, arg in args.items()}
 
     def is_compatible(self, inputs, batch_size, args):
+        """Checks if the inputs and arguments are compatible with this operator instance."""
         if batch_size is not None:
             if batch_size > self._max_batch_size:
                 return False
@@ -250,6 +272,8 @@ class Operator:
         return True
 
     def check_compatible(self, inputs, batch_size, args):
+        """Raises an error if the inputs and arguments are not compatible with this op instance."""
+
         def error_header():
             return (
                 f"The invocation of operator {self.display_name} "
@@ -359,7 +383,15 @@ class Reader(Operator):
 
         return super().run(ctx, *inputs, **args)
 
-    def samples(self, ctx: Optional[_eval_context.EvalContext] = None):
+    def next_epoch(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+        if batch_size is None:
+            batch_size = self._batch_size
+        if batch_size is not None:
+            return self._batches(batch_size, ctx)
+        else:
+            return self._samples(ctx)
+
+    def _samples(self, ctx: Optional[_eval_context.EvalContext] = None):
         if self._api_type is None:
             self._api_type = "samples"
         elif self._api_type != "samples":
@@ -387,7 +419,7 @@ class Reader(Operator):
                     outs = tuple(Tensor(o) for o in x)
                     yield outs
 
-    def batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+    def _batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
         if self._api_type is None:
             self._api_type = "batches"
         elif self._api_type != "batches":

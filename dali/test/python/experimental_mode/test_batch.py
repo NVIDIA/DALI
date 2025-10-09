@@ -244,3 +244,18 @@ def test_batch_subscript_per_sample():
     assert isinstance(b11, D.Batch)
     assert asnumpy(b11.tensors[0]) == 5
     assert asnumpy(b11.tensors[1]) == 9
+
+
+def test_batch_to_gpu():
+    input = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    t_cpu = D.tensor(input)
+    t_gpu = t_cpu.gpu()
+    assert t_gpu.device == D.Device("gpu")
+    b_gpu = D.Batch([t_gpu])
+    b_gpu.evaluate()
+    assert b_gpu.device == D.Device("gpu")
+    assert b_gpu.dtype == D.int32
+    assert b_gpu.batch_size == 1
+    assert b_gpu.ndim == 2
+    assert b_gpu.shape == [(2, 3)]
+    assert np.array_equal(asnumpy(b_gpu.tensors[0]), input)
