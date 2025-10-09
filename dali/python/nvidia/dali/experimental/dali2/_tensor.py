@@ -132,7 +132,8 @@ class Tensor:
                 else:
                     from . import cast
 
-                    self.assign(cast(data.to_device(device), dtype).evaluate())
+                    converted = cast(data.to_device(device), dtype=dtype, device=self.device)
+                    self.assign(converted.evaluate())
                     copied = True
             elif isinstance(data, TensorSlice):
                 self._slice = data
@@ -218,7 +219,7 @@ class Tensor:
         if dtype is not None and self._dtype != dtype:
             from . import cast
 
-            self.assign(cast(self, dtype).evaluate())
+            self.assign(cast(self, dtype=dtype, device=self.device).evaluate())
             copied = True
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:

@@ -168,7 +168,7 @@ class Batch:
                     if dtype is not None and dtype != tmp.dtype:
                         from . import cast
 
-                        tmp = cast(tmp, dtype, device=device)
+                        tmp = cast(tmp, dtype=dtype, device=device)
                         copied = True
                     # TODO(michalz): move before cast after we have proper cast op
                     if device is not None and device != tmp.device:
@@ -265,14 +265,14 @@ class Batch:
             if dtype is not None and dev.dtype != dtype:
                 from . import cast
 
-                dev = cast(dev, dtype, device=device)
+                dev = cast(dev, dtype=dtype, device=device)
             self.assign(dev.evaluate())
             copied = True
         else:
             if self._dtype is not None and dtype is not None and self._dtype != dtype:
                 from . import cast
 
-                self.assign(cast(self, dtype, device=device))
+                self.assign(cast(self, dtype=dtype, device=device))
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
@@ -601,7 +601,7 @@ def batch(
         if dtype is not None and b.dtype != dtype:
             from . import cast
 
-            b = cast(b, dtype, device=device)
+            b = cast(b, dtype=dtype, device=device)
         return b.evaluate()
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout, copy=True)
@@ -620,7 +620,7 @@ def as_batch(
         if dtype is not None and b.dtype != dtype:
             from . import cast
 
-            b = cast(b, dtype, device=device)
+            b = cast(b, dtype=dtype, device=device)
         return b
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout)
