@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -359,13 +359,9 @@ def test_tensor_list_gpu_from_cupy():
 
 
 def test_tensor_from_tensor_list_gpu():
-    orig = []
-
     def create_tl(idx):
-        nonlocal orig
         a = np.full((3, 4), idx)
         a_gpu = cp.array(a, dtype=a.dtype)
-        orig.append(a_gpu)
         return tensors.TensorListGPU(a_gpu, "")
 
     out = []
