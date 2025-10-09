@@ -78,6 +78,38 @@ class Tensor:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
+        """Constructs a Tensor object.
+        Tensor objects should not be constructed directly, use tensor or as_tensor instead.
+
+        The Tensor object can be created either from an existing object, passed as `data` or
+        from an invocation result.
+        Unless explicitly requested with the `copy` parameter, this constructor will make best
+        effort to avoid the copy.
+
+        Parameters
+        ----------
+        data : TensorLike, default: None
+            The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
+            TensorCPU/TensorGPU or other supported type.
+        dtype : DType, default: None
+            The desired data type of the tensor. If not specified, the data type is inferred
+            from the input data. If specified, the input data is cast to the desired data type.
+        device : Device or str, optional, default: None
+            The device on which the tensor should reside (e.g., "cpu" or "gpu").
+            If not specified, the device is inferred from the input data.
+        layout : str, optional, default: None
+            The layout string describing the dimensions of the tensor (e.g., "HWC").
+            If not specified, the layout is inferred from the input data, if possible.
+        batch : Batch, optional, default: None
+            Use if the tensor is a view of a sample in a batch. Used together with `index_in_batch`.
+        index_in_batch : int, optional, default: None
+            The index of the tensor in the batch. Used together with `batch`.
+        invocation_result : _invocation.InvocationResult, default: None
+            The result of a DALI operator invocation, used for lazy evaluation
+        copy : bool, optional, default: False
+            If True, the input data is copied. If False, the constructor will avoid
+            copying data when possible.
+        """
         if layout is None:
             layout = ""
         elif not isinstance(layout, str):
@@ -721,10 +753,25 @@ def tensor(
 ):
     """Copies an existing tensor-like object into a DALI tensor.
 
-    @param data:    A tensor-like object, a list or a scalar value.
-    @param dtype:   The requested data type of the tensor.
-    @param device:  The device to use for the tensor.
-    @param layout:  The layout of the tensor.
+    Parameters
+    ----------
+    data : TensorLike, default: None
+        The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
+        TensorCPU/TensorGPU or other supported type.
+        Supported types are:
+        - numpy arrays
+        - torch tensors
+        - types exposing __dlpack__ or __array__ interface
+        - existing Tensor objects
+    dtype : DType, default: None
+        The desired data type of the tensor. If not specified, the data type is inferred
+        from the input data. If specified, the input data is cast to the desired data type.
+    device : Device or str, optional, default: None
+        The device on which the tensor should reside (e.g., "cpu" or "gpu").
+        If not specified, the device is inferred from the input data.
+    layout : str, optional, default: None
+        The layout string describing the dimensions of the tensor (e.g., "HWC").
+        If not specified, the layout is inferred from the input data, if possible.
     """
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=True)
 
@@ -737,7 +784,25 @@ def as_tensor(
 ):
     """Wraps an existing tensor-like object into a DALI tensor.
 
-    This function avoids copying the data if possible.
+    Parameters
+    ----------
+    data : TensorLike, default: None
+        The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
+        TensorCPU/TensorGPU or other supported type.
+        Supported types are:
+        - numpy arrays
+        - torch tensors
+        - types exposing __dlpack__ or __array__ interface
+        - existing Tensor objects
+    dtype : DType, default: None
+        The desired data type of the tensor. If not specified, the data type is inferred
+        from the input data. If specified, the input data is cast to the desired data type.
+    device : Device or str, optional, default: None
+        The device on which the tensor should reside (e.g., "cpu" or "gpu").
+        If not specified, the device is inferred from the input data.
+    layout : str, optional, default: None
+        The layout string describing the dimensions of the tensor (e.g., "HWC").
+        If not specified, the layout is inferred from the input data, if possible.
     """
     from . import _batch
 
