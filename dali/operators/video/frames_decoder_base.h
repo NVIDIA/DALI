@@ -379,6 +379,7 @@ class DLL_PUBLIC FramesDecoderBase {
 
   void SetIndex(const FrameIndex& index) {
     index_ = index;
+    num_frames_ = index.size();
   }
 
   virtual ~FramesDecoderBase() = default;
