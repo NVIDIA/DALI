@@ -305,6 +305,7 @@ void FramesDecoderBase::BuildIndex() {
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
   int frame_count = 0;
+  num_frames_ = 0;
 
   while (true) {
     // Read the next frame from the video
@@ -393,7 +394,7 @@ void FramesDecoderBase::BuildIndex() {
     // Regular frame, not a flush frame
     entry.is_flush_frame = false;
     index_.index.push_back(entry);
-    num_frames_ = index_.size();
+    ++num_frames_;
   }
 
   LOG_LINE << "Index building complete. Total frames: " << index_.size() << std::endl;
@@ -417,8 +418,9 @@ void FramesDecoderBase::BuildIndex() {
     }
   }
 
-  DALI_ENFORCE(!keyframe_positions.empty(),
-               make_string("No keyframes found in video file \"", Filename(), "\""));
+  if (keyframe_positions.empty()) {
+    keyframe_positions.push_back(0);
+  }
 
   // Update last_keyframe_id for each frame after sorting
   for (size_t i = 0; i < index_.size(); i++) {
