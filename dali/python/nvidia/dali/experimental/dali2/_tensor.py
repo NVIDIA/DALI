@@ -14,7 +14,7 @@
 
 from typing import Any, Optional, Tuple, Union
 from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._device import Device
+from ._device import Device, device as _device
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
@@ -127,7 +127,7 @@ class Tensor:
         self._wraps_external_data = False
 
         if device is not None and not isinstance(device, Device):
-            device = Device(device)  # TODO(michalz): Use the `device` function, when merged
+            device = _device(device)
 
         copied = False
 
