@@ -92,6 +92,7 @@ For more details please check the
           'dm-tree <= 0.1.9; python_version>="3.10"',
           'packaging <= 25.0',
           'nvtx',
+          'makefun',
           @DALI_INSTALL_REQUIRES_NVIMGCODEC@
           @DALI_INSTALL_REQUIRES_NVCOMP@
           ],
