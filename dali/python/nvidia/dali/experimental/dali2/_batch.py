@@ -142,6 +142,40 @@ class Batch:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
+        """Constructs a Batch object.
+        Batch objects should not be constructed directly, use batch or as_batch instead.
+
+        The batch object can be created either from an existing object, passed as `tensors` or
+        from an invocation result.
+        Unless explicitly requested with the `copy` parameter, this constructor will make best
+        effort to avoid the copy.
+
+        Parameters
+        ----------
+        tensors : TensorLike, default: None
+            The data to construct the batch from. It can be a list of tensors, a TensorList,
+            or other supported types. If None, the batch is constructed from an invocation result.
+            Supported types are:
+            - a list of tensor-like objects; the objects need to have matching number of dimensions,
+            data types and layouts,
+            - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
+            - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
+        dtype : DType, default: None
+            The desired data type of the batch. If not specified, the data type is inferred
+            from the input tensors. If specified, the input tensors are cast to the desired
+            data type. The `dtype` is required if `tensors` are an empty list.
+        device : Device or str, optional, default: None
+            The device on which the batch should reside (e.g., "cpu" or "gpu").
+            If not specified, the device is inferred from the input tensors.
+        layout : str, optional, default: None
+            The layout string describing the dimensions of the batch (e.g., "HWC").
+            If not specified, the layout is inferred from the input tensors.
+        invocation_result : _invocation.InvocationResult, default: None
+            The result of a DALI operator invocation, used for lazy evaluation
+        copy : bool, optional, default: False
+            If True, the input tensors are copied. If False, the constructor will avoid
+            copying data when possible.
+        """
         assert isinstance(layout, str) or layout is None
         if device is not None and not isinstance(device, Device):
             device = Device(device)
@@ -280,8 +314,6 @@ class Batch:
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
-
-
 
     def _is_external(self) -> bool:
         return self._wraps_external_data
@@ -513,7 +545,8 @@ class Batch:
                             backend_type = _backend.TensorListGPU
                         else:
                             raise ValueError(
-                                f"Internal error: Unsupported device type: {self._device.device_type}"
+                                f"Internal error: "
+                                f"Unsupported device type: {self._device.device_type}"
                             )
                         self._backend = backend_type(
                             [t.evaluate()._backend for t in self._tensors], self.layout
@@ -606,6 +639,34 @@ def batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
+    """Constructs a Batch object.
+
+    Constructs a batch by copying the input tensors and optionally converting them to the desired
+    data type and storing on the specified device.
+
+    Parameters
+    ----------
+    tensors : TensorLike, default: None
+        The data to construct the batch from. Can be a list of tensors, a TensorList,
+        or other supported types.
+        Supported types are:
+        - a Batch object; the batch is copied and the data is converted and moved to the
+          specified device, if necessary
+        - a list of tensor-like objects; the objects need to have matching number of dimensions,
+          data types and layouts,
+        - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
+        - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
+    dtype : DType, default: None
+        The desired data type of the batch. If not specified, the data type is inferred
+        from the input tensors. If specified, the input tensors are cast to the desired data type.
+        The `dtype` is required if tensors are an empty list.
+    device : Device or str, optional, default: None
+        The device on which the batch should reside (e.g., "cpu" or "gpu").
+        If not specified, the device is inferred from the input tensors.
+    layout : str, optional, default: None
+        The layout string describing the dimensions of the batch (e.g., "HWC").
+        If not specified, the layout is inferred from the input tensors.
+    """
     if isinstance(tensors, Batch):
         b = tensors.to_device(device or tensors.device, force_copy=True)
         if dtype is not None and b.dtype != dtype:
@@ -623,6 +684,36 @@ def as_batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
+    """Constructs a Batch object, avoiding the copy.
+
+    Constructs a batch by viewing the input tensors as a batch. If the input tensors do not
+    reside on the specified device or do not match the desired type, the data will be converted
+    and/or copied, as necessary.
+
+    Parameters
+    ----------
+    tensors : TensorLike, default: None
+        The data to construct the batch from. It can be a list of tensors, a TensorList,
+        or other supported types. In general, the input tensors must be kept alive by the caller
+        until the batch is no longer needed.
+        Supported types are:
+        - a Batch object; the batch is copied and the data is converted and moved to the
+          specified device, if necessary
+        - a list of tensor-like objects; the objects need to have matching number of dimensions,
+          data types and layouts,
+        - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
+        - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
+    dtype : DType, default: None
+        The desired data type of the batch. If not specified, the data type is inferred
+        from the input tensors. If specified, the input tensors are cast to the desired data type.
+        The `dtype` is required if `tensors` are an empty list.
+    device : Device or str, optional, default: None
+        The device on which the batch should reside (e.g., "cpu" or "gpu").
+        If not specified, the device is inferred from the input tensors.
+    layout : str, optional, default: None
+        The layout string describing the dimensions of the batch (e.g., "HWC").
+        If not specified, the layout is inferred from the input tensors.
+    """
     if isinstance(tensors, Batch):
         b = tensors
         if device is not None:
