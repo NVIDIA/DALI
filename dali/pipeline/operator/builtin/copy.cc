@@ -38,6 +38,7 @@ void Copy<CPUBackend>::RunImpl(Workspace &ws) {
   } else {
     auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
+    DeviceGuard g(input.device_id());
     output.Copy(input, ws.output_order());
   }
 }

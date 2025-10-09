@@ -43,7 +43,9 @@ class EvalContext:
         if self._cuda_stream is None and self._device.device_type == "gpu":
             self._cuda_stream = _b.Stream(self._device.device_id)
 
-        self._thread_pool = _b._ThreadPool(num_threads or default_num_threads)
+        self._thread_pool = _b._ThreadPool(
+            num_threads or default_num_threads, self._device.device_id
+        )
 
     @staticmethod
     def current():

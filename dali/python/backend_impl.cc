@@ -792,6 +792,9 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("set_layout", [](Tensor<CPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
+    })
     .def("source_info", &Tensor<CPUBackend>::GetSourceInfo,
         R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
         from which the data was loaded.)")
@@ -816,6 +819,15 @@ void ExposeTensor(py::module &m) {
         },
       R"code(Passthrough, since the object is already an instance of `TensorCPU`.)code",
       py::return_value_policy::reference_internal)
+    .def("_make_copy", [](const Tensor<CPUBackend> &t) {
+        auto dst = std::make_unique<Tensor<CPUBackend>>();
+        dst->set_device_id(t.device_id());
+        dst->set_order(t.order());
+        dst->set_pinned(t.is_pinned());
+        dst->Copy(t);
+        return dst;
+      },
+      py::return_value_policy::take_ownership)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, AccessOrder::host(), false);
@@ -961,16 +973,19 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<GPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("set_layout", [](Tensor<GPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
+    })
     .def("source_info", &Tensor<GPUBackend>::GetSourceInfo,
         R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
         from which the data was loaded.)")
     .def("get_property", GetTensorProperty<GPUBackend>)
     .def("as_cpu", [](Tensor<GPUBackend> &t) -> Tensor<CPUBackend>* {
+          DeviceGuard g(t.device_id());
           auto ret = std::make_unique<Tensor<CPUBackend>>();
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
-          DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
           return ret.release();
@@ -978,6 +993,15 @@ void ExposeTensor(py::module &m) {
       R"code(
       Returns a `TensorCPU` object being a copy of this `TensorGPU`.
       )code",
+      py::return_value_policy::take_ownership)
+    .def("_make_copy", [](const Tensor<GPUBackend> &t) {
+        DeviceGuard dg(t.device_id());
+        auto dst = std::make_unique<Tensor<GPUBackend>>();
+        dst->set_device_id(t.device_id());
+        dst->set_order(t.order());
+        dst->Copy(t);
+        return dst;
+      },
       py::return_value_policy::take_ownership)
     .def("squeeze",
       [](Tensor<GPUBackend> &t, py::object dim_arg) -> bool {
@@ -1301,6 +1325,9 @@ void ExposeTensorListCPU(py::module &m) {
       layout : str
             Layout of the data
       )code")
+    .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
+        return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
+      })
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
           int dev = -1;
@@ -1320,8 +1347,19 @@ void ExposeTensorListCPU(py::module &m) {
         return t;
       }, R"code(Passthrough, as it is already an instance of `TensorListCPU`.)code",
       py::return_value_policy::reference_internal)
+    .def("_make_copy", [](const TensorList<CPUBackend> &t) {
+        auto dst = std::make_shared<TensorList<CPUBackend>>();
+        dst->set_device_id(t.device_id());
+        dst->set_order(t.order());
+        dst->set_pinned(t.is_pinned());
+        dst->Copy(t);
+        return dst;
+      })
     .def("layout", [](TensorList<CPUBackend> &t) {
       return t.GetLayout().str();
+    })
+    .def("set_layout", [](TensorList<CPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
     })
     .def("shape", &py_shape_list<CPUBackend>,
       R"code(
@@ -1567,13 +1605,16 @@ void ExposeTesorListGPU(py::module &m) {
       R"code(
       List of tensors residing in the GPU memory.
       )code")
+    .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
+        return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
+      })
     .def("as_cpu", [](TensorList<GPUBackend> &t) {
+          DeviceGuard g(t.device_id());
           auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
           ret->SetContiguity(BatchContiguity::Contiguous);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
-          DeviceGuard g(t.device_id());
           ret->Copy(t, s);
           us->Wait(t);
           return ret;
@@ -1582,6 +1623,15 @@ void ExposeTesorListGPU(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("_make_copy", [](const TensorList<GPUBackend> &tl) {
+        DeviceGuard dg(tl.device_id());
+        auto dst = std::make_shared<TensorList<GPUBackend>>();
+        dst->set_device_id(tl.device_id());
+        dst->set_order(tl.order());
+        dst->set_pinned(tl.is_pinned());
+        dst->Copy(tl);
+        return dst;
+      })
     .def(
       "device_id", &TensorList<GPUBackend>::device_id)
     .def("shape", &py_shape_list<GPUBackend>,
@@ -1652,6 +1702,9 @@ void ExposeTesorListGPU(py::module &m) {
       py::keep_alive<0, 1>())
     .def("layout", [](TensorList<GPUBackend> &t) {
       return t.GetLayout().str();
+    })
+    .def("set_layout", [](TensorList<GPUBackend> &t, const std::optional<std::string> &layout) {
+      SetLayout(t, layout);
     })
     .def("as_reshaped_tensor",
         [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) {
