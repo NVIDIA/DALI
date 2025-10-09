@@ -57,6 +57,48 @@ def test_batch_construction(device_type):
     assert b._backend.layout() == "AB"
 
 
+@params(("cpu",), ("gpu",))
+def test_batch_from_empty_list(device_type):
+    with assert_raises(ValueError, glob="Element type"):
+        D.batch([], device=device_type)
+    b = D.batch([], dtype=D.int32, device=device_type)
+    assert b.dtype == D.int32
+    assert b.shape == []
+    assert b.ndim == 0
+
+
+@params(("cpu",), ("gpu",))
+def test_batch_as_batch(device_type):
+    t0 = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    t1 = np.array([[7, 8, 9], [10, 11, 12]], dtype=np.int32)
+
+    b0 = D.batch(
+        [
+            t0,
+            t1,
+        ],
+        device=D.Device(device_type),
+        layout="AB",
+    )
+
+    b1 = D.batch(b0)
+    b2 = D.as_batch(b0)
+    assert b1.dtype == b0.dtype
+    assert b1.shape == b0.shape
+    assert b1.layout == b0.layout
+    assert b2.dtype == b0.dtype
+    assert b2.shape == b0.shape
+    assert b2.layout == b0.layout
+
+    assert not b1.tensors[0]._is_same_tensor(b0.tensors[0])
+    assert b2.tensors[0]._is_same_tensor(b0.tensors[0])
+
+    b3 = D.as_batch(b0, dtype=D.float32)
+    assert b3.dtype == D.float32
+    assert b3.shape == b0.shape
+    assert b3.layout == b0.layout
+
+
 def test_broadcast():
     a = np.array([1, 2, 3])
     b = D.Batch.broadcast(a, 5).evaluate()

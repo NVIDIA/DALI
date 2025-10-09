@@ -38,7 +38,11 @@ def _convert_tensor_cpu(tensor, dtype):
 
 
 # REVIEW ONLY
-def cast(tensor_or_batch, dtype):
+def cast(tensor_or_batch, dtype, device=None):
+    if device is not None:
+        if not isinstance(device, Device):
+            device = Device(device)
+        assert tensor_or_batch.device == device
     from . import _type
 
     dtype = _type.dtype(dtype)

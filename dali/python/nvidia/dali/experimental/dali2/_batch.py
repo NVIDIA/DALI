@@ -109,21 +109,21 @@ class _TensorList:
         self._batch = batch
         self._indices = indices or range(batch.batch_size)
 
-    def __getitem__(self, range):
-        return self.select(range)
+    def __getitem__(self, selection: Union[int, slice, list[int]]):
+        return self.select(selection)
 
     def __len__(self):
         return len(self._indices)
 
-    def select(self, range):
-        if range == slice(None, None, None):
+    def select(self, selection):
+        if selection == slice(None, None, None):
             return self
-        if isinstance(range, slice):
-            return _TensorList(self._batch, self._indices[range])
-        elif isinstance(range, list):
-            return _TensorList(self._batch, [self._indices[i] for i in range])
+        if isinstance(selection, slice):
+            return _TensorList(self._batch, self._indices[selection])
+        elif isinstance(selection, list):
+            return _TensorList(self._batch, [self._indices[i] for i in selection])
         else:
-            return self._batch.select(range)
+            return self._batch.select(selection)
 
     def tolist(self):
         return [self._batch._get_tensor(i) for i in self._indices]
@@ -157,7 +157,7 @@ class Batch:
                 if (
                     (device is None or device == backend_dev)
                     and (dtype is None or dtype.type_id == tensors.dtype)
-                    and (layout is None or layout == tensors.layout)
+                    and (layout is None or layout == tensors.layout())
                 ):
                     self._backend = tensors
                     self._device = backend_dev
@@ -168,7 +168,7 @@ class Batch:
                     if dtype is not None and dtype != tmp.dtype:
                         from . import cast
 
-                        tmp = cast(tmp, dtype)
+                        tmp = cast(tmp, dtype, device=device)
                         copied = True
                     # TODO(michalz): move before cast after we have proper cast op
                     if device is not None and device != tmp.device:
@@ -204,17 +204,13 @@ class Batch:
                     tensors = [t[i] for i in range(sh[0])]
                 self._dtype = dtype
 
-            elif len(tensors) == 0:
-                if dtype is None:
-                    raise ValueError("Element type must be specified if the list is empty")
-                if device is None:
-                    device = Device("cpu")
-                if layout is None:
-                    layout = ""
-                self._dtype = dtype
             else:
                 self._tensors = []
-                for t in tensors:
+                for i, t in enumerate(tensors):
+                    if t is None:
+                        raise TypeError(
+                            f"Tensors must be array-like types or numbers. Got `None` at index {i}"
+                        )
                     sample = Tensor(t, dtype=dtype, device=device, layout=layout)
                     if dtype is None:
                         dtype = sample.dtype
@@ -228,7 +224,25 @@ class Batch:
                     else:
                         if not isinstance(t, Tensor) or t._backend is not sample._backend:
                             copied = True
+                if dtype is None:
+                    # We would have set dtype in the 1st iteration, so the only way it can
+                    # be None is if the `_tensors` are empty.
+                    assert len(self._tensors) == 0
+                    raise ValueError("Element type must be specified if the list is empty")
+                if device is None:
+                    device = Device("cpu")
+                if layout is None:
+                    layout = ""
+                self._device = device
+                self._layout = layout
                 self._dtype = dtype
+                if len(self._tensors) == 0:
+                    t = Tensor([], dtype=dtype, device=device).evaluate()
+                    if self._device.device_type == "cpu":
+                        backend_type = _backend.TensorListCPU
+                    elif self._device.device_type == "gpu":
+                        backend_type = _backend.TensorListGPU
+                    self._backend = backend_type(t._backend, layout=layout)
 
         if self._dtype is None:
             if self._backend is not None:
@@ -336,7 +350,10 @@ class Batch:
                 self._layout = self._tensors[0].layout
             else:
                 raise ValueError("Cannot establish the number of dimensions of an empty Batch")
-        return self._layout
+        # Use "" to indicate that the layout has been checked and is empty, but still return None
+        # to avoid situations where we return a string with a length that doesn't match the number
+        # of dimensions.
+        return self._layout or None
 
     @property
     def ndim(self) -> int:
@@ -364,7 +381,8 @@ class Batch:
             with device:
                 from . import copy
 
-                return copy(self, device=device.device_type)
+                ret = copy(self, device=device)
+                return ret
 
     def cpu(self) -> "Batch":
         return self.to_device(Device("cpu"))
@@ -459,18 +477,6 @@ class Batch:
             return self._invocation_result.batch_size
         else:
             raise ValueError("Neither tensors nor invocation result are set")
-
-    def _is_same_batch(self, other: "Batch") -> bool:
-        if self is other:
-            return True
-        return (
-            self._backend is other._backend
-            and self._invocation_result is other._invocation_result
-            and (
-                self._tensors is other._tensors
-                or [t._is_same_tensor(ot) for t, ot in zip(self._tensors, other._tensors)]
-            )
-        )
 
     @property
     def shape(self):
@@ -608,7 +614,9 @@ def as_batch(
     layout: Optional[str] = None,
 ):
     if isinstance(tensors, Batch):
-        b = tensors.to_device(device)
+        b = tensors
+        if device is not None:
+            b = tensors.to_device(device)
         if dtype is not None and b.dtype != dtype:
             from . import cast
 

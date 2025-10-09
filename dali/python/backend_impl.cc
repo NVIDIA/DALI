@@ -819,10 +819,12 @@ void ExposeTensor(py::module &m) {
         },
       R"code(Passthrough, since the object is already an instance of `TensorCPU`.)code",
       py::return_value_policy::reference_internal)
-    .def("_make_copy", [](const Tensor<CPUBackend> &tl) {
+    .def("_make_copy", [](const Tensor<CPUBackend> &t) {
         auto dst = std::make_unique<Tensor<CPUBackend>>();
-        dst->set_pinned(tl.is_pinned());
-        dst->Copy(tl);
+        dst->set_device_id(t.device_id());
+        dst->set_order(t.order());
+        dst->set_pinned(t.is_pinned());
+        dst->Copy(t);
         return dst;
       },
       py::return_value_policy::take_ownership)
@@ -992,9 +994,12 @@ void ExposeTensor(py::module &m) {
       Returns a `TensorCPU` object being a copy of this `TensorGPU`.
       )code",
       py::return_value_policy::take_ownership)
-    .def("_make_copy", [](const Tensor<GPUBackend> &tl) {
+    .def("_make_copy", [](const Tensor<GPUBackend> &t) {
+        DeviceGuard dg(t.device_id());
         auto dst = std::make_unique<Tensor<GPUBackend>>();
-        dst->Copy(tl);
+        dst->set_device_id(t.device_id());
+        dst->set_order(t.order());
+        dst->Copy(t);
         return dst;
       },
       py::return_value_policy::take_ownership)
@@ -1342,10 +1347,12 @@ void ExposeTensorListCPU(py::module &m) {
         return t;
       }, R"code(Passthrough, as it is already an instance of `TensorListCPU`.)code",
       py::return_value_policy::reference_internal)
-    .def("_make_copy", [](const TensorList<CPUBackend> &tl) {
+    .def("_make_copy", [](const TensorList<CPUBackend> &t) {
         auto dst = std::make_shared<TensorList<CPUBackend>>();
-        dst->set_pinned(tl.is_pinned());
-        dst->Copy(tl);
+        dst->set_device_id(t.device_id());
+        dst->set_order(t.order());
+        dst->set_pinned(t.is_pinned());
+        dst->Copy(t);
         return dst;
       })
     .def("layout", [](TensorList<CPUBackend> &t) {
@@ -1617,7 +1624,10 @@ void ExposeTesorListGPU(py::module &m) {
       )code",
       py::return_value_policy::take_ownership)
     .def("_make_copy", [](const TensorList<GPUBackend> &tl) {
+        DeviceGuard dg(tl.device_id());
         auto dst = std::make_shared<TensorList<GPUBackend>>();
+        dst->set_device_id(tl.device_id());
+        dst->set_order(tl.order());
         dst->set_pinned(tl.is_pinned());
         dst->Copy(tl);
         return dst;

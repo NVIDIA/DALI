@@ -253,7 +253,7 @@ class Tensor:
             with device:
                 from . import copy
 
-                return copy(self, device=device.device_type)
+                return copy(self, device=device)
 
     def assign(self, other: "Tensor"):
         if other is self:
@@ -328,7 +328,7 @@ class Tensor:
         # Use "" to indicate that the layout has been checked and is empty, but still return None
         # to avoid situations where we return a string with a length that doesn't match the number
         # of dimensions.
-        return self._layout if self._layout != "" else None
+        return self._layout or None
 
     @property
     def size(self) -> int:
