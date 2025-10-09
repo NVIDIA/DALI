@@ -415,7 +415,7 @@ class Batch:
         start = Batch([1, 2, 3])
         stop = Batch([4, 5, 6])
         step = Batch([1, 1, 2])
-        sliced = input[start, stop, step]
+        sliced = input.slice[start, stop, step]
         # the result is equivalent to
         sliced = Batch([
             sample[start[i]:stop[i]:step[i]]
