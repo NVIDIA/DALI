@@ -16,7 +16,6 @@ import nvidia.dali.experimental.dali2 as D
 import numpy as np
 from nose_utils import attr
 from nose2.tools import params
-import nvidia.dali.backend as _b
 from nose_utils import assert_raises
 import test_tensor
 

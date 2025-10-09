@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Optional, Union, Sequence
-from ._type import DType, dtype as _dtype, type_id as _type_id
+from ._type import DType, dtype as _dtype
 from ._tensor import (
     Tensor,
     _is_full_slice,

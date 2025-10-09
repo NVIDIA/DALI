@@ -14,7 +14,6 @@
 
 import nvidia.dali.experimental.dali2 as D
 import numpy as np
-import gc
 from nose_utils import SkipTest, attr
 from nose2.tools import params
 import nvidia.dali.backend as _b

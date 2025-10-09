@@ -24,6 +24,7 @@ from ._tensor import *  # noqa: F401, F403
 from ._batch import *  # noqa: F401, F403
 from ._tensor import Tensor, tensor, as_tensor  # noqa: F401
 from ._batch import Batch, batch, as_batch  # noqa: F401
+from ._device import Device
 
 
 # REVIEW ONLY
