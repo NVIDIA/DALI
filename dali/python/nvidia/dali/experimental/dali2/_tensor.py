@@ -51,6 +51,8 @@ def _get_array_interface(data):
 
 def _try_convert_enums(arr):
     assert arr.dtype == object
+    if arr.size == 0:
+        raise ValueError("Cannot convert an empty array of `object` type.")
     item = arr.flat[0]
     import numpy as np
 
@@ -60,6 +62,8 @@ def _try_convert_enums(arr):
         return arr.astype(np.int32), nvidia.dali.types.DATA_TYPE
     elif isinstance(item, nvidia.dali.types.DALIImageType):
         return arr.astype(np.int32), nvidia.dali.types.IMAGE_TYPE
+    else:
+        raise TypeError("Unexpected element type f{type(item)}")
 
 
 class Tensor:
@@ -67,7 +71,7 @@ class Tensor:
         self,
         data: Optional[Any] = None,
         dtype: Optional[Any] = None,
-        device: Optional[Union[Device, str, "torch.device"]] = None,
+        device: Optional[Device] = None,
         layout: Optional[str] = None,
         batch: Optional[Any] = None,
         index_in_batch: Optional[int] = None,
@@ -90,12 +94,10 @@ class Tensor:
         self._layout = None
         self._wraps_external_data = False
 
+        if device is not None and not isinstance(device, Device):
+            device = Device(device)  # TODO(michalz): Use the `device` function, when merged
+
         copied = False
-
-        from ._device import device as _to_device
-        device = _to_device(device)
-
-        from . import _fn
 
         if dtype is not None:
             if not isinstance(dtype, DType):
@@ -112,12 +114,10 @@ class Tensor:
             self._device = batch.device
             self._layout = batch.layout
         elif data is not None:
-            if isinstance(data, _backend.TensorCPU):
+            if isinstance(data, (_backend.TensorCPU, _backend.TensorGPU)):
                 self._backend = data
                 self._wraps_external_data = True
-            elif isinstance(data, _backend.TensorGPU):
-                self._backend = data
-                self._wraps_external_data = True
+                self._device = _backend_device(data)
             elif isinstance(data, Tensor):
                 if dtype is None or _type_id(dtype) == data.dtype.type_id:
                     if device is None or device == data.device:
@@ -132,7 +132,9 @@ class Tensor:
                 else:
                     from . import cast
 
-                    self.assign(cast(data, dtype, device=device).evaluate())
+                    converted = cast(data.to_device(device), dtype=dtype, device=self.device)
+                    self.assign(converted.evaluate())
+                    copied = True
             elif isinstance(data, TensorSlice):
                 self._slice = data
             elif hasattr(data, "__dlpack_device__"):
@@ -196,14 +198,11 @@ class Tensor:
                     device = self._device
             else:
                 if device is None:
-                    if self._device is None:
-                        device = Device("cpu")
-                    else:
-                        device = self._device
+                    device = Device("cpu")
                 self._device = device
 
             if self._backend is not None:
-                self._shape = self._backend.shape()
+                self._shape = tuple(self._backend.shape())
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
 
@@ -216,6 +215,12 @@ class Tensor:
             self._device = invocation_result.device
         else:
             raise ValueError("Either data, expression or batch and index must be provided")
+
+        if dtype is not None and self._dtype != dtype:
+            from . import cast
+
+            self.assign(cast(self, dtype=dtype, device=self.device).evaluate())
+            copied = True
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
@@ -249,7 +254,7 @@ class Tensor:
             with device:
                 from . import copy
 
-                return copy(self, device=device.device_type)
+                return copy(self, device=device)
 
     def assign(self, other: "Tensor"):
         if other is self:
@@ -294,7 +299,7 @@ class Tensor:
             elif self._batch is not None:
                 self._shape = self._batch.shape[self._index_in_batch]
             else:
-                self._shape = self._backend.shape()
+                self._shape = tuple(self._backend.shape())
         return self._shape
 
     @property
@@ -321,7 +326,10 @@ class Tensor:
                 self._layout = self._batch.layout
             else:
                 self._layout = self._backend.layout()
-        return self._layout
+        # Use "" to indicate that the layout has been checked and is empty, but still return None
+        # to avoid situations where we return a string with a length that doesn't match the number
+        # of dimensions.
+        return self._layout or None
 
     @property
     def size(self) -> int:
@@ -357,7 +365,7 @@ class Tensor:
                 else:
                     assert self._invocation_result is not None
                     self._backend = self._invocation_result.value(ctx)
-                self._shape = self._backend.shape()
+                self._shape = tuple(self._backend.shape())
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
         return self
@@ -465,8 +473,6 @@ class Tensor:
 
 
 def _arithm_op(name, *args, **kwargs):
-    from . import _fn
-
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
     from . import arithmetic_generic_op
 
@@ -506,12 +512,16 @@ def _scalar_value(value: Any) -> int:
 
 
 class TensorSlice:
-    def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...]):
+    def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...], absolute=False):
         self._tensor = copy.copy(tensor)
-        self._ranges = [copy.copy(r) for r in ranges]
         self._ndim_dropped = 0
         self._shape = None
-        self._absolute_ranges = None
+        if absolute:
+            self._absolute_ranges = [copy.copy(r) for r in ranges]
+            self._ranges = self._insane_pythonic_ranges(self._absolute_ranges, tensor.shape)
+        else:
+            self._ranges = [copy.copy(r) for r in ranges]
+            self._absolute_ranges = None
         self._layout = None
         num_ranges = len(ranges)
         ellipsis_found = False
@@ -541,7 +551,10 @@ class TensorSlice:
                 self._absolute_ranges = self._canonicalize_ranges(self._ranges, self._tensor.shape)
             for r in self._absolute_ranges:
                 if isinstance(r, slice):
-                    shape.append((r.stop + r.step - r.start - 1) // r.step)
+                    if r.step < 0:
+                        shape.append((r.stop + r.step - r.start + 1) // r.step)
+                    else:
+                        shape.append((r.stop + r.step - r.start - 1) // r.step)
             self._shape = tuple(shape)
         return self._shape
 
@@ -565,7 +578,7 @@ class TensorSlice:
         j = 0
         layout = ""
         for i, r in enumerate(self._ranges):
-            if isinstance(self._ranges[i], slice):
+            if isinstance(r, slice):
                 layout += input_layout[j]
                 j += 1
             elif r is Ellipsis:
@@ -577,13 +590,12 @@ class TensorSlice:
 
     @staticmethod
     def _canonicalize_ranges(ranges, in_shape) -> Tuple[int, ...]:
+        """Converts the ranges to sane non-pythonic values without negative indices wrapping"""
         d = 0
         abs_ranges = []
         for i, r in enumerate(ranges):
             if r is Ellipsis:
-                print("in_shape", in_shape)
                 to_skip = len(in_shape) - len(ranges) + 1
-                print("to_skip", to_skip)
                 for _ in range(to_skip):
                     abs_ranges.append(slice(0, in_shape[d], 1))
                     d += 1
@@ -593,16 +605,23 @@ class TensorSlice:
                 if step == 0:
                     raise ValueError("slice step cannot be zero")
                 extent = in_shape[d]
-                start, stop = 0, extent
                 if r.start is not None:
                     start = _scalar_value(r.start)
                     if start < 0:
                         start += extent
-                    start = _clamp(start, 0, extent)
+                else:
+                    start = extent - 1 if step < 0 else 0
                 if r.stop is not None:
                     stop = _scalar_value(r.stop)
                     if stop < 0:
                         stop += extent
+                else:
+                    stop = -1 if step < 0 else extent
+                if step < 0:
+                    stop = _clamp(stop, -1, extent - 1)
+                    start = _clamp(start, stop, extent)
+                else:
+                    start = _clamp(start, 0, extent)
                     stop = _clamp(stop, start, extent)
                 abs_ranges.append(slice(start, stop, step))
             else:
@@ -621,6 +640,24 @@ class TensorSlice:
 
         return tuple(abs_ranges)
 
+    @staticmethod
+    def _insane_pythonic_ranges(abs_ranges, shape) -> Tuple[int, ...]:
+        """Converts an absolute range into ranges as expected by Pythonic slicing API"""
+        py_ranges = []
+        for r, s in zip(abs_ranges, shape):
+            if isinstance(r, slice):
+                stop = r.stop
+                # The exclusive `stop` for negative ranges could be -1, but it means
+                # something else in Python - so we need skip over the whole length of the
+                # array to make it really negative.
+                if r.step < 0:
+                    if stop < 0:
+                        stop -= s
+                py_ranges.append(slice(r.start, stop, r.step))
+            else:
+                py_ranges.append(r)
+        return tuple(py_ranges)
+
     def __getitem__(self, ranges: Any) -> "Tensor":
         if not isinstance(ranges, tuple):
             ranges = (ranges,)
@@ -634,14 +671,14 @@ class TensorSlice:
             for d, r in enumerate(self._absolute_ranges):
                 if isinstance(r, slice):
                     if isinstance(ranges[i], slice):
-                        start = r.start + ranges[i].start
-                        stop = r.start + ranges[i].stop
+                        start = r.start + ranges[i].start * r.step
+                        stop = r.start + ranges[i].stop * r.step
                         step = r.step * ranges[i].step
                         abs_ranges[d] = slice(start, stop, step)
                     else:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
-            result = TensorSlice(self._tensor, tuple(abs_ranges))
+            result = TensorSlice(self._tensor, tuple(abs_ranges), True)
             if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
                 result.evaluate()
             return Tensor(result)
@@ -662,7 +699,7 @@ class TensorSlice:
                 elif isinstance(r, slice):
                     if r.start is not None:
                         args[f"lo_{d}"] = r.start
-                    if r.stop is not None:
+                    if r.stop is not None and r.stop >= 0:
                         args[f"hi_{d}"] = r.stop
                     if r.step is not None:
                         args[f"step_{d}"] = r.step
@@ -702,4 +739,12 @@ def as_tensor(
 
     This function avoids copying the data if possible.
     """
+    from . import _batch
+
+    if isinstance(data, _batch.Batch):
+        data = data.evaluate()._backend.as_tensor()
+
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)
+
+
+__all__ = ["Tensor", "tensor", "as_tensor"]
