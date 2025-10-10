@@ -35,7 +35,7 @@ def test_from_numpy():
 @params(
     ("cpu", "cpu"),
     ("cpu", "gpu"),
-    # ("cuda", "cpu"),   # Disabled to to mishandling of pinned buffers by torch dlpack
+    # ("cuda", "cpu"),   # Disabled due to to mishandling of pinned buffers by torch dlpack
     ("cuda", "gpu"),
 )
 def test_from_torch(src_device, dst_device):

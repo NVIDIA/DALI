@@ -28,8 +28,6 @@ class Operator:
         max_batch_size,
         name=None,
         device="cpu",
-        num_inputs=None,
-        call_arg_names=None,
         **kwargs,
     ):
         """Constructs an operator instance.
@@ -41,16 +39,10 @@ class Operator:
             The name of the operator instance.
         device : Device or str, optional
             The device where the operation is executed.
-        num_inputs : int, optional
-            The number of inputs for this operator.
-        call_arg_names : list of str, optional
-            The names of the arguments for this operator.
         """
         self._name = name
         self._max_batch_size = max_batch_size
         self._init_args = kwargs
-        self._num_inputs = num_inputs
-        self._call_arg_names = None if call_arg_names is None else tuple(call_arg_names)
         self._api_type = None
 
         from ._device import device as _to_device
@@ -100,8 +92,6 @@ class Operator:
                     max_batch_size,
                     name=name,
                     device=device,
-                    num_inputs=num_inputs,
-                    call_arg_names=call_arg_names,
                     **init_args,
                 )
                 cls._instance_cache[key] = inst
@@ -134,8 +124,6 @@ class Operator:
 
     def _init_spec(self, inputs, args):
         if self._op_spec is None:
-            self._num_inputs = len(inputs)
-            self._call_arg_names = tuple(args.keys())
             import nvidia.dali as dali
 
             with self._device:
@@ -352,17 +340,13 @@ class Reader(Operator):
         batch_size=None,
         name=None,
         device="cpu",
-        num_inputs=None,
-        call_arg_names=None,
         **kwargs,
     ):
         if name is None:
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
-        super().__init__(
-            self._actual_batch_size, name, device, num_inputs, call_arg_names, **kwargs
-        )
+        super().__init__(self._actual_batch_size, name, device, **kwargs)
 
     def _pre_call(self, *inputs, **args):
         if self._api_type is None:

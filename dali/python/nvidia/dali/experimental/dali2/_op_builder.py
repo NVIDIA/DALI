@@ -198,7 +198,6 @@ def build_constructor(schema, op_class):
         "name=None",
         'device="cpu"',
         "num_inputs=None",
-        "call_arg_names=None",  # TODO(michalz): Remove?
     ] + call_args
     header = f"__init__({', '.join(header_args)})"
 
@@ -516,9 +515,9 @@ def build_operators():
         cls = build_operator_class(schema)
         all_op_classes.append(cls)
         op_map[op_name] = cls
-    for deprecated, in_favor in deprecated.items():
-        schema = _b.GetSchema(deprecated)
+    for what, in_favor in deprecated.items():
+        schema = _b.GetSchema(what)
         module = _find_or_create_module(ops, schema.ModulePath())
-        setattr(module, deprecated, op_map[in_favor])
+        setattr(module, what, op_map[in_favor])
 
     return all_op_classes
