@@ -171,7 +171,7 @@ class Tensor:
                 self._slice = data
             elif hasattr(data, "__dlpack_device__"):
                 dl_device_type, device_id = data.__dlpack_device__()
-                if int(dl_device_type) == 1:  # CPU
+                if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
                     self._backend = _backend.TensorCPU(data.__dlpack__(), layout)
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.

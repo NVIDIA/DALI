@@ -32,12 +32,17 @@ def test_from_numpy():
 
 
 @attr("pytorch")
-@params(("cpu", "cpu"), ("cpu", "gpu"), ("cuda", "cpu"), ("cuda", "gpu"))
+@params(
+    ("cpu", "cpu"),
+    ("cpu", "gpu"),
+    # ("cuda", "cpu"),   # Disabled to to mishandling of pinned buffers by torch dlpack
+    ("cuda", "gpu"),
+)
 def test_from_torch(src_device, dst_device):
     import torch
 
     data = torch.tensor([[1, 2, 3], [4, 5, 6]], device=src_device)
-    t = D.Tensor(data, device=dst_device)
+    t = D.Tensor(data, device=dst_device).evaluate()
     a = torch.from_dlpack(t._backend)
     if src_device == "cuda":
         a = a.cuda()

@@ -33,7 +33,7 @@ def apply_bin_op(op, a, b):
     elif op == "**":
         return a**b
     elif op == "&":
-        return a**b
+        return a & b
     elif op == "|":
         return a | b
     elif op == "^":
@@ -81,9 +81,10 @@ def test_binary_ops(device, op):
             a = D.tensor(ref_a, device=device)
             b = D.tensor(ref_b, device=device)
             ab = apply_bin_op(op, a, b)
+            result_numpy = asnumpy(ab)
             ref_ab = apply_bin_op(op, ref_a, ref_b)
-            if not np.array_equal(asnumpy(ab), ref_ab):
-                msg = f"{ref_a} {op} {ref_b} = \n{asnumpy(ab)}\n!=\n{ref_ab}"
+            if not np.array_equal(result_numpy, ref_ab):
+                msg = f"{ref_a} {op} {ref_b} = \n{result_numpy}\n!=\n{ref_ab}"
                 raise AssertionError(msg)
 
 

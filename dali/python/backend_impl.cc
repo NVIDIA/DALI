@@ -139,7 +139,7 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   // if we make it readonly, it prevents us from sharing memory with PyTorch tensor
   tup[1] = false;
   d["data"] = tup;
-  if (std::is_same<Backend, GPUBackend>::value) {
+  if constexpr (std::is_same<Backend, GPUBackend>::value) {
     // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
     // this set of atributes is tagged as version 2
     d["version"] = 2;
@@ -147,6 +147,12 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
     // see https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
     // this set of atributes is tagged as version 3
     d["version"] = 3;
+    if (t.is_pinned()) {
+      if (auto &event = t.ready_event())
+        AccessOrder::host().wait(event);  // more fine-grained synchronization
+      else
+        AccessOrder::host().wait(t.order());
+    }
   }
   d["strides"] = py::none();
   return d;
@@ -551,7 +557,7 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
       }
     }
     return GetSharedDLTensor(tensor);
-  } else if (dev.device_type == kDLCPU || dev.device_id == kDLCUDAHost) {
+  } else if (dev.device_type == kDLCPU || dev.device_type == kDLCUDAHost) {
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       throw std::runtime_error(
           "The tensor is in CUDA GPU memory and a CPU DLPack tensor was requested");
@@ -706,6 +712,13 @@ void ExposeTensor(py::module &m) {
             // We iterate over stride backwards
             stride[(t.ndim()-1) - i] = t.type_info().size()*dim_prod;
             dim_prod *= t.shape()[(t.ndim()-1) - i];
+          }
+
+          if (t.is_pinned()) {
+            if (auto &event = t.ready_event())
+              AccessOrder::host().wait(event);  // more fine-grained synchronization
+            else
+              AccessOrder::host().wait(t.order());
           }
 
           return py::buffer_info(
