@@ -6,267 +6,225 @@
 //
 // Build: see CMakeLists.txt in the same folder.
 
-#include <dali/pipeline/operator/operator.h>
-#include <dali/core/backend_tags.h>
-#include <dali/core/tensor_layout.h>
-#include <dali/core/error_handling.h>
-#include <dali/pipeline/data/views.h>
-#include <dali/pipeline/workspace/workspace.h>
-#include <dali/core/mm/memory.h>
 #include <cuda_runtime.h>
+#include <dali/core/backend_tags.h>
+#include <dali/core/error_handling.h>
+#include <dali/core/mm/memory.h>
+#include <dali/core/tensor_layout.h>
+#include <dali/pipeline/data/views.h>
+#include <dali/pipeline/operator/operator.h>
+#include <dali/pipeline/workspace/workspace.h>
 #include <iostream>
 
 #ifndef CUDA_CHECK
-#define CUDA_CHECK(expr)                                                       \
-    do                                                                         \
-    {                                                                          \
-        cudaError_t __err = (expr);                                            \
-        if (__err != cudaSuccess)                                              \
-        {                                                                      \
-            printf("CUDA error %d at %s:%d: %s\n",                             \
-                   (int)__err, __FILE__, __LINE__, cudaGetErrorString(__err)); \
-        }                                                                      \
-    } while (0)
+#define CUDA_CHECK(expr)                                                     \
+  do {                                                                       \
+    cudaError_t __err = (expr);                                              \
+    if (__err != cudaSuccess) {                                              \
+      printf("CUDA error %d at %s:%d: %s\n", (int)__err, __FILE__, __LINE__, \
+             cudaGetErrorString(__err));                                     \
+    }                                                                        \
+  } while (0)
 #endif
 
-namespace dali
-{
+namespace dali {
 
-    // External CUDA launcher prototypes (from clahe_op.cu)
-    extern "C" void LaunchCLAHE_Grayscale_U8_NHWC(const uint8_t *src_gray,
-                                                  uint8_t *dst_gray,
-                                                  int H, int W,
-                                                  int tiles_x, int tiles_y,
-                                                  float clip_limit_rel,
-                                                  unsigned int *tmp_histograms,
-                                                  uint8_t *tmp_luts,
+// External CUDA launcher prototypes (from clahe_op.cu)
+extern "C" void LaunchCLAHE_Grayscale_U8_NHWC(const uint8_t *src_gray, uint8_t *dst_gray, int H,
+                                              int W, int tiles_x, int tiles_y, float clip_limit_rel,
+                                              unsigned int *tmp_histograms, uint8_t *tmp_luts,
+                                              cudaStream_t stream);
+
+extern "C" void LaunchCLAHE_RGB_U8_NHWC(const uint8_t *src_rgb, uint8_t *dst_rgb, uint8_t *y_plane,
+                                        int H, int W, int tiles_x, int tiles_y,
+                                        float clip_limit_rel, unsigned int *tmp_histograms,
+                                        uint8_t *tmp_luts, cudaStream_t stream);
+
+// Optimized version with fused kernels
+extern "C" void LaunchCLAHE_RGB_U8_NHWC_Optimized(const uint8_t *src_rgb, uint8_t *dst_rgb,
+                                                  uint8_t *y_plane, int H, int W, int tiles_x,
+                                                  int tiles_y, float clip_limit_rel,
+                                                  unsigned int *tmp_histograms, uint8_t *tmp_luts,
                                                   cudaStream_t stream);
 
-    extern "C" void LaunchCLAHE_RGB_U8_NHWC(const uint8_t *src_rgb,
-                                            uint8_t *dst_rgb,
-                                            uint8_t *y_plane,
-                                            int H, int W,
-                                            int tiles_x, int tiles_y,
-                                            float clip_limit_rel,
-                                            unsigned int *tmp_histograms,
-                                            uint8_t *tmp_luts,
-                                            cudaStream_t stream);
+// -----------------------------------------------------------------------------
+// Operator definition
+// -----------------------------------------------------------------------------
+class ClaheGPU : public Operator<GPUBackend> {
+ public:
+  explicit ClaheGPU(const OpSpec &spec)
+      : Operator<GPUBackend>(spec),
+        tiles_x_(spec.GetArgument<int>("tiles_x")),
+        tiles_y_(spec.GetArgument<int>("tiles_y")),
+        clip_limit_(spec.GetArgument<float>("clip_limit")),
+        bins_(spec.GetArgument<int>("bins")),
+        luma_only_(spec.GetArgument<bool>("luma_only")) {}
 
-    // Optimized version with fused kernels
-    extern "C" void LaunchCLAHE_RGB_U8_NHWC_Optimized(const uint8_t *src_rgb,
-                                                      uint8_t *dst_rgb,
-                                                      uint8_t *y_plane,
-                                                      int H, int W,
-                                                      int tiles_x, int tiles_y,
-                                                      float clip_limit_rel,
-                                                      unsigned int *tmp_histograms,
-                                                      uint8_t *tmp_luts,
-                                                      cudaStream_t stream);
+  ~ClaheGPU() override {
+    // Clean up pre-allocated buffers
+    if (histograms_buffer_) {
+      cudaFree(histograms_buffer_);
+      histograms_buffer_ = nullptr;
+    }
+    if (luts_buffer_) {
+      cudaFree(luts_buffer_);
+      luts_buffer_ = nullptr;
+    }
+    if (y_plane_buffer_) {
+      cudaFree(y_plane_buffer_);
+      y_plane_buffer_ = nullptr;
+    }
+  }
 
-    // -----------------------------------------------------------------------------
-    // Operator definition
-    // -----------------------------------------------------------------------------
-    class ClaheGPU : public Operator<GPUBackend>
-    {
-    public:
-        explicit ClaheGPU(const OpSpec &spec)
-            : Operator<GPUBackend>(spec),
-              tiles_x_(spec.GetArgument<int>("tiles_x")),
-              tiles_y_(spec.GetArgument<int>("tiles_y")),
-              clip_limit_(spec.GetArgument<float>("clip_limit")),
-              bins_(spec.GetArgument<int>("bins")),
-              luma_only_(spec.GetArgument<bool>("luma_only")) {}
+  bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
+    const auto &in = ws.Input<GPUBackend>(0);
+    outputs.resize(1);
+    outputs[0].type = in.type();
+    outputs[0].shape = in.shape();  // same layout/shape as input
 
-        ~ClaheGPU() override
-        {
-            // Clean up pre-allocated buffers
-            if (histograms_buffer_)
-            {
-                cudaFree(histograms_buffer_);
-                histograms_buffer_ = nullptr;
-            }
-            if (luts_buffer_)
-            {
-                cudaFree(luts_buffer_);
-                luts_buffer_ = nullptr;
-            }
-            if (y_plane_buffer_)
-            {
-                cudaFree(y_plane_buffer_);
-                y_plane_buffer_ = nullptr;
-            }
+    // Pre-allocate buffers based on maximum requirements in this batch
+    const auto &shape = in.shape();
+    int N = shape.num_samples();
+
+    size_t max_hist_bytes = 0;
+    size_t max_lut_bytes = 0;
+    size_t max_y_bytes = 0;
+
+    // Find maximum buffer requirements across all samples
+    for (int i = 0; i < N; i++) {
+      auto sample_shape = shape.tensor_shape_span(i);
+      if (sample_shape.size() != 3)
+        continue;
+
+      int H = sample_shape[0];
+      int W = sample_shape[1];
+      int C = sample_shape[2];
+      if (C != 1 && C != 3)
+        continue;
+
+      int tiles_total = tiles_x_ * tiles_y_;
+      size_t hist_bytes = tiles_total * bins_ * sizeof(unsigned int);
+      size_t lut_bytes = tiles_total * bins_ * sizeof(uint8_t);
+      size_t y_bytes = (C == 3) ? H * W * sizeof(uint8_t) : 0;
+
+      max_hist_bytes = std::max(max_hist_bytes, hist_bytes);
+      max_lut_bytes = std::max(max_lut_bytes, lut_bytes);
+      max_y_bytes = std::max(max_y_bytes, y_bytes);
+    }
+
+    // Reallocate buffers if needed
+    if (max_hist_bytes > histograms_buffer_size_) {
+      if (histograms_buffer_)
+        cudaFree(histograms_buffer_);
+      CUDA_CHECK(cudaMalloc((void **)&histograms_buffer_, max_hist_bytes));
+      histograms_buffer_size_ = max_hist_bytes;
+    }
+
+    if (max_lut_bytes > luts_buffer_size_) {
+      if (luts_buffer_)
+        cudaFree(luts_buffer_);
+      CUDA_CHECK(cudaMalloc((void **)&luts_buffer_, max_lut_bytes));
+      luts_buffer_size_ = max_lut_bytes;
+    }
+
+    if (max_y_bytes > y_plane_buffer_size_) {
+      if (y_plane_buffer_)
+        cudaFree(y_plane_buffer_);
+      if (max_y_bytes > 0) {
+        CUDA_CHECK(cudaMalloc((void **)&y_plane_buffer_, max_y_bytes));
+      }
+      y_plane_buffer_size_ = max_y_bytes;
+    }
+
+    return true;
+  }
+
+  void RunImpl(Workspace &ws) override {
+    const auto &in = ws.Input<GPUBackend>(0);
+    auto &out = ws.Output<GPUBackend>(0);
+    auto stream = ws.stream();
+
+    DALI_ENFORCE(in.type() == DALI_UINT8, "ClaheGPU currently supports only uint8 input.");
+
+    const auto &shape = in.shape();
+    int N = shape.num_samples();
+
+    for (int i = 0; i < N; i++) {
+      auto sample_shape = shape.tensor_shape_span(i);
+      DALI_ENFORCE(sample_shape.size() == 3, "ClaheGPU expects HWC input layout.");
+
+      int H = sample_shape[0];
+      int W = sample_shape[1];
+      int C = sample_shape[2];
+      DALI_ENFORCE(C == 1 || C == 3, "ClaheGPU supports 1 or 3 channels.");
+
+      const uint8_t *in_ptr = in.tensor<uint8_t>(i);
+      uint8_t *out_ptr = out.mutable_tensor<uint8_t>(i);
+
+      // Use pre-allocated buffers (no allocation overhead!)
+      unsigned int *histograms = histograms_buffer_;
+      uint8_t *luts = luts_buffer_;
+      uint8_t *y_plane = (C == 3) ? y_plane_buffer_ : nullptr;
+
+      if (C == 1) {
+        LaunchCLAHE_Grayscale_U8_NHWC(in_ptr, out_ptr, H, W, tiles_x_, tiles_y_, clip_limit_,
+                                      histograms, luts, stream);
+      } else {
+        if (luma_only_) {
+          // Use optimized fused kernel for better performance
+          LaunchCLAHE_RGB_U8_NHWC_Optimized(in_ptr, out_ptr, y_plane, H, W, tiles_x_, tiles_y_,
+                                            clip_limit_, histograms, luts, stream);
+        } else {
+          // Apply per-channel CLAHE (simple fallback: run per-channel grayscale)
+          for (int c = 0; c < 3; ++c) {
+            const uint8_t *src_ch = in_ptr + c;
+            uint8_t *dst_ch = out_ptr + c;
+            LaunchCLAHE_Grayscale_U8_NHWC(src_ch, dst_ch, H, W, tiles_x_, tiles_y_, clip_limit_,
+                                          histograms, luts, stream);
+          }
         }
+      }
+    }
 
-        bool SetupImpl(std::vector<OutputDesc> &outputs,
-                       const Workspace &ws) override
-        {
-            const auto &in = ws.Input<GPUBackend>(0);
-            outputs.resize(1);
-            outputs[0].type = in.type();
-            outputs[0].shape = in.shape(); // same layout/shape as input
+    // Note: No need to free buffers here - they're reused across samples
+    // and cleaned up in destructor
 
-            // Pre-allocate buffers based on maximum requirements in this batch
-            const auto &shape = in.shape();
-            int N = shape.num_samples();
+    // DALI handles stream synchronization automatically - no need to block here
+  }
 
-            size_t max_hist_bytes = 0;
-            size_t max_lut_bytes = 0;
-            size_t max_y_bytes = 0;
+ private:
+  int tiles_x_, tiles_y_, bins_;
+  float clip_limit_;
+  bool luma_only_;
 
-            // Find maximum buffer requirements across all samples
-            for (int i = 0; i < N; i++)
-            {
-                auto sample_shape = shape.tensor_shape_span(i);
-                if (sample_shape.size() != 3)
-                    continue;
+  // Pre-allocated GPU buffers for performance
+  unsigned int *histograms_buffer_ = nullptr;
+  uint8_t *luts_buffer_ = nullptr;
+  uint8_t *y_plane_buffer_ = nullptr;
 
-                int H = sample_shape[0];
-                int W = sample_shape[1];
-                int C = sample_shape[2];
-                if (C != 1 && C != 3)
-                    continue;
+  // Buffer sizes to track when reallocation is needed
+  size_t histograms_buffer_size_ = 0;
+  size_t luts_buffer_size_ = 0;
+  size_t y_plane_buffer_size_ = 0;
+};
 
-                int tiles_total = tiles_x_ * tiles_y_;
-                size_t hist_bytes = tiles_total * bins_ * sizeof(unsigned int);
-                size_t lut_bytes = tiles_total * bins_ * sizeof(uint8_t);
-                size_t y_bytes = (C == 3) ? H * W * sizeof(uint8_t) : 0;
+// -----------------------------------------------------------------------------
+// Schema and registration
+// -----------------------------------------------------------------------------
+DALI_SCHEMA(Clahe)
+    .DocStr(
+        "Contrast Limited Adaptive Histogram Equalization (GPU). "
+        "Performs local histogram equalization with clipping and bilinear blending "
+        "of LUTs between neighboring tiles.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddArg("tiles_x", "Number of tiles along the image width.", DALI_INT32)
+    .AddArg("tiles_y", "Number of tiles along the image height.", DALI_INT32)
+    .AddArg("clip_limit", "Relative clip limit multiplier for histogram bins.", DALI_FLOAT)
+    .AddOptionalArg("bins", "Number of histogram bins.", 256)
+    .AddOptionalArg("luma_only", "If true, for RGB inputs CLAHE is applied on luminance only.",
+                    true);
 
-                max_hist_bytes = std::max(max_hist_bytes, hist_bytes);
-                max_lut_bytes = std::max(max_lut_bytes, lut_bytes);
-                max_y_bytes = std::max(max_y_bytes, y_bytes);
-            }
+DALI_REGISTER_OPERATOR(Clahe, ClaheGPU, GPU);
 
-            // Reallocate buffers if needed
-            if (max_hist_bytes > histograms_buffer_size_)
-            {
-                if (histograms_buffer_)
-                    cudaFree(histograms_buffer_);
-                CUDA_CHECK(cudaMalloc((void **)&histograms_buffer_, max_hist_bytes));
-                histograms_buffer_size_ = max_hist_bytes;
-            }
-
-            if (max_lut_bytes > luts_buffer_size_)
-            {
-                if (luts_buffer_)
-                    cudaFree(luts_buffer_);
-                CUDA_CHECK(cudaMalloc((void **)&luts_buffer_, max_lut_bytes));
-                luts_buffer_size_ = max_lut_bytes;
-            }
-
-            if (max_y_bytes > y_plane_buffer_size_)
-            {
-                if (y_plane_buffer_)
-                    cudaFree(y_plane_buffer_);
-                if (max_y_bytes > 0)
-                {
-                    CUDA_CHECK(cudaMalloc((void **)&y_plane_buffer_, max_y_bytes));
-                }
-                y_plane_buffer_size_ = max_y_bytes;
-            }
-
-            return true;
-        }
-
-        void RunImpl(Workspace &ws) override
-        {
-            const auto &in = ws.Input<GPUBackend>(0);
-            auto &out = ws.Output<GPUBackend>(0);
-            auto stream = ws.stream();
-
-            DALI_ENFORCE(in.type() == DALI_UINT8,
-                         "ClaheGPU currently supports only uint8 input.");
-
-            const auto &shape = in.shape();
-            int N = shape.num_samples();
-
-            for (int i = 0; i < N; i++)
-            {
-                auto sample_shape = shape.tensor_shape_span(i);
-                DALI_ENFORCE(sample_shape.size() == 3,
-                             "ClaheGPU expects HWC input layout.");
-
-                int H = sample_shape[0];
-                int W = sample_shape[1];
-                int C = sample_shape[2];
-                DALI_ENFORCE(C == 1 || C == 3, "ClaheGPU supports 1 or 3 channels.");
-
-                const uint8_t *in_ptr = in.tensor<uint8_t>(i);
-                uint8_t *out_ptr = out.mutable_tensor<uint8_t>(i);
-
-                // Use pre-allocated buffers (no allocation overhead!)
-                unsigned int *histograms = histograms_buffer_;
-                uint8_t *luts = luts_buffer_;
-                uint8_t *y_plane = (C == 3) ? y_plane_buffer_ : nullptr;
-
-                if (C == 1)
-                {
-                    LaunchCLAHE_Grayscale_U8_NHWC(in_ptr, out_ptr, H, W,
-                                                  tiles_x_, tiles_y_, clip_limit_,
-                                                  histograms, luts, stream);
-                }
-                else
-                {
-                    if (luma_only_)
-                    {
-                        // Use optimized fused kernel for better performance
-                        LaunchCLAHE_RGB_U8_NHWC_Optimized(in_ptr, out_ptr, y_plane, H, W,
-                                                          tiles_x_, tiles_y_, clip_limit_,
-                                                          histograms, luts, stream);
-                    }
-                    else
-                    {
-                        // Apply per-channel CLAHE (simple fallback: run per-channel grayscale)
-                        for (int c = 0; c < 3; ++c)
-                        {
-                            const uint8_t *src_ch = in_ptr + c;
-                            uint8_t *dst_ch = out_ptr + c;
-                            LaunchCLAHE_Grayscale_U8_NHWC(src_ch, dst_ch, H, W,
-                                                          tiles_x_, tiles_y_, clip_limit_,
-                                                          histograms, luts, stream);
-                        }
-                    }
-                }
-            }
-
-            // Note: No need to free buffers here - they're reused across samples
-            // and cleaned up in destructor
-
-            // DALI handles stream synchronization automatically - no need to block here
-        }
-
-    private:
-        int tiles_x_, tiles_y_, bins_;
-        float clip_limit_;
-        bool luma_only_;
-
-        // Pre-allocated GPU buffers for performance
-        unsigned int *histograms_buffer_ = nullptr;
-        uint8_t *luts_buffer_ = nullptr;
-        uint8_t *y_plane_buffer_ = nullptr;
-
-        // Buffer sizes to track when reallocation is needed
-        size_t histograms_buffer_size_ = 0;
-        size_t luts_buffer_size_ = 0;
-        size_t y_plane_buffer_size_ = 0;
-    };
-
-    // -----------------------------------------------------------------------------
-    // Schema and registration
-    // -----------------------------------------------------------------------------
-    DALI_SCHEMA(Clahe)
-        .DocStr("Contrast Limited Adaptive Histogram Equalization (GPU). "
-                "Performs local histogram equalization with clipping and bilinear blending "
-                "of LUTs between neighboring tiles.")
-        .NumInput(1)
-        .NumOutput(1)
-        .AddArg("tiles_x", "Number of tiles along the image width.", DALI_INT32)
-        .AddArg("tiles_y", "Number of tiles along the image height.", DALI_INT32)
-        .AddArg("clip_limit", "Relative clip limit multiplier for histogram bins.", DALI_FLOAT)
-        .AddOptionalArg("bins", "Number of histogram bins.", 256)
-        .AddOptionalArg("luma_only",
-                        "If true, for RGB inputs CLAHE is applied on luminance only.",
-                        true);
-
-    DALI_REGISTER_OPERATOR(Clahe, ClaheGPU, GPU);
-
-} // namespace dali
+}  // namespace dali
