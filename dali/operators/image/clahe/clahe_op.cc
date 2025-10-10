@@ -64,8 +64,8 @@ class ClaheGPU : public Operator<GPUBackend> {
       : Operator<GPUBackend>(spec),
         tiles_x_(spec.GetArgument<int>("tiles_x")),
         tiles_y_(spec.GetArgument<int>("tiles_y")),
-        clip_limit_(spec.GetArgument<float>("clip_limit")),
         bins_(spec.GetArgument<int>("bins")),
+        clip_limit_(spec.GetArgument<float>("clip_limit")),
         luma_only_(spec.GetArgument<bool>("luma_only")) {}
 
   ~ClaheGPU() override {
@@ -276,8 +276,7 @@ preserving color relationships. The RGB channels are then scaled proportionally.
 When False, CLAHE is applied independently to each RGB channel, which may alter
 color balance but provides stronger per-channel enhancement.)code",
                     true)
-    .InputLayout("HWC")
-    .SupportVolumetric(false);
+    .InputLayout("HWC");
 
 DALI_REGISTER_OPERATOR(Clahe, ClaheGPU, GPU);
 
