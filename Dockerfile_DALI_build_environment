@@ -32,12 +32,12 @@
 FROM nvidia/cuda:12.6.2-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Base deps + multimedia libs
+# Base deps + multimedia libs (removed libtar-dev - will build from source)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential ninja-build pkg-config \
+    build-essential ninja-build pkg-config autotools-dev autoconf automake libtool \
     git git-lfs ca-certificates curl wget gnupg software-properties-common \
     python3 python3-dev python3-pip python3-venv python-is-python3 \
-    libjpeg-turbo8-dev libtiff-dev liblmdb-dev libsndfile1-dev libtar-dev \
+    libjpeg-turbo8-dev libtiff-dev liblmdb-dev libsndfile1-dev \
     libcfitsio-dev \
     libavformat-dev libavcodec-dev libavfilter-dev libavutil-dev libswscale-dev \
     libopencv-dev \
@@ -78,6 +78,18 @@ RUN set -eux; cd /tmp; \
 ENV PROTOBUF_ROOT=/opt/protobuf-${PB_VER}
 ENV PATH=${PROTOBUF_ROOT}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${PROTOBUF_ROOT}/lib:${LD_LIBRARY_PATH}
+
+# ---- libtar with PIC support ----
+ARG LIBTAR_VER=1.2.20
+RUN set -eux; cd /tmp; \
+    curl -L -o libtar.tar.gz https://repo.or.cz/libtar.git/snapshot/v${LIBTAR_VER}.tar.gz; \
+    tar -xzf libtar.tar.gz; \
+    cd libtar-*; \
+    autoreconf -fiv; \
+    ./configure --prefix=/usr/local --enable-shared --enable-static CFLAGS="-fPIC"; \
+    make -j"$(nproc)"; \
+    make install; \
+    rm -rf /tmp/libtar*
 
 # Python helpers - use specific clang version that matches libclang
 RUN pip install --no-cache-dir wheel setuptools cmake clang==16.0.6
