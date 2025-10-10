@@ -58,7 +58,7 @@ if [[ -w /etc/ld.so.conf.d ]]; then
 fi
 
 # -------- configure build --------
-rm -rf "${BUILD_DIR}"
+#rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
@@ -79,12 +79,12 @@ make -j"$(nproc)"
 mkdir -p "${OUT_DIR}"
 
 # Core shared libs
-find "${BUILD_DIR}/python/nvidia/dali" -maxdepth 1 -type f -name "*.so" -print -exec cp {} "${OUT_DIR}/" \; || true
+find "${BUILD_DIR}/dali/python/nvidia/dali" -maxdepth 1 -type f -name "*.so" -print -exec cp {} "${OUT_DIR}/" \; || true
 
 # Unit test binaries (optional)
-if compgen -G "${BUILD_DIR}/python/nvidia/dali/test/*.bin" > /dev/null; then
+if compgen -G "${BUILD_DIR}/dali/python/nvidia/dali/test/*.bin" > /dev/null; then
   mkdir -p "${OUT_DIR}/tests"
-  cp -v "${BUILD_DIR}/python/nvidia/dali/test/"*.bin "${OUT_DIR}/tests/" || true
+  cp -v "${BUILD_DIR}/dali/python/nvidia/dali/test/"*.bin "${OUT_DIR}/tests/" || true
 fi
 
 echo "✅ Build complete."
