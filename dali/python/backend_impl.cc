@@ -2532,6 +2532,19 @@ void ExposeOperator(py::module &m) {
     });
 }
 
+auto GetSupportedBackends(OpSchema &schema) {
+  std::vector<std::string_view> ret;
+  ret.reserve(2);  // the vast majority of operators will have only one or two supported backends
+  auto &name = schema.name();
+  if (CPUOperatorRegistry::Registry().IsRegistered(name))
+    ret.push_back("cpu");
+  if (GPUOperatorRegistry::Registry().IsRegistered(name))
+    ret.push_back("gpu");
+  if (MixedOperatorRegistry::Registry().IsRegistered(name))
+    ret.push_back("mixed");
+  return ret;
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -2938,7 +2951,8 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("HasArgument",
         [](OpSchema *schema, const std::string &arg_name) {
           return schema->HasArgument(arg_name);
-        });
+        })
+    .def("GetSupportedBackends", &GetSupportedBackends);
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);

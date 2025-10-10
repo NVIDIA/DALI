@@ -161,6 +161,7 @@ def build_operator_class(schema):
         base = ops.Reader
     op_class = type(class_name, (base,), {})
     op_class.schema = schema
+    op_class.supported_backends = set(schema.GetSupportedBackends())
     op_class.op_name = class_name
     op_class.fn_name = _to_snake_case(class_name)
     op_class.legacy_op = legacy_op_class
@@ -443,7 +444,6 @@ def build_fn_wrapper(op):
         }
         # If device is not specified, infer it from the inputs and call_args
         if device is None:
-
             def _infer_device():
                 for inp in inputs:
                     if inp is None:
@@ -460,8 +460,23 @@ def build_fn_wrapper(op):
                 return _device.Device("cpu")
 
             device = _infer_device()
+            device_inferred = True
         elif not isinstance(device, _device.Device):
             device = _device.Device(device)
+            device_inferred = False
+
+        supported_backends = op.supported_backends
+        if device.device_type not in supported_backends:
+            if len(supported_backends) == 1 and device_inferred:
+                # Maybe we got it wrong? Try the only device that's there
+                device.device_type = supported_backends[0]
+            else:
+                # No we want to call "mixed" operators "gpu" - but we still have distinct backends.
+                # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
+                # "mixed".
+                if device.device_type == "gpu" and "mixed" in supported_backends:
+                    device.device_type = "mixed"
+
 
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op.op_name}", domain="op_builder"):

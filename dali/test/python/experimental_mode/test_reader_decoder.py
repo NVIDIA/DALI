@@ -22,7 +22,7 @@ from test_utils import get_dali_extra_path
 dali_extra_path = get_dali_extra_path()
 
 
-@params("cpu", "mixed")  # TODO(michalz): get rid of mixed
+@params("cpu", "gpu")
 def test_reader_batch(device_type):
     reader = D.readers.File(
         file_root=os.path.join(dali_extra_path, "db", "single", "jpeg"),
@@ -50,7 +50,7 @@ def test_reader_batch(device_type):
     assert iters > 0
 
 
-@params("cpu", "mixed")  # TODO(michalz): get rid of mixed
+@params("cpu", "gpu")
 def test_reader_sample(device_type):
     reader = D.readers.File(
         file_root=os.path.join(dali_extra_path, "db", "single", "jpeg"),
