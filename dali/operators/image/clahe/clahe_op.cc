@@ -1,20 +1,28 @@
-// clahe_op.cc
+// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
-// Full implementation of the DALI CLAHE operator (GPUBackend).
-// Calls CUDA kernels defined in clahe_op.cu.
-// Supports uint8 NHWC grayscale or RGB images.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// Build: see CMakeLists.txt in the same folder.
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <iostream>
 
 #include <cuda_runtime.h>
-#include <dali/core/backend_tags.h>
-#include <dali/core/error_handling.h>
-#include <dali/core/mm/memory.h>
-#include <dali/core/tensor_layout.h>
-#include <dali/pipeline/data/views.h>
-#include <dali/pipeline/operator/operator.h>
-#include <dali/pipeline/workspace/workspace.h>
-#include <iostream>
+
+#include "dali/core/backend_tags.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/tensor_layout.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 #ifndef CUDA_CHECK
 #define CUDA_CHECK(expr)                                                     \
@@ -212,18 +220,64 @@ class ClaheGPU : public Operator<GPUBackend> {
 // Schema and registration
 // -----------------------------------------------------------------------------
 DALI_SCHEMA(Clahe)
-    .DocStr(
-        "Contrast Limited Adaptive Histogram Equalization (GPU). "
-        "Performs local histogram equalization with clipping and bilinear blending "
-        "of LUTs between neighboring tiles.")
+    .DocStr(R"code(Contrast Limited Adaptive Histogram Equalization (CLAHE) operator.
+    
+Performs local histogram equalization with clipping and bilinear blending 
+of lookup tables (LUTs) between neighboring tiles. This technique enhances 
+local contrast while preventing over-amplification of noise.
+
+The input image is divided into rectangular tiles, and histogram equalization
+is applied to each tile independently. To avoid artifacts at tile boundaries,
+the lookup tables are bilinearly interpolated between neighboring tiles.
+
+Supports both grayscale (1-channel) and RGB (3-channel) uint8 images in HWC layout.
+For RGB images, by default CLAHE is applied to the luminance channel only (luma_only=True),
+preserving color relationships. When luma_only=False, CLAHE is applied to each 
+color channel independently.
+
+Example usage:
+  # Grayscale image
+  clahe_out = fn.clahe(grayscale_image, tiles_x=8, tiles_y=8, clip_limit=2.0)
+  
+  # RGB image with luminance-only processing (default)
+  clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=3.0, luma_only=True)
+  
+  # RGB image with per-channel processing
+  clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=False)
+)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddArg("tiles_x", "Number of tiles along the image width.", DALI_INT32)
-    .AddArg("tiles_y", "Number of tiles along the image height.", DALI_INT32)
-    .AddArg("clip_limit", "Relative clip limit multiplier for histogram bins.", DALI_FLOAT)
-    .AddOptionalArg("bins", "Number of histogram bins.", 256)
-    .AddOptionalArg("luma_only", "If true, for RGB inputs CLAHE is applied on luminance only.",
-                    true);
+    .AddArg("tiles_x", R"code(Number of tiles along the image width.
+    
+Higher values provide more localized enhancement but may introduce artifacts.
+Typical values range from 4 to 16. Must be positive.)code",
+            DALI_INT32)
+    .AddArg("tiles_y", R"code(Number of tiles along the image height.
+    
+Higher values provide more localized enhancement but may introduce artifacts.
+Typical values range from 4 to 16. Must be positive.)code",
+            DALI_INT32)
+    .AddArg("clip_limit", R"code(Relative clip limit multiplier for histogram bins.
+    
+Controls the contrast enhancement strength. The actual clip limit is calculated as:
+clip_limit * (tile_area / bins). Values > 1.0 enhance contrast, while values 
+close to 1.0 provide minimal enhancement. Typical values range from 1.5 to 4.0.
+Higher values may cause over-enhancement and artifacts.)code",
+            DALI_FLOAT)
+    .AddOptionalArg("bins", R"code(Number of histogram bins for CLAHE computation.
+    
+Must be a power of 2. Higher values provide finer histogram resolution but 
+increase computation cost. For uint8 images, 256 bins provide optimal results.)code",
+                    256)
+    .AddOptionalArg("luma_only", R"code(For RGB inputs, apply CLAHE to luminance channel only.
+    
+When True (default), CLAHE is applied to the luminance (Y) component of RGB images,
+preserving color relationships. The RGB channels are then scaled proportionally.
+When False, CLAHE is applied independently to each RGB channel, which may alter
+color balance but provides stronger per-channel enhancement.)code",
+                    true)
+    .InputLayout("HWC")
+    .SupportVolumetric(false);
 
 DALI_REGISTER_OPERATOR(Clahe, ClaheGPU, GPU);
 
