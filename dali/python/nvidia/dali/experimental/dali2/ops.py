@@ -218,7 +218,6 @@ class Operator:
             )
 
         def _is_batch():
-            nonlocal inputs, args
             for input in inputs:
                 if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
                     return True

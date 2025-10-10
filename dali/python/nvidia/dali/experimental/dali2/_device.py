@@ -148,13 +148,17 @@ Device._thread_local.devices = None
 Device._thread_local.previous_device_ids = None
 
 
-def device(obj: Union[Device, str, "torch.device"], id: Optional[int] = None) -> Device:
+def device(
+    obj: Union[Device, str, "torch.device"], id: Optional[int] = None  # noqa: F821
+) -> Device:
     """
     Returns a Device object from various input types.
 
     - If `obj` is already a `Device`, returns it. In this case, `id` must be `None`.
-    - If `obj` is a `str`, parses it as a device name (e.g., `"gpu"`, `"cpu:0"`, `"cuda:1"`). In this case, `id` can be specified.
-      Note: If the string already contains a device id and `id` is also provided, a `ValueError` is raised.
+    - If `obj` is a `str`, parses it as a device name (e.g., `"gpu"`, `"cpu:0"`, `"cuda:1"`).
+        In this case, `id` can be specified.
+        Note: If the string already contains a device id and `id` is also provided, a
+        `ValueError` is raised.
     - If `obj` is a `torch.device`, converts it to a `Device`. In this case, `id` must be `None`.
     - If `obj` is None, returns it.
     - If `obj` is not a `Device`, `str`, or `torch.device` or None, raises a `TypeError`.

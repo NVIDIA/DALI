@@ -389,7 +389,9 @@ class Tensor:
     def __array__(self):
         b = self.evaluate()._backend
         if isinstance(b, _backend.TensorCPU):
-            return b
+            import numpy as np
+
+            return np.array(b)
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 

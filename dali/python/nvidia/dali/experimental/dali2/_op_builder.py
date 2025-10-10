@@ -166,7 +166,7 @@ def build_operator_class(schema):
     op_class.fn_name = _to_snake_case(class_name)
     op_class.legacy_op = legacy_op_class
     op_class.is_stateful = schema.IsStateful()
-    op_class._instance_cache = {}
+    op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
@@ -198,7 +198,7 @@ def build_constructor(schema, op_class):
         "name=None",
         'device="cpu"',
         "num_inputs=None",
-        "call_arg_names=None",
+        "call_arg_names=None",  # TODO(michalz): Remove?
     ] + call_args
     header = f"__init__({', '.join(header_args)})"
 
@@ -334,12 +334,13 @@ def build_call_function(schema, op_class):
                 # Evaluate immediately
                 invocation.run(_eval_context.EvalContext.get())
             else:
+                pass
                 # Lazy evaluation
                 # If there's an active evaluation context, add this invocation to it.
                 # When leaving the context, the invocation will be evaluated if it's still alive.
-                ctx = _eval_context.EvalContext.current()
-                if ctx is not None:
-                    ctx._add_invocation(invocation, weak=not self.is_stateful)
+                # ctx = _eval_context.EvalContext.current()
+                # if ctx is not None:
+                # ctx._add_invocation(invocation, weak=not self.is_stateful)
 
             if is_batch:
                 if len(invocation) == 1:
@@ -444,6 +445,7 @@ def build_fn_wrapper(op):
         }
         # If device is not specified, infer it from the inputs and call_args
         if device is None:
+
             def _infer_device():
                 for inp in inputs:
                     if inp is None:
@@ -476,7 +478,6 @@ def build_fn_wrapper(op):
                 # "mixed".
                 if device.device_type == "gpu" and "mixed" in supported_backends:
                     device.device_type = "mixed"
-
 
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op.op_name}", domain="op_builder"):

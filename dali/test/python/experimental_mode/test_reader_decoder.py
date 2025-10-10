@@ -15,7 +15,6 @@
 import nvidia.dali.experimental.dali2 as D
 from nose2.tools import params
 import os
-from test_tensor import asnumpy
 from test_utils import get_dali_extra_path
 
 
