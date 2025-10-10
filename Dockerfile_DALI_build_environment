@@ -69,7 +69,8 @@ RUN set -eux; cd /tmp; \
     curl -L -o protobuf.tar.gz https://github.com/protocolbuffers/protobuf/archive/refs/tags/v${PB_VER}.tar.gz; \
     tar -xzf protobuf.tar.gz; cd protobuf-${PB_VER}; \
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -Dprotobuf_BUILD_TESTS=OFF \
-    -DCMAKE_INSTALL_PREFIX=/opt/protobuf-${PB_VER}; \
+    -DCMAKE_INSTALL_PREFIX=/opt/protobuf-${PB_VER} \
+    -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON; \
     cmake --build build -j"$(nproc)"; \
     cmake --install build; \
     rm -rf /tmp/protobuf*
