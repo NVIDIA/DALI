@@ -11,22 +11,7 @@
 
 # inside container:
 # cd /workspace/DALI
-# git submodule update --init --recursive
-
-# # Make sure LFS objects (e.g., cvcuda stubs) are present
-# git lfs fetch
-# git lfs checkout
-
-# # Fresh build dir
-# rm -rf build && mkdir build && cd build
-
-# cmake .. \
-#   -DCMAKE_BUILD_TYPE=Release \
-#   -DProtobuf_DIR="$PROTOBUF_ROOT/lib/cmake/protobuf" \
-#   -DProtobuf_PROTOC_EXECUTABLE="$PROTOBUF_ROOT/bin/protoc" \
-#   -DPython3_EXECUTABLE=/usr/bin/python3
-
-# make -j"$(nproc)"
+# bash DALI/build_docker_dali.sh
 
 # CUDA 12.6 devel on Ubuntu 22.04 (Jammy)
 FROM nvidia/cuda:12.6.2-devel-ubuntu22.04
