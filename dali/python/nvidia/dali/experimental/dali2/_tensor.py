@@ -229,19 +229,22 @@ class Tensor:
                 if device is None:
                     device = self._device
             else:
-                if device is None:
-                    device = Device("cpu")
-                self._device = device
+                if self._device is None:
+                    if device is None:
+                        device = Device("cpu")
+                    self._device = device
+                else:
+                    if device is None:
+                        device = self._device
 
             if self._backend is not None:
                 self._shape = tuple(self._backend.shape())
                 self._dtype = DType.from_type_id(self._backend.dtype)
                 self._layout = self._backend.layout()
 
-            if isinstance(self._backend, _backend.TensorCPU) and device != _backend_device(
-                self._backend
-            ):
+            if self._backend is not None and device != _backend_device(self._backend):
                 self.assign(self.to_device(device).evaluate())
+                copied = True
         elif invocation_result is not None:
             self._invocation_result = invocation_result
             self._device = invocation_result.device
@@ -382,6 +385,22 @@ class Tensor:
 
         with _EvalContext.get():
             return np.array(self.cpu().evaluate()._backend).item()
+
+    def __array__(self):
+        b = self.evaluate()._backend
+        if isinstance(b, _backend.TensorCPU):
+            return b
+        else:
+            raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
+
+    def __cuda_array_interface__(self):
+        b = self.evaluate()._backend
+        if isinstance(b, _backend.TensorGPU):
+            return b.__cuda_array_interface__
+        else:
+            raise TypeError(
+                "This is not a GPU tensor. Use `.gpu()` to get the CUDA array interface."
+            )
 
     def evaluate(self):
         if self._backend is None:

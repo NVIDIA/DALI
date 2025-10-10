@@ -106,7 +106,9 @@ def test_broadcast():
 
 
 def batch_equal(a, b):
-    for x, y in zip(a, b, strict=True):
+    if len(a) != len(b):
+        return False
+    for x, y in zip(a, b):
         if not np.array_equal(x, y):
             return False
     return True

@@ -382,7 +382,7 @@ class Batch:
                 self._layout = self._invocation_result.layout
             elif self._backend is not None:
                 self._layout = self._backend.layout()
-                if self._layout == "" and self._ndim != 0:
+                if self._layout == "" and self.ndim != 0:
                     self._layout = None
             elif self._tensors:
                 self._layout = self._tensors[0].layout
@@ -396,11 +396,11 @@ class Batch:
     @property
     def ndim(self) -> int:
         if self._ndim is None:
-            if self._invocation_result is not None:
-                self._ndim = self._invocation_result.ndim
-            elif self._backend is not None:
+            if self._backend is not None:
                 self._ndim = self._backend.ndim()
-            elif self._tensors:
+            elif self._invocation_result is not None:
+                self._ndim = self._invocation_result.ndim
+            elif self._tensors:  # not None and not empty
                 self._ndim = self._tensors[0].ndim
             else:
                 raise ValueError("Cannot establish the number of dimensions of an empty Batch")

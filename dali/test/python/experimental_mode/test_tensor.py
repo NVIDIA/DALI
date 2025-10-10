@@ -32,13 +32,17 @@ def test_from_numpy():
 
 
 @attr("pytorch")
-@params(("cpu",), ("cuda",))
-def test_from_torch(device_type):
+@params(("cpu", "cpu"), ("cpu", "gpu"), ("cuda", "cpu"), ("cuda", "gpu"))
+def test_from_torch(src_device, dst_device):
     import torch
 
-    data = torch.tensor([[1, 2, 3], [4, 5, 6]], device=device_type)
-    t = D.Tensor(data)
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]], device=src_device)
+    t = D.Tensor(data, device=dst_device)
     a = torch.from_dlpack(t._backend)
+    if src_device == "cuda":
+        a = a.cuda()
+    elif src_device == "cpu":
+        a = a.cpu()
     assert torch.equal(data, a)
 
 
