@@ -76,7 +76,7 @@ requirements:
     - black-jupyter =25.1.0
     - bandit
   host:
-    - libprotobuf-static =6.32.1
+    - libprotobuf-static =6.31.1
     - dali-opencv
     - dali-ffmpeg
     - python
@@ -95,12 +95,11 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - libprotobuf =6.32.1
+    - libprotobuf =6.31.1
     - future
     - astunparse >=1.6.0
     - gast >=0.3.3
-    - dm-tree =0.1.8   # [py < 310]
-    - dm-tree =0.1.9   # [py >= 310]
+    - dm-tree >=0.1.8
     - packaging
     - nvtx
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
