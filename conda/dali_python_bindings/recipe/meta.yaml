@@ -99,7 +99,8 @@ requirements:
     - future
     - astunparse >=1.6.0
     - gast >=0.3.3
-    - dm-tree >=0.1.8
+    - dm-tree =0.1.8   # [py < 310]
+    - dm-tree =0.1.9   # [py >= 310]
     - packaging
     - nvtx
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
