@@ -50,15 +50,18 @@ RUN curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc \
     && apt-get update && apt-get install -y --no-install-recommends cmake \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- LLVM/Clang 14 (correct Jammy package names) ----
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    clang-14 llvm-14 llvm-14-dev libclang1-14 libclang-14-dev python3-clang \
-    && rm -rf /var/lib/apt/lists/*
+# ---- LLVM/Clang 16 (latest stable for Ubuntu 22.04) ----
+RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main" > /etc/apt/sources.list.d/llvm.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    clang-16 llvm-16 llvm-16-dev libclang1-16 libclang-16-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 100 \
+    && update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-16 100
+# Set environment for clang 16
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-16/lib:${LD_LIBRARY_PATH}
+ENV LIBCLANG_PATH=/usr/lib/llvm-16/lib
 
-# Make libclang discoverable by clang.cindex
-RUN ln -sf /usr/lib/llvm-14/lib/libclang.so.1 /usr/lib/llvm-14/lib/libclang.so
-ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
-ENV LD_LIBRARY_PATH=/usr/lib/llvm-14/lib:${LD_LIBRARY_PATH}
 
 # ---- Protobuf 3.21.12 toolchain ----
 ARG PB_VER=3.21.12
@@ -71,12 +74,12 @@ RUN set -eux; cd /tmp; \
     cmake --install build; \
     rm -rf /tmp/protobuf*
 
-ENV PROTOBUF_ROOT=/opt/protobuf-3.21.12
+ENV PROTOBUF_ROOT=/opt/protobuf-${PB_VER}
 ENV PATH=${PROTOBUF_ROOT}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${PROTOBUF_ROOT}/lib:${LD_LIBRARY_PATH}
 
-# Python helpers
-RUN pip install --no-cache-dir wheel setuptools cmake clang
+# Python helpers - use specific clang version that matches libclang
+RUN pip install --no-cache-dir wheel setuptools cmake clang==16.0.6
 
 # Be lenient with bind-mounted repos
 RUN git lfs install --system && git config --global --add safe.directory '*'
