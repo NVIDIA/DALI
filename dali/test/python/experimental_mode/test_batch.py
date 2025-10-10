@@ -61,6 +61,7 @@ def test_batch_from_empty_list(device_type):
     with assert_raises(ValueError, glob="Element type"):
         D.batch([], device=device_type)
     b = D.batch([], dtype=D.int32, device=device_type)
+    assert isinstance(b, D.Batch)
     assert b.dtype == D.int32
     assert b.shape == []
     assert b.ndim == 0

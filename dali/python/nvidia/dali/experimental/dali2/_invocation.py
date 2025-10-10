@@ -90,7 +90,8 @@ class Invocation:
             # TODO(michalz): Try to get shape without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
-        return tuple(self._results[result_index].shape())
+        s = self._results[result_index].shape()
+        return s if self.is_batch else tuple(s)
 
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
