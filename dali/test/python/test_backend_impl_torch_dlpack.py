@@ -52,22 +52,22 @@ def test_dlpack_tensor_gpu_to_cpu():
 
 
 def test_dlpack_tensor_list_gpu_direct_creation():
-    arr = torch.rand(size=[3, 5, 6], device="cuda")
-    tensor_list = TensorListGPU(to_dlpack(arr), "NHWC")
+    arr = torch.rand(size=[3, 5, 6, 3], device="cuda")
+    tensor_list = TensorListGPU(to_dlpack(arr), "HWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert torch.all(arr.eq(dali_torch_tensor))
 
 
 def test_dlpack_tensor_list_gpu_to_cpu():
-    arr = torch.rand(size=[3, 5, 6], device="cuda")
-    tensor_list = TensorListGPU(to_dlpack(arr), "NHWC")
+    arr = torch.rand(size=[3, 5, 6, 3], device="cuda")
+    tensor_list = TensorListGPU(to_dlpack(arr), "HWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert torch.all(arr.cpu().eq(dali_torch_tensor.cpu()))
 
 
 def check_dlpack_types_gpu(t):
-    arr = torch.tensor([[0.39, 1.5], [1.5, 0.33]], device="cuda", dtype=t)
-    tensor = TensorGPU(to_dlpack(arr), "NHWC")
+    arr = torch.tensor([[[0.39], [1.5]], [[1.5], [0.33]]], device="cuda", dtype=t)
+    tensor = TensorGPU(to_dlpack(arr), "HWC")
     dali_torch_tensor = convert_to_torch(
         tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape()
     )
@@ -98,15 +98,15 @@ def test_dlpack_tensor_cpu_direct_creation():
 
 
 def test_dlpack_tensor_list_cpu_direct_creation():
-    arr = torch.rand(size=[3, 5, 6], device="cpu")
-    tensor_list = TensorListCPU(to_dlpack(arr), "NHWC")
+    arr = torch.rand(size=[3, 5, 6, 3], device="cpu")
+    tensor_list = TensorListCPU(to_dlpack(arr), "HWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert torch.all(arr.eq(dali_torch_tensor))
 
 
 def test_dlpack_tensor_list_cpu_direct_creation_list():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
-    tensor_list = TensorListCPU([to_dlpack(arr)], "NHWC")
+    tensor_list = TensorListCPU([to_dlpack(arr)], "HWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert torch.all(arr.eq(dali_torch_tensor))
 
@@ -159,8 +159,8 @@ def test_tensor_list_gpu_from_dlpack():
 
 
 def check_dlpack_types_cpu(t):
-    arr = torch.tensor([[0.39, 1.5], [1.5, 0.33]], device="cpu", dtype=t)
-    tensor = TensorCPU(to_dlpack(arr), "NHWC")
+    arr = torch.tensor([[[0.39], [1.5]], [[1.5], [0.33]]], device="cpu", dtype=t)
+    tensor = TensorCPU(to_dlpack(arr), "HWC")
     dali_torch_tensor = convert_to_torch(
         tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape()
     )
