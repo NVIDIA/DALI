@@ -10,7 +10,6 @@
 #   dali-build:cuda12.6 bash
 
 # inside container:
-# cd /workspace/DALI
 # bash DALI/build_docker_dali.sh
 
 # CUDA 12.6 devel on Ubuntu 22.04 (Jammy)
@@ -77,7 +76,8 @@ RUN set -eux; cd /tmp; \
     rm -rf /tmp/libtar*
 
 # Python helpers - use specific clang version that matches libclang
-RUN pip install --no-cache-dir wheel setuptools cmake clang==16.0.6 dm-tree==0.1.9
+RUN pip install --no-cache-dir wheel setuptools cmake clang==16.0.6 \
+    astunparse==1.6.3 gast==0.6.0 dm-tree==0.1.9 six==1.16.0 packaging==25.0
 
 # Be lenient with bind-mounted repos
 RUN git lfs install --system && git config --global --add safe.directory '*'
