@@ -48,7 +48,6 @@ import getopt
 import math  # for log
 import os
 import re
-import sre_compile
 import string
 import sys
 import unicodedata
@@ -57,7 +56,7 @@ python2_version = False
 if sys.version_info[0] < 3:
     python2_version = True
 
-_USAGE = """
+_USAGE = r"""
 Syntax: cpplint.py [--verbose=#] [--output=vs7] [--filter=-x,+y,...]
                    [--counting=total|toplevel|detailed] [--root=subdir]
                    [--linelength=digits] [--headers=x,y,...]
@@ -658,7 +657,7 @@ def Match(pattern, s):
   # performance reasons; factoring it out into a separate function turns out
   # to be noticeably expensive.
   if pattern not in _regexp_compile_cache:
-    _regexp_compile_cache[pattern] = sre_compile.compile(pattern)
+    _regexp_compile_cache[pattern] = re.compile(pattern)
   return _regexp_compile_cache[pattern].match(s)
 
 
@@ -676,14 +675,14 @@ def ReplaceAll(pattern, rep, s):
     string with replacements made (or original string if no replacements)
   """
   if pattern not in _regexp_compile_cache:
-    _regexp_compile_cache[pattern] = sre_compile.compile(pattern)
+    _regexp_compile_cache[pattern] = re.compile(pattern)
   return _regexp_compile_cache[pattern].sub(rep, s)
 
 
 def Search(pattern, s):
   """Searches the string for the pattern, caching the compiled regexp."""
   if pattern not in _regexp_compile_cache:
-    _regexp_compile_cache[pattern] = sre_compile.compile(pattern)
+    _regexp_compile_cache[pattern] = re.compile(pattern)
   return _regexp_compile_cache[pattern].search(s)
 
 
@@ -1107,7 +1106,7 @@ class FileInfo(object):
     return os.path.abspath(self._filename).replace('\\', '/')
 
   def RepositoryName(self):
-    """FullName after removing the local path to the repository.
+    r"""FullName after removing the local path to the repository.
 
     If we have a real absolute path name here we can try to do something smart:
     detecting the root of the checkout and truncating /path/to/checkout from

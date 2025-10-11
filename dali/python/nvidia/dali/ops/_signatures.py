@@ -447,6 +447,15 @@ def _gen_ops_call_signature_with_inputs(schema, schema_name):
     """Generate primary and secondary overload (for regular and MIS cases).
     Read _gen_fn_signature_with_inputs docstring for details - this is the same thing for ops API.
     """
+    signature = _call_signature(
+        schema,
+        include_inputs=True,
+        include_kwargs=True,
+        include_self=True,
+        all_args_optional=True,
+        input_annotation_gen=_get_annotation_input_mis,
+        return_annotation_gen=_get_annotation_return_mis,
+    )
     return f"""
     @overload
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
@@ -456,10 +465,7 @@ def _gen_ops_call_signature_with_inputs(schema, schema_name):
         ...
 
     @overload
-    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
-                                 include_self=True, all_args_optional=True,
-                                 input_annotation_gen=_get_annotation_input_mis,
-                                 return_annotation_gen=_get_annotation_return_mis)}:
+    def __call__{signature}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
@@ -470,6 +476,11 @@ def _gen_ops_signature(schema, schema_name, cls_name):
     """Write the stub of the fn API class with the docstring, __init__ and __call__ for given
     operator.
     """
+    signature = (
+        _gen_ops_call_signature_no_input(schema, schema_name)
+        if schema.MaxNumInput() == 0
+        else _gen_ops_call_signature_with_inputs(schema, schema_name)
+    )
     return inspect_repr_fixups(
         f"""
 class {cls_name}:
@@ -480,9 +491,7 @@ class {cls_name}:
                                  all_args_optional=True)}:
         ...
 
-{(_gen_ops_call_signature_no_input(schema, schema_name)
-  if schema.MaxNumInput() == 0
-  else _gen_ops_call_signature_with_inputs(schema, schema_name))}
+{signature}
 """
     )
 
