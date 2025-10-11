@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - run: pip install  flake8 bandit "black[jupyter]"==25.1.0
+      - run: pip install  flake8 bandit "black[jupyter]"==25.9.0
       # keep black invocations separated so each invocation will pick appropriate configuration file
       # from the top dir used for it
       - run: black --check --verbose ${{ env.PYTHON_SECURITY_LINT_PATHS }} ${{ env.PYTHON_LINT_PATHS }} ${{ env.AUTOGRAPH_LINT_PATHS }}
