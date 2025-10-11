@@ -18,13 +18,13 @@
 #include <stdio.h>
 
 #ifndef CUDA_CHECK
-#define CUDA_CHECK(expr)                                                     \
-  do {                                                                       \
-    cudaError_t __err = (expr);                                              \
-    if (__err != cudaSuccess) {                                              \
-      printf("CUDA error %d at %s:%d: %s\n", (int)__err, __FILE__, __LINE__, \
-             cudaGetErrorString(__err));                                     \
-    }                                                                        \
+#define CUDA_CHECK(expr)                                                                  \
+  do {                                                                                    \
+    cudaError_t __err = (expr);                                                           \
+    if (__err != cudaSuccess) {                                                           \
+      printf("CUDA error %d at %s:%d: %s\n", static_cast<int>(__err), __FILE__, __LINE__, \
+             cudaGetErrorString(__err));                                                  \
+    }                                                                                     \
   } while (0)
 #endif
 
@@ -49,8 +49,8 @@ __global__ void rgb_to_y_u8_nhwc_kernel(const uint8_t *__restrict__ rgb,
   float b = rgb[c0 + 2];
 
   float y = 0.299f * r + 0.587f * g + 0.114f * b;
-  int yi = (int)lrintf(fminf(fmaxf(y, 0.f), 255.f));
-  y_out[idx] = (uint8_t)yi;
+  int yi = static_cast<int>(lrintf(fminf(fmaxf(y, 0.f), 255.f)));
+  y_out[idx] = static_cast<uint8_t>(yi);
 }
 
 // Vectorized version for better memory bandwidth (processes 4 pixels at once)
@@ -69,8 +69,8 @@ __global__ void rgb_to_y_u8_nhwc_vectorized_kernel(const uint8_t *__restrict__ r
     float b = rgb[c0 + 2];
 
     float y = 0.299f * r + 0.587f * g + 0.114f * b;
-    int yi = (int)lrintf(fminf(fmaxf(y, 0.f), 255.f));
-    y_out[idx] = (uint8_t)yi;
+    int yi = static_cast<int>(lrintf(fminf(fmaxf(y, 0.f), 255.f)));
+    y_out[idx] = static_cast<uint8_t>(yi);
   }
 }
 
@@ -141,7 +141,7 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     y_out[pixel_idx] = y_u8;
 
     // Add to histogram
-    atomicAdd(&shist[(int)y_u8], 1u);
+    atomicAdd(&shist[static_cast<int>(y_u8)], 1u);
   }
   __syncthreads();
 
@@ -199,7 +199,7 @@ __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, in
     int x = x0 + dx;
     int y = y0 + dy;
     uint8_t v = y_plane[y * W + x];
-    atomicAdd(&shist[(int)v], 1u);
+    atomicAdd(&shist[static_cast<int>(v)], 1u);
   }
   __syncthreads();
 
@@ -256,8 +256,8 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   __syncthreads();
 
   // Compute clip limit (relative to avg bin count)
-  float avg = (float)area / bins;
-  unsigned int limit = (unsigned int)floorf(clip_limit_rel * avg);
+  float avg = static_cast<float>(area) / bins;
+  unsigned int limit = static_cast<unsigned int>(floorf(clip_limit_rel * avg));
 
   // Clip and accumulate excess
   __shared__ unsigned int excess;
@@ -283,7 +283,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
   // Distribute remainder one by one (first 'rem' bins)
-  for (int i = tid; i < (int)rem; i += blockDim.x) {
+  for (int i = tid; i < static_cast<int>(rem); i += blockDim.x) {
     atomicAdd(&h[i], 1u);
   }
   __syncthreads();
@@ -314,12 +314,12 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
 
   // Build LUT
   uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
-  float denom = (float)(area - cdf_min);
+  float denom = static_cast<float>(area - cdf_min);
   denom = (denom <= 0.f) ? 1.f : denom;
 
   for (int i = tid; i < bins; i += blockDim.x) {
-    float val = (float)(cdf[i] - cdf_min) / denom;
-    int outv = (int)lrintf(fminf(fmaxf(val, 0.f), 1.f) * 255.f);
+    float val = static_cast<float>(cdf[i] - cdf_min) / denom;
+    int outv = static_cast<int>(lrintf(fminf(fmaxf(val, 0.f), 1.f) * 255.f));
     lut[i] = (uint8_t)outv;
   }
 }
@@ -358,8 +358,8 @@ __global__ void apply_lut_bilinear_gray_kernel(const uint8_t *__restrict__ src_y
   // Tile coordinates
   float gx = (x + 0.5f) / tile_w - 0.5f;  // tile-space x
   float gy = (y + 0.5f) / tile_h - 0.5f;  // tile-space y
-  int tx = (int)floorf(gx);
-  int ty = (int)floorf(gy);
+  int tx = static_cast<int>(floorf(gx));
+  int ty = static_cast<int>(floorf(gy));
   float fx = gx - tx;
   float fy = gy - ty;
 
@@ -408,7 +408,7 @@ __global__ void apply_lut_bilinear_gray_kernel(const uint8_t *__restrict__ src_y
   float v_bot = v_bl * (1.f - fx) + v_br * fx;
   float v_out = v_top * (1.f - fy) + v_bot * fy;
 
-  int outi = (int)lrintf(fminf(fmaxf(v_out, 0.f), 255.f));
+  int outi = static_cast<int>(lrintf(fminf(fmaxf(v_out, 0.f), 255.f)));
   dst_y[idx] = (uint8_t)outi;
 }
 
@@ -446,8 +446,8 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   // Tile coordinates
   float gx = (x + 0.5f) / tile_w - 0.5f;
   float gy = (y + 0.5f) / tile_h - 0.5f;
-  int tx = (int)floorf(gx);
-  int ty = (int)floorf(gy);
+  int tx = static_cast<int>(floorf(gx));
+  int ty = static_cast<int>(floorf(gy));
   float fx = gx - tx;
   float fy = gy - ty;
 
@@ -495,7 +495,7 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   float v_bot = v_bl * (1.f - fx) + v_br * fx;
   float y_eq = v_top * (1.f - fy) + v_bot * fy;
 
-  float gain = y_eq / fmaxf((float)y0, 1.f);
+  float gain = y_eq / fmaxf(static_cast<float>(y0), 1.f);
 
   int base = 3 * idx;
   float r = src_rgb[base + 0] * gain;

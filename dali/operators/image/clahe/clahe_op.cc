@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <iostream>
-
 #include <cuda_runtime.h>
+
+#include <iostream>
 
 #include "dali/core/backend_tags.h"
 #include "dali/core/error_handling.h"
@@ -29,7 +29,7 @@
   do {                                                                       \
     cudaError_t __err = (expr);                                              \
     if (__err != cudaSuccess) {                                              \
-      printf("CUDA error %d at %s:%d: %s\n", (int)__err, __FILE__, __LINE__, \
+      printf("CUDA error %d at %s:%d: %s\n", static_cast<int>(__err), __FILE__, __LINE__, \
              cudaGetErrorString(__err));                                     \
     }                                                                        \
   } while (0)
@@ -124,14 +124,14 @@ class ClaheGPU : public Operator<GPUBackend> {
     if (max_hist_bytes > histograms_buffer_size_) {
       if (histograms_buffer_)
         cudaFree(histograms_buffer_);
-      CUDA_CHECK(cudaMalloc((void **)&histograms_buffer_, max_hist_bytes));
+      CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&histograms_buffer_), max_hist_bytes));
       histograms_buffer_size_ = max_hist_bytes;
     }
 
     if (max_lut_bytes > luts_buffer_size_) {
       if (luts_buffer_)
         cudaFree(luts_buffer_);
-      CUDA_CHECK(cudaMalloc((void **)&luts_buffer_, max_lut_bytes));
+      CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&luts_buffer_), max_lut_bytes));
       luts_buffer_size_ = max_lut_bytes;
     }
 
@@ -139,7 +139,7 @@ class ClaheGPU : public Operator<GPUBackend> {
       if (y_plane_buffer_)
         cudaFree(y_plane_buffer_);
       if (max_y_bytes > 0) {
-        CUDA_CHECK(cudaMalloc((void **)&y_plane_buffer_, max_y_bytes));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&y_plane_buffer_), max_y_bytes));
       }
       y_plane_buffer_size_ = max_y_bytes;
     }
