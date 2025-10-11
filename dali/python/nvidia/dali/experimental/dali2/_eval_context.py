@@ -28,7 +28,6 @@ class EvalContext:
 
     def __init__(self, num_threads=None, device_id=None, cuda_stream=None):
         self._invocations = []
-        self._cached_results = {}
         self._cuda_stream = cuda_stream
         if device_id is None:
             try:
@@ -89,14 +88,15 @@ class EvalContext:
         return _tls.default
 
     def cached_results(self, invocation):
-        if invocation in self._cached_results:
-            return self._cached_results[invocation]
+        # TODO(michalz): Implement something that doesn't leak memory
+        # if invocation in self._cached_results:
+        #     return self._cached_results[invocation]
 
         # TODO(michalz): Common subexpression elimination.
         return None
 
     def cache_results(self, invocation, results):
-        self._cached_results[invocation] = results
+        pass  # TODO(michalz): Implement something that doesn't leak memory
 
     def _add_invocation(self, invocation, weak=True):
         self._invocations.append(weakref.ref(invocation) if weak else invocation)

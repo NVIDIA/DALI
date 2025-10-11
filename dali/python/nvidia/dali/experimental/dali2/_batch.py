@@ -23,7 +23,7 @@ from ._tensor import (
 )
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
-from ._device import Device
+from ._device import Device, device as _device
 from . import _eval_mode
 from . import _invocation
 import nvtx
@@ -178,7 +178,7 @@ class Batch:
         """
         assert isinstance(layout, str) or layout is None
         if device is not None and not isinstance(device, Device):
-            device = Device(device)
+            device = _device(device)
         self._wraps_external_data = False
         self._tensors = None
         self._backend = None
@@ -412,7 +412,7 @@ class Batch:
 
     def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
         if device is not None and not isinstance(device, Device):
-            device = Device(device)
+            device = _device(device)
         if self.device == device and not force_copy:
             return self
         else:
