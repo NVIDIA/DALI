@@ -551,7 +551,7 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
       }
     }
     return GetSharedDLTensor(tensor);
-  } else if (dev.device_type == kDLCPU || dev.device_id == kDLCUDAHost) {
+  } else if (dev.device_type == kDLCPU || dev.device_type == kDLCUDAHost) {
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       throw std::runtime_error(
           "The tensor is in CUDA GPU memory and a CPU DLPack tensor was requested");
