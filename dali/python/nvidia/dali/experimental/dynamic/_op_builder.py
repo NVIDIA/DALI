@@ -142,7 +142,7 @@ def build_operator_class(schema):
     module_path = schema.ModulePath()
     is_reader = "readers" in module_path
     if is_reader:
-        from .. import dali2 as parent
+        from .. import dynamic as parent
 
         module = parent
     else:
@@ -368,7 +368,7 @@ def _next_pow2(x):
 def build_fn_wrapper(op):
     schema = op.schema
     module_path = schema.ModulePath()
-    from .. import dali2 as parent
+    from .. import dynamic as parent
 
     module = parent
     for path_part in module_path:
