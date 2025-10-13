@@ -33,7 +33,7 @@ except Exception:
     # Deprecated import, needed for Python 3.6
     from PIL.Image import NEAREST, BILINEAR, BICUBIC, LANCZOS
 
-resample_dali2pil = {
+resample_dynamicpil = {
     types.INTERP_NN: NEAREST,
     types.INTERP_TRIANGULAR: BILINEAR,
     types.INTERP_CUBIC: BICUBIC,
@@ -168,7 +168,7 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
 
 
 def resize_PIL(dim, channel_first, dtype, interp, data, size, roi_start, roi_end):
-    pil_resample = resample_dali2pil[interp]
+    pil_resample = resample_dynamicpil[interp]
 
     assert dtype == types.UINT8 or dtype == types.FLOAT
     dtype = np.uint8 if dtype == types.UINT8 else np.float32

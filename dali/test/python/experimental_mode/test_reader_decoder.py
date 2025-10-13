@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dali2 as D
+import nvidia.dali.experimental.dynamic as D
 from nose2.tools import params
 import os
 from test_utils import get_dali_extra_path

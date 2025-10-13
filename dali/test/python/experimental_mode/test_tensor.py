@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dali2 as D
+import nvidia.dali.experimental.dynamic as D
 import numpy as np
 from nose_utils import SkipTest, attr
 from nose2.tools import params

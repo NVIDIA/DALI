@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dali2 as dali2
+import nvidia.dali.experimental.dynamic as D
 
 
 def test_eval_mode_context_manager():
-    with dali2.EvalMode.eager:
-        assert dali2.EvalMode.current() == dali2.EvalMode.eager
-        with dali2.EvalMode.deferred:
-            assert dali2.EvalMode.current() == dali2.EvalMode.deferred
-        assert dali2.EvalMode.current() == dali2.EvalMode.eager
+    with D.EvalMode.eager:
+        assert D.EvalMode.current() == D.EvalMode.eager
+        with D.EvalMode.deferred:
+            assert D.EvalMode.current() == D.EvalMode.deferred
+        assert D.EvalMode.current() == D.EvalMode.eager
 
 
 def test_eval_mode_comparison():
-    assert dali2.EvalMode.eager.value > dali2.EvalMode.deferred.value
-    assert dali2.EvalMode.sync_cpu.value > dali2.EvalMode.eager.value
-    assert dali2.EvalMode.sync_full.value > dali2.EvalMode.sync_cpu.value
+    assert D.EvalMode.eager.value > D.EvalMode.deferred.value
+    assert D.EvalMode.sync_cpu.value > D.EvalMode.eager.value
+    assert D.EvalMode.sync_full.value > D.EvalMode.sync_cpu.value

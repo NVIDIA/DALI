@@ -1,5 +1,5 @@
-import nvidia.dali.experimental.dali2 as D
-import nvidia.dali.experimental.dali2.ops as ops
+import nvidia.dali.experimental.dynamic as D
+import nvidia.dali.experimental.dynamic.ops as ops
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import os

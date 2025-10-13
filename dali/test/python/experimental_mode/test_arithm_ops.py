@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dali2 as D
+import nvidia.dali.experimental.dynamic as D
 from nose2.tools import params
 import numpy as np
 import itertools
