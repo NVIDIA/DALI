@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dali2 as D
+import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
 import numpy as np
 import itertools
@@ -78,8 +78,8 @@ def test_binary_ops(device, op):
             if op == "/":
                 ref_a = np.float32(ref_a)
                 ref_b = np.float32(ref_b)
-            a = D.tensor(ref_a, device=device)
-            b = D.tensor(ref_b, device=device)
+            a = ndd.tensor(ref_a, device=device)
+            b = ndd.tensor(ref_b, device=device)
             ab = apply_bin_op(op, a, b)
             result_numpy = asnumpy(ab)
             ref_ab = apply_bin_op(op, ref_a, ref_b)
@@ -97,7 +97,7 @@ def test_unary_ops(device, op):
     ]
 
     for ref_x in values:
-        x = D.tensor(ref_x, device=device)
+        x = ndd.tensor(ref_x, device=device)
         y = apply_un_op(op, x)
         ref_y = apply_un_op(op, ref_x)
         if not np.array_equal(asnumpy(y), ref_y):
