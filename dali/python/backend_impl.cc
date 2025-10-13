@@ -139,7 +139,7 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   // if we make it readonly, it prevents us from sharing memory with PyTorch tensor
   tup[1] = false;
   d["data"] = tup;
-  if (std::is_same<Backend, GPUBackend>::value) {
+  if constexpr (std::is_same<Backend, GPUBackend>::value) {
     // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
     // this set of atributes is tagged as version 2
     d["version"] = 2;
@@ -147,6 +147,12 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
     // see https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
     // this set of atributes is tagged as version 3
     d["version"] = 3;
+    if (t.is_pinned()) {
+      if (auto &event = t.ready_event())
+        AccessOrder::host().wait(event);  // more fine-grained synchronization
+      else
+        AccessOrder::host().wait(t.order());
+    }
   }
   d["strides"] = py::none();
   return d;
@@ -706,6 +712,13 @@ void ExposeTensor(py::module &m) {
             // We iterate over stride backwards
             stride[(t.ndim()-1) - i] = t.type_info().size()*dim_prod;
             dim_prod *= t.shape()[(t.ndim()-1) - i];
+          }
+
+          if (t.is_pinned()) {
+            if (auto &event = t.ready_event())
+              AccessOrder::host().wait(event);  // more fine-grained synchronization
+            else
+              AccessOrder::host().wait(t.order());
           }
 
           return py::buffer_info(
@@ -2532,6 +2545,19 @@ void ExposeOperator(py::module &m) {
     });
 }
 
+auto GetSupportedBackends(OpSchema &schema) {
+  std::vector<std::string_view> ret;
+  ret.reserve(2);  // the vast majority of operators will have only one or two supported backends
+  auto &name = schema.name();
+  if (CPUOperatorRegistry::Registry().IsRegistered(name))
+    ret.push_back("cpu");
+  if (GPUOperatorRegistry::Registry().IsRegistered(name))
+    ret.push_back("gpu");
+  if (MixedOperatorRegistry::Registry().IsRegistered(name))
+    ret.push_back("mixed");
+  return ret;
+}
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -2938,7 +2964,8 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("HasArgument",
         [](OpSchema *schema, const std::string &arg_name) {
           return schema->HasArgument(arg_name);
-        });
+        })
+    .def("GetSupportedBackends", &GetSupportedBackends);
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
