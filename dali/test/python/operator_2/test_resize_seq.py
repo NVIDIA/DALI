@@ -67,7 +67,7 @@ def GetSequences(channel_first, length, batch_size):
     return get_batch
 
 
-resample_dynamicpil = {
+resample_dali2pil = {
     types.INTERP_NN: NEAREST,
     types.INTERP_TRIANGULAR: BILINEAR,
     types.INTERP_CUBIC: BICUBIC,
@@ -76,7 +76,7 @@ resample_dynamicpil = {
 
 
 def resize_PIL(channel_first, interp, w, h):
-    pil_resample = resample_dynamicpil[interp]
+    pil_resample = resample_dali2pil[interp]
 
     def resize(input):
         num_frames = input.shape[0]
