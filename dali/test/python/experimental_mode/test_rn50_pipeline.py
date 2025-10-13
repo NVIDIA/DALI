@@ -1,4 +1,4 @@
-import nvidia.dali.experimental.dynamic as D
+import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.experimental.dynamic.ops as ops
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -14,11 +14,11 @@ def get_rn50_pipeline_fn(max_batch_size):
 
     def f(jpegs):
         batch_size = jpegs.batch_size
-        images = D.decoders.image(jpegs, device="mixed")
+        images = ndd.decoders.image(jpegs, device="mixed")
         xy = uniform(batch_size=batch_size, range=[0.0, 1.0], shape=2)
         do_mirror = mirror(batch_size=batch_size, probability=0.5)
         size = resize_uniform(batch_size=batch_size, range=[256.0, 480.0])
-        resized_images = D.fast_resize_crop_mirror(
+        resized_images = ndd.fast_resize_crop_mirror(
             images,
             crop=[224.0, 224.0],
             crop_pos_x=xy.slice[0],
@@ -27,10 +27,10 @@ def get_rn50_pipeline_fn(max_batch_size):
             resize_shorter=size,
             interp_type=dali.types.INTERP_LANCZOS3,
         )
-        output = D.crop_mirror_normalize(
+        output = ndd.crop_mirror_normalize(
             resized_images,
             device="gpu",
-            dtype=D.float16,
+            dtype=ndd.float16,
             mean=[128.0, 128.0, 128.0],
             std=[1.0, 1.0, 1.0],
         )
@@ -77,10 +77,10 @@ img_list = os.path.join(file_root, "image_list.txt")
 def test_rn50_pipeline():
     batch_size = 16
     f = get_rn50_pipeline_fn(max_batch_size=batch_size)
-    r = D.readers.File(file_root=file_root, file_list=img_list, random_shuffle=False)
+    r = ndd.readers.File(file_root=file_root, file_list=img_list, random_shuffle=False)
     iterations = 0
     p = rn50_pipeline(batch_size=batch_size)
-    with D.EvalContext(num_threads=4, device_id=0):
+    with ndd.EvalContext(num_threads=4, device_id=0):
         for epoch in range(10):
             for jpegs, lbl_dynamic in r.next_epoch(batch_size=batch_size):
                 iterations += 1
