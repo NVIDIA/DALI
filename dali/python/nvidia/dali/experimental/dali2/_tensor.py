@@ -14,7 +14,7 @@
 
 from typing import Any, Optional, Tuple, Union
 from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._device import Device
+from ._device import Device, device as _device
 import nvidia.dali.backend as _backend
 from ._eval_context import EvalContext as _EvalContext
 from . import _eval_mode
@@ -127,7 +127,7 @@ class Tensor:
         self._wraps_external_data = False
 
         if device is not None and not isinstance(device, Device):
-            device = Device(device)  # TODO(michalz): Use the `device` function, when merged
+            device = _device(device)
 
         copied = False
 
@@ -171,7 +171,7 @@ class Tensor:
                 self._slice = data
             elif hasattr(data, "__dlpack_device__"):
                 dl_device_type, device_id = data.__dlpack_device__()
-                if int(dl_device_type) == 1:  # CPU
+                if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
                     self._backend = _backend.TensorCPU(data.__dlpack__(), layout)
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.
@@ -389,7 +389,9 @@ class Tensor:
     def __array__(self):
         b = self.evaluate()._backend
         if isinstance(b, _backend.TensorCPU):
-            return b
+            import numpy as np
+
+            return np.array(b)
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
