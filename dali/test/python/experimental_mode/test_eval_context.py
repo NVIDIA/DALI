@@ -87,15 +87,6 @@ class PseudoInvocation:
         return self.value
 
 
-def test_eval_context_cached_results():
-    with dali2.EvalContext.get() as ctx:
-        inv = PseudoInvocation(42)
-        assert ctx.cached_results(inv) is None
-        inv.run(ctx)
-        assert inv.run_count == 1
-        assert ctx.cached_results(inv) == 42
-
-
 def test_eval_context_evaluate_all():
     with dali2.EvalContext() as ctx:
         inv = PseudoInvocation(4321)
@@ -104,23 +95,34 @@ def test_eval_context_evaluate_all():
     assert inv.run_count == 1
 
 
-def test_eval_evaluate_all_skip_cached():
-    with dali2.EvalContext() as ctx:
-        inv = PseudoInvocation(42)
-        assert ctx.cached_results(inv) is None
-        assert inv.run_count == 0
-        ctx.cache_results(inv, 123)
-        assert ctx.cached_results(inv) == 123
-        ctx._add_invocation(inv)
-        ctx.evaluate_all()
-        assert inv.run_count == 0  # cached
-        ctx._cached_results = {}
-        ctx._add_invocation(inv)
-        ctx.evaluate_all()
-        assert inv.run_count == 1
-        assert ctx.cached_results(inv) == 42
-        ctx.evaluate_all()
-        assert inv.run_count == 1
+# TODO(michalz): Result caching disabled due to a bug. It needs a redesign.
+
+# def test_eval_context_cached_results():
+#     with dali2.EvalContext.get() as ctx:
+#         inv = PseudoInvocation(42)
+#         assert ctx.cached_results(inv) is None
+#         inv.run(ctx)
+#         assert inv.run_count == 1
+#         assert ctx.cached_results(inv) == 42
+
+
+# def test_eval_evaluate_all_skip_cached():
+#     with dali2.EvalContext() as ctx:
+#         inv = PseudoInvocation(42)
+#         assert ctx.cached_results(inv) is None
+#         assert inv.run_count == 0
+#         ctx.cache_results(inv, 123)
+#         assert ctx.cached_results(inv) == 123
+#         ctx._add_invocation(inv)
+#         ctx.evaluate_all()
+#         assert inv.run_count == 0  # cached
+#         ctx._cached_results = {}
+#         ctx._add_invocation(inv)
+#         ctx.evaluate_all()
+#         assert inv.run_count == 1
+#         assert ctx.cached_results(inv) == 42
+#         ctx.evaluate_all()
+#         assert inv.run_count == 1
 
 
 def test_eval_context_evaluate_all_weakref():

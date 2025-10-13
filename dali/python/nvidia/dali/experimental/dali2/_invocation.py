@@ -90,7 +90,8 @@ class Invocation:
             # TODO(michalz): Try to get shape without full evaluation.
             with _EvalContext.get() as ctx:
                 self.run(ctx)
-        return self._results[result_index].shape()
+        s = self._results[result_index].shape()
+        return s if self.is_batch else tuple(s)
 
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
@@ -140,22 +141,23 @@ class Invocation:
             if self._previous_invocation is not None:
                 self._previous_invocation.run(ctx)
                 self._previous_invocation = None
-            cached = ctx.cached_results(self)
-            if cached is not None:
-                self._results = cached
+            # TODO(michalz): Implement something that doesn't leak memory
+            # cached = ctx.cached_results(self)
+            # if cached is not None:
+            #     self._results = cached
+            # else:
+            r = self._operator.run(
+                ctx,
+                *self._inputs,
+                batch_size=self._batch_size if self._is_batch else None,
+                **self._args,
+            )
+            if isinstance(r, tuple) or isinstance(r, list):
+                self._results = tuple(r)
             else:
-                r = self._operator.run(
-                    ctx,
-                    *self._inputs,
-                    batch_size=self._batch_size if self._is_batch else None,
-                    **self._args,
-                )
-                if isinstance(r, tuple) or isinstance(r, list):
-                    self._results = tuple(r)
-                else:
-                    self._results = (r,)
-                self._results = tuple(self._results)
-                ctx.cache_results(self, self._results)
+                self._results = (r,)
+            self._results = tuple(self._results)
+            ctx.cache_results(self, self._results)
 
     def values(self, ctx: _EvalContext):
         """
