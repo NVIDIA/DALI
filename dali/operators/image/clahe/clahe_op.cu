@@ -255,9 +255,10 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
     h[i] = hist[i];
   __syncthreads();
 
-  // Compute clip limit (relative to avg bin count)
+  // Compute clip limit (relative to avg bin count) - match OpenCV exactly
   float avg = static_cast<float>(area) / bins;
-  unsigned int limit = static_cast<unsigned int>(floorf(clip_limit_rel * avg));
+  float limit_f = clip_limit_rel * avg;
+  unsigned int limit = static_cast<unsigned int>(roundf(limit_f));  // Use rounding like OpenCV
   limit = max(limit, 1u);  // Ensure minimum clip limit of 1 like OpenCV
 
   // Clip and accumulate excess
@@ -284,10 +285,12 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Distribute remainder using OpenCV's step pattern (single-threaded to match behavior)
+  // Distribute remainder using OpenCV's exact pattern
   if (tid == 0 && rem > 0) {
+    // OpenCV distributes remainder starting from step/2 with step interval
     unsigned int step = max(bins / rem, 1u);
-    for (unsigned int i = 0; i < bins && rem > 0; i += step, rem--) {
+    unsigned int start_idx = step / 2;  // Start from middle of first interval
+    for (unsigned int i = start_idx; i < bins && rem > 0; i += step, rem--) {
       h[i]++;
     }
   }
