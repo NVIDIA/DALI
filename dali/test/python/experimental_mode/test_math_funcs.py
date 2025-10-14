@@ -94,9 +94,6 @@ def test_unary_functions(functions, device_type):
     t = ndd.Tensor(data, device=device_type)
     a = np.array(ndd_func(t).cpu())
     ref = np_func(data)
-    if not np.allclose(a, ref, atol=1e-6):
-        print(ref)
-        print(a)
     assert np.allclose(a, ref, atol=1e-6)
 
 
@@ -105,9 +102,17 @@ def test_binary_functions(functions, device_type):
     ndd_func, np_func, domain1, domain2 = functions
     data1 = get_operand1(domain1)
     data2 = get_operand2(domain2)
-    data = np.array([data1, data2], dtype=np.float32)
     t1 = ndd.Tensor(data1, device=device_type)
     t2 = ndd.Tensor(data2, device=device_type)
     a = np.array(ndd_func(t1, t2).cpu())
     ref = np_func(data1, data2)
+    assert np.allclose(a, ref, atol=1e-6)
+
+
+@params(("cpu",), ("gpu",))
+def test_clamp(device_type):
+    data = np.array([[-1, 0, 1], [2, 3, 4]], dtype=np.float32)
+    t = ndd.Tensor(data, device=device_type)
+    a = np.array(ndd.math.clamp(t, 1, 2).cpu())
+    ref = np.clip(data, 1, 2)
     assert np.allclose(a, ref, atol=1e-6)
