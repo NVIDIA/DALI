@@ -101,7 +101,30 @@ def _arithm_op(name, *args, **kwargs):
     from . import arithmetic_generic_op
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    return arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+    gpu = False
+    new_args = [None] * len(args)
+    for i, a in enumerate(args):
+        if isinstance(a, (Batch, Tensor)):
+            if a.device.device_type == "gpu":
+                gpu = True
+        else:
+            # TODO(michalz): We might use some caching here for common values.
+            if new_args is None:
+                new_args = list(args)
+            if gpu:
+                new_args[i] = _as_tensor(a, device="gpu")
+            else:
+                new_args[i] = _as_tensor(a)
+                if new_args[i].device.device_type == "gpu":
+                    gpu = True
+
+    for i in range(len(args)):
+        if new_args[i] is None:
+            if (args[i].device.device_type == "gpu") != gpu:
+                raise ValueError("Cannot mix GPU and CPU inputs.")
+            new_args[i] = args[i]
+
+    return arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
 
 
 class _TensorList:

@@ -25,6 +25,7 @@ from ._batch import Batch, batch, as_batch  # noqa: F401
 
 from . import _fn
 from . import ops
+from . import math  # noqa: F401
 
 ops._initialize()
 _fn._initialize()
