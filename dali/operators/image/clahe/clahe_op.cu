@@ -33,6 +33,83 @@ static inline __host__ __device__ int div_up(int a, int b) {
 }
 
 // -------------------------------------------------------------------------------------
+// Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
+// -------------------------------------------------------------------------------------
+__device__ float srgb_to_linear(float c) {
+  return (c > 0.04045f) ? powf((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+}
+
+__device__ float linear_to_srgb(float c) {
+  return (c > 0.0031308f) ? 1.055f * powf(c, 1.0f / 2.4f) - 0.055f : 12.92f * c;
+}
+
+__device__ float xyz_to_lab_f(float t) {
+  return (t > 0.008856f) ? cbrtf(t) : (7.787f * t + 16.0f / 116.0f);
+}
+
+__device__ float lab_f_to_xyz(float t) {
+  float t3 = t * t * t;
+  return (t3 > 0.008856f) ? t3 : (t - 16.0f / 116.0f) / 7.787f;
+}
+
+__device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_out, float *b_out) {
+  // Normalize to [0,1]
+  float rf = r / 255.0f;
+  float gf = g / 255.0f;
+  float bf = b / 255.0f;
+
+  // sRGB to linear RGB
+  rf = srgb_to_linear(rf);
+  gf = srgb_to_linear(gf);
+  bf = srgb_to_linear(bf);
+
+  // Linear RGB to XYZ (D65 illuminant)
+  float x = 0.4124564f * rf + 0.3575761f * gf + 0.1804375f * bf;
+  float y = 0.2126729f * rf + 0.7151522f * gf + 0.0721750f * bf;
+  float z = 0.0193339f * rf + 0.1191920f * gf + 0.9503041f * bf;
+
+  // Normalize by D65 white point
+  x = x / 0.95047f;
+  y = y / 1.00000f;
+  z = z / 1.08883f;
+
+  // XYZ to LAB
+  float fx = xyz_to_lab_f(x);
+  float fy = xyz_to_lab_f(y);
+  float fz = xyz_to_lab_f(z);
+
+  *L = 116.0f * fy - 16.0f;
+  *a_out = 500.0f * (fx - fy);
+  *b_out = 200.0f * (fy - fz);
+}
+
+__device__ void lab_to_rgb(float L, float a, float b, uint8_t *r, uint8_t *g, uint8_t *b_out) {
+  // LAB to XYZ
+  float fy = (L + 16.0f) / 116.0f;
+  float fx = a / 500.0f + fy;
+  float fz = fy - b / 200.0f;
+
+  float x = lab_f_to_xyz(fx) * 0.95047f;
+  float y = lab_f_to_xyz(fy) * 1.00000f;
+  float z = lab_f_to_xyz(fz) * 1.08883f;
+
+  // XYZ to linear RGB
+  float rf = 3.2404542f * x - 1.5371385f * y - 0.4985314f * z;
+  float gf = -0.9692660f * x + 1.8760108f * y + 0.0415560f * z;
+  float bf = 0.0556434f * x - 0.2040259f * y + 1.0572252f * z;
+
+  // Linear RGB to sRGB
+  rf = linear_to_srgb(rf);
+  gf = linear_to_srgb(gf);
+  bf = linear_to_srgb(bf);
+
+  // Clamp and convert to uint8
+  *r = (uint8_t)lrintf(fminf(fmaxf(rf * 255.0f, 0.f), 255.f));
+  *g = (uint8_t)lrintf(fminf(fmaxf(gf * 255.0f, 0.f), 255.f));
+  *b_out = (uint8_t)lrintf(fminf(fmaxf(bf * 255.0f, 0.f), 255.f));
+}
+
+// -------------------------------------------------------------------------------------
 // Kernel 1: RGB -> Y (uint8). NHWC input (uint8), Y in [0..255] as uint8.
 // BT.601 luma: Y = 0.299 R + 0.587 G + 0.114 B
 // -------------------------------------------------------------------------------------
@@ -130,12 +207,30 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     int pixel_idx = y * W + x;
     int rgb_idx = 3 * pixel_idx;
 
-    // RGB to Y conversion
-    float r = rgb[rgb_idx + 0];
-    float g = rgb[rgb_idx + 1];
-    float b = rgb[rgb_idx + 2];
-    float y_val = 0.299f * r + 0.587f * g + 0.114f * b;
-    uint8_t y_u8 = (uint8_t)lrintf(fminf(fmaxf(y_val, 0.f), 255.f));
+    // RGB to LAB L* conversion (match OpenCV exactly)
+    // First convert to normalized RGB [0,1]
+    float r_val = rgb[rgb_idx + 0];
+    float g_val = rgb[rgb_idx + 1];
+    float b_val = rgb[rgb_idx + 2];
+
+    float rf = r_val / 255.0f;
+    float gf = g_val / 255.0f;
+    float bf = b_val / 255.0f;
+
+    // Apply gamma correction (sRGB to linear RGB)
+    rf = srgb_to_linear(rf);
+    gf = srgb_to_linear(gf);
+    bf = srgb_to_linear(bf);
+
+    // Convert to CIE XYZ (only need Y component for L* calculation)
+    float y_xyz = 0.2126729f * rf + 0.7151522f * gf + 0.0721750f * bf;
+
+    // Convert Y to LAB L*
+    float fy = (y_xyz > 0.008856f) ? cbrtf(y_xyz) : (7.787f * y_xyz + 16.0f / 116.0f);
+    float L_star = 116.0f * fy - 16.0f;
+
+    // Scale L* [0,100] to [0,255] for histogram
+    uint8_t y_u8 = (uint8_t)lrintf(fminf(fmaxf(L_star * 2.55f, 0.f), 255.f));
 
     // Store Y value
     y_out[pixel_idx] = y_u8;
@@ -431,11 +526,10 @@ extern "C" void LaunchApplyLUTBilinearToGray(const uint8_t *src_gray, uint8_t *d
 }
 
 // -------------------------------------------------------------------------------------
-// Kernel 4b: Apply LUT for RGB by equalizing Y and rescaling RGB channels.
-// Gain approach: gain = Y_eq / max(Y, 1); outRGB = clamp(srcRGB * gain).
+// Kernel 4b: Apply LUT for RGB using proper LAB color space (match OpenCV exactly)
 // -------------------------------------------------------------------------------------
 __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rgb,
-                                              const uint8_t *__restrict__ src_y,  // original Y
+                                              const uint8_t *__restrict__ src_y,  // original L*
                                               uint8_t *__restrict__ dst_rgb, int H, int W,
                                               int tiles_x, int tiles_y,
                                               const uint8_t *__restrict__ luts) {
@@ -493,30 +587,35 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
   const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
 
-  uint8_t y0 = src_y[idx];
-  float v_tl = lut_tl[y0];
-  float v_tr = lut_tr[y0];
-  float v_bl = lut_bl[y0];
-  float v_br = lut_br[y0];
+  uint8_t orig_L_u8 = src_y[idx];  // This is the original L* value (scaled [0,255])
+  float v_tl = lut_tl[orig_L_u8];
+  float v_tr = lut_tr[orig_L_u8];
+  float v_bl = lut_bl[orig_L_u8];
+  float v_br = lut_br[orig_L_u8];
 
   float v_top = v_tl * (1.f - fx) + v_tr * fx;
   float v_bot = v_bl * (1.f - fx) + v_br * fx;
-  float y_eq = v_top * (1.f - fy) + v_bot * fy;
+  float enhanced_L_u8 = v_top * (1.f - fy) + v_bot * fy;
 
-  float gain = y_eq / fmaxf(static_cast<float>(y0), 1.f);
-
+  // Convert original RGB to LAB
   int base = 3 * idx;
-  float r = src_rgb[base + 0] * gain;
-  float g = src_rgb[base + 1] * gain;
-  float b = src_rgb[base + 2] * gain;
+  uint8_t orig_r = src_rgb[base + 0];
+  uint8_t orig_g = src_rgb[base + 1];
+  uint8_t orig_b = src_rgb[base + 2];
 
-  r = fminf(fmaxf(r, 0.f), 255.f);
-  g = fminf(fmaxf(g, 0.f), 255.f);
-  b = fminf(fmaxf(b, 0.f), 255.f);
+  float orig_L, orig_a, orig_b_lab;
+  rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
 
-  dst_rgb[base + 0] = (uint8_t)lrintf(r);
-  dst_rgb[base + 1] = (uint8_t)lrintf(g);
-  dst_rgb[base + 2] = (uint8_t)lrintf(b);
+  // Replace L* with enhanced version, keep a* and b* unchanged
+  float enhanced_L = enhanced_L_u8 / 2.55f;  // Scale back to [0,100] range
+
+  // Convert back to RGB
+  uint8_t new_r, new_g, new_b;
+  lab_to_rgb(enhanced_L, orig_a, orig_b_lab, &new_r, &new_g, &new_b);
+
+  dst_rgb[base + 0] = new_r;
+  dst_rgb[base + 1] = new_g;
+  dst_rgb[base + 2] = new_b;
 }
 
 extern "C" void LaunchApplyLUTBilinearToRGB(const uint8_t *src_rgb, const uint8_t *src_y,
