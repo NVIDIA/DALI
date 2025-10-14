@@ -36,20 +36,26 @@ static inline __host__ __device__ int div_up(int a, int b) {
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
 // -------------------------------------------------------------------------------------
 __device__ float srgb_to_linear(float c) {
+  // OpenCV's exact gamma correction
   return (c > 0.04045f) ? powf((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
 }
 
 __device__ float linear_to_srgb(float c) {
+  // OpenCV's exact inverse gamma correction
   return (c > 0.0031308f) ? 1.055f * powf(c, 1.0f / 2.4f) - 0.055f : 12.92f * c;
 }
 
 __device__ float xyz_to_lab_f(float t) {
-  return (t > 0.008856f) ? cbrtf(t) : (7.787f * t + 16.0f / 116.0f);
+  // OpenCV uses these exact thresholds and constants
+  const float delta = 6.0f / 29.0f;
+  const float delta_cube = delta * delta * delta;
+  return (t > delta_cube) ? cbrtf(t) : (t / (3.0f * delta * delta) + 4.0f / 29.0f);
 }
 
 __device__ float lab_f_to_xyz(float t) {
-  float t3 = t * t * t;
-  return (t3 > 0.008856f) ? t3 : (t - 16.0f / 116.0f) / 7.787f;
+  // OpenCV's exact inverse transformation
+  const float delta = 6.0f / 29.0f;
+  return (t > delta) ? (t * t * t) : (3.0f * delta * delta * (t - 4.0f / 29.0f));
 }
 
 __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_out, float *b_out) {
@@ -63,15 +69,15 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_o
   gf = srgb_to_linear(gf);
   bf = srgb_to_linear(bf);
 
-  // Linear RGB to XYZ (D65 illuminant)
-  float x = 0.4124564f * rf + 0.3575761f * gf + 0.1804375f * bf;
-  float y = 0.2126729f * rf + 0.7151522f * gf + 0.0721750f * bf;
-  float z = 0.0193339f * rf + 0.1191920f * gf + 0.9503041f * bf;
+  // Linear RGB to XYZ using OpenCV's exact matrix (sRGB D65)
+  float x = 0.412453f * rf + 0.357580f * gf + 0.180423f * bf;
+  float y = 0.212671f * rf + 0.715160f * gf + 0.072169f * bf;
+  float z = 0.019334f * rf + 0.119193f * gf + 0.950227f * bf;
 
-  // Normalize by D65 white point
-  x = x / 0.95047f;
-  y = y / 1.00000f;
-  z = z / 1.08883f;
+  // Normalize by D65 white point (OpenCV values)
+  x = x / 0.950456f;
+  y = y / 1.000000f;
+  z = z / 1.088754f;
 
   // XYZ to LAB
   float fx = xyz_to_lab_f(x);
@@ -89,14 +95,15 @@ __device__ void lab_to_rgb(float L, float a, float b, uint8_t *r, uint8_t *g, ui
   float fx = a / 500.0f + fy;
   float fz = fy - b / 200.0f;
 
-  float x = lab_f_to_xyz(fx) * 0.95047f;
-  float y = lab_f_to_xyz(fy) * 1.00000f;
-  float z = lab_f_to_xyz(fz) * 1.08883f;
+  // Convert using OpenCV's D65 white point
+  float x = lab_f_to_xyz(fx) * 0.950456f;
+  float y = lab_f_to_xyz(fy) * 1.000000f;
+  float z = lab_f_to_xyz(fz) * 1.088754f;
 
-  // XYZ to linear RGB
-  float rf = 3.2404542f * x - 1.5371385f * y - 0.4985314f * z;
-  float gf = -0.9692660f * x + 1.8760108f * y + 0.0415560f * z;
-  float bf = 0.0556434f * x - 0.2040259f * y + 1.0572252f * z;
+  // XYZ to linear RGB using OpenCV's exact inverse matrix
+  float rf = 3.240479f * x - 1.537150f * y - 0.498535f * z;
+  float gf = -0.969256f * x + 1.875991f * y + 0.041556f * z;
+  float bf = 0.055648f * x - 0.204043f * y + 1.057311f * z;
 
   // Linear RGB to sRGB
   rf = linear_to_srgb(rf);
@@ -222,17 +229,23 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     gf = srgb_to_linear(gf);
     bf = srgb_to_linear(bf);
 
-    // Convert to CIE XYZ (only need Y component for L* calculation)
-    float y_xyz = 0.2126729f * rf + 0.7151522f * gf + 0.0721750f * bf;
+    // Convert to CIE XYZ using OpenCV's exact transformation matrix
+    // From OpenCV source: cv::COLOR_RGB2Lab
+    float x_xyz = 0.412453f * rf + 0.357580f * gf + 0.180423f * bf;
+    float y_xyz = 0.212671f * rf + 0.715160f * gf + 0.072169f * bf;
+    float z_xyz = 0.019334f * rf + 0.119193f * gf + 0.950227f * bf;
 
-    // Convert Y to LAB L*
+    // Normalize by D65 white point (OpenCV values)
+    x_xyz = x_xyz / 0.950456f;
+    y_xyz = y_xyz / 1.000000f;
+    z_xyz = z_xyz / 1.088754f;
+
+    // Convert Y to LAB L* using OpenCV's threshold and constants
     float fy = (y_xyz > 0.008856f) ? cbrtf(y_xyz) : (7.787f * y_xyz + 16.0f / 116.0f);
-    float L_star = 116.0f * fy - 16.0f;
+    float L = 116.0f * fy - 16.0f;
 
-    // Scale L* [0,100] to [0,255] for histogram
-    uint8_t y_u8 = (uint8_t)lrintf(fminf(fmaxf(L_star * 2.55f, 0.f), 255.f));
-
-    // Store Y value
+    // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
+    uint8_t y_u8 = (uint8_t)lrintf(fminf(fmaxf(L * 255.0f / 100.0f, 0.f), 255.f));  // Store Y value
     y_out[pixel_idx] = y_u8;
 
     // Add to histogram
@@ -350,11 +363,11 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
     h[i] = hist[i];
   __syncthreads();
 
-  // Compute clip limit (relative to avg bin count) - match OpenCV exactly
-  float avg = static_cast<float>(area) / bins;
-  float limit_f = clip_limit_rel * avg;
-  unsigned int limit = static_cast<unsigned int>(roundf(limit_f));  // Use rounding like OpenCV
-  limit = max(limit, 1u);  // Ensure minimum clip limit of 1 like OpenCV
+  // Compute clip limit (match OpenCV exactly)
+  float clip_limit_f =
+      clip_limit_rel * area / bins;  // OpenCV: clipLimit * tileSizeTotal / histSize
+  unsigned int limit = static_cast<unsigned int>(clip_limit_f);
+  limit = max(limit, 1u);  // OpenCV: std::max(clipLimit, 1)
 
   // Clip and accumulate excess
   __shared__ unsigned int excess;
@@ -372,21 +385,20 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Redistribute excess using OpenCV-style distribution
-  unsigned int add = excess / bins;
-  unsigned int rem = excess % bins;
+  // Redistribute excess using OpenCV's exact algorithm
+  unsigned int redistBatch = excess / bins;  // OpenCV: redistBatch = clipped / histSize
+  unsigned int residual = excess % bins;     // OpenCV: residual = clipped - redistBatch * histSize
+
   for (int i = tid; i < bins; i += blockDim.x) {
-    h[i] += add;
+    h[i] += redistBatch;  // OpenCV: tileHist[i] += redistBatch
   }
   __syncthreads();
 
-  // Distribute remainder using OpenCV's exact pattern
-  if (tid == 0 && rem > 0) {
-    // OpenCV distributes remainder starting from step/2 with step interval
-    unsigned int step = max(bins / rem, 1u);
-    unsigned int start_idx = step / 2;  // Start from middle of first interval
-    for (unsigned int i = start_idx; i < bins && rem > 0; i += step, rem--) {
-      h[i]++;
+  // Distribute residual using OpenCV's exact step pattern
+  if (tid == 0 && residual > 0) {
+    unsigned int residualStep = max(bins / residual, 1u);  // OpenCV: MAX(histSize / residual, 1)
+    for (unsigned int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
+      h[i]++;  // OpenCV: tileHist[i]++
     }
   }
   __syncthreads();
@@ -401,29 +413,14 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Find cdf_min (first non-zero)
-  __shared__ unsigned int cdf_min;
-  if (tid == 0) {
-    unsigned int m = 0u;
-    for (int i = 0; i < bins; ++i) {
-      if (cdf[i] != 0u) {
-        m = cdf[i];
-        break;
-      }
-    }
-    cdf_min = m;
-  }
-  __syncthreads();
-
-  // Build LUT
+  // Build LUT using OpenCV's exact scaling
   uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
-  float denom = static_cast<float>(area - cdf_min);
-  denom = (denom <= 0.f) ? 1.f : denom;
+  float lutScale = static_cast<float>(bins - 1) /
+                   static_cast<float>(area);  // OpenCV: (histSize - 1) / tileSizeTotal
 
   for (int i = tid; i < bins; i += blockDim.x) {
-    float val = static_cast<float>(cdf[i] - cdf_min) / denom;
-    int outv = static_cast<int>(lrintf(fminf(fmaxf(val, 0.f), 1.f) * 255.f));
-    lut[i] = (uint8_t)outv;
+    float val = static_cast<float>(cdf[i]) * lutScale;  // OpenCV: sum * lutScale
+    lut[i] = static_cast<uint8_t>(lrintf(fminf(fmaxf(val, 0.f), 255.f)));
   }
 }
 
@@ -454,9 +451,9 @@ __global__ void apply_lut_bilinear_gray_kernel(const uint8_t *__restrict__ src_y
   int y = idx / W;
   int x = idx - y * W;
 
-  // Tile geometry - use OpenCV's approach (integer division, not ceiling)
-  int tile_w = W / tiles_x;
-  int tile_h = H / tiles_y;
+  // Tile geometry - use same calculation as histogram kernel for consistency
+  int tile_w = div_up(W, tiles_x);
+  int tile_h = div_up(H, tiles_y);
 
   // Tile coordinates
   float gx = (x + 0.5f) / tile_w - 0.5f;  // tile-space x
@@ -541,17 +538,21 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   int y = idx / W;
   int x = idx - y * W;
 
-  // Tile geometry - use OpenCV's approach (integer division, not ceiling)
-  int tile_w = W / tiles_x;
-  int tile_h = H / tiles_y;
+  // Tile geometry - match OpenCV exactly
+  // OpenCV: tileSize = Size(src.width / tilesX, src.height / tilesY)
+  float inv_tw =
+      static_cast<float>(tiles_x) / static_cast<float>(W);  // OpenCV: 1.0f / tileSize.width
+  float inv_th =
+      static_cast<float>(tiles_y) / static_cast<float>(H);  // OpenCV: 1.0f / tileSize.height
 
-  // Tile coordinates
-  float gx = (x + 0.5f) / tile_w - 0.5f;
-  float gy = (y + 0.5f) / tile_h - 0.5f;
-  int tx = static_cast<int>(floorf(gx));
-  int ty = static_cast<int>(floorf(gy));
-  float fx = gx - tx;
-  float fy = gy - ty;
+  // Tile coordinates (match OpenCV exactly)
+  float txf = x * inv_tw - 0.5f;  // OpenCV: x * inv_tw - 0.5f
+  float tyf = y * inv_th - 0.5f;  // OpenCV: y * inv_th - 0.5f
+
+  int tx = static_cast<int>(floorf(txf));  // OpenCV: cvFloor(txf)
+  int ty = static_cast<int>(floorf(tyf));  // OpenCV: cvFloor(tyf)
+  float fx = txf - tx;                     // OpenCV: xa = txf - tx1
+  float fy = tyf - ty;                     // OpenCV: ya = tyf - ty1
 
   // Handle border cases properly
   // For pixels outside tile boundaries, use border extrapolation
@@ -587,7 +588,7 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
   const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
 
-  uint8_t orig_L_u8 = src_y[idx];  // This is the original L* value (scaled [0,255])
+  uint8_t orig_L_u8 = src_y[idx];  // Original L* value scaled [0,255]
   float v_tl = lut_tl[orig_L_u8];
   float v_tr = lut_tr[orig_L_u8];
   float v_bl = lut_bl[orig_L_u8];
@@ -607,9 +608,9 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
 
   // Replace L* with enhanced version, keep a* and b* unchanged
-  float enhanced_L = enhanced_L_u8 / 2.55f;  // Scale back to [0,100] range
+  float enhanced_L = enhanced_L_u8 * 100.0f / 255.0f;  // Scale back to [0,100] range
 
-  // Convert back to RGB
+  // Convert LAB back to RGB
   uint8_t new_r, new_g, new_b;
   lab_to_rgb(enhanced_L, orig_a, orig_b_lab, &new_r, &new_g, &new_b);
 
