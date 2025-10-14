@@ -26,13 +26,16 @@ doc(
                 op_reference("dynamic.sphere", "Augmentation gallery"),
                 op_reference("dynamic.warp_affine", "Augmentation gallery"),
                 op_reference(
-                    "dynamic.jpeg_compression_distortion", "Augmentation gallery"
+                    "dynamic.jpeg_compression_distortion",
+                    "Augmentation gallery",
                 ),
                 op_reference("dynamic.paste", "Augmentation gallery"),
                 op_reference("dynamic.flip", "Augmentation gallery"),
                 op_reference("dynamic.rotate", "Augmentation gallery"),
                 op_reference("dynamic.hsv", "Augmentation gallery"),
-                op_reference("dynamic.brightness_contrast", "Augmentation gallery"),
+                op_reference(
+                    "dynamic.brightness_contrast", "Augmentation gallery"
+                ),
             ],
         ),
     ],

@@ -521,13 +521,14 @@ class EnumDocumenter(ClassDocumenter):
         the ones we're interested in.
         We can do the sorting here based on the values, and pass through in self.sort_members()
         """
+
         # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value`
         # member returned by get_object_members().
         # Here we are filtering the list, to keep only enum members
         def get_member_name(member):
             # Sphinx 8.x: ObjectMember with __name__ attribute
             # Older Sphinx: tuple (name, value, docstring)
-            if hasattr(member, '__name__'):
+            if hasattr(member, "__name__"):
                 return member.__name__
             else:
                 return member[0]
@@ -543,7 +544,7 @@ class EnumDocumenter(ClassDocumenter):
         # sort by the actual value of enum - this is a tuple of (name, value, boolean)
         # In Sphinx 8.x, it's an ObjectMember with .object attribute
         def get_member_value(member_desc):
-            if hasattr(member_desc, 'object'):
+            if hasattr(member_desc, "object"):
                 # Sphinx 8.x: ObjectMember
                 member_value = member_desc.object
             else:
