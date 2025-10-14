@@ -101,5 +101,3 @@ import time
 
 ## References
 - OpenCV CLAHE implementation: [modules/imgproc/src/clahe.cpp](https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/clahe.cpp)
-- CUDA Best Practices Guide: Memory coalescing patterns
-- NVIDIA GPU Architecture: Occupancy optimization guidelines
