@@ -98,6 +98,7 @@ Highlights
 - Portable across popular deep learning frameworks: TensorFlow, PyTorch, PaddlePaddle, JAX.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
+- Advanced GPU optimizations including automatic kernel fusion, vectorized processing, and adaptive algorithm selection for optimal performance.
 - Flexible graphs let developers create custom pipelines.
 - Extensible for user-specific needs with custom operators.
 - Accelerates image classification (ResNet-50), object detection (SSD) workloads as well as ASR models (Jasper, RNN-T).
