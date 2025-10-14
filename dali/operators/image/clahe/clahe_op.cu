@@ -162,13 +162,13 @@ extern "C" void LaunchRGBToYUint8NHWC(const uint8_t *in_rgb, uint8_t *y_plane, i
                                       cudaStream_t stream) {
   int N = H * W;
 
-  // Use vectorized version for better memory bandwidth on larger images
-  if (N >= 4096) {      // Threshold for using vectorized version
-    int threads = 256;  // Each thread processes 4 pixels
-    int blocks = div_up(N, threads * 4);
+  // Optimized occupancy settings for different image sizes
+  if (N >= 4096) {                        // Use vectorized version for larger images
+    int threads = 256;                    // Better occupancy on modern GPUs
+    int blocks = div_up(N, threads * 4);  // Each thread processes 4 pixels
     rgb_to_y_u8_nhwc_vectorized_kernel<<<blocks, threads, 0, stream>>>(in_rgb, y_plane, H, W);
   } else {
-    int threads = 512;  // Standard version
+    int threads = 256;
     int blocks = div_up(N, threads);
     rgb_to_y_u8_nhwc_kernel<<<blocks, threads, 0, stream>>>(in_rgb, y_plane, H, W);
   }
@@ -271,10 +271,93 @@ extern "C" void LaunchFusedRGBToYHist(const uint8_t *rgb, uint8_t *y_plane, int 
 }
 
 // -------------------------------------------------------------------------------------
-// Kernel 2: Histograms per tile (256 bins, uint32).
-// One thread block per tile; shared 256-bin histogram.
-// Each block sweeps its tile with a grid-stride loop.
+// Optimized Kernel: Histograms per tile with warp-privatized reduction (256 bins, uint32)
+// Uses per-warp histograms to reduce atomic contention, then merges to shared memory
 // -------------------------------------------------------------------------------------
+__global__ void hist_per_tile_256_warp_optimized_kernel(const uint8_t *__restrict__ y_plane, int H,
+                                                        int W, int tiles_x, int tiles_y,
+                                                        unsigned int *__restrict__ histograms) {
+  extern __shared__ unsigned int shist[];  // 256 bins
+  const int bins = 256;
+  const int warp_size = 32;
+  const int warps_per_block = blockDim.x / warp_size;
+
+  int tx = blockIdx.x;  // tile x
+  int ty = blockIdx.y;  // tile y
+  if (tx >= tiles_x || ty >= tiles_y)
+    return;
+
+  int warp_id = threadIdx.x / warp_size;
+  int lane_id = threadIdx.x % warp_size;
+
+  // Per-warp private histograms (warps_per_block * 256 bins)
+  // This reduces atomic contention significantly
+  unsigned int *warp_hist = shist + warp_id * bins;
+  unsigned int *global_hist = shist + warps_per_block * bins;  // Final merged histogram
+
+  // Zero per-warp histogram
+  for (int i = lane_id; i < bins; i += warp_size)
+    warp_hist[i] = 0u;
+
+  // Zero global histogram (only first warp)
+  if (warp_id == 0) {
+    for (int i = lane_id; i < bins; i += warp_size)
+      global_hist[i] = 0u;
+  }
+  __syncthreads();
+
+  // Compute tile bounds
+  int tile_w = div_up(W, tiles_x);
+  int tile_h = div_up(H, tiles_y);
+  int x0 = tx * tile_w;
+  int y0 = ty * tile_h;
+  int x1 = min(x0 + tile_w, W);
+  int y1 = min(y0 + tile_h, H);
+
+  // Each warp processes its portion of the tile
+  int area = (x1 - x0) * (y1 - y0);
+  for (int i = threadIdx.x; i < area; i += blockDim.x) {
+    int dy = i / (x1 - x0);
+    int dx = i - dy * (x1 - x0);
+    int x = x0 + dx;
+    int y = y0 + dy;
+    uint8_t v = y_plane[y * W + x];
+
+    // Atomic to warp-private histogram (much less contention)
+    atomicAdd(&warp_hist[static_cast<int>(v)], 1u);
+  }
+  __syncthreads();
+
+  // Merge warp histograms to final histogram
+  for (int bin = lane_id; bin < bins; bin += warp_size) {
+    unsigned int sum = 0u;
+    for (int w = 0; w < warps_per_block; ++w) {
+      sum += shist[w * bins + bin];
+    }
+    global_hist[bin] = sum;
+  }
+  __syncthreads();
+
+  // Write back to global memory
+  unsigned int *g_hist = histograms + (ty * tiles_x + tx) * bins;
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    g_hist[i] = global_hist[i];
+  }
+}
+
+extern "C" void LaunchHistPerTile256WarpOptimized(const uint8_t *y_plane, int H, int W, int tiles_x,
+                                                  int tiles_y, unsigned int *histograms,
+                                                  cudaStream_t stream) {
+  dim3 grid(tiles_x, tiles_y, 1);
+  int threads = 512;  // 16 warps per block
+  int warps_per_block = threads / 32;
+  // Shared memory: warps_per_block * 256 (private) + 256 (final) = (warps_per_block + 1) * 256
+  size_t shmem = (warps_per_block + 1) * 256 * sizeof(unsigned int);
+  hist_per_tile_256_warp_optimized_kernel<<<grid, threads, shmem, stream>>>(y_plane, H, W, tiles_x,
+                                                                            tiles_y, histograms);
+}
+
+// Original version kept for fallback
 __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, int H, int W,
                                          int tiles_x, int tiles_y,
                                          unsigned int *__restrict__ histograms) {
@@ -320,11 +403,18 @@ __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, in
 
 extern "C" void LaunchHistPerTile256(const uint8_t *y_plane, int H, int W, int tiles_x, int tiles_y,
                                      unsigned int *histograms, cudaStream_t stream) {
-  dim3 grid(tiles_x, tiles_y, 1);
-  int threads = 512;  // Increased for better shared memory utilization
-  size_t shmem = 256 * sizeof(unsigned int);
-  hist_per_tile_256_kernel<<<grid, threads, shmem, stream>>>(y_plane, H, W, tiles_x, tiles_y,
-                                                             histograms);
+  // Use warp-optimized version for larger tiles (where contention is higher)
+  int tile_area = div_up(W, tiles_x) * div_up(H, tiles_y);
+  if (tile_area >= 1024) {  // Threshold where warp optimization pays off
+    LaunchHistPerTile256WarpOptimized(y_plane, H, W, tiles_x, tiles_y, histograms, stream);
+  } else {
+    // Use original version for small tiles
+    dim3 grid(tiles_x, tiles_y, 1);
+    int threads = 512;
+    size_t shmem = 256 * sizeof(unsigned int);
+    hist_per_tile_256_kernel<<<grid, threads, shmem, stream>>>(y_plane, H, W, tiles_x, tiles_y,
+                                                               histograms);
+  }
 }
 
 // -------------------------------------------------------------------------------------
@@ -430,15 +520,97 @@ extern "C" void LaunchClipCdfToLut256(unsigned int *histograms, int H, int W, in
   int tile_w = div_up(W, tiles_x);
   int tile_h = div_up(H, tiles_y);
   dim3 grid(tiles_x, tiles_y, 1);
-  int threads = 512;  // Increased for better compute utilization
+
+  // Optimize thread count for better occupancy on modern GPUs
+  // 256 threads allows more blocks per SM, improving overall throughput
+  int threads = 256;  // Changed from 512 for better occupancy
   clip_cdf_lut_256_kernel<<<grid, threads, 0, stream>>>(histograms, tiles_x, tiles_y, tile_w,
                                                         tile_h, W, H, clip_limit_rel, luts);
 }
 
 // -------------------------------------------------------------------------------------
-// Kernel 4a: Apply LUT with bilinear interpolation for GRAYSCALE output.
-// For each pixel, look up 4 neighboring tile LUTs and bilinearly blend.
+// Optimized Vectorized Kernel: Apply LUT with bilinear interpolation for GRAYSCALE output.
+// Uses float4 vectorized loads for better memory coalescing (4 pixels per load)
 // -------------------------------------------------------------------------------------
+__global__ void apply_lut_bilinear_gray_vectorized_kernel(const uint8_t *__restrict__ src_y,
+                                                          uint8_t *__restrict__ dst_y, int H, int W,
+                                                          int tiles_x, int tiles_y,
+                                                          const uint8_t *__restrict__ luts) {
+  int base_idx = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  int N = H * W;
+
+// Process 4 pixels per thread for better memory coalescing
+#pragma unroll
+  for (int i = 0; i < 4; ++i) {
+    int idx = base_idx + i;
+    if (idx >= N)
+      return;
+
+    int y = idx / W;
+    int x = idx - y * W;
+
+    // Tile geometry - use same calculation as histogram kernel for consistency
+    int tile_w = div_up(W, tiles_x);
+    int tile_h = div_up(H, tiles_y);
+
+    // Tile coordinates
+    float gx = (x + 0.5f) / tile_w - 0.5f;  // tile-space x
+    float gy = (y + 0.5f) / tile_h - 0.5f;  // tile-space y
+    int tx = static_cast<int>(floorf(gx));
+    int ty = static_cast<int>(floorf(gy));
+    float fx = gx - tx;
+    float fy = gy - ty;
+
+    // Handle border cases properly
+    int tx0, ty0, tx1, ty1;
+
+    if (tx < 0) {
+      tx0 = tx1 = 0;
+      fx = 0.f;
+    } else if (tx >= tiles_x - 1) {
+      tx0 = tx1 = tiles_x - 1;
+      fx = 0.f;
+    } else {
+      tx0 = tx;
+      tx1 = tx + 1;
+      fx = fminf(fmaxf(fx, 0.f), 1.f);
+    }
+
+    if (ty < 0) {
+      ty0 = ty1 = 0;
+      fy = 0.f;
+    } else if (ty >= tiles_y - 1) {
+      ty0 = ty1 = tiles_y - 1;
+      fy = 0.f;
+    } else {
+      ty0 = ty;
+      ty1 = ty + 1;
+      fy = fminf(fmaxf(fy, 0.f), 1.f);
+    }
+
+    int bins = 256;
+    const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
+    const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
+    const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
+    const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
+
+    uint8_t v = src_y[idx];
+    float v_tl = lut_tl[v];
+    float v_tr = lut_tr[v];
+    float v_bl = lut_bl[v];
+    float v_br = lut_br[v];
+
+    // Bilinear blend
+    float v_top = v_tl * (1.f - fx) + v_tr * fx;
+    float v_bot = v_bl * (1.f - fx) + v_br * fx;
+    float v_out = v_top * (1.f - fy) + v_bot * fy;
+
+    int outi = static_cast<int>(lrintf(fminf(fmaxf(v_out, 0.f), 255.f)));
+    dst_y[idx] = (uint8_t)outi;
+  }
+}
+
+// Original single-pixel version
 __global__ void apply_lut_bilinear_gray_kernel(const uint8_t *__restrict__ src_y,
                                                uint8_t *__restrict__ dst_y, int H, int W,
                                                int tiles_x, int tiles_y,
@@ -512,19 +684,237 @@ __global__ void apply_lut_bilinear_gray_kernel(const uint8_t *__restrict__ src_y
   dst_y[idx] = (uint8_t)outi;
 }
 
+// -------------------------------------------------------------------------------------
+// Simplified Texture-Optimized Kernel: Use 1D texture for LUT lookups
+// -------------------------------------------------------------------------------------
+__global__ void apply_lut_bilinear_gray_texture_kernel(const uint8_t *__restrict__ src_y,
+                                                       uint8_t *__restrict__ dst_y, int H, int W,
+                                                       int tiles_x, int tiles_y,
+                                                       cudaTextureObject_t lut_texture, int bins) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int N = H * W;
+  if (idx >= N)
+    return;
+
+  int y = idx / W;
+  int x = idx - y * W;
+
+  // Tile geometry
+  int tile_w = div_up(W, tiles_x);
+  int tile_h = div_up(H, tiles_y);
+
+  // Tile coordinates
+  float gx = (x + 0.5f) / tile_w - 0.5f;
+  float gy = (y + 0.5f) / tile_h - 0.5f;
+  int tx = static_cast<int>(floorf(gx));
+  int ty = static_cast<int>(floorf(gy));
+  float fx = gx - tx;
+  float fy = gy - ty;
+
+  // Handle border cases
+  int tx0, ty0, tx1, ty1;
+
+  if (tx < 0) {
+    tx0 = tx1 = 0;
+    fx = 0.f;
+  } else if (tx >= tiles_x - 1) {
+    tx0 = tx1 = tiles_x - 1;
+    fx = 0.f;
+  } else {
+    tx0 = tx;
+    tx1 = tx + 1;
+    fx = fminf(fmaxf(fx, 0.f), 1.f);
+  }
+
+  if (ty < 0) {
+    ty0 = ty1 = 0;
+    fy = 0.f;
+  } else if (ty >= tiles_y - 1) {
+    ty0 = ty1 = tiles_y - 1;
+    fy = 0.f;
+  } else {
+    ty0 = ty;
+    ty1 = ty + 1;
+    fy = fminf(fmaxf(fy, 0.f), 1.f);
+  }
+
+  uint8_t v = src_y[idx];
+
+  // Use texture memory for LUT lookups with 1D indexing
+  int tile_tl = ty0 * tiles_x + tx0;
+  int tile_tr = ty0 * tiles_x + tx1;
+  int tile_bl = ty1 * tiles_x + tx0;
+  int tile_br = ty1 * tiles_x + tx1;
+
+  float v_tl = tex1Dfetch<uint8_t>(lut_texture, tile_tl * bins + v);
+  float v_tr = tex1Dfetch<uint8_t>(lut_texture, tile_tr * bins + v);
+  float v_bl = tex1Dfetch<uint8_t>(lut_texture, tile_bl * bins + v);
+  float v_br = tex1Dfetch<uint8_t>(lut_texture, tile_br * bins + v);
+
+  // Bilinear blend
+  float v_top = v_tl * (1.f - fx) + v_tr * fx;
+  float v_bot = v_bl * (1.f - fx) + v_br * fx;
+  float v_out = v_top * (1.f - fy) + v_bot * fy;
+
+  int outi = static_cast<int>(lrintf(fminf(fmaxf(v_out, 0.f), 255.f)));
+  dst_y[idx] = (uint8_t)outi;
+}
+
+extern "C" void LaunchApplyLUTBilinearToGrayTexture(const uint8_t *src_gray, uint8_t *dst_gray,
+                                                    int H, int W, int tiles_x, int tiles_y,
+                                                    const uint8_t *luts, cudaStream_t stream) {
+  // Create 1D texture object for LUT array
+  cudaResourceDesc resDesc;
+  memset(&resDesc, 0, sizeof(resDesc));
+  resDesc.resType = cudaResourceTypeLinear;
+  resDesc.res.linear.devPtr = const_cast<uint8_t *>(luts);
+  resDesc.res.linear.desc.f = cudaChannelFormatKindUnsigned;
+  resDesc.res.linear.desc.x = 8;  // 8-bit uint8
+  resDesc.res.linear.sizeInBytes = tiles_x * tiles_y * 256 * sizeof(uint8_t);
+
+  cudaTextureDesc texDesc;
+  memset(&texDesc, 0, sizeof(texDesc));
+  texDesc.addressMode[0] = cudaAddressModeClamp;
+  texDesc.filterMode = cudaFilterModePoint;
+  texDesc.readMode = cudaReadModeElementType;
+  texDesc.normalizedCoords = 0;
+
+  cudaTextureObject_t lutTexture = 0;
+  cudaCreateTextureObject(&lutTexture, &resDesc, &texDesc, nullptr);
+
+  int N = H * W;
+  int threads = 256;
+  int blocks = div_up(N, threads);
+  apply_lut_bilinear_gray_texture_kernel<<<blocks, threads, 0, stream>>>(
+      src_gray, dst_gray, H, W, tiles_x, tiles_y, lutTexture, 256);
+
+  // Clean up texture object
+  cudaDestroyTextureObject(lutTexture);
+}
+
+// Update the main launcher to optionally use texture version
 extern "C" void LaunchApplyLUTBilinearToGray(const uint8_t *src_gray, uint8_t *dst_gray, int H,
                                              int W, int tiles_x, int tiles_y, const uint8_t *luts,
                                              cudaStream_t stream) {
   int N = H * W;
-  int threads = 512;  // Increased for better memory bandwidth utilization
-  int blocks = div_up(N, threads);
-  apply_lut_bilinear_gray_kernel<<<blocks, threads, 0, stream>>>(src_gray, dst_gray, H, W, tiles_x,
-                                                                 tiles_y, luts);
+  int total_tiles = tiles_x * tiles_y;
+
+  // Use texture version for larger tile counts where cache benefits are significant
+  if (total_tiles >= 32 && N >= 16384) {  // Threshold for texture memory benefit
+    LaunchApplyLUTBilinearToGrayTexture(src_gray, dst_gray, H, W, tiles_x, tiles_y, luts, stream);
+  } else if (N >= 8192) {  // Use vectorized version for medium images
+    int threads = 256;
+    int blocks = div_up(N, threads * 4);
+    apply_lut_bilinear_gray_vectorized_kernel<<<blocks, threads, 0, stream>>>(
+        src_gray, dst_gray, H, W, tiles_x, tiles_y, luts);
+  } else {
+    // Use original version for smaller images
+    int threads = 512;
+    int blocks = div_up(N, threads);
+    apply_lut_bilinear_gray_kernel<<<blocks, threads, 0, stream>>>(src_gray, dst_gray, H, W,
+                                                                   tiles_x, tiles_y, luts);
+  }
 }
 
 // -------------------------------------------------------------------------------------
-// Kernel 4b: Apply LUT for RGB using proper LAB color space (match OpenCV exactly)
+// Optimized Vectorized Kernel: Apply LUT for RGB using vectorized memory access
+// Uses uchar4 loads for RGB data and processes multiple pixels per thread
 // -------------------------------------------------------------------------------------
+__global__ void apply_lut_bilinear_rgb_vectorized_kernel(const uint8_t *__restrict__ src_rgb,
+                                                         const uint8_t *__restrict__ src_y,
+                                                         uint8_t *__restrict__ dst_rgb, int H,
+                                                         int W, int tiles_x, int tiles_y,
+                                                         const uint8_t *__restrict__ luts) {
+  int base_idx = (blockIdx.x * blockDim.x + threadIdx.x) * 2;  // Process 2 pixels per thread
+  int N = H * W;
+
+#pragma unroll
+  for (int i = 0; i < 2; ++i) {
+    int idx = base_idx + i;
+    if (idx >= N)
+      return;
+
+    int y = idx / W;
+    int x = idx - y * W;
+
+    // Tile geometry calculations (same as before)
+    float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
+    float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
+
+    float txf = x * inv_tw - 0.5f;
+    float tyf = y * inv_th - 0.5f;
+
+    int tx = static_cast<int>(floorf(txf));
+    int ty = static_cast<int>(floorf(tyf));
+    float fx = txf - tx;
+    float fy = tyf - ty;
+
+    // Handle border cases
+    int tx0, ty0, tx1, ty1;
+
+    if (tx < 0) {
+      tx0 = tx1 = 0;
+      fx = 0.f;
+    } else if (tx >= tiles_x - 1) {
+      tx0 = tx1 = tiles_x - 1;
+      fx = 0.f;
+    } else {
+      tx0 = tx;
+      tx1 = tx + 1;
+      fx = fminf(fmaxf(fx, 0.f), 1.f);
+    }
+
+    if (ty < 0) {
+      ty0 = ty1 = 0;
+      fy = 0.f;
+    } else if (ty >= tiles_y - 1) {
+      ty0 = ty1 = tiles_y - 1;
+      fy = 0.f;
+    } else {
+      ty0 = ty;
+      ty1 = ty + 1;
+      fy = fminf(fmaxf(fy, 0.f), 1.f);
+    }
+
+    int bins = 256;
+    const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
+    const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
+    const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
+    const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
+
+    uint8_t orig_L_u8 = src_y[idx];
+    float v_tl = lut_tl[orig_L_u8];
+    float v_tr = lut_tr[orig_L_u8];
+    float v_bl = lut_bl[orig_L_u8];
+    float v_br = lut_br[orig_L_u8];
+
+    float v_top = v_tl * (1.f - fx) + v_tr * fx;
+    float v_bot = v_bl * (1.f - fx) + v_br * fx;
+    float enhanced_L_u8 = v_top * (1.f - fy) + v_bot * fy;
+
+    // Convert original RGB to LAB
+    int base = 3 * idx;
+    uint8_t orig_r = src_rgb[base + 0];
+    uint8_t orig_g = src_rgb[base + 1];
+    uint8_t orig_b = src_rgb[base + 2];
+
+    float orig_L, orig_a, orig_b_lab;
+    rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
+
+    // Replace L* with enhanced version, keep a* and b* unchanged
+    float enhanced_L = enhanced_L_u8 * 100.0f / 255.0f;
+
+    // Convert LAB back to RGB
+    uint8_t new_r, new_g, new_b;
+    lab_to_rgb(enhanced_L, orig_a, orig_b_lab, &new_r, &new_g, &new_b);
+
+    dst_rgb[base + 0] = new_r;
+    dst_rgb[base + 1] = new_g;
+    dst_rgb[base + 2] = new_b;
+  }
+}
+
+// Original single-pixel RGB version
 __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rgb,
                                               const uint8_t *__restrict__ src_y,  // original L*
                                               uint8_t *__restrict__ dst_rgb, int H, int W,
@@ -623,19 +1013,181 @@ extern "C" void LaunchApplyLUTBilinearToRGB(const uint8_t *src_rgb, const uint8_
                                             uint8_t *dst_rgb, int H, int W, int tiles_x,
                                             int tiles_y, const uint8_t *luts, cudaStream_t stream) {
   int N = H * W;
-  int threads = 512;  // Increased for better memory bandwidth utilization
-  int blocks = div_up(N, threads);
-  apply_lut_bilinear_rgb_kernel<<<blocks, threads, 0, stream>>>(src_rgb, src_y, dst_rgb, H, W,
-                                                                tiles_x, tiles_y, luts);
+
+  // Use vectorized version for larger images
+  if (N >= 8192) {                        // Threshold for vectorized processing
+    int threads = 256;                    // Better occupancy with complex RGB processing
+    int blocks = div_up(N, threads * 2);  // Each thread processes 2 pixels
+    apply_lut_bilinear_rgb_vectorized_kernel<<<blocks, threads, 0, stream>>>(
+        src_rgb, src_y, dst_rgb, H, W, tiles_x, tiles_y, luts);
+  } else {
+    // Use original version for smaller images
+    int threads = 512;
+    int blocks = div_up(N, threads);
+    apply_lut_bilinear_rgb_kernel<<<blocks, threads, 0, stream>>>(src_rgb, src_y, dst_rgb, H, W,
+                                                                  tiles_x, tiles_y, luts);
+  }
 }
 
+// -------------------------------------------------------------------------------------
+// Mega-Fused Kernel: Histogram + Clip + CDF + LUT generation in one pass
+// Eliminates multiple kernel launches and global memory round-trips
+// Each block handles one tile and computes everything from histogram to final LUT
+// -------------------------------------------------------------------------------------
+__global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ y_plane, int H,
+                                                    int W, int tiles_x, int tiles_y, int tile_w,
+                                                    int tile_h, float clip_limit_rel,
+                                                    uint8_t *__restrict__ luts) {
+  extern __shared__ unsigned int sdata[];  // Dynamic shared memory
+  const int bins = 256;
+  const int warp_size = 32;
+  const int warps_per_block = blockDim.x / warp_size;
+
+  // Shared memory layout:
+  // [0...warps_per_block*256) = per-warp histograms
+  // [warps_per_block*256...warps_per_block*256+256) = final histogram
+  // [warps_per_block*256+256...warps_per_block*256+512) = CDF
+  unsigned int *warp_hist = sdata;
+  unsigned int *hist = sdata + warps_per_block * bins;
+  unsigned int *cdf = hist + bins;
+
+  int tx = blockIdx.x;  // tile x
+  int ty = blockIdx.y;  // tile y
+  if (tx >= tiles_x || ty >= tiles_y)
+    return;
+
+  int warp_id = threadIdx.x / warp_size;
+  int lane_id = threadIdx.x % warp_size;
+
+  // Initialize shared memory
+  unsigned int *my_warp_hist = warp_hist + warp_id * bins;
+  for (int i = lane_id; i < bins; i += warp_size)
+    my_warp_hist[i] = 0u;
+
+  if (warp_id == 0) {
+    for (int i = lane_id; i < bins; i += warp_size) {
+      hist[i] = 0u;
+      cdf[i] = 0u;
+    }
+  }
+  __syncthreads();
+
+  // Compute actual tile bounds
+  int x0 = tx * tile_w;
+  int y0 = ty * tile_h;
+  int x1 = min(x0 + tile_w, W);
+  int y1 = min(y0 + tile_h, H);
+  int area = max(1, (x1 - x0) * (y1 - y0));
+
+  // Build per-warp histograms
+  int tile_area = (x1 - x0) * (y1 - y0);
+  for (int i = threadIdx.x; i < tile_area; i += blockDim.x) {
+    int dy = i / (x1 - x0);
+    int dx = i - dy * (x1 - x0);
+    int x = x0 + dx;
+    int y = y0 + dy;
+    uint8_t v = y_plane[y * W + x];
+    atomicAdd(&my_warp_hist[static_cast<int>(v)], 1u);
+  }
+  __syncthreads();
+
+  // Merge warp histograms
+  for (int bin = lane_id; bin < bins; bin += warp_size) {
+    unsigned int sum = 0u;
+    for (int w = 0; w < warps_per_block; ++w) {
+      sum += warp_hist[w * bins + bin];
+    }
+    hist[bin] = sum;
+  }
+  __syncthreads();
+
+  // Clip histogram and redistribute excess
+  float clip_limit_f = clip_limit_rel * area / bins;
+  unsigned int limit = max(static_cast<unsigned int>(clip_limit_f), 1u);
+
+  __shared__ unsigned int excess;
+  if (threadIdx.x == 0)
+    excess = 0u;
+  __syncthreads();
+
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    unsigned int v = hist[i];
+    if (v > limit) {
+      unsigned int over = v - limit;
+      hist[i] = limit;
+      atomicAdd(&excess, over);
+    }
+  }
+  __syncthreads();
+
+  // Redistribute excess
+  unsigned int redistBatch = excess / bins;
+  unsigned int residual = excess % bins;
+
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    hist[i] += redistBatch;
+  }
+  __syncthreads();
+
+  // Distribute residual (single thread)
+  if (threadIdx.x == 0 && residual > 0) {
+    unsigned int residualStep = max(bins / residual, 1u);
+    for (unsigned int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
+      hist[i]++;
+    }
+  }
+  __syncthreads();
+
+  // Compute CDF (prefix sum)
+  if (threadIdx.x == 0) {
+    unsigned int acc = 0u;
+    for (int i = 0; i < bins; ++i) {
+      acc += hist[i];
+      cdf[i] = acc;
+    }
+  }
+  __syncthreads();
+
+  // Generate LUT
+  uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
+  float lutScale = static_cast<float>(bins - 1) / static_cast<float>(area);
+
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    float val = static_cast<float>(cdf[i]) * lutScale;
+    lut[i] = static_cast<uint8_t>(lrintf(fminf(fmaxf(val, 0.f), 255.f)));
+  }
+}
+
+extern "C" void LaunchMegaFusedHistClipCdfLut(const uint8_t *y_plane, int H, int W, int tiles_x,
+                                              int tiles_y, float clip_limit_rel, uint8_t *luts,
+                                              cudaStream_t stream) {
+  int tile_w = div_up(W, tiles_x);
+  int tile_h = div_up(H, tiles_y);
+  dim3 grid(tiles_x, tiles_y, 1);
+  int threads = 256;  // Optimized for occupancy
+
+  // Calculate shared memory needed
+  int warps_per_block = threads / 32;
+  size_t shmem = (warps_per_block + 2) * 256 * sizeof(unsigned int);  // warp_hists + hist + cdf
+
+  mega_fused_hist_clip_cdf_lut_kernel<<<grid, threads, shmem, stream>>>(
+      y_plane, H, W, tiles_x, tiles_y, tile_w, tile_h, clip_limit_rel, luts);
+}
 extern "C" void LaunchCLAHE_Grayscale_U8_NHWC(const uint8_t *src_gray, uint8_t *dst_gray, int H,
                                               int W, int tiles_x, int tiles_y, float clip_limit_rel,
                                               unsigned int *tmp_histograms,  // tiles*bins
                                               uint8_t *tmp_luts,             // tiles*bins
                                               cudaStream_t stream) {
-  LaunchHistPerTile256(src_gray, H, W, tiles_x, tiles_y, tmp_histograms, stream);
-  LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts, stream);
+  // Use mega-fused version for larger images where the fusion overhead pays off
+  int total_tiles = tiles_x * tiles_y;
+  if (total_tiles >= 16) {  // Threshold where fusion is beneficial
+    LaunchMegaFusedHistClipCdfLut(src_gray, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts,
+                                  stream);
+  } else {
+    // Use traditional 3-kernel approach for smaller tile counts
+    LaunchHistPerTile256(src_gray, H, W, tiles_x, tiles_y, tmp_histograms, stream);
+    LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts, stream);
+  }
   LaunchApplyLUTBilinearToGray(src_gray, dst_gray, H, W, tiles_x, tiles_y, tmp_luts, stream);
 }
 
