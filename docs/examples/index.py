@@ -37,6 +37,7 @@ doc(
             ],
         ),
         "operations_index.py",
+        "dynamic_mode/index.py",
         "use_cases/index.py",
         "other_index.py",
     ],
