@@ -258,6 +258,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   // Compute clip limit (relative to avg bin count)
   float avg = static_cast<float>(area) / bins;
   unsigned int limit = static_cast<unsigned int>(floorf(clip_limit_rel * avg));
+  limit = max(limit, 1u);  // Ensure minimum clip limit of 1 like OpenCV
 
   // Clip and accumulate excess
   __shared__ unsigned int excess;
@@ -275,16 +276,20 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Redistribute excess uniformly
+  // Redistribute excess using OpenCV-style distribution
   unsigned int add = excess / bins;
   unsigned int rem = excess % bins;
   for (int i = tid; i < bins; i += blockDim.x) {
     h[i] += add;
   }
   __syncthreads();
-  // Distribute remainder one by one (first 'rem' bins)
-  for (int i = tid; i < static_cast<int>(rem); i += blockDim.x) {
-    atomicAdd(&h[i], 1u);
+
+  // Distribute remainder using OpenCV's step pattern (single-threaded to match behavior)
+  if (tid == 0 && rem > 0) {
+    unsigned int step = max(bins / rem, 1u);
+    for (unsigned int i = 0; i < bins && rem > 0; i += step, rem--) {
+      h[i]++;
+    }
   }
   __syncthreads();
 
@@ -351,9 +356,9 @@ __global__ void apply_lut_bilinear_gray_kernel(const uint8_t *__restrict__ src_y
   int y = idx / W;
   int x = idx - y * W;
 
-  // Tile geometry
-  int tile_w = div_up(W, tiles_x);
-  int tile_h = div_up(H, tiles_y);
+  // Tile geometry - use OpenCV's approach (integer division, not ceiling)
+  int tile_w = W / tiles_x;
+  int tile_h = H / tiles_y;
 
   // Tile coordinates
   float gx = (x + 0.5f) / tile_w - 0.5f;  // tile-space x
@@ -439,9 +444,9 @@ __global__ void apply_lut_bilinear_rgb_kernel(const uint8_t *__restrict__ src_rg
   int y = idx / W;
   int x = idx - y * W;
 
-  // Tile geometry
-  int tile_w = div_up(W, tiles_x);
-  int tile_h = div_up(H, tiles_y);
+  // Tile geometry - use OpenCV's approach (integer division, not ceiling)
+  int tile_w = W / tiles_x;
+  int tile_h = H / tiles_y;
 
   // Tile coordinates
   float gx = (x + 0.5f) / tile_w - 0.5f;
