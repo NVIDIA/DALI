@@ -132,10 +132,10 @@ def test_clamp(device_type):
     assert np.allclose(a, ref, atol=1e-6)
 
 
-def test_mixed_operand_devices():
+def test_mixed_operand_devices_error():
     data1 = np.array([1, 2, 3], dtype=np.float32)
     data2 = np.array([4, 5, 6], dtype=np.float32)
     t1 = ndd.Tensor(data1, device="cpu")
     t2 = ndd.Tensor(data2, device="gpu")
     with assert_raises(ValueError, glob="Cannot mix GPU and CPU inputs"):
-        a = np.array(ndd.math.pow(t1, t2).cpu())
+        _ = ndd.math.pow(t1, t2).cpu()
