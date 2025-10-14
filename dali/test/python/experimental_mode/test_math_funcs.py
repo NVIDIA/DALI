@@ -16,6 +16,7 @@ import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 from nose2.tools import params
 from itertools import product
+from nose_utils import assert_raises
 
 arbitrary = "arbitrary"
 nonzero = "nonzero"
@@ -109,6 +110,19 @@ def test_binary_functions(functions, device_type):
     assert np.allclose(a, ref, atol=1e-6)
 
 
+@params(*product(binary_functions, ["cpu", "gpu"]))
+def test_binary_functions_batch(functions, device_type):
+    ndd_func, np_func, domain1, domain2 = functions
+    data1 = get_operand1(domain1)
+    data2 = get_operand2(domain2)
+    t1 = ndd.as_batch(data1, device=device_type)
+    t2 = ndd.as_batch(data2, device=device_type)
+    a = ndd_func(t1, t2)
+    ref = np_func(data1, data2)
+    assert np.allclose(a.tensors[0].cpu(), ref[0], atol=1e-6)
+    assert np.allclose(a.tensors[1].cpu(), ref[1], atol=1e-6)
+
+
 @params(("cpu",), ("gpu",))
 def test_clamp(device_type):
     data = np.array([[-1, 0, 1], [2, 3, 4]], dtype=np.float32)
@@ -116,3 +130,12 @@ def test_clamp(device_type):
     a = np.array(ndd.math.clamp(t, 1, 2).cpu())
     ref = np.clip(data, 1, 2)
     assert np.allclose(a, ref, atol=1e-6)
+
+
+def test_mixed_operand_devices():
+    data1 = np.array([1, 2, 3], dtype=np.float32)
+    data2 = np.array([4, 5, 6], dtype=np.float32)
+    t1 = ndd.Tensor(data1, device="cpu")
+    t2 = ndd.Tensor(data2, device="gpu")
+    with assert_raises(ValueError, glob="Cannot mix GPU and CPU inputs"):
+        a = np.array(ndd.math.pow(t1, t2).cpu())
