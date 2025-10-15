@@ -22,6 +22,9 @@
     fn: FFmpeg-n7.1.2.tar.gz
     url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n7.1.2.tar.gz
     sha256: 8cb1bb8cfa9aeae13279b4da42ae8307ae6777456d4270f2e603c95aa08ca8ef
+    patches:
+      - patches/FFmpeg-CVE-2025-22921.patch
+      - patches/FFmpeg-CVE-2025-25473.patch
 
   build:
     number: 0
