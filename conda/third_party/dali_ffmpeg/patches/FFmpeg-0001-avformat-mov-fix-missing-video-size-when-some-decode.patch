@@ -1,0 +1,44 @@
+From 6b961f5963d8e362137702d38a744b45fba8ba3a Mon Sep 17 00:00:00 2001
+From: Zhao Zhili <zhilizhao@tencent.com>
+Date: Wed, 8 Oct 2025 23:31:11 +0800
+Subject: [PATCH] avformat/mov: fix missing video size when some decoders are
+ disabled
+
+Fix #20667
+
+Signed-off-by: Zhao Zhili <zhilizhao@tencent.com>
+---
+ libavformat/mov.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/libavformat/mov.c b/libavformat/mov.c
+index 7fe4678234..922e001e5e 100644
+--- a/libavformat/mov.c
++++ b/libavformat/mov.c
+@@ -5243,16 +5243,22 @@ static int mov_read_trak(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+ #endif
+     }
+
++#if CONFIG_H261_DECODER || CONFIG_H263_DECODER || CONFIG_MPEG4_DECODER
+     switch (st->codecpar->codec_id) {
++#if CONFIG_H261_DECODER
+     case AV_CODEC_ID_H261:
++#endif
++#if CONFIG_H263_DECODER
+     case AV_CODEC_ID_H263:
++#endif
++#if CONFIG_MPEG4_DECODER
+     case AV_CODEC_ID_MPEG4:
++#endif
+         st->codecpar->width = 0; /* let decoder init width/height */
+         st->codecpar->height= 0;
+         break;
+-    default:
+-        break;
+     }
++#endif
+
+     // If the duration of the mp3 packets is not constant, then they could need a parser
+     if (st->codecpar->codec_id == AV_CODEC_ID_MP3
+-- 
+2.43.0

@@ -22,6 +22,8 @@
     fn: FFmpeg-n8.0.tar.gz
     url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/FFmpeg-n8.0.tar.gz
     sha256: dd4030dbfdc34d9ff255a116bdd1caade42500ac2981efa27f8b151cc54c7b9e
+    patches:
+      - patches/FFmpeg-0001-avformat-mov-fix-missing-video-size-when-some-decode.patch
 
   build:
     number: 0
