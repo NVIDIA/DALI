@@ -321,7 +321,7 @@ __global__ void hist_per_tile_256_warp_optimized_kernel(const uint8_t *__restric
   int area = (x1 - x0) * (y1 - y0);
   for (int i = threadIdx.x; i < area; i += blockDim.x) {
     int dy = i / (x1 - x0);
-    int dx = i - dy * (x1 - x0);
+    int dx = i % (x1 - x0);
     int x = x0 + dx;
     int y = y0 + dy;
     uint8_t v = y_plane[y * W + x];
@@ -388,7 +388,7 @@ __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, in
   int area = (x1 - x0) * (y1 - y0);
   for (int i = threadIdx.x; i < area; i += blockDim.x) {
     int dy = i / (x1 - x0);
-    int dx = i - dy * (x1 - x0);
+    int dx = i % (x1 - x0);
     int x = x0 + dx;
     int y = y0 + dy;
     uint8_t v = y_plane[y * W + x];
@@ -1069,7 +1069,7 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
   int tile_area = (x1 - x0) * (y1 - y0);
   for (int i = threadIdx.x; i < tile_area; i += blockDim.x) {
     int dy = i / (x1 - x0);
-    int dx = i - dy * (x1 - x0);
+    int dx = i % (x1 - x0);
     int x = x0 + dx;
     int y = y0 + dy;
     uint8_t v = y_plane[y * W + x];
