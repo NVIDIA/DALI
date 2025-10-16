@@ -22,6 +22,7 @@
 
 #define THRESHOLD_6_29TH (6.0f / 29.0f)
 #define OFFSET_4_29TH (4.0f / 29.0f)
+#define SLOPE_841_108TH (841.0f / 108.0f)  // (29/6)² / 3 for LAB conversion slope
 
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
@@ -40,7 +41,7 @@ __device__ float xyz_to_lab_f(float t) {
   // OpenCV uses these exact thresholds and constants
   // More precise constants using mathematical expressions
   const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // (6/29)^3
-  const float slope = THRESHOLD_6_29TH * THRESHOLD_6_29TH / 3.0f;  // (29/6)^2 / 3 // 4/29
+  const float slope = THRESHOLD_6_29TH * THRESHOLD_6_29TH / 3.0f;                  // (6/29)^2 / 3
   return (t > threshold) ? cbrtf(t) : (slope * t + OFFSET_4_29TH);
 }
 
@@ -244,7 +245,7 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
 
     // Convert Y to LAB L* using OpenCV's exact threshold and constants
     const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;
-    float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : ((841.0f / 108.0f) * y_xyz + (4.0f / 29.0f));
+    float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : (SLOPE_841_108TH * y_xyz + OFFSET_4_29TH);
     float L = 116.0f * fy - 16.0f;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
