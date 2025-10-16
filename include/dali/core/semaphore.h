@@ -19,7 +19,7 @@
 #include <semaphore>
 
 namespace dali {
-using counting_semaphore = std::counting_semaphore;
+using counting_semaphore = std::counting_semaphore<>;
 }  // namespace dali
 
 #else
