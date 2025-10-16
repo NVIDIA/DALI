@@ -20,7 +20,8 @@
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
 
-#define THRESHOLD_CONSTANT (6.0f / 29.0f)
+#define THRESHOLD_6_29TH (6.0f / 29.0f)
+#define OFFSET_4_29TH (4.0f / 29.0f)
 
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
@@ -38,18 +39,17 @@ __device__ float linear_to_srgb(float c) {
 __device__ float xyz_to_lab_f(float t) {
   // OpenCV uses these exact thresholds and constants
   // More precise constants using mathematical expressions
-  const float threshold = THRESHOLD_CONSTANT * THRESHOLD_CONSTANT * THRESHOLD_CONSTANT;  // (6/29)^3
-  const float slope = THRESHOLD_CONSTANT * THRESHOLD_CONSTANT / 3.0f;  // (29/6)^2 / 3
-  const float offset = 4.0f / 29.0f;                                   // 4/29
-  return (t > threshold) ? cbrtf(t) : (slope * t + offset);
+  const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // (6/29)^3
+  const float slope = THRESHOLD_6_29TH * THRESHOLD_6_29TH / 3.0f;  // (29/6)^2 / 3 // 4/29
+  return (t > threshold) ? cbrtf(t) : (slope * t + OFFSET_4_29TH);
 }
 
 __device__ float lab_f_to_xyz(float t) {
   // OpenCV's exact inverse transformation with more precise constants
-  const float threshold = THRESHOLD_CONSTANT * THRESHOLD_CONSTANT * THRESHOLD_CONSTANT;  // (6/29)^3
+  const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // (6/29)^3
   const float slope_inv =
-      3.0f / (THRESHOLD_CONSTANT * THRESHOLD_CONSTANT);  // 3 * (6/29)^2 = 0.128418...
-  return (t > threshold) ? (t * t * t) : (slope_inv * (t - 4.0f / 29.0f));
+      3.0f / (THRESHOLD_6_29TH * THRESHOLD_6_29TH);  // 3 * (6/29)^2 = 0.128418...
+  return (t > threshold) ? (t * t * t) : (slope_inv * (t - OFFSET_4_29TH));
 }
 
 __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_out, float *b_out) {
@@ -243,7 +243,8 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     z_xyz = z_xyz / 1.0890577507598784f;
 
     // Convert Y to LAB L* using OpenCV's exact threshold and constants
-    float fy = (y_xyz > 0.008856f) ? cbrtf(y_xyz) : (7.787037037f * y_xyz + 0.137931034f);
+    const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;
+    float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : ((841.0f / 108.0f) * y_xyz + (4.0f / 29.0f));
     float L = 116.0f * fy - 16.0f;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])

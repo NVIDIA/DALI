@@ -41,7 +41,9 @@ class ClaheCPU : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
     const auto &in = ws.Input<CPUBackend>(0);
 
-    DALI_ENFORCE(in.type() == DALI_UINT8, "ClaheCPU currently supports only uint8 input.");
+    if (in.type() != DALI_UINT8) {
+      throw std::invalid_argument("ClaheCPU currently supports only uint8 input.");
+    }
 
     outputs.resize(1);
     outputs[0].type = in.type();
@@ -55,7 +57,9 @@ class ClaheCPU : public Operator<CPUBackend> {
     auto in_view = view<const uint8_t>(input);
     auto out_view = view<uint8_t>(output);
 
-    DALI_ENFORCE(in_view.shape.sample_dim() == 3, "ClaheCPU expects HWC input layout.");
+    if (in_view.shape.sample_dim() != 3) {
+      throw std::invalid_argument("ClaheCPU expects HWC input layout.");
+    }
 
     auto &tp = ws.GetThreadPool();
     int num_samples = in_view.num_samples();
@@ -77,7 +81,9 @@ class ClaheCPU : public Operator<CPUBackend> {
     int W = shape[1];
     int C = (shape.size() >= 3) ? shape[2] : 1;
 
-    DALI_ENFORCE(C == 1 || C == 3, "ClaheCPU supports 1 or 3 channels.");
+    if (C != 1 && C != 3) {
+      throw std::invalid_argument("ClaheCPU supports 1 or 3 channels.");
+    }
 
     if (C == 1) {
       // Grayscale processing

@@ -69,7 +69,9 @@ class ClaheGPU : public Operator<GPUBackend> {
     auto &out = ws.Output<GPUBackend>(0);
     auto stream = ws.stream();
 
-    DALI_ENFORCE(in.type() == DALI_UINT8, "ClaheGPU currently supports only uint8 input.");
+    if (in.type() != DALI_UINT8) {
+      throw std::invalid_argument("ClaheGPU currently supports only uint8 input.");
+    }
 
     const auto &shape = in.shape();
     int N = shape.num_samples();
@@ -79,12 +81,16 @@ class ClaheGPU : public Operator<GPUBackend> {
 
     for (int i = 0; i < N; i++) {
       auto sample_shape = shape.tensor_shape_span(i);
-      DALI_ENFORCE(sample_shape.size() == 3, "ClaheGPU expects HWC input layout.");
+      if (sample_shape.size() != 3) {
+        throw std::invalid_argument("ClaheGPU expects HWC input layout.");
+      }
 
       int H = sample_shape[0];
       int W = sample_shape[1];
       int C = sample_shape[2];
-      DALI_ENFORCE(C == 1 || C == 3, "ClaheGPU supports 1 or 3 channels.");
+      if (C != 1 && C != 3) {
+        throw std::invalid_argument("ClaheGPU supports 1 or 3 channels.");
+      }
 
       const uint8_t *in_ptr = in.tensor<uint8_t>(i);
       uint8_t *out_ptr = out.mutable_tensor<uint8_t>(i);
@@ -140,6 +146,12 @@ The input image is divided into rectangular tiles, and histogram equalization
 is applied to each tile independently. To avoid artifacts at tile boundaries,
 the lookup tables are bilinearly interpolated between neighboring tiles.
 Supports both grayscale (1-channel) and RGB (3-channel) uint8 images in HWC layout.
+
+**IMPORTANT COLOR ORDER REQUIREMENT**: For 3-channel images, the channels must be in 
+RGB order (Red, Green, Blue). BGR images (common in OpenCV) will produce incorrect 
+results when luma_only=True, as the luminance calculation assumes RGB channel order.
+If you have BGR images, convert them to RGB first using appropriate operators.
+
 For RGB images, by default CLAHE is applied to the luminance channel only (luma_only=True),
 preserving color relationships. When luma_only=False, CLAHE is applied to each 
 color channel independently.
@@ -151,9 +163,10 @@ Example usage:
   clahe_out = fn.clahe(grayscale_image, tiles_x=8, tiles_y=8, clip_limit=2.0)
   
   # RGB image with luminance-only processing (default)
+  # NOTE: Input must be RGB order, not BGR!
   clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=3.0, luma_only=True)
   
-  # RGB image with per-channel processing
+  # RGB image with per-channel processing (color order less critical)
   clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=False)
 )code")
     .NumInput(1)
