@@ -261,8 +261,8 @@ def test_clahe_grayscale_gpu():
     # Verify output properties
     assert len(clahe_output) == batch_size
     for i in range(batch_size):
-        original = np.array(input_data[i])
-        enhanced = np.array(clahe_output[i])
+        original = np.array(input_data[i].as_cpu())
+        enhanced = np.array(clahe_output[i].as_cpu())
 
         assert original.shape == enhanced.shape == (64, 64, 1)
         assert original.dtype == enhanced.dtype == np.uint8
@@ -289,8 +289,8 @@ def test_clahe_rgb_gpu():
     # Verify output properties
     assert len(clahe_output) == batch_size
     for i in range(batch_size):
-        original = np.array(input_data[i])
-        enhanced = np.array(clahe_output[i])
+        original = np.array(input_data[i].as_cpu())
+        enhanced = np.array(clahe_output[i].as_cpu())
 
         assert original.shape == enhanced.shape == (64, 64, 3)
         assert original.dtype == enhanced.dtype == np.uint8
@@ -311,8 +311,8 @@ def test_clahe_ops_api():
     # Verify output properties
     assert len(clahe_output) == batch_size
     for i in range(batch_size):
-        original = np.array(input_data[i])
-        enhanced = np.array(clahe_output[i])
+        original = np.array(input_data[i].as_cpu())
+        enhanced = np.array(clahe_output[i].as_cpu())
 
         assert original.shape == enhanced.shape == (32, 32, 1)
         assert original.dtype == enhanced.dtype == np.uint8
@@ -368,7 +368,7 @@ def test_clahe_different_tile_configurations():
 
         # Verify all outputs are valid
         for i in range(batch_size):
-            enhanced = np.array(clahe_output[i])
+            enhanced = np.array(clahe_output[i].as_cpu())
             assert enhanced.shape == (64, 64, 1)
             assert enhanced.dtype == np.uint8
 
