@@ -270,7 +270,7 @@ class _ConditionStack:
                 9,
                 (
                     f"{self._indent()}[IF] Inserting split"
-                    f" at {self.stack_depth() -1}:"
+                    f" at {self.stack_depth() - 1}:"
                     f" split({produced_data_node}, predicate={predicate}."
                 ),
             )
@@ -315,7 +315,7 @@ class _ConditionStack:
         """
         if not self._is_registration_allowed:
             return
-        logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"))
+        logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() - 1}"))
         scope = self._stack[0] if global_scope else self.top()
         _map_structure(lambda node: scope.add_produced(node), data_nodes)
 
@@ -624,7 +624,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                         9,
                         (
                             f"{this_condition_stack()._indent()}[IF] Inserting merge"
-                            f" at {this_condition_stack().stack_depth() -1}:"
+                            f" at {this_condition_stack().stack_depth() - 1}:"
                             f" merge({new_body_val}, {new_orelse_val}, predicate="
                             f"{split_predicate}."
                         ),
