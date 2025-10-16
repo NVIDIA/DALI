@@ -25,7 +25,9 @@ doc(
                 op_reference("fn.water", "Augmentation gallery"),
                 op_reference("fn.sphere", "Augmentation gallery"),
                 op_reference("fn.warp_affine", "Augmentation gallery"),
-                op_reference("fn.jpeg_compression_distortion", "Augmentation gallery"),
+                op_reference(
+                    "fn.jpeg_compression_distortion", "Augmentation gallery"
+                ),
                 op_reference("fn.paste", "Augmentation gallery"),
                 op_reference("fn.flip", "Augmentation gallery"),
                 op_reference("fn.rotate", "Augmentation gallery"),
@@ -35,7 +37,9 @@ doc(
         ),
         doc_entry(
             "brightness_contrast_example.ipynb",
-            op_reference("fn.brightness_contrast", "BrightnessContrast example", 0),
+            op_reference(
+                "fn.brightness_contrast", "BrightnessContrast example", 0
+            ),
         ),
         doc_entry(
             "clahe_example.ipynb",
@@ -56,8 +60,12 @@ doc(
                 op_reference(
                     "fn.decoders.image_random_crop", "Image decoder examples", 0
                 ),
-                op_reference("fn.decoders.image_crop", "Image decoder examples", 0),
-                op_reference("fn.decoders.image_slice", "Image decoder examples", 0),
+                op_reference(
+                    "fn.decoders.image_crop", "Image decoder examples", 0
+                ),
+                op_reference(
+                    "fn.decoders.image_slice", "Image decoder examples", 0
+                ),
             ],
         ),
         doc_entry(

@@ -45,9 +45,7 @@ class ClahePipeline(Pipeline):
 
     def define_graph(self):
         # Create synthetic test data
-        data = fn.random.uniform(
-            range=(0, 255), shape=self.input_shape, dtype=types.UINT8
-        )
+        data = fn.random.uniform(range=(0, 255), shape=self.input_shape, dtype=types.UINT8)
 
         # Apply CLAHE
         if self.device == "gpu":
@@ -94,9 +92,7 @@ class ClaheOpsPipeline(Pipeline):
 
     def define_graph(self):
         # Create synthetic test data
-        data = fn.random.uniform(
-            range=(0, 255), shape=self.input_shape, dtype=types.UINT8
-        )
+        data = fn.random.uniform(range=(0, 255), shape=self.input_shape, dtype=types.UINT8)
 
         if self.device == "gpu":
             data = data.gpu()
