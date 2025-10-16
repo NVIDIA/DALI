@@ -42,6 +42,10 @@ doc(
             ),
         ),
         doc_entry(
+            "clahe_example.ipynb",
+            op_reference("fn.clahe", "CLAHE example", 0),
+        ),
+        doc_entry(
             "color_space_conversion.ipynb",
             op_reference(
                 "fn.color_space_conversion",
