@@ -832,6 +832,9 @@ void ExposeTensor(py::module &m) {
         },
       R"code(Passthrough, since the object is already an instance of `TensorCPU`.)code",
       py::return_value_policy::reference_internal)
+    .def("_set_stream", [](Tensor<CPUBackend> &t, py::object stream) {
+      t.set_order(AccessOrderFromPythonStreamObj(stream));
+    })
     .def("_make_copy", [](const Tensor<CPUBackend> &t) {
         auto dst = std::make_unique<Tensor<CPUBackend>>();
         dst->set_device_id(t.device_id());
@@ -997,6 +1000,7 @@ void ExposeTensor(py::module &m) {
           DeviceGuard g(t.device_id());
           auto ret = std::make_unique<Tensor<CPUBackend>>();
           ret->set_pinned(false);
+          ret->set_order(AccessOrder::host());
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           ret->Copy(t, s);
@@ -1007,6 +1011,9 @@ void ExposeTensor(py::module &m) {
       Returns a `TensorCPU` object being a copy of this `TensorGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("_set_stream", [](Tensor<GPUBackend> &t, py::object stream) {
+      t.set_order(AccessOrderFromPythonStreamObj(stream));
+    })
     .def("_make_copy", [](const Tensor<GPUBackend> &t) {
         DeviceGuard dg(t.device_id());
         auto dst = std::make_unique<Tensor<GPUBackend>>();
@@ -1112,7 +1119,9 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   auto ptr = std::make_unique<Tensor<Backend>>();
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto &sample_shared_ptr = unsafe_sample_owner(t, id);
-  ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type(),
+  auto &tshape = t.tensor_shape(id);
+  size_t num_bytes = tshape.num_elements() * t.type_info().size();
+  ptr->ShareData(sample_shared_ptr, num_bytes, t.is_pinned(), tshape, t.type(),
                  t.device_id(), t.order(), t.ready_event());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
@@ -1360,6 +1369,9 @@ void ExposeTensorListCPU(py::module &m) {
         return t;
       }, R"code(Passthrough, as it is already an instance of `TensorListCPU`.)code",
       py::return_value_policy::reference_internal)
+    .def("_set_stream", [](TensorList<CPUBackend> &t, py::object stream) {
+      t.set_order(AccessOrderFromPythonStreamObj(stream));
+    })
     .def("_make_copy", [](const TensorList<CPUBackend> &t) {
         auto dst = std::make_shared<TensorList<CPUBackend>>();
         dst->set_device_id(t.device_id());
@@ -1625,6 +1637,7 @@ void ExposeTesorListGPU(py::module &m) {
           DeviceGuard g(t.device_id());
           auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
+          ret->set_order(AccessOrder::host());
           ret->SetContiguity(BatchContiguity::Contiguous);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
@@ -1636,6 +1649,9 @@ void ExposeTesorListGPU(py::module &m) {
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
+    .def("_set_stream", [](TensorList<GPUBackend> &t, py::object stream) {
+      t.set_order(AccessOrderFromPythonStreamObj(stream));
+    })
     .def("_make_copy", [](const TensorList<GPUBackend> &tl) {
         DeviceGuard dg(tl.device_id());
         auto dst = std::make_shared<TensorList<GPUBackend>>();
