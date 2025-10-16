@@ -45,14 +45,17 @@ namespace copy_impl {
  *
  * The copy ordering can be:
  * - explict, as specified in `order`
- * - the one from `src_order`, if set
- * - the one from `dst_order`
+ * - the one from `dst_order`, if set
+ * - the one from `src_order`
  * @return copy_order - order on which we will do the copy
  */
 AccessOrder SyncBefore(AccessOrder dst_order, AccessOrder src_order, AccessOrder order) {
   if (!order)
-    order = src_order ? src_order : dst_order;
-
+    order = dst_order.is_device()
+            ? dst_order
+            : src_order.is_device()
+              ? src_order
+              : dst_order ? dst_order : src_order;
   // The destination buffer must be ready to be overwritten
   order.wait(dst_order);
   // The source buffer must be ready to cosume
