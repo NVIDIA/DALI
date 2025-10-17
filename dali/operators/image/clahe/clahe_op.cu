@@ -66,8 +66,10 @@
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
 #define THRESHOLD_6_29TH (6.0f / 29.0f)
+#define THRESHOLD_CUBED (powf(THRESHOLD_6_29TH, 3.0))  // (6/29)^3
 #define OFFSET_4_29TH (4.0f / 29.0f)
-#define SLOPE_THRESOLD (powf(1.0f / THRESHOLD_6_29TH, 2.0f) / 3.0f)  // (29/6)^2 / 3
+#define SLOPE_THRESHOLD (powf(1.0f / THRESHOLD_6_29TH, 2.0f) / 3.0f)  // (29/6)^2 / 3
+#define SLOPE_LAB (3.0f * powf(THRESHOLD_6_29TH, 2.0))                // 3 * (6/29)^2
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1017
 #define LTHRESHOLD (216.0f / 24389.0f)  // 0.008856
@@ -75,10 +77,10 @@
 #define LBIAS (16.0f / 116.0f)          // 0.13793103448275862
 
 // -------------------------------------------------------------------------------------
-// Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
+// Helper functions for RGB ↔ LAB conversion (match OpenCV)
 // -------------------------------------------------------------------------------------
 __device__ float srgb_to_linear(uint8_t c) {
-  // OpenCV's exact gamma correction, input is 8-bit (0-255)
+  // OpenCV's gamma correction, input is 8-bit (0-255)
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
   float cf = c / 255.0f;
   return (cf <= GAMMA_THRESHOLD) ? cf / GAMMA_LOW_SCALE :
@@ -86,7 +88,7 @@ __device__ float srgb_to_linear(uint8_t c) {
 }
 
 __device__ float linear_to_srgb(float c) {
-  // OpenCV's exact inverse gamma correction
+  // OpenCV's inverse gamma correction
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
   return (c <= GAMMA_INV_THRESHOLD) ?
              GAMMA_LOW_SCALE * c :
@@ -101,10 +103,7 @@ __device__ float xyz_to_lab_f(float t) {
 
 __device__ float lab_f_to_xyz(float u) {
   // Inverse: OpenCV-compatible.
-  const float delta = THRESHOLD_6_29TH;
-  const float threshold = delta;
-  const float slope = 3.0f * delta * delta;
-  return (u > threshold) ? (u * u * u) : (slope * (u - OFFSET_4_29TH));
+  return (u > THRESHOLD_6_29TH) ? (u * u * u) : (SLOPE_LAB * (u - OFFSET_4_29TH));
 }
 
 __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_out, float *b_out) {
@@ -113,12 +112,12 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_o
   float gf = srgb_to_linear(g);
   float bf = srgb_to_linear(b);
 
-  // Linear RGB to XYZ using OpenCV's exact matrix (sRGB D65)
+  // Linear RGB to XYZ using OpenCV's  matrix (sRGB D65)
   float x = CV_RGB_XR * rf + CV_RGB_XG * gf + CV_RGB_XB * bf;
   float y = CV_RGB_YR * rf + CV_RGB_YG * gf + CV_RGB_YB * bf;
   float z = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
-  // Normalize by D65 white point (OpenCV exact values)
+  // Normalize by D65 white point (OpenCV values)
   x = x / D65_WHITE_X;
   y = y / D65_WHITE_Y;
   z = z / D65_WHITE_Z;
@@ -141,12 +140,12 @@ __device__ void lab_to_rgb(float L, float a, float b, uint8_t *r, uint8_t *g, ui
   float fx = a / 500.0f + fy;
   float fz = fy - b / 200.0f;
 
-  // Convert using OpenCV's exact D65 white point values
+  // Convert using OpenCV's  D65 white point values
   float x = lab_f_to_xyz(fx) * D65_WHITE_X;
   float y = lab_f_to_xyz(fy) * D65_WHITE_Y;
   float z = lab_f_to_xyz(fz) * D65_WHITE_Z;
 
-  // XYZ to linear RGB using OpenCV's exact inverse matrix
+  // XYZ to linear RGB using OpenCV's  inverse matrix
   float rf = CV_LAB_XR * x + CV_LAB_XG * y + CV_LAB_XB * z;
   float gf = CV_LAB_YR * x + CV_LAB_YG * y + CV_LAB_YB * z;
   float bf = CV_LAB_ZR * x + CV_LAB_ZG * y + CV_LAB_ZB * z;
@@ -271,7 +270,7 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     int rgb_idx = 3 * pixel_idx;
 
 
-    // RGB to LAB L* conversion (match OpenCV exactly)
+    // RGB to LAB L* conversion (match OpenCV ly)
     // Use OpenCV-compatible sRGB to linear conversion (8-bit input)
     uint8_t r = rgb[rgb_idx + 0];
     uint8_t g = rgb[rgb_idx + 1];
@@ -281,19 +280,18 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     float gf = srgb_to_linear(g);
     float bf = srgb_to_linear(b);
 
-    // Convert to CIE XYZ using OpenCV's exact transformation matrix
+    // Convert to CIE XYZ using OpenCV's  transformation matrix
     float x_xyz = CV_RGB_XR * rf + CV_RGB_XG * gf + CV_RGB_XB * bf;
     float y_xyz = CV_RGB_YR * rf + CV_RGB_YG * gf + CV_RGB_YB * bf;
     float z_xyz = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
-    // Normalize by D65 white point (OpenCV exact values)
+    // Normalize by D65 white point (OpenCV  values)
     x_xyz = x_xyz / D65_WHITE_X;
     y_xyz = y_xyz / D65_WHITE_Y;
     z_xyz = z_xyz / D65_WHITE_Z;
 
-    // Convert Y to LAB L* using OpenCV's exact threshold and constants
-    const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // δ^3
-    float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : (SLOPE_THRESOLD * y_xyz + OFFSET_4_29TH);
+    // Convert Y to LAB L* using OpenCV's  threshold and constants
+    float fy = (y_xyz > THRESHOLD_CUBED) ? cbrtf(y_xyz) : (SLOPE_THRESHOLD * y_xyz + OFFSET_4_29TH);
     float L = 116.0f * fy - 16.0f;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
@@ -505,7 +503,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Compute clip limit (match OpenCV exactly)
+  // Compute clip limit (match OpenCV ly)
   float clip_limit_f = clip_limit_rel * area / bins;
   int limit_int = static_cast<int>(clip_limit_f);
   int limit = max(limit_int, 1);
@@ -528,7 +526,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Redistribute excess using OpenCV's exact algorithm
+  // Redistribute excess using OpenCV's  algorithm
   unsigned int redistBatch = excess / bins;  // OpenCV: redistBatch = clipped / histSize
   unsigned int residual = excess % bins;     // OpenCV: residual = clipped - redistBatch * histSize
 
@@ -537,7 +535,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Distribute residual using OpenCV's exact step pattern
+  // Distribute residual using OpenCV's  step pattern
   if (tid == 0 && residual > 0) {
     unsigned int residualStep = max(bins / residual, 1u);  // OpenCV: MAX(histSize / residual, 1)
     for (unsigned int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
@@ -556,7 +554,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Build LUT using OpenCV's exact scaling methodology
+  // Build LUT using OpenCV's  scaling methodology
   uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
 
   // OpenCV uses: lutScale = (histSize - 1) / tileSizeTotal
@@ -601,7 +599,7 @@ __global__ void apply_lut_bilinear_gray_vectorized_kernel(uint8_t *__restrict__ 
     int y = idx / W;
     int x = idx - y * W;
 
-    // Tile geometry - match OpenCV exactly (same as RGB version)
+    // Tile geometry - match OpenCV ly (same as RGB version)
     float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
     float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
 
@@ -675,11 +673,11 @@ __global__ void apply_lut_bilinear_gray_kernel(uint8_t *__restrict__ dst_y,
   int y = idx / W;
   int x = idx - y * W;
 
-  // Tile geometry - match OpenCV exactly (same as RGB version)
+  // Tile geometry - match OpenCV ly (same as RGB version)
   float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);  // 1.0f / tileSize.width
   float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);  // 1.0f / tileSize.height
 
-  // Tile coordinates (match OpenCV exactly)
+  // Tile coordinates (match OpenCV ly)
   float gx = x * inv_tw - 0.5f;           // OpenCV: x * inv_tw - 0.5f
   float gy = y * inv_th - 0.5f;           // OpenCV: y * inv_th - 0.5f
   int tx = static_cast<int>(floorf(gx));  // OpenCV: cvFloor(txf)
@@ -752,11 +750,11 @@ __global__ void apply_lut_bilinear_gray_optimized_kernel(uint8_t *__restrict__ d
   int y = idx / W;
   int x = idx - y * W;
 
-  // Tile geometry - match OpenCV exactly
+  // Tile geometry - match OpenCV ly
   float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
   float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
 
-  // Tile coordinates (match OpenCV exactly)
+  // Tile coordinates (match OpenCV ly)
   float gx = x * inv_tw - 0.5f;
   float gy = y * inv_th - 0.5f;
   int tx = static_cast<int>(floorf(gx));
