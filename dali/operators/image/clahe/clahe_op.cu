@@ -54,20 +54,20 @@
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L940
 #define D65_WHITE_X CV_HEX_CONST(0x3fee6a22b3892ee8)      // 0.950456
-#define D65_WHITE_Y 1.0f                                  // 1.000000
+#define D65_WHITE_Y 1.                                    // 1.000000
 #define D65_WHITE_Z CV_HEX_CONST(0x3ff16b8950763a19)      // 1.089058
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1010
-#define GAMMA_THRESHOLD (809.0f / 20000.0f)         //  0.04045
-#define GAMMA_INV_THRESHOLD (7827.0f / 2500000.0f)  //  0.0031308
-#define GAMMA_LOW_SCALE (323.0f / 25.0f)            // 12.92
-#define GAMMA_POWER (12.0f / 5.0f)                  //  2.4
-#define GAMMA_XSHIFT (11.0f / 200.0f)               //  0.055
+#define GAMMA_THRESHOLD (809. / 20000.)                   //  0.04045
+#define GAMMA_INV_THRESHOLD (7827. / 2500000.)            //  0.0031308
+#define GAMMA_LOW_SCALE (323. / 25.)                      // 12.92
+#define GAMMA_POWER (12. / 5.)                            //  2.4
+#define GAMMA_XSHIFT (11. / 200.)                         //  0.055
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
-#define THRESHOLD_6_29TH (6.0f / 29.0f)
-#define OFFSET_4_29TH (4.0f / 29.0f)
-#define SLOPE_THRESOLD (powf(1.0f / THRESHOLD_6_29TH, 2.0f) / 3.0f)  // (29/6)^2 / 3
+#define THRESHOLD_6_29TH (6. / 29.)
+#define OFFSET_4_29TH (4. / 29.)
+#define SLOPE_THRESOLD (pow(1. / THRESHOLD_6_29TH, 2.) / 3.)  // (29/6)^2 / 3
 
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
@@ -75,10 +75,10 @@
 __device__ float srgb_to_linear(uint8_t c) {
   // OpenCV's exact gamma correction, input is 8-bit (0-255)
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
-  float cf = c / 255.0f;
+  float cf = c / 255.f;
   return (cf <= GAMMA_THRESHOLD) ?
           cf / GAMMA_LOW_SCALE :
-          powf((cf + GAMMA_XSHIFT) / (1.0f + GAMMA_XSHIFT), GAMMA_POWER);
+          pow((cf + GAMMA_XSHIFT) / (1. + GAMMA_XSHIFT), GAMMA_POWER);
 }
 
 __device__ float linear_to_srgb(float c) {
@@ -86,14 +86,14 @@ __device__ float linear_to_srgb(float c) {
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
   return (c <= GAMMA_INV_THRESHOLD) ?
          GAMMA_LOW_SCALE * c :
-         powf(c, 1.0f / GAMMA_POWER)*(1.0+GAMMA_XSHIFT) - GAMMA_XSHIFT;
+         pow(c, 1. / GAMMA_POWER)*(1.0+GAMMA_XSHIFT) - GAMMA_XSHIFT;
 }
 
 __device__ float xyz_to_lab_f(float t) {
   // OpenCV-compatible.
   const float delta = THRESHOLD_6_29TH;
   const float threshold = delta * delta * delta;
-  const float slope = (1.0f / 3.0f) * (1.0f / (delta * delta));
+  const float slope = (1. / 3.) * (1. / (delta * delta));
   return (t > threshold) ? cbrtf(t) : (slope * t + OFFSET_4_29TH);
 }
 
@@ -101,7 +101,7 @@ __device__ float lab_f_to_xyz(float u) {
   // Inverse: OpenCV-compatible.
   const float delta = THRESHOLD_6_29TH;
   const float threshold = delta;
-  const float slope = 3.0f * delta * delta;
+  const float slope = 3. * delta * delta;
   return (u > threshold) ? (u * u * u) : (slope * (u - OFFSET_4_29TH));
 }
 
@@ -128,18 +128,18 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
   float fz = xyz_to_lab_f(z);
 
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1204
-  *L = 116.0f * fy - 16.0f;
+  *L = 116. * fy - 16.;
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1189
-  *a_out = 500.0f * (fx - fy);
-  *b_out = 200.0f * (fy - fz);
+  *a_out = 500. * (fx - fy);
+  *b_out = 200. * (fy - fz);
 }
 
 __device__ void lab_to_rgb(float L, float a, float b,
                            uint8_t *r, uint8_t *g, uint8_t *b_out) {
   // LAB to XYZ
-  float fy = (L + 16.0f) / 116.0f;
-  float fx = a / 500.0f + fy;
-  float fz = fy - b / 200.0f;
+  float fy = (L + 16.) / 116.;
+  float fx = a / 500. + fy;
+  float fz = fy - b / 200.;
 
   // Convert using OpenCV's exact D65 white point values
   float x = lab_f_to_xyz(fx) * D65_WHITE_X;
@@ -157,9 +157,9 @@ __device__ void lab_to_rgb(float L, float a, float b,
   bf = linear_to_srgb(bf);
 
   // Clamp and convert to uint8 (OpenCV uses rounding)
-  *r = (uint8_t)lrintf(dali::clamp(rf * 255.0f, 0.f, 255.f));
-  *g = (uint8_t)lrintf(dali::clamp(gf * 255.0f, 0.f, 255.f));
-  *b_out = (uint8_t)lrintf(dali::clamp(bf * 255.0f, 0.f, 255.f));
+  *r = (uint8_t)lrintf(dali::clamp(static_cast<double>(rf * 255.), 0.0, 255.0));
+  *g = (uint8_t)lrintf(dali::clamp(static_cast<double>(gf * 255.), 0.0, 255.0));
+  *b_out = (uint8_t)lrintf(dali::clamp(static_cast<double>(bf * 255.), 0.0, 255.0));
 }
 
 // -------------------------------------------------------------------------------------
@@ -182,7 +182,7 @@ __global__ void rgb_to_y_u8_nhwc_kernel(const uint8_t *__restrict__ rgb,
   rgb_to_lab(r, g, b, &L, &a, &b_lab);
 
   // Scale L [0,100] to [0,255] for consistency
-  uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));
+  uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
   y_out[idx] = L_u8;
 }
 
@@ -206,7 +206,7 @@ __global__ void rgb_to_y_u8_nhwc_vectorized_kernel(const uint8_t *__restrict__ r
     float L, a, b_lab;
     rgb_to_lab(r, g, b, &L, &a, &b_lab);
 
-    uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));
+  uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
     y_out[idx] = L_u8;
   }
 }
@@ -286,10 +286,10 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     // Convert Y to LAB L* using OpenCV's exact threshold and constants
     const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // δ^3
     float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : (SLOPE_THRESOLD * y_xyz + OFFSET_4_29TH);
-    float L = 116.0f * fy - 16.0f;
+    float L = 116. * fy - 16.;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
-    uint8_t y_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));  // Store Y value
+  uint8_t y_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
     y_out[pixel_idx] = y_u8;
 
     // Add to histogram
@@ -638,8 +638,8 @@ __global__ void apply_lut_bilinear_gray_kernel(uint8_t *__restrict__ dst_y,
   int x = idx - y * W;
 
   // Tile geometry - match OpenCV exactly (same as RGB version)
-  float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);  // 1.0f / tileSize.width
-  float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);  // 1.0f / tileSize.height
+  float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);  // 1. / tileSize.width
+  float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);  // 1. / tileSize.height
 
   // Tile coordinates (match OpenCV exactly)
   float gx = x * inv_tw - 0.5f;           // OpenCV: x * inv_tw - 0.5f
@@ -890,8 +890,8 @@ __global__ void apply_lut_bilinear_rgb_vectorized_kernel(uint8_t *__restrict__ d
 
     // Replace L* with enhanced version, keep a* and b* unchanged
     float enhanced_L = dali::clamp(
-        static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)),
-        0.0f, 100.0f);
+  static_cast<double>(lrintf(enhanced_L_u8 * 100. / 255.)),
+  0.0, 100.0);
 
     // Convert LAB back to RGB
     uint8_t new_r, new_g, new_b;
@@ -980,8 +980,8 @@ __global__ void apply_lut_bilinear_rgb_kernel(uint8_t *__restrict__ dst_rgb,
 
   // Replace L* with enhanced version, keep a* and b* unchanged
   float enhanced_L = dali::clamp(
-      static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)),
-      0.0f, 100.0f);
+  static_cast<double>(lrintf(enhanced_L_u8 * 100. / 255.)),
+  0.0, 100.0);
 
   // Convert LAB back to RGB
   uint8_t new_r, new_g, new_b;
