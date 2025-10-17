@@ -21,12 +21,6 @@
 #include "dali/core/util.h"
 
 #define CV_HEX_CONST(x) __builtin_bit_cast(double, x)
-#define SQUARED(x) ((x) * (x))
-
-// https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
-#define THRESHOLD_6_29TH (6.0f / 29.0f)
-#define OFFSET_4_29TH (4.0f / 29.0f)
-#define SLOPE_841_108TH ((SQUARED(1.0f / THRESHOLD_6_29TH) / 3.0f))  // (29/6)^2 / 3
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L100
 // 0.412453, 0.357580, 0.180423,
@@ -43,7 +37,6 @@
 #define CV_RGB_ZR CV_HEX_CONST(0x3f93cc4ac6cdaf4b)  // 0.019334
 #define CV_RGB_ZG CV_HEX_CONST(0x3fbe836eb4e98138)  // 0.119193
 #define CV_RGB_ZB CV_HEX_CONST(0x3fee68427418d691)  // 0.950227
-
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L116
 //  3.240479, -1.53715, -0.498535,
@@ -66,20 +59,27 @@
 #define GAMMA_POWER (12.0f / 5.0f)                  //  2.4
 #define GAMMA_XSHIFT (11.0f / 200.0f)               //  0.055
 
+// https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
+#define THRESHOLD_6_29TH (6.0f / 29.0f)
+#define OFFSET_4_29TH (4.0f / 29.0f)
+#define SLOPE_THRESOLD (powf(1.0f / THRESHOLD_6_29TH, 2.0f) / 3.0f)  // (29/6)^2 / 3
+
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
 // -------------------------------------------------------------------------------------
 __device__ float srgb_to_linear(uint8_t c) {
   // OpenCV's exact gamma correction, input is 8-bit (0-255)
   float cf = c / 255.0f;
-  return (cf > GAMMA_THRESHOLD) ? powf((cf + GAMMA_XSHIFT)
-                                  / 1.055f, GAMMA_POWER) : cf / GAMMA_LOW_SCALE;
+  return (cf > GAMMA_THRESHOLD) ?
+          powf((cf + GAMMA_XSHIFT) / (1.0f + GAMMA_XSHIFT), GAMMA_POWER)
+          : cf / GAMMA_LOW_SCALE;
 }
 
 __device__ float linear_to_srgb(float c) {
   // OpenCV's exact inverse gamma correction
-  return (c > GAMMA_INV_THRESHOLD) ? 1.055f * powf(c, 1.0f / GAMMA_POWER)
-                                     - GAMMA_XSHIFT : GAMMA_LOW_SCALE * c;
+  return (c > GAMMA_INV_THRESHOLD) ?
+         (1.0f + GAMMA_XSHIFT) * powf(c, 1.0f / GAMMA_POWER) - GAMMA_XSHIFT :
+         GAMMA_LOW_SCALE * c;
 }
 
 __device__ float xyz_to_lab_f(float t) {
@@ -282,7 +282,7 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
 
     // Convert Y to LAB L* using OpenCV's exact threshold and constants
     const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // δ^3
-    float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : (SLOPE_841_108TH * y_xyz + OFFSET_4_29TH);
+    float fy = (y_xyz > threshold) ? cbrtf(y_xyz) : (SLOPE_THRESOLD * y_xyz + OFFSET_4_29TH);
     float L = 116.0f * fy - 16.0f;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
