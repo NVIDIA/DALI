@@ -90,18 +90,18 @@ __device__ float linear_to_srgb(float c) {
 }
 
 __device__ float xyz_to_lab_f(float t) {
-  // δ = 6/29;  compare t to δ^3; slope = (1/3)*(29/6)^2.  OpenCV-compatible.
+  // OpenCV-compatible.
   const float delta = THRESHOLD_6_29TH;
-  const float threshold = delta * delta * delta;           // δ^3
-  const float slope = (1.0f / 3.0f) * (1.0f / (delta * delta));  // (29/6)^2 / 3
+  const float threshold = delta * delta * delta;
+  const float slope = (1.0f / 3.0f) * (1.0f / (delta * delta));
   return (t > threshold) ? cbrtf(t) : (slope * t + OFFSET_4_29TH);
 }
 
 __device__ float lab_f_to_xyz(float u) {
-  // Inverse: compare u to δ; slope = 3*δ^2.  OpenCV-compatible.
+  // Inverse: OpenCV-compatible.
   const float delta = THRESHOLD_6_29TH;
-  const float threshold = delta;                            // compare f(Y) to δ
-  const float slope = 3.0f * delta * delta;                 // 3*δ^2
+  const float threshold = delta;
+  const float slope = 3.0f * delta * delta;
   return (u > threshold) ? (u * u * u) : (slope * (u - OFFSET_4_29TH));
 }
 
@@ -127,7 +127,9 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
   float fy = xyz_to_lab_f(y);
   float fz = xyz_to_lab_f(z);
 
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1204
   *L = 116.0f * fy - 16.0f;
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1189
   *a_out = 500.0f * (fx - fy);
   *b_out = 200.0f * (fy - fz);
 }
@@ -272,20 +274,14 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
   float bf = srgb_to_linear(b);
 
     // Convert to CIE XYZ using OpenCV's exact transformation matrix
-    float x_xyz = 0.4124564390896922f * rf
-                + 0.3575761206819519f * gf
-                + 0.1804375005091677f * bf;
-    float y_xyz = 0.2126728514056224f * rf
-                + 0.7151579067501442f * gf
-                + 0.0721690406852293f * bf;
-    float z_xyz = 0.0193338958834121f * rf
-                + 0.1191920336965374f * gf
-                + 0.9503040785363140f * bf;
+    float x_xyz = CV_RGB_XR * rf + CV_RGB_XG * gf + CV_RGB_XB * bf;
+    float y_xyz = CV_RGB_YR * rf + CV_RGB_YG * gf + CV_RGB_YB * bf;
+    float z_xyz = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
     // Normalize by D65 white point (OpenCV exact values)
-    x_xyz = x_xyz / 0.9504559270516716f;
-    y_xyz = y_xyz / 1.0000000000000000f;
-    z_xyz = z_xyz / 1.0890577507598784f;
+    x_xyz = x_xyz / D65_WHITE_X;
+    y_xyz = y_xyz / D65_WHITE_Y;
+    z_xyz = z_xyz / D65_WHITE_Z;
 
     // Convert Y to LAB L* using OpenCV's exact threshold and constants
     const float threshold = THRESHOLD_6_29TH * THRESHOLD_6_29TH * THRESHOLD_6_29TH;  // δ^3
