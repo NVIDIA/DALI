@@ -264,124 +264,125 @@ def test_clahe_operator_registration():
 
 def test_clahe_grayscale_gpu():
     """Test CLAHE with grayscale images on GPU."""
-    batch_size = 4
     input_shapes = [
         (256, 256, 1),
         (128, 128, 1),
         (64, 64, 1),
     ]
-    for input_shape in input_shapes:
-        pipe = ClahePipeline(
-            "gpu",
-            batch_size,
-            input_shape=input_shape,
-            tiles_x=4,
-            tiles_y=4,
-            clip_limit=2.0,
-        )
-        pipe.build()
+    for batch_size in [1, 4, 8]:
+        for input_shape in input_shapes:
+            pipe = ClahePipeline(
+                "gpu",
+                batch_size,
+                input_shape=input_shape,
+                tiles_x=4,
+                tiles_y=4,
+                clip_limit=2.0,
+            )
+            pipe.build()
 
-        outputs = pipe.run()
-        input_data, clahe_output = outputs
+            outputs = pipe.run()
+            input_data, clahe_output = outputs
 
-        # Verify output properties
-        assert len(clahe_output) == batch_size
-        for i in range(batch_size):
-            original = np.array(input_data[i].as_cpu())
-            enhanced = np.array(clahe_output[i].as_cpu())
+            # Verify output properties
+            assert len(clahe_output) == batch_size
+            for i in range(batch_size):
+                original = np.array(input_data[i].as_cpu())
+                enhanced = np.array(clahe_output[i].as_cpu())
 
-            assert original.shape == enhanced.shape == input_shape
-            assert original.dtype == enhanced.dtype == np.uint8
-            assert 0 <= enhanced.min() and enhanced.max() <= 255
+                assert original.shape == enhanced.shape == input_shape
+                assert original.dtype == enhanced.dtype == np.uint8
+                assert 0 <= enhanced.min() and enhanced.max() <= 255
 
 
 def test_clahe_rgb_gpu():
     """Test CLAHE with RGB images on GPU."""
-    batch_size = 2
     input_shapes = [
         (64, 64, 3),
         (128, 128, 3),
         (32, 32, 3),
     ]
-    for input_shape in input_shapes:
-        pipe = ClahePipeline(
-            "gpu",
-            batch_size,
-            input_shape=input_shape,
-            tiles_x=4,
-            tiles_y=4,
-            clip_limit=3.0,
-            luma_only=True,
-        )
-        pipe.build()
+    for batch_size in [1, 4]:
+        for input_shape in input_shapes:
+            pipe = ClahePipeline(
+                "gpu",
+                batch_size,
+                input_shape=input_shape,
+                tiles_x=4,
+                tiles_y=4,
+                clip_limit=3.0,
+                luma_only=True,
+            )
+            pipe.build()
 
-        outputs = pipe.run()
-        input_data, clahe_output = outputs
+            outputs = pipe.run()
+            input_data, clahe_output = outputs
 
-        # Verify output properties
-        assert len(clahe_output) == batch_size
-        for i in range(batch_size):
-            original = np.array(input_data[i].as_cpu())
-            enhanced = np.array(clahe_output[i].as_cpu())
+            # Verify output properties
+            assert len(clahe_output) == batch_size
+            for i in range(batch_size):
+                original = np.array(input_data[i].as_cpu())
+                enhanced = np.array(clahe_output[i].as_cpu())
 
-            assert original.shape == enhanced.shape == input_shape
-            assert original.dtype == enhanced.dtype == np.uint8
-            assert 0 <= enhanced.min() and enhanced.max() <= 255
+                assert original.shape == enhanced.shape == input_shape
+                assert original.dtype == enhanced.dtype == np.uint8
+                assert 0 <= enhanced.min() and enhanced.max() <= 255
 
 
 def test_clahe_ops_api():
     """Test CLAHE using the ops API."""
-    batch_size = 2
     input_shapes = [
         (32, 32, 1),
         (64, 64, 1),
         (32, 32, 3),
     ]
-    for input_shape in input_shapes:
-        pipe = ClaheOpsPipeline(
-            "gpu",
-            batch_size,
-            input_shape=input_shape,
-            tiles_x=2,
-            tiles_y=2,
-            clip_limit=1.5,
-        )
-        pipe.build()
 
-        outputs = pipe.run()
-        input_data, clahe_output = outputs
+    for batch_size in [2, 5]:
+        for input_shape in input_shapes:
+            pipe = ClaheOpsPipeline(
+                "gpu",
+                batch_size,
+                input_shape=input_shape,
+                tiles_x=2,
+                tiles_y=2,
+                clip_limit=1.5,
+            )
+            pipe.build()
 
-        # Verify output properties
-        assert len(clahe_output) == batch_size
-        for i in range(batch_size):
-            original = np.array(input_data[i].as_cpu())
-            enhanced = np.array(clahe_output[i].as_cpu())
+            outputs = pipe.run()
+            input_data, clahe_output = outputs
 
-            assert original.shape == enhanced.shape == input_shape
-            assert original.dtype == enhanced.dtype == np.uint8
+            # Verify output properties
+            assert len(clahe_output) == batch_size
+            for i in range(batch_size):
+                original = np.array(input_data[i].as_cpu())
+                enhanced = np.array(clahe_output[i].as_cpu())
+
+                assert original.shape == enhanced.shape == input_shape
+                assert original.dtype == enhanced.dtype == np.uint8
 
 
 def test_clahe_parameter_validation():
     """Test parameter validation for CLAHE operator."""
-    batch_size = 1
 
-    # Valid parameters should work
-    pipe = ClahePipeline("gpu", batch_size, tiles_x=8, tiles_y=8, clip_limit=2.0)
-    pipe.build()
-
-    # Test with different valid parameter combinations
-    valid_configs = [
-        {"tiles_x": 4, "tiles_y": 4, "clip_limit": 1.5},
-        {"tiles_x": 8, "tiles_y": 8, "clip_limit": 2.0},
-        {"tiles_x": 16, "tiles_y": 8, "clip_limit": 3.0},
-        {"tiles_x": 2, "tiles_y": 2, "clip_limit": 1.0},
-    ]
-
-    for config in valid_configs:
-        pipe = ClahePipeline("gpu", batch_size, **config)
+    for batch_size in [1, 4]:
+        # Valid parameters should work
+        pipe = ClahePipeline("gpu", batch_size, tiles_x=8, tiles_y=8, clip_limit=2.0)
         pipe.build()
-        outputs = pipe.run()
-        assert len(outputs[1]) == batch_size
+
+        # Test with different valid parameter combinations
+        valid_configs = [
+            {"tiles_x": 4, "tiles_y": 4, "clip_limit": 1.5},
+            {"tiles_x": 8, "tiles_y": 8, "clip_limit": 2.0},
+            {"tiles_x": 16, "tiles_y": 8, "clip_limit": 3.0},
+            {"tiles_x": 2, "tiles_y": 2, "clip_limit": 1.0},
+        ]
+
+        for config in valid_configs:
+            pipe = ClahePipeline("gpu", batch_size, **config)
+            pipe.build()
+            outputs = pipe.run()
+            assert len(outputs[1]) == batch_size
 
 
 def test_clahe_different_tile_configurations():
