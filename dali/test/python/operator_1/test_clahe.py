@@ -512,8 +512,10 @@ def test_clahe_different_parameters_accuracy():
 
     # Test different parameter combinations
     test_configs = [
-        {"tiles_x": 8, "tiles_y": 8, "clip_limit": 2.0},
-        {"tiles_x": 4, "tiles_y": 8, "clip_limit": 1.5},
+        {"tiles_x": 8, "tiles_y": 8, "clip_limit": 3.0},
+        {"tiles_x": 5, "tiles_y": 7, "clip_limit": 1.0},
+        {"tiles_x": 3, "tiles_y": 6, "clip_limit": 1.5},
+        {"tiles_x": 4, "tiles_y": 8, "clip_limit": 2.5},
         {"tiles_x": 4, "tiles_y": 4, "clip_limit": 1.5},
     ]
 

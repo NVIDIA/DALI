@@ -27,9 +27,10 @@
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
 // -------------------------------------------------------------------------------------
-__device__ float srgb_to_linear(float c) {
-  // OpenCV's exact gamma correction
-  return (c > 0.04045f) ? powf((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+__device__ float srgb_to_linear(uint8_t c) {
+  // OpenCV's exact gamma correction, input is 8-bit (0-255)
+  float cf = c / 255.0f;
+  return (cf > 0.04045f) ? powf((cf + 0.055f) / 1.055f, 2.4f) : cf / 12.92f;
 }
 
 __device__ float linear_to_srgb(float c) {
@@ -55,15 +56,10 @@ __device__ float lab_f_to_xyz(float u) {
 
 __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
                            float *L, float *a_out, float *b_out) {
-  // Normalize to [0,1]
-  float rf = r / 255.0f;
-  float gf = g / 255.0f;
-  float bf = b / 255.0f;
-
-  // sRGB to linear RGB
-  rf = srgb_to_linear(rf);
-  gf = srgb_to_linear(gf);
-  bf = srgb_to_linear(bf);
+  // sRGB to linear RGB (OpenCV expects 8-bit input)
+  float rf = srgb_to_linear(r);
+  float gf = srgb_to_linear(g);
+  float bf = srgb_to_linear(b);
 
   // Linear RGB to XYZ using OpenCV's exact matrix (sRGB D65)
   float x = 0.4124564390896922f * rf
@@ -225,20 +221,16 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     int pixel_idx = y * W + x;
     int rgb_idx = 3 * pixel_idx;
 
-    // RGB to LAB L* conversion (match OpenCV exactly)
-    // First convert to normalized RGB [0,1]
-    float r_val = rgb[rgb_idx + 0];
-    float g_val = rgb[rgb_idx + 1];
-    float b_val = rgb[rgb_idx + 2];
 
-    float rf = r_val / 255.0f;
-    float gf = g_val / 255.0f;
-    float bf = b_val / 255.0f;
+  // RGB to LAB L* conversion (match OpenCV exactly)
+  // Use OpenCV-compatible sRGB to linear conversion (8-bit input)
+  uint8_t r = rgb[rgb_idx + 0];
+  uint8_t g = rgb[rgb_idx + 1];
+  uint8_t b = rgb[rgb_idx + 2];
 
-    // Apply gamma correction (sRGB to linear RGB)
-    rf = srgb_to_linear(rf);
-    gf = srgb_to_linear(gf);
-    bf = srgb_to_linear(bf);
+  float rf = srgb_to_linear(r);
+  float gf = srgb_to_linear(g);
+  float bf = srgb_to_linear(b);
 
     // Convert to CIE XYZ using OpenCV's exact transformation matrix
     float x_xyz = 0.4124564390896922f * rf
