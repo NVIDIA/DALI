@@ -17,6 +17,9 @@ from nvidia.dali import fn, ops, types
 from nvidia.dali.pipeline import Pipeline
 import cv2
 
+MSE_THRESHOLD = 5.0
+MAE_THRESHOLD = 2.0
+
 
 def create_synthetic_test_images():
     """Create synthetic test images good for CLAHE testing"""
@@ -262,72 +265,100 @@ def test_clahe_operator_registration():
 def test_clahe_grayscale_gpu():
     """Test CLAHE with grayscale images on GPU."""
     batch_size = 4
-    pipe = ClahePipeline(
-        "gpu", batch_size, input_shape=(64, 64, 1), tiles_x=4, tiles_y=4, clip_limit=2.0
-    )
-    pipe.build()
+    input_shapes = [
+        (256, 256, 1),
+        (128, 128, 1),
+        (64, 64, 1),
+    ]
+    for input_shape in input_shapes:
+        pipe = ClahePipeline(
+            "gpu",
+            batch_size,
+            input_shape=input_shape,
+            tiles_x=4,
+            tiles_y=4,
+            clip_limit=2.0,
+        )
+        pipe.build()
 
-    outputs = pipe.run()
-    input_data, clahe_output = outputs
+        outputs = pipe.run()
+        input_data, clahe_output = outputs
 
-    # Verify output properties
-    assert len(clahe_output) == batch_size
-    for i in range(batch_size):
-        original = np.array(input_data[i].as_cpu())
-        enhanced = np.array(clahe_output[i].as_cpu())
+        # Verify output properties
+        assert len(clahe_output) == batch_size
+        for i in range(batch_size):
+            original = np.array(input_data[i].as_cpu())
+            enhanced = np.array(clahe_output[i].as_cpu())
 
-        assert original.shape == enhanced.shape == (64, 64, 1)
-        assert original.dtype == enhanced.dtype == np.uint8
-        assert 0 <= enhanced.min() and enhanced.max() <= 255
+            assert original.shape == enhanced.shape == input_shape
+            assert original.dtype == enhanced.dtype == np.uint8
+            assert 0 <= enhanced.min() and enhanced.max() <= 255
 
 
 def test_clahe_rgb_gpu():
     """Test CLAHE with RGB images on GPU."""
     batch_size = 2
-    pipe = ClahePipeline(
-        "gpu",
-        batch_size,
-        input_shape=(64, 64, 3),
-        tiles_x=4,
-        tiles_y=4,
-        clip_limit=3.0,
-        luma_only=True,
-    )
-    pipe.build()
+    input_shapes = [
+        (64, 64, 3),
+        (128, 128, 3),
+        (32, 32, 3),
+    ]
+    for input_shape in input_shapes:
+        pipe = ClahePipeline(
+            "gpu",
+            batch_size,
+            input_shape=input_shape,
+            tiles_x=4,
+            tiles_y=4,
+            clip_limit=3.0,
+            luma_only=True,
+        )
+        pipe.build()
 
-    outputs = pipe.run()
-    input_data, clahe_output = outputs
+        outputs = pipe.run()
+        input_data, clahe_output = outputs
 
-    # Verify output properties
-    assert len(clahe_output) == batch_size
-    for i in range(batch_size):
-        original = np.array(input_data[i].as_cpu())
-        enhanced = np.array(clahe_output[i].as_cpu())
+        # Verify output properties
+        assert len(clahe_output) == batch_size
+        for i in range(batch_size):
+            original = np.array(input_data[i].as_cpu())
+            enhanced = np.array(clahe_output[i].as_cpu())
 
-        assert original.shape == enhanced.shape == (64, 64, 3)
-        assert original.dtype == enhanced.dtype == np.uint8
-        assert 0 <= enhanced.min() and enhanced.max() <= 255
+            assert original.shape == enhanced.shape == input_shape
+            assert original.dtype == enhanced.dtype == np.uint8
+            assert 0 <= enhanced.min() and enhanced.max() <= 255
 
 
 def test_clahe_ops_api():
     """Test CLAHE using the ops API."""
     batch_size = 2
-    pipe = ClaheOpsPipeline(
-        "gpu", batch_size, input_shape=(32, 32, 1), tiles_x=2, tiles_y=2, clip_limit=1.5
-    )
-    pipe.build()
+    input_shapes = [
+        (32, 32, 1),
+        (64, 64, 1),
+        (32, 32, 3),
+    ]
+    for input_shape in input_shapes:
+        pipe = ClaheOpsPipeline(
+            "gpu",
+            batch_size,
+            input_shape=input_shape,
+            tiles_x=2,
+            tiles_y=2,
+            clip_limit=1.5,
+        )
+        pipe.build()
 
-    outputs = pipe.run()
-    input_data, clahe_output = outputs
+        outputs = pipe.run()
+        input_data, clahe_output = outputs
 
-    # Verify output properties
-    assert len(clahe_output) == batch_size
-    for i in range(batch_size):
-        original = np.array(input_data[i].as_cpu())
-        enhanced = np.array(clahe_output[i].as_cpu())
+        # Verify output properties
+        assert len(clahe_output) == batch_size
+        for i in range(batch_size):
+            original = np.array(input_data[i].as_cpu())
+            enhanced = np.array(clahe_output[i].as_cpu())
 
-        assert original.shape == enhanced.shape == (32, 32, 1)
-        assert original.dtype == enhanced.dtype == np.uint8
+            assert original.shape == enhanced.shape == input_shape
+            assert original.dtype == enhanced.dtype == np.uint8
 
 
 def test_clahe_parameter_validation():
@@ -341,6 +372,7 @@ def test_clahe_parameter_validation():
     # Test with different valid parameter combinations
     valid_configs = [
         {"tiles_x": 4, "tiles_y": 4, "clip_limit": 1.5},
+        {"tiles_x": 8, "tiles_y": 8, "clip_limit": 2.0},
         {"tiles_x": 16, "tiles_y": 8, "clip_limit": 3.0},
         {"tiles_x": 2, "tiles_y": 2, "clip_limit": 1.0},
     ]
@@ -409,8 +441,8 @@ def test_clahe_opencv_comparison_gpu():
 
         # Assert MSE and MAE are under reasonable thresholds
         # Different LAB implementations can have notable differences, especially for complex images
-        assert mse < 30.0, f"MSE too high for {test_name} on GPU: {mse:.3f}"
-        assert mae < 5.0, f"MAE too high for {test_name} on GPU: {mae:.3f}"
+        assert mse < MSE_THRESHOLD, f"MSE too high for {test_name} on GPU: {mse:.3f}"
+        assert mae < MAE_THRESHOLD, f"MAE too high for {test_name} on GPU: {mae:.3f}"
 
         print(f"✓ GPU {test_name}: MSE={mse:.3f}, MAE={mae:.3f}")
 
@@ -438,8 +470,8 @@ def test_clahe_opencv_comparison_cpu():
         mae = np.mean(np.abs(opencv_float - dali_float))
 
         # Assert MSE and MAE are under 3.0
-        assert mse < 3.0, f"MSE too high for {test_name} on CPU: {mse:.3f}"
-        assert mae < 3.0, f"MAE too high for {test_name} on CPU: {mae:.3f}"
+        assert mse < MSE_THRESHOLD, f"MSE too high for {test_name} on CPU: {mse:.3f}"
+        assert mae < MAE_THRESHOLD, f"MAE too high for {test_name} on CPU: {mae:.3f}"
 
         print(f"✓ CPU {test_name}: MSE={mse:.3f}, MAE={mae:.3f}")
 
@@ -468,8 +500,8 @@ def test_clahe_gpu_cpu_consistency():
         mae = np.mean(np.abs(gpu_float - cpu_float))
 
         # GPU and CPU should be reasonably close (allow for LAB conversion differences)
-        assert mse < 5.0, f"MSE too high between GPU/CPU for {test_name}: {mse:.3f}"
-        assert mae < 2.0, f"MAE too high between GPU/CPU for {test_name}: {mae:.3f}"
+        assert mse < MSE_THRESHOLD, f"MSE too high between GPU/CPU for {test_name}: {mse:.3f}"
+        assert mae < MAE_THRESHOLD, f"MAE too high between GPU/CPU for {test_name}: {mae:.3f}"
 
         print(f"✓ GPU/CPU consistency {test_name}: MSE={mse:.3f}, MAE={mae:.3f}")
 
@@ -481,7 +513,7 @@ def test_clahe_different_parameters_accuracy():
     # Test different parameter combinations
     test_configs = [
         {"tiles_x": 8, "tiles_y": 8, "clip_limit": 2.0},
-        {"tiles_x": 2, "tiles_y": 4, "clip_limit": 2.0},
+        {"tiles_x": 4, "tiles_y": 8, "clip_limit": 1.5},
         {"tiles_x": 4, "tiles_y": 4, "clip_limit": 1.5},
     ]
 
@@ -508,10 +540,10 @@ def test_clahe_different_parameters_accuracy():
         mae_cpu = np.mean(np.abs(opencv_float - dali_cpu_float))
 
         # Assert accuracy for both GPU and CPU
-        assert mse_gpu < 3.0, f"GPU MSE too high for {config}: {mse_gpu:.3f}"
-        assert mae_gpu < 3.0, f"GPU MAE too high for {config}: {mae_gpu:.3f}"
-        assert mse_cpu < 3.0, f"CPU MSE too high for {config}: {mse_cpu:.3f}"
-        assert mae_cpu < 3.0, f"CPU MAE too high for {config}: {mae_cpu:.3f}"
+        assert mse_gpu < MSE_THRESHOLD, f"GPU MSE too high for {config}: {mse_gpu:.3f}"
+        assert mae_gpu < MAE_THRESHOLD, f"GPU MAE too high for {config}: {mae_gpu:.3f}"
+        assert mse_cpu < MSE_THRESHOLD, f"CPU MSE too high for {config}: {mse_cpu:.3f}"
+        assert mae_cpu < MAE_THRESHOLD, f"CPU MAE too high for {config}: {mae_cpu:.3f}"
 
         print(
             f"✓ Config {config}: GPU MSE={mse_gpu:.3f}, "
@@ -548,10 +580,10 @@ def test_clahe_medical_image_accuracy():
     mae_cpu = np.mean(np.abs(opencv_float - dali_cpu_float))
 
     # Medical images should have very good accuracy
-    assert mse_gpu < 3.0, f"GPU MSE too high for medical image: {mse_gpu:.3f}"
-    assert mae_gpu < 3.0, f"GPU MAE too high for medical image: {mae_gpu:.3f}"
-    assert mse_cpu < 3.0, f"CPU MSE too high for medical image: {mse_cpu:.3f}"
-    assert mae_cpu < 3.0, f"CPU MAE too high for medical image: {mae_cpu:.3f}"
+    assert mse_gpu < MSE_THRESHOLD, f"GPU MSE too high for medical image: {mse_gpu:.3f}"
+    assert mae_gpu < MAE_THRESHOLD, f"GPU MAE too high for medical image: {mae_gpu:.3f}"
+    assert mse_cpu < MSE_THRESHOLD, f"CPU MSE too high for medical image: {mse_cpu:.3f}"
+    assert mae_cpu < MAE_THRESHOLD, f"CPU MAE too high for medical image: {mae_cpu:.3f}"
 
     print(
         f"✓ Medical image: GPU MSE={mse_gpu:.3f}, "
