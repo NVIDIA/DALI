@@ -52,6 +52,11 @@
 #define CV_LAB_ZG CV_HEX_CONST(0xbfca1e14bdfd2631)  // -0.204043
 #define CV_LAB_ZB CV_HEX_CONST(0x3ff0eabef06b3786)  // 1.057311
 
+// https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L940
+#define D65_WHITE_X CV_HEX_CONST(0x3fee6a22b3892ee8)      // 0.950456
+#define D65_WHITE_Y 1.0f                                  // 1.000000
+#define D65_WHITE_Z CV_HEX_CONST(0x3ff16b8950763a19)      // 1.089058
+
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1010
 #define GAMMA_THRESHOLD (809.0f / 20000.0f)         //  0.04045
 #define GAMMA_INV_THRESHOLD (7827.0f / 2500000.0f)  //  0.0031308
@@ -69,17 +74,19 @@
 // -------------------------------------------------------------------------------------
 __device__ float srgb_to_linear(uint8_t c) {
   // OpenCV's exact gamma correction, input is 8-bit (0-255)
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
   float cf = c / 255.0f;
-  return (cf > GAMMA_THRESHOLD) ?
-          powf((cf + GAMMA_XSHIFT) / (1.0f + GAMMA_XSHIFT), GAMMA_POWER)
-          : cf / GAMMA_LOW_SCALE;
+  return (cf <= GAMMA_THRESHOLD) ?
+          cf / GAMMA_LOW_SCALE :
+          powf((cf + GAMMA_XSHIFT) / (1.0f + GAMMA_XSHIFT), GAMMA_POWER);
 }
 
 __device__ float linear_to_srgb(float c) {
   // OpenCV's exact inverse gamma correction
-  return (c > GAMMA_INV_THRESHOLD) ?
-         (1.0f + GAMMA_XSHIFT) * powf(c, 1.0f / GAMMA_POWER) - GAMMA_XSHIFT :
-         GAMMA_LOW_SCALE * c;
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
+  return (c <= GAMMA_INV_THRESHOLD) ?
+         GAMMA_LOW_SCALE * c :
+         powf(c, 1.0f / GAMMA_POWER)*(1.0+GAMMA_XSHIFT) - GAMMA_XSHIFT;
 }
 
 __device__ float xyz_to_lab_f(float t) {
@@ -111,9 +118,9 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
   float z = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
   // Normalize by D65 white point (OpenCV exact values)
-  x = x / 0.9504559270516716f;
-  y = y / 1.0000000000000000f;
-  z = z / 1.0890577507598784f;
+  x = x / D65_WHITE_X;
+  y = y / D65_WHITE_Y;
+  z = z / D65_WHITE_Z;
 
   // XYZ to LAB
   float fx = xyz_to_lab_f(x);
@@ -133,9 +140,9 @@ __device__ void lab_to_rgb(float L, float a, float b,
   float fz = fy - b / 200.0f;
 
   // Convert using OpenCV's exact D65 white point values
-  float x = lab_f_to_xyz(fx) * 0.9504559270516716f;
-  float y = lab_f_to_xyz(fy) * 1.0000000000000000f;
-  float z = lab_f_to_xyz(fz) * 1.0890577507598784f;
+  float x = lab_f_to_xyz(fx) * D65_WHITE_X;
+  float y = lab_f_to_xyz(fy) * D65_WHITE_Y;
+  float z = lab_f_to_xyz(fz) * D65_WHITE_Z;
 
   // XYZ to linear RGB using OpenCV's exact inverse matrix
   float rf = CV_LAB_XR * x + CV_LAB_XG * y + CV_LAB_XB * z;
