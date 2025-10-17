@@ -220,6 +220,10 @@ def test_hsv_cpu():
     check_single_input(fn.hsv)
 
 
+def test_clahe_cpu():
+    check_single_input(fn.clahe)
+
+
 def test_color_twist_cpu():
     check_single_input(fn.color_twist)
 
@@ -659,7 +663,11 @@ def test_lookup_table_cpu():
         return out
 
     check_single_input(
-        fn.lookup_table, keys=[1, 3], values=[10, 50], get_data=get_data, input_layout=None
+        fn.lookup_table,
+        keys=[1, 3],
+        values=[10, 50],
+        get_data=get_data,
+        input_layout=None,
     )
 
 
@@ -837,7 +845,10 @@ def test_nemo_asr_reader_cpu():
 
 def test_video_reader():
     check_no_input(
-        fn.experimental.readers.video, filenames=video_files, labels=[0, 1], sequence_length=10
+        fn.experimental.readers.video,
+        filenames=video_files,
+        labels=[0, 1],
+        sequence_length=10,
     )
 
 
@@ -951,7 +962,10 @@ def test_sequence_rearrange_cpu():
         return out
 
     check_single_input(
-        fn.sequence_rearrange, new_order=[0, 4, 1, 3, 2], get_data=get_data, input_layout="FHWC"
+        fn.sequence_rearrange,
+        new_order=[0, 4, 1, 3, 2],
+        get_data=get_data,
+        input_layout="FHWC",
     )
 
 
@@ -999,7 +1013,11 @@ def test_python_function_cpu():
         return np.array(Image.fromarray(image).resize((50, 10)))
 
     pipe = Pipeline(  # noqa: F841
-        batch_size=batch_size, num_threads=4, device_id=None, exec_async=False, exec_pipelined=False
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=None,
+        exec_async=False,
+        exec_pipelined=False,
     )
     check_single_input(fn.python_function, function=resize, exec_async=False, exec_pipelined=False)
 
@@ -1014,7 +1032,11 @@ def test_dump_image_cpu():
 
 def test_sequence_reader_cpu():
     check_no_input(
-        fn.readers.sequence, file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1
+        fn.readers.sequence,
+        file_root=sequence_dir,
+        sequence_length=2,
+        shard_id=0,
+        num_shards=1,
     )
 
 
@@ -1078,7 +1100,10 @@ def test_segmentation_select_masks():
             num_outputs=3,
             device="cpu",
             source=get_data_source(
-                batch_size, vertex_ndim=2, npolygons_range=(1, 5), nvertices_range=(3, 10)
+                batch_size,
+                vertex_ndim=2,
+                npolygons_range=(1, 5),
+                nvertices_range=(3, 10),
             ),
         )
         out_polygons, out_vertices = fn.segmentation.select_masks(
