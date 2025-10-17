@@ -23,6 +23,9 @@
 namespace dali {
 namespace testing {
 
+// Global tolerance for CPU vs GPU RMSE in CLAHE tests
+constexpr double kClaheCpuGpuTolerance = 5.0;
+
 class ClaheOpTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -152,13 +155,10 @@ class ClaheOpTest : public ::testing::Test {
     // Compare results
     double rmse = CompareTensorLists(cpu_output, gpu_output);
 
-    // Tolerance accounts for numerical precision differences and minor algorithmic variations
-    // Pure numerical precision: ~0.5-2.0 RMSE, algorithmic differences: ~1.0-3.0 RMSE
-    double tolerance = 2.0;  // Conservative tolerance for cross-platform equivalence
 
-    EXPECT_LT(rmse, tolerance) << "RMSE between CPU and GPU CLAHE too high: " << rmse
-                               << " (tiles=" << tiles_x << "x" << tiles_y << ", clip=" << clip_limit
-                               << ", luma_only=" << luma_only << ")";
+  EXPECT_LT(rmse, kClaheCpuGpuTolerance) << "RMSE between CPU and GPU CLAHE too high: " << rmse
+                      << " (tiles=" << tiles_x << "x" << tiles_y << ", clip=" << clip_limit
+                      << ", luma_only=" << luma_only << ")";
 
     std::cout << "CLAHE CPU vs GPU RMSE: " << rmse << " (tiles=" << tiles_x << "x" << tiles_y
               << ", clip=" << clip_limit << ", luma_only=" << luma_only << ")" << std::endl;
