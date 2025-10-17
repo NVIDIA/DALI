@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -254,6 +254,7 @@ class MultiTarTests : public ::testing::TestWithParam<bool> {
  protected:
   std::unique_ptr<TarArchive> archives[kMultithreadedSamples];
   const std::pair<int, int> ranges[kMultithreadedSamples] = {{2000, 3000}, {0, 1000}, {1000, 2000}};
+
   void SetUp() final {
     std::string filepath_prefix(
         dali::filesystem::join_path(testing::dali_extra_path(), "db/webdataset/MNIST/devel-"));
@@ -271,7 +272,7 @@ TEST_P(MultiTarTests, Index) {
   std::future<void> tasks[kMultithreadedSamples];
 
   for (int idx = 0; idx < kMultithreadedSamples; idx++) {
-    tasks[idx] = std::async(std::launch::async, [=] {
+    tasks[idx] = std::async(std::launch::async, [=, this] {
       TestArchiveEntries(*archives[idx], {".cls", ".jpg"}, ranges[idx].first, ranges[idx].second,
                          GetParam());
     });
