@@ -89,7 +89,6 @@ typedef enum {
 } t_loadingFlags;
 
 struct OpArg {
-  OpArg() = default;
   const char *m_Name;
   std::string m_val;
   DALIDataType type;
