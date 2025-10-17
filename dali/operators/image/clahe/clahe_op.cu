@@ -30,9 +30,33 @@
 // 0.412453, 0.357580, 0.180423,
 // 0.212671, 0.715160, 0.072169,
 // 0.019334, 0.119193, 0.950227
-#define CV_XR CV_HEX_CONST(0x3fda65a14488c60d)  // 0.412453
-#define CV_XG CV_HEX_CONST(0x3fd6e297396d0918)  // 0.357580
-#define CV_XB CV_HEX_CONST(0x3fc71819d2391d58)  // 0.180423
+#define CV_RGB_XR CV_HEX_CONST(0x3fda65a14488c60d)  // 0.412453
+#define CV_RGB_XG CV_HEX_CONST(0x3fd6e297396d0918)  // 0.357580
+#define CV_RGB_XB CV_HEX_CONST(0x3fc71819d2391d58)  // 0.180423
+
+#define CV_RGB_YR CV_HEX_CONST(0x3fcb38cda6e75ff6)  // 0.212673
+#define CV_RGB_YG CV_HEX_CONST(0x3fe6e297396d0918)  // 0.715160
+#define CV_RGB_YB CV_HEX_CONST(0x3fb279aae6c8f755)  // 0.072169
+
+#define CV_RGB_ZR CV_HEX_CONST(0x3f93cc4ac6cdaf4b)  // 0.019334
+#define CV_RGB_ZG CV_HEX_CONST(0x3fbe836eb4e98138)  // 0.119193
+#define CV_RGB_ZB CV_HEX_CONST(0x3fee68427418d691)  // 0.950227
+
+
+// https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L116
+//  3.240479, -1.53715, -0.498535,
+// -0.969256, 1.875991, 0.041556,
+//  0.055648, -0.204043, 1.057311
+#define CV_LAB_XR CV_HEX_CONST(0x4009ec804102ff8f)  // 3.240479
+#define CV_LAB_XG CV_HEX_CONST(0xbff8982a9930be0e)  // -1.53715
+#define CV_LAB_XB CV_HEX_CONST(0xbfdfe7ff583a53b9)  // -0.498535
+#define CV_LAB_YR CV_HEX_CONST(0xbfef042528ae74f3)  // -0.969256
+#define CV_LAB_YG CV_HEX_CONST(0x3ffe040f23897204)  // 1.875991
+#define CV_LAB_YB CV_HEX_CONST(0x3fa546d3f9e7b80b)  // 0.041556
+#define CV_LAB_ZR CV_HEX_CONST(0x3fac7de5082cf52c)  // 0.055648
+#define CV_LAB_ZG CV_HEX_CONST(0xbfca1e14bdfd2631)  // -0.204043
+#define CV_LAB_ZB CV_HEX_CONST(0x3ff0eabef06b3786)  // 1.057311
+
 
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
@@ -72,15 +96,9 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
   float bf = srgb_to_linear(b);
 
   // Linear RGB to XYZ using OpenCV's exact matrix (sRGB D65)
-  float x = CV_XR * rf
-          + CV_XG * gf
-          + CV_XB * bf;
-  float y = 0.2126728514056224f * rf
-          + 0.7151579067501442f * gf
-          + 0.0721690406852293f * bf;
-  float z = 0.0193338958834121f * rf
-          + 0.1191920336965374f * gf
-          + 0.9503040785363140f * bf;
+  float x = CV_RGB_XR * rf + CV_RGB_XG * gf + CV_RGB_XB * bf;
+  float y = CV_RGB_YR * rf + CV_RGB_YG * gf + CV_RGB_YB * bf;
+  float z = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
   // Normalize by D65 white point (OpenCV exact values)
   x = x / 0.9504559270516716f;
@@ -110,15 +128,9 @@ __device__ void lab_to_rgb(float L, float a, float b,
   float z = lab_f_to_xyz(fz) * 1.0890577507598784f;
 
   // XYZ to linear RGB using OpenCV's exact inverse matrix
-  float rf = 3.2404541621141045f * x
-           - 1.5371385127977166f * y
-           - 0.4985314095560162f * z;
-  float gf = -0.9692660305051868f * x
-           + 1.8760108454466942f * y
-           + 0.0415560175303051f * z;
-  float bf = 0.0556434309971394f * x
-           - 0.2040259135167538f * y
-           + 1.0572251882231791f * z;
+  float rf = CV_LAB_XR * x + CV_LAB_XG * y + CV_LAB_XB * z;
+  float gf = CV_LAB_YR * x + CV_LAB_YG * y + CV_LAB_YB * z;
+  float bf = CV_LAB_ZR * x + CV_LAB_ZG * y + CV_LAB_ZB * z;
 
   // Linear RGB to sRGB
   rf = linear_to_srgb(rf);
