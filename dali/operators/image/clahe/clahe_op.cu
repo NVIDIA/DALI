@@ -53,16 +53,16 @@
 #define CV_LAB_ZB CV_HEX_CONST(0x3ff0eabef06b3786)  // 1.057311
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L940
-#define D65_WHITE_X CV_HEX_CONST(0x3fee6a22b3892ee8)      // 0.950456
-#define D65_WHITE_Y 1.                                    // 1.000000
-#define D65_WHITE_Z CV_HEX_CONST(0x3ff16b8950763a19)      // 1.089058
+#define D65_WHITE_X CV_HEX_CONST(0x3fee6a22b3892ee8)  // 0.950456
+#define D65_WHITE_Y 1.                                // 1.000000
+#define D65_WHITE_Z CV_HEX_CONST(0x3ff16b8950763a19)  // 1.089058
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1010
-#define GAMMA_THRESHOLD (809. / 20000.)                   //  0.04045
-#define GAMMA_INV_THRESHOLD (7827. / 2500000.)            //  0.0031308
-#define GAMMA_LOW_SCALE (323. / 25.)                      // 12.92
-#define GAMMA_POWER (12. / 5.)                            //  2.4
-#define GAMMA_XSHIFT (11. / 200.)                         //  0.055
+#define GAMMA_THRESHOLD (809. / 20000.)         //  0.04045
+#define GAMMA_INV_THRESHOLD (7827. / 2500000.)  //  0.0031308
+#define GAMMA_LOW_SCALE (323. / 25.)            // 12.92
+#define GAMMA_POWER (12. / 5.)                  //  2.4
+#define GAMMA_XSHIFT (11. / 200.)               //  0.055
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
 #define THRESHOLD_6_29TH (6. / 29.)
@@ -76,17 +76,16 @@ __device__ float srgb_to_linear(uint8_t c) {
   // OpenCV's exact gamma correction, input is 8-bit (0-255)
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
   float cf = c / 255.f;
-  return (cf <= GAMMA_THRESHOLD) ?
-          cf / GAMMA_LOW_SCALE :
-          pow((cf + GAMMA_XSHIFT) / (1. + GAMMA_XSHIFT), GAMMA_POWER);
+  return (cf <= GAMMA_THRESHOLD) ? cf / GAMMA_LOW_SCALE :
+                                   pow((cf + GAMMA_XSHIFT) / (1. + GAMMA_XSHIFT), GAMMA_POWER);
 }
 
 __device__ float linear_to_srgb(float c) {
   // OpenCV's exact inverse gamma correction
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
   return (c <= GAMMA_INV_THRESHOLD) ?
-         GAMMA_LOW_SCALE * c :
-         pow(c, 1. / GAMMA_POWER)*(1.0+GAMMA_XSHIFT) - GAMMA_XSHIFT;
+             GAMMA_LOW_SCALE * c :
+             pow(c, 1. / GAMMA_POWER) * (1.0 + GAMMA_XSHIFT) - GAMMA_XSHIFT;
 }
 
 __device__ float xyz_to_lab_f(float t) {
@@ -105,8 +104,7 @@ __device__ float lab_f_to_xyz(float u) {
   return (u > threshold) ? (u * u * u) : (slope * (u - OFFSET_4_29TH));
 }
 
-__device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
-                           float *L, float *a_out, float *b_out) {
+__device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_out, float *b_out) {
   // sRGB to linear RGB (OpenCV expects 8-bit input)
   float rf = srgb_to_linear(r);
   float gf = srgb_to_linear(g);
@@ -134,8 +132,7 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
   *b_out = 200. * (fy - fz);
 }
 
-__device__ void lab_to_rgb(float L, float a, float b,
-                           uint8_t *r, uint8_t *g, uint8_t *b_out) {
+__device__ void lab_to_rgb(float L, float a, float b, uint8_t *r, uint8_t *g, uint8_t *b_out) {
   // LAB to XYZ
   float fy = (L + 16.) / 116.;
   float fx = a / 500. + fy;
@@ -170,7 +167,9 @@ __global__ void rgb_to_y_u8_nhwc_kernel(const uint8_t *__restrict__ rgb,
                                         uint8_t *__restrict__ y_out, int H, int W) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int N = H * W;
-  if (idx >= N) { return; }
+  if (idx >= N) {
+    return;
+  }
 
   int c0 = 3 * idx;
   uint8_t r = rgb[c0 + 0];
@@ -195,7 +194,9 @@ __global__ void rgb_to_y_u8_nhwc_vectorized_kernel(const uint8_t *__restrict__ r
 #pragma unroll
   for (int i = 0; i < 4; ++i) {
     int idx = base_idx + i;
-    if (idx >= N) { return; }
+    if (idx >= N) {
+      return;
+    }
 
     int c0 = 3 * idx;
 
@@ -206,7 +207,7 @@ __global__ void rgb_to_y_u8_nhwc_vectorized_kernel(const uint8_t *__restrict__ r
     float L, a, b_lab;
     rgb_to_lab(r, g, b, &L, &a, &b_lab);
 
-  uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
+    uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
     y_out[idx] = L_u8;
   }
 }
@@ -237,10 +238,14 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
 
   int tx = blockIdx.x;  // tile x
   int ty = blockIdx.y;  // tile y
-  if (tx >= tiles_x || ty >= tiles_y) { return; }
+  if (tx >= tiles_x || ty >= tiles_y) {
+    return;
+  }
 
   // Zero shared histogram
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) { shist[i] = 0u; }
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    shist[i] = 0u;
+  }
   __syncthreads();
 
   // Compute tile bounds
@@ -263,15 +268,15 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     int rgb_idx = 3 * pixel_idx;
 
 
-  // RGB to LAB L* conversion (match OpenCV exactly)
-  // Use OpenCV-compatible sRGB to linear conversion (8-bit input)
-  uint8_t r = rgb[rgb_idx + 0];
-  uint8_t g = rgb[rgb_idx + 1];
-  uint8_t b = rgb[rgb_idx + 2];
+    // RGB to LAB L* conversion (match OpenCV exactly)
+    // Use OpenCV-compatible sRGB to linear conversion (8-bit input)
+    uint8_t r = rgb[rgb_idx + 0];
+    uint8_t g = rgb[rgb_idx + 1];
+    uint8_t b = rgb[rgb_idx + 2];
 
-  float rf = srgb_to_linear(r);
-  float gf = srgb_to_linear(g);
-  float bf = srgb_to_linear(b);
+    float rf = srgb_to_linear(r);
+    float gf = srgb_to_linear(g);
+    float bf = srgb_to_linear(b);
 
     // Convert to CIE XYZ using OpenCV's exact transformation matrix
     float x_xyz = CV_RGB_XR * rf + CV_RGB_XG * gf + CV_RGB_XB * bf;
@@ -289,7 +294,7 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     float L = 116. * fy - 16.;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
-  uint8_t y_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
+    uint8_t y_u8 = (uint8_t)lrintf(dali::clamp(static_cast<double>(L * 255. / 100.), 0.0, 255.0));
     y_out[pixel_idx] = y_u8;
 
     // Add to histogram
@@ -299,7 +304,9 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
 
   // Write back histogram to global memory
   unsigned int *g_hist = histograms + (ty * tiles_x + tx) * bins;
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) { g_hist[i] = shist[i]; }
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    g_hist[i] = shist[i];
+  }
 }
 
 void LaunchFusedRGBToYHist(const uint8_t *rgb, uint8_t *y_plane, int H, int W, int tiles_x,
@@ -307,8 +314,8 @@ void LaunchFusedRGBToYHist(const uint8_t *rgb, uint8_t *y_plane, int H, int W, i
   dim3 grid(tiles_x, tiles_y, 1);
   int threads = 512;  // Optimized for both compute and shared memory
   size_t shmem = 256 * sizeof(unsigned int);
-  fused_rgb_to_y_hist_kernel<<<grid, threads, shmem, stream>>>(
-      rgb, y_plane, H, W, tiles_x, tiles_y, histograms);
+  fused_rgb_to_y_hist_kernel<<<grid, threads, shmem, stream>>>(rgb, y_plane, H, W, tiles_x, tiles_y,
+                                                               histograms);
 }
 
 // -------------------------------------------------------------------------------------
@@ -324,7 +331,9 @@ __global__ void hist_per_tile_256_warp_optimized_kernel(const uint8_t *__restric
 
   int tx = blockIdx.x;  // tile x
   int ty = blockIdx.y;  // tile y
-  if (tx >= tiles_x || ty >= tiles_y) { return; }
+  if (tx >= tiles_x || ty >= tiles_y) {
+    return;
+  }
 
   int warp_id = threadIdx.x / warp_size;
   int lane_id = threadIdx.x % warp_size;
@@ -335,11 +344,15 @@ __global__ void hist_per_tile_256_warp_optimized_kernel(const uint8_t *__restric
   unsigned int *global_hist = shist + warps_per_block * bins;  // Final merged histogram
 
   // Zero per-warp histogram
-  for (int i = lane_id; i < bins; i += warp_size) { warp_hist[i] = 0u; }
+  for (int i = lane_id; i < bins; i += warp_size) {
+    warp_hist[i] = 0u;
+  }
 
   // Zero global histogram (only first warp)
   if (warp_id == 0) {
-    for (int i = lane_id; i < bins; i += warp_size) { global_hist[i] = 0u; }
+    for (int i = lane_id; i < bins; i += warp_size) {
+      global_hist[i] = 0u;
+    }
   }
   __syncthreads();
 
@@ -368,14 +381,18 @@ __global__ void hist_per_tile_256_warp_optimized_kernel(const uint8_t *__restric
   // Merge warp histograms to final histogram
   for (int bin = lane_id; bin < bins; bin += warp_size) {
     unsigned int sum = 0u;
-    for (int w = 0; w < warps_per_block; ++w) { sum += shist[w * bins + bin]; }
+    for (int w = 0; w < warps_per_block; ++w) {
+      sum += shist[w * bins + bin];
+    }
     global_hist[bin] = sum;
   }
   __syncthreads();
 
   // Write back to global memory
   unsigned int *g_hist = histograms + (ty * tiles_x + tx) * bins;
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) { g_hist[i] = global_hist[i]; }
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    g_hist[i] = global_hist[i];
+  }
 }
 
 void LaunchHistPerTile256WarpOptimized(const uint8_t *y_plane, int H, int W, int tiles_x,
@@ -385,8 +402,8 @@ void LaunchHistPerTile256WarpOptimized(const uint8_t *y_plane, int H, int W, int
   int warps_per_block = threads / 32;
   // Shared memory: warps_per_block * 256 (private) + 256 (final)
   size_t shmem = (warps_per_block + 1) * 256 * sizeof(unsigned int);
-  hist_per_tile_256_warp_optimized_kernel<<<grid, threads, shmem, stream>>>(
-      y_plane, H, W, tiles_x, tiles_y, histograms);
+  hist_per_tile_256_warp_optimized_kernel<<<grid, threads, shmem, stream>>>(y_plane, H, W, tiles_x,
+                                                                            tiles_y, histograms);
 }
 
 // Original version kept for fallback
@@ -398,10 +415,14 @@ __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, in
 
   int tx = blockIdx.x;  // tile x
   int ty = blockIdx.y;  // tile y
-  if (tx >= tiles_x || ty >= tiles_y) { return; }
+  if (tx >= tiles_x || ty >= tiles_y) {
+    return;
+  }
 
   // Zero shared histogram
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) { shist[i] = 0u; }
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    shist[i] = 0u;
+  }
   __syncthreads();
 
   // Compute tile bounds
@@ -426,7 +447,9 @@ __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, in
 
   // Write back to global memory
   unsigned int *g_hist = histograms + (ty * tiles_x + tx) * bins;
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) { g_hist[i] = shist[i]; }
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    g_hist[i] = shist[i];
+  }
 }
 
 void LaunchHistPerTile256(const uint8_t *y_plane, int H, int W, int tiles_x, int tiles_y,
@@ -440,8 +463,8 @@ void LaunchHistPerTile256(const uint8_t *y_plane, int H, int W, int tiles_x, int
     dim3 grid(tiles_x, tiles_y, 1);
     int threads = 512;
     size_t shmem = 256 * sizeof(unsigned int);
-    hist_per_tile_256_kernel<<<grid, threads, shmem, stream>>>(
-        y_plane, H, W, tiles_x, tiles_y, histograms);
+    hist_per_tile_256_kernel<<<grid, threads, shmem, stream>>>(y_plane, H, W, tiles_x, tiles_y,
+                                                               histograms);
   }
 }
 
@@ -458,7 +481,9 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
 
   int tx = blockIdx.x;
   int ty = blockIdx.y;
-  if (tx >= tiles_x || ty >= tiles_y) { return; }
+  if (tx >= tiles_x || ty >= tiles_y) {
+    return;
+  }
 
   // Actual tile bounds (handle edges)
   int x0 = tx * tile_w;
@@ -472,7 +497,9 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   __shared__ unsigned int cdf[256];
 
   // Load histogram
-  for (int i = tid; i < bins; i += blockDim.x) { h[i] = hist[i]; }
+  for (int i = tid; i < bins; i += blockDim.x) {
+    h[i] = hist[i];
+  }
   __syncthreads();
 
   // Compute clip limit (match OpenCV exactly)
@@ -483,7 +510,9 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
 
   // Clip and accumulate excess
   __shared__ unsigned int excess;
-  if (tid == 0) { excess = 0u; }
+  if (tid == 0) {
+    excess = 0u;
+  }
   __syncthreads();
 
   for (int i = tid; i < bins; i += blockDim.x) {
@@ -497,10 +526,12 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   __syncthreads();
 
   // Redistribute excess using OpenCV's exact algorithm
-  unsigned int redistBatch = excess / bins;   // OpenCV: redistBatch = clipped / histSize
-  unsigned int residual = excess % bins;      // OpenCV: residual = clipped - redistBatch * histSize
+  unsigned int redistBatch = excess / bins;  // OpenCV: redistBatch = clipped / histSize
+  unsigned int residual = excess % bins;     // OpenCV: residual = clipped - redistBatch * histSize
 
-  for (int i = tid; i < bins; i += blockDim.x) { h[i] += redistBatch; }
+  for (int i = tid; i < bins; i += blockDim.x) {
+    h[i] += redistBatch;
+  }
   __syncthreads();
 
   // Distribute residual using OpenCV's exact step pattern
@@ -543,8 +574,8 @@ void LaunchClipCdfToLut256(unsigned int *histograms, int H, int W, int tiles_x, 
 
   // 256 threads allows more blocks per SM, improving overall throughput
   int threads = 256;
-  clip_cdf_lut_256_kernel<<<grid, threads, 0, stream>>>(
-      histograms, tiles_x, tiles_y, tile_w, tile_h, W, H, clip_limit_rel, luts);
+  clip_cdf_lut_256_kernel<<<grid, threads, 0, stream>>>(histograms, tiles_x, tiles_y, tile_w,
+                                                        tile_h, W, H, clip_limit_rel, luts);
 }
 
 // -------------------------------------------------------------------------------------
@@ -560,7 +591,9 @@ __global__ void apply_lut_bilinear_gray_vectorized_kernel(uint8_t *__restrict__ 
 #pragma unroll
   for (int i = 0; i < 4; ++i) {
     int idx = base_idx + i;
-    if (idx >= N) { return; }
+    if (idx >= N) {
+      return;
+    }
 
     int y = idx / W;
     int x = idx - y * W;
@@ -632,7 +665,9 @@ __global__ void apply_lut_bilinear_gray_kernel(uint8_t *__restrict__ dst_y,
                                                const uint8_t *__restrict__ luts) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int N = H * W;
-  if (idx >= N) { return; }
+  if (idx >= N) {
+    return;
+  }
 
   int y = idx / W;
   int x = idx - y * W;
@@ -707,7 +742,9 @@ __global__ void apply_lut_bilinear_gray_optimized_kernel(uint8_t *__restrict__ d
                                                          int bins) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int N = H * W;
-  if (idx >= N) { return; }
+  if (idx >= N) {
+    return;
+  }
 
   int y = idx / W;
   int x = idx - y * W;
@@ -802,8 +839,8 @@ void LaunchApplyLUTBilinearToGray(uint8_t *dst_gray, const uint8_t *src_gray, in
     // Use original version for smaller images
     int threads = 512;
     int blocks = dali::div_ceil(N, threads);
-    apply_lut_bilinear_gray_kernel<<<blocks, threads, 0, stream>>>(
-        dst_gray, src_gray, H, W, tiles_x, tiles_y, luts);
+    apply_lut_bilinear_gray_kernel<<<blocks, threads, 0, stream>>>(dst_gray, src_gray, H, W,
+                                                                   tiles_x, tiles_y, luts);
   }
 }
 
@@ -821,7 +858,9 @@ __global__ void apply_lut_bilinear_rgb_vectorized_kernel(uint8_t *__restrict__ d
 #pragma unroll
   for (int i = 0; i < 2; ++i) {
     int idx = base_idx + i;
-    if (idx >= N) { return; }
+    if (idx >= N) {
+      return;
+    }
 
     int y = idx / W;
     int x = idx - y * W;
@@ -889,9 +928,8 @@ __global__ void apply_lut_bilinear_rgb_vectorized_kernel(uint8_t *__restrict__ d
     rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
 
     // Replace L* with enhanced version, keep a* and b* unchanged
-    float enhanced_L = dali::clamp(
-  static_cast<double>(lrintf(enhanced_L_u8 * 100. / 255.)),
-  0.0, 100.0);
+    float enhanced_L =
+        dali::clamp(static_cast<double>(lrintf(enhanced_L_u8 * 100. / 255.)), 0.0, 100.0);
 
     // Convert LAB back to RGB
     uint8_t new_r, new_g, new_b;
@@ -911,7 +949,9 @@ __global__ void apply_lut_bilinear_rgb_kernel(uint8_t *__restrict__ dst_rgb,
                                               const uint8_t *__restrict__ luts) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int N = H * W;
-  if (idx >= N) { return; }
+  if (idx >= N) {
+    return;
+  }
 
   int y = idx / W;
   int x = idx - y * W;
@@ -979,9 +1019,8 @@ __global__ void apply_lut_bilinear_rgb_kernel(uint8_t *__restrict__ dst_rgb,
   rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
 
   // Replace L* with enhanced version, keep a* and b* unchanged
-  float enhanced_L = dali::clamp(
-  static_cast<double>(lrintf(enhanced_L_u8 * 100. / 255.)),
-  0.0, 100.0);
+  float enhanced_L =
+      dali::clamp(static_cast<double>(lrintf(enhanced_L_u8 * 100. / 255.)), 0.0, 100.0);
 
   // Convert LAB back to RGB
   uint8_t new_r, new_g, new_b;
@@ -998,8 +1037,8 @@ void LaunchApplyLUTBilinearToRGB(uint8_t *dst_rgb, const uint8_t *src_rgb, const
   int N = H * W;
 
   // Use vectorized version for larger images
-  if (N >= 8192) {                               // Threshold for vectorized processing
-    int threads = 256;                           // Better occupancy with complex RGB processing
+  if (N >= 8192) {                                // Threshold for vectorized processing
+    int threads = 256;                            // Better occupancy with complex RGB processing
     int blocks = dali::div_ceil(N, threads * 2);  // Each thread processes 2 pixels
     apply_lut_bilinear_rgb_vectorized_kernel<<<blocks, threads, 0, stream>>>(
         dst_rgb, src_rgb, src_y, H, W, tiles_x, tiles_y, luts);
@@ -1007,8 +1046,8 @@ void LaunchApplyLUTBilinearToRGB(uint8_t *dst_rgb, const uint8_t *src_rgb, const
     // Use original version for smaller images
     int threads = 512;
     int blocks = dali::div_ceil(N, threads);
-    apply_lut_bilinear_rgb_kernel<<<blocks, threads, 0, stream>>>(
-        dst_rgb, src_rgb, src_y, H, W, tiles_x, tiles_y, luts);
+    apply_lut_bilinear_rgb_kernel<<<blocks, threads, 0, stream>>>(dst_rgb, src_rgb, src_y, H, W,
+                                                                  tiles_x, tiles_y, luts);
   }
 }
 
@@ -1034,14 +1073,18 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
 
   int tx = blockIdx.x;  // tile x
   int ty = blockIdx.y;  // tile y
-  if (tx >= tiles_x || ty >= tiles_y) { return; }
+  if (tx >= tiles_x || ty >= tiles_y) {
+    return;
+  }
 
   int warp_id = threadIdx.x / warp_size;
   int lane_id = threadIdx.x % warp_size;
 
   // Initialize shared memory
   unsigned int *my_warp_hist = warp_hist + warp_id * bins;
-  for (int i = lane_id; i < bins; i += warp_size) { my_warp_hist[i] = 0u; }
+  for (int i = lane_id; i < bins; i += warp_size) {
+    my_warp_hist[i] = 0u;
+  }
 
   if (warp_id == 0) {
     for (int i = lane_id; i < bins; i += warp_size) {
@@ -1073,7 +1116,9 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
   // Merge warp histograms
   for (int bin = lane_id; bin < bins; bin += warp_size) {
     unsigned int sum = 0u;
-  for (int w = 0; w < warps_per_block; ++w) { sum += warp_hist[w * bins + bin]; }
+    for (int w = 0; w < warps_per_block; ++w) {
+      sum += warp_hist[w * bins + bin];
+    }
     hist[bin] = sum;
   }
   __syncthreads();
@@ -1083,7 +1128,9 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
   unsigned int limit = max(static_cast<unsigned int>(clip_limit_f), 1u);
 
   __shared__ unsigned int excess;
-  if (threadIdx.x == 0) { excess = 0u; }
+  if (threadIdx.x == 0) {
+    excess = 0u;
+  }
   __syncthreads();
 
   for (int i = threadIdx.x; i < bins; i += blockDim.x) {
@@ -1100,7 +1147,9 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
   unsigned int redistBatch = excess / bins;
   unsigned int residual = excess % bins;
 
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) { hist[i] += redistBatch; }
+  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
+    hist[i] += redistBatch;
+  }
   __syncthreads();
 
   // Distribute residual (OpenCV: one-by-one, bin order)
@@ -1162,8 +1211,7 @@ void LaunchCLAHE_Grayscale_U8_NHWC(uint8_t *dst_gray, const uint8_t *src_gray, i
   } else {
     // Use traditional 3-kernel approach for smaller tile counts
     LaunchHistPerTile256(src_gray, H, W, tiles_x, tiles_y, tmp_histograms, stream);
-    LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts,
-                          stream);
+    LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts, stream);
   }
   LaunchApplyLUTBilinearToGray(dst_gray, src_gray, H, W, tiles_x, tiles_y, tmp_luts, stream);
   CUDA_CALL(cudaGetLastError());

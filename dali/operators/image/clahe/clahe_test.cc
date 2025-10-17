@@ -156,9 +156,9 @@ class ClaheOpTest : public ::testing::Test {
     double rmse = CompareTensorLists(cpu_output, gpu_output);
 
 
-  EXPECT_LT(rmse, kClaheCpuGpuTolerance) << "RMSE between CPU and GPU CLAHE too high: " << rmse
-                      << " (tiles=" << tiles_x << "x" << tiles_y << ", clip=" << clip_limit
-                      << ", luma_only=" << luma_only << ")";
+    EXPECT_LT(rmse, kClaheCpuGpuTolerance)
+        << "RMSE between CPU and GPU CLAHE too high: " << rmse << " (tiles=" << tiles_x << "x"
+        << tiles_y << ", clip=" << clip_limit << ", luma_only=" << luma_only << ")";
 
     std::cout << "CLAHE CPU vs GPU RMSE: " << rmse << " (tiles=" << tiles_x << "x" << tiles_y
               << ", clip=" << clip_limit << ", luma_only=" << luma_only << ")" << std::endl;
