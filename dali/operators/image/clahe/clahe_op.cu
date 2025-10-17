@@ -69,6 +69,11 @@
 #define OFFSET_4_29TH (4.0f / 29.0f)
 #define SLOPE_THRESOLD (powf(1.0f / THRESHOLD_6_29TH, 2.0f) / 3.0f)  // (29/6)^2 / 3
 
+// https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1017
+#define LTHRESHOLD (216.0f / 24389.0f)  // 0.008856
+#define LSCALE (841.0f / 108.0f)        // 7.787
+#define LBIAS (16.0f / 116.0f)          // 0.13793103448275862
+
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
 // -------------------------------------------------------------------------------------
@@ -90,10 +95,8 @@ __device__ float linear_to_srgb(float c) {
 
 __device__ float xyz_to_lab_f(float t) {
   // OpenCV-compatible.
-  const float delta = THRESHOLD_6_29TH;
-  const float threshold = delta * delta * delta;
-  const float slope = (1.0f / 3.0f) * (1.0f / (delta * delta));
-  return (t > threshold) ? cbrtf(t) : (slope * t + OFFSET_4_29TH);
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1184
+  return (t > LTHRESHOLD) ? cbrtf(t) : (LSCALE * t + LBIAS);
 }
 
 __device__ float lab_f_to_xyz(float u) {
