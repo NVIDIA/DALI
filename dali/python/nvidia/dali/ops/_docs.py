@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -194,7 +194,7 @@ def _docstring_generator_main(schema_name, api):
             ret += " and " + supported_statements[1]
         ret += ".\n"
 
-    if schema.IsNoPrune():
+    if schema.IsNoPrune() and api != "dynamic":
         ret += "\nThis operator will **not** be optimized out of the graph.\n"
 
     op_dev = []
