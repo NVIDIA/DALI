@@ -20,9 +20,19 @@
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
 
+#define CV_HEX_CONST(x) __builtin_bit_cast(double, x)
+
 #define THRESHOLD_6_29TH (6.0f / 29.0f)
 #define OFFSET_4_29TH (4.0f / 29.0f)
 #define SLOPE_841_108TH (841.0f / 108.0f)  // (29/6)^2 / 3
+
+// https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L100
+// 0.412453, 0.357580, 0.180423,
+// 0.212671, 0.715160, 0.072169,
+// 0.019334, 0.119193, 0.950227
+#define CV_XR CV_HEX_CONST(0x3fda65a14488c60d)  // 0.412453
+#define CV_XG CV_HEX_CONST(0x3fd6e297396d0918)  // 0.357580
+#define CV_XB CV_HEX_CONST(0x3fc71819d2391d58)  // 0.180423
 
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV exactly)
@@ -62,9 +72,9 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b,
   float bf = srgb_to_linear(b);
 
   // Linear RGB to XYZ using OpenCV's exact matrix (sRGB D65)
-  float x = 0.4124564390896922f * rf
-          + 0.3575761206819519f * gf
-          + 0.1804375005091677f * bf;
+  float x = CV_XR * rf
+          + CV_XG * gf
+          + CV_XB * bf;
   float y = 0.2126728514056224f * rf
           + 0.7151579067501442f * gf
           + 0.0721690406852293f * bf;
