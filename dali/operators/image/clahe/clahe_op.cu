@@ -214,6 +214,59 @@ __global__ void rgb_to_y_u8_nhwc_vectorized_kernel(const uint8_t *__restrict__ r
   }
 }
 
+// -------------------------------------------------------------------------------------
+// Histogram clipping, redistribution, and CDF calculation helper
+// -------------------------------------------------------------------------------------
+
+__device__ void clip_redistribute_cdf(unsigned int *h, int bins, int area, float clip_limit_rel,
+                                      unsigned int *cdf, uint8_t *lut) {
+  // Compute clip limit (match OpenCV)
+  float clip_limit_f = clip_limit_rel * area / bins;
+  int limit_int = static_cast<int>(clip_limit_f);
+  int limit = max(limit_int, 1);
+  unsigned int limit_u = static_cast<unsigned int>(limit);
+
+  // Clip and accumulate excess
+  unsigned int excess = 0u;
+  for (int i = 0; i < bins; ++i) {
+    unsigned int v = h[i];
+    if (v > limit_u) {
+      unsigned int over = v - limit_u;
+      h[i] = limit_u;
+      excess += over;
+    }
+  }
+
+  // Redistribute excess using OpenCV's algorithm
+  unsigned int redistBatch = excess / bins;
+  unsigned int residual = excess % bins;
+  for (int i = 0; i < bins; ++i) {
+    h[i] += redistBatch;
+  }
+
+  // Distribute residual using OpenCV's step pattern
+  if (residual > 0) {
+    unsigned int residualStep = max(bins / residual, 1u);
+    for (unsigned int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
+      h[i]++;
+    }
+  }
+
+  // Prefix-sum (CDF)
+  unsigned int acc = 0u;
+  for (int i = 0; i < bins; ++i) {
+    acc += h[i];
+    cdf[i] = acc;
+  }
+
+  // Build LUT using OpenCV's scaling methodology
+  float lutScale = static_cast<float>(bins - 1) / static_cast<float>(area);
+  for (int i = 0; i < bins; ++i) {
+    float val = static_cast<float>(cdf[i]) * lutScale + 0.5f;
+    lut[i] = static_cast<uint8_t>(dali::clamp(val, 0.f, 255.f));
+  }
+}
+
 void LaunchRGBToYUint8NHWC(const uint8_t *in_rgb, uint8_t *y_plane, int H, int W,
                            cudaStream_t stream) {
   int N = H * W;
@@ -270,7 +323,7 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     int rgb_idx = 3 * pixel_idx;
 
 
-    // RGB to LAB L* conversion (match OpenCV ly)
+    // RGB to LAB L* conversion (match OpenCV)
     // Use OpenCV-compatible sRGB to linear conversion (8-bit input)
     uint8_t r = rgb[rgb_idx + 0];
     uint8_t g = rgb[rgb_idx + 1];
@@ -496,6 +549,7 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   unsigned int *hist = histograms + (ty * tiles_x + tx) * bins;
   __shared__ unsigned int h[256];
   __shared__ unsigned int cdf[256];
+  uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
 
   // Load histogram
   for (int i = tid; i < bins; i += blockDim.x) {
@@ -503,68 +557,10 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // Compute clip limit (match OpenCV ly)
-  float clip_limit_f = clip_limit_rel * area / bins;
-  int limit_int = static_cast<int>(clip_limit_f);
-  int limit = max(limit_int, 1);
-  unsigned int limit_u = static_cast<unsigned int>(limit);
-
-  // Clip and accumulate excess
-  __shared__ unsigned int excess;
   if (tid == 0) {
-    excess = 0u;
+    clip_redistribute_cdf(h, bins, area, clip_limit_rel, cdf, lut);
   }
   __syncthreads();
-
-  for (int i = tid; i < bins; i += blockDim.x) {
-    unsigned int v = h[i];
-    if (v > limit_u) {
-      unsigned int over = v - limit_u;
-      h[i] = limit_u;
-      atomicAdd(&excess, over);
-    }
-  }
-  __syncthreads();
-
-  // Redistribute excess using OpenCV's  algorithm
-  unsigned int redistBatch = excess / bins;  // OpenCV: redistBatch = clipped / histSize
-  unsigned int residual = excess % bins;     // OpenCV: residual = clipped - redistBatch * histSize
-
-  for (int i = tid; i < bins; i += blockDim.x) {
-    h[i] += redistBatch;
-  }
-  __syncthreads();
-
-  // Distribute residual using OpenCV's  step pattern
-  if (tid == 0 && residual > 0) {
-    unsigned int residualStep = max(bins / residual, 1u);  // OpenCV: MAX(histSize / residual, 1)
-    for (unsigned int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
-      h[i]++;  // OpenCV: tileHist[i]++
-    }
-  }
-  __syncthreads();
-
-  // Prefix-sum (CDF)
-  if (tid == 0) {
-    unsigned int acc = 0u;
-    for (int i = 0; i < bins; ++i) {
-      acc += h[i];
-      cdf[i] = acc;
-    }
-  }
-  __syncthreads();
-
-  // Build LUT using OpenCV's  scaling methodology
-  uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
-
-  // OpenCV uses: lutScale = (histSize - 1) / tileSizeTotal
-  float lutScale = static_cast<float>(bins - 1) / static_cast<float>(area);
-
-  for (int i = tid; i < bins; i += blockDim.x) {
-    // OpenCV applies: lut[i] = saturate_cast<uchar>(sum * lutScale + 0.5f)
-    float val = static_cast<float>(cdf[i]) * lutScale + 0.5f;
-    lut[i] = static_cast<uint8_t>(dali::clamp(val, 0.f, 255.f));
-  }
 }
 
 void LaunchClipCdfToLut256(unsigned int *histograms, int H, int W, int tiles_x, int tiles_y,
@@ -580,8 +576,45 @@ void LaunchClipCdfToLut256(unsigned int *histograms, int H, int W, int tiles_x, 
 }
 
 // -------------------------------------------------------------------------------------
-// Apply LUT (GRAYSCALE) — vectorized/original/optimized; OpenCV rounding
+// Tile geometry calculation helper
 // -------------------------------------------------------------------------------------
+
+__device__ void get_tile_indices_and_weights(int x, int y, int W, int H, int tiles_x, int tiles_y,
+                                             int &tx0, int &tx1, int &ty0, int &ty1, float &fx,
+                                             float &fy) {
+  float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
+  float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
+  float gx = x * inv_tw - 0.5f;
+  float gy = y * inv_th - 0.5f;
+  int tx = static_cast<int>(floorf(gx));
+  int ty = static_cast<int>(floorf(gy));
+  fx = gx - tx;
+  fy = gy - ty;
+
+  if (tx < 0) {
+    tx0 = tx1 = 0;
+    fx = 0.f;
+  } else if (tx >= tiles_x - 1) {
+    tx0 = tx1 = tiles_x - 1;
+    fx = 0.f;
+  } else {
+    tx0 = tx;
+    tx1 = tx + 1;
+    fx = dali::clamp(fx, 0.f, 1.f);
+  }
+
+  if (ty < 0) {
+    ty0 = ty1 = 0;
+    fy = 0.f;
+  } else if (ty >= tiles_y - 1) {
+    ty0 = ty1 = tiles_y - 1;
+    fy = 0.f;
+  } else {
+    ty0 = ty;
+    ty1 = ty + 1;
+    fy = dali::clamp(fy, 0.f, 1.f);
+  }
+}
 __global__ void apply_lut_bilinear_gray_vectorized_kernel(uint8_t *__restrict__ dst_y,
                                                           const uint8_t *__restrict__ src_y, int H,
                                                           int W, int tiles_x, int tiles_y,
@@ -598,44 +631,9 @@ __global__ void apply_lut_bilinear_gray_vectorized_kernel(uint8_t *__restrict__ 
 
     int y = idx / W;
     int x = idx - y * W;
-
-    // Tile geometry - match OpenCV ly (same as RGB version)
-    float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
-    float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
-
-    float gx = x * inv_tw - 0.5f;  // OpenCV: x * inv_tw - 0.5f
-    float gy = y * inv_th - 0.5f;  // OpenCV: y * inv_th - 0.5f
-    int tx = static_cast<int>(floorf(gx));
-    int ty = static_cast<int>(floorf(gy));
-    float fx = gx - tx;
-    float fy = gy - ty;
-
-    // Handle border cases properly
-    int tx0, ty0, tx1, ty1;
-
-    if (tx < 0) {
-      tx0 = tx1 = 0;
-      fx = 0.f;
-    } else if (tx >= tiles_x - 1) {
-      tx0 = tx1 = tiles_x - 1;
-      fx = 0.f;
-    } else {
-      tx0 = tx;
-      tx1 = tx + 1;
-      fx = dali::clamp(fx, 0.f, 1.f);
-    }
-
-    if (ty < 0) {
-      ty0 = ty1 = 0;
-      fy = 0.f;
-    } else if (ty >= tiles_y - 1) {
-      ty0 = ty1 = tiles_y - 1;
-      fy = 0.f;
-    } else {
-      ty0 = ty;
-      ty1 = ty + 1;
-      fy = dali::clamp(fy, 0.f, 1.f);
-    }
+    int tx0, tx1, ty0, ty1;
+    float fx, fy;
+    get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
 
     int bins = 256;
     const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
@@ -672,45 +670,9 @@ __global__ void apply_lut_bilinear_gray_kernel(uint8_t *__restrict__ dst_y,
 
   int y = idx / W;
   int x = idx - y * W;
-
-  // Tile geometry - match OpenCV ly (same as RGB version)
-  float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);  // 1.0f / tileSize.width
-  float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);  // 1.0f / tileSize.height
-
-  // Tile coordinates (match OpenCV ly)
-  float gx = x * inv_tw - 0.5f;           // OpenCV: x * inv_tw - 0.5f
-  float gy = y * inv_th - 0.5f;           // OpenCV: y * inv_th - 0.5f
-  int tx = static_cast<int>(floorf(gx));  // OpenCV: cvFloor(txf)
-  int ty = static_cast<int>(floorf(gy));  // OpenCV: cvFloor(tyf)
-  float fx = gx - tx;                     // OpenCV: xa = txf - tx1
-  float fy = gy - ty;                     // OpenCV: ya = tyf - ty1
-
-  // Handle border cases properly
-  int tx0, ty0, tx1, ty1;
-
-  if (tx < 0) {
-    tx0 = tx1 = 0;
-    fx = 0.f;
-  } else if (tx >= tiles_x - 1) {
-    tx0 = tx1 = tiles_x - 1;
-    fx = 0.f;
-  } else {
-    tx0 = tx;
-    tx1 = tx + 1;
-    fx = dali::clamp(fx, 0.f, 1.f);
-  }
-
-  if (ty < 0) {
-    ty0 = ty1 = 0;
-    fy = 0.f;
-  } else if (ty >= tiles_y - 1) {
-    ty0 = ty1 = tiles_y - 1;
-    fy = 0.f;
-  } else {
-    ty0 = ty;
-    ty1 = ty + 1;
-    fy = dali::clamp(fy, 0.f, 1.f);
-  }
+  int tx0, tx1, ty0, ty1;
+  float fx, fy;
+  get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
 
   int bins = 256;
   const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
@@ -749,45 +711,9 @@ __global__ void apply_lut_bilinear_gray_optimized_kernel(uint8_t *__restrict__ d
 
   int y = idx / W;
   int x = idx - y * W;
-
-  // Tile geometry - match OpenCV ly
-  float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
-  float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
-
-  // Tile coordinates (match OpenCV ly)
-  float gx = x * inv_tw - 0.5f;
-  float gy = y * inv_th - 0.5f;
-  int tx = static_cast<int>(floorf(gx));
-  int ty = static_cast<int>(floorf(gy));
-  float fx = gx - tx;
-  float fy = gy - ty;
-
-  // Handle border cases
-  int tx0, ty0, tx1, ty1;
-
-  if (tx < 0) {
-    tx0 = tx1 = 0;
-    fx = 0.f;
-  } else if (tx >= tiles_x - 1) {
-    tx0 = tx1 = tiles_x - 1;
-    fx = 0.f;
-  } else {
-    tx0 = tx;
-    tx1 = tx + 1;
-    fx = dali::clamp(fx, 0.f, 1.f);
-  }
-
-  if (ty < 0) {
-    ty0 = ty1 = 0;
-    fy = 0.f;
-  } else if (ty >= tiles_y - 1) {
-    ty0 = ty1 = tiles_y - 1;
-    fy = 0.f;
-  } else {
-    ty0 = ty;
-    ty1 = ty + 1;
-    fy = dali::clamp(fy, 0.f, 1.f);
-  }
+  int tx0, tx1, ty0, ty1;
+  float fx, fy;
+  get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
 
   uint8_t v = src_y[idx];
 
@@ -865,43 +791,9 @@ __global__ void apply_lut_bilinear_rgb_vectorized_kernel(uint8_t *__restrict__ d
 
     int y = idx / W;
     int x = idx - y * W;
-
-    // --- Tile geometry and interpolation (OpenCV-style fractional indices) ---
-    float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
-    float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
-    float gx = x * inv_tw - 0.5f;
-    float gy = y * inv_th - 0.5f;
-    int tx = static_cast<int>(floorf(gx));
-    int ty = static_cast<int>(floorf(gy));
-    float fx = gx - tx;
-    float fy = gy - ty;
-
-    // REPLICATE border policy (match gray/OpenCV)
     int tx0, tx1, ty0, ty1;
-    if (tx < 0) {
-      tx0 = tx1 = 0;
-      fx = 0.f;
-    } else if (tx >= tiles_x - 1) {
-      tx0 = tx1 = tiles_x - 1;
-      fx = 0.f;
-    } else {
-      tx0 = tx;
-      tx1 = tx + 1;
-      fx = dali::clamp(fx, 0.f, 1.f);
-    }
-
-    if (ty < 0) {
-      ty0 = ty1 = 0;
-      fy = 0.f;
-    } else if (ty >= tiles_y - 1) {
-      ty0 = ty1 = tiles_y - 1;
-      fy = 0.f;
-    } else {
-      ty0 = ty;
-      ty1 = ty + 1;
-      fy = dali::clamp(fy, 0.f, 1.f);
-    }
-    // --- End tile geometry fix ---
+    float fx, fy;
+    get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
 
     int bins = 256;
     const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
@@ -956,43 +848,9 @@ __global__ void apply_lut_bilinear_rgb_kernel(uint8_t *__restrict__ dst_rgb,
 
   int y = idx / W;
   int x = idx - y * W;
-
-  // --- Tile geometry and interpolation (OpenCV-style fractional indices) ---
-  float inv_tw = static_cast<float>(tiles_x) / static_cast<float>(W);
-  float inv_th = static_cast<float>(tiles_y) / static_cast<float>(H);
-  float gx = x * inv_tw - 0.5f;
-  float gy = y * inv_th - 0.5f;
-  int tx = static_cast<int>(floorf(gx));
-  int ty = static_cast<int>(floorf(gy));
-  float fx = gx - tx;
-  float fy = gy - ty;
-
-  // REPLICATE border policy (match gray/OpenCV)
   int tx0, tx1, ty0, ty1;
-  if (tx < 0) {
-    tx0 = tx1 = 0;
-    fx = 0.f;
-  } else if (tx >= tiles_x - 1) {
-    tx0 = tx1 = tiles_x - 1;
-    fx = 0.f;
-  } else {
-    tx0 = tx;
-    tx1 = tx + 1;
-    fx = dali::clamp(fx, 0.f, 1.f);
-  }
-
-  if (ty < 0) {
-    ty0 = ty1 = 0;
-    fy = 0.f;
-  } else if (ty >= tiles_y - 1) {
-    ty0 = ty1 = tiles_y - 1;
-    fy = 0.f;
-  } else {
-    ty0 = ty;
-    ty1 = ty + 1;
-    fy = dali::clamp(fy, 0.f, 1.f);
-  }
-  // --- End tile geometry fix ---
+  float fx, fy;
+  get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
 
   int bins = 256;
   const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
@@ -1124,62 +982,11 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
   }
   __syncthreads();
 
-  // Clip histogram and redistribute excess
-  float clip_limit_f = clip_limit_rel * area / bins;
-  unsigned int limit = max(static_cast<unsigned int>(clip_limit_f), 1u);
-
-  __shared__ unsigned int excess;
+  // Clip histogram, redistribute excess, and compute CDF/LUT
   if (threadIdx.x == 0) {
-    excess = 0u;
+    clip_redistribute_cdf(hist, bins, area, clip_limit_rel, cdf, luts + (ty * tiles_x + tx) * bins);
   }
   __syncthreads();
-
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
-    unsigned int v = hist[i];
-    if (v > limit) {
-      unsigned int over = v - limit;
-      hist[i] = limit;
-      atomicAdd(&excess, over);
-    }
-  }
-  __syncthreads();
-
-  // Redistribute excess
-  unsigned int redistBatch = excess / bins;
-  unsigned int residual = excess % bins;
-
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
-    hist[i] += redistBatch;
-  }
-  __syncthreads();
-
-  // Distribute residual (OpenCV: one-by-one, bin order)
-  if (threadIdx.x == 0 && residual > 0) {
-    for (unsigned int i = 0; i < bins && residual > 0; ++i) {
-      hist[i]++;
-      --residual;
-    }
-  }
-  __syncthreads();
-
-  // Compute CDF (prefix sum)
-  if (threadIdx.x == 0) {
-    unsigned int acc = 0u;
-    for (int i = 0; i < bins; ++i) {
-      acc += hist[i];
-      cdf[i] = acc;
-    }
-  }
-  __syncthreads();
-
-  // Generate LUT with proper rounding
-  uint8_t *lut = luts + (ty * tiles_x + tx) * bins;
-  float lutScale = static_cast<float>(bins - 1) / static_cast<float>(area);
-
-  for (int i = threadIdx.x; i < bins; i += blockDim.x) {
-    float val = static_cast<float>(cdf[i]) * lutScale + 0.5f;  // OpenCV rounding
-    lut[i] = static_cast<uint8_t>(dali::clamp(val, 0.f, 255.f));
-  }
 }
 
 void LaunchMegaFusedHistClipCdfLut(const uint8_t *y_plane, int H, int W, int tiles_x, int tiles_y,
