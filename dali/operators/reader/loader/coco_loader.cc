@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ struct Annotation {
 };
 
 template <typename T>
-std::enable_if_t<std::is_pod<T>::value, void>
+std::enable_if_t<is_pod_v<T>, void>
 Read(std::ifstream& file, T& data, const char* filename) {
   int64_t bytes = sizeof(T);
   file.read(reinterpret_cast<char *>(&data), bytes);

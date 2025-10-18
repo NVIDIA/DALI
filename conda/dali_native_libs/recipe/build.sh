@@ -32,8 +32,8 @@ fi
 ln -s $CC $BUILD_PREFIX/bin/gcc
 ln -s $CXX $BUILD_PREFIX/bin/g++
 
-# Force -std=c++17 in CXXFLAGS
-export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++17}
+# Force -std=c++20 in CXXFLAGS
+export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++20}
 
 # For some reason `aligned_alloc` is present when we use compiler version 5.4.x
 # Adding NO_ALIGNED_ALLOC definition for cutt
@@ -112,11 +112,11 @@ fname_with_sha256() {
 }
 
 DEPS_LIST=(
-    "$PREFIX/lib/libavformat.so.61"
-    "$PREFIX/lib/libavcodec.so.61"
-    "$PREFIX/lib/libavfilter.so.10"
-    "$PREFIX/lib/libavutil.so.59"
-    "$PREFIX/lib/libswscale.so.8"
+    "$PREFIX/lib/libavformat.so.62"
+    "$PREFIX/lib/libavcodec.so.62"
+    "$PREFIX/lib/libavfilter.so.11"
+    "$PREFIX/lib/libavutil.so.60"
+    "$PREFIX/lib/libswscale.so.9"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
 )

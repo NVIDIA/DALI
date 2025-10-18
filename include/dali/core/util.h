@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -486,6 +486,17 @@ inline auto flatten(span<const std::array<T, N>, extent> in) {
     ? dynamic_extent : extent*span_extent_t(N);
   return flatten(span<const T, next_extent>(&in[0][0], in.size() * N));
 }
+
+template <typename T>
+using is_pod = std::conjunction<
+    std::is_standard_layout<T>,
+    std::is_trivially_copy_assignable<T>,
+    std::is_trivially_copyable<T>,
+    std::is_trivially_default_constructible<T>,
+    std::is_trivially_destructible<T>>;
+
+template <typename T>
+constexpr bool is_pod_v = is_pod<T>::value;
 
 }  // namespace dali
 
