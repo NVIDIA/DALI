@@ -20,42 +20,42 @@
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
 
-#define CV_HEX_CONST(x) __builtin_bit_cast(double, x)
+#define CV_HEX_CONST_F(x) static_cast<float>(__builtin_bit_cast(double, (uint64_t)(x)))
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L100
 // 0.412453, 0.357580, 0.180423,
 // 0.212671, 0.715160, 0.072169,
 // 0.019334, 0.119193, 0.950227
-#define CV_RGB_XR CV_HEX_CONST(0x3fda65a14488c60d)  // 0.412453
-#define CV_RGB_XG CV_HEX_CONST(0x3fd6e297396d0918)  // 0.357580
-#define CV_RGB_XB CV_HEX_CONST(0x3fc71819d2391d58)  // 0.180423
+#define CV_RGB_XR CV_HEX_CONST_F(0x3fda65a14488c60d)  // 0.412453
+#define CV_RGB_XG CV_HEX_CONST_F(0x3fd6e297396d0918)  // 0.357580
+#define CV_RGB_XB CV_HEX_CONST_F(0x3fc71819d2391d58)  // 0.180423
 
-#define CV_RGB_YR CV_HEX_CONST(0x3fcb38cda6e75ff6)  // 0.212673
-#define CV_RGB_YG CV_HEX_CONST(0x3fe6e297396d0918)  // 0.715160
-#define CV_RGB_YB CV_HEX_CONST(0x3fb279aae6c8f755)  // 0.072169
+#define CV_RGB_YR CV_HEX_CONST_F(0x3fcb38cda6e75ff6)  // 0.212673
+#define CV_RGB_YG CV_HEX_CONST_F(0x3fe6e297396d0918)  // 0.715160
+#define CV_RGB_YB CV_HEX_CONST_F(0x3fb279aae6c8f755)  // 0.072169
 
-#define CV_RGB_ZR CV_HEX_CONST(0x3f93cc4ac6cdaf4b)  // 0.019334
-#define CV_RGB_ZG CV_HEX_CONST(0x3fbe836eb4e98138)  // 0.119193
-#define CV_RGB_ZB CV_HEX_CONST(0x3fee68427418d691)  // 0.950227
+#define CV_RGB_ZR CV_HEX_CONST_F(0x3f93cc4ac6cdaf4b)  // 0.019334
+#define CV_RGB_ZG CV_HEX_CONST_F(0x3fbe836eb4e98138)  // 0.119193
+#define CV_RGB_ZB CV_HEX_CONST_F(0x3fee68427418d691)  // 0.950227
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L116
 //  3.240479, -1.53715, -0.498535,
 // -0.969256, 1.875991, 0.041556,
 //  0.055648, -0.204043, 1.057311
-#define CV_LAB_XR CV_HEX_CONST(0x4009ec804102ff8f)  // 3.240479
-#define CV_LAB_XG CV_HEX_CONST(0xbff8982a9930be0e)  // -1.53715
-#define CV_LAB_XB CV_HEX_CONST(0xbfdfe7ff583a53b9)  // -0.498535
-#define CV_LAB_YR CV_HEX_CONST(0xbfef042528ae74f3)  // -0.969256
-#define CV_LAB_YG CV_HEX_CONST(0x3ffe040f23897204)  // 1.875991
-#define CV_LAB_YB CV_HEX_CONST(0x3fa546d3f9e7b80b)  // 0.041556
-#define CV_LAB_ZR CV_HEX_CONST(0x3fac7de5082cf52c)  // 0.055648
-#define CV_LAB_ZG CV_HEX_CONST(0xbfca1e14bdfd2631)  // -0.204043
-#define CV_LAB_ZB CV_HEX_CONST(0x3ff0eabef06b3786)  // 1.057311
+#define CV_LAB_XR CV_HEX_CONST_F(0x4009ec804102ff8f)  // 3.240479
+#define CV_LAB_XG CV_HEX_CONST_F(0xbff8982a9930be0e)  // -1.53715
+#define CV_LAB_XB CV_HEX_CONST_F(0xbfdfe7ff583a53b9)  // -0.498535
+#define CV_LAB_YR CV_HEX_CONST_F(0xbfef042528ae74f3)  // -0.969256
+#define CV_LAB_YG CV_HEX_CONST_F(0x3ffe040f23897204)  // 1.875991
+#define CV_LAB_YB CV_HEX_CONST_F(0x3fa546d3f9e7b80b)  // 0.041556
+#define CV_LAB_ZR CV_HEX_CONST_F(0x3fac7de5082cf52c)  // 0.055648
+#define CV_LAB_ZG CV_HEX_CONST_F(0xbfca1e14bdfd2631)  // -0.204043
+#define CV_LAB_ZB CV_HEX_CONST_F(0x3ff0eabef06b3786)  // 1.057311
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L940
-#define D65_WHITE_X CV_HEX_CONST(0x3fee6a22b3892ee8)  // 0.950456
-#define D65_WHITE_Y 1.0f                              // 1.000000
-#define D65_WHITE_Z CV_HEX_CONST(0x3ff16b8950763a19)  // 1.089058
+#define D65_WHITE_X CV_HEX_CONST_F(0x3fee6a22b3892ee8)  // 0.950456
+#define D65_WHITE_Y 1.0f                                // 1.000000
+#define D65_WHITE_Z CV_HEX_CONST_F(0x3ff16b8950763a19)  // 1.089058
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1010
 #define GAMMA_THRESHOLD (809.0f / 20000.0f)         //  0.04045
