@@ -220,10 +220,6 @@ def test_hsv_cpu():
     check_single_input(fn.hsv)
 
 
-def test_clahe_cpu():
-    check_single_input(fn.clahe)
-
-
 def test_color_twist_cpu():
     check_single_input(fn.color_twist)
 
@@ -246,6 +242,10 @@ def test_color_space_coversion_cpu():
 
 def test_cast_cpu():
     check_single_input(fn.cast, dtype=types.INT32)
+
+
+def test_clahe_cpu():
+    check_single_input(fn.clahe, tiles_x=4, tiles_y=4, clip_limit=2.0)
 
 
 def test_cast_like_cpu():

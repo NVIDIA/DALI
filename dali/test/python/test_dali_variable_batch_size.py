@@ -329,10 +329,6 @@ def test_ops_image_default_args():
         yield image_data_helper, op, {}
 
 
-def test_clahe_variable_batch_size():
-    yield image_data_helper, fn.clahe, {}
-
-
 def numba_set_all_values_to_255_batch(out0, in0):
     out0[0][:] = 255
 
@@ -343,6 +339,7 @@ def numba_setup_out_shape(out_shape, in_shape):
 
 ops_image_custom_args = [
     (fn.cast, {"dtype": types.INT32}),
+    (fn.clahe, {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0, "devices": ["gpu"]}),
     (fn.color_space_conversion, {"image_type": types.BGR, "output_type": types.RGB}),
     (fn.coord_transform, {"M": 0.5, "T": 2}),
     (fn.coord_transform, {"T": 2}),
