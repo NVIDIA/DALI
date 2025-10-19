@@ -418,7 +418,7 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
 
   // Number of out boxes is derived from the number of indices kept
   auto num_out_boxes = [&](int idx) {
-    return static_cast<span_extent_t>(kept_box_indices[idx].size());
+    return static_cast<dali::span_extent_t>(kept_box_indices[idx].size());
   };
 
   auto& out_boxes = ws.Output<CPUBackend>(0);
@@ -458,17 +458,18 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
 
     // Copy data from the input to the output
     for (int sample_idx = 0; sample_idx < in_boxes.num_samples(); ++sample_idx) {
-      const auto num_in_boxes = in_labels.tensor_shape(sample_idx)[0];
       const auto& out_box_indices = kept_box_indices[sample_idx];
-      if (num_in_boxes == out_box_indices.size()) {
+      const auto num_in_boxes = in_labels.tensor_shape(sample_idx)[0];
+      const auto num_out_boxes = static_cast<dali::span_extent_t>(out_box_indices.size());
+      if (num_in_boxes == num_out_boxes) {
         // Run simple memcpy if the no boxes have been pruned
         std::memcpy(out_labels.raw_mutable_tensor(sample_idx), in_labels.raw_tensor(sample_idx),
-                    out_box_indices.size() * sizeof(int));
+                    num_out_boxes * sizeof(int));
       } else {
         const auto in_label_span = dali::span(in_labels.tensor<int>(sample_idx), num_in_boxes);
         const auto out_label_span =
-            dali::span(out_labels.mutable_tensor<int>(sample_idx), out_box_indices.size());
-        for (span_extent_t out_idx = 0; out_idx < out_box_indices.size(); ++out_idx) {
+            dali::span(out_labels.mutable_tensor<int>(sample_idx), num_out_boxes);
+        for (dali::span_extent_t out_idx = 0; out_idx < num_out_boxes; ++out_idx) {
           out_label_span[out_idx] = in_label_span[out_box_indices[out_idx]];
         }
       }
