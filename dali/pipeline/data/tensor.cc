@@ -71,8 +71,8 @@ void Tensor<Backend>::Copy(
   this->Resize(shape, type);
   CUDAStreamLease lease;
   if (!order) {
-    order = std::is_same<Backend, CPUBackend>::value ? AccessOrder::host() : order_;
-    if (!order.is_device()) {
+    order = std::is_same_v<Backend, CPUBackend> ? AccessOrder::host() : order_;
+    if (std::is_same_v<Backend, GPUBackend> && !order.is_device()) {
       lease = CUDAStreamPool::instance().Get();
       order = lease.get();
     }
