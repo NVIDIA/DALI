@@ -21,6 +21,8 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/core/cuda_stream_pool.h"
+
 
 namespace dali {
 namespace copy_impl {
@@ -846,12 +848,27 @@ void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder or
     // no copying to do
     return;
   }
-  if (std::is_same_v<Backend, CPUBackend> &&
-      std::is_same_v<SrcBackend, CPUBackend>) {
+  bool is_host_to_host = std::is_same_v<Backend, CPUBackend> &&
+                         std::is_same_v<SrcBackend, CPUBackend>;
+  if (is_host_to_host) {
     DALI_ENFORCE(!order.is_device(),
       "Cannot run a host-to-host copy on a device stream.");
-    if (!order)
+    if (!order) {
       order = AccessOrder::host();
+    }
+  }
+  int device_id = -1;
+  if (std::is_same_v<Backend, GPUBackend>)
+    device_id = this->device_id();
+  else if (std::is_same_v<SrcBackend, GPUBackend>)
+    device_id = src.device_id();
+  else
+    device_id = this->device_id() >= 0 ? this->device_id() : src.device_id();
+  DeviceGuard dg(device_id);
+  CUDAStreamLease lease;
+  if (!is_host_to_host && !order.is_device()) {
+    lease = CUDAStreamPool::instance().Get();
+    order = lease.get();
   }
 
   Resize(src.shape(), src.type());

@@ -42,7 +42,7 @@ constexpr bool pipelined = true;
 constexpr int prefetch_queue_depth = 2;
 constexpr bool async = true;
 constexpr float output_size = 20.f;
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 const std::string input_name = "inputs"s;    // NOLINT
 const std::string output_name = "outputs"s;  // NOLINT
 

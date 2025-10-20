@@ -79,15 +79,9 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename T>
   inline void Copy(const vector<T> &data, AccessOrder order = {}) {
-    this->Resize({(Index)data.size()}, TypeTable::GetTypeId<T>());
-    if (!order)
-      order = std::is_same<Backend, CPUBackend>::value ? AccessOrder::host() : order_;
-
-    order.wait(order_);
-
-    type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-        data.data(), this->size(), order.stream());
-    order_.wait(order);
+    using U = remove_const_t<T>;
+    int64_t N = data.size();
+    Copy(data.data(), TensorShape<1>{N}, TypeTable::GetTypeId<U>(), order);
   }
 
   /**
@@ -96,47 +90,21 @@ class Tensor : public Buffer<Backend> {
   template <typename T>
   inline void Copy(span<T> data, AccessOrder order = {}) {
     using U = remove_const_t<T>;
-    this->Resize({(Index)data.size()}, TypeTable::GetTypeId<U>());
-    if (!order)
-      order = std::is_same<Backend, CPUBackend>::value ? AccessOrder::host() : order_;
-
-    order.wait(order_);
-    type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-        data.data(), this->size(), order.stream());
-    order_.wait(order);
+    int64_t N = data.size();
+    Copy(data.data(), TensorShape<1>{N}, TypeTable::GetTypeId<U>(), order);
   }
+
+  void DLL_PUBLIC Copy(
+    const void *data,
+    const TensorShape<> &shape,
+    DALIDataType type,
+    AccessOrder order = {});
 
   /**
    * Loads the Tensor with data from the input Tensor.
    */
   template <typename InBackend>
-  inline void Copy(const Tensor<InBackend> &other, AccessOrder order = {}) {
-    constexpr bool is_host_to_host = std::is_same<Backend, CPUBackend>::value &&
-                                     std::is_same<InBackend, CPUBackend>::value;
-    auto src_order = other.order();
-    auto dst_order = order_;
-    if (!order) {
-      if (is_host_to_host)
-        order = AccessOrder::host();
-      else  // use device order, if available; if not, use whichever (dst, src) is set
-        order = dst_order.is_device()
-                ? dst_order
-                : src_order.is_device()
-                  ? src_order
-                  : dst_order ? dst_order : src_order;
-    }
-    DALI_ENFORCE(!is_host_to_host || !order.is_device(),
-                 "Cannot issue a host-to-host copy on a device stream.");
-    this->Resize(other.shape(), other.type());
-    order.wait(dst_order);  // wait for the destination to avoid overwriting while in use
-    order.wait(other.order());  // wait for the source to avoid reading while not ready
-    this->SetLayout(other.GetLayout());
-    this->SetSourceInfo(other.GetSourceInfo());
-    this->SetSkipSample(other.ShouldSkipSample());
-    type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size(), order.stream());
-    dst_order.wait(order);
-  }
+  void DLL_PUBLIC Copy(const Tensor<InBackend> &other, AccessOrder order = {});
 
   /**
    * @brief Resizes the buffer to fit `volume(shape)` elements.
