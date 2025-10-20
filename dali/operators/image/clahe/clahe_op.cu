@@ -247,7 +247,8 @@ __device__ void clip_redistribute_cdf(unsigned int *h, int bins, int area, float
   // Distribute residual using OpenCV's step pattern
   if (residual > 0) {
     unsigned int residualStep = max(bins / residual, 1u);
-    for (unsigned int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(bins)
+                            && residual > 0; i += residualStep, residual--) {
       h[i]++;
     }
   }
