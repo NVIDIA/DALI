@@ -780,6 +780,10 @@ class DLL_PUBLIC Pipeline {
 
       auto do_copy = [&]() {
         node.last_input.Reset();
+        if constexpr (std::is_same_v<OperatorBackend, GPUBackend>) {
+          if (!order.is_device())
+            order = set_last_stream_.get();
+        }
         node.last_input.set_order(order);
         node.last_input.Copy(data, order, ext_src_setting_mode.use_copy_kernel);
         if (ext_src_setting_mode.sync)
@@ -841,6 +845,7 @@ class DLL_PUBLIC Pipeline {
       else
         return mixed_nodes_;
     }
+    CUDAStreamLease set_last_stream_;
   };
 
   RepeatLastInputs repeat_last_;
