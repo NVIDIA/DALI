@@ -883,6 +883,40 @@ def test_bbox_paste_cpu():
         pipe.run()
 
 
+def test_bbox_rotate_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+    test_data_shape = [200, 4]
+    test_labels_shape = [200, 1]
+
+    def get_boxes():
+        out = [
+            np.random.randint(0, 255, size=test_data_shape).astype(np.float32)
+            for _ in range(batch_size)
+        ]
+        return out
+
+    def get_labels():
+        out = [
+            np.random.randint(0, 255, size=test_labels_shape, dtype=np.int32)
+            for _ in range(batch_size)
+        ]
+        return out
+
+    boxes = fn.external_source(source=get_boxes)
+    labels = fn.external_source(source=get_labels)
+    boxes, labels = fn.bbox_rotate(
+        boxes,
+        labels,
+        angle=45,
+        input_shape=[255, 255],
+        bbox_layout="xyXY",
+        bbox_normalized=False,
+    )
+    pipe.set_outputs(boxes, labels)
+    for _ in range(3):
+        pipe.run()
+
+
 def test_random_bbox_crop_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_box_shape = [200, 4]
@@ -1535,6 +1569,7 @@ tested_methods = [
     "random_resized_crop",
     "ssd_random_crop",
     "bbox_paste",
+    "bbox_rotate",
     "coord_flip",
     "cat",
     "bb_flip",
