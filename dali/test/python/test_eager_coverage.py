@@ -240,7 +240,13 @@ def no_input_source(*_):
 
 
 def check_no_input(
-    op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5, **kwargs
+    op_path,
+    *,
+    fn_op=None,
+    eager_op=None,
+    batch_size=batch_size,
+    N_iterations=5,
+    **kwargs,
 ):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = no_input_pipeline(fn_op, kwargs)
@@ -287,7 +293,13 @@ def check_single_input_stateful(
 
 
 def check_no_input_stateful(
-    op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5, **kwargs
+    op_path,
+    *,
+    fn_op=None,
+    eager_op=None,
+    batch_size=batch_size,
+    N_iterations=5,
+    **kwargs,
 ):
     fn_op, eager_op, fn_seed = prep_stateful_operators(op_path)
     kwargs["seed"] = fn_seed
@@ -312,7 +324,13 @@ def reader_pipeline(op, kwargs):
 
 
 def check_reader(
-    op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=2, **kwargs
+    op_path,
+    *,
+    fn_op=None,
+    eager_op=None,
+    batch_size=batch_size,
+    N_iterations=2,
+    **kwargs,
 ):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = reader_pipeline(fn_op, kwargs)
@@ -639,6 +657,10 @@ def test_spectrogram():
     )
 
 
+def test_clahe():
+    check_single_input("clahe", tiles_x=4, tiles_y=4, clip_limit=2.0)
+
+
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
 def mel_filter_pipeline(source):
     data = fn.external_source(source=source)
@@ -665,7 +687,10 @@ def test_mel_filter_bank():
 def test_to_decibels():
     get_data = GetData(audio_data)
     check_single_input(
-        "to_decibels", fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None
+        "to_decibels",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
     )
 
 
@@ -751,7 +776,10 @@ def test_coord_flip():
     )
 
     check_single_input(
-        "coord_flip", fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None
+        "coord_flip",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
     )
 
 
@@ -767,7 +795,10 @@ def test_bb_flip():
     )
 
     check_single_input(
-        "bb_flip", fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None
+        "bb_flip",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
     )
 
 
@@ -832,7 +863,11 @@ def test_slice():
     )
 
     def eager_source(i, _):
-        return get_data_eager(i), get_anchors.eager_source(i), get_shapes.eager_source(i)
+        return (
+            get_data_eager(i),
+            get_anchors.eager_source(i),
+            get_shapes.eager_source(i),
+        )
 
     pipe = slice_pipeline(get_anchors.fn_source, get_shapes.fn_source)
     compare_eager_with_pipeline(
@@ -1194,14 +1229,18 @@ def reduce_input_pipeline():
 def test_reduce_std():
     pipe = reduce_pipeline(fn.reductions.std_dev)
     compare_eager_with_pipeline(
-        pipe, eager_op=eager.reductions.std_dev, eager_source=PipelineInput(reduce_input_pipeline)
+        pipe,
+        eager_op=eager.reductions.std_dev,
+        eager_source=PipelineInput(reduce_input_pipeline),
     )
 
 
 def test_reduce_variance():
     pipe = reduce_pipeline(fn.reductions.variance)
     compare_eager_with_pipeline(
-        pipe, eager_op=eager.reductions.variance, eager_source=PipelineInput(reduce_input_pipeline)
+        pipe,
+        eager_op=eager.reductions.variance,
+        eager_source=PipelineInput(reduce_input_pipeline),
     )
 
 
@@ -1382,7 +1421,15 @@ def test_random_object_bbox():
         [
             tensors.TensorCPU(np.int32([[1, 0, 0, 0], [1, 2, 2, 1], [1, 1, 2, 0], [2, 0, 0, 1]])),
             tensors.TensorCPU(
-                np.int32([[0, 3, 3, 0], [1, 0, 1, 2], [0, 1, 1, 0], [0, 2, 0, 1], [0, 2, 2, 1]])
+                np.int32(
+                    [
+                        [0, 3, 3, 0],
+                        [1, 0, 1, 2],
+                        [0, 1, 1, 0],
+                        [0, 2, 0, 1],
+                        [0, 2, 2, 1],
+                    ]
+                )
             ),
         ]
     )
@@ -1394,7 +1441,10 @@ def test_random_object_bbox():
         return data
 
     check_single_input_stateful(
-        "segmentation.random_object_bbox", fn_source=fn_source, eager_source=eager_source, layout=""
+        "segmentation.random_object_bbox",
+        fn_source=fn_source,
+        eager_source=eager_source,
+        layout="",
     )
 
 
@@ -1710,6 +1760,7 @@ tested_methods = [
     "full_like",
     "io.file.read",
     "experimental.warp_perspective",
+    "clahe",
 ]
 
 excluded_methods = [
