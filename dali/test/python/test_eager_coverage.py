@@ -994,6 +994,27 @@ def test_bbox_paste():
     )
 
 
+def test_bbox_rotate():
+    get_data = GetData(
+        [
+            [
+                rng.integers(0, 255, size=[200, 4], dtype=np.uint8).astype(dtype=np.float32)
+                for _ in range(batch_size)
+            ]
+            for _ in range(data_size)
+        ]
+    )
+    check_single_input(
+        "bbox_rotate",
+        fn_source=get_data.fn_source,
+        eager_source=get_data.eager_source,
+        layout=None,
+        angle=45.0,
+        input_shape=[255, 255],
+        bbox_normalized=True,
+    )
+
+
 def test_sequence_rearrange():
     get_data = GetData(
         [
@@ -1654,6 +1675,7 @@ tested_methods = [
     "copy",
     "element_extract",
     "bbox_paste",
+    "bbox_rotate",
     "sequence_rearrange",
     "box_encoder",
     "readers.numpy",

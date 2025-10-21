@@ -662,6 +662,13 @@ def test_bb_flip_stateless(device):
     check_single_bbox_input(fn.bb_flip, device, ltrb=True)
 
 
+@stateless_signed_off("bbox_rotate")
+def test_bbox_rotate_stateless():
+    check_single_bbox_input(
+        fn.bbox_rotate, "cpu", angle=45.0, input_shape=[255, 255], bbox_normalized=True
+    )
+
+
 @params("cpu", "gpu")
 @stateless_signed_off("to_decibels")
 def test_to_decibels_stateless(device):

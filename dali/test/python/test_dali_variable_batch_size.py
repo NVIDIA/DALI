@@ -24,6 +24,7 @@ from functools import partial
 from nose_utils import SkipTest, attr, nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
+from nvidia.dali.types import DALIDataType
 
 import test_utils
 from segmentation_test_utils import make_batch_select_masks
@@ -959,6 +960,24 @@ def test_bbox_paste():
     )
 
 
+def test_bbox_rotate():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device)
+        boxes = data[:, :4]
+        labels = fn.cast(data[:, 4], dtype=DALIDataType.INT32)
+        processed = fn.bbox_rotate(boxes, labels, angle=45.0, input_shape=[255, 255])
+        pipe.set_outputs(*processed)
+        return pipe
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(150, 250, 5, 5)),
+        pipe,
+        eps=0.5,
+        devices=["cpu"],
+    )
+
+
 def test_coord_flip():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1664,6 +1683,7 @@ tested_methods = [
     "batch_permutation",
     "bb_flip",
     "bbox_paste",
+    "bbox_rotate",
     "box_encoder",
     "brightness",
     "brightness_contrast",
