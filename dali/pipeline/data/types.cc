@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -121,7 +121,6 @@ void TypeInfo::Copy(void **dsts, const void** srcs, const Index* sizes, int n,
                     cudaStream_t stream, bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
-
   if (!is_host_to_host && use_copy_kernel) {
     detail::ScatterGatherCopy(dsts, srcs, sizes, n, size(), stream);
   } else {
@@ -149,7 +148,6 @@ void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
                     cudaStream_t stream, bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
-
   if (!is_host_to_host && use_copy_kernel) {
     detail::ScatterGatherCopy(dst, srcs, sizes, n, size(), stream);
   } else {
@@ -180,7 +178,6 @@ void TypeInfo::Copy(void **dsts, const void* src, const Index* sizes, int n,
                     cudaStream_t stream, bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
-
   if (!is_host_to_host && use_copy_kernel) {
     detail::ScatterGatherCopy(dsts, src, sizes, n, size(), stream);
   } else {

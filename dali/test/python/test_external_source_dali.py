@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -711,7 +711,6 @@ def test_repeat_last_queue():
     check_batch(a, data2)  # <- still 2, the most recent change not visible
     check_batch(b, data3)  # <- new
 
-import cupy
 
 def _check_repeat_last_var_batch(device):
     @pipeline_def
