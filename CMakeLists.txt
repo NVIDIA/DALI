@@ -59,7 +59,7 @@ option(WITH_DYNAMIC_NVIMGCODEC "Links nvimgcodec library dynamically during runt
 option(BUILD_WITH_ASAN "Build with ASAN" OFF)
 option(BUILD_WITH_LSAN "Build with LSAN" OFF)
 option(BUILD_WITH_UBSAN "Build with UBSAN" OFF)
-
+option(BUILD_STD_SEMAPHORE "Whether to use std::counting_semaphore instead of POSIX one." OFF)
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
@@ -403,6 +403,10 @@ endif()
 
 if ("${ARCH}" STREQUAL "aarch64-linux")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a")
+endif()
+
+if (BUILD_STD_SEMAPHORE)
+  add_definitions("-DDALI_USE_STD_SEMAPHORE")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

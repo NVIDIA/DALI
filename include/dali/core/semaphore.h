@@ -15,9 +15,8 @@
 #ifndef DALI_CORE_SEMAPHORE_H_
 #define DALI_CORE_SEMAPHORE_H_
 
-#if __cpp_lib_semaphore >= 201907L
+#if __cpp_lib_semaphore >= 201907L && DALI_USE_STD_SEMAPHORE
 #include <semaphore>
-
 namespace dali {
 using counting_semaphore = std::counting_semaphore<>;
 }  // namespace dali
