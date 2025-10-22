@@ -318,6 +318,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
 
   auto [input, input_cpu] = AllocBufferPair<TypeParam>(num_elems, false);
   TensorList<TypeParam> input_wrapper;
+  if (std::is_same_v<TypeParam, GPUBackend>)
+    input_wrapper.set_order(cuda_stream);
 
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
@@ -396,6 +398,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
 
     auto [input, input_cpu] = AllocBufferPair<TypeParam>(num_elems, false);
     TensorList<TypeParam> input_wrapper;
+    if (std::is_same_v<TypeParam, GPUBackend>)
+      input_wrapper.set_order(cuda_stream);
 
     for (int i = 0; i < prefetch_queue_depth; i++) {
       SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
