@@ -20,6 +20,7 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 
@@ -79,6 +80,34 @@ namespace test {
 
 TEST_F(CUDAStreamPoolTest, PutGet) {
   TestPutGet();
+}
+
+TEST_F(CUDAStreamPoolTest, GetSameNotBusy) {
+    CUDAStreamPool pool;
+    auto s = pool.Get();
+    ASSERT_EQ(cudaStreamQuery(s), cudaSuccess);
+    cudaStream_t s1 = s.get();
+    s.reset();
+    s = pool.Get();
+    EXPECT_EQ(s.get(), s1);
+}
+
+TEST_F(CUDAStreamPoolTest, GetNotBusy) {
+    CUDAStreamPool pool;
+    auto s = pool.Get();
+    cudaStream_t s1 = s.get();
+    ASSERT_EQ(cudaStreamQuery(s), cudaSuccess);
+    const int N = 16 << 20;
+    auto mem = mm::alloc_raw_async_unique<char, mm::memory_kind::device>(N, s, s, 256);
+    for (int i = 0; i < 128; i++)
+      CUDA_CALL(cudaMemsetAsync(mem.get(), i, N, s));
+    s.reset();
+    s = pool.Get();
+    EXPECT_EQ(cudaStreamQuery(s), cudaSuccess);
+    s.reset();
+    CUDA_CALL(cudaStreamSynchronize(s1));  // This stream should still live in the pool
+    mem.reset();
+    pool.Purge();
 }
 
 }  // namespace test
