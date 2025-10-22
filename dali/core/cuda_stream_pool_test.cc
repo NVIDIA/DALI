@@ -83,16 +83,17 @@ TEST_F(CUDAStreamPoolTest, PutGet) {
 }
 
 TEST_F(CUDAStreamPoolTest, GetSameNotBusy) {
-    CUDAStreamPool pool;
-    auto s = pool.Get();
-    ASSERT_EQ(cudaStreamQuery(s), cudaSuccess);
-    cudaStream_t s1 = s.get();
-    s.reset();
-    s = pool.Get();
-    EXPECT_EQ(s.get(), s1);
+  CUDAStreamPool pool;
+  auto s = pool.Get();
+  ASSERT_EQ(cudaStreamQuery(s), cudaSuccess);
+  cudaStream_t s1 = s.get();
+  s.reset();
+  s = pool.Get();
+  EXPECT_EQ(s.get(), s1);
 }
 
 TEST_F(CUDAStreamPoolTest, GetNotBusy) {
+  for (int attempt = 0; attempt < 100; attempt++) {
     CUDAStreamPool pool;
     auto s = pool.Get();
     cudaStream_t s1 = s.get();
@@ -102,12 +103,24 @@ TEST_F(CUDAStreamPoolTest, GetNotBusy) {
     for (int i = 0; i < 128; i++)
       CUDA_CALL(cudaMemsetAsync(mem.get(), i, N, s));
     s.reset();
+    auto ret = cudaStreamQuery(s1);
     s = pool.Get();
+    if (s == s1) {
+      // If we got s1 again, it must have finished its work
+      ASSERT_EQ(cudaStreamQuery(s1), cudaSuccess);
+      mem.reset();
+      pool.Purge();
+      std::cerr << "Reattempting." << std::endl;
+      continue;
+    }
     EXPECT_EQ(cudaStreamQuery(s), cudaSuccess);
     s.reset();
     CUDA_CALL(cudaStreamSynchronize(s1));  // This stream should still live in the pool
     mem.reset();
     pool.Purge();
+    return;
+  }
+  GTEST_SKIP() << "Weak test - CPU wasn't able to outrun GPU tasks.";
 }
 
 }  // namespace test
