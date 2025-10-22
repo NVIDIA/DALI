@@ -271,7 +271,8 @@ def test_box_expansion_control(expansion: str, angle: float):
 
     pipe = datapipe()
     pipe.build()
-    box_out = np.array(pipe.run()[0])[0]  # Remove batch
+    out, = pipe.run()
+    box_out = np.array(out[0])  # Remove batch
     out_box_wh = box_out[..., 2:] - box_out[..., :2]
     in_box_wh = boxes[..., 2:] - boxes[..., :2]
 
