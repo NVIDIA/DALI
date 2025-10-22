@@ -868,8 +868,10 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
     Tensor<TypeParam> output1;
     output1.set_pinned(false);
     output1.Resize({out_size}, type_info.id());
+    if (std::is_same_v<TypeParam, GPUBackend>)
+      output1.set_order(cuda_stream);
     daliOutputCopy(&handle, output1.raw_mutable_data(), out_idx,
-                   backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
+                   backend_to_device_type<TypeParam>::value, cuda_stream, DALI_ext_default);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     Tensor<CPUBackend> output1_cpu;
     output1_cpu.set_pinned(false);
