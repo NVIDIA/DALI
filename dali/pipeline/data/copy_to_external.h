@@ -47,7 +47,12 @@ inline void CopyToExternalImpl(void* dst,
                                const Tensor<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
-  order.wait(src.order());
+  constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
+                               std::is_same_v<SrcBackend, GPUBackend>;
+  if constexpr (is_gpu_copy) {
+    order.wait(src.order());
+  }
+
   const auto &type_info = src.type_info();
   type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), order.stream(),
                                                   use_copy_kernel);
@@ -58,7 +63,6 @@ inline void CopyToExternalImpl(void* dst,
                                const TensorList<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
-  order.wait(src.order());
   const auto &type_info = src.type_info();
 
   // TODO(klecki): Add a proper test for non-contiguous access when we can have non-contiguous
@@ -96,7 +100,6 @@ inline void CopyToExternalImpl(void** dsts,
                                const TensorList<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
-
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
