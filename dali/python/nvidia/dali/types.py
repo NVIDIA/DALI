@@ -104,7 +104,7 @@ if _tfrecord_support:
     )
 
 
-def _type_name_convert_to_string(dtype, allow_tensors):
+def _type_name_convert_to_string(dtype, allow_tensors, api="fn"):
     if dtype in _known_types:
         type_name = _known_types[dtype][0]
         if dtype in _enum_types:
@@ -113,7 +113,10 @@ def _type_name_convert_to_string(dtype, allow_tensors):
         if dtype in _vector_types:
             ret += " or list of " + type_name
         if allow_tensors:
-            ret += " or TensorList of " + type_name
+            if api == "dynamic":
+                ret += " or Tensor/Batch of " + type_name
+            else:
+                ret += " or TensorList of " + type_name
         return ret
     else:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")

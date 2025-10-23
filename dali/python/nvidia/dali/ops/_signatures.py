@@ -484,7 +484,7 @@ def _gen_ops_signature(schema, schema_name, cls_name):
     return inspect_repr_fixups(
         f"""
 class {cls_name}:
-    \"""{_docs._docstring_generator(schema_name)}
+    \"""{_docs._docstring_generator_class(schema_name)}
     \"""
     def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
                                  include_self=True, data_node_return=False,

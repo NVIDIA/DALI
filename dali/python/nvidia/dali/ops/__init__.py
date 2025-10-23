@@ -538,7 +538,7 @@ class _OperatorInstance(object):
 class _DaliOperatorMeta(type):
     @property
     def __doc__(self):
-        return _docs._docstring_generator(_names._schema_name(self))
+        return _docs._docstring_generator_class(_names._schema_name(self))
 
 
 def _check_arg_input(schema, op_name, name):

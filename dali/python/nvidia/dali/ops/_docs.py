@@ -91,7 +91,7 @@ Args
     return ret
 
 
-def _get_kwargs(schema):
+def _get_kwargs(schema, api="ops", specific_args=None):
     """
     Get the numpydoc-formatted docstring section for keywords arguments.
 
@@ -101,11 +101,14 @@ def _get_kwargs(schema):
     """
     ret = ""
     for arg in schema.GetArgumentNames():
+        if specific_args is not None and arg not in specific_args:
+            continue
         skip_full_doc = False
         type_name = ""
         dtype = None
         doc = ""
         deprecation_warning = None
+
         if schema.IsDeprecatedArg(arg):
             meta = schema.DeprecatedArgInfo(arg)
             msg = meta["msg"]
@@ -119,14 +122,14 @@ def _get_kwargs(schema):
             if renamed_arg:
                 dtype = schema.GetArgumentType(renamed_arg)
                 type_name = _type_name_convert_to_string(
-                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg)
+                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg), api=api
                 )
         # Try to get dtype only if not set already
         # (renamed args go through a different path, see above)
         if not dtype:
             dtype = schema.GetArgumentType(arg)
             type_name = _type_name_convert_to_string(
-                dtype, allow_tensors=schema.IsTensorArgument(arg)
+                dtype, allow_tensors=schema.IsTensorArgument(arg), api=api
             )
         # Add argument documentation if necessary
         if not skip_full_doc:
@@ -213,16 +216,16 @@ Supported backends
     return ret
 
 
-def _docstring_generator(schema_name):
+def _docstring_generator_class(schema_name, api="ops", specific_args=None):
     schema = _b.GetSchema(schema_name)
-    ret = _docstring_generator_main(schema_name, "ops")
+    ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
         return ret
     ret += """
 Keyword args
 ------------
 """
-    ret += _get_kwargs(schema)
+    ret += _get_kwargs(schema, api=api, specific_args=specific_args)
     return ret
 
 
@@ -272,7 +275,7 @@ Args
     return ""
 
 
-def _docstring_generator_call(op_name):
+def _docstring_generator_call(op_name, api="ops", specific_args=None):
     """
     Generate full docstring for `__call__` of Operator `op_name`.
     """
@@ -290,7 +293,7 @@ def _docstring_generator_call(op_name):
         ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
-        tensor_kwargs = _get_kwargs(schema)
+        tensor_kwargs = _get_kwargs(schema, api=api, specific_args=specific_args)
         if tensor_kwargs:
             ret += """
 Keyword Args
@@ -310,5 +313,5 @@ def _docstring_generator_fn(schema_name):
 Keyword args
 ------------
 """
-    ret += _get_kwargs(schema)
+    ret += _get_kwargs(schema, "fn")
     return ret
