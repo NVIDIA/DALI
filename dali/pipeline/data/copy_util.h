@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_DATA_COPY_UTIL_H_
 #define DALI_PIPELINE_DATA_COPY_UTIL_H_
 
+#include <cassert>
 #include <utility>
 #include "dali/core/access_order.h"
 #include "dali/core/cuda_stream_pool.h"
@@ -49,47 +50,49 @@ std::pair<AccessOrder, int> GetCopyOrderAndDevice(
         CUDAStreamLease &tmp_stream) {
     constexpr bool is_host_to_host = std::is_same_v<DstBackend, CPUBackend> &&
                                      std::is_same_v<SrcBackend, CPUBackend>;
-    if (is_host_to_host) {
+    if constexpr (is_host_to_host) {
         if (explicit_order.is_device())
             throw std::logic_error("Cannot issue a host-to-host copy on a device stream.");
         return { AccessOrder::host(), -1 };
-    }
-    if (explicit_order) {
-        int dev = explicit_order.device_id();
-        if (dev < 0) {
-            if (std::is_same_v<DstBackend, GPUBackend>)
-                dev = dst_device_id;
-            else if (std::is_same_v<SrcBackend, GPUBackend>)
-                dev = src_device_id;
-            else
-                dev = dst_device_id >= 0 ? dst_device_id : src_device_id;
-        }
-
-        if (!is_host_to_host && !explicit_order.is_device()) {
-            tmp_stream = CUDAStreamPool::instance().Get(dev);
-            return { AccessOrder(tmp_stream.get()), dev };
-        }
-
-        return { explicit_order, dev };
     } else {
-        if (std::is_same_v<DstBackend, GPUBackend> && dst_order.is_device()) {
-            return { dst_order, dst_device_id };
-        } else if (std::is_same_v<SrcBackend, GPUBackend> && src_order.is_device()) {
-            return { src_order, src_device_id };
-        } else if (dst_order.is_device()) {
-            return { dst_order, dst_device_id };
-        } else if (src_order.is_device()) {
-            return { src_order, src_device_id };
+        if (explicit_order) {
+            int dev = -1;
+            cudaStream_t s = explicit_order.stream();
+            // Use the device associated with the stream unless it's a special legacy stream
+            if (reinterpret_cast<uintptr_t>(s) >= 8)
+                dev = explicit_order.device_id();
+            if (dev < 0) {
+                if (std::is_same_v<DstBackend, GPUBackend>)
+                    dev = dst_device_id;
+                else if (std::is_same_v<SrcBackend, GPUBackend>)
+                    dev = src_device_id;
+                else
+                    dev = dst_device_id >= 0 ? dst_device_id : src_device_id;
+            }
+
+            if (!is_host_to_host && !explicit_order.is_device()) {
+                tmp_stream = CUDAStreamPool::instance().Get(dev);
+                return { AccessOrder(tmp_stream.get()), dev };
+            }
+
+            return { explicit_order, dev };
         } else {
-            int dev;
-            if (std::is_same_v<DstBackend, GPUBackend>)
+            int dev = -1;
+            // use the device (and possibly stream) from any GPU argument
+            if (std::is_same_v<DstBackend, GPUBackend>) {
+                explicit_order = dst_order;
                 dev = dst_device_id;
-            else if (std::is_same_v<SrcBackend, GPUBackend>)
+            } else {
+                assert((std::is_same_v<SrcBackend, GPUBackend>));
+                explicit_order = src_order;
                 dev = src_device_id;
-            else
-                dev = dst_device_id >= 0 ? dst_device_id : src_device_id;
-            tmp_stream = CUDAStreamPool::instance().Get(dev);
-            return { AccessOrder(tmp_stream.get()), dev };
+            }
+
+            if (!explicit_order.is_device()) {
+                tmp_stream = CUDAStreamPool::instance().Get(dev);
+                explicit_order = AccessOrder(tmp_stream.get());
+            }
+            return { explicit_order, dev };
         }
     }
 }
