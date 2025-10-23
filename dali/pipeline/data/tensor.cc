@@ -14,52 +14,30 @@
 
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/copy_util.h"
 
 namespace dali {
   /**
  * Loads the Tensor with data from the input Tensor.
  */
 template <typename Backend>
-template <typename InBackend>
-void Tensor<Backend>::Copy(const Tensor<InBackend> &other, AccessOrder order) {
-  constexpr bool is_host_to_host = std::is_same_v<Backend, CPUBackend> &&
-                                   std::is_same_v<InBackend, CPUBackend>;
-  auto src_order = other.order();
-  auto dst_order = order_;
-  if (!order) {
-    if (is_host_to_host)
-      order = AccessOrder::host();
-    else  // use device order, if available; if not, use whichever (dst, src) is set
-      order = dst_order.is_device()
-              ? dst_order
-              : src_order.is_device()
-                ? src_order
-                : dst_order ? dst_order : src_order;
-  }
-  int device_id = -1;
-  if (std::is_same_v<Backend, GPUBackend>)
-    device_id = this->device_id();
-  else if (std::is_same_v<InBackend, GPUBackend>)
-    device_id = other.device_id();
-  else
-    device_id = this->device_id() >= 0 ? this->device_id() : other.device_id();
-  DeviceGuard dg(device_id);
+template <typename SrcBackend>
+void Tensor<Backend>::Copy(const Tensor<SrcBackend> &src, AccessOrder order) {
   CUDAStreamLease lease;
-  if (!is_host_to_host && !order.is_device()) {
-    lease = CUDAStreamPool::instance().Get();
-    order = lease.get();
-  }
-  DALI_ENFORCE(!is_host_to_host || !order.is_device(),
-                "Cannot issue a host-to-host copy on a device stream.");
-  this->Resize(other.shape(), other.type());
-  order.wait(dst_order);  // wait for the destination to avoid overwriting while in use
-  order.wait(other.order());  // wait for the source to avoid reading while not ready
-  this->SetLayout(other.GetLayout());
-  this->SetSourceInfo(other.GetSourceInfo());
-  this->SetSkipSample(other.ShouldSkipSample());
-  type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-      other.raw_data(), this->size(), order.stream());
-  dst_order.wait(order);
+  auto [copy_order, device_id] = copy_impl::GetCopyOrderAndDevice<Backend, SrcBackend>(
+    this->order(), this->device_id(), src.order(), src.device_id(), std::move(order), lease);
+  // from now on, use `copy_order`, not `order`
+
+  DeviceGuard dg(device_id);
+  copy_impl::SyncBefore(this->order(), src.order(), copy_order);
+
+  this->Resize(src.shape(), src.type());
+  this->SetLayout(src.GetLayout());
+  this->SetSourceInfo(src.GetSourceInfo());
+  this->SetSkipSample(src.ShouldSkipSample());
+  type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
+      src.raw_data(), this->size(), copy_order.stream());
+  copy_impl::SyncAfter(this->order(), copy_order);
 }
 
 template <typename Backend>
