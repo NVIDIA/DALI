@@ -558,6 +558,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
     if (out_win_length > args.window_length && !concatenate) {
       int max_pad_block_x = 32;
       if (max_win_per_input < 32) {
+        assert(max_win_per_input != 0);
         max_pad_block_x = 1024/max_win_per_input;
       }
       int pad_block_x = clamp(pad_length, 1, max_pad_block_x);
