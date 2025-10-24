@@ -28,7 +28,7 @@ namespace equalize {
 namespace hist {
 namespace test {
 
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 
 class EqualizeHistGpuTest : public ::testing::Test {
  protected:

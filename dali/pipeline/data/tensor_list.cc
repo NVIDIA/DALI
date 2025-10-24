@@ -21,56 +21,11 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/pipeline/data/copy_util.h"
 
 namespace dali {
 namespace copy_impl {
-
-/**
- * @defgroup copy_impl Helper code for copying batches
- * The functions used as scaffolding for the synchronization of order for source and destination
- * buffers and extract the pointers from contiguous and non-contiguous batches.
- *
- * The usage is expected to be as follows:
- * 1. SyncBefore
- * 2. Resize the destination buffer(s)
- * 3. SyncAfterResize
- * 4. Use the CopyImpl - it can copy between batch and a single contiguous allocation, assuming both
- *    batches are correctly resized already
- * 5. SyncAfter
- *
- * @{
- */
-/**
- * @brief Pick the order for Copy to be run on and synchronize
- *
- * The copy ordering can be:
- * - explict, as specified in `order`
- * - the one from `dst_order`, if set
- * - the one from `src_order`
- * @return copy_order - order on which we will do the copy
- */
-AccessOrder SyncBefore(AccessOrder dst_order, AccessOrder src_order, AccessOrder order) {
-  if (!order)
-    order = dst_order.is_device()
-            ? dst_order
-            : src_order.is_device()
-              ? src_order
-              : dst_order ? dst_order : src_order;
-  // The destination buffer must be ready to be overwritten
-  order.wait(dst_order);
-  // The source buffer must be ready to cosume
-  order.wait(src_order);
-
-  return order;
-}
-
-
-/**
- * @brief Wait for the copy to finish in the order of the dst buffer.
- */
-void SyncAfter(AccessOrder dst_order, AccessOrder copy_order) {
-  dst_order.wait(copy_order);
-}
 
 /**
  * @brief Copy between two non-contiguous batches
@@ -166,8 +121,6 @@ void CopyImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src, const 
                                                           use_copy_kernel);
   }
 }
-
-/** @} */  // end of copy_impl
 
 }  // namespace copy_impl
 
@@ -846,19 +799,18 @@ void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder or
     // no copying to do
     return;
   }
-  if (std::is_same_v<Backend, CPUBackend> &&
-      std::is_same_v<SrcBackend, CPUBackend>) {
-    DALI_ENFORCE(!order.is_device(),
-      "Cannot run a host-to-host copy on a device stream.");
-    if (!order)
-      order = AccessOrder::host();
-  }
+  CUDAStreamLease lease;
+  auto [copy_order, device_id] = copy_impl::GetCopyOrderAndDevice<Backend, SrcBackend>(
+    this->order(), this->device_id(), src.order(), src.device_id(), std::move(order), lease);
+  // from now on, use `copy_order`, not `order`
+
+  DeviceGuard dg(device_id);
 
   Resize(src.shape(), src.type());
   // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
   // postconditions are met, as well as the buffers are correctly adjusted.
 
-  auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
+  copy_impl::SyncBefore(this->order(), src.order(), copy_order);
 
   use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned()) &&
                      (std::is_same<Backend, GPUBackend>::value || this->is_pinned());

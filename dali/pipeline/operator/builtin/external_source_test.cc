@@ -297,7 +297,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
 
   template<typename Backend>
   void FeedWithGpuVector(ExternalSource<Backend> *src_op, int dims) {
-    AccessOrder order(cudaStream_t(0));
+    AccessOrder order(cudaStreamLegacy);
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
       tensor.set_pinned(false);
@@ -343,7 +343,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         ++fill_counter_;
       }
     }
-    AccessOrder order(cudaStream_t(0));
+    AccessOrder order(cudaStreamLegacy);
     tl_gpu_.set_order(order);
     tl_gpu_.Copy(tensor_list);
     src_op->SetDataSource(tl_gpu_, order);
