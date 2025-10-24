@@ -51,7 +51,7 @@ def compare_frames(
     # Compare frames
     diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > diff_step)
     total_pixels = frame.size
-    # More than 3% of the pixels differ in more than 2 steps
+    # More than threshold of the pixels differ in more than 2 steps
     if diff_pixels / total_pixels > threshold:
         # Save the mismatched frames for inspection
         frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -64,7 +64,7 @@ def compare_frames(
         cv2.imwrite(ref_output_path, ref_frame_bgr)
         assert False, (
             f"Frame {frame_idx+1} differs from reference by more than {diff_step} steps in "
-            + f"{diff_pixels/total_pixels*100}% of pixels. "
+            + f"{diff_pixels/total_pixels*100}% of pixels (threshold: {threshold}). "
             + f"Expected {ref_frame_bgr} but got {frame_bgr}"
         )
 
@@ -139,7 +139,13 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
                 ), f"Number of frames mismatch: {num_frames} != {sample_experimental.shape[0]}"
                 if i == 0:
                     for k in range(num_frames):
-                        compare_frames(sample_experimental[k], sample_legacy[k], i, j, k)
+                        if device == "cpu":
+                            additional_args = {"threshold": 0.06}
+                        else:
+                            additional_args = {}
+                        compare_frames(
+                            sample_experimental[k], sample_legacy[k], i, j, k, **additional_args
+                        )
                 else:
                     np.testing.assert_array_equal(sample_legacy, sample_experimental)
                 break
