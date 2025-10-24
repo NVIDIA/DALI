@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ class SliceFlipNormalizeGPUTest : public ::testing::Test {
   void RunKernel(TestTensorList<Out, ndim> &output, TestTensorList<In, ndim> &input,
                  const typename Kernel::Args &args) {
     KernelContext ctx;
-    DynamicScratchpad scratchpad;
+    DynamicScratchpad scratchpad(cudaStreamLegacy);
     ctx.scratchpad = &scratchpad;
-    ctx.gpu.stream = 0;
+    ctx.gpu.stream = cudaStreamLegacy;
 
     Kernel kernel;
 
@@ -263,7 +263,7 @@ TEST(SliceFlipNormalizeGPUTest, Benchmark) {
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    DynamicScratchpad scratch;
+    DynamicScratchpad scratch(stream);
     ctx.scratchpad = &scratch;
 
     TestTensorList<OutType, 3> out;
@@ -339,7 +339,7 @@ TEST(SliceFlipNormalizeGPUTest, BenchmarkOld) {
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    DynamicScratchpad scratch;
+    DynamicScratchpad scratch(stream);
     ctx.scratchpad = &scratch;
 
     TestTensorList<OutType, 3> out;

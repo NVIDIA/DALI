@@ -730,7 +730,7 @@ class TensorListSuite : public ::testing::Test {
 
 typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 
 TYPED_TEST_SUITE(TensorListSuite, Backends);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,12 @@ inline void CopyToExternalImpl(void* dst,
                                const Tensor<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
+  constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
+                               std::is_same_v<SrcBackend, GPUBackend>;
+  if constexpr (is_gpu_copy) {
+    order.wait(src.order());
+  }
+
   const auto &type_info = src.type_info();
   type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), order.stream(),
                                                   use_copy_kernel);
@@ -65,7 +71,7 @@ inline void CopyToExternalImpl(void* dst,
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
-    src.order().wait(order);
+    order.wait(src.order());
   }
 
   if (src.IsContiguous()) {
@@ -94,11 +100,10 @@ inline void CopyToExternalImpl(void** dsts,
                                const TensorList<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
-
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
-    src.order().wait(order);
+    order.wait(src.order());
   }
 
   const auto &type_info = src.type_info();

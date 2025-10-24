@@ -1210,6 +1210,9 @@ void Pipeline::RepeatLastInputs::FindNodes(const graph::OpGraph &graph, Executor
     else
       assert(!"Unexpected backend for an ExternalSource node.");
   }
+  if (!gpu_nodes_.empty()) {
+    set_last_stream_ = CUDAStreamPool::instance().Get();
+  }
 }
 
 template <typename Backend>
