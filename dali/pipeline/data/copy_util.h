@@ -57,18 +57,12 @@ std::pair<AccessOrder, int> GetCopyOrderAndDevice(
     } else {
         if (explicit_order) {
             int dev = -1;
-            cudaStream_t s = explicit_order.stream();
-            // Use the device associated with the stream unless it's a special legacy stream
-            if (reinterpret_cast<uintptr_t>(s) >= 8)
-                dev = explicit_order.device_id();
-            if (dev < 0) {
-                if (std::is_same_v<DstBackend, GPUBackend>)
-                    dev = dst_device_id;
-                else if (std::is_same_v<SrcBackend, GPUBackend>)
-                    dev = src_device_id;
-                else
-                    dev = dst_device_id >= 0 ? dst_device_id : src_device_id;
-            }
+            if (std::is_same_v<DstBackend, GPUBackend>)
+                dev = dst_device_id;
+            else if (std::is_same_v<SrcBackend, GPUBackend>)
+                dev = src_device_id;
+            else
+                dev = dst_device_id >= 0 ? dst_device_id : src_device_id;
 
             if (!is_host_to_host && !explicit_order.is_device()) {
                 tmp_stream = CUDAStreamPool::instance().Get(dev);
