@@ -14,8 +14,6 @@
 
 #include <cuda_runtime.h>
 
-#include <iostream>
-
 #include "dali/core/backend_tags.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/mm/memory.h"
@@ -81,13 +79,13 @@ class ClaheGPU : public Operator<GPUBackend> {
 
     for (int i = 0; i < N; i++) {
       auto sample_shape = shape.tensor_shape_span(i);
-      if (sample_shape.size() != 3) {
-        throw std::invalid_argument("ClaheGPU expects HWC input layout.");
+      if (sample_shape.size() < 2 || sample_shape.size() > 3) {
+        throw std::invalid_argument("ClaheGPU expects HW (grayscale) or HWC (color) input layout.");
       }
 
       int H = sample_shape[0];
       int W = sample_shape[1];
-      int C = sample_shape[2];
+      int C = (sample_shape.size() >= 3) ? sample_shape[2] : 1;
       if (C != 1 && C != 3) {
         throw std::invalid_argument("ClaheGPU supports 1 or 3 channels.");
       }
@@ -105,19 +103,10 @@ class ClaheGPU : public Operator<GPUBackend> {
         LaunchCLAHE_Grayscale_U8_NHWC(out_ptr, in_ptr, H, W, tiles_x_, tiles_y_, clip_limit_,
                                       histograms, luts, stream);
       } else {
-        if (luma_only_) {
-          // Use optimized fused kernel for better performance
-          LaunchCLAHE_RGB_U8_NHWC_Optimized(out_ptr, in_ptr, y_plane, H, W, tiles_x_, tiles_y_,
-                                            clip_limit_, histograms, luts, stream);
-        } else {
-          // Apply per-channel CLAHE (simple fallback: run per-channel grayscale)
-          for (int c = 0; c < 3; ++c) {
-            const uint8_t *src_ch = in_ptr + c;
-            uint8_t *dst_ch = out_ptr + c;
-            LaunchCLAHE_Grayscale_U8_NHWC(dst_ch, src_ch, H, W, tiles_x_, tiles_y_, clip_limit_,
-                                          histograms, luts, stream);
-          }
-        }
+        // RGB processing - always use luminance-only mode
+        // Per-channel mode is not implemented for GPU (would require channel extraction)
+        LaunchCLAHE_RGB_U8_NHWC_Optimized(out_ptr, in_ptr, y_plane, H, W, tiles_x_, tiles_y_,
+                                          clip_limit_, histograms, luts, stream);
       }
     }
 
@@ -197,8 +186,10 @@ increase computation cost. For uint8 images, 256 bins provide optimal results.)c
     
 When True (default), CLAHE is applied to the luminance (Y) component of RGB images,
 preserving color relationships. The RGB channels are then scaled proportionally.
-When False, CLAHE is applied independently to each RGB channel, which may alter
-color balance but provides stronger per-channel enhancement.)code",
+
+**Note**: GPU backend currently only supports luma_only=True for RGB images. 
+Per-channel mode (luma_only=False) is only available on CPU. The GPU will always 
+process RGB images in luminance mode regardless of this parameter.)code",
                     true)
     .InputLayout("HWC");
 

@@ -59,7 +59,7 @@ class ClaheOpTest : public ::testing::Test {
               value = ((x / 32) % 2) ? 200 : 50;
             } else if (x < width_ / 2) {
               // Medium contrast sine pattern
-              value = static_cast<uint8_t>(128 + 64 * sin(x * 0.1f) * sin(y * 0.1f));
+              value = static_cast<uint8_t>(128 + 64 * sinf(x * 0.1f) * sinf(y * 0.1f));
             } else {
               // Dark region with some detail
               value = static_cast<uint8_t>(32 + (x + y) * 16 / (height_ + width_));
@@ -155,13 +155,9 @@ class ClaheOpTest : public ::testing::Test {
     // Compare results
     double rmse = CompareTensorLists(cpu_output, gpu_output);
 
-
     EXPECT_LT(rmse, kClaheCpuGpuTolerance)
         << "RMSE between CPU and GPU CLAHE too high: " << rmse << " (tiles=" << tiles_x << "x"
         << tiles_y << ", clip=" << clip_limit << ", luma_only=" << luma_only << ")";
-
-    std::cout << "CLAHE CPU vs GPU RMSE: " << rmse << " (tiles=" << tiles_x << "x" << tiles_y
-              << ", clip=" << clip_limit << ", luma_only=" << luma_only << ")" << std::endl;
   }
 
   int batch_size_;
@@ -195,14 +191,13 @@ TEST_F(ClaheOpTest, DifferentClipLimits) {
 
 // Test error handling
 TEST_F(ClaheOpTest, ErrorHandling) {
-  TensorList<CPUBackend> input_data;
-  CreateTestData(input_data);
+  // Test with valid small tile count - should work
+  {
+    TensorList<CPUBackend> input_data;
+    CreateTestData(input_data);
 
-  Pipeline pipe(batch_size_, 1, device_id_);
-  pipe.AddExternalInput("input");
-
-  // Test invalid tile count (should not crash, but may throw)
-  EXPECT_NO_THROW({
+    Pipeline pipe(batch_size_, 1, device_id_);
+    pipe.AddExternalInput("input");
     pipe.AddOperator(OpSpec("Clahe")
                          .AddArg("device", "cpu")
                          .AddArg("tiles_x", 1)
@@ -211,7 +206,48 @@ TEST_F(ClaheOpTest, ErrorHandling) {
                          .AddArg("luma_only", true)
                          .AddInput("input", StorageDevice::CPU)
                          .AddOutput("output", StorageDevice::CPU));
-  });
+
+    std::vector<std::pair<std::string, std::string>> outputs = {{"output", "cpu"}};
+    pipe.Build(outputs);
+
+    // Run pipeline - should work with small tile count
+    pipe.SetExternalInput("input", input_data);
+    Workspace ws;
+    EXPECT_NO_THROW(pipe.Run());
+    EXPECT_NO_THROW(pipe.Outputs(&ws));
+
+    // Verify output is valid
+    auto &output = ws.Output<CPUBackend>(0);
+    EXPECT_EQ(output.num_samples(), batch_size_);
+  }
+
+  // Test with very small input that might be problematic
+  {
+    TensorList<CPUBackend> small_input;
+    small_input.Resize(uniform_list_shape(1, {8, 8, 1}), DALI_UINT8);
+    auto *data = small_input.mutable_tensor<uint8_t>(0);
+    for (int i = 0; i < 64; i++) {
+      data[i] = static_cast<uint8_t>(i * 4);
+    }
+
+    Pipeline pipe(1, 1, device_id_);
+    pipe.AddExternalInput("input");
+    pipe.AddOperator(OpSpec("Clahe")
+                         .AddArg("device", "cpu")
+                         .AddArg("tiles_x", 2)
+                         .AddArg("tiles_y", 2)
+                         .AddArg("clip_limit", 2.0f)
+                         .AddInput("input", StorageDevice::CPU)
+                         .AddOutput("output", StorageDevice::CPU));
+
+    std::vector<std::pair<std::string, std::string>> outputs = {{"output", "cpu"}};
+    pipe.Build(outputs);
+
+    // Should handle small inputs gracefully
+    pipe.SetExternalInput("input", small_input);
+    Workspace ws;
+    EXPECT_NO_THROW(pipe.Run());
+  }
 }
 
 }  // namespace testing

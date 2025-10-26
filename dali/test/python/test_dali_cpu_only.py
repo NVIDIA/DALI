@@ -245,7 +245,7 @@ def test_cast_cpu():
 
 
 def test_clahe_cpu():
-    check_single_input(fn.clahe, tiles_x=4, tiles_y=4, clip_limit=2.0)
+    check_single_input(fn.clahe, tiles_x=4, tiles_y=4, clip_limit=2.0, device="cpu")
 
 
 def test_cast_like_cpu():

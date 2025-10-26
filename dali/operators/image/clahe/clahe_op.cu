@@ -626,35 +626,33 @@ __global__ void apply_lut_bilinear_gray_vectorized_kernel(uint8_t *__restrict__ 
 #pragma unroll
   for (int i = 0; i < 4; ++i) {
     int idx = base_idx + i;
-    if (idx >= N) {
-      return;
+    if (idx < N) {
+      int y = idx / W;
+      int x = idx - y * W;
+      int tx0, tx1, ty0, ty1;
+      float fx, fy;
+      get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
+
+      int bins = 256;
+      const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
+      const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
+      const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
+      const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
+
+      uint8_t v = src_y[idx];
+      float v_tl = lut_tl[v];
+      float v_tr = lut_tr[v];
+      float v_bl = lut_bl[v];
+      float v_br = lut_br[v];
+
+      // Bilinear blend
+      float v_top = v_tl * (1.f - fx) + v_tr * fx;
+      float v_bot = v_bl * (1.f - fx) + v_br * fx;
+      float v_out = v_top * (1.f - fy) + v_bot * fy;
+
+      int outi = static_cast<int>(lrintf(dali::clamp(v_out, 0.f, 255.f)));
+      dst_y[idx] = (uint8_t)outi;
     }
-
-    int y = idx / W;
-    int x = idx - y * W;
-    int tx0, tx1, ty0, ty1;
-    float fx, fy;
-    get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
-
-    int bins = 256;
-    const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
-    const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
-    const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
-    const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
-
-    uint8_t v = src_y[idx];
-    float v_tl = lut_tl[v];
-    float v_tr = lut_tr[v];
-    float v_bl = lut_bl[v];
-    float v_br = lut_br[v];
-
-    // Bilinear blend
-    float v_top = v_tl * (1.f - fx) + v_tr * fx;
-    float v_bot = v_bl * (1.f - fx) + v_br * fx;
-    float v_out = v_top * (1.f - fy) + v_bot * fy;
-
-    int outi = static_cast<int>(lrintf(dali::clamp(v_out, 0.f, 255.f)));
-    dst_y[idx] = (uint8_t)outi;
   }
 }
 
@@ -786,52 +784,50 @@ __global__ void apply_lut_bilinear_rgb_vectorized_kernel(uint8_t *__restrict__ d
 #pragma unroll
   for (int i = 0; i < 2; ++i) {
     int idx = base_idx + i;
-    if (idx >= N) {
-      return;
+    if (idx < N) {
+      int y = idx / W;
+      int x = idx - y * W;
+      int tx0, tx1, ty0, ty1;
+      float fx, fy;
+      get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
+
+      int bins = 256;
+      const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
+      const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
+      const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
+      const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
+
+      uint8_t orig_L_u8 = src_y[idx];
+      float v_tl = lut_tl[orig_L_u8];
+      float v_tr = lut_tr[orig_L_u8];
+      float v_bl = lut_bl[orig_L_u8];
+      float v_br = lut_br[orig_L_u8];
+
+      float v_top = v_tl * (1.f - fx) + v_tr * fx;
+      float v_bot = v_bl * (1.f - fx) + v_br * fx;
+      float enhanced_L_u8 = v_top * (1.f - fy) + v_bot * fy;
+
+      // Convert original RGB to LAB
+      int base = 3 * idx;
+      uint8_t orig_r = src_rgb[base + 0];
+      uint8_t orig_g = src_rgb[base + 1];
+      uint8_t orig_b = src_rgb[base + 2];
+
+      float orig_L, orig_a, orig_b_lab;
+      rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
+
+      // Replace L* with enhanced version, keep a* and b* unchanged
+      float enhanced_L =
+          dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)), 0.0f, 100.0f);
+
+      // Convert LAB back to RGB
+      uint8_t new_r, new_g, new_b;
+      lab_to_rgb(enhanced_L, orig_a, orig_b_lab, &new_r, &new_g, &new_b);
+
+      dst_rgb[base + 0] = new_r;
+      dst_rgb[base + 1] = new_g;
+      dst_rgb[base + 2] = new_b;
     }
-
-    int y = idx / W;
-    int x = idx - y * W;
-    int tx0, tx1, ty0, ty1;
-    float fx, fy;
-    get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
-
-    int bins = 256;
-    const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
-    const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
-    const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
-    const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
-
-    uint8_t orig_L_u8 = src_y[idx];
-    float v_tl = lut_tl[orig_L_u8];
-    float v_tr = lut_tr[orig_L_u8];
-    float v_bl = lut_bl[orig_L_u8];
-    float v_br = lut_br[orig_L_u8];
-
-    float v_top = v_tl * (1.f - fx) + v_tr * fx;
-    float v_bot = v_bl * (1.f - fx) + v_br * fx;
-    float enhanced_L_u8 = v_top * (1.f - fy) + v_bot * fy;
-
-    // Convert original RGB to LAB
-    int base = 3 * idx;
-    uint8_t orig_r = src_rgb[base + 0];
-    uint8_t orig_g = src_rgb[base + 1];
-    uint8_t orig_b = src_rgb[base + 2];
-
-    float orig_L, orig_a, orig_b_lab;
-    rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
-
-    // Replace L* with enhanced version, keep a* and b* unchanged
-    float enhanced_L =
-        dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)), 0.0f, 100.0f);
-
-    // Convert LAB back to RGB
-    uint8_t new_r, new_g, new_b;
-    lab_to_rgb(enhanced_L, orig_a, orig_b_lab, &new_r, &new_g, &new_b);
-
-    dst_rgb[base + 0] = new_r;
-    dst_rgb[base + 1] = new_g;
-    dst_rgb[base + 2] = new_b;
   }
 }
 

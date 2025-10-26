@@ -57,8 +57,9 @@ class ClaheCPU : public Operator<CPUBackend> {
     auto in_view = view<const uint8_t>(input);
     auto out_view = view<uint8_t>(output);
 
-    if (in_view.shape.sample_dim() != 3) {
-      throw std::invalid_argument("ClaheCPU expects HWC input layout.");
+    int ndim = in_view.shape.sample_dim();
+    if (ndim != 2 && ndim != 3) {
+      throw std::invalid_argument("ClaheCPU expects HW (grayscale) or HWC (color) input layout.");
     }
 
     auto &tp = ws.GetThreadPool();

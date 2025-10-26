@@ -23,6 +23,9 @@ MAE_THRESHOLD = 2.0
 
 def create_synthetic_test_images():
     """Create synthetic test images good for CLAHE testing"""
+    # Set random seed for reproducibility
+    rng = np.random.RandomState(816)
+
     test_images = {}
 
     # 1. Low contrast gradient image
@@ -40,12 +43,12 @@ def create_synthetic_test_images():
         for j in range(0, 256, block_size):
             if ((i // block_size) + (j // block_size)) % 2 == 0:
                 # Dark block with some detail
-                img[i : i + block_size, j : j + block_size] = np.random.randint(
+                img[i : i + block_size, j : j + block_size] = rng.randint(
                     20, 40, (block_size, block_size, 3)
                 )
             else:
                 # Bright block with some detail
-                img[i : i + block_size, j : j + block_size] = np.random.randint(
+                img[i : i + block_size, j : j + block_size] = rng.randint(
                     200, 220, (block_size, block_size, 3)
                 )
     test_images["high_contrast_blocks"] = img
@@ -56,7 +59,7 @@ def create_synthetic_test_images():
     for i in range(256):
         for j in range(256):
             dist = np.sqrt((i - center[0]) ** 2 + (j - center[1]) ** 2)
-            val = int(30 + 60 * np.exp(-dist / 50) + 20 * np.random.random())
+            val = int(30 + 60 * np.exp(-dist / 50) + 20 * rng.random())
             val = np.clip(val, 0, 255)
             img[i, j] = val
     test_images["medical_scan"] = img
@@ -66,7 +69,9 @@ def create_synthetic_test_images():
 
 def apply_opencv_clahe(image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=True):
     """Apply OpenCV CLAHE to an image with enhanced precision"""
-    clahe = cv2.createCLAHE(clipLimit=float(clip_limit), tileGridSize=(tiles_x, tiles_y))
+    clahe = cv2.createCLAHE(
+        clipLimit=float(clip_limit), tileGridSize=(tiles_x, tiles_y)
+    )
 
     if len(image.shape) == 3:
         if image.shape[2] == 1:
@@ -134,8 +139,11 @@ class MemoryPipeline(Pipeline):
         return clahe_result
 
 
-def apply_dali_clahe_from_memory(image_array, tiles_x=8, tiles_y=8, clip_limit=2.0, device="gpu"):
+def apply_dali_clahe_from_memory(
+    image_array, tiles_x=8, tiles_y=8, clip_limit=2.0, device="gpu"
+):
     """Apply DALI CLAHE using memory-based pipeline for exact input matching"""
+    pipe = None
     try:
         # Create memory-based pipeline
         pipe = MemoryPipeline(image_array, tiles_x, tiles_y, clip_limit, device)
@@ -152,9 +160,10 @@ def apply_dali_clahe_from_memory(image_array, tiles_x=8, tiles_y=8, clip_limit=2
 
         return result
 
-    except Exception as e:
-        print(f"DALI CLAHE ({device}) failed: {e}")
-        return None
+    finally:
+        # Explicitly release pipeline resources
+        if pipe is not None:
+            del pipe
 
 
 class ClahePipeline(Pipeline):
@@ -424,14 +433,14 @@ def test_clahe_opencv_comparison_gpu():
 
     for test_name, test_image in test_images.items():
         # Apply OpenCV CLAHE
-        opencv_result = apply_opencv_clahe(test_image, tiles_x=4, tiles_y=4, clip_limit=2.0)
+        opencv_result = apply_opencv_clahe(
+            test_image, tiles_x=4, tiles_y=4, clip_limit=2.0
+        )
 
         # Apply DALI CLAHE GPU
         dali_result = apply_dali_clahe_from_memory(
             test_image, tiles_x=4, tiles_y=4, clip_limit=2.0, device="gpu"
         )
-
-        assert dali_result is not None, f"DALI GPU CLAHE failed for {test_name}"
 
         # Calculate metrics
         opencv_float = opencv_result.astype(np.float64)
@@ -454,14 +463,14 @@ def test_clahe_opencv_comparison_cpu():
 
     for test_name, test_image in test_images.items():
         # Apply OpenCV CLAHE
-        opencv_result = apply_opencv_clahe(test_image, tiles_x=4, tiles_y=4, clip_limit=2.0)
+        opencv_result = apply_opencv_clahe(
+            test_image, tiles_x=4, tiles_y=4, clip_limit=2.0
+        )
 
         # Apply DALI CLAHE CPU
         dali_result = apply_dali_clahe_from_memory(
             test_image, tiles_x=4, tiles_y=4, clip_limit=2.0, device="cpu"
         )
-
-        assert dali_result is not None, f"DALI CPU CLAHE failed for {test_name}"
 
         # Calculate metrics
         opencv_float = opencv_result.astype(np.float64)
@@ -490,9 +499,6 @@ def test_clahe_gpu_cpu_consistency():
             test_image, tiles_x=4, tiles_y=4, clip_limit=2.0, device="cpu"
         )
 
-        assert dali_gpu_result is not None, f"DALI GPU CLAHE failed for {test_name}"
-        assert dali_cpu_result is not None, f"DALI CPU CLAHE failed for {test_name}"
-
         # Calculate metrics between GPU and CPU
         gpu_float = dali_gpu_result.astype(np.float64)
         cpu_float = dali_cpu_result.astype(np.float64)
@@ -501,8 +507,12 @@ def test_clahe_gpu_cpu_consistency():
         mae = np.mean(np.abs(gpu_float - cpu_float))
 
         # GPU and CPU should be reasonably close (allow for LAB conversion differences)
-        assert mse < MSE_THRESHOLD, f"MSE too high between GPU/CPU for {test_name}: {mse:.3f}"
-        assert mae < MAE_THRESHOLD, f"MAE too high between GPU/CPU for {test_name}: {mae:.3f}"
+        assert mse < MSE_THRESHOLD, (
+            f"MSE too high between GPU/CPU for {test_name}: {mse:.3f}"
+        )
+        assert mae < MAE_THRESHOLD, (
+            f"MAE too high between GPU/CPU for {test_name}: {mae:.3f}"
+        )
 
         print(f"✓ GPU/CPU consistency {test_name}: MSE={mse:.3f}, MAE={mae:.3f}")
 
@@ -525,11 +535,12 @@ def test_clahe_different_parameters_accuracy():
         opencv_result = apply_opencv_clahe(test_image, **config)
 
         # Apply DALI CLAHE GPU and CPU
-        dali_gpu_result = apply_dali_clahe_from_memory(test_image, device="gpu", **config)
-        dali_cpu_result = apply_dali_clahe_from_memory(test_image, device="cpu", **config)
-
-        assert dali_gpu_result is not None, f"DALI GPU CLAHE failed for config {config}"
-        assert dali_cpu_result is not None, f"DALI CPU CLAHE failed for config {config}"
+        dali_gpu_result = apply_dali_clahe_from_memory(
+            test_image, device="gpu", **config
+        )
+        dali_cpu_result = apply_dali_clahe_from_memory(
+            test_image, device="cpu", **config
+        )
 
         # Calculate metrics for GPU
         opencv_float = opencv_result.astype(np.float64)
@@ -550,7 +561,7 @@ def test_clahe_different_parameters_accuracy():
 
         print(
             f"✓ Config {config}: GPU MSE={mse_gpu:.3f}, "
-            "MAE={mae_gpu:.3f}; CPU MSE={mse_cpu:.3f}, MAE={mae_cpu:.3f}"
+            f"MAE={mae_gpu:.3f}; CPU MSE={mse_cpu:.3f}, MAE={mae_cpu:.3f}"
         )
 
 
@@ -559,7 +570,9 @@ def test_clahe_medical_image_accuracy():
     medical_image = create_synthetic_test_images()["medical_scan"]
 
     # Apply OpenCV CLAHE
-    opencv_result = apply_opencv_clahe(medical_image, tiles_x=4, tiles_y=4, clip_limit=2.0)
+    opencv_result = apply_opencv_clahe(
+        medical_image, tiles_x=4, tiles_y=4, clip_limit=2.0
+    )
 
     # Apply DALI CLAHE on both GPU and CPU
     dali_gpu_result = apply_dali_clahe_from_memory(
@@ -568,9 +581,6 @@ def test_clahe_medical_image_accuracy():
     dali_cpu_result = apply_dali_clahe_from_memory(
         medical_image, tiles_x=4, tiles_y=4, clip_limit=2.0, device="cpu"
     )
-
-    assert dali_gpu_result is not None, "DALI GPU CLAHE failed for medical image"
-    assert dali_cpu_result is not None, "DALI CPU CLAHE failed for medical image"
 
     # Calculate metrics
     opencv_float = opencv_result.astype(np.float64)
@@ -590,5 +600,5 @@ def test_clahe_medical_image_accuracy():
 
     print(
         f"✓ Medical image: GPU MSE={mse_gpu:.3f}, "
-        "MAE={mae_gpu:.3f}; CPU MSE={mse_cpu:.3f}, MAE={mae_cpu:.3f}"
+        f"MAE={mae_gpu:.3f}; CPU MSE={mse_cpu:.3f}, MAE={mae_cpu:.3f}"
     )
