@@ -69,9 +69,7 @@ def create_synthetic_test_images():
 
 def apply_opencv_clahe(image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=True):
     """Apply OpenCV CLAHE to an image with enhanced precision"""
-    clahe = cv2.createCLAHE(
-        clipLimit=float(clip_limit), tileGridSize=(tiles_x, tiles_y)
-    )
+    clahe = cv2.createCLAHE(clipLimit=float(clip_limit), tileGridSize=(tiles_x, tiles_y))
 
     if len(image.shape) == 3:
         if image.shape[2] == 1:
@@ -139,9 +137,7 @@ class MemoryPipeline(Pipeline):
         return clahe_result
 
 
-def apply_dali_clahe_from_memory(
-    image_array, tiles_x=8, tiles_y=8, clip_limit=2.0, device="gpu"
-):
+def apply_dali_clahe_from_memory(image_array, tiles_x=8, tiles_y=8, clip_limit=2.0, device="gpu"):
     """Apply DALI CLAHE using memory-based pipeline for exact input matching"""
     pipe = None
     try:
@@ -433,9 +429,7 @@ def test_clahe_opencv_comparison_gpu():
 
     for test_name, test_image in test_images.items():
         # Apply OpenCV CLAHE
-        opencv_result = apply_opencv_clahe(
-            test_image, tiles_x=4, tiles_y=4, clip_limit=2.0
-        )
+        opencv_result = apply_opencv_clahe(test_image, tiles_x=4, tiles_y=4, clip_limit=2.0)
 
         # Apply DALI CLAHE GPU
         dali_result = apply_dali_clahe_from_memory(
@@ -463,9 +457,7 @@ def test_clahe_opencv_comparison_cpu():
 
     for test_name, test_image in test_images.items():
         # Apply OpenCV CLAHE
-        opencv_result = apply_opencv_clahe(
-            test_image, tiles_x=4, tiles_y=4, clip_limit=2.0
-        )
+        opencv_result = apply_opencv_clahe(test_image, tiles_x=4, tiles_y=4, clip_limit=2.0)
 
         # Apply DALI CLAHE CPU
         dali_result = apply_dali_clahe_from_memory(
@@ -507,12 +499,8 @@ def test_clahe_gpu_cpu_consistency():
         mae = np.mean(np.abs(gpu_float - cpu_float))
 
         # GPU and CPU should be reasonably close (allow for LAB conversion differences)
-        assert mse < MSE_THRESHOLD, (
-            f"MSE too high between GPU/CPU for {test_name}: {mse:.3f}"
-        )
-        assert mae < MAE_THRESHOLD, (
-            f"MAE too high between GPU/CPU for {test_name}: {mae:.3f}"
-        )
+        assert mse < MSE_THRESHOLD, f"MSE too high between GPU/CPU for {test_name}: {mse:.3f}"
+        assert mae < MAE_THRESHOLD, f"MAE too high between GPU/CPU for {test_name}: {mae:.3f}"
 
         print(f"✓ GPU/CPU consistency {test_name}: MSE={mse:.3f}, MAE={mae:.3f}")
 
@@ -535,12 +523,8 @@ def test_clahe_different_parameters_accuracy():
         opencv_result = apply_opencv_clahe(test_image, **config)
 
         # Apply DALI CLAHE GPU and CPU
-        dali_gpu_result = apply_dali_clahe_from_memory(
-            test_image, device="gpu", **config
-        )
-        dali_cpu_result = apply_dali_clahe_from_memory(
-            test_image, device="cpu", **config
-        )
+        dali_gpu_result = apply_dali_clahe_from_memory(test_image, device="gpu", **config)
+        dali_cpu_result = apply_dali_clahe_from_memory(test_image, device="cpu", **config)
 
         # Calculate metrics for GPU
         opencv_float = opencv_result.astype(np.float64)
@@ -570,9 +554,7 @@ def test_clahe_medical_image_accuracy():
     medical_image = create_synthetic_test_images()["medical_scan"]
 
     # Apply OpenCV CLAHE
-    opencv_result = apply_opencv_clahe(
-        medical_image, tiles_x=4, tiles_y=4, clip_limit=2.0
-    )
+    opencv_result = apply_opencv_clahe(medical_image, tiles_x=4, tiles_y=4, clip_limit=2.0)
 
     # Apply DALI CLAHE on both GPU and CPU
     dali_gpu_result = apply_dali_clahe_from_memory(
