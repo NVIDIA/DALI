@@ -65,9 +65,12 @@ class ClaheCPU : public Operator<CPUBackend> {
     int num_samples = in_view.num_samples();
 
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      tp.AddWork([this, &in_view, &out_view,
-                  sample_idx](int) { ProcessSample(out_view[sample_idx], in_view[sample_idx]); },
-                 in_view[sample_idx].shape.num_elements());
+      tp.AddWork([this, &in_view, &out_view, sample_idx](int) {
+        // Create a thread-local CLAHE object to avoid race conditions
+        // OpenCV CLAHE objects are not thread-safe
+        auto local_clahe = cv::createCLAHE(clip_limit_, cv::Size(tiles_x_, tiles_y_));
+        ProcessSample(out_view[sample_idx], in_view[sample_idx], local_clahe);
+      }, in_view[sample_idx].shape.num_elements());
     }
     tp.RunAll();
   }
@@ -75,7 +78,8 @@ class ClaheCPU : public Operator<CPUBackend> {
  private:
   template <int ndim>
   void ProcessSample(TensorView<StorageCPU, uint8_t, ndim> out_sample,
-                     TensorView<StorageCPU, const uint8_t, ndim> in_sample) {
+                     TensorView<StorageCPU, const uint8_t, ndim> in_sample,
+                     cv::Ptr<cv::CLAHE> clahe) {
     auto &shape = in_sample.shape;
     int H = shape[0];
     int W = shape[1];
@@ -89,7 +93,7 @@ class ClaheCPU : public Operator<CPUBackend> {
       // Grayscale processing
       cv::Mat src(H, W, CV_8UC1, const_cast<uint8_t *>(in_sample.data));
       cv::Mat dst(H, W, CV_8UC1, out_sample.data);
-      clahe_->apply(src, dst);
+      clahe->apply(src, dst);
     } else {
       // RGB processing
       cv::Mat src(H, W, CV_8UC3, const_cast<uint8_t *>(in_sample.data));
@@ -104,7 +108,7 @@ class ClaheCPU : public Operator<CPUBackend> {
         cv::split(lab, lab_channels);
 
         // Apply CLAHE to L (luminance) channel
-        clahe_->apply(lab_channels[0], lab_channels[0]);
+        clahe->apply(lab_channels[0], lab_channels[0]);
 
         cv::merge(lab_channels, lab_dst);
         cv::cvtColor(lab_dst, dst, cv::COLOR_Lab2RGB);
@@ -114,7 +118,7 @@ class ClaheCPU : public Operator<CPUBackend> {
         cv::split(src, channels);
 
         for (auto &channel : channels) {
-          clahe_->apply(channel, channel);
+          clahe->apply(channel, channel);
         }
 
         cv::merge(channels, dst);
