@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ namespace kernels {
 namespace equalize {
 namespace lut {
 namespace test {
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 
 class EqualizeLutGpuTest : public ::testing::Test {
  protected:

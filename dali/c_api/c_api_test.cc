@@ -42,7 +42,7 @@ constexpr bool pipelined = true;
 constexpr int prefetch_queue_depth = 2;
 constexpr bool async = true;
 constexpr float output_size = 20.f;
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 const std::string input_name = "inputs"s;    // NOLINT
 const std::string output_name = "outputs"s;  // NOLINT
 
@@ -318,6 +318,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
 
   auto [input, input_cpu] = AllocBufferPair<TypeParam>(num_elems, false);
   TensorList<TypeParam> input_wrapper;
+  if (std::is_same_v<TypeParam, GPUBackend>)
+    input_wrapper.set_order(cuda_stream);
 
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
@@ -396,6 +398,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
 
     auto [input, input_cpu] = AllocBufferPair<TypeParam>(num_elems, false);
     TensorList<TypeParam> input_wrapper;
+    if (std::is_same_v<TypeParam, GPUBackend>)
+      input_wrapper.set_order(cuda_stream);
 
     for (int i = 0; i < prefetch_queue_depth; i++) {
       SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
@@ -868,8 +872,10 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
     Tensor<TypeParam> output1;
     output1.set_pinned(false);
     output1.Resize({out_size}, type_info.id());
+    if (std::is_same_v<TypeParam, GPUBackend>)
+      output1.set_order(cuda_stream);
     daliOutputCopy(&handle, output1.raw_mutable_data(), out_idx,
-                   backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
+                   backend_to_device_type<TypeParam>::value, cuda_stream, DALI_ext_default);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     Tensor<CPUBackend> output1_cpu;
     output1_cpu.set_pinned(false);

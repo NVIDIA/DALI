@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ class Paste : public StatelessOperator<Backend> {
     std::vector<uint8_t> rgb;
     GetSingleOrRepeatedArg(spec, rgb, "fill_value", C_);
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
-      fill_value_.set_order(cudaStream_t(0));
+      fill_value_.set_order(cudaStreamLegacy);
     } else {
       // Disable pinned memory for CPU backend for no-gpu compatibility
       fill_value_.set_pinned(false);

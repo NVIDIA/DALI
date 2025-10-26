@@ -25,7 +25,7 @@ the image is rotated. Boxes that land outside the image with ``keep_size=True`` 
 output if the fraction of the remaining box after cropping is less than ``remove_threshold``. If ``labels``
 are passed as a second argument, they will also be removed synchronously.
 
-By default, boxes are expanded when rotated to ensure the original box is fully enclosed. This can be 
+By default, boxes are expanded when rotated to ensure the original box is fully enclosed. This can be
 controlled with ``mode`` which can either retain the original height and width with ``mode='fixed'``
 or between the full expansion and original shape with ``mode='halfway'``.
 
@@ -48,7 +48,7 @@ Example usage is below:
         0, "bboxes", "2D TensorList of float",
         R"code(Coordinates of the bounding boxes that are represented as a [N,4] 2D tensor.)code")
     .InputDox(1, "labels", "1D or 2D TensorList of int",
-              R"code(Class labels for the bounding boxes, [N] or [N,1]. These should be provided if 
+              R"code(Class labels for the bounding boxes, [N] or [N,1]. These should be provided if
 ``keep_size=True`` as boxes may be truncated, this ensures the corresponding class labels are also removed.
 )code")
     .NumOutput(1)
@@ -57,7 +57,7 @@ Example usage is below:
     })
     .AddArg("angle", R"code(Rotation angle in degrees.)code", DALI_FLOAT, true)
     .AddArg("input_shape", R"code(Specifies the shape of the original image the boxes belong to.
-    
+
 The order of dimensions is determined by the layout that is provided in `shape_layout`.
 )code",
             DALI_INT_VEC, true)
@@ -76,7 +76,7 @@ The order of dimensions is determined by the layout that is provided in `shape_l
                     R"code(Input bounding boxes are in normalized [0,1] format)code", true, false)
     .AddOptionalArg(
         "keep_size",
-        R"code(If true, the bounding box output coordinates will assume the image canvas size was also kept 
+        R"code(If true, the bounding box output coordinates will assume the image canvas size was also kept
 (see ``nvidia.dali.fn.rotate``).)code",
         false, false)
     .AddOptionalArg<float>(
@@ -87,7 +87,7 @@ The order of dimensions is determined by the layout that is provided in `shape_l
                     R"code(Mode of the bounding box transformation. Possible values are:
 
  - ``expand``: expands the bounding box to definitely enclose the target, but may be larger than rotated target.
- - ``fixed``: retains the original size of the bounding box, but may be smaller than the rotated target. 
+ - ``fixed``: retains the original size of the bounding box, but may be smaller than the rotated target.
  - ``halfway``: halfway between the expanded size and the original size.
 
 .. note::
@@ -97,7 +97,7 @@ The order of dimensions is determined by the layout that is provided in `shape_l
     .AddOptionalArg(
         "remove_threshold",
         R"code(Relative area remaining threshold for removing boxes that fall outside the image boundaries
-after rotation. Should be between [0-1] where 0 means no removal even if box lies outside, 1 means removal 
+after rotation. Should be between [0-1] where 0 means no removal even if box lies outside, 1 means removal
 if any part of the box is outside.)code",
         0.1f, false);
 
@@ -272,11 +272,11 @@ std::vector<int> RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
   }
 
   // Need to log old wh for expansion correction if needed
-  std::optional<std::vector<vec2>> old_wh;
+  std::vector<vec2> old_wh;
   if (mode != Mode::Expand) {
-    old_wh->resize(num_boxes);
+    old_wh.resize(num_boxes);
     for (int i = 0; i < num_boxes; ++i) {  // x,y coords are in order x1x2x1x2 y1y1y2y2
-      (*old_wh)[i] = {x_coords[4 * i + 1] - x_coords[4 * i], y_coords[4 * i + 2] - y_coords[4 * i]};
+      old_wh[i] = {x_coords[4 * i + 1] - x_coords[4 * i], y_coords[4 * i + 2] - y_coords[4 * i]};
     }
   }
 
@@ -298,7 +298,7 @@ std::vector<int> RotateBoxesKernel(ConstSampleView<CPUBackend> in_box_tensor,
 
   // Apply correction to expansion factor if required
   if (mode != Mode::Expand) {
-    ApplyExpansionCorrectionToBoxSize(out_boxes, *old_wh, mode == Mode::Halfway);
+    ApplyExpansionCorrectionToBoxSize(out_boxes, old_wh, mode == Mode::Halfway);
   }
 
   // Clip to image coordinates and remove boxes (and labels) with too large a reduction.

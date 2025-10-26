@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,6 +43,8 @@ void CUDAStreamPool::Purge() {
   DeleteList(unused_);
   for (auto &list : dev_streams_)
     DeleteList(list);
+  for (auto &list : busy_streams_)
+    DeleteList(list);
 }
 
 void CUDAStreamPool::DeleteList(StreamEntry *&head) {
@@ -60,6 +62,7 @@ void CUDAStreamPool::Init() {
   if (e != cudaSuccess && e != cudaErrorNoDevice && e != cudaErrorInsufficientDriver)
     throw CUDAError(e);
   dev_streams_.resize(num_devices);
+  busy_streams_.resize(num_devices);
 }
 
 CUDAStream CUDAStreamPool::GetFromPool(int device_id) {
@@ -68,8 +71,23 @@ CUDAStream CUDAStreamPool::GetFromPool(int device_id) {
     Init();
   assert(device_id >= 0 && device_id < static_cast<int>(dev_streams_.size()));
   StreamEntry *e = Pop(dev_streams_[device_id]);
-  if (!e)
-    return {};
+  if (!e) {
+    // We haven't found any stream that's ready to use, so let's go over the busy streams and see
+    // if any of them have finished their work since last time we checked.
+    StreamEntry **pe = &busy_streams_[device_id];
+    while (*pe) {
+      auto result = cudaStreamQuery((*pe)->stream.get());
+      if (result == cudaSuccess) {
+        e = Pop(*pe);
+        break;
+      } else if (result != cudaErrorNotReady) {
+        CUDA_CALL(result);
+      }
+      pe = &(*pe)->next;
+    }
+    if (!e)
+      return {};
+  }
   CUDAStream ev = std::move(e->stream);
   Push(unused_, e);
   return ev;
@@ -91,6 +109,11 @@ void CUDAStreamPool::Put(CUDAStream &&stream, int device_id) {
     }
   }
 
+  auto status = cudaStreamQuery(stream.get());
+  bool ready = status == cudaSuccess;
+  if (status != cudaErrorNotReady)
+    CUDA_CALL(status);
+
   std::unique_lock<spinlock> lock(lock_);
   if (dev_streams_.empty())
     Init();
@@ -104,7 +127,10 @@ void CUDAStreamPool::Put(CUDAStream &&stream, int device_id) {
   } else {
     e->stream = std::move(stream);
   }
-  Push(dev_streams_[device_id], e);
+  if (ready)
+    Push(dev_streams_[device_id], e);
+  else
+    Push(busy_streams_[device_id], e);
 }
 
 CUDAStreamPool &CUDAStreamPool::instance() {

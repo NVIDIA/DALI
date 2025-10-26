@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -147,7 +147,7 @@ class DynamicScratchpad
    *                              for memory of any given kind.
    */
   using scratch_sizes_t = std::array<size_t, static_cast<size_t>(mm::memory_kind_id::count)>;
-  explicit DynamicScratchpad(AccessOrder device_order = cudaStream_t(0),
+  explicit DynamicScratchpad(AccessOrder device_order,
                              AccessOrder pinned_dealloc_order = {},
                              AccessOrder managed_dealloc_order = {},
                              scratch_sizes_t initial_sizes = {}) {
