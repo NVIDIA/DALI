@@ -22,7 +22,7 @@ from nose_utils import assert_raises
 from nvidia.dali.experimental.torchvision import Compose, CenterCrop
 import torchvision.transforms.v2 as transforms
 
-from test_tv import to_torch_tensor
+from test_tv_resize import to_torch_tensor
 
 
 def build_centercrop_transform(size: Union[int, Sequence[int]]):

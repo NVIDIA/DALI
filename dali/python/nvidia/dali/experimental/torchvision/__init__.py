@@ -15,5 +15,7 @@
 from .v2.compose import Compose
 from .v2.resize import Resize
 from .v2.centercrop import CenterCrop
+from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
+from .v2.pad import Pad
 
-__all__ = ["Compose", "Resize", "CenterCrop"]
+__all__ = ["Compose", "Resize", "CenterCrop", "RandomHorizontalFlip", "RandomVerticalFlip", "Pad"]

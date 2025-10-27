@@ -69,17 +69,18 @@ class Resize:
 
         self.mode = "default"
         if isinstance(size, int):
-            if max_size is not None and size > max_size:
-                raise ValueError
-            # If size is an int, smaller edge of the image will be matched to this number.
-            self.mode = "not_smaller"
-            if max_size is not None:
+            if max_size is None:
+                # If size is an int, smaller edge of the image will be matched to this number.
+                self.mode = "not_smaller"
+            else:
+                if size > max_size:
+                    raise ValueError
                 # If size is an int: if the longer edge of the image is greater than max_size
                 # after being resized according to size, size will be overruled so that the
                 # longer edge is equal to max_size. As a result, the smaller edge may be shorter
                 # than size.
                 self.mode = "not_larger"
-                size = max_size
+                # size = max_size
 
             return (size, size)
         if size is None:
@@ -130,15 +131,25 @@ class Resize:
 
         """
         orig_size = data_input.shape()
-        orig_size = orig_size[0:2]
+        orig_h = orig_size[0]
+        orig_w = orig_size[1]
+        target_h = self.effective_size[0]
+        target_w = self.effective_size[1]
         if self.device == "gpu":
             data_input = data_input.gpu()
+
+        if self.mode == "no_larger" and self.max_size is not None:
+            if orig_h > target_h:
+                target_h = self.max_size
+            if orig_w > target_w:
+                target_w = self.max_size
+
         return fn.resize(
             data_input,
             device=self.device,
             size=fn.stack(
-                fn.cast(self.effective_size[0], dtype=dali.types.FLOAT),
-                fn.cast(self.effective_size[1], dtype=dali.types.FLOAT),
+                fn.cast(target_h, dtype=dali.types.FLOAT),
+                fn.cast(target_w, dtype=dali.types.FLOAT),
             ),
             mode=self.mode,
         )

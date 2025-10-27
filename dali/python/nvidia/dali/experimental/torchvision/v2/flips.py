@@ -1,0 +1,74 @@
+# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import nvidia.dali.fn as fn
+
+
+class RandomFlip:
+    """
+    Randomly flips the given image randomly with a given probability.
+
+    Parameters:
+        p (float) – probability of the image being flipped. Default value is 0.5
+        device (string) - operator execution device
+    """
+
+    def __init__(self, p: float = 0.5, horizontal: int = 1, device="cpu"):
+        self.prob = p
+        self.device = "cpu"
+        self.horizontal = horizontal
+
+    def __call__(self, data_input):
+        """
+        Performs the horizontal flip if coin_flip >= p
+        """
+        if self.device == "gpu":
+            data_input = data_input.gpu()
+
+        if self.horizontal:
+            data_input = fn.flip(
+                data_input, horizontal=fn.random.coin_flip(probability=self.prob), vertical=0
+            )
+        else:
+            data_input = fn.flip(
+                data_input, horizontal=0, vertical=fn.random.coin_flip(probability=self.prob)
+            )
+
+        return data_input
+
+
+class RandomHorizontalFlip(RandomFlip):
+    """
+    Randomly horizontally flips the given image randomly with a given probability.
+
+    Parameters:
+        p (float) – probability of the image being flipped. Default value is 0.5
+        device (string) - operator execution device
+    """
+
+    def __init__(self, p: float = 0.5, device="cpu"):
+        super().__init__(p, True, device)
+
+
+class RandomVerticalFlip(RandomFlip):
+    """
+    Randomly vertically flips the given image randomly with a given probability.
+
+    Parameters:
+        p (float) – probability of the image being flipped. Default value is 0.5
+        device (string) - operator execution device
+    """
+
+    def __init__(self, p: float = 0.5, device="cpu"):
+        super().__init__(p, False, device)
