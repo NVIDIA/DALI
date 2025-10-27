@@ -91,7 +91,7 @@ Args
     return ret
 
 
-def _get_kwargs(schema, api="ops", specific_args=None):
+def _get_kwargs(schema, api="ops", args=None):
     """
     Get the numpydoc-formatted docstring section for keywords arguments.
 
@@ -101,7 +101,7 @@ def _get_kwargs(schema, api="ops", specific_args=None):
     """
     ret = ""
     for arg in schema.GetArgumentNames():
-        if specific_args is not None and arg not in specific_args:
+        if args is not None and arg not in args:
             continue
         skip_full_doc = False
         type_name = ""
@@ -216,7 +216,7 @@ Supported backends
     return ret
 
 
-def _docstring_generator_class(schema_name, api="ops", specific_args=None):
+def _docstring_generator_class(schema_name, api="ops", args=None):
     schema = _b.GetSchema(schema_name)
     ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
@@ -225,7 +225,7 @@ def _docstring_generator_class(schema_name, api="ops", specific_args=None):
 Keyword args
 ------------
 """
-    ret += _get_kwargs(schema, api=api, specific_args=specific_args)
+    ret += _get_kwargs(schema, api=api, args=args)
     return ret
 
 
@@ -250,7 +250,7 @@ def _docstring_prefix_from_inputs(op_name):
     return ret
 
 
-def _docstring_prefix_auto(op_name):
+def _docstring_prefix_auto(op_name, api="fn"):
     """
     Generate start of the docstring for `__call__` of Operator `op_name`
     with default values. Assumes there will be 0 or 1 inputs
@@ -269,13 +269,14 @@ Args
 ----
 """
         dox = "Input to the operator.\n"
-        fmt = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
+        input_type = "Tensor or Batch" if api == "dynamic" else "TensorList"
+        fmt = input_type + _supported_layouts_str(schema.GetSupportedLayouts(0))
         ret += _numpydoc_formatter(input_name, fmt, dox, optional=False)
         return ret
     return ""
 
 
-def _docstring_generator_call(op_name, api="ops", specific_args=None):
+def _docstring_generator_call(op_name, api="ops", args=None):
     """
     Generate full docstring for `__call__` of Operator `op_name`.
     """
@@ -293,7 +294,7 @@ def _docstring_generator_call(op_name, api="ops", specific_args=None):
         ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
-        tensor_kwargs = _get_kwargs(schema, api=api, specific_args=specific_args)
+        tensor_kwargs = _get_kwargs(schema, api=api, args=args)
         if tensor_kwargs:
             ret += """
 Keyword Args
@@ -303,9 +304,9 @@ Keyword Args
     return ret
 
 
-def _docstring_generator_fn(schema_name):
+def _docstring_generator_fn(schema_name, api="fn", args=None):
     schema = _b.GetSchema(schema_name)
-    ret = _docstring_generator_main(schema_name, "fn")
+    ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
         return ret
     ret += _get_inputs_doc(schema)
@@ -313,5 +314,5 @@ def _docstring_generator_fn(schema_name):
 Keyword args
 ------------
 """
-    ret += _get_kwargs(schema, "fn")
+    ret += _get_kwargs(schema, "fn", args)
     return ret
