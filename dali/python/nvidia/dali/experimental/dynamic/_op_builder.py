@@ -25,6 +25,7 @@ from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
+from nvidia.dali.ops import _docs
 
 
 def is_external(x):
@@ -400,13 +401,16 @@ def build_fn_wrapper(op):
     fixed_args = []
     tensor_args = []
     signature_args = ["batch_size=None, device=None"]
+    used_kwargs = set()
     for arg in op.schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
         if op.schema.IsTensorArgument(arg):
             tensor_args.append(arg)
+            used_kwargs.add(arg)
         else:
             fixed_args.append(arg)
+            used_kwargs.add(arg)
         if op.schema.IsArgumentOptional(arg):
             signature_args.append(f"{arg}=None")
         else:
@@ -493,10 +497,11 @@ def build_fn_wrapper(op):
         return op_inst(*inputs, batch_size=batch_size, **call_args)
 
     import nvidia.dali.fn as fn
-    doc = fn.
+    doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, fn_call, doc=doc)
     function.op_class = op
     function.schema = schema
+    function.__module__ = module.__name__
     setattr(module, fn_name, function)
     return function
 
