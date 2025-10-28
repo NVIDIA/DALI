@@ -168,7 +168,7 @@ def build_operator_class(schema):
     op_class.legacy_op = legacy_op_class
     op_class.is_stateful = schema.IsStateful()
     op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
-    op_class.__init__ = build_constructor(schema, op_class)
+    op_class.__init__, op_class.__doc__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
     op_class.__qualname__ = class_name
@@ -180,26 +180,28 @@ def build_constructor(schema, op_class):
     stateful = op_class.is_stateful
     function_name = "__init__"
 
-    call_args = []
+    init_args = []
+    used_kwargs = set()
     for arg in schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
         if schema.IsTensorArgument(arg):
             continue
         if schema.IsArgumentOptional(arg):
-            call_args.append(f"{arg}=None")
+            init_args.append(f"{arg}=None")
         else:
-            call_args.append(arg)
+            init_args.append(arg)
+        used_kwargs.add(arg)
 
-    if call_args:
-        call_args = ["*"] + call_args
+    if init_args:
+        init_args = ["*"] + init_args
     header_args = [
         "self",
         "max_batch_size=None",
         "name=None",
         'device="cpu"',
         "num_inputs=None",
-    ] + call_args
+    ] + init_args
     header = f"__init__({', '.join(header_args)})"
 
     def init(self, max_batch_size, name, **kwargs):
@@ -208,15 +210,17 @@ def build_constructor(schema, op_class):
         if stateful:
             self._call_id = 0
 
+    doc = _docs._docstring_generator_class(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, init)
     function.__qualname__ = f"{op_class.__name__}.{function_name}"
 
-    return function
+    return function, doc
 
 
 def build_call_function(schema, op_class):
     stateful = op_class.is_stateful
     call_args = []
+    used_kwargs = set()
     for arg in schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
@@ -226,6 +230,7 @@ def build_call_function(schema, op_class):
             call_args.append(f"{arg}=None")
         else:
             call_args.append(arg)
+        used_kwargs.add(arg)
 
     inputs = []
     min_inputs = schema.MinNumInput()
@@ -357,7 +362,8 @@ def build_call_function(schema, op_class):
                         Tensor(invocation_result=invocation[i]) for i in range(len(invocation))
                     )
 
-    function = makefun.create_function(header, call)
+    doc = _docs._docstring_generator_call(schema.Name(), api="dynamic", args=used_kwargs)
+    function = makefun.create_function(header, call, doc=doc)
 
     return function
 
@@ -497,6 +503,7 @@ def build_fn_wrapper(op):
         return op_inst(*inputs, batch_size=batch_size, **call_args)
 
     import nvidia.dali.fn as fn
+
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, fn_call, doc=doc)
     function.op_class = op
