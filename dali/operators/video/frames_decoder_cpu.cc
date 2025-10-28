@@ -93,7 +93,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
         Width(),
         Height(),
         sws_output_format,
-        SWS_BILINEAR,
+        SWS_BILINEAR|SWS_FULL_CHR_H_INT|SWS_ACCURATE_RND,
         nullptr,
         nullptr,
         nullptr),
