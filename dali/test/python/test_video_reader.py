@@ -139,9 +139,7 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
                 ), f"Number of frames mismatch: {num_frames} != {sample_experimental.shape[0]}"
                 if i == 0:
                     for k in range(num_frames):
-                        compare_frames(
-                            sample_experimental[k], sample_legacy[k], i, j, k
-                        )
+                        compare_frames(sample_experimental[k], sample_legacy[k], i, j, k)
                 else:
                     np.testing.assert_array_equal(sample_legacy, sample_experimental)
                 break
