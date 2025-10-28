@@ -47,10 +47,10 @@ __global__ static void VideoColorSpaceConversionKernel(
 
     #pragma unroll
     for (int i = 0; i < 2; i++) {
-        float cy = halfy + i * 0.5f + 0.5f;
+        float cy = halfy + i * 0.5f + 0.25f;
         #pragma unroll
         for (int j = 0; j < 2; j++) {
-            float cx = halfx + j * 0.5f + 0.5f;
+            float cx = halfx + j * 0.5f + 0.25f;
             vec3 yuv_val;
             yuv_val[0] = Y.at(ivec2{x + j, y + i}, 0, kernels::BorderClamp());
 
