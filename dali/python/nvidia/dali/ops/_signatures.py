@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,8 +76,6 @@ _enum_mapping = {
     types.DALIImageType: _DALIImageType,
     types.DALIInterpType: _DALIInterpType,
 }
-
-_MAX_INPUT_SPELLED_OUT = 10
 
 
 def _scalar_element_annotation(scalar_dtype):
@@ -223,7 +221,7 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
                 _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
             )
         # If they fit below limit, list all inputs (with optional ones)
-        if schema.MaxNumInput() < _MAX_INPUT_SPELLED_OUT:
+        if schema.MaxNumInput() < _docs._MAX_INPUT_SPELLED_OUT:
             for i in range(schema.MinNumInput(), schema.MaxNumInput()):
                 param_list.append(
                     _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
@@ -500,7 +498,7 @@ class {cls_name}:
 # We need the placeholders for actual Python classes, as the ones that are exported from backend
 # don't seem to work with the intellisense.
 _HEADER = """
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
