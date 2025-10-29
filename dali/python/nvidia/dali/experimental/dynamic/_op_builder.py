@@ -168,7 +168,7 @@ def build_operator_class(schema):
     op_class.legacy_op = legacy_op_class
     op_class.is_stateful = schema.IsStateful()
     op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
-    op_class.__init__, op_class.__doc__ = build_constructor(schema, op_class)
+    op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
     op_class.__qualname__ = class_name
@@ -211,10 +211,10 @@ def build_constructor(schema, op_class):
             self._call_id = 0
 
     doc = _docs._docstring_generator_class(schema.Name(), api="dynamic", args=used_kwargs)
-    function = makefun.create_function(header, init)
+    function = makefun.create_function(header, init, doc=doc)
     function.__qualname__ = f"{op_class.__name__}.{function_name}"
 
-    return function, doc
+    return function
 
 
 def build_call_function(schema, op_class):
@@ -235,24 +235,31 @@ def build_call_function(schema, op_class):
     inputs = []
     min_inputs = schema.MinNumInput()
     max_inputs = schema.MaxNumInput()
-    input_indices = {}
     arguments = schema.GetArgumentNames()
-    for i in range(max_inputs):
+    num_named_inputs = min_inputs
+    if schema.HasInputDox() or max_inputs <= _docs._MAX_INPUT_SPELLED_OUT:
+        num_named_inputs = max_inputs
+
+    for i in range(num_named_inputs):
         if schema.HasInputDox():
             input_name = schema.GetInputName(i)
             if input_name in arguments:
                 input_name += "_input"
         else:
             input_name = f"input_{i}"
-        input_indices[input_name] = i
         if i < min_inputs:
             inputs.append(f"{input_name}")
         else:
             inputs.append(f"{input_name}=None")
 
-    call_args = ["*", "batch_size=None"] + call_args
+    call_args = ["batch_size=None"] + call_args
     if inputs:
-        inputs = inputs + ["/"]
+        inputs.append("/")
+    if num_named_inputs < max_inputs:
+        inputs.append("*inputs")
+    elif call_args:
+        inputs.append("*")
+
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
 
     def call(self, *raw_args, batch_size=None, **raw_kwargs):
@@ -389,21 +396,23 @@ def build_fn_wrapper(op):
     inputs = []
     min_inputs = schema.MinNumInput()
     max_inputs = schema.MaxNumInput()
-    input_indices = {}
     arguments = schema.GetArgumentNames()
-    for i in range(max_inputs):
+    num_named_inputs = min_inputs
+    if schema.HasInputDox() or max_inputs <= _docs._MAX_INPUT_SPELLED_OUT:
+        num_named_inputs = max_inputs
+
+    for i in range(num_named_inputs):
         if schema.HasInputDox():
             input_name = schema.GetInputName(i)
             if input_name in arguments:
                 input_name += "_input"
         else:
             input_name = f"input_{i}"
-        input_indices[input_name] = i
         if i < min_inputs:
             inputs.append(f"{input_name}")
         else:
             inputs.append(f"{input_name}=None")
-
+            
     fixed_args = []
     tensor_args = []
     signature_args = ["batch_size=None, device=None"]
@@ -422,10 +431,14 @@ def build_fn_wrapper(op):
         else:
             signature_args.append(arg)
 
-    if signature_args:
-        signature_args = ["*"] + signature_args
     if inputs:
-        inputs = inputs + ["/"]
+        inputs.append("/")
+
+    if num_named_inputs < max_inputs:
+        inputs.append("*inputs")
+    elif signature_args:
+        inputs.append("*")
+
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
     def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
