@@ -16,6 +16,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import numpy as np
 import cv2
+import av
 import nvidia.dali.types as types
 import glob
 import os
@@ -709,7 +710,7 @@ def test_multichannel_fill_value(device):
 def extract_frames_from_video(
     video_path, start_frame=None, sequence_length=None, end_frame=None, stride=None
 ):
-    """Extracts frames from a video file using OpenCV's VideoCapture.
+    """Extracts frames from a video file using PyAV.
 
     Args:
         video_path: Path to the video file
@@ -721,41 +722,43 @@ def extract_frames_from_video(
     Returns:
         List of frames as numpy arrays
     """
-    frames = []
-    cap = cv2.VideoCapture(video_path)
 
-    if not cap.isOpened():
-        raise RuntimeError(f"Failed to open video file: {video_path}")
+    frames = []
 
     if sequence_length is not None and end_frame is not None:
         raise ValueError("Cannot specify both sequence_length and end_frame")
 
-    # Set starting frame
-    if start_frame is not None:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    container = av.open(video_path)
+    video_stream = next((s for s in container.streams if s.type == "video"), None)
+    if video_stream is None:
+        raise RuntimeError(f"No video stream found in {video_path}")
 
-    frame_count = 0
+    # Calculate correct starting point
+    start = start_frame or 0
+    stride = stride or 1
     frames_read = 0
-    while True:
-        if sequence_length is not None and frames_read >= sequence_length:
-            break
-        if end_frame is not None and frame_count + (start_frame or 0) >= end_frame:
-            break
+    decoded_frame_idx = 0
 
-        ret, frame = cap.read()
-        if not ret:
+    for frame in container.decode(video_stream):
+        # Early exit if possible
+        if (sequence_length is not None and frames_read >= sequence_length) or (
+            end_frame is not None and decoded_frame_idx >= end_frame
+        ):
             break
+        if decoded_frame_idx < start:
+            decoded_frame_idx += 1
+            continue
 
-        # Only append frames according to stride
-        if stride is None or frame_count % stride == 0:
-            # Convert BGR to RGB since OpenCV uses BGR by default
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frames.append(frame)
+        # If stride requested, process only on stride-boundary
+        if (decoded_frame_idx - start) % stride == 0:
+            # SWS_BILINEAR(0x40)|SWS_FULL_CHR_H_INT(0x2000)|SWS_ACCURATE_RND(0x40000)
+            nd_frame = frame.to_ndarray(format="rgb24", interpolation=0x40 + 0x2000 + 0x40000)
+            frames.append(nd_frame)
             frames_read += 1
 
-        frame_count += 1
+        decoded_frame_idx += 1
 
-    cap.release()
+    container.close()
     return frames
 
 
