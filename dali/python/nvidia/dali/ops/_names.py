@@ -91,10 +91,19 @@ def _get_input_name(schema, input_idx):
         Index of the input
     """
     if schema.HasInputDox():
-        return f"__{schema.GetInputName(input_idx)}"
-    if schema.MaxNumInput() == 1:
-        return "__input"
-    return f"__input_{input_idx}"
+        name = schema.GetInputName(input_idx)
+    elif schema.MaxNumInput() == 1:
+        name = "input"
+    else:
+        name = f"input_{input_idx}"
+    # Add "_input" at the end, if the name doesn't already contain "input" or prepend "__".
+    # Keep adding underscores until there's no name clash
+    while schema.HasArgument(name):
+        if "input" in name:
+            name = "__" + name
+        else:
+            name += "_input"
+    return name
 
 
 def _get_generic_input_name(is_only_input=True):
@@ -109,4 +118,4 @@ def _get_generic_input_name(is_only_input=True):
     if is_only_input:
         return "input"
     else:
-        return "__input_"
+        return "input_"

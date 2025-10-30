@@ -24,8 +24,12 @@ _MAX_INPUT_SPELLED_OUT = 5
 
 
 def _input_type(api):
-    return "Tensor or Batch" if api == "dynamic" else "TensorList"
+    return "Tensor/Batch" if api == "dynamic" else "TensorList"
 
+def _adjust_dox(dox, api):
+    if api == "dynamic":
+        dox = dox.replace("TensorList", "Tensor/Batch")
+    return dox
 
 def _numpydoc_formatter(name, type, doc, optional=False):
     """
@@ -52,7 +56,8 @@ def _get_inputs_doc(schema, api):
     If schema provides names and docstrings for inputs, they are used, otherwise placeholder
     text is used indicating the supported number of inputs.
 
-    Note: The type of input is indicated as TensorList with supported layouts listed.
+    Note: The type of input is depends on API type (TensorList or Tensor/Batch) with supported
+          layouts listed. If the API is "dynamic", the type is Tensor/Batch.
 
     schema : OpSchema
        Schema of the operator to be documented
@@ -72,7 +77,9 @@ Args
             )
             dox = schema.GetInputDox(i)
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
+            dox = _numpydoc_formatter(input_name, input_type_str, dox, optional)
+            dox = _adjust_dox(dox, api)
+            ret += dox + "\n"
     else:
         for i in range(schema.MinNumInput()):
             input_type_str = _input_type(api) + _supported_layouts_str(
@@ -80,7 +87,9 @@ Args
             )
             dox = "Input to the operator."
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
+            dox = _numpydoc_formatter(input_name, input_type_str, dox, False)
+            dox = _adjust_dox(dox, api)
+            ret += dox + "\n"
 
         extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
         if extra_opt_args == 1:
@@ -89,6 +98,7 @@ Args
                 schema.GetSupportedLayouts(i)
             )
             dox = "Input to the operator."
+            dox = _adjust_dox(dox, api)
             input_name = _names._get_input_name(schema, i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
         elif extra_opt_args > 1:
@@ -96,6 +106,7 @@ Args
             generic_name = _names._get_generic_input_name(False)
             input_name = f"{generic_name}[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
+            dox = _adjust_dox(dox, api)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
 
     ret += "\n"
@@ -157,7 +168,11 @@ def _get_kwargs(schema, api="ops", args=None):
                 doc += "\n\n" + deprecation_warning
         elif deprecation_warning:
             doc += deprecation_warning
-        ret += _numpydoc_formatter(arg, type_name, doc)
+
+        doc = _numpydoc_formatter(arg, type_name, doc)
+        if api == "dynamic":
+            doc = doc.replace("TensorList", "Tensor/Batch")
+        ret += doc
         ret += "\n"
     return ret
 
