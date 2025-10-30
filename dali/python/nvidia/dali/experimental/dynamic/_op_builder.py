@@ -221,7 +221,6 @@ def _get_inputs(schema):
     inputs = []
     min_inputs = schema.MinNumInput()
     max_inputs = schema.MaxNumInput()
-    arguments = schema.GetArgumentNames()
     num_separate_inputs = min_inputs
     if schema.HasInputDox() or max_inputs <= _docs._MAX_INPUT_SPELLED_OUT:
         num_separate_inputs = max_inputs
@@ -489,8 +488,6 @@ def build_fn_wrapper(op):
 
         # Call the operator (the result is an Invocation object)
         return op_inst(*inputs, batch_size=batch_size, **call_args)
-
-    import nvidia.dali.fn as fn
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, fn_call, doc=doc)
