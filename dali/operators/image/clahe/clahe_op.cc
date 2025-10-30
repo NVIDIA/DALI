@@ -74,6 +74,26 @@ class ClaheGPU : public Operator<GPUBackend> {
     const auto &shape = in.shape();
     int N = shape.num_samples();
 
+    // Warn user if luma_only=False for RGB images (GPU always uses luminance mode)
+    static bool warned_luma_only = false;
+    if (!luma_only_ && !warned_luma_only) {
+      // Check if we have any RGB samples
+      bool has_rgb = false;
+      for (int i = 0; i < N; i++) {
+        auto sample_shape = shape.tensor_shape_span(i);
+        if (sample_shape.size() == 3 && sample_shape[2] == 3) {
+          has_rgb = true;
+          break;
+        }
+      }
+      if (has_rgb) {
+        DALI_WARN("CLAHE GPU backend does not support per-channel mode (luma_only=False). "
+                  "RGB images will be processed in luminance-only mode. "
+                  "Use CPU backend for per-channel processing.");
+        warned_luma_only = true;
+      }
+    }
+
     // Use DynamicScratchpad for automatic memory management
     kernels::DynamicScratchpad scratchpad(stream);
 
