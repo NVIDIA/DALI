@@ -14,7 +14,7 @@ def test_function_docs_present():
     for f in ndd.ops._all_functions:
         if should_skip(f):
             continue
-        assert len(f.__doc__) > 20, c.schema.Name()  # a meaningful string
+        assert len(f.__doc__) > 20, f.schema.Name()
 
 
 def test_function_docs_no_tensor_list():

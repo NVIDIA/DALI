@@ -26,10 +26,12 @@ _MAX_INPUT_SPELLED_OUT = 5
 def _input_type(api):
     return "Tensor/Batch" if api == "dynamic" else "TensorList"
 
+
 def _adjust_dox(dox, api):
     if api == "dynamic":
         dox = dox.replace("TensorList", "Tensor/Batch")
     return dox
+
 
 def _numpydoc_formatter(name, type, doc, optional=False):
     """
@@ -103,7 +105,7 @@ Args
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
         elif extra_opt_args > 1:
             input_type_str = _input_type(api)
-            generic_name = _names._get_generic_input_name(False)
+            generic_name = _names._get_variadic_input_name()
             input_name = f"{generic_name}[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
             dox = _adjust_dox(dox, api)

@@ -233,7 +233,7 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
             # "empty" by default - def(*args = None) is invalid syntax.
             param_list.append(
                 Parameter(
-                    _names._get_generic_input_name(schema.MinNumInput() == 0),
+                    _names._get_variadic_input_name(),
                     Parameter.VAR_POSITIONAL,
                     annotation=Optional[input_annotation_gen(schema)],
                 )
