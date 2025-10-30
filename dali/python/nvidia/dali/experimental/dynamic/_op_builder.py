@@ -25,7 +25,7 @@ from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
-from nvidia.dali.ops import _docs
+from nvidia.dali.ops import _docs, _names
 
 
 def is_external(x):
@@ -217,6 +217,31 @@ def build_constructor(schema, op_class):
     return function
 
 
+def _get_inputs(schema):
+    inputs = []
+    min_inputs = schema.MinNumInput()
+    max_inputs = schema.MaxNumInput()
+    arguments = schema.GetArgumentNames()
+    num_separate_inputs = min_inputs
+    if schema.HasInputDox() or max_inputs <= _docs._MAX_INPUT_SPELLED_OUT:
+        num_separate_inputs = max_inputs
+
+    for i in range(num_separate_inputs):
+        name = _names._get_input_name(schema, i)
+        if i < min_inputs:
+            inputs.append(name)
+        else:
+            inputs.append(f"{name}=None")
+
+    if inputs:
+        inputs.append("/")
+    if num_separate_inputs < max_inputs:
+        inputs.append("*inputs")
+    else:
+        inputs.append("*")
+    return inputs
+
+
 def build_call_function(schema, op_class):
     stateful = op_class.is_stateful
     call_args = []
@@ -232,33 +257,9 @@ def build_call_function(schema, op_class):
             call_args.append(arg)
         used_kwargs.add(arg)
 
-    inputs = []
-    min_inputs = schema.MinNumInput()
-    max_inputs = schema.MaxNumInput()
-    arguments = schema.GetArgumentNames()
-    num_named_inputs = min_inputs
-    if schema.HasInputDox() or max_inputs <= _docs._MAX_INPUT_SPELLED_OUT:
-        num_named_inputs = max_inputs
-
-    for i in range(num_named_inputs):
-        if schema.HasInputDox():
-            input_name = schema.GetInputName(i)
-            if input_name in arguments:
-                input_name += "_input"
-        else:
-            input_name = f"input_{i}"
-        if i < min_inputs:
-            inputs.append(f"{input_name}")
-        else:
-            inputs.append(f"{input_name}=None")
-
     call_args = ["batch_size=None"] + call_args
-    if inputs:
-        inputs.append("/")
-    if num_named_inputs < max_inputs:
-        inputs.append("*inputs")
-    elif call_args:
-        inputs.append("*")
+
+    inputs = _get_inputs(schema)
 
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
 
@@ -393,26 +394,8 @@ def build_fn_wrapper(op):
         module = new_module
 
     fn_name = _to_snake_case(op.schema.OperatorName())
-    inputs = []
-    min_inputs = schema.MinNumInput()
-    max_inputs = schema.MaxNumInput()
-    arguments = schema.GetArgumentNames()
-    num_named_inputs = min_inputs
-    if schema.HasInputDox() or max_inputs <= _docs._MAX_INPUT_SPELLED_OUT:
-        num_named_inputs = max_inputs
+    inputs = _get_inputs(schema)
 
-    for i in range(num_named_inputs):
-        if schema.HasInputDox():
-            input_name = schema.GetInputName(i)
-            if input_name in arguments:
-                input_name += "_input"
-        else:
-            input_name = f"input_{i}"
-        if i < min_inputs:
-            inputs.append(f"{input_name}")
-        else:
-            inputs.append(f"{input_name}=None")
-            
     fixed_args = []
     tensor_args = []
     signature_args = ["batch_size=None, device=None"]
@@ -430,14 +413,6 @@ def build_fn_wrapper(op):
             signature_args.append(f"{arg}=None")
         else:
             signature_args.append(arg)
-
-    if inputs:
-        inputs.append("/")
-
-    if num_named_inputs < max_inputs:
-        inputs.append("*inputs")
-    elif signature_args:
-        inputs.append("*")
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
@@ -526,6 +501,18 @@ def build_fn_wrapper(op):
     return function
 
 
+def build_fn_wrappers(all_ops):
+    wrappers = []
+    for op in all_ops:
+        if op.op_name.startswith("_"):
+            continue
+        if op.schema.IsStateful():
+            continue
+
+        wrappers.append(build_fn_wrapper(op))
+    return wrappers
+
+
 def build_operators():
     _all_ops = _ops._registry._all_registered_ops()
     all_op_classes = []
@@ -547,4 +534,6 @@ def build_operators():
         module = _find_or_create_module(ops, schema.ModulePath())
         setattr(module, what, op_map[in_favor])
 
-    return all_op_classes
+    all_fn_wrappers = build_fn_wrappers(all_op_classes)
+
+    return all_op_classes, all_fn_wrappers
