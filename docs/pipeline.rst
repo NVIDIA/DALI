@@ -194,10 +194,18 @@ Pipeline class
    :members:
    :special-members: __enter__, __exit__
 
+
 DataNode
 --------
 .. autoclass:: nvidia.dali.pipeline.DataNode
    :members:
+
+
+Executor configuration flags
+----------------------------
+
+.. autoenum:: nvidia.dali.StreamPolicy
+.. autoenum:: nvidia.dali.OperatorConcurrency
 
 Experimental Pipeline Features
 ------------------------------
