@@ -76,7 +76,8 @@ class ClaheGPU : public Operator<GPUBackend> {
 
     // Warn user if luma_only=False for RGB images (GPU always uses luminance mode)
     static bool warned_luma_only = false;
-    if (!luma_only_ && !warned_luma_only) {
+    static bool warned_rgb_order = false;
+    if (!warned_luma_only || !warned_rgb_order) {
       // Check if we have any RGB samples
       bool has_rgb = false;
       for (int i = 0; i < N; i++) {
@@ -87,10 +88,19 @@ class ClaheGPU : public Operator<GPUBackend> {
         }
       }
       if (has_rgb) {
-        DALI_WARN("CLAHE GPU backend does not support per-channel mode (luma_only=False). "
-                  "RGB images will be processed in luminance-only mode. "
-                  "Use CPU backend for per-channel processing.");
-        warned_luma_only = true;
+        if (!luma_only_ && !warned_luma_only) {
+          DALI_WARN("CLAHE GPU backend does not support per-channel mode (luma_only=False). "
+                    "RGB images will be processed in luminance-only mode. "
+                    "Use CPU backend for per-channel processing.");
+          warned_luma_only = true;
+        }
+        if (luma_only_ && !warned_rgb_order) {
+          DALI_WARN("CRITICAL: CLAHE expects RGB channel order (Red, Green, Blue). "
+                    "If your images are in BGR order (common with OpenCV cv2.imread), "
+                    "the luminance calculation will be INCORRECT. "
+                    "Convert BGR to RGB using fn.reinterpret or similar operators before CLAHE.");
+          warned_rgb_order = true;
+        }
       }
     }
 

@@ -62,6 +62,26 @@ class ClaheCPU : public Operator<CPUBackend> {
       throw std::invalid_argument("ClaheCPU expects HW (grayscale) or HWC (color) input layout.");
     }
 
+    // Warn user about RGB channel order requirement for RGB images
+    static bool warned_rgb_order = false;
+    if (luma_only_ && !warned_rgb_order && ndim == 3) {
+      // Check if we have any RGB samples (3 channels)
+      bool has_rgb = false;
+      for (int i = 0; i < in_view.num_samples(); i++) {
+        if (in_view[i].shape.size() == 3 && in_view[i].shape[2] == 3) {
+          has_rgb = true;
+          break;
+        }
+      }
+      if (has_rgb) {
+        DALI_WARN("CRITICAL: CLAHE expects RGB channel order (Red, Green, Blue). "
+                  "If your images are in BGR order (common with OpenCV cv2.imread), "
+                  "the luminance calculation will be INCORRECT. "
+                  "Convert BGR to RGB using fn.reinterpret or similar operators before CLAHE.");
+        warned_rgb_order = true;
+      }
+    }
+
     auto &tp = ws.GetThreadPool();
     int num_samples = in_view.num_samples();
 
