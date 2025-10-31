@@ -22,8 +22,6 @@ from nose_utils import assert_raises
 from nvidia.dali.experimental.torchvision import Compose, CenterCrop
 import torchvision.transforms.v2 as transforms
 
-from test_tv_resize import to_torch_tensor
-
 
 def build_centercrop_transform(size: Union[int, Sequence[int]]):
     t = transforms.Compose([transforms.CenterCrop(size=size)])
@@ -59,7 +57,7 @@ def test_center_crop_square_int(size):
     t, td = build_centercrop_transform(size)
 
     out_tv = t(img)
-    out_dali_tv = to_torch_tensor(td(img_dali)[0], "cpu")
+    out_dali_tv = td(img_dali).cpu()
 
     if isinstance(size, list) and len(size) == 1:
         size = size[0]
@@ -76,7 +74,7 @@ def test_center_crop_equal_size():
     t, td = build_centercrop_transform((256, 256))
 
     out_tv = t(img)
-    out_dali_tv = to_torch_tensor(td(img_dali)[0], "cpu")
+    out_dali_tv = td(img_dali).cpu()
 
     assert torch.equal(img, out_tv)
     assert torch.equal(img_dali, out_dali_tv)
@@ -88,7 +86,7 @@ def test_center_crop_larger_than_image(size):
     t, td = build_centercrop_transform((size, size))
 
     out_tv = t(img)
-    out_dali_tv = to_torch_tensor(td(img_dali)[0], "cpu")
+    out_dali_tv = td(img_dali).cpu()
 
     assert out_tv.shape[-2:] == (size, size)
     assert out_dali_tv.shape[1:3] == (size, size)

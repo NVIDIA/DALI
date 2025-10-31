@@ -15,14 +15,37 @@
 from typing import List, Sequence, Union, Callable
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali import _conditionals
+from nvidia.dali import _conditionals, pipeline_def
 from nvidia.dali._utils.dali_trace import set_tracing
 from nvidia.dali.data_node import DataNode as _DataNode
 import nvidia.dali.ops as ops
+from nvidia.dali.backend import TensorListCPU, TensorListGPU
+
+from .tensor import ToTensor
 
 from PIL import Image
-import torchvision.transforms as transforms
+import numpy as np
+import torch
 
+def _to_torch_tensor(tensor_or_tl: Union[TensorListGPU, TensorListCPU]) -> torch.Tensor:
+    if isinstance(tensor_or_tl, (TensorListGPU, TensorListCPU)):
+        dali_tensor = tensor_or_tl.as_tensor()
+    else:
+        dali_tensor = tensor_or_tl
+
+    return torch.from_dlpack(dali_tensor)
+
+def to_torch_tensor(tensor_or_tl: Union[tuple, TensorListGPU, TensorListCPU]) -> torch.Tensor:
+
+    if isinstance(tensor_or_tl, tuple) and len(tensor_or_tl) > 1:
+        tl = []
+        for elem in tensor_or_tl:
+            tl.append(_to_torch_tensor(elem))
+        return tuple(tl)
+    else:
+        if len(tensor_or_tl) == 1:
+            tensor_or_tl =tensor_or_tl[0] 
+        return _to_torch_tensor(tensor_or_tl)
 
 class Compose(Pipeline):
     """
@@ -47,7 +70,7 @@ class Compose(Pipeline):
         set_tracing(enabled=False)
         if "prefetch_queue_depth" not in kwargs.keys():
             kwargs["prefetch_queue_depth"] = 1
-        # TODO: the below is a hack but it follows the pipeline_def decorator logic:
+        # TODO: the below is a hack but it follows the pipeline_def decorator logic (_preprocess_pipe_func):
         self.define_graph = _conditionals._autograph.convert(recursive=True, user_requested=True)(
             self.define_graph
         )
@@ -66,8 +89,21 @@ class Compose(Pipeline):
             for arg in args:
                 if isinstance(arg, _DataNode):
                     _conditionals.register_data_nodes(arg)
+            for _, arg in kwargs.items():
+                if isinstance(arg, _DataNode):
+                    _conditionals.register_data_nodes(arg)
         finally:
             Pipeline.pop_current()
+
+        with self:
+            pipe_outputs = self.define_graph()
+            if isinstance(pipe_outputs, tuple):
+                po = pipe_outputs
+            elif pipe_outputs is None:
+                po = ()
+            else:
+                po = (pipe_outputs,)
+            self.set_outputs(*po)
 
     def define_graph(self):
         self.input_node = self.input()
@@ -75,6 +111,8 @@ class Compose(Pipeline):
 
         input_node = self.input_node
         for op in self.op_list:
+            if isinstance(op, ToTensor) and op != self.op_list[-1]:
+                raise NotImplemented("ToTensor can only be the last operation in the pipeline")
             input_node = op(input_node)
         return input_node
 
@@ -90,8 +128,38 @@ class Compose(Pipeline):
                 In case of PIL image it will be converted to tensor before sending to pipeline
         """
         if isinstance(data_input, Image.Image):
-            data_input = transforms.ToTensor()(data_input)
+            _input = torch.as_tensor(np.array(data_input, copy=True)).unsqueeze(0)
+        else:
+            _input = data_input
 
         self.build()
-        self.feed_input(data_node=self.input_node_name, data=data_input)
-        return self.run()
+        self.feed_input(data_node=self.input_node_name, data=_input)
+        output = self.run()
+
+        if output is None: 
+            return output
+
+        output = to_torch_tensor(output)
+        #ToTensor
+        if isinstance(self.op_list[-1], ToTensor):
+            #TODO:Support batches of tensors, like [...., H, W, C]
+            if output.shape[0] > 1:
+                raise NotImplemented("")
+            else:
+                output = output[0].permute(2, 1, 0)
+            
+        #Convert to PIL.Image
+        elif isinstance(data_input, Image.Image):
+            if isinstance(output, tuple):
+                output = Image.fromarray(output[0].numpy())
+            else:
+                #batches
+                if output.shape[0] > 1:
+                    output_list = []
+                    for i in range(output.shape[0]):
+                        output_list.append(Image.fromarray(output[i].numpy()), mode="RGB")
+                    output = output_list
+                else:
+                    output = Image.fromarray(output[0].numpy(), mode="RGB")
+
+        return output

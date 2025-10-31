@@ -128,8 +128,8 @@ class Resize:
         """
         Performs the resize. The method infers the requested size in compliance
         with Torchvision resize documentation and applies DALI operator on the data_input.
-
         """
+
         orig_size = data_input.shape()
         orig_h = orig_size[0]
         orig_w = orig_size[1]
@@ -138,10 +138,12 @@ class Resize:
         if self.device == "gpu":
             data_input = data_input.gpu()
 
-        if self.mode == "no_larger" and self.max_size is not None:
-            if orig_h > target_h:
+        if self.mode == "not_larger" and self.max_size is not None:
+            if orig_h > orig_w:
+                target_w = (self.max_size * orig_h) / orig_w
                 target_h = self.max_size
-            if orig_w > target_w:
+            else:
+                target_h = (self.max_size * orig_w) / orig_h
                 target_w = self.max_size
 
         return fn.resize(

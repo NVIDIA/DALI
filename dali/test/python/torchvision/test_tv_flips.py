@@ -16,7 +16,6 @@ import torch
 import torchvision.transforms as tv
 
 from nvidia.dali.experimental.torchvision import Compose, RandomHorizontalFlip, RandomVerticalFlip
-from test_tv_resize import to_torch_tensor
 
 
 def make_test_tensor(shape=(1, 10, 10, 3)):
@@ -29,32 +28,32 @@ def make_test_tensor(shape=(1, 10, 10, 3)):
 def test_horizontal_random_flip_probability():
     img = make_test_tensor()
     transform = Compose([RandomHorizontalFlip(p=1.0)])  # always flip
-    out = to_torch_tensor(transform(img)[0])
+    out = transform(img)
     tvout = tv.RandomHorizontalFlip(p=1.0)(img.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+    import pdb
+    pdb.set_trace()
     assert torch.equal(out, tvout)
 
     transform = Compose([RandomHorizontalFlip(p=0.0)])  # never flip
-    out = to_torch_tensor(transform(img)[0])
+    out = transform(img)
     assert torch.equal(out, img)
 
 
 def test_vertical_random_flip_probability():
     img = make_test_tensor()
     transform = Compose([RandomVerticalFlip(p=1.0)])  # always flip
-    out = to_torch_tensor(transform(img)[0])
+    out = transform(img)
     tvout = tv.RandomVerticalFlip(p=1.0)(img.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
     assert torch.equal(out, tvout)
 
     transform = Compose([RandomVerticalFlip(p=0.0)])  # never flip
-    out = to_torch_tensor(transform(img)[0])
+    out = transform(img)
     assert torch.equal(out, img)
 
 
 def test_flip_preserves_shape():
     img = make_test_tensor((1, 15, 20, 3))
     hflip = Compose([RandomHorizontalFlip(p=1.0)])(img)
-    hflip = to_torch_tensor(hflip[0])
     vflip = Compose([RandomVerticalFlip(p=1.0)])(img)
-    vflip = to_torch_tensor(vflip[0])
     assert hflip.shape == img.shape
     assert vflip.shape == img.shape

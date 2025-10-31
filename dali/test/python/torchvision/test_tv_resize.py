@@ -133,7 +133,8 @@ def loop_images_test(t, td):
         img_tensor = transforms.functional.pil_to_tensor(img).unsqueeze(0).permute(0, 2, 3, 1)
 
         out_tv = transforms.functional.pil_to_tensor(t(img)).unsqueeze(0).permute(0, 2, 3, 1)
-        out_dali_tv = to_torch_tensor(td(img_tensor)[0], "cpu")
+        #out_dali_tv = td(img_tensor) #to_torch_tensor(td(img_tensor)[0], "cpu")
+        out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
         assert out_tv.shape == out_dali_tv.shape, f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
         # assert torch.equal(out_tv, out_dali_tv)
 
