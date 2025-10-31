@@ -266,7 +266,7 @@ void FillTensorFromDlPack(
 
   size_t bytes = volume(shape) * dali_type.size();
 
-  auto typed_shape = ConvertShape(shape, batch);
+  const auto &typed_shape = ConvertShape(shape, batch);
   bool is_pinned = dl_tensor.device.device_type == kDLCUDAHost;
   int device_id = CPU_ONLY_DEVICE_ID;
   // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
@@ -328,7 +328,7 @@ void FillTensorFromCudaArray(const py::object &object,
     CheckContiguousTensor(strides, shape, type.size());
   }
 
-  auto typed_shape = ConvertShape(shape, batch);
+  const auto &typed_shape = ConvertShape(shape, batch);
   auto *ptr = PyLong_AsVoidPtr(cu_a_interface["data"].cast<py::tuple>()[0].ptr());
 
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
