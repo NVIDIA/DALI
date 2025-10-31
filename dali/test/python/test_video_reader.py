@@ -51,7 +51,7 @@ def compare_frames(
     # Compare frames
     diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > diff_step)
     total_pixels = frame.size
-    # More than 3% of the pixels differ in more than 2 steps
+    # More than threshold of the pixels differ in more than 2 steps
     if diff_pixels / total_pixels > threshold:
         # Save the mismatched frames for inspection
         frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -64,7 +64,7 @@ def compare_frames(
         cv2.imwrite(ref_output_path, ref_frame_bgr)
         assert False, (
             f"Frame {frame_idx+1} differs from reference by more than {diff_step} steps in "
-            + f"{diff_pixels/total_pixels*100}% of pixels. "
+            + f"{diff_pixels/total_pixels*100}% of pixels (threshold: {threshold}). "
             + f"Expected {ref_frame_bgr} but got {frame_bgr}"
         )
 

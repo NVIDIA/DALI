@@ -28,7 +28,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/video/legacy/reader/nvdecoder/cuvideoparser.h"
-#include "dali/operators/video/legacy/reader/nvdecoder/imgproc.h"
+#include "dali/operators/video/color_space.h"
 
 namespace dali {
 
@@ -49,7 +49,7 @@ NvDecoder::NvDecoder(int device_id,
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       frame_full_range_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
-      current_recv_(), req_ready_(VidReqStatus::REQ_READY), textures_(), stop_(false) {
+      current_recv_(), req_ready_(VidReqStatus::REQ_READY), stop_(false) {
 
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
@@ -279,45 +279,6 @@ unsigned int NvDecoder::MappedFrame::get_pitch() const {
   return pitch_;
 }
 
-NvDecoder::TextureObject::TextureObject() : valid_{false} {
-}
-
-NvDecoder::TextureObject::TextureObject(const cudaResourceDesc* pResDesc,
-                                        const cudaTextureDesc* pTexDesc,
-                                        const cudaResourceViewDesc* pResViewDesc)
-    : valid_{false}
-{
-  CUDA_CALL(cudaCreateTextureObject(&object_, pResDesc, pTexDesc, pResViewDesc));
-  valid_ = true;
-}
-
-NvDecoder::TextureObject::~TextureObject() {
-    if (valid_) {
-        cudaDestroyTextureObject(object_);
-    }
-}
-
-NvDecoder::TextureObject::TextureObject(NvDecoder::TextureObject&& other)
-    : valid_{other.valid_}, object_{other.object_}
-{
-  other.valid_ = false;
-}
-
-NvDecoder::TextureObject& NvDecoder::TextureObject::operator=(NvDecoder::TextureObject&& other) {
-  valid_ = other.valid_;
-  object_ = other.object_;
-  other.valid_ = false;
-  return *this;
-}
-
-NvDecoder::TextureObject::operator cudaTextureObject_t() const {
-  if (valid_) {
-      return object_;
-  } else {
-      return cudaTextureObject_t{};
-  }
-}
-
 // Callback called by the driver decoder once a frame has been decoded
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
@@ -417,13 +378,31 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
 
       auto* frame_disp_info = frame_queue_.pop();
       if (stop_) break;
-      auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
+      MappedFrame frame{frame_disp_info, decoder_, stream_};
       sequence.timestamps.push_back(frame_disp_info->timestamp * av_q2d(
             nv_time_base_));
       if (stop_) break;
-      convert_frame(frame, sequence, i);
+      auto is_full_range = frame_full_range_[frame.disp_info->picture_index];
+      auto conversion_type =  rgb_ ?
+                        is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE :
+                                        VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :
+                        VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
+      auto frame_stride =
+              static_cast<ptrdiff_t>(i) * sequence.height * sequence.width * sequence.channels;
+      TYPE_SWITCH(dtype_, type2id, OutType, NVDECODER_SUPPORTED_TYPES, (
+        auto* tensor_out = sequence.sequence.mutable_data<OutType>() + frame_stride;
+        VideoColorSpaceConversion(
+          reinterpret_cast<OutType *>(tensor_out), sequence.width * sequence.channels,
+          reinterpret_cast<const uint8_t *>(frame.get_ptr()), static_cast<int>(frame.get_pitch()),
+          decoder_.height(),
+          decoder_.width(),
+          conversion_type,
+          normalized_,
+          stream_);
+      ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
       // synchronize before MappedFrame is destroyed and cuvidUnmapVideoFrame is called
       CUDA_CALL(cudaStreamSynchronize(stream_));
+      frame_in_use_[frame.disp_info->picture_index] = false;
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
@@ -438,85 +417,6 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
         "Only DALI_UINT8 and DALI_FLOAT are supported as the decoder outputs.")););
   }
   record_sequence_event_(sequence);
-}
-
-// We assume here that a pointer and scale_method
-// uniquely identifies a texture
-const NvDecoder::TextureObjects&
-NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
-                        uint16_t input_width, uint16_t input_height,
-                        ScaleMethod scale_method) {
-  auto tex_id = std::make_tuple(input, scale_method, input_height, input_width, input_pitch);
-  auto tex = textures_.find(tex_id);
-  if (tex != textures_.end()) {
-    return tex->second;
-  }
-  TextureObjects objects;
-  cudaTextureDesc tex_desc = {};
-  tex_desc.addressMode[0]   = cudaAddressModeClamp;
-  tex_desc.addressMode[1]   = cudaAddressModeClamp;
-  if (scale_method == ScaleMethod_Nearest) {
-      tex_desc.filterMode   = cudaFilterModePoint;
-  } else {
-      tex_desc.filterMode   = cudaFilterModeLinear;
-  }
-  tex_desc.readMode         = cudaReadModeNormalizedFloat;
-  tex_desc.normalizedCoords = 0;
-
-  cudaResourceDesc res_desc = {};
-  res_desc.resType = cudaResourceTypePitch2D;
-  res_desc.res.pitch2D.devPtr = input;
-  res_desc.res.pitch2D.desc = cudaCreateChannelDesc<uchar1>();
-  res_desc.res.pitch2D.width = input_width;
-  res_desc.res.pitch2D.height = input_height;
-  res_desc.res.pitch2D.pitchInBytes = input_pitch;
-
-  objects.luma = TextureObject{&res_desc, &tex_desc, nullptr};
-
-  tex_desc.addressMode[0]   = cudaAddressModeClamp;
-  tex_desc.addressMode[1]   = cudaAddressModeClamp;
-  tex_desc.filterMode       = cudaFilterModeLinear;
-  tex_desc.readMode         = cudaReadModeNormalizedFloat;
-  tex_desc.normalizedCoords = 0;
-
-  res_desc.resType = cudaResourceTypePitch2D;
-  res_desc.res.pitch2D.devPtr = input + (input_height * input_pitch);
-  res_desc.res.pitch2D.desc = cudaCreateChannelDesc<uchar2>();
-  res_desc.res.pitch2D.width = input_width;
-  res_desc.res.pitch2D.height = input_height / 2;
-  res_desc.res.pitch2D.pitchInBytes = input_pitch;
-
-  objects.chroma = TextureObject{&res_desc, &tex_desc, nullptr};
-
-  auto p = textures_.emplace(tex_id, std::move(objects));
-  if (!p.second) {
-    DALI_FAIL("Unable to cache a new texture object.");
-  }
-  return p.first->second;
-}
-
-void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
-                              int index) {
-  auto input_width = ALIGN32(decoder_.width());
-  auto input_height = decoder_.height();
-
-  auto output_idx = index;
-  // TODO(spanev) Add ScaleMethod choice
-  auto& textures = this->get_textures(frame.get_ptr(),
-                                      frame.get_pitch(),
-                                      input_width,
-                                      input_height,
-                                      ScaleMethod_Linear);
-  TYPE_SWITCH(dtype_, type2id, OutputType, NVDECODER_SUPPORTED_TYPES, (
-      process_frame<OutputType>(textures.chroma, textures.luma,
-                  sequence,
-                  output_idx, stream_,
-                  input_width, input_height,
-                  rgb_, normalized_, frame_full_range_[frame.disp_info->picture_index]);
-    ), DALI_FAIL(make_string("Not supported output type:", dtype_, // NOLINT
-        "Only DALI_UINT8 and DALI_FLOAT are supported as the decoder outputs.")););
-
-  frame_in_use_[frame.disp_info->picture_index] = false;
 }
 
 void NvDecoder::finish() {

@@ -25,8 +25,6 @@ extern "C" {
 #include <queue>
 #include <string>
 #include <thread>
-#include <tuple>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -65,19 +63,6 @@ struct FrameReq {
   AVRational frame_base;
   bool full_range;
 };
-
-enum ScaleMethod {
-    /**
-     * The value for the nearest neighbor is used, no interpolation
-     */
-    ScaleMethod_Nearest,
-
-    /**
-     * Simple bilinear interpolation of four nearest neighbors
-     */
-    ScaleMethod_Linear
-};
-
 
 enum class VidReqStatus {
   REQ_READY = 0,
@@ -156,35 +141,6 @@ class NvDecoder {
     CUVIDPROCPARAMS params_;
   };
 
-  class TextureObject {
-   public:
-    TextureObject();
-    TextureObject(const cudaResourceDesc* pResDesc,
-                  const cudaTextureDesc* pTexDesc,
-                  const cudaResourceViewDesc* pResViewDesc);
-    ~TextureObject();
-    TextureObject(TextureObject&& other);
-    TextureObject& operator=(TextureObject&& other);
-    TextureObject(const TextureObject&) = delete;
-    TextureObject& operator=(const TextureObject&) = delete;
-    operator cudaTextureObject_t() const;
-   private:
-    bool valid_;
-    cudaTextureObject_t object_ = 0;
-  };
-
-  struct TextureObjects {
-    TextureObject luma;
-    TextureObject chroma;
-  };
-
-  const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
-                                     uint16_t input_width, uint16_t input_height,
-                                     ScaleMethod scale_method);
-  void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
-                     int index);
-
-
   const int device_id_;
   CUDAStreamLease stream_;
 
@@ -205,31 +161,6 @@ class NvDecoder {
   FrameReq current_recv_;
   VidReqStatus req_ready_;
 
-  using TexID = std::tuple<uint8_t*, ScaleMethod, uint16_t, uint16_t, unsigned int>;
-
-  struct tex_hash {
-      // hash_combine taken from
-      // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3876.pdf
-      template <typename T>
-      inline void hash_combine(size_t& seed, const T& value) const {
-        std::hash<T> hasher;
-        seed ^= hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-      }
-
-      std::size_t operator () (const TexID& tex) const {
-        size_t seed = 0;
-        hash_combine(seed, std::get<0>(tex));
-        hash_combine(seed, std::get<1>(tex));
-        hash_combine(seed, std::get<2>(tex));
-        hash_combine(seed, std::get<3>(tex));
-        hash_combine(seed, std::get<4>(tex));
-
-        return seed;
-      }
-  };
-
-  std::unordered_map<TexID, TextureObjects, tex_hash> textures_;
-
   volatile bool stop_;
   std::exception_ptr captured_exception_;
 
@@ -240,17 +171,5 @@ class NvDecoder {
 };
 
 }  // namespace dali
-
-namespace std {
-template<>
-struct hash<dali::ScaleMethod> {
- public:
-  std::size_t operator()(dali::ScaleMethod const& s) const noexcept {
-  return std::hash<int>()(s);
-  }
-};
-
-}  // namespace std
-
 
 #endif  // DALI_OPERATORS_READER_NVDECODER_NVDECODER_H_
