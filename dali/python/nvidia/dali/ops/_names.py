@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
         Should a .hidden module be added to the module path to indicate an internal operator,
         that it's later reimported but not directly discoverable, by default False
     api : str, optional
-        API type, "ops" or "fn", by default "ops"
+        API type, "ops", "fn", or "dynamic", by default "ops"
 
     Returns
     -------
@@ -48,7 +48,9 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
     op_name = schema.OperatorName()
     if make_hidden:
         submodule_path = [*submodule_path, "hidden"]
-    if api == "fn":
+    if api == "fn" or (
+        api == "dynamic" and (not submodule_path or submodule_path[0] not in ["readers", "ops"])
+    ):
         op_name = _functional._to_snake_case(op_name)
     op_full_name = ".".join(submodule_path + [op_name])
     return op_full_name, submodule_path, op_name
@@ -65,7 +67,7 @@ def _op_name(op_schema_name, api="fn"):
     op_schema_name : str
         The name of the schema
     api : str, optional
-        API type, "ops" or "fn", by default "fn"
+        API type, "ops", "fn", or "dynamic", by default "fn"
 
     Returns
     -------
@@ -89,22 +91,21 @@ def _get_input_name(schema, input_idx):
         Index of the input
     """
     if schema.HasInputDox():
-        return f"__{schema.GetInputName(input_idx)}"
-    if schema.MaxNumInput() == 1:
-        return "__input"
-    return f"__input_{input_idx}"
-
-
-def _get_generic_input_name(is_only_input=True):
-    """Return the string representing the name of positional-only input for a generic context.
-
-    Parameters
-    ----------
-    is_only_input : bool, optional
-        If the generic name represents is the only input name, like `foo(*inputs, /, ...)`
-        or used as some follow-up `foo(__input_0, /, *__input_, ...)`
-    """
-    if is_only_input:
-        return "input"
+        name = schema.GetInputName(input_idx)
+    elif schema.MaxNumInput() == 1:
+        name = "input"
     else:
-        return "__input_"
+        name = f"input_{input_idx}"
+    # Add "_input" at the end, if the name doesn't already contain "input" or prepend "__".
+    # Keep adding underscores until there's no name clash
+    while schema.HasArgument(name):
+        if "input" in name:
+            name = "__" + name
+        else:
+            name += "_input"
+    return name
+
+
+def _get_variadic_input_name():
+    """Return the string representing the name of positional-only input for a variadic context."""
+    return "inputs"

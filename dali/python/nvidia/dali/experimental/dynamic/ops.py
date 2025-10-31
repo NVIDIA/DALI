@@ -440,10 +440,11 @@ class Reader(Operator):
 
 
 _all_ops = []
+_all_functions = []
 
 
 def _initialize():
     from . import _op_builder
 
-    global _all_ops
-    _all_ops = _op_builder.build_operators()
+    global _all_ops, _all_functions
+    _all_ops, _all_functions = _op_builder.build_operators()
