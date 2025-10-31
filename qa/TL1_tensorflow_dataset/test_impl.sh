@@ -8,7 +8,7 @@ test_body() {
     pip uninstall -y `pip list | grep nvidia_dali_tf_plugin | cut -d " " -f1` || true
 
     # Installing "current" dali tf (built against installed TF)
-    pip install ../../../nvidia_dali_tf_plugin*.tar.gz
+    pip install ../../../nvidia_dali_tf_plugin*.tar.gz --no-build-isolation
 
     is_compatible=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_compatible_tensorflow())')
     if [ $is_compatible = 'True' ]; then

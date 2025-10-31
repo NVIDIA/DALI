@@ -25,7 +25,7 @@ test_body() {
     ASAN_OPTIONS==${DALI_ENABLE_SANITIZERS:+"detect_leaks=0:detect_container_overflow=0:verify_asan_link_order=0"} \
         LD_PRELOAD=$(if [ -n "$DALI_ENABLE_SANITIZERS" ]; then echo ""; else echo $LD_PRELOAD; fi) \
         LD_EXTRA_PRELOAD=${DALI_ENABLE_SANITIZERS:+"/usr/lib/x86_64-linux-gnu/libasan.so"} \
-        pip install -v ../../../nvidia_dali_video*.tar.gz
+        pip install -v ../../../nvidia_dali_video*.tar.gz --no-build-isolation
 
     # Check that the plugin can be loaded
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk

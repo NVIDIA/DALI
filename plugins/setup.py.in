@@ -15,7 +15,16 @@
 import sys
 import os
 
-import skbuild
+try:
+    import skbuild
+except ModuleNotFoundError as e:
+    print(
+        "!!!Pip version is 25.3 or higher enabled build isolation by default while the "
+        "plugin requires no build isolation. Please pass the --no-build-isolation "
+        "flag to pip install if that is the case!!!"
+    )
+    raise e
+
 from packaging.version import Version
 
 if __name__ == "__main__":

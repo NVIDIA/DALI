@@ -80,29 +80,35 @@ nvidia-dali-tf-plugin
 DALI doesn't contain prebuilt versions of the DALI TensorFlow plugin. It needs to be installed as a separate package
 which will be built against the currently installed version of TensorFlow:
 
+.. note::
+
+  Please always use the `--no-build-isolation` flag when installing the DALI TensorFlow plugin. As the installation process
+  relies on the TensorFlow installation to be present in the environment and the most recent pip version enables build
+  isolation by default, this flag is necessary to install the right variant of the plugin configuration for the installed TensorFlow version.
+
 * for CUDA 12.0:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda120
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda120 --no-build-isolation
 
 or just
 
 .. code-block:: bash
 
-   pip install nvidia-dali-tf-plugin-cuda120
+   pip install nvidia-dali-tf-plugin-cuda120 --no-build-isolation
 
 * for CUDA 13.0:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda130
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda130 --no-build-isolation
 
 or just
 
 .. code-block:: bash
 
-   pip install nvidia-dali-tf-plugin-cuda130
+   pip install nvidia-dali-tf-plugin-cuda130 --no-build-isolation
 
 Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
 
@@ -137,14 +143,14 @@ To access most recent nightly builds please use flowing release channel:
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda120
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda120
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda120 --no-build-isolation
 
 * for CUDA 13.0:
 
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda130
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda130
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda130 --no-build-isolation
 
 
 Weekly Builds
@@ -156,7 +162,7 @@ builds please use the following release channel (available only for CUDA 13):
 .. code-block:: bash
 
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-weekly-cuda130
-  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-tf-plugin-weekly-cuda130
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly --upgrade nvidia-dali-tf-plugin-weekly-cuda130 --no-build-isolation
 
 
 pip - Legacy Releases

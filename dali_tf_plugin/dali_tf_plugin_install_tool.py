@@ -417,6 +417,11 @@ class InstallerHelper:
             error_msg = "Installation error:"
             error_msg += (
                 "\n Tensorflow installation not found. Install `tensorflow-gpu` " + "and try again"
+                "\n -----------------------------------------------------------------------------\n"
+                " !!!Pip version is 25.3 or higher enabled build isolation by default while the\n"
+                " plugin requires no build isolation. Please pass the --no-build-isolation\n"
+                " flag to pip install if that is the case!!!"
+                "\n -----------------------------------------------------------------------------\n"
             )
             error_msg += "\n" + self.debug_str()
             raise ImportError(error_msg)
