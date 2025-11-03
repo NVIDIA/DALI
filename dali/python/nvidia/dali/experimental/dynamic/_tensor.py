@@ -397,7 +397,7 @@ class Tensor:
         """
         The semantic layout of the tensor, e.g. HWC, CHW.
 
-        The layout assigns meaning of to the axes. It affects the way in which the data is
+        The layout assigns meaning to the axes. It affects the way in which the data is
         interpreted by some operators.
 
         Image/video/volume layouts:
@@ -449,7 +449,7 @@ class Tensor:
 
     def item(self) -> Any:
         """
-        Rreturns the only item in the tensor. Useful for scalars (0D tensors).
+        Returns the only item in the tensor. Useful for scalars (0D tensors).
         """
         if self.size != 1:
             raise ValueError(f"Tensor has {self.size} elements, expected 1")

@@ -163,7 +163,7 @@ class Batch:
 
     A Batch can contain:
 
-    * a single buffer and shape, owner by DALI, representing consectutive tensors
+    * a single buffer and shape, owner by DALI, representing consecutive tensors
     * a list of :class:`Tensor` objects.
     * a result of a lazy evaluation of a DALI operator.
 
@@ -362,10 +362,10 @@ class Batch:
     @staticmethod
     def broadcast(sample, batch_size: int, device: Optional[Device] = None) -> "Batch":
         """
-        Createas a batch by repeating a single `sample` `batch_size` times.
+        Creates a batch by repeating a single `sample` `batch_size` times.
 
         This function returns a batch obtained by repeating the sample `sample` `batch_size` times.
-        Optionally, the result may be placed on the specied device (otherwise it will inherit the
+        Optionally, the result may be placed on the specified device (otherwise it will inherit the
         device from the `sample` argument).
 
         This function yields result equivalent to
