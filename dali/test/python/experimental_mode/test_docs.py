@@ -1,8 +1,13 @@
 import nvidia.dali.experimental.dynamic as ndd
+import re
 
 
-def _check_no_tensor_list(string, schema):
-    assert "TensorList" not in string, f"TensorList found in docs for {schema.Name()}:\n{string}"
+_graph_regex = re.compile(r".*(^|[^A-Za-z0-9_])[Gg]raph([ .,)]|$).*")
+
+
+def _check_no_pipeline_mode_wording(s, schema):
+    assert "TensorList" not in s, f"TensorList found in docs for {schema.Name()}:\n{s}"
+    assert not _graph_regex.match(s), f'"Graph" found in the docs for {schema.Name()}:\n{s}'
 
 
 def should_skip(x):
@@ -22,7 +27,7 @@ def test_function_docs_no_tensor_list():
     for f in ndd.ops._all_functions:
         if should_skip(f):
             continue
-        _check_no_tensor_list(f.__doc__, f.schema)
+        _check_no_pipeline_mode_wording(f.__doc__, f.schema)
 
 
 def test_op_docs_present():
@@ -39,5 +44,5 @@ def test_op_docs_no_tensor_list():
     for c in ndd.ops._all_ops:
         if should_skip(c):
             continue
-        _check_no_tensor_list(c.__init__.__doc__, c.schema)
-        _check_no_tensor_list(c.__call__.__doc__, c.schema)
+        _check_no_pipeline_mode_wording(c.__init__.__doc__, c.schema)
+        _check_no_pipeline_mode_wording(c.__call__.__doc__, c.schema)

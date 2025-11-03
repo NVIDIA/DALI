@@ -263,6 +263,13 @@ def _supported_layouts_str(supported_layouts):
     return " (" + ", ".join(["'" + str(layout) + "'" for layout in supported_layouts]) + ")"
 
 
+def _call_description(api):
+    if api == "dynamic":
+        return "The invocation of the operator"
+    else:
+        return "Operator call to be used in graph definition"
+
+
 def _docstring_prefix_from_inputs(op_name, api):
     """
     Generate start of the docstring for `__call__` of Operator `op_name`
@@ -272,7 +279,7 @@ def _docstring_prefix_from_inputs(op_name, api):
     """
     schema = _b.GetSchema(op_name)
     # __call__ docstring
-    ret = "\nOperator call to be used in graph definition.\n"
+    ret = f"\n{_call_description(api)}.\n"
     # Args section
     ret += _get_inputs_doc(schema, api)
     return ret
@@ -285,13 +292,13 @@ def _docstring_prefix_auto(op_name, api="fn"):
     """
     schema = _b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
-        return """
-Operator call to be used in graph definition. This operator doesn't have any inputs.
+        return f"""
+{_call_description(api)}. This operator doesn't have any inputs.
 """
     elif schema.MaxNumInput() == 1:
         input_name = _names._get_input_name(schema, 0)
-        ret = """
-Operator call to be used in graph definition.
+        ret = f"""
+{_call_description(api)}.
 
 Args
 ----
