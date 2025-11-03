@@ -67,6 +67,20 @@ def _try_convert_enums(arr):
 
 
 class Tensor:
+    """A Tensor object.
+
+    This class represents a single tensor usable with DALI dynamic API. It can contain any of the
+    following::
+
+    * tensor data owned by DALI
+    * external tensor data wrapped into a DALI tensor
+    * a sample taken out of a Batch object
+    * a result of a lazy evaluation of a DALI operator.
+
+    In case of lazy evaluation, the operations are executed only after an attempt is made to access
+    the tensor data or properties which cannot be obtained without running the underlying operation.
+    """
+
     def __init__(
         self,
         data: Optional[Any] = None,
@@ -79,9 +93,12 @@ class Tensor:
         copy: bool = False,
     ):
         """Constructs a Tensor object.
-        Tensor objects should not be constructed directly, use tensor or as_tensor instead.
 
-        The Tensor object can be created either from an existing object, passed as `data` or
+        .. warning::
+            Tensor objects should not be constructed directly, use :meth:`tensor` or
+            :meth:`as_tensor` instead.
+
+        The `Tensor` object can be created either from an existing object, passed as `data` or
         from an invocation result.
         Unless explicitly requested with the `copy` parameter, this constructor will make best
         effort to avoid the copy.
@@ -153,19 +170,19 @@ class Tensor:
             elif isinstance(data, Tensor):
                 if dtype is None or _type_id(dtype) == data.dtype.type_id:
                     if device is None or device == data.device:
-                        self.assign(data)
+                        self._assign(data)
                         self._wraps_external_data = data._wraps_external_data
                     else:
                         dev = data.to_device(device).evaluate()
                         if dev is not self:
                             copied = True
-                        self.assign(dev)
+                        self._assign(dev)
                         self._wraps_external_data = not copied
                 else:
                     from . import cast
 
                     converted = cast(data.to_device(device), dtype=dtype, device=self.device)
-                    self.assign(converted.evaluate())
+                    self._assign(converted.evaluate())
                     copied = True
             elif isinstance(data, TensorSlice):
                 self._slice = data
@@ -243,7 +260,7 @@ class Tensor:
                 self._layout = self._backend.layout()
 
             if self._backend is not None and device != _backend_device(self._backend):
-                self.assign(self.to_device(device).evaluate())
+                self._assign(self.to_device(device).evaluate())
                 copied = True
         elif invocation_result is not None:
             self._invocation_result = invocation_result
@@ -254,26 +271,37 @@ class Tensor:
         if dtype is not None and self._dtype != dtype:
             from . import cast
 
-            self.assign(cast(self, dtype=dtype, device=self.device).evaluate())
+            self._assign(cast(self, dtype=dtype, device=self.device).evaluate())
             copied = True
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
         if copy and self._backend is not None and not copied:
-            self.assign(self.to_device(device, True).evaluate())
+            self._assign(self.to_device(device, True).evaluate())
 
     def _is_external(self) -> bool:
         return self._wraps_external_data
 
     def cpu(self) -> "Tensor":
+        """
+        Returns the tensor on the CPU. If it's already there, this function returns `self`.
+        """
         return self.to_device(Device("cpu"))
 
     def gpu(self, index: Optional[int] = None) -> "Tensor":
+        """
+        Returns the tensor on the GPU. If it's already there, this function returns `self`.
+
+        If index is not specified, the current CUDA device is used.
+        """
         return self.to_device(Device("gpu", index))
 
     @property
     def device(self) -> Device:
+        """
+        The device on which the tensor resides (or will reside, in case of lazy evaluation).
+        """
         if self._device is not None:
             return self._device
         if self._invocation_result is not None:
@@ -282,7 +310,14 @@ class Tensor:
         else:
             raise RuntimeError("Device not set")
 
+
     def to_device(self, device: Device, force_copy: bool = False) -> "Tensor":
+        """
+        Returns the tensor on the specified device.
+
+        If the tensor already resides on the device specified, the function will return `self`
+        unless a copy is explicitly requested by passing ``force_copy=True``
+        """
         if self.device == device and not force_copy:
             return self
         else:
@@ -291,7 +326,7 @@ class Tensor:
 
                 return copy(self, device=device)
 
-    def assign(self, other: "Tensor"):
+    def _assign(self, other: "Tensor"):
         if other is self:
             return
         self._device = other._device
@@ -305,14 +340,15 @@ class Tensor:
         self._invocation_result = other._invocation_result
         self._wraps_external_data = other._wraps_external_data
 
-    @property
-    def data(self):
-        if not self._backend:
-            self.evaluate()
-        return self._backend
 
     @property
     def ndim(self) -> int:
+        """
+        The number of dimensions of the tensor.
+
+        A 0D tensor is a scalar and cannot be empty (it always contains a single value).
+        Tensors with higher `ndim` can be empty if any of the extents is 0.
+        """
         if self._backend is not None:
             return self._backend.ndim()
         elif self._slice is not None:
@@ -326,6 +362,9 @@ class Tensor:
 
     @property
     def shape(self) -> Tuple[int, ...]:
+        """
+        The shape of the tensor, returned as a tuple of integers.
+        """
         if self._shape is None:
             if self._invocation_result is not None:
                 self._shape = self._invocation_result.shape
@@ -339,6 +378,9 @@ class Tensor:
 
     @property
     def dtype(self) -> DType:
+        """
+        The type of the elements of the tensor.
+        """
         if self._dtype is None:
             if self._invocation_result is not None:
                 self._dtype = _dtype(self._invocation_result.dtype)
@@ -352,6 +394,24 @@ class Tensor:
 
     @property
     def layout(self) -> str:
+        """
+        The semantic layout of the tensor, e.g. HWC, CHW.
+
+        The layout assigns meaning of to the axes. It affects the way in which the data is
+        interpreted by some operators.
+
+        Image/video/volume layouts:
+        H - height,
+        W - width,
+        D - depth,
+        C - channels,
+        F - frames
+
+        Audio layouts:
+        f - frequency
+        t - time
+        C - channels
+        """
         if self._layout is None:
             if self._invocation_result is not None:
                 self._layout = self._invocation_result.layout
@@ -368,17 +428,29 @@ class Tensor:
 
     @property
     def size(self) -> int:
+        """
+        The number of elements in the tensor.
+        """
         return _volume(self.shape)
 
     @property
     def nbytes(self) -> int:
+        """
+        The number of bytes required to store all elements in the tensor assuming dense packing.
+        """
         return self.size * self.dtype.bytes
 
     @property
     def itemsize(self) -> int:
+        """
+        The size, in bytes, of a single element.
+        """
         return self.dtype.bytes
 
     def item(self) -> Any:
+        """
+        Rreturns the only item in the tensor. Useful for scalars (0D tensors).
+        """
         if self.size != 1:
             raise ValueError(f"Tensor has {self.size} elements, expected 1")
         import numpy as np
@@ -405,7 +477,17 @@ class Tensor:
             )
 
     def evaluate(self):
+        """
+        Evaluates the underlying lazy expression, if any.
+
+        If the tensor is a result of a lazy evaluation, calling `evaluate` will cause the expression
+        to be evaluated. If the tensor already contains concrete data, this function has no effect.
+
+        The behavior of this function is affected by the current evaluation context and current
+        device. See :class:`EvalContext` and :class:`Device` for details.
+        """
         if self._backend is None:
+            # TODO(michalz): Consider thread-safety
             with _EvalContext.get() as ctx:
                 if self._slice:
                     self._backend = self._slice.evaluate()._backend

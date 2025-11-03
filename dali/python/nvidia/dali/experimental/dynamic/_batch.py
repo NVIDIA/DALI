@@ -156,6 +156,21 @@ class _TensorList:
 
 
 class Batch:
+    """A Batch object.
+
+    This class represents a batch of tensors usable with DALI operators. The tensors in the batch
+    have the same element type, layout and number of dimensions, but can differ in shape.
+
+    A Batch can contain:
+
+    * a single buffer and shape, owner by DALI, representing consectutive tensors
+    * a list of :class:`Tensor` objects.
+    * a result of a lazy evaluation of a DALI operator.
+
+    In case of lazy evaluation, the operations are executed only after an attempt is made to access
+    the tensor data or properties which cannot be obtained without running the underlying operation.
+    """
+
     def __init__(
         self,
         tensors: Optional[Any] = None,
@@ -166,7 +181,10 @@ class Batch:
         copy: bool = False,
     ):
         """Constructs a Batch object.
-        Batch objects should not be constructed directly, use batch or as_batch instead.
+
+        .. warning::
+            Batch objects should not be constructed directly, use :meth:`batch` or
+            :meth:`as_batch` instead.
 
         The batch object can be created either from an existing object, passed as `tensors` or
         from an invocation result.
@@ -231,7 +249,7 @@ class Batch:
 
                         tmp = cast(tmp, dtype=dtype, device=device)
                         copied = True
-                    self.assign(tmp)
+                    self._assign(tmp)
                     if self._backend and layout:
                         self._backend.set_layout(layout)
             elif _is_tensor_type(tensors):
@@ -327,13 +345,13 @@ class Batch:
                 from . import cast
 
                 dev = cast(dev, dtype=dtype, device=device)
-            self.assign(dev.evaluate())
+            self._assign(dev.evaluate())
             copied = True
         else:
             if self._dtype is not None and dtype is not None and self._dtype != dtype:
                 from . import cast
 
-                self.assign(cast(self, dtype=dtype, device=device))
+                self._assign(cast(self, dtype=dtype, device=device))
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
@@ -343,6 +361,17 @@ class Batch:
 
     @staticmethod
     def broadcast(sample, batch_size: int, device: Optional[Device] = None) -> "Batch":
+        """
+        Createas a batch by repeating a single `sample` `batch_size` times.
+
+        This function returns a batch obtained by repeating the sample `sample` `batch_size` times.
+        Optionally, the result may be placed on the specied device (otherwise it will inherit the
+        device from the `sample` argument).
+
+        This function yields result equivalent to
+        `as_batch([tensor(sample)] * batch_size, device=device)`
+        but is much more efficient.
+        """
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
@@ -376,6 +405,9 @@ class Batch:
 
     @property
     def dtype(self) -> DType:
+        """
+        The element type of the tensors in the batch.
+        """
         if self._dtype is None:
             if self._backend is not None:
                 self._dtype = DType.from_type_id(self._backend.dtype)
@@ -389,6 +421,9 @@ class Batch:
 
     @property
     def device(self) -> Device:
+        """
+        The device on which the batch resides (or will reside, in case of lazy evaluation).
+        """
         if self._device is None:
             if self._invocation_result is not None:
                 self._device = self._invocation_result.device
@@ -400,6 +435,12 @@ class Batch:
 
     @property
     def layout(self) -> str:
+        """
+        The layout of tensors in the batch.
+
+        The "batch dimension" (commonly denoted as N) is not included - a batch of HWC images
+        will have HWC layout, not NHWC.
+        """
         if self._layout is None:
             if self._invocation_result is not None:
                 self._layout = self._invocation_result.layout
@@ -418,6 +459,11 @@ class Batch:
 
     @property
     def ndim(self) -> int:
+        """
+        The number of dimensions of the samples in the batch.
+
+        The "batch dimension" is not included - e.g. a batch of HWC is still a 3D object.
+        """
         if self._ndim is None:
             if self._backend is not None:
                 self._ndim = self._backend.ndim()
@@ -431,9 +477,18 @@ class Batch:
 
     @property
     def tensors(self):
+        """
+        Returns an indexable list of :class:`Tensor` objects that comprise the batch.
+        """
         return _TensorList(self)
 
     def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
+        """
+        Returns the data batch on the specified device.
+
+        If the batch already resides on the device specified, the function will return `self`
+        unless a copy is explicitly requested by passing ``force_copy=True``
+        """
         if device is not None and not isinstance(device, Device):
             device = _device(device)
         if self.device == device and not force_copy:
@@ -446,12 +501,20 @@ class Batch:
                 return ret
 
     def cpu(self) -> "Batch":
+        """
+        Returns the batch on the CPU. If it's already there, this function returns `self`.
+        """
         return self.to_device(Device("cpu"))
 
     def gpu(self, index: Optional[int] = None) -> "Batch":
+        """
+        Returns the batch on the GPU. If it's already there, this function returns `self`.
+
+        If index is not specified, the current CUDA device is used.
+        """
         return self.to_device(Device("gpu", index))
 
-    def assign(self, other: "Batch"):
+    def _assign(self, other: "Batch"):
         if other is self:
             return
         self._device = other._device
@@ -492,9 +555,19 @@ class Batch:
         return BatchedSlice(self)
 
     def __iter__(self):
+        """
+        Iterates over tensors in the batch.
+        """
         return iter(self.tensors)
 
-    def select(self, r):
+    def select(self, sample_range):
+        """
+        Selects a range of samples.
+
+        The result of this function is either a `Batch` (if `sample_range` is a `range`, `list`,
+        or `slice`) or a `Tensor` if `sample_range` is a number.
+        """
+        r = sample_range
         if r is ...:
             return self
         if isinstance(r, slice):
@@ -533,6 +606,9 @@ class Batch:
 
     @property
     def batch_size(self) -> int:
+        """
+        The number of tensors in the batch.
+        """
         if self._backend is not None:
             return len(self._backend)
         elif self._tensors is not None:
@@ -544,6 +620,23 @@ class Batch:
 
     @property
     def shape(self):
+        """
+        The shape of the batch.
+
+        Returns the list of shapes of individual samples.
+
+        Example::
+
+        ```
+        >>> import nvidia.dali.experimental.dynamic as ndd
+        >>> import numpy as np
+        >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
+        >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
+        >>> b = ndd.as_batch([t0, t1])
+        >>> print(b.shape)
+        [(480, 640, 3), (720, 1280, 1)]
+        ```
+        """
         if self._invocation_result is not None:
             return self._invocation_result.shape
         if self._backend is not None:
@@ -556,8 +649,18 @@ class Batch:
         return "Batch(\n" + str(self.evaluate()._backend) + ")"
 
     def evaluate(self):
-        with _EvalContext.get() as ctx:
-            if self._backend is None:
+        """
+        Evaluates the underlying lazy expression, if any.
+
+        If the batch is a result of a lazy evaluation, calling `evaluate` will cause the expression
+        to be evaluated. If the batch already contains concrete data, this function has no effect.
+
+        The behavior of this function is affected by the current evaluation context and current
+        device. See :class:`EvalContext` and :class:`Device` for details.
+        """
+        if self._backend is None:
+            # TODO(michalz): Consider thread-safety
+            with _EvalContext.get() as ctx:
                 if self._invocation_result is not None:
                     self._backend = self._invocation_result.value(ctx)
                 else:
