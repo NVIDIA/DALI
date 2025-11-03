@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,19 @@ from nvidia.dali.types import _default_converter, _type_name_convert_to_string
 from nvidia.dali.ops import _registry, _names
 
 
+_MAX_INPUT_SPELLED_OUT = 5
+
+
+def _input_type(api):
+    return "Tensor/Batch" if api == "dynamic" else "TensorList"
+
+
+def _adjust_dox(dox, api):
+    if api == "dynamic":
+        dox = dox.replace("TensorList", "Tensor/Batch")
+    return dox
+
+
 def _numpydoc_formatter(name, type, doc, optional=False):
     """
     Format the documentation for single argument, `name`, `type` and `doc` are expected to be
@@ -35,7 +48,7 @@ def _numpydoc_formatter(name, type, doc, optional=False):
     return "{} : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
 
-def _get_inputs_doc(schema):
+def _get_inputs_doc(schema, api):
     """
     Generate numpydoc-formatted docstring section for operator inputs (positional arguments)
     based on the schema.
@@ -45,7 +58,8 @@ def _get_inputs_doc(schema):
     If schema provides names and docstrings for inputs, they are used, otherwise placeholder
     text is used indicating the supported number of inputs.
 
-    Note: The type of input is indicated as TensorList with supported layouts listed.
+    Note: The type of input is depends on API type (TensorList or Tensor/Batch) with supported
+          layouts listed. If the API is "dynamic", the type is Tensor/Batch.
 
     schema : OpSchema
        Schema of the operator to be documented
@@ -65,33 +79,43 @@ Args
             )
             dox = schema.GetInputDox(i)
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
+            dox = _numpydoc_formatter(input_name, input_type_str, dox, optional)
+            dox = _adjust_dox(dox, api)
+            ret += dox + "\n"
     else:
         for i in range(schema.MinNumInput()):
-            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            input_type_str = _input_type(api) + _supported_layouts_str(
+                schema.GetSupportedLayouts(i)
+            )
             dox = "Input to the operator."
             input_name = _names._get_input_name(schema, i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
+            dox = _numpydoc_formatter(input_name, input_type_str, dox, False)
+            dox = _adjust_dox(dox, api)
+            ret += dox + "\n"
 
         extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
         if extra_opt_args == 1:
             i = schema.MinNumInput()
-            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            input_type_str = _input_type(api) + _supported_layouts_str(
+                schema.GetSupportedLayouts(i)
+            )
             dox = "Input to the operator."
+            dox = _adjust_dox(dox, api)
             input_name = _names._get_input_name(schema, i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
         elif extra_opt_args > 1:
-            input_type_str = "TensorList"
-            generic_name = _names._get_generic_input_name(False)
+            input_type_str = _input_type(api)
+            generic_name = _names._get_variadic_input_name()
             input_name = f"{generic_name}[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
+            dox = _adjust_dox(dox, api)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
 
     ret += "\n"
     return ret
 
 
-def _get_kwargs(schema):
+def _get_kwargs(schema, api="ops", args=None):
     """
     Get the numpydoc-formatted docstring section for keywords arguments.
 
@@ -101,11 +125,14 @@ def _get_kwargs(schema):
     """
     ret = ""
     for arg in schema.GetArgumentNames():
+        if args is not None and arg not in args:
+            continue
         skip_full_doc = False
         type_name = ""
         dtype = None
         doc = ""
         deprecation_warning = None
+
         if schema.IsDeprecatedArg(arg):
             meta = schema.DeprecatedArgInfo(arg)
             msg = meta["msg"]
@@ -119,14 +146,14 @@ def _get_kwargs(schema):
             if renamed_arg:
                 dtype = schema.GetArgumentType(renamed_arg)
                 type_name = _type_name_convert_to_string(
-                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg)
+                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg), api=api
                 )
         # Try to get dtype only if not set already
         # (renamed args go through a different path, see above)
         if not dtype:
             dtype = schema.GetArgumentType(arg)
             type_name = _type_name_convert_to_string(
-                dtype, allow_tensors=schema.IsTensorArgument(arg)
+                dtype, allow_tensors=schema.IsTensorArgument(arg), api=api
             )
         # Add argument documentation if necessary
         if not skip_full_doc:
@@ -143,7 +170,11 @@ def _get_kwargs(schema):
                 doc += "\n\n" + deprecation_warning
         elif deprecation_warning:
             doc += deprecation_warning
-        ret += _numpydoc_formatter(arg, type_name, doc)
+
+        doc = _numpydoc_formatter(arg, type_name, doc)
+        if api == "dynamic":
+            doc = doc.replace("TensorList", "Tensor/Batch")
+        ret += doc
         ret += "\n"
     return ret
 
@@ -194,7 +225,7 @@ def _docstring_generator_main(schema_name, api):
             ret += " and " + supported_statements[1]
         ret += ".\n"
 
-    if schema.IsNoPrune():
+    if schema.IsNoPrune() and api != "dynamic":
         ret += "\nThis operator will **not** be optimized out of the graph.\n"
 
     op_dev = []
@@ -213,16 +244,16 @@ Supported backends
     return ret
 
 
-def _docstring_generator(schema_name):
+def _docstring_generator_class(schema_name, api="ops", args=None):
     schema = _b.GetSchema(schema_name)
-    ret = _docstring_generator_main(schema_name, "ops")
+    ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
         return ret
     ret += """
 Keyword args
 ------------
 """
-    ret += _get_kwargs(schema)
+    ret += _get_kwargs(schema, api=api, args=args)
     return ret
 
 
@@ -232,7 +263,14 @@ def _supported_layouts_str(supported_layouts):
     return " (" + ", ".join(["'" + str(layout) + "'" for layout in supported_layouts]) + ")"
 
 
-def _docstring_prefix_from_inputs(op_name):
+def _call_description(api):
+    if api == "dynamic":
+        return "The invocation of the operator"
+    else:
+        return "Operator call to be used in graph definition"
+
+
+def _docstring_prefix_from_inputs(op_name, api):
     """
     Generate start of the docstring for `__call__` of Operator `op_name`
     assuming the docstrings were provided for all inputs separately
@@ -241,38 +279,39 @@ def _docstring_prefix_from_inputs(op_name):
     """
     schema = _b.GetSchema(op_name)
     # __call__ docstring
-    ret = "\nOperator call to be used in graph definition.\n"
+    ret = f"\n{_call_description(api)}.\n"
     # Args section
-    ret += _get_inputs_doc(schema)
+    ret += _get_inputs_doc(schema, api)
     return ret
 
 
-def _docstring_prefix_auto(op_name):
+def _docstring_prefix_auto(op_name, api="fn"):
     """
     Generate start of the docstring for `__call__` of Operator `op_name`
     with default values. Assumes there will be 0 or 1 inputs
     """
     schema = _b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
-        return """
-Operator call to be used in graph definition. This operator doesn't have any inputs.
+        return f"""
+{_call_description(api)}. This operator doesn't have any inputs.
 """
     elif schema.MaxNumInput() == 1:
         input_name = _names._get_input_name(schema, 0)
-        ret = """
-Operator call to be used in graph definition.
+        ret = f"""
+{_call_description(api)}.
 
 Args
 ----
 """
         dox = "Input to the operator.\n"
-        fmt = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
+        input_type = _input_type(api)
+        fmt = input_type + _supported_layouts_str(schema.GetSupportedLayouts(0))
         ret += _numpydoc_formatter(input_name, fmt, dox, optional=False)
         return ret
     return ""
 
 
-def _docstring_generator_call(op_name):
+def _docstring_generator_call(op_name, api="ops", args=None):
     """
     Generate full docstring for `__call__` of Operator `op_name`.
     """
@@ -282,15 +321,15 @@ def _docstring_generator_call(op_name):
     if schema.HasCallDox():
         ret = schema.GetCallDox()
     elif schema.HasInputDox():
-        ret = _docstring_prefix_from_inputs(op_name)
+        ret = _docstring_prefix_from_inputs(op_name, api)
     elif schema.CanUseAutoInputDox():
-        ret = _docstring_prefix_auto(op_name)
+        ret = _docstring_prefix_auto(op_name, api)
     else:
         op_full_name, _, _ = _names._process_op_name(op_name)
         ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
-        tensor_kwargs = _get_kwargs(schema)
+        tensor_kwargs = _get_kwargs(schema, api=api, args=args)
         if tensor_kwargs:
             ret += """
 Keyword Args
@@ -300,15 +339,15 @@ Keyword Args
     return ret
 
 
-def _docstring_generator_fn(schema_name):
+def _docstring_generator_fn(schema_name, api="fn", args=None):
     schema = _b.GetSchema(schema_name)
-    ret = _docstring_generator_main(schema_name, "fn")
+    ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
         return ret
-    ret += _get_inputs_doc(schema)
+    ret += _get_inputs_doc(schema, api)
     ret += """
 Keyword args
 ------------
 """
-    ret += _get_kwargs(schema)
+    ret += _get_kwargs(schema, api, args)
     return ret
