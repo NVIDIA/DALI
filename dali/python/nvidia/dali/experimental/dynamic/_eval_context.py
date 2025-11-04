@@ -31,7 +31,7 @@ class EvalContext:
     """
     Evaluation context for DALI dynamic API.
 
-    This class aggregates state and auxiliary objects that are necessary to execut DALI operators.
+    This class aggregates state and auxiliary objects that are necessary to execute DALI operators.
     These include:
     - CUDA device
     - thread pool

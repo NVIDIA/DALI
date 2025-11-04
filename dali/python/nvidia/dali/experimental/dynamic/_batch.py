@@ -139,6 +139,12 @@ class _TensorList:
         return len(self._indices)
 
     def select(self, selection):
+        """
+        Selects a range of samples.
+
+        The result of this function is either a :class:`_TensorList` (if `selection` is a `slice` or
+        a `list`) or a :class:`Tensor` if `selection` is a number.
+        """
         if selection == slice(None, None, None):
             return self
         if isinstance(selection, slice):
@@ -151,8 +157,11 @@ class _TensorList:
     def tolist(self):
         return [self._batch._get_tensor(i) for i in self._indices]
 
-    def as_batch(self):
-        return as_batch(self)
+    def as_batch(self, copy: bool = False):
+        """
+        Converts the list of tensors to a :class:`Batch` object.
+        """
+        return batch(self) if copy else as_batch(self)
 
 
 class Batch:
@@ -564,8 +573,8 @@ class Batch:
         """
         Selects a range of samples.
 
-        The result of this function is either a `Batch` (if `sample_range` is a `range`, `list`,
-        or `slice`) or a `Tensor` if `sample_range` is a number.
+        The result of this function is either a :class:`Batch` (if `sample_range` is a `slice` or a
+        `list`) or a :class:`Tensor` if `sample_range` is a number.
         """
         r = sample_range
         if r is ...:
