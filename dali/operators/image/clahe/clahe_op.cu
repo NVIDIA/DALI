@@ -16,6 +16,10 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#include <bit>
+
+#include "dali/core/convert.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/math_util.h"
 #include "dali/core/util.h"
@@ -80,60 +84,44 @@
 // Helper functions for RGB ↔ LAB conversion (match OpenCV)
 // -------------------------------------------------------------------------------------
 
-// Optimized: Eliminate warp divergence using predication instead of branching
 __device__ float srgb_to_linear(uint8_t c) {
   // OpenCV's gamma correction, input is 8-bit (0-255)
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
-  float cf = c / 255.0f;
-
-  // Compute both paths to avoid warp divergence
-  float linear_path = cf / GAMMA_LOW_SCALE;
-  float gamma_path = powf((cf + GAMMA_XSHIFT) / (1.0f + GAMMA_XSHIFT), GAMMA_POWER);
-
-  // Use predication (no branch divergence)
-  float is_linear = (cf <= GAMMA_THRESHOLD) ? 1.0f : 0.0f;
-  return is_linear * linear_path + (1.0f - is_linear) * gamma_path;
+  float cf = c * (1.0f / 255.0f);
+  if (cf <= GAMMA_THRESHOLD) {
+    return cf * (1.0f / GAMMA_LOW_SCALE);
+  } else {
+    return powf((cf + GAMMA_XSHIFT) * (1.0f / (1.0f + GAMMA_XSHIFT)), GAMMA_POWER);
+  }
 }
 
-// Optimized: Eliminate warp divergence using predication
 __device__ float linear_to_srgb(float c) {
   // OpenCV's inverse gamma correction
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
-
-  // Compute both paths to avoid warp divergence
-  float linear_path = GAMMA_LOW_SCALE * c;
-  float gamma_path = powf(c, 1.0f / GAMMA_POWER) * (1.0 + GAMMA_XSHIFT) - GAMMA_XSHIFT;
-
-  // Use predication (no branch divergence)
-  float is_linear = (c <= GAMMA_INV_THRESHOLD) ? 1.0f : 0.0f;
-  return is_linear * linear_path + (1.0f - is_linear) * gamma_path;
+  if (c <= GAMMA_INV_THRESHOLD) {
+    return GAMMA_LOW_SCALE * c;
+  } else {
+    return powf(c, 1.0f / GAMMA_POWER) * (1.0 + GAMMA_XSHIFT) - GAMMA_XSHIFT;
+  }
 }
 
-// Optimized: Eliminate warp divergence using predication
 __device__ float xyz_to_lab_f(float t) {
   // OpenCV-compatible.
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1184
-
-  // Compute both paths to avoid warp divergence
-  float cbrt_path = cbrtf(t);
-  float linear_path = LSCALE * t + LBIAS;
-
-  // Use predication (no branch divergence)
-  float use_cbrt = (t > LTHRESHOLD) ? 1.0f : 0.0f;
-  return use_cbrt * cbrt_path + (1.0f - use_cbrt) * linear_path;
+  if (t > LTHRESHOLD) {
+    return cbrtf(t);
+  } else {
+    return LSCALE * t + LBIAS;
+  }
 }
 
-// Optimized: Eliminate warp divergence using predication
 __device__ float lab_f_to_xyz(float u) {
   // Inverse: OpenCV-compatible.
-
-  // Compute both paths to avoid warp divergence
-  float cubic_path = u * u * u;
-  float linear_path = SLOPE_LAB * (u - OFFSET_4_29TH);
-
-  // Use predication (no branch divergence)
-  float use_cubic = (u > THRESHOLD_6_29TH) ? 1.0f : 0.0f;
-  return use_cubic * cubic_path + (1.0f - use_cubic) * linear_path;
+  if (u > THRESHOLD_6_29TH) {
+    return u * u * u;
+  } else {
+    return SLOPE_LAB * (u - OFFSET_4_29TH);
+  }
 }
 
 __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_out, float *b_out) {
@@ -142,15 +130,15 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_o
   float gf = srgb_to_linear(g);
   float bf = srgb_to_linear(b);
 
-  // Linear RGB to XYZ using OpenCV's  matrix (sRGB D65)
+  // Linear RGB to XYZ using OpenCV's matrix (sRGB D65)
   float x = CV_RGB_XR * rf + CV_RGB_XG * gf + CV_RGB_XB * bf;
   float y = CV_RGB_YR * rf + CV_RGB_YG * gf + CV_RGB_YB * bf;
   float z = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
   // Normalize by D65 white point (OpenCV values)
-  x = x / D65_WHITE_X;
-  y = y / D65_WHITE_Y;
-  z = z / D65_WHITE_Z;
+  x = x * (1.0f / D65_WHITE_X);
+  y = y * (1.0f / D65_WHITE_Y);
+  z = z * (1.0f / D65_WHITE_Z);
 
   // XYZ to LAB
   float fx = xyz_to_lab_f(x);
@@ -166,16 +154,16 @@ __device__ void rgb_to_lab(uint8_t r, uint8_t g, uint8_t b, float *L, float *a_o
 
 __device__ void lab_to_rgb(float L, float a, float b, uint8_t *r, uint8_t *g, uint8_t *b_out) {
   // LAB to XYZ
-  float fy = (L + 16.0f) / 116.0f;
-  float fx = a / 500.0f + fy;
-  float fz = fy - b / 200.0f;
+  float fy = (L + 16.0f) * (1.0f / 116.0f);
+  float fx = a * (1.0f / 500.0f) + fy;
+  float fz = fy - b * (1.0f / 200.0f);
 
-  // Convert using OpenCV's  D65 white point values
+  // Convert using OpenCV's D65 white point values
   float x = lab_f_to_xyz(fx) * D65_WHITE_X;
   float y = lab_f_to_xyz(fy) * D65_WHITE_Y;
   float z = lab_f_to_xyz(fz) * D65_WHITE_Z;
 
-  // XYZ to linear RGB using OpenCV's  inverse matrix
+  // XYZ to linear RGB using OpenCV's inverse matrix
   float rf = CV_LAB_XR * x + CV_LAB_XG * y + CV_LAB_XB * z;
   float gf = CV_LAB_YR * x + CV_LAB_YG * y + CV_LAB_YB * z;
   float bf = CV_LAB_ZR * x + CV_LAB_ZG * y + CV_LAB_ZB * z;
@@ -186,9 +174,9 @@ __device__ void lab_to_rgb(float L, float a, float b, uint8_t *r, uint8_t *g, ui
   bf = linear_to_srgb(bf);
 
   // Clamp and convert to uint8 (OpenCV uses rounding)
-  *r = (uint8_t)lrintf(dali::clamp(rf * 255.0f, 0.f, 255.f));
-  *g = (uint8_t)lrintf(dali::clamp(gf * 255.0f, 0.f, 255.f));
-  *b_out = (uint8_t)lrintf(dali::clamp(bf * 255.0f, 0.f, 255.f));
+  *r = dali::ConvertSatNorm<uint8_t>(rf);
+  *g = dali::ConvertSatNorm<uint8_t>(gf);
+  *b_out = dali::ConvertSatNorm<uint8_t>(bf);
 }
 
 // -------------------------------------------------------------------------------------
@@ -232,7 +220,7 @@ __global__ void rgb_to_y_u8_nhwc_coalesced_kernel(const uint8_t *__restrict__ rg
     rgb_to_lab(r, g, b, &L, &a, &b_lab);
 
     // Scale L [0,100] to [0,255] for consistency
-    uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));
+    uint8_t L_u8 = dali::ConvertSatNorm<uint8_t>(L * (1.0f / 100.0f));
     y_out[block_start + tid] = L_u8;
   }
 }
@@ -256,45 +244,21 @@ __global__ void rgb_to_y_u8_nhwc_kernel(const uint8_t *__restrict__ rgb,
   rgb_to_lab(r, g, b, &L, &a, &b_lab);
 
   // Scale L [0,100] to [0,255] for consistency
-  uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));
+  uint8_t L_u8 = dali::ConvertSatNorm<uint8_t>(L * (1.0f / 100.0f));
   y_out[idx] = L_u8;
-}
-
-// Vectorized version for better memory bandwidth (processes 4 pixels at once)
-__global__ void rgb_to_y_u8_nhwc_vectorized_kernel(const uint8_t *__restrict__ rgb,
-                                                   uint8_t *__restrict__ y_out, int H, int W) {
-  int base_idx = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
-  int N = H * W;
-
-#pragma unroll
-  for (int i = 0; i < 4; ++i) {
-    int idx = base_idx + i;
-    if (idx >= N) {
-      return;
-    }
-
-    int c0 = 3 * idx;
-
-    uint8_t r = rgb[c0 + 0];
-    uint8_t g = rgb[c0 + 1];
-    uint8_t b = rgb[c0 + 2];
-
-    float L, a, b_lab;
-    rgb_to_lab(r, g, b, &L, &a, &b_lab);
-
-    uint8_t L_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));
-    y_out[idx] = L_u8;
-  }
 }
 
 // -------------------------------------------------------------------------------------
 // Histogram clipping, redistribution, and CDF calculation helper
 // -------------------------------------------------------------------------------------
+// TODO(optimization): This function performs sequential computations involving global memory (lut)
+// and could be optimized with parallelization, at least at warp level. The loops over bins
+// could benefit from parallel reduction and scan operations.
 
 __device__ void clip_redistribute_cdf(unsigned int *h, int bins, int area, float clip_limit_rel,
                                       unsigned int *cdf, uint8_t *lut) {
   // Compute clip limit (match OpenCV)
-  float clip_limit_f = clip_limit_rel * area / bins;
+  float clip_limit_f = clip_limit_rel * area * (1.0f / bins);
   int limit_int = static_cast<int>(clip_limit_f);
   int limit = max(limit_int, 1);
   unsigned int limit_u = static_cast<unsigned int>(limit);
@@ -351,10 +315,6 @@ void LaunchRGBToYUint8NHWC(const uint8_t *in_rgb, uint8_t *y_plane, int H, int W
     int blocks = dali::div_ceil(N, BLOCK_SIZE);
     size_t shmem = 3 * BLOCK_SIZE * sizeof(uint8_t);  // 384 bytes
     rgb_to_y_u8_nhwc_coalesced_kernel<<<blocks, BLOCK_SIZE, shmem, stream>>>(in_rgb, y_plane, H, W);
-  } else if (N >= 1024) {  // Use vectorized version for medium images
-    int threads = 256;
-    int blocks = dali::div_ceil(N, threads * 4);  // Each thread processes 4 pixels
-    rgb_to_y_u8_nhwc_vectorized_kernel<<<blocks, threads, 0, stream>>>(in_rgb, y_plane, H, W);
   } else {
     int threads = 256;
     int blocks = dali::div_ceil(N, threads);
@@ -419,16 +379,16 @@ __global__ void fused_rgb_to_y_hist_kernel(const uint8_t *__restrict__ rgb,
     float z_xyz = CV_RGB_ZR * rf + CV_RGB_ZG * gf + CV_RGB_ZB * bf;
 
     // Normalize by D65 white point (OpenCV  values)
-    x_xyz = x_xyz / D65_WHITE_X;
-    y_xyz = y_xyz / D65_WHITE_Y;
-    z_xyz = z_xyz / D65_WHITE_Z;
+    x_xyz = x_xyz * (1.0f / D65_WHITE_X);
+    y_xyz = y_xyz * (1.0f / D65_WHITE_Y);
+    z_xyz = z_xyz * (1.0f / D65_WHITE_Z);
 
     // Convert Y to LAB L* using OpenCV's  threshold and constants
     float fy = (y_xyz > THRESHOLD_CUBED) ? cbrtf(y_xyz) : (SLOPE_THRESHOLD * y_xyz + OFFSET_4_29TH);
     float L = 116.0f * fy - 16.0f;
 
     // Scale L [0,100] to [0,255] for histogram (OpenCV LAB L* is [0,100])
-    uint8_t y_u8 = (uint8_t)lrintf(dali::clamp(L * 255.0f / 100.0f, 0.f, 255.f));  // Store Y value
+    uint8_t y_u8 = dali::ConvertSatNorm<uint8_t>(L * (1.0f / 100.0f));
     y_out[pixel_idx] = y_u8;
 
     // Add to histogram
@@ -682,47 +642,8 @@ __device__ void get_tile_indices_and_weights(int x, int y, int W, int H, int til
   fx = (tx0 == tx1) ? 0.0f : dali::clamp(fx, 0.f, 1.f);
   fy = (ty0 == ty1) ? 0.0f : dali::clamp(fy, 0.f, 1.f);
 }
-__global__ void apply_lut_bilinear_gray_vectorized_kernel(uint8_t *__restrict__ dst_y,
-                                                          const uint8_t *__restrict__ src_y, int H,
-                                                          int W, int tiles_x, int tiles_y,
-                                                          const uint8_t *__restrict__ luts) {
-  int base_idx = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
-  int N = H * W;
 
-#pragma unroll
-  for (int i = 0; i < 4; ++i) {
-    int idx = base_idx + i;
-    if (idx < N) {
-      int y = idx / W;
-      int x = idx - y * W;
-      int tx0, tx1, ty0, ty1;
-      float fx, fy;
-      get_tile_indices_and_weights(x, y, W, H, tiles_x, tiles_y, tx0, tx1, ty0, ty1, fx, fy);
 
-      int bins = 256;
-      const uint8_t *lut_tl = luts + (ty0 * tiles_x + tx0) * bins;
-      const uint8_t *lut_tr = luts + (ty0 * tiles_x + tx1) * bins;
-      const uint8_t *lut_bl = luts + (ty1 * tiles_x + tx0) * bins;
-      const uint8_t *lut_br = luts + (ty1 * tiles_x + tx1) * bins;
-
-      uint8_t v = src_y[idx];
-      float v_tl = lut_tl[v];
-      float v_tr = lut_tr[v];
-      float v_bl = lut_bl[v];
-      float v_br = lut_br[v];
-
-      // Bilinear blend
-      float v_top = v_tl * (1.f - fx) + v_tr * fx;
-      float v_bot = v_bl * (1.f - fx) + v_br * fx;
-      float v_out = v_top * (1.f - fy) + v_bot * fy;
-
-      int outi = static_cast<int>(lrintf(dali::clamp(v_out, 0.f, 255.f)));
-      dst_y[idx] = (uint8_t)outi;
-    }
-  }
-}
-
-// Original single-pixel version
 __global__ void apply_lut_bilinear_gray_kernel(uint8_t *__restrict__ dst_y,
                                                const uint8_t *__restrict__ src_y, int H, int W,
                                                int tiles_x, int tiles_y,
@@ -822,11 +743,6 @@ void LaunchApplyLUTBilinearToGray(uint8_t *dst_gray, const uint8_t *src_gray, in
   // Use optimized version for larger tile counts where better performance is needed
   if (total_tiles >= 32 && N >= 16384) {
     LaunchApplyLUTBilinearToGrayOptimized(dst_gray, src_gray, H, W, tiles_x, tiles_y, luts, stream);
-  } else if (N >= 8192) {  // Use vectorized version for medium images
-    int threads = 256;
-    int blocks = dali::div_ceil(N, threads * 4);
-    apply_lut_bilinear_gray_vectorized_kernel<<<blocks, threads, 0, stream>>>(
-        dst_gray, src_gray, H, W, tiles_x, tiles_y, luts);
   } else {
     // Use original version for smaller images
     int threads = 512;
@@ -883,8 +799,8 @@ __global__ void apply_lut_bilinear_rgb_vectorized_kernel(uint8_t *__restrict__ d
       rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
 
       // Replace L* with enhanced version, keep a* and b* unchanged
-      float enhanced_L =
-          dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)), 0.0f, 100.0f);
+      float enhanced_L = dali::clamp(
+          static_cast<float>(lrintf(enhanced_L_u8 * (100.0f / 255.0f))), 0.0f, 100.0f);
 
       // Convert LAB back to RGB
       uint8_t new_r, new_g, new_b;
@@ -958,7 +874,7 @@ __global__ void apply_lut_bilinear_rgb_coalesced_kernel(uint8_t *__restrict__ ds
     rgb_to_lab(orig_r, orig_g, orig_b, &orig_L, &orig_a, &orig_b_lab);
 
     float enhanced_L =
-        dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)), 0.0f, 100.0f);
+        dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * (100.0f / 255.0f))), 0.0f, 100.0f);
 
     uint8_t new_r, new_g, new_b;
     lab_to_rgb(enhanced_L, orig_a, orig_b_lab, &new_r, &new_g, &new_b);
@@ -1025,7 +941,7 @@ __global__ void apply_lut_bilinear_rgb_kernel(uint8_t *__restrict__ dst_rgb,
 
   // Replace L* with enhanced version, keep a* and b* unchanged
   float enhanced_L =
-      dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * 100.0f / 255.0f)), 0.0f, 100.0f);
+      dali::clamp(static_cast<float>(lrintf(enhanced_L_u8 * (100.0f / 255.0f))), 0.0f, 100.0f);
 
   // Convert LAB back to RGB
   uint8_t new_r, new_g, new_b;
