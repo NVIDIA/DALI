@@ -23,9 +23,7 @@ from ._device import *  # noqa: F401, F403
 from ._tensor import Tensor, tensor, as_tensor  # noqa: F401
 from ._batch import Batch, batch, as_batch  # noqa: F401
 
-from . import _fn
 from . import ops
 from . import math  # noqa: F401
 
 ops._initialize()
-_fn._initialize()
