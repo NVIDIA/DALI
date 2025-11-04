@@ -192,7 +192,7 @@ class Tensor:
                     self._backend = _backend.TensorCPU(data.__dlpack__(), layout)
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.
-                    ctx = _EvalContext.get()
+                    ctx = _EvalContext.current()
                     if ctx.device_id == device_id:
                         stream = ctx.cuda_stream
                     else:
@@ -310,7 +310,6 @@ class Tensor:
         else:
             raise RuntimeError("Device not set")
 
-
     def to_device(self, device: Device, force_copy: bool = False) -> "Tensor":
         """
         Returns the tensor on the specified device.
@@ -339,7 +338,6 @@ class Tensor:
         self._index_in_batch = other._index_in_batch
         self._invocation_result = other._invocation_result
         self._wraps_external_data = other._wraps_external_data
-
 
     @property
     def ndim(self) -> int:
@@ -455,7 +453,7 @@ class Tensor:
             raise ValueError(f"Tensor has {self.size} elements, expected 1")
         import numpy as np
 
-        with _EvalContext.get():
+        with _EvalContext.current():
             return np.array(self.cpu().evaluate()._backend).item()
 
     def __array__(self):
@@ -488,7 +486,7 @@ class Tensor:
         """
         if self._backend is None:
             # TODO(michalz): Consider thread-safety
-            with _EvalContext.get() as ctx:
+            with _EvalContext.current() as ctx:
                 if self._slice:
                     self._backend = self._slice.evaluate()._backend
                 elif self._batch is not None:
@@ -819,7 +817,7 @@ class TensorSlice:
             return Tensor(result)
 
     def evaluate(self):
-        with _EvalContext.get():
+        with _EvalContext.current():
             if len(self._ranges) == 0:
                 return self._tensor.evaluate()
 

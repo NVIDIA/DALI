@@ -81,14 +81,14 @@ class Invocation:
     def ndim(self, result_index: int) -> int:
         if self._results is None:
             # TODO(michalz): Try to get ndim without full evaluation.
-            with _EvalContext.get() as ctx:
+            with _EvalContext.current() as ctx:
                 self.run(ctx)
         return self._results[result_index].ndim()
 
     def shape(self, result_index: int):
         if self._results is None:
             # TODO(michalz): Try to get shape without full evaluation.
-            with _EvalContext.get() as ctx:
+            with _EvalContext.current() as ctx:
                 self.run(ctx)
         s = self._results[result_index].shape()
         return s if self.is_batch else tuple(s)
@@ -96,7 +96,7 @@ class Invocation:
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
             # TODO(michalz): Try to get dtype without full evaluation.
-            with _EvalContext.get() as ctx:
+            with _EvalContext.current() as ctx:
                 self.run(ctx)
         return self._results[result_index].dtype
 
@@ -108,14 +108,14 @@ class Invocation:
                 return self._batch_size
             if self._results is None:
                 # TODO(michalz): Try to get batch_size without full evaluation.
-                with _EvalContext.get() as ctx:
+                with _EvalContext.current() as ctx:
                     self.run(ctx)
             return self._results[result_index].batch_size if self._is_batch else None
 
     def layout(self, result_index: int):
         if self._results is None:
             # TODO(michalz): Try to get layout without full evaluation.
-            with _EvalContext.get() as ctx:
+            with _EvalContext.current() as ctx:
                 self.run(ctx)
         return self._results[result_index].layout()
 

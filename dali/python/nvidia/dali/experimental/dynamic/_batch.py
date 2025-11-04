@@ -163,7 +163,7 @@ class Batch:
 
     A Batch can contain:
 
-    * a single buffer and shape, owner by DALI, representing consecutive tensors
+    * a single buffer and shape, owned by DALI, representing consecutive tensors
     * a list of :class:`Tensor` objects.
     * a result of a lazy evaluation of a DALI operator.
 
@@ -660,7 +660,7 @@ class Batch:
         """
         if self._backend is None:
             # TODO(michalz): Consider thread-safety
-            with _EvalContext.get() as ctx:
+            with _EvalContext.current() as ctx:
                 if self._invocation_result is not None:
                     self._backend = self._invocation_result.value(ctx)
                 else:

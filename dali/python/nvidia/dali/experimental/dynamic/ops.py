@@ -172,7 +172,7 @@ class Operator:
             return
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.get()
+            ctx = _eval_context.EvalContext.current()
         with self._device:
             with ctx:
                 self._init_spec(inputs, args)
@@ -403,7 +403,7 @@ class Reader(Operator):
             )
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.get()
+            ctx = _eval_context.EvalContext.current()
         with ctx:
             if not self._is_backend_initialized():
                 if self._actual_batch_size is None:
@@ -429,7 +429,7 @@ class Reader(Operator):
             raise RuntimeError("Cannot mix samples(), batches() and run() on the same reader.")
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.get()
+            ctx = _eval_context.EvalContext.current()
         with ctx:
             if batch_size is None:
                 batch_size = self._batch_size
