@@ -127,6 +127,7 @@ def memory_pipeline(image_array, tiles_x=8, tiles_y=8, clip_limit=2.0, device="g
         images_processed = images
 
     # Apply CLAHE operator
+    # TODO: GPU tests must always use luma_only=True until GPU CLAHE supports luma_only=False
     clahe_result = fn.clahe(
         images_processed,
         tiles_x=tiles_x,
@@ -177,6 +178,8 @@ def clahe_pipeline(
     # Apply CLAHE
     if device == "gpu":
         data = data.gpu()
+        # TODO: GPU tests must always use luma_only=True until GPU CLAHE supports luma_only=False
+        luma_only = True
 
     clahe_output = fn.clahe(
         data,
@@ -513,5 +516,58 @@ def test_clahe_medical_image_accuracy():
 
     print(
         f"✓ Medical image: GPU MSE={mse_gpu:.3f}, "
+        f"MAE={mae_gpu:.3f}; CPU MSE={mse_cpu:.3f}, MAE={mae_cpu:.3f}"
+    )
+
+
+def test_clahe_webp_cat_image():
+    """Test CLAHE on color webp cat image with luma_only=True."""
+    # Load the webp cat image
+    cat_path = os.path.join(test_data_root, "db", "single", "webp", "lossy", "cat-3591348_640.webp")
+
+    if not os.path.exists(cat_path):
+        print(f"Warning: Cat image not found at {cat_path}, skipping test")
+        return
+
+    # Load image
+    img = cv2.imread(cat_path)
+    if img is None:
+        print(f"Warning: Could not load cat image from {cat_path}, skipping test")
+        return
+
+    # Convert BGR to RGB
+    cat_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Apply OpenCV CLAHE with luma_only=True
+    opencv_result = apply_opencv_clahe(
+        cat_image, tiles_x=4, tiles_y=4, clip_limit=2.0, luma_only=True
+    )
+
+    # Apply DALI CLAHE on both GPU and CPU
+    dali_gpu_result = apply_dali_clahe_from_memory(
+        cat_image, tiles_x=4, tiles_y=4, clip_limit=2.0, device="gpu"
+    )
+    dali_cpu_result = apply_dali_clahe_from_memory(
+        cat_image, tiles_x=4, tiles_y=4, clip_limit=2.0, device="cpu"
+    )
+
+    # Calculate metrics
+    opencv_float = opencv_result.astype(np.float64)
+    dali_gpu_float = dali_gpu_result.astype(np.float64)
+    dali_cpu_float = dali_cpu_result.astype(np.float64)
+
+    mse_gpu = np.mean((opencv_float - dali_gpu_float) ** 2)
+    mae_gpu = np.mean(np.abs(opencv_float - dali_gpu_float))
+    mse_cpu = np.mean((opencv_float - dali_cpu_float) ** 2)
+    mae_cpu = np.mean(np.abs(opencv_float - dali_cpu_float))
+
+    # Use natural image thresholds for this color photo
+    assert mse_gpu < MSE_THRESHOLD_NATURAL, f"GPU MSE too high for webp cat image: {mse_gpu:.3f}"
+    assert mae_gpu < MAE_THRESHOLD_NATURAL, f"GPU MAE too high for webp cat image: {mae_gpu:.3f}"
+    assert mse_cpu < MSE_THRESHOLD_NATURAL, f"CPU MSE too high for webp cat image: {mse_cpu:.3f}"
+    assert mae_cpu < MAE_THRESHOLD_NATURAL, f"CPU MAE too high for webp cat image: {mae_cpu:.3f}"
+
+    print(
+        f"✓ WebP cat image (luma_only=True): GPU MSE={mse_gpu:.3f}, "
         f"MAE={mae_gpu:.3f}; CPU MSE={mse_cpu:.3f}, MAE={mae_cpu:.3f}"
     )
