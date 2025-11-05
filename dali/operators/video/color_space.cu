@@ -51,18 +51,20 @@ __global__ static void VideoColorSpaceConversionKernel(
         #pragma unroll
         for (int j = 0; j < 2; j++) {
             float cx = halfx + j * 0.5f + 0.25f;
-            u8vec3 yuv_val;
+            vec3 yuv_val;
             yuv_val[0] = Y.at(ivec2{x + j, y + i}, 0, kernels::BorderClamp());
 
             UV(&yuv_val[1], vec2(cx, cy), kernels::BorderClamp());
 
-            u8vec3 out_val;
+            yuv_val *= 1.0f / 255.0f;
+
+            vec3 out_val;
             switch (conversion_type) {
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE:
-                out_val = dali::kernels::color::jpeg::ycbcr_to_rgb<uint8_t>(yuv_val);
+                out_val = dali::kernels::color::jpeg::ycbcr_to_rgb<float>(yuv_val);
                 break;
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB:
-                out_val = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<uint8_t>(yuv_val);
+                out_val = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<float>(yuv_val);
                 break;
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE:
                 out_val = yuv_val;
@@ -71,10 +73,11 @@ __global__ static void VideoColorSpaceConversionKernel(
                 assert(false);
             }
             if (normalized_range) {
-              output({x + j, y + i, 0}) = ConvertNorm<Out>(out_val.x);
-              output({x + j, y + i, 1}) = ConvertNorm<Out>(out_val.y);
-              output({x + j, y + i, 2}) = ConvertNorm<Out>(out_val.z);
+              output({x + j, y + i, 0}) = ConvertSatNorm<Out>(out_val.x);
+              output({x + j, y + i, 1}) = ConvertSatNorm<Out>(out_val.y);
+              output({x + j, y + i, 2}) = ConvertSatNorm<Out>(out_val.z);
             } else {
+              out_val *= 255.0f;
               output({x + j, y + i, 0}) = ConvertSat<Out>(out_val.x);
               output({x + j, y + i, 1}) = ConvertSat<Out>(out_val.y);
               output({x + j, y + i, 2}) = ConvertSat<Out>(out_val.z);
