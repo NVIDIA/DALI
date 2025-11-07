@@ -133,10 +133,10 @@ class Tensor:
             raise ValueError(f"Layout must be a string, got {type(layout)}")
 
         self._slice = None
-        self._backend = None
-        self._batch = batch
-        self._index_in_batch = index_in_batch
-        self._invocation_result = None
+        self._storage = None  # The backing storage of the tensor, TensorCPU or TensorGPU.
+        self._batch = batch  # Used only if the tensor is a view of a sample in a batch.
+        self._index_in_batch = index_in_batch  # likewise
+        self._invocation_result = None  # The result of a DALI operator invocation.
         self._device = None
         self._shape = None
         self._dtype = None
@@ -164,7 +164,7 @@ class Tensor:
             self._layout = batch.layout
         elif data is not None:
             if isinstance(data, (_backend.TensorCPU, _backend.TensorGPU)):
-                self._backend = data
+                self._storage = data
                 self._wraps_external_data = True
                 self._device = _backend_device(data)
             elif isinstance(data, Tensor):
@@ -189,7 +189,7 @@ class Tensor:
             elif hasattr(data, "__dlpack_device__"):
                 dl_device_type, device_id = data.__dlpack_device__()
                 if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
-                    self._backend = _backend.TensorCPU(data.__dlpack__(), layout)
+                    self._storage = _backend.TensorCPU(data.__dlpack__(), layout)
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.
                     ctx = _EvalContext.current()
@@ -198,7 +198,7 @@ class Tensor:
                     else:
                         stream = _backend.Stream(device_id)
                     args = {"stream": stream.handle}
-                    self._backend = _backend.TensorGPU(
+                    self._storage = _backend.TensorGPU(
                         data.__dlpack__(**args),
                         layout=layout,
                         stream=stream,
@@ -207,14 +207,14 @@ class Tensor:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
             elif a := _get_array_interface(data):
-                self._backend = _backend.TensorCPU(a, layout)
+                self._storage = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
                 import numpy as np
 
                 if dtype is not None:
                     # TODO(michalz): Built-in enum handling
-                    self._backend = _backend.TensorCPU(
+                    self._storage = _backend.TensorCPU(
                         np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)),
                         layout,
                         False,
@@ -235,14 +235,14 @@ class Tensor:
                         arr = arr.astype(np.float32)
                     elif arr.dtype == object:
                         (arr, converted_dtype_id) = _try_convert_enums(arr)
-                    self._backend = _backend.TensorCPU(arr, layout, False)
+                    self._storage = _backend.TensorCPU(arr, layout, False)
                     if converted_dtype_id is not None:
-                        self._backend.reinterpret(converted_dtype_id)
+                        self._storage.reinterpret(converted_dtype_id)
                     copied = True
                     self._wraps_external_data = False
 
-            if self._backend is not None:
-                self._device = _backend_device(self._backend)
+            if self._storage is not None:
+                self._device = _backend_device(self._storage)
                 if device is None:
                     device = self._device
             else:
@@ -254,12 +254,12 @@ class Tensor:
                     if device is None:
                         device = self._device
 
-            if self._backend is not None:
-                self._shape = tuple(self._backend.shape())
-                self._dtype = DType.from_type_id(self._backend.dtype)
-                self._layout = self._backend.layout()
+            if self._storage is not None:
+                self._shape = tuple(self._storage.shape())
+                self._dtype = DType.from_type_id(self._storage.dtype)
+                self._layout = self._storage.layout()
 
-            if self._backend is not None and device != _backend_device(self._backend):
+            if self._storage is not None and device != _backend_device(self._storage):
                 self._assign(self.to_device(device).evaluate())
                 copied = True
         elif invocation_result is not None:
@@ -277,7 +277,7 @@ class Tensor:
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
-        if copy and self._backend is not None and not copied:
+        if copy and self._storage is not None and not copied:
             self._assign(self.to_device(device, True).evaluate())
 
     def _is_external(self) -> bool:
@@ -332,7 +332,7 @@ class Tensor:
         self._shape = other._shape
         self._dtype = other._dtype
         self._layout = other._layout
-        self._backend = other._backend
+        self._storage = other._storage
         self._slice = other._slice
         self._batch = other._batch
         self._index_in_batch = other._index_in_batch
@@ -347,8 +347,8 @@ class Tensor:
         A 0D tensor is a scalar and cannot be empty (it always contains a single value).
         Tensors with higher `ndim` can be empty if any of the extents is 0.
         """
-        if self._backend is not None:
-            return self._backend.ndim()
+        if self._storage is not None:
+            return self._storage.ndim()
         elif self._slice is not None:
             return self._slice.ndim
         elif self._invocation_result is not None:
@@ -371,7 +371,7 @@ class Tensor:
             elif self._batch is not None:
                 self._shape = self._batch.shape[self._index_in_batch]
             else:
-                self._shape = tuple(self._backend.shape())
+                self._shape = tuple(self._storage.shape())
         return self._shape
 
     @property
@@ -387,7 +387,7 @@ class Tensor:
             elif self._batch is not None:
                 self._dtype = self._batch.dtype
             else:
-                self._dtype = _dtype(self._backend.dtype)
+                self._dtype = _dtype(self._storage.dtype)
         return self._dtype
 
     @property
@@ -418,7 +418,7 @@ class Tensor:
             elif self._batch is not None:
                 self._layout = self._batch.layout
             else:
-                self._layout = self._backend.layout()
+                self._layout = self._storage.layout()
         # Use "" to indicate that the layout has been checked and is empty, but still return None
         # to avoid situations where we return a string with a length that doesn't match the number
         # of dimensions.
@@ -454,10 +454,10 @@ class Tensor:
         import numpy as np
 
         with _EvalContext.current():
-            return np.array(self.cpu().evaluate()._backend).item()
+            return np.array(self.cpu().evaluate()._storage).item()
 
     def __array__(self):
-        b = self.evaluate()._backend
+        b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
             import numpy as np
 
@@ -466,7 +466,7 @@ class Tensor:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
     def __cuda_array_interface__(self):
-        b = self.evaluate()._backend
+        b = self.evaluate()._storage
         if isinstance(b, _backend.TensorGPU):
             return b.__cuda_array_interface__
         else:
@@ -484,23 +484,23 @@ class Tensor:
         The behavior of this function is affected by the current evaluation context and current
         device. See :class:`EvalContext` and :class:`Device` for details.
         """
-        if self._backend is None:
+        if self._storage is None:
             # TODO(michalz): Consider thread-safety
             with _EvalContext.current() as ctx:
                 if self._slice:
-                    self._backend = self._slice.evaluate()._backend
+                    self._storage = self._slice.evaluate()._storage
                 elif self._batch is not None:
                     t = self._batch._tensors[self._index_in_batch]
                     if t is self:
-                        self._backend = self._batch.evaluate()._backend[self._index_in_batch]
+                        self._storage = self._batch.evaluate()._storage[self._index_in_batch]
                     else:
-                        self._backend = t.evaluate()._backend
+                        self._storage = t.evaluate()._storage
                 else:
                     assert self._invocation_result is not None
-                    self._backend = self._invocation_result.value(ctx)
-                self._shape = tuple(self._backend.shape())
-                self._dtype = DType.from_type_id(self._backend.dtype)
-                self._layout = self._backend.layout()
+                    self._storage = self._invocation_result.value(ctx)
+                self._shape = tuple(self._storage.shape())
+                self._dtype = DType.from_type_id(self._storage.dtype)
+                self._layout = self._storage.layout()
         return self
 
     def __getitem__(self, ranges: Any) -> "Tensor":
@@ -517,13 +517,13 @@ class Tensor:
 
     def _is_same_tensor(self, other: "Tensor") -> bool:
         return (
-            self._backend is other._backend
+            self._storage is other._storage
             and self._invocation_result is other._invocation_result
             and self._slice is other._slice
         )
 
     def __str__(self) -> str:
-        return "Tensor(\n" + str(self.evaluate()._backend) + ")"
+        return "Tensor(\n" + str(self.evaluate()._storage) + ")"
 
     def __add__(self, other):
         return _arithm_op("add", self, other)
@@ -908,7 +908,7 @@ def as_tensor(
     from . import _batch
 
     if isinstance(data, _batch.Batch):
-        data = data.evaluate()._backend.as_tensor()
+        data = data.evaluate()._storage.as_tensor()
 
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)
 

@@ -226,9 +226,9 @@ class Operator:
         self._init_backend(ctx, inputs, args)
         workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
         for i, input in enumerate(inputs):
-            workspace.AddInput(self._to_batch(input).evaluate()._backend)
+            workspace.AddInput(self._to_batch(input).evaluate()._storage)
         for name, arg in args.items():
-            workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
+            workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._storage)
         self._op_backend.SetupAndRun(workspace, batch_size)
         out = workspace.GetOutputs()
         if is_batch:
