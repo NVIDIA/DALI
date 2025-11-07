@@ -128,6 +128,18 @@ def _arithm_op(name, *args, **kwargs):
 
 
 class _TensorList:
+    # `_TensorList` is what you get from `batch.tensors`.
+    # `_TensorList` is private because it's never meant to be constructed by the user and merely
+    # serves as an indexable proxy for tensor access. It's not a plain Python list because the
+    # individual `Tensor` objects are created on demand - for example, if your Batch is a result
+    # of running an operator, it will wrap a TensorListCPU/GPU. Accessing a single sample will
+    # create just one Tensor object, not `batch_size` of them. One can imagine that at least some
+    # users will use 0-th tensor to inspect some properties (instead of doing it on the arguably
+    # less familiar batch level) and `_TensorList` will facilitate that without the overhead of
+    # going over the entire batch. Returning a regular Python list would require us to eagerly
+    # populate it - and even worse, we'd have to copy it each time, because otherwise a user
+    # could try something like `batch.tensors.append(T)` which would make the list inconsistent.
+
     def __init__(self, batch: "Batch", indices: Optional[Union[list[int], range]] = None):
         self._batch = batch
         self._indices = indices or range(batch.batch_size)
@@ -329,6 +341,11 @@ class Batch:
                             backend_type = _backend.TensorListCPU
                         elif self._device.device_type == "gpu":
                             backend_type = _backend.TensorListGPU
+                        else:
+                            raise ValueError(
+                                f"Internal error: "
+                                f"Unsupported device type: {self._device.device_type}"
+                            )
                         self._storage = backend_type(t._storage, layout=layout)
 
         if self._dtype is None:
@@ -380,7 +397,7 @@ class Batch:
         device from the `sample` argument).
 
         This function yields result equivalent to
-        `as_batch([tensor(sample)] * batch_size, device=device)`
+        ``as_batch([tensor(sample)] * batch_size, device=device)``
         but is much more efficient.
         """
         if isinstance(sample, Batch):
@@ -668,6 +685,8 @@ class Batch:
 
         The behavior of this function is affected by the current evaluation context and current
         device. See :class:`EvalContext` and :class:`Device` for details.
+
+        The function returns `self`.
         """
         if self._storage is None:
             # TODO(michalz): Consider thread-safety

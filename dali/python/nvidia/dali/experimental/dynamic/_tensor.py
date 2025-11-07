@@ -483,6 +483,8 @@ class Tensor:
 
         The behavior of this function is affected by the current evaluation context and current
         device. See :class:`EvalContext` and :class:`Device` for details.
+
+        The function returns `self`.
         """
         if self._storage is None:
             # TODO(michalz): Consider thread-safety
