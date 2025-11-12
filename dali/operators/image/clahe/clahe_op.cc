@@ -16,8 +16,8 @@
 
 #include <cstdlib>
 #include <vector>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/opencv.hpp>
+
+// (Removed luminance debug instrumentation to avoid host transfers/OpenCV dependency.)
 
 #include "dali/core/backend_tags.h"
 #include "dali/core/error_handling.h"
@@ -101,9 +101,8 @@ class ClaheGPU : public Operator<GPUBackend> {
     int N = shape.num_samples();
 
     // Warn user if luma_only=False for RGB images (GPU always uses luminance mode)
-    static bool warned_luma_only = false;
     static bool warned_rgb_order = false;
-    if (!warned_luma_only || !warned_rgb_order) {
+    if (!warned_rgb_order) {
       // Check if we have any RGB samples
       bool has_rgb = false;
       for (int i = 0; i < N; i++) {
@@ -114,17 +113,18 @@ class ClaheGPU : public Operator<GPUBackend> {
         }
       }
       if (has_rgb) {
-        if (!luma_only_ && !warned_luma_only) {
-          DALI_WARN("CLAHE GPU backend does not support per-channel mode (luma_only=False). "
-                    "RGB images will be processed in luminance-only mode. "
-                    "Use CPU backend for per-channel processing.");
-          warned_luma_only = true;
+        if (!luma_only_) {
+          throw std::invalid_argument(
+              "ClaheGPU RGB input requires luma_only=True; per-channel mode "
+              "(luma_only=False) is not supported on GPU. Use CPU backend "
+              "for per-channel processing.");
         }
         if (luma_only_ && !warned_rgb_order) {
           DALI_WARN("CRITICAL: CLAHE expects RGB channel order (Red, Green, Blue). "
                     "If your images are in BGR order (common with OpenCV cv2.imread), "
                     "the luminance calculation will be INCORRECT. "
-                    "Convert BGR to RGB using fn.reinterpret or similar operators before CLAHE.");
+                    "Convert BGR to RGB using fn.reinterpret or similar "
+                    "operators before CLAHE.");
           warned_rgb_order = true;
         }
       }
@@ -160,103 +160,11 @@ class ClaheGPU : public Operator<GPUBackend> {
                                       histograms, luts, stream);
       } else {
         LaunchRGBToYUint8NHWC(in_ptr, y_plane, H, W, stream);
-        // Optional runtime luminance comparison (controlled only by env var)
-        if (const char *dbg_env = std::getenv("DALI_CLAHE_DEBUG_LUMA");
-            dbg_env && *dbg_env == '1') {
-          std::vector<uint8_t> h_rgb(H * W * 3);
-          std::vector<uint8_t> h_y(H * W);
-          CUDA_CALL(cudaMemcpyAsync(h_rgb.data(), in_ptr, H * W * 3,
-                                    cudaMemcpyDeviceToHost, stream));
-          CUDA_CALL(cudaMemcpyAsync(h_y.data(), y_plane, H * W,
-                                    cudaMemcpyDeviceToHost, stream));
-          CUDA_CALL(cudaStreamSynchronize(stream));
-          cv::Mat rgb(H, W, CV_8UC3, h_rgb.data());
-          cv::Mat lab;
-          cv::cvtColor(rgb, lab, cv::COLOR_RGB2Lab);
-          const int pixels = H * W;
-          double mse = 0.0;
-          int64_t sum_abs = 0;
-          int max_diff = 0;
-          for (int p = 0; p < pixels; ++p) {
-            uint8_t ocvL = lab.data[3 * p + 0];
-            int d = static_cast<int>(h_y[p]) - static_cast<int>(ocvL);
-            int ad = d < 0 ? -d : d;
-            if (ad > max_diff) max_diff = ad;
-            sum_abs += ad;
-            mse += static_cast<double>(d) * static_cast<double>(d);
-          }
-          mse /= static_cast<double>(pixels);
-          double mae = static_cast<double>(sum_abs) / static_cast<double>(pixels);
-          DALI_WARN(make_string("CLAHE DEBUG LUMA: sample=", i,
-                                 ", size=", H, "x", W,
-                                 ", L-plane MSE=", mse,
-                                 ", MAE=", mae,
-                                 ", max_diff=", max_diff));
-        }
-
-        // First-use initialization investigation: run conversion twice and compare
-        if (const char *init_env = std::getenv("DALI_CLAHE_DEBUG_LUMA_INIT");
-            init_env && *init_env == '1') {
-          // Allocate a second y buffer
-          uint8_t *y_plane2 = scratchpad.AllocateGPU<uint8_t>(H * W);
-          // Run second pass conversion into y_plane2
-          LaunchRGBToYUint8NHWC(in_ptr, y_plane2, H, W, stream);
-          // Copy both results + input for OpenCV reference
-          std::vector<uint8_t> h_rgb(H * W * 3);
-          std::vector<uint8_t> h_y1(H * W);
-            std::vector<uint8_t> h_y2(H * W);
-          CUDA_CALL(cudaMemcpyAsync(h_rgb.data(), in_ptr, H * W * 3,
-                                    cudaMemcpyDeviceToHost, stream));
-          CUDA_CALL(cudaMemcpyAsync(h_y1.data(), y_plane, H * W,
-                                    cudaMemcpyDeviceToHost, stream));
-          CUDA_CALL(cudaMemcpyAsync(h_y2.data(), y_plane2, H * W,
-                                    cudaMemcpyDeviceToHost, stream));
-          CUDA_CALL(cudaStreamSynchronize(stream));
-          cv::Mat rgb2(H, W, CV_8UC3, h_rgb.data());
-          cv::Mat lab2;
-          cv::cvtColor(rgb2, lab2, cv::COLOR_RGB2Lab);
-          const int pixels2 = H * W;
-          auto compute_stats = [&](const std::vector<uint8_t> &buf,
-                                   double &mse, double &mae, int &maxd) {
-            mse = 0.0; int64_t sum_abs = 0; maxd = 0;
-            for (int p = 0; p < pixels2; ++p) {
-              int d = static_cast<int>(buf[p]) - static_cast<int>(lab2.data[3 * p + 0]);
-              int ad = d < 0 ? -d : d;
-              if (ad > maxd) maxd = ad;
-              sum_abs += ad;
-              mse += static_cast<double>(d) * static_cast<double>(d);
-            }
-            mse /= static_cast<double>(pixels2);
-            mae = static_cast<double>(sum_abs) / static_cast<double>(pixels2);
-          };
-          double mse1, mae1; int maxd1;
-          double mse2, mae2; int maxd2;
-          compute_stats(h_y1, mse1, mae1, maxd1);
-          compute_stats(h_y2, mse2, mae2, maxd2);
-          // Difference between first and second pass
-          double mse12 = 0.0; int64_t sum_abs12 = 0; int maxd12 = 0;
-          for (int p = 0; p < pixels2; ++p) {
-            int d = static_cast<int>(h_y1[p]) - static_cast<int>(h_y2[p]);
-            int ad = d < 0 ? -d : d;
-            if (ad > maxd12) maxd12 = ad;
-            sum_abs12 += ad;
-            mse12 += static_cast<double>(d) * static_cast<double>(d);
-          }
-          mse12 /= static_cast<double>(pixels2);
-          double mae12 = static_cast<double>(sum_abs12) / static_cast<double>(pixels2);
-          DALI_WARN(make_string("CLAHE DEBUG INIT: sample=", i,
-                                 ", L1(OpenCV) MSE=", mse1,
-                                 ", L2(OpenCV) MSE=", mse2,
-                                 ", L1-L2 MSE=", mse12,
-                                 ", L1-L2 MAE=", mae12,
-                                 ", L1-L2 max_diff=", maxd12));
-        }
         // RGB processing - always use luminance-only mode
-        // Per-channel mode is not implemented for GPU (would require channel extraction)
-          LaunchHistPerTile256(y_plane, H, W, tiles_x_, tiles_y_, histograms, stream);
-          LaunchClipCdfToLut256(histograms, H, W, tiles_x_, tiles_y_, clip_limit_, luts, stream);
-          LaunchApplyLUTBilinearToRGB(out_ptr, in_ptr, y_plane, H, W,
-                  tiles_x_, tiles_y_, luts, stream);
+        LaunchHistPerTile256(y_plane, H, W, tiles_x_, tiles_y_, histograms, stream);
+        LaunchClipCdfToLut256(histograms, H, W, tiles_x_, tiles_y_, clip_limit_, luts, stream);
+        LaunchApplyLUTBilinearToRGB(out_ptr, in_ptr, y_plane, H, W,
+                                    tiles_x_, tiles_y_, luts, stream);
       }
     }
 
