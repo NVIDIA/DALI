@@ -96,6 +96,14 @@ __constant__ float g_lab_to_xyz_lut[4096];         // LAB f() inverse -> XYZ
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV)
 // -------------------------------------------------------------------------------------
+//
+// NOTE: OpenCV's RGB→LAB→RGB round-trip conversion has inherent quantization errors
+// due to uint8 representation of LAB color space. Saturated colors (e.g., pure red,
+// green, blue, cyan) can have per-channel errors of 0-12 in uint8 space after a
+// full round-trip conversion. This is NOT a bug in our implementation but rather
+// a fundamental limitation of quantizing the continuous LAB color space to 8-bit
+// integer values.
+// -------------------------------------------------------------------------------------
 
 __device__ float srgb_to_linear(uint8_t c) {
   // LUT-based: eliminates branch + powf() (20-30 cycles saved per call)
