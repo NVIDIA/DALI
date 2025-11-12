@@ -84,10 +84,26 @@
 #define LBIAS 0.13793103f                   // 4/29
 
 // -------------------------------------------------------------------------------------
+// LUT-based color conversion (constant memory for performance)
+// -------------------------------------------------------------------------------------
+
+// Constant memory LUTs for color space conversions
+__constant__ float g_srgb_to_linear_lut[256];      // sRGB uint8 -> linear float
+__constant__ float g_linear_to_srgb_lut[4096];     // linear float -> sRGB (12-bit precision)
+__constant__ float g_xyz_to_lab_lut[4096];         // XYZ -> LAB f() transform
+__constant__ float g_lab_to_xyz_lut[4096];         // LAB f() inverse -> XYZ
+
+// -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV)
 // -------------------------------------------------------------------------------------
 
 __device__ float srgb_to_linear(uint8_t c) {
+  // LUT-based: eliminates branch + powf() (20-30 cycles saved per call)
+  return g_srgb_to_linear_lut[c];
+}
+
+// Original version kept for reference/validation
+__device__ float srgb_to_linear_ref(uint8_t c) {
   // OpenCV's gamma correction, input is 8-bit (0-255)
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
   float cf = c * (1.0f / 255.0f);
@@ -99,6 +115,14 @@ __device__ float srgb_to_linear(uint8_t c) {
 }
 
 __device__ float linear_to_srgb(float c) {
+  // LUT-based with 12-bit quantization: eliminates branch + powf()
+  float clamped = fmaxf(0.0f, fminf(c, 1.0f));
+  int idx = __float2int_rn(clamped * 4095.0f);
+  return g_linear_to_srgb_lut[idx];
+}
+
+// Original version kept for reference/validation
+__device__ float linear_to_srgb_ref(float c) {
   // OpenCV's inverse gamma correction
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
   if (c <= GAMMA_INV_THRESHOLD) {
@@ -109,6 +133,15 @@ __device__ float linear_to_srgb(float c) {
 }
 
 __device__ float xyz_to_lab_f(float t) {
+  // LUT-based with hybrid fallback: eliminates cbrtf() for common range
+  if (t > 1.0f) return cbrtf(t);  // Rare case, fallback to cbrtf
+  float clamped = fmaxf(0.0f, t);
+  int idx = __float2int_rn(clamped * 4095.0f);
+  return g_xyz_to_lab_lut[idx];
+}
+
+// Original version kept for reference/validation
+__device__ float xyz_to_lab_f_ref(float t) {
   // OpenCV-compatible.
   // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1184
   if (t > LTHRESHOLD) {
@@ -119,6 +152,15 @@ __device__ float xyz_to_lab_f(float t) {
 }
 
 __device__ float lab_f_to_xyz(float u) {
+  // LUT-based: eliminates branch + cube computation
+  float clamped = fmaxf(0.0f, fminf(u, 1.2f));  // Typical LAB range
+  int idx = __float2int_rn(clamped * (4095.0f / 1.2f));
+  idx = min(idx, 4095);
+  return g_lab_to_xyz_lut[idx];
+}
+
+// Original version kept for reference/validation
+__device__ float lab_f_to_xyz_ref(float u) {
   // Inverse: OpenCV-compatible.
   if (u > THRESHOLD_6_29TH) {
     return u * u * u;
@@ -1121,6 +1163,64 @@ void LaunchCLAHE_RGB_U8_NHWC_Optimized(uint8_t *dst_rgb, const uint8_t *src_rgb,
   LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts, stream);
   LaunchApplyLUTBilinearToRGB(dst_rgb, src_rgb, y_plane, H, W, tiles_x, tiles_y, tmp_luts, stream);
   CUDA_CALL(cudaGetLastError());
+}
+
+// -------------------------------------------------------------------------------------
+// LUT Initialization (call once before using CLAHE)
+// -------------------------------------------------------------------------------------
+
+void InitColorConversionLUTs() {
+  // Temporary host buffers
+  float h_srgb_to_linear[256];
+  float h_linear_to_srgb[4096];
+  float h_xyz_to_lab[4096];
+  float h_lab_to_xyz[4096];
+
+  // Build sRGB -> linear LUT (256 entries, 8-bit input)
+  for (int i = 0; i < 256; i++) {
+    float cf = i * (1.0f / 255.0f);
+    if (cf <= GAMMA_THRESHOLD) {
+      h_srgb_to_linear[i] = cf * (1.0f / GAMMA_LOW_SCALE);
+    } else {
+      h_srgb_to_linear[i] = powf((cf + GAMMA_XSHIFT) * (1.0f / (1.0f + GAMMA_XSHIFT)), GAMMA_POWER);
+    }
+  }
+
+  // Build linear -> sRGB LUT (4096 entries, 12-bit precision)
+  for (int i = 0; i < 4096; i++) {
+    float c = i / 4095.0f;
+    if (c <= GAMMA_INV_THRESHOLD) {
+      h_linear_to_srgb[i] = GAMMA_LOW_SCALE * c;
+    } else {
+      h_linear_to_srgb[i] = powf(c, 1.0f / GAMMA_POWER) * (1.0f + GAMMA_XSHIFT) - GAMMA_XSHIFT;
+    }
+  }
+
+  // Build XYZ -> LAB f() LUT (4096 entries, covers [0, 1.0] range)
+  for (int i = 0; i < 4096; i++) {
+    float t = i / 4095.0f;
+    if (t > LTHRESHOLD) {
+      h_xyz_to_lab[i] = cbrtf(t);
+    } else {
+      h_xyz_to_lab[i] = LSCALE * t + LBIAS;
+    }
+  }
+
+  // Build LAB f() inverse -> XYZ LUT (4096 entries, covers [0, 1.2] range)
+  for (int i = 0; i < 4096; i++) {
+    float u = i * (1.2f / 4095.0f);  // Scale to [0, 1.2] range
+    if (u > THRESHOLD_6_29TH) {
+      h_lab_to_xyz[i] = u * u * u;
+    } else {
+      h_lab_to_xyz[i] = SLOPE_LAB * (u - OFFSET_4_29TH);
+    }
+  }
+
+  // Copy to constant memory
+  CUDA_CALL(cudaMemcpyToSymbol(g_srgb_to_linear_lut, h_srgb_to_linear, sizeof(h_srgb_to_linear)));
+  CUDA_CALL(cudaMemcpyToSymbol(g_linear_to_srgb_lut, h_linear_to_srgb, sizeof(h_linear_to_srgb)));
+  CUDA_CALL(cudaMemcpyToSymbol(g_xyz_to_lab_lut, h_xyz_to_lab, sizeof(h_xyz_to_lab)));
+  CUDA_CALL(cudaMemcpyToSymbol(g_lab_to_xyz_lut, h_lab_to_xyz, sizeof(h_lab_to_xyz)));
 }
 
 }  // namespace dali

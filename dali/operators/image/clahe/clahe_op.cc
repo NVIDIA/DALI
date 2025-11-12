@@ -42,6 +42,8 @@ void LaunchApplyLUTBilinearToRGB(uint8_t *dst_rgb, const uint8_t *src_rgb, const
 namespace dali {
 
 // External CUDA launcher prototypes (from clahe_op.cu)
+void InitColorConversionLUTs();  // Initialize LUTs for color space conversion
+
 void LaunchCLAHE_Grayscale_U8_NHWC(uint8_t *dst_gray, const uint8_t *src_gray, int H, int W,
                                    int tiles_x, int tiles_y, float clip_limit_rel,
                                    unsigned int *tmp_histograms, uint8_t *tmp_luts,
@@ -69,7 +71,14 @@ class ClaheGPU : public Operator<GPUBackend> {
         tiles_y_(spec.GetArgument<int>("tiles_y")),
         bins_(spec.GetArgument<int>("bins")),
         clip_limit_(spec.GetArgument<float>("clip_limit")),
-        luma_only_(spec.GetArgument<bool>("luma_only")) {}
+        luma_only_(spec.GetArgument<bool>("luma_only")) {
+    // Initialize color conversion LUTs (one-time setup)
+    static bool luts_initialized = false;
+    if (!luts_initialized) {
+      InitColorConversionLUTs();
+      luts_initialized = true;
+    }
+  }
 
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
     const auto &in = ws.Input<GPUBackend>(0);
