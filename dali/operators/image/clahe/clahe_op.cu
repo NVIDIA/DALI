@@ -328,18 +328,19 @@ __device__ void clip_redistribute_cdf(unsigned int *h, int bins, int area, float
     }
   }
 
-  // Redistribute excess using OpenCV's algorithm
-  unsigned int redistBatch = excess / bins;
-  unsigned int residual = excess % bins;
+  // Redistribute excess using OpenCV's exact algorithm
+  // Match OpenCV's integer arithmetic exactly
+  int redistBatch = static_cast<int>(excess) / bins;
+  int residual = static_cast<int>(excess) - redistBatch * bins;
+
   for (int i = 0; i < bins; ++i) {
-    h[i] += redistBatch;
+    h[i] += static_cast<unsigned int>(redistBatch);
   }
 
   // Distribute residual using OpenCV's step pattern
-  if (residual > 0) {
-    unsigned int residualStep = max(bins / residual, 1u);
-    for (unsigned int i = 0; i < static_cast<unsigned int>(bins)
-                            && residual > 0; i += residualStep, residual--) {
+  if (residual != 0) {
+    int residualStep = max(bins / residual, 1);
+    for (int i = 0; i < bins && residual > 0; i += residualStep, residual--) {
       h[i]++;
     }
   }
@@ -352,9 +353,10 @@ __device__ void clip_redistribute_cdf(unsigned int *h, int bins, int area, float
   }
 
   // Build LUT using OpenCV's scaling methodology
+  // NOTE: OpenCV uses saturate_cast (truncation), not rounding
   float lutScale = static_cast<float>(bins - 1) / static_cast<float>(area);
   for (int i = 0; i < bins; ++i) {
-    float val = static_cast<float>(cdf[i]) * lutScale + 0.5f;
+    float val = static_cast<float>(cdf[i]) * lutScale;
     lut[i] = static_cast<uint8_t>(dali::clamp(val, 0.f, 255.f));
   }
 }
