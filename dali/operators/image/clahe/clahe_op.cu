@@ -62,95 +62,50 @@
 #define D65_WHITE_Z CV_HEX_CONST_F(0x3ff16b8950763a19)  // 1.089058
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1010
-#define GAMMA_THRESHOLD (809.0f / 20000.0f)         //  0.04045
-#define GAMMA_INV_THRESHOLD (7827.0f / 2500000.0f)  //  0.0031308
-#define GAMMA_LOW_SCALE (323.0f / 25.0f)            // 12.92
-#define GAMMA_POWER (12.0f / 5.0f)                  //  2.4
-#define GAMMA_XSHIFT (11.0f / 200.0f)               //  0.055
+// Precomputed constants (original formula in comment)
+#define GAMMA_THRESHOLD 0.04045f            // 809/20000
+#define GAMMA_INV_THRESHOLD 0.0031308f      // 7827/2500000
+#define GAMMA_LOW_SCALE 12.92f              // 323/25
+#define GAMMA_POWER 2.4f                    // 12/5
+#define GAMMA_XSHIFT 0.055f                 // 11/200
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
-#define THRESHOLD_6_29TH (6.0f / 29.0f)                           // 0.20689655
-#define THRESHOLD_CUBED (0.00885645168f)                          // (6/29)^3 - pre-computed!
-#define OFFSET_4_29TH (4.0f / 29.0f)                              // 0.13793103
-#define SLOPE_THRESHOLD (7.78703704f)                             // (29/6)^2 / 3 - pre-computed!
-#define SLOPE_LAB (0.12841855f)                                   // 3 * (6/29)^2 - pre-computed!
+// LAB helper constants
+#define THRESHOLD_6_29TH 0.20689656f        // 6/29
+#define THRESHOLD_CUBED 0.008856452f        // (6/29)^3
+#define OFFSET_4_29TH 0.13793103f           // 4/29
+#define SLOPE_THRESHOLD 7.787037f           // (29/6)^2 / 3
+#define SLOPE_LAB 0.12841855f               // 3*(6/29)^2
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1017
-#define LTHRESHOLD (216.0f / 24389.0f)  // 0.008856
-#define LSCALE (841.0f / 108.0f)        // 7.787
-#define LBIAS (16.0f / 116.0f)          // 0.13793103448275862
-
-// -------------------------------------------------------------------------------------
-// Lookup tables for fast gamma correction (replaces expensive powf operations)
-// -------------------------------------------------------------------------------------
-
-// Pre-computed lookup table for sRGB to linear conversion (256 entries for uint8_t input)
-__constant__ float srgb_to_linear_lut[256];
-
-// Pre-computed lookup table for linear to sRGB conversion (4096 entries, 12-bit precision)
-#define LINEAR_TO_SRGB_LUT_SIZE 4096
-__constant__ float linear_to_srgb_lut[LINEAR_TO_SRGB_LUT_SIZE];
-
-// Helper to initialize the lookup tables on the host
-void init_gamma_correction_luts() {
-  static bool initialized = false;
-  if (initialized) return;
-
-  float h_srgb_to_linear[256];
-  float h_linear_to_srgb[LINEAR_TO_SRGB_LUT_SIZE];
-
-  // Build sRGB to linear LUT
-  for (int i = 0; i < 256; i++) {
-    float cf = i * (1.0f / 255.0f);
-    if (cf <= GAMMA_THRESHOLD) {
-      h_srgb_to_linear[i] = cf * (1.0f / GAMMA_LOW_SCALE);
-    } else {
-      h_srgb_to_linear[i] = powf((cf + GAMMA_XSHIFT) * (1.0f / (1.0f + GAMMA_XSHIFT)), GAMMA_POWER);
-    }
-  }
-
-  // Build linear to sRGB LUT (normalized range [0, 1] mapped to [0, 4095])
-  for (int i = 0; i < LINEAR_TO_SRGB_LUT_SIZE; i++) {
-    float c = i * (1.0f / (LINEAR_TO_SRGB_LUT_SIZE - 1));
-    if (c <= GAMMA_INV_THRESHOLD) {
-      h_linear_to_srgb[i] = GAMMA_LOW_SCALE * c;
-    } else {
-      h_linear_to_srgb[i] = powf(c, 1.0f / GAMMA_POWER) * (1.0 + GAMMA_XSHIFT) - GAMMA_XSHIFT;
-    }
-  }
-
-  // Copy to device constant memory
-  cudaMemcpyToSymbol(srgb_to_linear_lut, h_srgb_to_linear, sizeof(h_srgb_to_linear));
-  cudaMemcpyToSymbol(linear_to_srgb_lut, h_linear_to_srgb, sizeof(h_linear_to_srgb));
-
-  initialized = true;
-}
+// L* conversion constants
+#define LTHRESHOLD 0.008856452f             // (6/29)^3
+#define LSCALE 7.787037f                    // (29/6)^2 / 3
+#define LBIAS 0.13793103f                   // 4/29
 
 // -------------------------------------------------------------------------------------
 // Helper functions for RGB ↔ LAB conversion (match OpenCV)
 // -------------------------------------------------------------------------------------
 
 __device__ float srgb_to_linear(uint8_t c) {
-  // Use lookup table instead of powf (5-10x faster!)
-  return srgb_to_linear_lut[c];
+  // OpenCV's gamma correction, input is 8-bit (0-255)
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1023
+  float cf = c * (1.0f / 255.0f);
+  if (cf <= GAMMA_THRESHOLD) {
+    return cf * (1.0f / GAMMA_LOW_SCALE);
+  } else {
+    return powf((cf + GAMMA_XSHIFT) * (1.0f / (1.0f + GAMMA_XSHIFT)), GAMMA_POWER);
+  }
 }
 
 __device__ float linear_to_srgb(float c) {
-  // Use lookup table with linear interpolation for smooth results
-  // Clamp to valid range [0, 1]
-  c = fmaxf(0.0f, fminf(1.0f, c));
-
-  // Map to LUT index (with fractional part for interpolation)
-  float idx_f = c * (LINEAR_TO_SRGB_LUT_SIZE - 1);
-  int idx = __float2int_rd(idx_f);  // floor
-  float frac = idx_f - idx;
-
-  // Linear interpolation between two LUT entries
-  if (idx >= LINEAR_TO_SRGB_LUT_SIZE - 1) {
-    return linear_to_srgb_lut[LINEAR_TO_SRGB_LUT_SIZE - 1];
+  // OpenCV's inverse gamma correction
+  // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1033
+  if (c <= GAMMA_INV_THRESHOLD) {
+    return GAMMA_LOW_SCALE * c;
+  } else {
+    return powf(c, 1.0f / GAMMA_POWER) * (1.0 + GAMMA_XSHIFT) - GAMMA_XSHIFT;
   }
-
-  return linear_to_srgb_lut[idx] * (1.0f - frac) + linear_to_srgb_lut[idx + 1] * frac;
 }
 
 __device__ float xyz_to_lab_f(float t) {
@@ -297,137 +252,14 @@ __global__ void rgb_to_y_u8_nhwc_kernel(const uint8_t *__restrict__ rgb,
 }
 
 // -------------------------------------------------------------------------------------
-// -------------------------------------------------------------------------------------
-// Parallel prefix sum (scan) using warp shuffle operations
-// This replaces the sequential CDF computation with a parallel algorithm
-// -------------------------------------------------------------------------------------
-
-// Parallel inclusive scan within a warp (32 threads)
-__device__ __forceinline__ unsigned int warp_scan_inclusive(unsigned int val) {
-  #pragma unroll
-  for (int offset = 1; offset < 32; offset <<= 1) {
-    unsigned int n = __shfl_up_sync(0xffffffff, val, offset);
-    if (threadIdx.x >= offset) {
-      val += n;
-    }
-  }
-  return val;
-}
-
-// Parallel prefix sum for 256 elements using 256 threads (8 warps)
-// Each thread handles one element
-__device__ void parallel_prefix_sum_256(unsigned int *data, unsigned int *output) {
-  int tid = threadIdx.x;
-  
-  // Step 1: Each thread loads one element
-  unsigned int val = (tid < 256) ? data[tid] : 0u;
-  
-  // Step 2: Perform warp-level inclusive scan
-  unsigned int warp_sum = warp_scan_inclusive(val);
-  
-  // Step 3: Collect the last value from each warp (warp totals)
-  __shared__ unsigned int warp_totals[8];
-  int warp_id = tid / 32;
-  int lane_id = tid % 32;
-  
-  if (lane_id == 31) {
-    warp_totals[warp_id] = warp_sum;
-  }
-  __syncthreads();
-  
-  // Step 4: Thread 0 does a sequential scan of warp totals (only 8 values)
-  if (tid == 0) {
-    for (int i = 1; i < 8; i++) {
-      warp_totals[i] += warp_totals[i - 1];
-    }
-  }
-  __syncthreads();
-  
-  // Step 5: Add the prefix from previous warps
-  if (warp_id > 0) {
-    warp_sum += warp_totals[warp_id - 1];
-  }
-  
-  // Step 6: Write result
-  if (tid < 256) {
-    output[tid] = warp_sum;
-  }
-}
-
 // Histogram clipping, redistribution, and CDF calculation helper
-// OPTIMIZED: Uses parallel prefix sum instead of sequential loop
+// -------------------------------------------------------------------------------------
+// TODO(optimization): This function performs sequential computations involving global memory (lut)
+// and could be optimized with parallelization, at least at warp level. The loops over bins
+// could benefit from parallel reduction and scan operations.
+
 __device__ void clip_redistribute_cdf(unsigned int *h, int bins, int area, float clip_limit_rel,
                                       unsigned int *cdf, uint8_t *lut) {
-  int tid = threadIdx.x;
-  
-  // Compute clip limit (match OpenCV)
-  float clip_limit_f = clip_limit_rel * area * (1.0f / bins);
-  int limit_int = static_cast<int>(clip_limit_f);
-  int limit = max(limit_int, 1);
-  unsigned int limit_u = static_cast<unsigned int>(limit);
-
-  // Clip and accumulate excess (parallel)
-  __shared__ unsigned int excess_shared[256];
-  unsigned int local_excess = 0u;
-  
-  if (tid < bins) {
-    unsigned int v = h[tid];
-    if (v > limit_u) {
-      unsigned int over = v - limit_u;
-      h[tid] = limit_u;
-      local_excess = over;
-    }
-  }
-  excess_shared[tid] = local_excess;
-  __syncthreads();
-  
-  // Parallel reduction to sum excess (tree reduction in shared memory)
-  for (int stride = 128; stride > 0; stride >>= 1) {
-    if (tid < stride && tid + stride < 256) {
-      excess_shared[tid] += excess_shared[tid + stride];
-    }
-    __syncthreads();
-  }
-  unsigned int excess = excess_shared[0];
-
-  // Redistribute excess using OpenCV's algorithm (parallel)
-  unsigned int redistBatch = excess / bins;
-  unsigned int residual = excess % bins;
-  
-  if (tid < bins) {
-    h[tid] += redistBatch;
-  }
-  __syncthreads();
-
-  // Distribute residual using OpenCV's step pattern
-  if (residual > 0) {
-    unsigned int residualStep = max(bins / residual, 1u);
-    if (tid < bins) {
-      unsigned int idx = tid;
-      if (idx < residual * residualStep && (idx % residualStep) == 0) {
-        h[tid]++;
-      }
-    }
-  }
-  __syncthreads();
-
-  // Parallel prefix-sum (CDF) - THE KEY OPTIMIZATION!
-  // Replaces sequential loop with parallel warp shuffle algorithm (10-20× faster)
-  parallel_prefix_sum_256(h, cdf);
-  __syncthreads();
-
-  // Build LUT using OpenCV's scaling methodology (parallel)
-  if (tid < bins) {
-    float lutScale = static_cast<float>(bins - 1) / static_cast<float>(area);
-    float val = static_cast<float>(cdf[tid]) * lutScale + 0.5f;
-    lut[tid] = static_cast<uint8_t>(dali::clamp(val, 0.f, 255.f));
-  }
-}
-
-// Legacy sequential version (kept for reference/debugging)
-__device__ void clip_redistribute_cdf_sequential(unsigned int *h, int bins, int area, 
-                                                  float clip_limit_rel,
-                                                  unsigned int *cdf, uint8_t *lut) {
   // Compute clip limit (match OpenCV)
   float clip_limit_f = clip_limit_rel * area * (1.0f / bins);
   int limit_int = static_cast<int>(clip_limit_f);
@@ -461,7 +293,7 @@ __device__ void clip_redistribute_cdf_sequential(unsigned int *h, int bins, int 
     }
   }
 
-  // Prefix-sum (CDF) - SEQUENTIAL (slow!)
+  // Prefix-sum (CDF)
   unsigned int acc = 0u;
   for (int i = 0; i < bins; ++i) {
     acc += h[i];
@@ -768,8 +600,9 @@ __global__ void clip_cdf_lut_256_kernel(unsigned int *__restrict__ histograms, i
   }
   __syncthreads();
 
-  // ALL threads participate in parallel clip/redistribute/CDF computation
-  clip_redistribute_cdf(h, bins, area, clip_limit_rel, cdf, lut);
+  if (tid == 0) {
+    clip_redistribute_cdf(h, bins, area, clip_limit_rel, cdf, lut);
+  }
   __syncthreads();
 }
 
@@ -1220,8 +1053,10 @@ __global__ void mega_fused_hist_clip_cdf_lut_kernel(const uint8_t *__restrict__ 
   }
   __syncthreads();
 
-  // ALL threads participate in parallel clip/redistribute/CDF computation
-  clip_redistribute_cdf(hist, bins, area, clip_limit_rel, cdf, luts + (ty * tiles_x + tx) * bins);
+  // Clip histogram, redistribute excess, and compute CDF/LUT
+  if (threadIdx.x == 0) {
+    clip_redistribute_cdf(hist, bins, area, clip_limit_rel, cdf, luts + (ty * tiles_x + tx) * bins);
+  }
   __syncthreads();
 }
 
@@ -1247,9 +1082,6 @@ void LaunchCLAHE_Grayscale_U8_NHWC(uint8_t *dst_gray, const uint8_t *src_gray, i
                                    unsigned int *tmp_histograms,  // tiles*bins
                                    uint8_t *tmp_luts,             // tiles*bins
                                    cudaStream_t stream) {
-  // Initialize lookup tables on first use (thread-safe via static bool in init function)
-  init_gamma_correction_luts();
-
   // Use mega-fused version for larger images where the fusion overhead pays off
   int total_tiles = tiles_x * tiles_y;
   if (total_tiles >= 16) {  // Threshold where fusion is beneficial
@@ -1270,9 +1102,6 @@ void LaunchCLAHE_RGB_U8_NHWC(uint8_t *dst_rgb, const uint8_t *src_rgb,
                              unsigned int *tmp_histograms,  // tiles*bins
                              uint8_t *tmp_luts,             // tiles*bins
                              cudaStream_t stream) {
-  // Initialize lookup tables on first use
-  init_gamma_correction_luts();
-
   LaunchRGBToYUint8NHWC(src_rgb, y_plane, H, W, stream);
   LaunchHistPerTile256(y_plane, H, W, tiles_x, tiles_y, tmp_histograms, stream);
   LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts, stream);
@@ -1287,9 +1116,6 @@ void LaunchCLAHE_RGB_U8_NHWC_Optimized(uint8_t *dst_rgb, const uint8_t *src_rgb,
                                        unsigned int *tmp_histograms,  // tiles*bins
                                        uint8_t *tmp_luts,             // tiles*bins
                                        cudaStream_t stream) {
-  // Initialize lookup tables on first use
-  init_gamma_correction_luts();
-
   // Fused RGB->Y conversion + histogram computation (saves one kernel launch + memory round-trip)
   LaunchFusedRGBToYHist(src_rgb, y_plane, H, W, tiles_x, tiles_y, tmp_histograms, stream);
   LaunchClipCdfToLut256(tmp_histograms, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts, stream);
