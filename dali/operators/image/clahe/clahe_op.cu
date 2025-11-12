@@ -71,17 +71,17 @@
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1092
 // LAB helper constants
-#define THRESHOLD_6_29TH 0.20689656f        // 6/29
-#define THRESHOLD_CUBED 0.008856452f        // (6/29)^3
-#define OFFSET_4_29TH 0.13793103f           // 4/29
-#define SLOPE_THRESHOLD 7.787037f           // (29/6)^2 / 3
-#define SLOPE_LAB 0.12841855f               // 3*(6/29)^2
+#define THRESHOLD_6_29TH 0.206896551724137931f   // 6/29 (higher precision)
+#define THRESHOLD_CUBED 0.008856451679035631f    // (6/29)^3
+#define OFFSET_4_29TH 0.137931034482758621f      // 4/29 (higher precision)
+#define SLOPE_THRESHOLD 7.787037037037037f       // (29/6)^2 / 3
+#define SLOPE_LAB 0.128418549346016740f          // 3*(6/29)^2 (higher precision)
 
 // https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/color_lab.cpp#L1017
 // L* conversion constants
-#define LTHRESHOLD 0.008856452f             // (6/29)^3
-#define LSCALE 7.787037f                    // (29/6)^2 / 3
-#define LBIAS 0.13793103f                   // 4/29
+#define LTHRESHOLD 0.008856451679035631f        // (6/29)^3
+#define LSCALE 7.787037037037037f               // (29/6)^2 / 3
+#define LBIAS 0.137931034482758621f             // 4/29
 
 // -------------------------------------------------------------------------------------
 // LUT-based color conversion (constant memory for performance)
@@ -153,8 +153,9 @@ __device__ float xyz_to_lab_f_ref(float t) {
 
 __device__ float lab_f_to_xyz(float u) {
   // LUT-based: eliminates branch + cube computation
-  float clamped = fmaxf(0.0f, fminf(u, 1.2f));  // Typical LAB range
-  int idx = __float2int_rn(clamped * (4095.0f / 1.2f));
+  // LUT covers [0, 1.2] range, indexed 0-4095
+  float clamped = fmaxf(0.0f, fminf(u, 1.2f));
+  int idx = __float2int_rn(clamped * (4095.0f / 1.2f));  // Map [0,1.2] -> [0,4095]
   idx = min(idx, 4095);
   return g_lab_to_xyz_lut[idx];
 }
