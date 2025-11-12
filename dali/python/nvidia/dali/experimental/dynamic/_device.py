@@ -18,10 +18,33 @@ from typing import Union, Optional
 
 
 class Device:
+    """
+    Device on which data is stored and operators are executed.
+
+    The device can be either CPU or (specific) GPU.
+    """
+
     _thread_local = local()
 
     def __init__(self, name: str, device_id: int = None):
-        device_type, name_device_id = Device.split_device_type_and_id(name)
+        """
+        Initializes the device object with a name and, optionally, device id.
+
+        .. warning::
+            It's recommended to use :meth:`device` function rather than to construct :class:`Device`
+            directly.
+
+        Args
+        ----
+        name : str
+            The name of the device. It can be either "cpu", "gpu" or "gpu:<id>" where <id> is a
+            CUDA device ordinal, as used by CUDA runtime API (not the absolute index used by NVML).
+        device_id : int, optional
+            The optional device ordinal, as used by CUDA runtime API. If not specified and the name
+            is "gpu", then current CUDA device will be used.
+            This parameter must not be used if the `name` already contains the id.
+        """
+        device_type, name_device_id = Device._split_device_type_and_id(name)
         if name_device_id is not None and device_id is not None:
             raise ValueError(
                 f"Invalid device name: {name}\n"
@@ -34,9 +57,9 @@ class Device:
         if device_type == "cuda":
             device_type = "gpu"
 
-        Device.validate_device_type(device_type)
+        Device._validate_device_type(device_type)
         if device_id is not None:
-            Device.validate_device_id(device_id, device_type)
+            Device._validate_device_id(device_id, device_type)
         else:
             device_id = Device.default_device_id(device_type)
 
@@ -44,7 +67,7 @@ class Device:
         self.device_id = device_id
 
     @staticmethod
-    def split_device_type_and_id(name: str) -> tuple[str, int]:
+    def _split_device_type_and_id(name: str) -> tuple[str, int]:
         type_and_id = name.split(":")
         if len(type_and_id) < 1 or len(type_and_id) > 2:
             raise ValueError(f"Invalid device name: {name}")
@@ -56,6 +79,11 @@ class Device:
 
     @staticmethod
     def default_device_id(device_type: str) -> int:
+        """
+        Returns the default device id for the device type passed as an argument.
+
+        For CPU it's always 0, for GPU it's the current CUDA device.
+        """
         if device_type == "cpu":
             return 0
         elif device_type == "gpu" or device_type == "mixed":  # TODO(michalz): Remove mixed
@@ -64,7 +92,7 @@ class Device:
             raise ValueError(f"Invalid device type: {device_type}")
 
     @staticmethod
-    def validate_device_id(device_id: int, device_type: str):
+    def _validate_device_id(device_id: int, device_type: str):
         if device_id < 0:
             raise ValueError(f"Invalid device id: {device_id}")
         if device_type == "gpu" or device_type == "mixed":  # TODO(michalz): Remove mixed
@@ -75,12 +103,15 @@ class Device:
                 raise ValueError(f"Invalid device id: {device_id} for device type: {device_type}")
 
     @staticmethod
-    def validate_device_type(device_type: str):
+    def _validate_device_type(device_type: str):
         if device_type not in ["cpu", "gpu", "mixed"]:  # TODO(michalz): Remove mixed
             raise ValueError(f"Invalid device type: {device_type}")
 
     @staticmethod
     def type_from_dlpack(dev_type) -> str:
+        """
+        Gets the device type string froma DLPack device type enum value.
+        """
         dev_type_id = int(dev_type)
         if dev_type_id == 1:
             return "cpu"
@@ -91,10 +122,16 @@ class Device:
 
     @staticmethod
     def from_dlpack(dlpack_device) -> "Device":
+        """
+        Creates a :class:`Device` object form a DLPack device descriptor.
+        """
         dev_type, dev_id = dlpack_device.__dlpack_device__()
         return Device(Device.type_from_dlpack(dev_type), dev_id)
 
     def __str__(self):
+        """
+        Returns the device name, in a format that can be passed to `Device` constructor.
+        """
         return f"{self.device_type}:{self.device_id}"
 
     def __repr__(self):
@@ -111,6 +148,11 @@ class Device:
 
     @staticmethod
     def current():
+        """
+        Returns the device on top of the thread-local device stack.
+
+        If the stack is empty, returns the default GPU for the calling thread.
+        """
         if not Device._thread_local.devices:
             return Device("gpu")
         return Device._thread_local.devices[-1]

@@ -344,7 +344,7 @@ def build_call_function(schema, op_class):
                 )
             ):
                 # Evaluate immediately
-                invocation.run(_eval_context.EvalContext.get())
+                invocation.run(_eval_context.EvalContext.current())
             else:
                 pass
                 # Lazy evaluation

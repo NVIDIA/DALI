@@ -259,7 +259,7 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC OperatorBase *GetOperator(std::string_view instance_name);
 
   /**
-   * @brief Rreturns an input graph node with a given name
+   * @brief Returns an input graph node with a given name
    */
   DLL_PUBLIC const graph::OpNode *GetInputOperatorNode(std::string_view name);
 
