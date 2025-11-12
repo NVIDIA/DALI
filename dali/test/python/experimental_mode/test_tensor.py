@@ -21,13 +21,13 @@ from nose_utils import assert_raises
 
 
 def asnumpy(tensor):
-    return np.array(tensor.cpu().evaluate()._backend)
+    return np.array(tensor.cpu().evaluate()._storage)
 
 
 def test_from_numpy():
     data = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.uint8)
     t = ndd.Tensor(data)
-    a = np.array(t._backend)
+    a = np.array(t._storage)
     assert np.array_equal(data, a)
 
 
@@ -43,7 +43,7 @@ def test_from_torch(src_device, dst_device):
 
     data = torch.tensor([[1, 2, 3], [4, 5, 6]], device=src_device)
     t = ndd.Tensor(data, device=dst_device).evaluate()
-    a = torch.from_dlpack(t._backend)
+    a = torch.from_dlpack(t._storage)
     if src_device == "cuda":
         a = a.cuda()
     elif src_device == "cpu":
@@ -55,10 +55,10 @@ def test_device_change():
     data = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.uint8)
     c1 = ndd.Tensor(data)
     g = c1.gpu().evaluate()
-    assert isinstance(g._backend, _b.TensorGPU)
+    assert isinstance(g._storage, _b.TensorGPU)
     c2 = g.cpu().evaluate()
-    assert isinstance(c2._backend, _b.TensorCPU)
-    assert np.array_equal(c2._backend, data)
+    assert isinstance(c2._storage, _b.TensorCPU)
+    assert np.array_equal(c2._storage, data)
 
 
 @attr("multi_gpu")
@@ -68,13 +68,13 @@ def test_device_change_multi_gpu():
     data = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.uint8)
     c1 = ndd.Tensor(data)
     g1 = c1.gpu(0).evaluate()
-    assert isinstance(g1._backend, _b.TensorGPU)
-    assert g1._backend.device_id() == 0
+    assert isinstance(g1._storage, _b.TensorGPU)
+    assert g1._storage.device_id() == 0
     g2 = c1.gpu(1).evaluate()
-    assert g2._backend.device_id() == 1
+    assert g2._storage.device_id() == 1
     c2 = g2.cpu().evaluate()
-    assert isinstance(c2._backend, _b.TensorCPU)
-    assert np.array_equal(c2._backend, data)
+    assert isinstance(c2._storage, _b.TensorCPU)
+    assert np.array_equal(c2._storage, data)
 
 
 @params(("cpu",), ("gpu",))
@@ -88,13 +88,13 @@ def test_tensor_converting_constructor(device_type):
     fp32 = ndd.Tensor(data, device=device_type, dtype=ndd.float32)
     assert orig.dtype == ndd.float64
     assert orig.device == ndd.Device(device_type)
-    assert orig._backend.dtype == ndd.float64.type_id
+    assert orig._storage.dtype == ndd.float64.type_id
     assert i32.dtype == ndd.int32
     assert i32.device == ndd.Device(device_type)
-    assert i32._backend.dtype == ndd.int32.type_id
+    assert i32._storage.dtype == ndd.int32.type_id
     assert fp32.dtype == ndd.float32
     assert fp32.device == ndd.Device(device_type)
-    assert fp32._backend.dtype == ndd.float32.type_id
+    assert fp32._storage.dtype == ndd.float32.type_id
     assert np.array_equal(data, asnumpy(orig))
     assert np.array_equal(data_i32, asnumpy(i32))
     assert np.array_equal(data_fp32, asnumpy(fp32))
@@ -104,25 +104,25 @@ def test_tensor_converting_constructor(device_type):
 def test_tensor_makes_copy(device_type):
     data = np.array([1, 2, 3], dtype=np.int32)
     src = ndd.Tensor(data, device=device_type)
-    dst = ndd.tensor(src._backend)
-    assert dst._backend is not src._backend
-    assert dst._backend.data_ptr() != src._backend.data_ptr()
+    dst = ndd.tensor(src._storage)
+    assert dst._storage is not src._storage
+    assert dst._storage.data_ptr() != src._storage.data_ptr()
 
 
 @params(("cpu",), ("gpu",))
 def test_as_tensor_doesnt_make_copy(device_type):
     data = np.array([1, 2, 3], dtype=np.int32)
     src = ndd.Tensor(data, device=device_type)
-    dst = ndd.as_tensor(src._backend)
-    assert dst._backend.data_ptr() == src._backend.data_ptr()
+    dst = ndd.as_tensor(src._storage)
+    assert dst._storage.data_ptr() == src._storage.data_ptr()
 
 
 @params(("cpu",), ("gpu",))
 def test_as_tensor_with_conversion(device_type):
     data = np.array([1, 2, 3], dtype=np.int32)
     src = ndd.Tensor(data, device=device_type)
-    dst = ndd.as_tensor(src._backend, dtype=ndd.float32)
-    assert dst._backend.dtype == ndd.float32.type_id
+    dst = ndd.as_tensor(src._storage, dtype=ndd.float32)
+    assert dst._storage.dtype == ndd.float32.type_id
     assert np.array_equal(data.astype(np.float32), asnumpy(dst))
 
 
@@ -145,7 +145,7 @@ def test_scalar():
     assert scalar.dtype == ndd.int32
     assert scalar.device == ndd.Device("cpu")
     assert scalar.layout is None
-    assert scalar._backend.dtype == ndd.int32.type_id
+    assert scalar._storage.dtype == ndd.int32.type_id
 
 
 def test_shapes():

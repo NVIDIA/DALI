@@ -128,6 +128,18 @@ def _arithm_op(name, *args, **kwargs):
 
 
 class _TensorList:
+    # `_TensorList` is what you get from `batch.tensors`.
+    # `_TensorList` is private because it's never meant to be constructed by the user and merely
+    # serves as an indexable proxy for tensor access. It's not a plain Python list because the
+    # individual `Tensor` objects are created on demand - for example, if your Batch is a result
+    # of running an operator, it will wrap a TensorListCPU/GPU. Accessing a single sample will
+    # create just one Tensor object, not `batch_size` of them. One can imagine that at least some
+    # users will use 0-th tensor to inspect some properties (instead of doing it on the arguably
+    # less familiar batch level) and `_TensorList` will facilitate that without the overhead of
+    # going over the entire batch. Returning a regular Python list would require us to eagerly
+    # populate it - and even worse, we'd have to copy it each time, because otherwise a user
+    # could try something like `batch.tensors.append(T)` which would make the list inconsistent.
+
     def __init__(self, batch: "Batch", indices: Optional[Union[list[int], range]] = None):
         self._batch = batch
         self._indices = indices or range(batch.batch_size)
@@ -139,6 +151,12 @@ class _TensorList:
         return len(self._indices)
 
     def select(self, selection):
+        """
+        Selects a range of samples.
+
+        The result of this function is either a :class:`_TensorList` (if `selection` is a `slice` or
+        a `list`) or a :class:`Tensor` if `selection` is a number.
+        """
         if selection == slice(None, None, None):
             return self
         if isinstance(selection, slice):
@@ -151,11 +169,29 @@ class _TensorList:
     def tolist(self):
         return [self._batch._get_tensor(i) for i in self._indices]
 
-    def as_batch(self):
-        return as_batch(self)
+    def as_batch(self, copy: bool = False):
+        """
+        Converts the list of tensors to a :class:`Batch` object.
+        """
+        return batch(self) if copy else as_batch(self)
 
 
 class Batch:
+    """A Batch object.
+
+    This class represents a batch of tensors usable with DALI dynamic API. The tensors in the batch
+    have the same element type, layout and number of dimensions, but can differ in shape.
+
+    A Batch can contain:
+
+    * a single buffer and shape, owned by DALI, representing consecutive tensors
+    * a list of :class:`Tensor` objects.
+    * a result of a lazy evaluation of a DALI operator.
+
+    In case of lazy evaluation, the operations are executed only after an attempt is made to access
+    the tensor data or properties which cannot be obtained without running the underlying operation.
+    """
+
     def __init__(
         self,
         tensors: Optional[Any] = None,
@@ -166,7 +202,10 @@ class Batch:
         copy: bool = False,
     ):
         """Constructs a Batch object.
-        Batch objects should not be constructed directly, use batch or as_batch instead.
+
+        .. warning::
+            Batch objects should not be constructed directly, use :meth:`batch` or
+            :meth:`as_batch` instead.
 
         The batch object can be created either from an existing object, passed as `tensors` or
         from an invocation result.
@@ -203,11 +242,13 @@ class Batch:
         if device is not None and not isinstance(device, Device):
             device = _device(device)
         self._wraps_external_data = False
-        self._tensors = None
-        self._backend = None
+        self._tensors = None  # The list of Tensor objects that comprise the batch.
+        # This list is populated lazily when the batch contains a TensorList
+        # or when it is a result of a batch operator invocation.
+        self._storage = None  # The backing storage of the batch, TensorListCPU or TensorListGPU.
         self._dtype = None
         self._device = None
-        self._invocation_result = None
+        self._invocation_result = None  # The result of a DALI operator invocation.
         copied = False
         if tensors is not None:
             if isinstance(tensors, (_backend.TensorListCPU, _backend.TensorListGPU)):
@@ -217,7 +258,7 @@ class Batch:
                     and (dtype is None or dtype.type_id == tensors.dtype)
                     and (layout is None or layout == tensors.layout())
                 ):
-                    self._backend = tensors
+                    self._storage = tensors
                     self._device = backend_dev
                     self._layout = tensors.layout()
                     self._dtype = _dtype(tensors.dtype)
@@ -231,9 +272,9 @@ class Batch:
 
                         tmp = cast(tmp, dtype=dtype, device=device)
                         copied = True
-                    self.assign(tmp)
-                    if self._backend and layout:
-                        self._backend.set_layout(layout)
+                    self._assign(tmp)
+                    if self._storage and layout:
+                        self._storage.set_layout(layout)
             elif _is_tensor_type(tensors):
                 if copy:
                     t = _tensor(tensors, dtype=dtype, device=device, layout=layout)
@@ -247,11 +288,11 @@ class Batch:
                     device = t.device
                 if layout is None:
                     layout = t.layout
-                if t._backend is not None:
-                    if isinstance(t._backend, _backend.TensorCPU):
-                        self._backend = _backend.TensorListCPU(t._backend, layout=layout)
-                    elif isinstance(t._backend, _backend.TensorGPU):
-                        self._backend = _backend.TensorListGPU(t._backend, layout=layout)
+                if t._storage is not None:
+                    if isinstance(t._storage, _backend.TensorCPU):
+                        self._storage = _backend.TensorListCPU(t._storage, layout=layout)
+                    elif isinstance(t._storage, _backend.TensorGPU):
+                        self._storage = _backend.TensorListGPU(t._storage, layout=layout)
                     else:
                         raise ValueError(f"Unsupported device type: {t.device.device_type}")
                     if t._wraps_external_data:
@@ -279,7 +320,7 @@ class Batch:
                     if sample._wraps_external_data:
                         self._wraps_external_data = True
                     else:
-                        if not isinstance(t, Tensor) or t._backend is not sample._backend:
+                        if not isinstance(t, Tensor) or t._storage is not sample._storage:
                             copied = True
                 if dtype is None:
                     # We would have set dtype in the 1st iteration, so the only way it can
@@ -300,16 +341,21 @@ class Batch:
                             backend_type = _backend.TensorListCPU
                         elif self._device.device_type == "gpu":
                             backend_type = _backend.TensorListGPU
-                        self._backend = backend_type(t._backend, layout=layout)
+                        else:
+                            raise ValueError(
+                                f"Internal error: "
+                                f"Unsupported device type: {self._device.device_type}"
+                            )
+                        self._storage = backend_type(t._storage, layout=layout)
 
         if self._dtype is None:
-            if self._backend is not None:
-                self._dtype = DType.from_type_id(self._backend.dtype)
+            if self._storage is not None:
+                self._dtype = DType.from_type_id(self._storage.dtype)
             else:
                 self._dtype = dtype
         if self._device is None:
-            if self._backend is not None:
-                self._device = _backend_device(self._backend)
+            if self._storage is not None:
+                self._device = _backend_device(self._storage)
             else:
                 self._device = device
         self._layout = layout
@@ -327,13 +373,13 @@ class Batch:
                 from . import cast
 
                 dev = cast(dev, dtype=dtype, device=device)
-            self.assign(dev.evaluate())
+            self._assign(dev.evaluate())
             copied = True
         else:
             if self._dtype is not None and dtype is not None and self._dtype != dtype:
                 from . import cast
 
-                self.assign(cast(self, dtype=dtype, device=device))
+                self._assign(cast(self, dtype=dtype, device=device))
 
         if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
             self.evaluate()
@@ -343,6 +389,17 @@ class Batch:
 
     @staticmethod
     def broadcast(sample, batch_size: int, device: Optional[Device] = None) -> "Batch":
+        """
+        Creates a batch by repeating a single `sample` `batch_size` times.
+
+        This function returns a batch obtained by repeating the sample `sample` `batch_size` times.
+        Optionally, the result may be placed on the specified device (otherwise it will inherit the
+        device from the `sample` argument).
+
+        This function yields result equivalent to
+        ``as_batch([tensor(sample)] * batch_size, device=device)``
+        but is much more efficient.
+        """
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
@@ -351,7 +408,7 @@ class Batch:
                 tl_type = _backend.TensorListGPU
             else:
                 tl_type = _backend.TensorListCPU
-            return Batch(tl_type.broadcast(t._backend, batch_size))
+            return Batch(tl_type.broadcast(t._storage, batch_size))
         import numpy as np
 
         with nvtx.annotate("to numpy and stack", domain="batch"):
@@ -376,9 +433,12 @@ class Batch:
 
     @property
     def dtype(self) -> DType:
+        """
+        The element type of the tensors in the batch.
+        """
         if self._dtype is None:
-            if self._backend is not None:
-                self._dtype = DType.from_type_id(self._backend.dtype)
+            if self._storage is not None:
+                self._dtype = DType.from_type_id(self._storage.dtype)
             elif self._invocation_result is not None:
                 self._dtype = _dtype(self._invocation_result.dtype)
             elif self._tensors:
@@ -389,6 +449,9 @@ class Batch:
 
     @property
     def device(self) -> Device:
+        """
+        The device on which the batch resides (or will reside, in case of lazy evaluation).
+        """
         if self._device is None:
             if self._invocation_result is not None:
                 self._device = self._invocation_result.device
@@ -400,11 +463,17 @@ class Batch:
 
     @property
     def layout(self) -> str:
+        """
+        The layout of tensors in the batch.
+
+        The "batch dimension" (commonly denoted as N) is not included - a batch of HWC images
+        will have HWC layout, not NHWC.
+        """
         if self._layout is None:
             if self._invocation_result is not None:
                 self._layout = self._invocation_result.layout
-            elif self._backend is not None:
-                self._layout = self._backend.layout()
+            elif self._storage is not None:
+                self._layout = self._storage.layout()
                 if self._layout == "" and self.ndim != 0:
                     self._layout = None
             elif self._tensors:
@@ -418,9 +487,14 @@ class Batch:
 
     @property
     def ndim(self) -> int:
+        """
+        The number of dimensions of the samples in the batch.
+
+        The "batch dimension" is not included - e.g. a batch of HWC is still a 3D object.
+        """
         if self._ndim is None:
-            if self._backend is not None:
-                self._ndim = self._backend.ndim()
+            if self._storage is not None:
+                self._ndim = self._storage.ndim()
             elif self._invocation_result is not None:
                 self._ndim = self._invocation_result.ndim
             elif self._tensors:  # not None and not empty
@@ -431,9 +505,18 @@ class Batch:
 
     @property
     def tensors(self):
+        """
+        Returns an indexable list of :class:`Tensor` objects that comprise the batch.
+        """
         return _TensorList(self)
 
     def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
+        """
+        Returns the data batch on the specified device.
+
+        If the batch already resides on the device specified, the function will return `self`
+        unless a copy is explicitly requested by passing ``force_copy=True``
+        """
         if device is not None and not isinstance(device, Device):
             device = _device(device)
         if self.device == device and not force_copy:
@@ -446,18 +529,26 @@ class Batch:
                 return ret
 
     def cpu(self) -> "Batch":
+        """
+        Returns the batch on the CPU. If it's already there, this function returns `self`.
+        """
         return self.to_device(Device("cpu"))
 
     def gpu(self, index: Optional[int] = None) -> "Batch":
+        """
+        Returns the batch on the GPU. If it's already there, this function returns `self`.
+
+        If index is not specified, the current CUDA device is used.
+        """
         return self.to_device(Device("gpu", index))
 
-    def assign(self, other: "Batch"):
+    def _assign(self, other: "Batch"):
         if other is self:
             return
         self._device = other._device
         self._dtype = other._dtype
         self._layout = other._layout
-        self._backend = other._backend
+        self._storage = other._storage
         if other._tensors is not None:
             self._tensors = [t for t in other._tensors]  # copy the list
         else:
@@ -492,9 +583,19 @@ class Batch:
         return BatchedSlice(self)
 
     def __iter__(self):
+        """
+        Iterates over tensors in the batch.
+        """
         return iter(self.tensors)
 
-    def select(self, r):
+    def select(self, sample_range):
+        """
+        Selects a range of samples.
+
+        The result of this function is either a :class:`Batch` (if `sample_range` is a `slice` or a
+        `list`) or a :class:`Tensor` if `sample_range` is a number.
+        """
+        r = sample_range
         if r is ...:
             return self
         if isinstance(r, slice):
@@ -511,8 +612,8 @@ class Batch:
         t = self._tensors[i]
         if t is None:
             t = self._tensors[i] = Tensor(batch=self, index_in_batch=i)
-            if self._backend:
-                t._backend = self._backend[i]
+            if self._storage:
+                t._storage = self._storage[i]
         return t
 
     def _plain_slice(self, ranges):
@@ -533,8 +634,11 @@ class Batch:
 
     @property
     def batch_size(self) -> int:
-        if self._backend is not None:
-            return len(self._backend)
+        """
+        The number of tensors in the batch.
+        """
+        if self._storage is not None:
+            return len(self._storage)
         elif self._tensors is not None:
             return len(self._tensors)
         elif self._invocation_result is not None:
@@ -544,22 +648,51 @@ class Batch:
 
     @property
     def shape(self):
+        """
+        The shape of the batch.
+
+        Returns the list of shapes of individual samples.
+
+        Example::
+
+        ```
+        >>> import nvidia.dali.experimental.dynamic as ndd
+        >>> import numpy as np
+        >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
+        >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
+        >>> b = ndd.as_batch([t0, t1])
+        >>> print(b.shape)
+        [(480, 640, 3), (720, 1280, 1)]
+        ```
+        """
         if self._invocation_result is not None:
             return self._invocation_result.shape
-        if self._backend is not None:
-            return self._backend.shape()
+        if self._storage is not None:
+            return self._storage.shape()
         else:
             assert self._tensors is not None
             return [t.shape for t in self._tensors]
 
     def __str__(self) -> str:
-        return "Batch(\n" + str(self.evaluate()._backend) + ")"
+        return "Batch(\n" + str(self.evaluate()._storage) + ")"
 
     def evaluate(self):
-        with _EvalContext.get() as ctx:
-            if self._backend is None:
+        """
+        Evaluates the underlying lazy expression, if any.
+
+        If the batch is a result of a lazy evaluation, calling `evaluate` will cause the expression
+        to be evaluated. If the batch already contains concrete data, this function has no effect.
+
+        The behavior of this function is affected by the current evaluation context and current
+        device. See :class:`EvalContext` and :class:`Device` for details.
+
+        The function returns `self`.
+        """
+        if self._storage is None:
+            # TODO(michalz): Consider thread-safety
+            with _EvalContext.current() as ctx:
                 if self._invocation_result is not None:
-                    self._backend = self._invocation_result.value(ctx)
+                    self._storage = self._invocation_result.value(ctx)
                 else:
                     with self._device:
                         if self._device.device_type == "cpu":
@@ -571,8 +704,8 @@ class Batch:
                                 f"Internal error: "
                                 f"Unsupported device type: {self._device.device_type}"
                             )
-                        self._backend = backend_type(
-                            [t.evaluate()._backend for t in self._tensors], self.layout
+                        self._storage = backend_type(
+                            [t.evaluate()._storage for t in self._tensors], self.layout
                         )
         return self
 

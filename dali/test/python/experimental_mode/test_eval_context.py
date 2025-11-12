@@ -20,15 +20,15 @@ from nose_utils import SkipTest, attr
 def test_eval_context_get():
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
-    ctx = ndd.EvalContext.get()
+    ctx = ndd.EvalContext.current()
     assert ctx is not None
-    assert ndd.EvalContext.get() is ctx  # get() should not create another context
+    assert ndd.EvalContext.current() is ctx  # get() should not create another context
     assert ctx.device_id == _backend.GetCUDACurrentDevice()
     s = ctx.cuda_stream
     assert s is not None
     assert ctx.cuda_stream is s
     assert ctx is ndd.EvalContext.default()
-    assert ndd.EvalContext.get().cuda_stream == s  # get() should not recreate the stream
+    assert ndd.EvalContext.current().cuda_stream == s  # get() should not recreate the stream
 
 
 def test_eval_context_context_manager():
@@ -48,7 +48,7 @@ def test_eval_context_context_manager():
 
 
 def test_eval_context_explicit_stream():
-    with ndd.EvalContext.get() as ctx:
+    with ndd.EvalContext.current() as ctx:
         s = ctx.cuda_stream
         s2 = _backend.Stream(0)
         with ndd.EvalContext(cuda_stream=s2) as ctx2:
@@ -98,7 +98,7 @@ def test_eval_context_evaluate_all():
 # TODO(michalz): Result caching disabled due to a bug. It needs a redesign.
 
 # def test_eval_context_cached_results():
-#     with ndd.EvalContext.get() as ctx:
+#     with ndd.EvalContext.current() as ctx:
 #         inv = PseudoInvocation(42)
 #         assert ctx.cached_results(inv) is None
 #         inv.run(ctx)

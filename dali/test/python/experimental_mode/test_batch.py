@@ -53,7 +53,7 @@ def test_batch_construction(device_type):
     assert not np.array_equal(asnumpy(b.tensors[1]), t1)
 
     b.evaluate()
-    assert b._backend.layout() == "AB"
+    assert b._storage.layout() == "AB"
 
 
 @params(("cpu",), ("gpu",))
@@ -102,7 +102,7 @@ def test_batch_as_batch(device_type):
 def test_broadcast():
     a = np.array([1, 2, 3])
     b = ndd.Batch.broadcast(a, 5).evaluate()
-    for i, t in enumerate(b._backend):
+    for i, t in enumerate(b._storage):
         assert np.array_equal(np.array(t), a)
 
 
@@ -128,7 +128,7 @@ def test_batch_construction_with_torch_tensor(device_type):
     assert b.ndim == 1
     assert b.shape == [(3,), (3,)]
     assert b.layout is None
-    ref = torch.from_dlpack(ndd.as_tensor(b)._backend)
+    ref = torch.from_dlpack(ndd.as_tensor(b)._storage)
     assert torch.equal(data[0], ref[0])
     assert torch.equal(data[1], ref[1])
 
@@ -155,17 +155,17 @@ def test_batch_construction_with_conversion(device_type):
     # convert from a list of tensors
     i32 = ndd.Batch(data, device=device_type, dtype=ndd.int32).evaluate()
     # convert from a TensorList object
-    fp32 = ndd.Batch(orig._backend, device=device_type, dtype=ndd.float32)
+    fp32 = ndd.Batch(orig._storage, device=device_type, dtype=ndd.float32)
     fp32.evaluate()
     assert orig.dtype == ndd.float64
     assert orig.device == ndd.Device(device_type)
-    assert orig._backend.dtype == ndd.float64.type_id
+    assert orig._storage.dtype == ndd.float64.type_id
     assert i32.dtype == ndd.int32
     assert i32.device == ndd.Device(device_type)
-    assert i32._backend.dtype == ndd.int32.type_id
+    assert i32._storage.dtype == ndd.int32.type_id
     assert fp32.dtype == ndd.float32
     assert fp32.device == ndd.Device(device_type)
-    assert fp32._backend.dtype == ndd.float32.type_id
+    assert fp32._storage.dtype == ndd.float32.type_id
     assert batch_equal(data, asnumpy(orig))
     assert batch_equal(data_i32, asnumpy(i32))
     assert batch_equal(data_fp32, asnumpy(fp32))
