@@ -172,7 +172,7 @@ class Operator:
             return
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.get()
+            ctx = _eval_context.EvalContext.current()
         with self._device:
             with ctx:
                 self._init_spec(inputs, args)
@@ -226,9 +226,9 @@ class Operator:
         self._init_backend(ctx, inputs, args)
         workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
         for i, input in enumerate(inputs):
-            workspace.AddInput(self._to_batch(input).evaluate()._backend)
+            workspace.AddInput(self._to_batch(input).evaluate()._storage)
         for name, arg in args.items():
-            workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._backend)
+            workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._storage)
         self._op_backend.SetupAndRun(workspace, batch_size)
         out = workspace.GetOutputs()
         if is_batch:
@@ -357,6 +357,11 @@ class Reader(Operator):
             )
 
     def run(self, ctx=None, *inputs, **args):
+        """
+        Runs the reader and obtains one result (batch or sample, depending on `batch_size`).
+
+        Do not call this function directly. Use `__call__` instead.
+        """
         if self._api_type is None:
             self._api_type = "run"
         elif self._api_type != "run":
@@ -367,6 +372,21 @@ class Reader(Operator):
         return super().run(ctx, *inputs, **args)
 
     def next_epoch(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+        """
+        Obtains an iterator that goes over the next epoch from the reader.
+
+        The return value is an iterator that returns either individual samples (if `batch_size` is
+        ``None`` and was not specified at construction) or batches (if `batch_size` was specified
+        here or at construction).
+
+        This iterator will go over the dataset (or shard, if sharding was specified at construction)
+        once.
+
+        .. note::
+            The iterator must be traversed completely before the next call to `next_epoch` is made.
+            Therefore, it is impossible to traverse one reader using two iterators.
+            If another iterator is necessary, create a separate reader instance.
+        """
         if batch_size is None:
             batch_size = self._batch_size
         if batch_size is not None:
@@ -383,7 +403,7 @@ class Reader(Operator):
             )
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.get()
+            ctx = _eval_context.EvalContext.current()
         with ctx:
             if not self._is_backend_initialized():
                 if self._actual_batch_size is None:
@@ -409,7 +429,7 @@ class Reader(Operator):
             raise RuntimeError("Cannot mix samples(), batches() and run() on the same reader.")
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.get()
+            ctx = _eval_context.EvalContext.current()
         with ctx:
             if batch_size is None:
                 batch_size = self._batch_size

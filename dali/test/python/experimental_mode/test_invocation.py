@@ -128,19 +128,19 @@ def test_mock_operator_tensor():
     assert op.infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
     assert op.infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
 
-    out = op.run(ndd.EvalContext().get(), addend=a)
+    out = op.run(ndd.EvalContext.current(), addend=a)
     assert out == (MockTensor(np.int32([10, 20, 30])),)
 
-    out = op.run(ndd.EvalContext().get(), b1, addend=a)
+    out = op.run(ndd.EvalContext.current(), b1, addend=a)
     assert out == (MockTensor(np.int32([11, 22, 33])),)
 
-    out = op.run(ndd.EvalContext().get(), b1, b2, addend=a)
+    out = op.run(ndd.EvalContext.current(), b1, b2, addend=a)
     assert out == (
         MockTensor(np.int32([11, 22, 33])),
         MockTensor(np.int32([14, 25, 36])),
     )
 
-    out = op.run(ndd.EvalContext().get(), b1, b2, b3, addend=a)
+    out = op.run(ndd.EvalContext.current(), b1, b2, b3, addend=a)
     assert out == (
         MockTensor(np.int32([11, 22, 33])),
         MockTensor(np.int32([14, 25, 36])),
@@ -160,19 +160,19 @@ def test_mock_operator_batch():
     assert op.infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
     assert op.infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
 
-    out = op.run(ndd.EvalContext().get(), addend=a, batch_size=1)
+    out = op.run(ndd.EvalContext.current(), addend=a, batch_size=1)
     assert out == (MockBatch([MockTensor(np.int32([10, 20, 30]))]),)
 
-    out = op.run(ndd.EvalContext().get(), b1, addend=a, batch_size=1)
+    out = op.run(ndd.EvalContext.current(), b1, addend=a, batch_size=1)
     assert out == (MockBatch([MockTensor(np.int32([11, 22, 33]))]),)
 
-    out = op.run(ndd.EvalContext().get(), b1, b2, addend=a, batch_size=1)
+    out = op.run(ndd.EvalContext.current(), b1, b2, addend=a, batch_size=1)
     assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36]))]),
     )
 
-    out = op.run(ndd.EvalContext().get(), b1, b2, b3, addend=a, batch_size=1)
+    out = op.run(ndd.EvalContext.current(), b1, b2, b3, addend=a, batch_size=1)
     assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36]))]),
@@ -188,8 +188,8 @@ def test_invocation_tensor():
     a = MockTensor(np.int32([10, 20, 30]))
 
     inv = Invocation(op, 0, inputs=[b1, b2, b3], args={"addend": a}, is_batch=False)
-    inv.run(ndd.EvalContext().get())
-    assert inv.values(ndd.EvalContext().get()) == (
+    inv.run(ndd.EvalContext.current())
+    assert inv.values(ndd.EvalContext.current()) == (
         MockTensor(np.int32([11, 22, 33])),
         MockTensor(np.int32([14, 25, 36])),
         MockTensor(np.int32([17, 28, 39])),
@@ -204,8 +204,8 @@ def test_invocation_batch():
     a = MockBatch([MockTensor(np.int32([10, 20, 30])), MockTensor(np.int32([100, 200]))])
 
     inv = Invocation(op, 0, inputs=[b1, b2, b3], args={"addend": a}, is_batch=True)
-    inv.run(ndd.EvalContext().get())
-    assert inv.values(ndd.EvalContext().get()) == (
+    inv.run(ndd.EvalContext.current())
+    assert inv.values(ndd.EvalContext.current()) == (
         MockBatch([MockTensor(np.int32([11, 22, 33])), MockTensor(np.int32([133, 244]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36])), MockTensor(np.int32([155, 266]))]),
         MockBatch([MockTensor(np.int32([17, 28, 39])), MockTensor(np.int32([177, 288]))]),
@@ -223,12 +223,12 @@ def test_invocation_lazy_result():
     # no explicit .run call
 
     # automatic lazy evaluation by accessing the result
-    assert inv[0].value(ndd.EvalContext().get()) == MockBatch(
+    assert inv[0].value(ndd.EvalContext.current()) == MockBatch(
         [MockTensor(np.int32([11, 22, 33])), MockTensor(np.int32([133, 244]))]
     )
-    assert inv[1].value(ndd.EvalContext().get()) == MockBatch(
+    assert inv[1].value(ndd.EvalContext.current()) == MockBatch(
         [MockTensor(np.int32([14, 25, 36])), MockTensor(np.int32([155, 266]))]
     )
-    assert inv[2].value(ndd.EvalContext().get()) == MockBatch(
+    assert inv[2].value(ndd.EvalContext.current()) == MockBatch(
         [MockTensor(np.int32([17, 28, 39])), MockTensor(np.int32([177, 288]))]
     )

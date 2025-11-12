@@ -21,12 +21,40 @@ _tls = local()
 _tls.default = None
 _tls.stack = []
 
-default_num_threads = 4
+
+def _default_num_threads():
+    # TODO(michalz): implement some more elaborate logic here
+    return 4
 
 
 class EvalContext:
+    """
+    Evaluation context for DALI dynamic API.
 
-    def __init__(self, num_threads=None, device_id=None, cuda_stream=None):
+    This class aggregates state and auxiliary objects that are necessary to execute DALI operators.
+    These include:
+    - CUDA device
+    - thread pool
+    - cuda stream.
+
+    EvalContext is a context manager.
+    """
+
+    def __init__(self, *, num_threads=None, device_id=None, cuda_stream=None):
+        """
+        Constructs an EvalContext object.
+
+        Keyword Args
+        ------------
+        num_threads : int, optional
+            The number of threads in the new thread pool that will be associated with the context.
+        device_id : int, optional
+            The ordinal of the GPU associated with the context. If not specified, the current CUDA
+            device will be used.
+        cuda_stream : dali.backend.Stream, __cuda_stream__ interface or raw stream handle, optional
+            The cuda_stream on which GPU operators will be executed. If not provided, a new stream
+            will be created.
+        """
         self._invocations = []
         self._cuda_stream = cuda_stream
         if device_id is None:
@@ -42,10 +70,13 @@ class EvalContext:
         if self._cuda_stream is None and self._device.device_type == "gpu":
             self._cuda_stream = _b.Stream(self._device.device_id)
 
-        self._thread_pool = _b._ThreadPool(num_threads or default_num_threads)
+        self._thread_pool = _b._ThreadPool(num_threads or _default_num_threads())
 
     @staticmethod
     def current():
+        """
+        Returns the currently active EvalContext for the calling thread.
+        """
         return _tls.stack[-1] if _tls.stack else EvalContext.default()
 
     def __enter__(self):
@@ -53,6 +84,7 @@ class EvalContext:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        assert _tls.stack[-1] is self
         _tls.stack.pop()
         if EvalContext.current() is not self:
             self.evaluate_all()
@@ -71,15 +103,17 @@ class EvalContext:
 
     @property
     def device_id(self):
+        """
+        CUDA device ordinal of the device associated with this EvalContext.
+        """
         return self._device.device_id
 
     @property
     def cuda_stream(self):
+        """
+        CUDA stream for this EvalContext
+        """
         return self._cuda_stream
-
-    @staticmethod
-    def get():
-        return EvalContext.current() or EvalContext.default()
 
     @staticmethod
     def default():
@@ -88,6 +122,9 @@ class EvalContext:
         return _tls.default
 
     def cached_results(self, invocation):
+        """
+        Reserved for future use
+        """
         # TODO(michalz): Implement something that doesn't leak memory
         # if invocation in self._cached_results:
         #     return self._cached_results[invocation]
@@ -96,6 +133,9 @@ class EvalContext:
         return None
 
     def cache_results(self, invocation, results):
+        """
+        Reserved for future use
+        """
         pass  # TODO(michalz): Implement something that doesn't leak memory
 
     def _add_invocation(self, invocation, weak=True):
