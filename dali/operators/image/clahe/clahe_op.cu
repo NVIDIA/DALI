@@ -84,6 +84,30 @@
 #define LBIAS 0.137931034482758621f             // 4/29
 
 // -------------------------------------------------------------------------------------
+// CLAHE optimization thresholds
+// -------------------------------------------------------------------------------------
+
+// Threshold for selecting warp-optimized histogram kernel vs standard version.
+// Below 1024 pixels/tile: overhead of warp-private histograms outweighs atomic contention benefits
+// Above 1024 pixels/tile: reduced atomic contention provides 2-3x speedup
+// At ~1024 pixels/tile with 512 threads, sufficient work exists to amortize extra shared memory
+// usage ((warps_per_block + 1) * 256 * 4 bytes vs 256 * 4 bytes).
+constexpr int kWarpOptimizationThreshold = 1024;  // pixels per tile
+
+// Threshold for selecting mega-fused kernel (hist+clip+cdf+lut) vs separate kernel pipeline.
+// Below 16 tiles: launch overhead and reduced parallelism make fusion inefficient
+// At 16+ tiles: sufficient concurrent work to hide fusion overhead and benefit from
+// eliminated intermediate memory traffic (saves ~2 kernel launches + histogram/CDF memory I/O).
+constexpr int kMegaFusionTileThreshold = 16;  // number of tiles
+
+// Thresholds for selecting optimized vectorized LUT application kernel.
+// Requires both sufficient tiles (32+) for concurrent execution AND sufficient pixels (16384+)
+// to amortize vectorization overhead. Below these thresholds, the simpler non-vectorized
+// kernel provides better performance due to lower register pressure and launch overhead.
+constexpr int kLutOptimizationTileThreshold = 32;   // number of tiles
+constexpr int kLutOptimizationPixelThreshold = 16384;  // total pixels (128x128 or equivalent)
+
+// -------------------------------------------------------------------------------------
 // LUT-based color conversion (constant memory for performance)
 // -------------------------------------------------------------------------------------
 
@@ -604,9 +628,8 @@ __global__ void hist_per_tile_256_kernel(const uint8_t *__restrict__ y_plane, in
 
 void LaunchHistPerTile256(const uint8_t *y_plane, int H, int W, int tiles_x, int tiles_y,
                           unsigned int *histograms, cudaStream_t stream) {
-  // Use warp-optimized version for larger tiles (where contention is higher)
   int tile_area = dali::div_ceil(W, tiles_x) * dali::div_ceil(H, tiles_y);
-  if (tile_area >= 1024) {  // Threshold where warp optimization pays off
+  if (tile_area >= kWarpOptimizationThreshold) {
     LaunchHistPerTile256WarpOptimized(y_plane, H, W, tiles_x, tiles_y, histograms, stream);
   } else {
     // Use original version for small tiles
@@ -796,8 +819,7 @@ void LaunchApplyLUTBilinearToGray(uint8_t *dst_gray, const uint8_t *src_gray, in
   int N = H * W;
   int total_tiles = tiles_x * tiles_y;
 
-  // Use optimized version for larger tile counts where better performance is needed
-  if (total_tiles >= 32 && N >= 16384) {
+  if (total_tiles >= kLutOptimizationTileThreshold && N >= kLutOptimizationPixelThreshold) {
     LaunchApplyLUTBilinearToGrayOptimized(dst_gray, src_gray, H, W, tiles_x, tiles_y, luts, stream);
   } else {
     // Use original version for smaller images
@@ -1135,9 +1157,8 @@ void LaunchCLAHE_Grayscale_U8_NHWC(uint8_t *dst_gray, const uint8_t *src_gray, i
                                    unsigned int *tmp_histograms,  // tiles*bins
                                    uint8_t *tmp_luts,             // tiles*bins
                                    cudaStream_t stream) {
-  // Use mega-fused version for larger images where the fusion overhead pays off
   int total_tiles = tiles_x * tiles_y;
-  if (total_tiles >= 16) {  // Threshold where fusion is beneficial
+  if (total_tiles >= kMegaFusionTileThreshold) {
     LaunchMegaFusedHistClipCdfLut(src_gray, H, W, tiles_x, tiles_y, clip_limit_rel, tmp_luts,
                                   stream);
   } else {

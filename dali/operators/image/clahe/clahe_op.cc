@@ -100,34 +100,33 @@ class ClaheGPU : public Operator<GPUBackend> {
     const auto &shape = in.shape();
     int N = shape.num_samples();
 
-    // Warn user if luma_only=False for RGB images (GPU always uses luminance mode)
+    // Check if we have any RGB samples
+    bool has_rgb = false;
+    for (int i = 0; i < N; i++) {
+      auto sample_shape = shape.tensor_shape_span(i);
+      if (sample_shape.size() == 3 && sample_shape[2] == 3) {
+        has_rgb = true;
+        break;
+      }
+    }
+
+    // Validate that luma_only=True for RGB images (GPU always uses luminance mode)
+    if (has_rgb && !luma_only_) {
+      throw std::invalid_argument(
+          "ClaheGPU RGB input requires luma_only=True; per-channel mode "
+          "(luma_only=False) is not supported on GPU. Use CPU backend "
+          "for per-channel processing.");
+    }
+
+    // Warn about RGB channel order (only once)
     static bool warned_rgb_order = false;
-    if (!warned_rgb_order) {
-      // Check if we have any RGB samples
-      bool has_rgb = false;
-      for (int i = 0; i < N; i++) {
-        auto sample_shape = shape.tensor_shape_span(i);
-        if (sample_shape.size() == 3 && sample_shape[2] == 3) {
-          has_rgb = true;
-          break;
-        }
-      }
-      if (has_rgb) {
-        if (!luma_only_) {
-          throw std::invalid_argument(
-              "ClaheGPU RGB input requires luma_only=True; per-channel mode "
-              "(luma_only=False) is not supported on GPU. Use CPU backend "
-              "for per-channel processing.");
-        }
-        if (luma_only_ && !warned_rgb_order) {
-          DALI_WARN("CRITICAL: CLAHE expects RGB channel order (Red, Green, Blue). "
-                    "If your images are in BGR order (common with OpenCV cv2.imread), "
-                    "the luminance calculation will be INCORRECT. "
-                    "Convert BGR to RGB using fn.reinterpret or similar "
-                    "operators before CLAHE.");
-          warned_rgb_order = true;
-        }
-      }
+    if (has_rgb && luma_only_ && !warned_rgb_order) {
+      DALI_WARN("CRITICAL: CLAHE expects RGB channel order (Red, Green, Blue). "
+                "If your images are in BGR order (common with OpenCV cv2.imread), "
+                "the luminance calculation will be INCORRECT. "
+                "Convert BGR to RGB using fn.reinterpret or similar "
+                "operators before CLAHE.");
+      warned_rgb_order = true;
     }
 
     // Use DynamicScratchpad for automatic memory management

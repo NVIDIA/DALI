@@ -371,43 +371,44 @@ def test_clahe_opencv_comparison_gpu():
 
         print(f"✓ GPU {test_name}: MSE={mse:.3f}, MAE={mae:.3f}")
 
-    def test_clahe_gpu_luma_only_false_guard():
-        """Verify GPU backend raises when luma_only=False is requested for RGB input.
 
-        The GPU implementation only supports luminance-mode processing for RGB.
-        Attempting per-channel CLAHE (luma_only=False) should raise an error.
-        """
-        rgb_image = np.random.randint(0, 256, (8, 8, 3), dtype=np.uint8)
+def test_clahe_gpu_luma_only_false_guard():
+    """Verify GPU backend raises when luma_only=False is requested for RGB input.
 
-        @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-        def guard_pipeline():
-            data = fn.external_source(source=lambda: [rgb_image], device="cpu", ndim=3)
-            data = data.gpu()
-            # Intentionally set luma_only=False to trigger guard
-            out = fn.clahe(
-                data,
-                tiles_x=2,
-                tiles_y=2,
-                clip_limit=2.0,
-                luma_only=False,
-                device="gpu",
-            )
-            return out
+    The GPU implementation only supports luminance-mode processing for RGB.
+    Attempting per-channel CLAHE (luma_only=False) should raise an error.
+    """
+    rgb_image = np.random.randint(0, 256, (8, 8, 3), dtype=np.uint8)
 
-        with pytest.raises(Exception) as excinfo:
-            pipe = guard_pipeline()
-            pipe.build()
-            pipe.run()
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def guard_pipeline():
+        data = fn.external_source(source=lambda: [rgb_image], device="cpu", ndim=3)
+        data = data.gpu()
+        # Intentionally set luma_only=False to trigger guard
+        out = fn.clahe(
+            data,
+            tiles_x=2,
+            tiles_y=2,
+            clip_limit=2.0,
+            luma_only=False,
+            device="gpu",
+        )
+        return out
 
-        # Ensure error message references unsupported mode
-        assert any(
-            substr in str(excinfo.value)
-            for substr in [
-                "luma_only",
-                "per-channel",
-                "RGB input requires luma_only=True",
-            ]
-        ), f"Unexpected exception text: {excinfo.value}"
+    with pytest.raises(Exception) as excinfo:
+        pipe = guard_pipeline()
+        pipe.build()
+        pipe.run()
+
+    # Ensure error message references unsupported mode
+    assert any(
+        substr in str(excinfo.value)
+        for substr in [
+            "luma_only",
+            "per-channel",
+            "RGB input requires luma_only=True",
+        ]
+    ), f"Unexpected exception text: {excinfo.value}"
 
 
 def test_clahe_opencv_comparison_cpu():
