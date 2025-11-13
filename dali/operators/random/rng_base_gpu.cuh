@@ -162,13 +162,15 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend)
   SetupSampleDescs(samples_cpu.data(), out_view, in_view, channel_dim);
 
   auto &blocks_cpu = backend_data_.block_descs_cpu_;
-  blocks_cpu.resize(max_nblocks);
+  blocks_cpu.resize(std::max(max_nblocks, nsamples));
   blockdesc_count =
-      SetupBlockDescs(blocks_cpu.data(), block_sz, max_nblocks, out_view.shape, channel_dim);
+      SetupBlockDescs(blocks_cpu.data(), block_sz, blocks_cpu.size(), out_view.shape, channel_dim);
   if (blockdesc_count == 0) {
     return;
   }
   blocks_cpu.resize(blockdesc_count);
+
+  int ncuda_blocks = std::min(max_nblocks, blockdesc_count);
 
   int64_t blockdesc_max_sz = -1;
   for (int b = 0; b < blockdesc_count; b++) {
@@ -196,9 +198,9 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend)
   dim3 blockDim;
   dim3 gridDim;
   blockDim.x = std::min<int>(block_sz, blockdesc_max_sz);
-  blockDim.y = std::min<int>(blockdesc_count, std::max<int>(1, block_sz / blockDim.x));
+  blockDim.y = std::min<int>(ncuda_blocks, std::max<int>(1, block_sz / blockDim.x));
   gridDim.x = 1;
-  gridDim.y = div_ceil(blockdesc_count, blockDim.y);
+  gridDim.y = div_ceil(ncuda_blocks, blockDim.y);
 
   VALUE_SWITCH(use_default_dist ? 1 : 0, DefaultDist, (false, true), (
     VALUE_SWITCH(independent_channels ? 1 : 0, IsPerChannel, (false, true), (
