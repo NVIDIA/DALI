@@ -4,7 +4,7 @@ export PYTHONIOENCODING=utf-8
 export LC_ALL=C.UTF-8
 
 # You can set these variables from the command line.
-SPHINXOPTS    =
+SPHINXOPTS    = -j 32
 SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = NVIDIADALI
 SOURCEDIR     = .

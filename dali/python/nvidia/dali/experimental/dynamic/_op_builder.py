@@ -516,14 +516,17 @@ def build_operators():
     deprecated = {}
     op_map = {}
     for op_name in _all_ops:
-        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
+        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction") or op_name.endswith("NumbaFunction") or op_name.endswith("JaxFunction"):
             continue
 
         schema = _b.GetSchema(op_name)
         deprecated_in_favor = schema.DeprecatedInFavorOf()
         if deprecated_in_favor:
             deprecated[op_name] = deprecated_in_favor
-        cls = build_operator_class(schema)
+        try:
+            cls = build_operator_class(schema)
+        except Exception as e:
+            print("Error building operator class for", op_name, schema)
         all_op_classes.append(cls)
         op_map[op_name] = cls
     for what, in_favor in deprecated.items():

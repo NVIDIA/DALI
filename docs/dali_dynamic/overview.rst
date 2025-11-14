@@ -1,8 +1,5 @@
-[Experimental] DALI Dynamic
-========
-
 Overview
---------
+========
 
 **DALI Dynamic** extends NVIDIA DALI by introducing an imperative execution model with lazy evaluation.
 It complements the existing graph-based pipeline execution, and its main goal is to enable seamless
@@ -50,7 +47,7 @@ to improve performance.
 
 .. code-block:: python
 
-   import nvidia.dali.dynamic as ndd
+   import nvidia.dali.experimental.dynamic as ndd
 
    model = MyModel(...)
    flip_horizontal = True

@@ -15,8 +15,10 @@
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
 import nvidia.dali.plugin.jax
+import nvidia.dali.experimental.dynamic
 import inspect
 import sys
+import re
 
 try:
     import nvidia.dali.plugin.video
@@ -40,6 +42,10 @@ fn_modules = {
     "nvidia.dali.plugin.pytorch.fn": nvidia.dali.plugin.pytorch.fn,
     "nvidia.dali.plugin.jax.fn": nvidia.dali.plugin.jax.fn,
     "nvidia.dali.plugin.numba.fn.experimental": nvidia.dali.plugin.numba.fn.experimental,
+}
+
+dynamic_modules = {
+    "nvidia.dali.experimental.dynamic": nvidia.dali.experimental.dynamic,
 }
 
 exclude_fn_members = {}
@@ -117,6 +123,8 @@ def get_schema_names(module, functions):
         obj = getattr(sys.modules[module], fun)
         if hasattr(obj, "_schema_name"):
             return obj._schema_name
+        elif hasattr(obj, "schema"):
+            return obj.schema.Name()
         else:
             return operations_table.no_schema_fns[f"{module}.{fun}"]
 
@@ -174,7 +182,8 @@ def single_module_file(module, funs_in_module, references):
 
     result += f"The following table lists all operations available in ``{module}`` module:\n"
     result += operations_table.operations_table_str(
-        get_schema_names(module, funs_in_module)
+        get_schema_names(module, funs_in_module),
+        module_name = module
     )
     result += "\n\n"
 
@@ -216,6 +225,42 @@ def fn_autodoc(out_filename, generated_path, references):
                 and fun in exclude_fn_members[module]
             ):
                 continue
+            with open(
+                generated_path / (full_name + ".rst"), "w"
+            ) as function_file:
+                single_file_str = single_fun_file(full_name, references)
+                function_file.write(single_file_str)
+
+    with open(out_filename, "w") as f:
+        f.write(all_modules_str)
+
+
+def dynamic_autodoc(out_filename, generated_path, references):
+    all_modules_str = ".. toctree::\n   :hidden:\n\n"
+    all_modules = get_modules(dynamic_modules)
+    for module in all_modules:
+        dali_module = sys.modules[module]
+        # Take all public members of given module
+        funs_in_module = get_functions(dali_module)
+        if len(funs_in_module) == 0:
+            continue
+
+        # Skip non-operators
+        funs_in_module = [fun for fun in funs_in_module if hasattr(getattr(dali_module, fun), "schema")]
+
+        # As the top-level file is included from a directory above generated_path
+        # we need to provide the relative path to the per-module files
+        # the rest is within the same directory, so there is no need for that
+        all_modules_str += f"   {generated_path / module}\n"
+
+        single_module_str = single_module_file(
+            module, funs_in_module, references
+        )
+        with open(generated_path / (module + ".rst"), "w") as module_file:
+            module_file.write(single_module_str)
+
+        for fun in funs_in_module:
+            full_name = f"{module}.{fun}"
             with open(
                 generated_path / (full_name + ".rst"), "w"
             ) as function_file:
