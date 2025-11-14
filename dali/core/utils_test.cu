@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
 #include "dali/core/dev_buffer.h"
+#include "dali/core/cuda_vec.h"
 
 namespace dali {
 namespace test {
@@ -133,6 +134,75 @@ TEST(CoreUtils, CTZ) {
     EXPECT_EQ(ctz(u64), s);
     u64 <<= 1;
     i64 = u64;
+  }
+}
+
+DEVICE_TEST(CoreUtilsDev, CUDAVec, 1, 1) {
+  #define TEST_OP(OP) \
+    r = u OP v; \
+    DEV_EXPECT_EQ(r.x, u.x OP v.x); \
+    DEV_EXPECT_EQ(r.y, u.y OP v.y); \
+    DEV_EXPECT_EQ(r.z, u.z OP v.z); \
+    DEV_EXPECT_EQ(r.w, u.w OP v.w); \
+    r = u; \
+    r OP##= v; \
+    DEV_EXPECT_EQ(r.x, u.x OP v.x); \
+    DEV_EXPECT_EQ(r.y, u.y OP v.y); \
+    DEV_EXPECT_EQ(r.z, u.z OP v.z); \
+    DEV_EXPECT_EQ(r.w, u.w OP v.w); \
+
+  int4 cmp;
+  #define TEST_CMP(OP) \
+    cmp = u OP w; \
+    DEV_EXPECT_EQ(cmp.x, u.x OP w.x); \
+    DEV_EXPECT_EQ(cmp.y, u.y OP w.y); \
+    DEV_EXPECT_EQ(cmp.z, u.z OP w.z); \
+    DEV_EXPECT_EQ(cmp.w, u.w OP w.w); \
+
+  {
+    cuda_vec_t<float, 4> u = { 1.0f, 2.0f, 3.0f, 4.0f };
+    cuda_vec_t<float, 4> v = { 3.0f, 2.5f, 2.0f, 1.5f };
+    cuda_vec_t<float, 4> w = { 1.0f, -2.0f, 3.0f, -4.0f };
+    float4 r;
+    TEST_CMP(==)
+    TEST_CMP(!=)
+    TEST_CMP(<)
+    TEST_CMP(<=)
+    TEST_CMP(>)
+    TEST_CMP(>=)
+
+    TEST_OP(+)
+    TEST_OP(-)
+    TEST_OP(*)
+    TEST_OP(/)
+  }
+
+  {
+    cuda_vec_t<int, 4> u = { 1, 2, 3, 4 };
+    cuda_vec_t<int, 4> v = { 3, 2, 2, 1 };
+    int4 r;
+
+    TEST_OP(+)
+    TEST_OP(-)
+    TEST_OP(*)
+    TEST_OP(/)
+    TEST_OP(%)
+    TEST_OP(&)
+    TEST_OP(|)
+    TEST_OP(^)
+    TEST_OP(<<)
+    TEST_OP(>>)
+  }
+
+  {
+    cuda_vec_t<float, 4> x = { 1.0f, 2.0f, 3.0f, 4.0f };
+    cuda_vec_t<float, 4> lo = { 1.0f, 2.5f, 2.0f, 1.5f };
+    cuda_vec_t<float, 4> hi = { 1.5f, 3.0f, 3.0f, 4.5f };
+    cuda_vec_t<float, 4> r = clamp(x, lo, hi);
+    DEV_EXPECT_EQ(r.x, 1.0f);
+    DEV_EXPECT_EQ(r.y, 2.5f);
+    DEV_EXPECT_EQ(r.z, 3.0f);
+    DEV_EXPECT_EQ(r.w, 4.0f);
   }
 }
 
