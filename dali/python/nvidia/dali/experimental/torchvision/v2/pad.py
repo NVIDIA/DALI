@@ -93,7 +93,7 @@ class PadConstant:
                 data_input,
                 axes=(0, 1),
                 shape=fn.stack(out_height, out_width),
-                #TODO: not sure why it is limited to float - could match input.dtype!
+                # TODO: not sure why it is limited to float - could match input.dtype!
                 fill_value=fn.cast(self.fill, dtype=dali.types.FLOAT),
                 device=self.device,
             )

@@ -31,6 +31,7 @@ def test_horizontal_random_flip_probability():
     out = transform(img)
     tvout = tv.RandomHorizontalFlip(p=1.0)(img.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
     import pdb
+
     pdb.set_trace()
     assert torch.equal(out, tvout)
 

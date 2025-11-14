@@ -19,4 +19,12 @@ from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
 from .v2.pad import Pad
 from .v2.tensor import ToTensor
 
-__all__ = ["Compose", "Resize", "CenterCrop", "RandomHorizontalFlip", "RandomVerticalFlip", "Pad", "ToTensor"]
+__all__ = [
+    "Compose",
+    "Resize",
+    "CenterCrop",
+    "RandomHorizontalFlip",
+    "RandomVerticalFlip",
+    "Pad",
+    "ToTensor",
+]

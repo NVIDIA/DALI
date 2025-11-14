@@ -15,7 +15,7 @@
 from typing import List, Sequence, Union, Callable
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali import _conditionals, pipeline_def
+from nvidia.dali import _conditionals
 from nvidia.dali._utils.dali_trace import set_tracing
 from nvidia.dali.data_node import DataNode as _DataNode
 import nvidia.dali.ops as ops
@@ -27,6 +27,7 @@ from PIL import Image
 import numpy as np
 import torch
 
+
 def _to_torch_tensor(tensor_or_tl: Union[TensorListGPU, TensorListCPU]) -> torch.Tensor:
     if isinstance(tensor_or_tl, (TensorListGPU, TensorListCPU)):
         dali_tensor = tensor_or_tl.as_tensor()
@@ -34,6 +35,7 @@ def _to_torch_tensor(tensor_or_tl: Union[TensorListGPU, TensorListCPU]) -> torch
         dali_tensor = tensor_or_tl
 
     return torch.from_dlpack(dali_tensor)
+
 
 def to_torch_tensor(tensor_or_tl: Union[tuple, TensorListGPU, TensorListCPU]) -> torch.Tensor:
 
@@ -44,8 +46,9 @@ def to_torch_tensor(tensor_or_tl: Union[tuple, TensorListGPU, TensorListCPU]) ->
         return tuple(tl)
     else:
         if len(tensor_or_tl) == 1:
-            tensor_or_tl =tensor_or_tl[0] 
+            tensor_or_tl = tensor_or_tl[0]
         return _to_torch_tensor(tensor_or_tl)
+
 
 class Compose(Pipeline):
     """
@@ -65,12 +68,12 @@ class Compose(Pipeline):
         *args,
         **kwargs,
     ):
-
         # TODO: WAR tracing does not work with this code, building stack trace asserts
         set_tracing(enabled=False)
         if "prefetch_queue_depth" not in kwargs.keys():
             kwargs["prefetch_queue_depth"] = 1
-        # TODO: the below is a hack but it follows the pipeline_def decorator logic (_preprocess_pipe_func):
+        # TODO: the below is a hack but it follows the pipeline_def decorator logic
+        # (_preprocess_pipe_func):
         self.define_graph = _conditionals._autograph.convert(recursive=True, user_requested=True)(
             self.define_graph
         )
@@ -112,7 +115,7 @@ class Compose(Pipeline):
         input_node = self.input_node
         for op in self.op_list:
             if isinstance(op, ToTensor) and op != self.op_list[-1]:
-                raise NotImplemented("ToTensor can only be the last operation in the pipeline")
+                raise NotImplementedError("ToTensor can only be the last operation in the pipeline")
             input_node = op(input_node)
         return input_node
 
@@ -136,24 +139,24 @@ class Compose(Pipeline):
         self.feed_input(data_node=self.input_node_name, data=_input)
         output = self.run()
 
-        if output is None: 
+        if output is None:
             return output
 
         output = to_torch_tensor(output)
-        #ToTensor
+        # ToTensor
         if isinstance(self.op_list[-1], ToTensor):
-            #TODO:Support batches of tensors, like [...., H, W, C]
+            # TODO:Support batches of tensors, like [...., H, W, C]
             if output.shape[0] > 1:
-                raise NotImplemented("")
+                raise NotImplementedError("ToTensor does not currently work for batches")
             else:
                 output = output[0].permute(2, 1, 0)
-            
-        #Convert to PIL.Image
+
+        # Convert to PIL.Image
         elif isinstance(data_input, Image.Image):
             if isinstance(output, tuple):
                 output = Image.fromarray(output[0].numpy())
             else:
-                #batches
+                # batches
                 if output.shape[0] > 1:
                     output_list = []
                     for i in range(output.shape[0]):

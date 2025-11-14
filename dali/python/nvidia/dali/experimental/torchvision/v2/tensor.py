@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
-import nvidia.dali.fn as fn
-
 
 class ToTensor:
     """
@@ -22,16 +19,16 @@ class ToTensor:
     of shape (C x H x W) in the range [0.0, 1.0] if the PIL Image belongs to one of the modes
     (L, LA, P, I, F, RGB, YCbCr, RGBA, CMYK, 1) or if the numpy.ndarray has dtype = np.uint8
 
-    [DEPRECATED]
+    [DEPRECATED but used]
     """
 
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def __call__(self, data_input):
         """
-        Performs to tensor conversion
+        Performs to tensor conversion it only converts to float, the remaining part is being done
+        in Compose.__call__
         """
-        #TODO: if data_input.dtype==types.DALIDataType.UINT8:
+        # TODO: if data_input.dtype==types.DALIDataType.UINT8:
         data_input = data_input / 255.0
         return data_input

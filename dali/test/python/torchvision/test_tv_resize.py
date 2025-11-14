@@ -130,10 +130,8 @@ def build_resize_transform(
 def loop_images_test(t, td):
     for fn in test_files:
         img = Image.open(fn)
-        img_tensor = transforms.functional.pil_to_tensor(img).unsqueeze(0).permute(0, 2, 3, 1)
 
         out_tv = transforms.functional.pil_to_tensor(t(img)).unsqueeze(0).permute(0, 2, 3, 1)
-        #out_dali_tv = td(img_tensor) #to_torch_tensor(td(img_tensor)[0], "cpu")
         out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
         assert out_tv.shape == out_dali_tv.shape, f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
         # assert torch.equal(out_tv, out_dali_tv)
@@ -147,11 +145,12 @@ def test_resize_sizes(resize):
     loop_images_test(t, td)
 
 
-@params((480, 512), (100, 1024), (1024, 512), ([256, 256], 512))
+@params((480, 512), (100, 124), (None, 512), (1024, 512), ([256, 256], 512))
 def test_resize_max_sizes(resize, max_size):
     # Resize with single int (preserve aspect ratio)
-    if (isinstance(resize, int) and max_size is not None and max_size < resize) or (
-        not isinstance(resize, int)
+    if resize is not None and (
+        (isinstance(resize, int) and max_size is not None and max_size < resize)
+        or (not isinstance(resize, int))
     ):
         with assert_raises(ValueError):
             td = Compose(

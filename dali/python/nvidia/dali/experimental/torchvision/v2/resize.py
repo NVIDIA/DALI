@@ -68,19 +68,20 @@ class Resize:
     ) -> Tuple[int, int]:
 
         self.mode = "default"
+
+        if isinstance(size, (tuple, list)) and len(size) == 1:
+            size = size[0]
+
         if isinstance(size, int):
-            if max_size is None:
-                # If size is an int, smaller edge of the image will be matched to this number.
-                self.mode = "not_smaller"
-            else:
-                if size > max_size:
-                    raise ValueError
-                # If size is an int: if the longer edge of the image is greater than max_size
-                # after being resized according to size, size will be overruled so that the
-                # longer edge is equal to max_size. As a result, the smaller edge may be shorter
-                # than size.
-                self.mode = "not_larger"
-                # size = max_size
+            if max_size is not None and size > max_size:
+                raise ValueError
+
+            # If size is an int, smaller edge of the image will be matched to this number.
+            # If size is an int: if the longer edge of the image is greater than max_size
+            # after being resized according to size, size will be overruled so that the
+            # longer edge is equal to max_size. As a result, the smaller edge may be shorter
+            # than size.
+            self.mode = "resize_shorter"
 
             return (size, size)
         if size is None:
@@ -105,7 +106,8 @@ class Resize:
 
         self.size = size
         if (
-            not isinstance(self.size, int)
+            self.size is not None
+            and not isinstance(self.size, int)
             and not isinstance(self.size, (tuple, list))
             and len(self.size) == 2
         ):
@@ -123,6 +125,7 @@ class Resize:
         self.effective_size = self._infer_effective_size(size, max_size)
         self.antialias = antialias
         self.device = device
+        print(f"{self.mode} : {self.effective_size} : {self.max_size}")
 
     def __call__(self, data_input):
         """
@@ -138,13 +141,18 @@ class Resize:
         if self.device == "gpu":
             data_input = data_input.gpu()
 
-        if self.mode == "not_larger" and self.max_size is not None:
+        # If size is None, then effective_size is max_size
+        if self.size is None:
             if orig_h > orig_w:
-                target_w = (self.max_size * orig_h) / orig_w
-                target_h = self.max_size
+                target_w = (self.max_size * orig_w) / orig_h
             else:
-                target_h = (self.max_size * orig_w) / orig_h
-                target_w = self.max_size
+                target_h = (self.max_size * orig_h) / orig_w
+
+        # Shorter edge limited by max size
+        if self.mode == "resize_shorter":
+            return fn.resize(
+                data_input, device=self.device, resize_shorter=target_h, max_size=self.max_size
+            )
 
         return fn.resize(
             data_input,
