@@ -565,18 +565,18 @@ class Batch:
 
         Samplewise slicing interface allows the slicing parmaters to be batches (with the same
         number of samples) and the slicing parameters are applied to respective samples.
+        
+        ::
 
-        ```Python
-        start = Batch([1, 2, 3])
-        stop = Batch([4, 5, 6])
-        step = Batch([1, 1, 2])
-        sliced = input.slice[start, stop, step]
-        # the result is equivalent to
-        sliced = Batch([
-            sample[start[i]:stop[i]:step[i]]
-            for i, sample in enumerate(input)
-        ])
-        ```
+            start = Batch([1, 2, 3])
+            stop = Batch([4, 5, 6])
+            step = Batch([1, 1, 2])
+            sliced = input.slice[start, stop, step]
+            # the result is equivalent to
+            sliced = Batch([
+                sample[start[i]:stop[i]:step[i]]
+                for i, sample in enumerate(input)
+            ])
 
         If the slicing parameters are not batches, they are broadcast to all samples.
         """
@@ -655,15 +655,13 @@ class Batch:
 
         Example::
 
-        ```
-        >>> import nvidia.dali.experimental.dynamic as ndd
-        >>> import numpy as np
-        >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
-        >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
-        >>> b = ndd.as_batch([t0, t1])
-        >>> print(b.shape)
-        [(480, 640, 3), (720, 1280, 1)]
-        ```
+            >>> import nvidia.dali.experimental.dynamic as ndd
+            >>> import numpy as np
+            >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
+            >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
+            >>> b = ndd.as_batch([t0, t1])
+            >>> print(b.shape)
+            [(480, 640, 3), (720, 1280, 1)]
         """
         if self._invocation_result is not None:
             return self._invocation_result.shape

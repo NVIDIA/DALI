@@ -72,10 +72,10 @@ class Tensor:
     This class represents a single tensor usable with DALI dynamic API. It can contain any of the
     following::
 
-    * tensor data owned by DALI
-    * external tensor data wrapped into a DALI tensor
-    * a sample taken out of a Batch object
-    * a result of a lazy evaluation of a DALI operator.
+    - tensor data owned by DALI
+    - external tensor data wrapped into a DALI tensor
+    - a sample taken out of a Batch object
+    - a result of a lazy evaluation of a DALI operator
 
     In case of lazy evaluation, the operations are executed only after an attempt is made to access
     the tensor data or properties which cannot be obtained without running the underlying operation.
