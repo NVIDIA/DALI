@@ -18,7 +18,9 @@ import numpy as np
 import scipy.stats as st
 
 
-def check_uniform_default(device="cpu", batch_size=32, shape=[1e5], val_range=None, niter=3):
+def check_uniform_default(
+    device="cpu", batch_size=32, shape=[1e5], val_range=None, niter=3, bin_tol=0.05
+):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         pipe.set_outputs(dali.fn.random.uniform(device=device, range=val_range, shape=shape))
@@ -36,7 +38,7 @@ def check_uniform_default(device="cpu", batch_size=32, shape=[1e5], val_range=No
             h, b = np.histogram(data, bins=10)
             mean_h = np.mean(h)
             for hval in h:
-                np.testing.assert_allclose(mean_h, hval, rtol=0.05)  # +/- 5%
+                np.testing.assert_allclose(mean_h, hval, rtol=bin_tol)
 
             # normalize to 0-1 range
             data_kstest = (data - val_range[0]) / (val_range[1] - val_range[0])
@@ -52,6 +54,14 @@ def test_uniform_continuous():
     for device in ["cpu", "gpu"]:
         for val_range in [None, (200.0, 400.0)]:
             yield check_uniform_default, device, batch_size, shape, val_range, niter
+
+
+def test_uniform_large_batch():
+    batch_size = 2000
+    shape = [2000]
+    niter = 2
+    for device in ["cpu", "gpu"]:
+        yield check_uniform_default, device, batch_size, shape, [-1, 1], niter, 0.4
 
 
 def check_uniform_continuous_next_after(device="cpu", batch_size=32, shape=[1e5], niter=3):
