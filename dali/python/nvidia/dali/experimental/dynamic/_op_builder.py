@@ -25,6 +25,7 @@ from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
+from nvidia.dali import internal as _internal
 from nvidia.dali.ops import _docs, _names
 
 
@@ -128,15 +129,7 @@ _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
 
 def _find_or_create_module(root_module, module_path):
-    module = root_module
-    for path_part in module_path:
-        submodule = getattr(module, path_part, None)
-        if submodule is None:
-            submodule = types.ModuleType(path_part)
-            setattr(module, path_part, submodule)
-        module = submodule
-    return module
-
+    return _internal.get_submodule(root_module, module_path)
 
 def build_operator_class(schema):
     class_name = schema.OperatorName()
