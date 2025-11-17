@@ -150,9 +150,9 @@ class Pipeline(object):
         This execution model allows to interleave CPU and GPU operators and to perform GPU to CPU
         copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
         buffers, which reduces memory consumption in complex pipelines.
-        This execution model is used by default when ``exec_async`` and ``exec_pipelined`` are ``True``
-        and separated queues are not used (see ``prefetch_queue_depth``). It can be forcibly disabled
-        by specifying ``exec_dynamic=False``.
+        This execution model is used by default when ``exec_async`` and ``exec_pipelined`` are
+        ``True`` and separated queues are not used (see ``prefetch_queue_depth``). It can be
+        forcibly disabled by specifying ``exec_dynamic=False``.
     stream_policy : StreamPolicy, optional, default = None
         Stream policy (only for the default execution model).
         If not specified, the default value is ``StreamPolicy.PER_BACKEND``.
@@ -1458,7 +1458,8 @@ class Pipeline(object):
         Should not be mixed with :meth:`run` in the same pipeline.
 
         .. note::
-            When using the default execution model (``exec_dynamic = True | None``), the buffers are not invalidated.
+            When using the default execution model (``exec_dynamic = True | None``),
+            the buffers are not invalidated.
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self.build()
