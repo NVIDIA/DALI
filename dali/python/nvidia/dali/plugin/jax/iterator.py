@@ -14,7 +14,7 @@
 import jax
 import jax.dlpack
 import jax.numpy as jnp
-from jax.sharding import Sharding #NamedSharding, PositionalSharding, Sharding
+from jax.sharding import NamedSharding, PositionalSharding, Sharding
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
