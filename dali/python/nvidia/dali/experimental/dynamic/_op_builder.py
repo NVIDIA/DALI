@@ -131,6 +131,7 @@ _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 def _find_or_create_module(root_module, module_path):
     return _internal.get_submodule(root_module, module_path)
 
+
 def build_operator_class(schema):
     class_name = schema.OperatorName()
     module_path = schema.ModulePath()
@@ -509,7 +510,12 @@ def build_operators():
     deprecated = {}
     op_map = {}
     for op_name in _all_ops:
-        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction") or op_name.endswith("NumbaFunction") or op_name.endswith("JaxFunction"):
+        if (
+            op_name.endswith("ExternalSource")
+            or op_name.endswith("PythonFunction")
+            or op_name.endswith("NumbaFunction")
+            or op_name.endswith("JaxFunction")
+        ):
             continue
 
         schema = _b.GetSchema(op_name)

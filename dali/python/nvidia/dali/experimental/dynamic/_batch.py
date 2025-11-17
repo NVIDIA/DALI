@@ -565,7 +565,7 @@ class Batch:
 
         Samplewise slicing interface allows the slicing parmaters to be batches (with the same
         number of samples) and the slicing parameters are applied to respective samples.
-        
+
         ::
 
             start = Batch([1, 2, 3])
