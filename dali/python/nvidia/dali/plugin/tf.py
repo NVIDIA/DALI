@@ -229,7 +229,9 @@ def DALIIteratorWrapper(
         cpu_prefetch_queue_depth = prefetch_queue_depth["cpu_size"]
         gpu_prefetch_queue_depth = prefetch_queue_depth["gpu_size"]
         if exec_dynamic:
-            raise ValueError("Separated queues are not compatible with the dynamic executor.")
+            raise ValueError(
+                "Separated queues are not compatible with the default execution model. Please set ``exec_dynamic=False`` in the pipeline constructor or @pipeline_def."
+            )
     elif type(prefetch_queue_depth) is int:
         exec_separated = False
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used
@@ -998,11 +1000,11 @@ DALIDataset.__doc__ = """Creates a ``DALIDataset`` compatible with
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
-        This flag is incompatible with ``exec_dynamic``.
+        This flag is incompatible with the default execution model (``exec_dynamic = True | None``).
     exec_dynamic : bool, optional, default = False
-        Whether to execute the pipeline with the dynamic executor, which allows flexible mixing
+        Whether to execute the pipeline with the default execution model, which allows flexible mixing
         of CPU and GPU operators and enables aggressive memory reuse.
-        This flag is incompatible with `exec_separated`.
+        This flag is incompatible with ``exec_separated``.
     prefetch_queue_depth : int, optional, default = 2
         depth of the executor queue. Deeper queue makes DALI more
         resistant to uneven execution time of each batch, but it also
