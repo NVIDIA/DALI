@@ -137,7 +137,7 @@ TEST(CoreUtils, CTZ) {
   }
 }
 
-DEVICE_TEST(CoreUtilsDev, CUDAVec, 1, 1) {
+DEVICE_TEST(CoreUtilsDev, CUDAVecOperators, 1, 1) {
   #define TEST_OP(OP) \
     r = u OP v; \
     DEV_EXPECT_EQ(r.x, u.x OP v.x); \
@@ -149,7 +149,7 @@ DEVICE_TEST(CoreUtilsDev, CUDAVec, 1, 1) {
     DEV_EXPECT_EQ(r.x, u.x OP v.x); \
     DEV_EXPECT_EQ(r.y, u.y OP v.y); \
     DEV_EXPECT_EQ(r.z, u.z OP v.z); \
-    DEV_EXPECT_EQ(r.w, u.w OP v.w); \
+    DEV_EXPECT_EQ(r.w, u.w OP v.w);
 
   int4 cmp;
   #define TEST_CMP(OP) \
@@ -157,7 +157,7 @@ DEVICE_TEST(CoreUtilsDev, CUDAVec, 1, 1) {
     DEV_EXPECT_EQ(cmp.x, u.x OP w.x); \
     DEV_EXPECT_EQ(cmp.y, u.y OP w.y); \
     DEV_EXPECT_EQ(cmp.z, u.z OP w.z); \
-    DEV_EXPECT_EQ(cmp.w, u.w OP w.w); \
+    DEV_EXPECT_EQ(cmp.w, u.w OP w.w);
 
   {
     cuda_vec_t<float, 4> u = { 1.0f, 2.0f, 3.0f, 4.0f };
@@ -166,9 +166,9 @@ DEVICE_TEST(CoreUtilsDev, CUDAVec, 1, 1) {
     float4 r;
     TEST_CMP(==)
     TEST_CMP(!=)
-    TEST_CMP(<)
+    TEST_CMP(<)  // NOLINT
     TEST_CMP(<=)
-    TEST_CMP(>)
+    TEST_CMP(>)  // NOLINT
     TEST_CMP(>=)
 
     TEST_OP(+)
@@ -193,17 +193,26 @@ DEVICE_TEST(CoreUtilsDev, CUDAVec, 1, 1) {
     TEST_OP(<<)
     TEST_OP(>>)
   }
+}
 
-  {
-    cuda_vec_t<float, 4> x = { 1.0f, 2.0f, 3.0f, 4.0f };
-    cuda_vec_t<float, 4> lo = { 1.0f, 2.5f, 2.0f, 1.5f };
-    cuda_vec_t<float, 4> hi = { 1.5f, 3.0f, 3.0f, 4.5f };
-    cuda_vec_t<float, 4> r = clamp(x, lo, hi);
-    DEV_EXPECT_EQ(r.x, 1.0f);
-    DEV_EXPECT_EQ(r.y, 2.5f);
-    DEV_EXPECT_EQ(r.z, 3.0f);
-    DEV_EXPECT_EQ(r.w, 4.0f);
-  }
+DEVICE_TEST(CoreUtilsDev, CUDAVecClamp, 1, 1) {
+  cuda_vec_t<float, 4> x = { 1.0f, 2.0f, 3.0f, 4.0f };
+  cuda_vec_t<float, 4> lo = { 1.0f, 2.5f, 2.0f, 1.5f };
+  cuda_vec_t<float, 4> hi = { 1.5f, 3.0f, 3.0f, 4.5f };
+  cuda_vec_t<float, 4> r = clamp(x, lo, hi);
+  DEV_EXPECT_EQ(r.x, 1.0f);
+  DEV_EXPECT_EQ(r.y, 2.5f);
+  DEV_EXPECT_EQ(r.z, 3.0f);
+  DEV_EXPECT_EQ(r.w, 4.0f);
+}
+
+DEVICE_TEST(CoreUtilsDev, CUDAVecMath, 1, 1) {
+  cuda_vec_t<float, 4> x = { 1.0f, 2.0f, 3.0f, 4.0f };
+  cuda_vec_t<float, 4> y = pow(x, make_float4(2.0f, 2.0f, 2.0f, 2.0f));
+  DEV_EXPECT_EQ(y.x, 1.0f);
+  DEV_EXPECT_EQ(y.y, 4.0f);
+  DEV_EXPECT_EQ(y.z, 9.0f);
+  DEV_EXPECT_EQ(y.w, 16.0f);
 }
 
 }  // namespace test
