@@ -80,7 +80,10 @@ with mock(["torch", "numba"]):
 
     operations_table.operations_table(generated_path / "fn_table")
     operations_table.fn_to_op_table(generated_path / "fn_to_op_table")
-    operations_table.operations_table(generated_dynamic_path / "dynamic_table", module_name="nvidia.dali.experimental.dynamic")
+    operations_table.operations_table(
+        generated_dynamic_path / "dynamic_table",
+        module_name="nvidia.dali.experimental.dynamic",
+    )
 
     import doc_index
 
@@ -92,7 +95,11 @@ with mock(["torch", "numba"]):
     autodoc_submodules.fn_autodoc(
         generated_path / "fn_autodoc", generated_path, references
     )
-    autodoc_submodules.dynamic_autodoc(generated_dynamic_path / "dynamic_autodoc", generated_dynamic_path, references)
+    autodoc_submodules.dynamic_autodoc(
+        generated_dynamic_path / "dynamic_autodoc",
+        generated_dynamic_path,
+        references,
+    )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True

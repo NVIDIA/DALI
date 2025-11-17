@@ -32,10 +32,13 @@ gpu_ops = ops.gpu_ops()
 mix_ops = ops.mixed_ops()
 all_ops_in_module = {
     "nvidia.dali.fn": cpu_ops.union(gpu_ops).union(mix_ops),
-    "nvidia.dali.experimental.dynamic": [f.schema.Name() for f in ndd.ops._all_functions],
+    "nvidia.dali.experimental.dynamic": [
+        f.schema.Name() for f in ndd.ops._all_functions
+    ],
 }
 all_ops = all_ops_in_module["nvidia.dali.fn"]
 link_formatter = ":meth:`{op} <{module}.{op}>`"
+
 
 def to_fn_module(module_name):
     if module_name in module_mapping:
@@ -43,17 +46,21 @@ def to_fn_module(module_name):
     else:
         return module_name.replace(".ops", ".fn")
 
+
 def to_dynamic_module(module_name):
     if module_name in module_mapping:
         return module_mapping[module_name]
     else:
         return module_name.replace(".ops", ".experimental.dynamic")
 
+
 def to_other_module(api_name, module_name):
     return {
         "fn": to_fn_module,
         "dynamic": to_dynamic_module,
-    }[api_name](module_name)
+    }[
+        api_name
+    ](module_name)
 
 
 def name_sort(op_name):
@@ -77,11 +84,13 @@ def longest_operator_string(api_name):
                     break
             if m is not None and hasattr(m, op_name):
                 fn_string = link_formatter.format(
-                    op=fn_full_name, module=to_other_module(api_name, module_name)
+                    op=fn_full_name,
+                    module=to_other_module(api_name, module_name),
                 )
                 if len(fn_string) > len(longest_str):
                     longest_str = fn_string
     return longest_str
+
 
 def fn_to_op_table(out_filename):
     op_name_max_len = len(longest_operator_string("fn"))
@@ -127,9 +136,13 @@ def fn_to_op_table(out_filename):
 
 
 def operations_table_str(ops_to_process, module_name):
-    api_name = "dynamic" if module_name.startswith("nvidia.dali.experimental.dynamic") else "fn"
+    api_name = (
+        "dynamic"
+        if module_name.startswith("nvidia.dali.experimental.dynamic")
+        else "fn"
+    )
     op_name_max_len = len(longest_operator_string(api_name))
-    
+
     formater = "{:{c}<{op_name_max_len}} {:{c}^48} {:{c}<150}\n"
     doc_table = ""
     doc_table += f"\n.. currentmodule:: {module_name}\n\n"
@@ -183,7 +196,8 @@ def operations_table_str(ops_to_process, module_name):
                         break
                 if m is not None and hasattr(m, op_name):
                     fn_string = link_formatter.format(
-                        op=fn_full_name, module=to_other_module(api_name, module_name)
+                        op=fn_full_name,
+                        module=to_other_module(api_name, module_name),
                     )
         op_doc = formater.format(
             fn_string,
@@ -200,9 +214,12 @@ def operations_table_str(ops_to_process, module_name):
 
 
 def operations_table(out_filename, module_name="nvidia.dali.fn"):
-    doc_table = operations_table_str(all_ops_in_module[module_name], module_name=module_name)
+    doc_table = operations_table_str(
+        all_ops_in_module[module_name], module_name=module_name
+    )
     with open(out_filename, "w") as f:
         f.write(doc_table)
+
 
 if __name__ == "__main__":
     assert len(sys.argv) >= 2 and len(sys.argv) <= 3

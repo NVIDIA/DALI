@@ -182,8 +182,7 @@ def single_module_file(module, funs_in_module, references):
 
     result += f"The following table lists all operations available in ``{module}`` module:\n"
     result += operations_table.operations_table_str(
-        get_schema_names(module, funs_in_module),
-        module_name = module
+        get_schema_names(module, funs_in_module), module_name=module
     )
     result += "\n\n"
 
@@ -246,7 +245,11 @@ def dynamic_autodoc(out_filename, generated_path, references):
             continue
 
         # Skip non-operators
-        funs_in_module = [fun for fun in funs_in_module if hasattr(getattr(dali_module, fun), "schema")]
+        funs_in_module = [
+            fun
+            for fun in funs_in_module
+            if hasattr(getattr(dali_module, fun), "schema")
+        ]
 
         # As the top-level file is included from a directory above generated_path
         # we need to provide the relative path to the per-module files
