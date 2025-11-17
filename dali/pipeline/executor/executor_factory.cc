@@ -131,7 +131,7 @@ std::unique_ptr<ExecutorBase> GetExecutorImpl(
   error << "No supported executor selected for pipelined = " << Test(type, ExecutorType::Pipelined)
         << ", separated = " << Test(type, ExecutorType::SeparatedFlag)
         << ", async = " << Test(type, ExecutorType::AsyncFlag)
-        << ", dynamic = " << Test(type, ExecutorType::DynamicFlag) << std::endl;
+        << ", default(exec_dynamic) = " << Test(type, ExecutorType::DynamicFlag) << std::endl;
   DALI_FAIL(error.str());
 }
 
