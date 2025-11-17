@@ -14,7 +14,6 @@
 
 import numpy as np
 import os
-import pytest
 from nvidia.dali import fn, types
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path
@@ -395,20 +394,23 @@ def test_clahe_gpu_luma_only_false_guard():
         )
         return out
 
-    with pytest.raises(Exception) as excinfo:
+    # Verify that the pipeline raises an exception
+    try:
         pipe = guard_pipeline()
         pipe.build()
         pipe.run()
-
-    # Ensure error message references unsupported mode
-    assert any(
-        substr in str(excinfo.value)
-        for substr in [
-            "luma_only",
-            "per-channel",
-            "RGB input requires luma_only=True",
-        ]
-    ), f"Unexpected exception text: {excinfo.value}"
+        assert False, "Expected exception was not raised"
+    except Exception as e:
+        # Ensure error message references unsupported mode
+        error_msg = str(e)
+        assert any(
+            substr in error_msg
+            for substr in [
+                "luma_only",
+                "per-channel",
+                "RGB input requires luma_only=True",
+            ]
+        ), f"Unexpected exception text: {error_msg}"
 
 
 def test_clahe_opencv_comparison_cpu():
