@@ -84,6 +84,10 @@ with mock(["torch", "numba"]):
         generated_dynamic_path / "dynamic_table",
         module_name="nvidia.dali.experimental.dynamic",
     )
+    operations_table.dynamic_readers_table(
+        generated_dynamic_path / "dynamic_readers_table",
+        module_name="nvidia.dali.experimental.dynamic",
+    )
 
     import doc_index
 
@@ -97,6 +101,11 @@ with mock(["torch", "numba"]):
     )
     autodoc_submodules.dynamic_autodoc(
         generated_dynamic_path / "dynamic_autodoc",
+        generated_dynamic_path,
+        references,
+    )
+    autodoc_submodules.dynamic_readers_autodoc(
+        generated_dynamic_path / "dynamic_readers_autodoc",
         generated_dynamic_path,
         references,
     )

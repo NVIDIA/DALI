@@ -168,6 +168,16 @@ def single_fun_file(full_name, references):
     result += get_references(full_name, references)
     return result
 
+def single_class_op_file(full_name, references):
+    """Generate stub page for documentation of class-like operator from dynamic api."""
+    result = f"{full_name}\n"
+    result += "-" * len(full_name) + "\n\n"
+    result += f".. autoclass:: {full_name}\n"
+    result += f"   :members: next_epoch\n"
+    result += f"   :special-members: __init__, __call__\n\n"
+    result += get_references(full_name, references)
+    return result
+
 
 def single_module_file(module, funs_in_module, references):
     """Generate stub page for documentation of given module"""
@@ -268,6 +278,34 @@ def dynamic_autodoc(out_filename, generated_path, references):
             ) as function_file:
                 single_file_str = single_fun_file(full_name, references)
                 function_file.write(single_file_str)
+
+    with open(out_filename, "w") as f:
+        f.write(all_modules_str)
+
+def dynamic_readers_autodoc(out_filename, generated_path, references):
+    all_modules_str = ".. toctree::\n   :hidden:\n\n"
+    all_modules = [m for m in get_modules(dynamic_modules) if "readers" in m]
+    for module in all_modules:
+        dali_module = sys.modules[module]
+        readers_in_module = [k for k, v in dali_module.__dict__.items() if inspect.isclass(v) and issubclass(v, nvidia.dali.experimental.dynamic.ops.Reader)]
+
+        # As the top-level file is included from a directory above generated_path
+        # we need to provide the relative path to the per-module files
+        # the rest is within the same directory, so there is no need for that
+        all_modules_str += f"   {generated_path / module}\n"
+
+        single_module_str = single_module_file(
+            module, readers_in_module, references
+        )
+        with open(generated_path / (module + ".rst"), "w") as module_file:
+            module_file.write(single_module_str)
+
+        for reader in readers_in_module:
+            full_name = f"{module}.{reader}"
+            with open(
+                generated_path / (full_name + ".rst"), "w"
+            ) as function_file:
+                function_file.write(single_class_op_file(full_name, references))
 
     with open(out_filename, "w") as f:
         f.write(all_modules_str)

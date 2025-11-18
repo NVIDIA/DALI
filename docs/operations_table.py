@@ -220,6 +220,14 @@ def operations_table(out_filename, module_name="nvidia.dali.fn"):
     with open(out_filename, "w") as f:
         f.write(doc_table)
 
+def dynamic_readers_table(out_filename, module_name="nvidia.dali.fn"):
+    readers = [f.schema.Name() for f in ndd.ops._all_ops if "readers" in f.schema.ModulePath()]
+    doc_table = operations_table_str(
+        readers, module_name=module_name
+    )
+    with open(out_filename, "w") as f:
+        f.write(doc_table)
+
 
 if __name__ == "__main__":
     assert len(sys.argv) >= 2 and len(sys.argv) <= 3
