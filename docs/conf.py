@@ -86,8 +86,7 @@ with mock(["torch", "numba"]):
         module_name="nvidia.dali.experimental.dynamic",
     )
     operations_table.dynamic_readers_table(
-        generated_dynamic_path / "dynamic_readers_table",
-        module_name="nvidia.dali.experimental.dynamic",
+        generated_dynamic_path / "dynamic_readers_table"
     )
 
     import doc_index
