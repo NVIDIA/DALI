@@ -41,6 +41,7 @@ either specified with `roi_start`/`roi_end` or `roi_start`/`roi_shape`.
 The operator produces an output representing the cropping window start coordinates.
 )code")
     .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddArg("crop_shape",
       R"code(Cropping window dimensions.)code", DALI_INT_VEC, true)
     .AddArg("roi_start",

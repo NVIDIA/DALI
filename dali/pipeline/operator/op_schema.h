@@ -453,6 +453,15 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    */
   OpSchema &AddRandomSeedArg();
 
+  /** Adds a random state argument to the operator.
+   *
+   * This argument is used to pass the initial state of the random number generator
+   * to random operators in Dynamic Mode. It accepts a 1D tensor of uint32_t values.
+   * It is not advertised in the Python API and is automatically hidden from 
+   * documentation (by using a leading underscore).
+   */
+  OpSchema &AddRandomStateArg();
+
   /**  Marks an argument as deprecated in favor of a new argument
    *
    * Providing renamed_to means the argument has been renamed and we can safely

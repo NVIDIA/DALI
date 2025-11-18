@@ -52,7 +52,8 @@ If 0, the pixel position is sampled uniformly from all available pixels.)code",
       0, true)
     .NumInput(1)
     .NumOutput(1)
-    .AddRandomSeedArg();
+    .AddRandomSeedArg()
+    .AddRandomStateArg();
 
 class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
  public:

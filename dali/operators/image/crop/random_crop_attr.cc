@@ -30,6 +30,7 @@ The cropped image's area will be equal to ``A`` * original image's area.)code",
   .AddOptionalArg("num_attempts",
       R"code(Maximum number of attempts used to choose random area and aspect ratio.)code",
       10)
-  .AddRandomSeedArg();
+  .AddRandomSeedArg()
+  .AddRandomStateArg();
 
 }  // namespace dali

@@ -30,6 +30,7 @@ and bounded by half of the `nDegree` parameter.)code")
       2)
   .InputLayout(0, "HWC")
   .AddRandomSeedArg()
+  .AddRandomStateArg()
   .AddParent("DisplacementFilter");
 
 DALI_REGISTER_OPERATOR(Jitter, Jitter<GPUBackend>, GPU);

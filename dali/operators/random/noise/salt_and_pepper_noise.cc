@@ -26,6 +26,7 @@ The shape and data type of the output will match the input.
     .NumInput(1)
     .NumOutput(1)
     .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddOptionalArg<float>("prob",
       R"code(Probability of an output value to take a salt or pepper value.)code",
       0.05f, true)
