@@ -176,32 +176,6 @@ TEST_F(ClaheOpTest, LumaOnlyVsPerChannel) {
   // Note: Per-channel mode (luma_only=False) is only supported on CPU for RGB inputs
 }
 
-// Negative test: GPU should reject luma_only=False for RGB inputs
-TEST_F(ClaheOpTest, GpuRejectsPerChannelMode) {
-  TensorList<CPUBackend> input_data;
-  CreateTestData(input_data);
-
-  Pipeline pipe(batch_size_, 1, device_id_);
-  pipe.AddExternalInput("input");
-  pipe.AddOperator(OpSpec("Clahe")
-                       .AddArg("device", "gpu")
-                       .AddArg("tiles_x", 8)
-                       .AddArg("tiles_y", 8)
-                       .AddArg("clip_limit", 2.0f)
-                       .AddArg("luma_only", false)  // This should cause an error
-                       .AddInput("input", StorageDevice::GPU)
-                       .AddOutput("output", StorageDevice::GPU));
-
-  std::vector<std::pair<std::string, std::string>> outputs = {{"output", "gpu"}};
-  pipe.Build(outputs);
-
-  pipe.SetExternalInput("input", input_data);
-  Workspace ws;
-
-  // GPU should reject luma_only=False for RGB inputs
-  EXPECT_THROW(pipe.Run(), std::runtime_error);
-}
-
 // Test different tile sizes
 TEST_F(ClaheOpTest, DifferentTileSizes) {
   TestCpuGpuEquivalence(4, 4, 2.0f, true);

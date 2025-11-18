@@ -112,7 +112,7 @@ class ClaheGPU : public Operator<GPUBackend> {
 
     // Validate that luma_only=True for RGB images (GPU always uses luminance mode)
     if (has_rgb && !luma_only_) {
-      throw std::invalid_argument(
+      throw std::runtime_error(
           "ClaheGPU RGB input requires luma_only=True; per-channel mode "
           "(luma_only=False) is not supported on GPU. Use CPU backend "
           "for per-channel processing.");
