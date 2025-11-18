@@ -13,8 +13,8 @@
 # limitations under the License.
 
 
-from typing import Sequence
-from typing import Any, Union, TypeAlias, Protocol
+import enum
+from typing import Any, Protocol, Sequence, TypeAlias, Union
 
 
 class ArrayInterface(Protocol):
@@ -25,7 +25,7 @@ class ArrayInterface(Protocol):
     to its operators. Such parameter would be broadcast for all samples in the batch.
     """
 
-    def __array__(self) -> Any: ...
+    __array__: dict[str, Any]
 
 
 class CudaArrayInterface(Protocol):
@@ -35,8 +35,25 @@ class CudaArrayInterface(Protocol):
     on the GPU memory. DALI can accept such objects as data source for External Source operator.
     """
 
-    @property
-    def __cuda_array_interface__(self) -> Any: ...
+    __cuda_array_interface__: dict[str, Any]
+
+
+class DLPack(Protocol):
+    """
+    Protocol representing classes that are compatible with DLPack interface.
+    See: https://dmlc.github.io/dlpack/latest/python_spec.html.
+    """
+
+    def __dlpack__(
+        self,
+        *,
+        stream: int | Any | None = None,
+        max_version: tuple[int, int] | None = None,
+        dl_device: tuple[Any, int] | None = None,
+        copy: bool | None = None,
+    ) -> Any: ...  # types.PyCapsule is only available since Python 3.13
+
+    def __dlpack_device__(self) -> tuple[enum.Enum, int]: ...
 
 
 TensorLikeIn: TypeAlias = Union[ArrayInterface, Sequence[int], Sequence[float], int, float]
@@ -46,8 +63,13 @@ one sample that is repeated (broadcast) to form a batch.
 """
 
 
-TensorLikeArg: TypeAlias = ArrayInterface
+TensorLikeArg: TypeAlias = ArrayInterface | DLPack
 """
 Constant argument to the operator, that is expressed by a single tensor. Such input represents
 one sample that is repeated (broadcast) to form a batch.
+"""
+
+TensorLike: TypeAlias = ArrayInterface | CudaArrayInterface | DLPack
+"""
+Argument compatible with ``dali.dynamic.Tensor`` used as input for per-sample dynamic mode functions.
 """
