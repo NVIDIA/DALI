@@ -24,7 +24,7 @@ namespace test {
 
 __global__ void GetCurandPhiloxOutput(
       uint32_t *output, int n, uint64_t key, uint64_t sequence, uint64_t offset) {
-  curandStatePhilox4_32_10_t curand_state;
+  curandStatePhilox4_32_10_t curand_state{};
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid >= n)
     return;
@@ -37,9 +37,9 @@ std::vector<uint32_t> GetReferencePhiloxOutput(
   std::vector<uint32_t> output(n);
   DeviceBuffer<uint32_t> output_buf;
   output_buf.resize(n);
-  CUDA_CALL(cudaMemset(output_buf.data(), 0xFE, n * sizeof(uint32_t)));
 
   CUDAStream s = CUDAStream::Create(true);
+  CUDA_CALL(cudaMemsetAsync(output_buf.data(), 0xFE, n * sizeof(uint32_t), s));
 
   GetCurandPhiloxOutput<<<div_ceil(n, 256), 256, 0, s>>>(
       output_buf.data(), n, key, sequence, offset);
@@ -60,7 +60,7 @@ TEST(TestPhilox, VersusCurand) {
 
   auto ref = GetReferencePhiloxOutput(n, key, seq, ofs);
 
-  Philox4x32_10 philox;
+  Philox4x32_10 philox{};
   philox.init(key, seq, ofs);
   for (int i = 0; i < n; i++) {
     uint32_t ret = philox.next();
