@@ -70,6 +70,7 @@ generated_path = Path("./operations")
 generated_path.mkdir(exist_ok=True)
 
 generated_dynamic_path = Path("./dali_dynamic/operations")
+relative_generated_dynamic_path = Path("./operations")
 generated_dynamic_path.mkdir(exist_ok=True)
 
 # generate table of supported operators and their devices
@@ -101,12 +102,12 @@ with mock(["torch", "numba"]):
     )
     autodoc_submodules.dynamic_autodoc(
         generated_dynamic_path / "dynamic_autodoc",
-        generated_dynamic_path,
+        relative_generated_dynamic_path,
         references,
     )
     autodoc_submodules.dynamic_readers_autodoc(
         generated_dynamic_path / "dynamic_readers_autodoc",
-        generated_dynamic_path,
+        relative_generated_dynamic_path,
         references,
     )
 
