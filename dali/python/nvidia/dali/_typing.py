@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,5 +71,6 @@ one sample that is repeated (broadcast) to form a batch.
 
 TensorLike: TypeAlias = ArrayInterface | CudaArrayInterface | DLPack
 """
-Argument compatible with ``dali.dynamic.Tensor`` used as input for per-sample dynamic mode functions.
+Object compatible with ``dali.dynamic.Tensor`` used as input for per-sample
+dynamic mode functions.
 """

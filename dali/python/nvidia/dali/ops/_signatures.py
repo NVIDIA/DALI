@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from inspect import Parameter, Signature
 import ast
+import functools
 import os
-
-from pathlib import Path
-
 from contextlib import closing
-
-from typing import Union, Optional
-from typing import Sequence, List, Any
+from inspect import Parameter, Signature
+from pathlib import Path
+from typing import Any, List, Literal, Optional, Sequence, Union
 
 from nvidia.dali import backend as _b
+from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
-from nvidia.dali.ops import _registry, _names, _docs
-from nvidia.dali import types
-from nvidia.dali import ops, fn
+from nvidia.dali.ops import _docs, _names, _registry
 
 
 def _create_annotation_placeholder(typename):
@@ -76,6 +72,11 @@ _enum_mapping = {
     types.DALIImageType: _DALIImageType,
     types.DALIInterpType: _DALIInterpType,
 }
+
+# Placeholders for dynamic mode
+_Tensor = _create_annotation_placeholder("Tensor")
+_Batch = _create_annotation_placeholder("Batch")
+_TensorLike = _create_annotation_placeholder("TensorLike")
 
 
 def _scalar_element_annotation(scalar_dtype):
@@ -241,7 +242,7 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
     return param_list
 
 
-def _get_keyword_params(schema, all_args_optional=False):
+def _get_keyword_params(schema, all_args_optional=False, data_node_tensors=False):
     """Get the list of annotated keyword Parameters to the operator."""
     param_list = []
     for arg in schema.GetArgumentNames():
@@ -253,7 +254,11 @@ def _get_keyword_params(schema, all_args_optional=False):
         is_arg_input = schema.IsTensorArgument(arg)
 
         if is_arg_input:
-            annotation = Union[_DataNode, _TensorLikeArg, kw_annotation]
+            annotation = (
+                Union[_DataNode, _TensorLikeArg, kw_annotation]
+                if data_node_tensors
+                else Union[_TensorLikeArg, kw_annotation]
+            )
         else:
             annotation = kw_annotation
 
@@ -310,7 +315,9 @@ def _call_signature(
     include_inputs=True,
     include_kwargs=True,
     include_self=False,
+    include_batch_size=False,
     data_node_return=True,
+    data_node_kwargs=True,
     all_args_optional=False,
     input_annotation_gen=_get_annotation_input_regular,
     return_annotation_gen=_get_annotation_return_regular,
@@ -328,9 +335,13 @@ def _call_signature(
         If keyword arguments should be included in the signature, by default True
     include_self : bool, optional
         Prepend `self` as first positional argument in the signature, by default False
+    include_batch_size : bool, optional
+        Preped `batch_size` as first keyword-only argument in the signature, by default False
     data_node_return : bool, optional
         If the signature should have a return annotation or return None (for ops class __init__),
         by default True
+    data_node_kwargs : bool, optional
+        If tensor keyword arguments should accept DataNodes, by default True
     all_args_optional : bool, optional
         Make all keyword arguments optional, even if they are not - needed by the ops API, where
         the argument can be specified in either __init__ or __call__, by default False
@@ -348,8 +359,18 @@ def _call_signature(
             _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen)
         )
 
+    if include_batch_size:
+        parameter = Parameter(name="batch_size", kind=Parameter.KEYWORD_ONLY, annotation=int)
+        param_list.append(parameter)
+
     if include_kwargs:
-        param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
+        param_list.extend(
+            _get_keyword_params(
+                schema,
+                all_args_optional=all_args_optional,
+                data_node_tensors=data_node_kwargs,
+            )
+        )
         param_list.extend(_get_implicit_keyword_params(schema, all_args_optional=all_args_optional))
 
     if data_node_return:
@@ -494,6 +515,33 @@ class {cls_name}:
     )
 
 
+def _gen_dynamic_signature_no_input(schema: _b.OpSchema, schema_name: str, fn_name: str):
+    """TODO"""
+    call_signature = functools.partial(_call_signature, schema, data_node_kwargs=False)
+    return f"""
+@overload
+def {fn_name}{call_signature(return_annotation_gen=lambda _: _Tensor)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+
+@overload
+def {fn_name}{call_signature(include_batch_size=True, return_annotation_gen=lambda _: _Batch)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+"""
+
+
+def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, fn_name: str):
+    """TODO"""
+    signature = (
+        _gen_dynamic_signature_no_input(schema, schema_name, fn_name)
+        if schema.MaxNumInput() == 0
+        else "\n...\n"  # _gen_dynamic_signature_with_inputs(schema, schema_name, fn_name)
+    )
+
+    return inspect_repr_fixups(signature)
+
+
 # Preamble with license and helper imports for the stub file.
 # We need the placeholders for actual Python classes, as the ones that are exported from backend
 # don't seem to work with the intellisense.
@@ -515,12 +563,19 @@ _HEADER = """
 from typing import Union, Optional, overload
 from typing import Any, List, Sequence
 
-from nvidia.dali._typing import TensorLikeIn, TensorLikeArg
-
-from nvidia.dali.data_node import DataNode
-
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
+"""
+
+_PIPELINE_HEADER = """
+from nvidia.dali._typing import TensorLikeIn, TensorLikeArg
+from nvidia.dali.data_node import DataNode
+"""
+
+_DYNAMIC_HEADER = """
+from nvidia.dali._typing import TensorLike, TensorLikeArg
+from nvidia.dali.experimental.dynamic._tensor import Tensor
+from nvidia.dali.experimental.dynamic._batch import Batch
 """
 
 
@@ -574,8 +629,8 @@ def _get_op(api_module, full_qualified_name: List[str]):
 
 
 def _group_signatures(api: str):
-    """Divide all operators registered into the "ops" or "fn" api into 4 categories and return them
-    as a dictionary:
+    """Divide all operators registered into the "ops", "fn" or "dynamic api into 4 categories
+    and return them as a dictionary:
     * python_only - there is just the Python definition
     * hidden_or_internal - op is hidden or internal, defined in backend
     * python_wrapper - op defined in backend, has a hand-written wrapper (op._generated = False)
@@ -585,6 +640,9 @@ def _group_signatures(api: str):
     depending on the api type.
 
     """
+
+    from nvidia.dali.experimental import dynamic
+
     sig_groups = {
         "python_only": [],
         "hidden_or_internal": [],
@@ -592,24 +650,29 @@ def _group_signatures(api: str):
         "generated": [],
     }
 
-    api_module = fn if api == "fn" else ops
+    api_module = {"fn": fn, "ops": ops, "dynamic": dynamic}[api]
+    naming_convention = api if api != "dynamic" else "fn"
 
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
 
-        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+        _, module_nesting, op_name = _names._process_op_name(schema_name, api=naming_convention)
         op = _get_op(api_module, module_nesting + [op_name])
 
+        if op is None:
+            continue
+
         if schema is None:
-            if op is not None:
-                sig_groups["python_only"].append((schema_name, op))
+            sig_groups["python_only"].append((schema_name, op))
             continue
 
         if schema.IsDocHidden() or schema.IsInternal():
             sig_groups["hidden_or_internal"].append((schema_name, op))
             continue
 
-        if not getattr(op, "_generated", False):
+        # Dynamic mode doesn't have registered python wrappers yet
+        # If necessary, we can later check hasattr(op, "op_class")
+        if not hasattr(op, "_generated") and api != "dynamic":
             sig_groups["python_wrapper"].append((schema_name, op))
             continue
 
@@ -624,6 +687,12 @@ class StubFileManager:
         self._nvidia_dali_path = nvidia_dali_path
         self._api = api
         self._module_tree = _build_module_tree()
+        self._header = _HEADER
+
+        if api in ("ops", "fn"):
+            self._header += _PIPELINE_HEADER
+        else:
+            self._header += _DYNAMIC_HEADER
 
     def get(self, module_nesting: List[str]):
         """Get the file representing the given submodule nesting.
@@ -639,7 +708,7 @@ class StubFileManager:
             open(file_path, "w").close()  # clear the file
             f = open(file_path, "a")
             self._module_to_file[module_path] = f
-            f.write(_HEADER)
+            f.write(self._header)
             full_module_nesting = [""] + module_nesting
             # Find out all the direct submodules and add the imports
             submodules_dict = self._module_tree
@@ -657,24 +726,27 @@ class StubFileManager:
             f.close()
 
 
-def gen_all_signatures(nvidia_dali_path, api):
-    """Generate the signatures for "fn" or "ops" api.
+def gen_all_signatures(nvidia_dali_path: Path, api: Literal["fn", "ops", "dynamic"]):
+    """Generate the signatures for "fn", "ops" or "dynamic" api.
 
     Parameters
     ----------
     nvidia_dali_path : Path
         The path to the wheel pre-packaging to the nvidia/dali directory.
     api : str
-        "fn" or "ops"
+        "fn", "ops" or "dynamic"
     """
-    nvidia_dali_path = Path(nvidia_dali_path)
+    api_path = naming_convention = api
+    if api == "dynamic":
+        api_path = os.path.join("experimental", api)
+        naming_convention = "fn"
 
-    with closing(StubFileManager(nvidia_dali_path, api)) as stub_manager:
+    with closing(StubFileManager(nvidia_dali_path, api_path)) as stub_manager:
         sig_groups = _group_signatures(api)
 
         # Python-only and the manually defined ones are reexported from their respective modules
         for schema_name, op in sig_groups["python_only"] + sig_groups["python_wrapper"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=naming_convention)
 
             stub_manager.get(module_nesting).write(
                 f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
@@ -684,15 +756,14 @@ def gen_all_signatures(nvidia_dali_path, api):
         # directly visible
 
         # Runtime generated classes use fully specified stubs.
+        signature_generators = {
+            "fn": _gen_fn_signature,
+            "ops": _gen_ops_signature,
+            "dynamic": _gen_dynamic_signature,
+        }
         for schema_name, op in sig_groups["generated"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=naming_convention)
             schema = _b.TryGetSchema(schema_name)
 
-            if api == "fn":
-                stub_manager.get(module_nesting).write(
-                    _gen_fn_signature(schema, schema_name, op_name)
-                )
-            else:
-                stub_manager.get(module_nesting).write(
-                    _gen_ops_signature(schema, schema_name, op_name)
-                )
+            signature = signature_generators[api](schema, schema_name, op_name)
+            stub_manager.get(module_nesting).write(signature)
