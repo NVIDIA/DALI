@@ -174,8 +174,8 @@ def single_class_op_file(full_name, references):
     result = f"{full_name}\n"
     result += "-" * len(full_name) + "\n\n"
     result += f".. autoclass:: {full_name}\n"
-    result += f"   :members: next_epoch\n"
-    result += f"   :special-members: __init__, __call__\n\n"
+    result += "   :members: next_epoch\n"
+    result += "   :special-members: __init__, __call__\n\n"
     result += get_references(full_name, references)
     return result
 

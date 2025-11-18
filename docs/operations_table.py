@@ -221,13 +221,15 @@ def operations_table(out_filename, module_name="nvidia.dali.fn"):
         f.write(doc_table)
 
 
-def dynamic_readers_table(out_filename, module_name="nvidia.dali.fn"):
+def dynamic_readers_table(out_filename):
     readers = [
         f.schema.Name()
         for f in ndd.ops._all_ops
         if "readers" in f.schema.ModulePath()
     ]
-    doc_table = operations_table_str(readers, module_name=module_name)
+    doc_table = operations_table_str(
+        readers, module_name="nvidia.dali.experimental.dynamic"
+    )
     with open(out_filename, "w") as f:
         f.write(doc_table)
 
