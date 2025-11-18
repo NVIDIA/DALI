@@ -168,6 +168,7 @@ def single_fun_file(full_name, references):
     result += get_references(full_name, references)
     return result
 
+
 def single_class_op_file(full_name, references):
     """Generate stub page for documentation of class-like operator from dynamic api."""
     result = f"{full_name}\n"
@@ -282,12 +283,18 @@ def dynamic_autodoc(out_filename, generated_path, references):
     with open(out_filename, "w") as f:
         f.write(all_modules_str)
 
+
 def dynamic_readers_autodoc(out_filename, generated_path, references):
     all_modules_str = ".. toctree::\n   :hidden:\n\n"
     all_modules = [m for m in get_modules(dynamic_modules) if "readers" in m]
     for module in all_modules:
         dali_module = sys.modules[module]
-        readers_in_module = [k for k, v in dali_module.__dict__.items() if inspect.isclass(v) and issubclass(v, nvidia.dali.experimental.dynamic.ops.Reader)]
+        readers_in_module = [
+            k
+            for k, v in dali_module.__dict__.items()
+            if inspect.isclass(v)
+            and issubclass(v, nvidia.dali.experimental.dynamic.ops.Reader)
+        ]
 
         # As the top-level file is included from a directory above generated_path
         # we need to provide the relative path to the per-module files

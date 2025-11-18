@@ -49,7 +49,11 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
     if make_hidden:
         submodule_path = [*submodule_path, "hidden"]
     if api == "fn" or (
-        api == "dynamic" and (not submodule_path or (submodule_path[0] not in ["ops"] and "readers" not in submodule_path))
+        api == "dynamic"
+        and (
+            not submodule_path
+            or (submodule_path[0] not in ["ops"] and "readers" not in submodule_path)
+        )
     ):
         op_name = _functional._to_snake_case(op_name)
     op_full_name = ".".join(submodule_path + [op_name])
