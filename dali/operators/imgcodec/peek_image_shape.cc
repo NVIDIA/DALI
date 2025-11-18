@@ -26,7 +26,9 @@ This operator returns the shape that an image would have after decoding.
 
 .. note::
     In most cases the optimal solution is to call :meth:`nvidia.dali.pipeline.DataNode.shape()`
-    on the decoded images.
+    on the decoded images. Use this operator if you either do not intend to decode the image
+    in your pipeline, or do not use the default execution model (i.e., explicitly set 
+    ``exec_dynamic=False``).
 )")
   .NumInput(1)
   .NumOutput(1)
