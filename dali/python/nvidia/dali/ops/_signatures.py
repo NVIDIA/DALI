@@ -316,6 +316,7 @@ def _call_signature(
     include_kwargs=True,
     include_self=False,
     include_batch_size=False,
+    optional_batch_size=False,
     data_node_return=True,
     data_node_kwargs=True,
     all_args_optional=False,
@@ -336,7 +337,10 @@ def _call_signature(
     include_self : bool, optional
         Prepend `self` as first positional argument in the signature, by default False
     include_batch_size : bool, optional
-        Preped `batch_size` as first keyword-only argument in the signature, by default False
+        Prepend `batch_size` as first keyword-only argument in the signature, by default False
+    optional_batch_size : bool, optional
+        If `include_batch_size` is set, whether to the annotation should be Optional[int],
+        by default False
     data_node_return : bool, optional
         If the signature should have a return annotation or return None (for ops class __init__),
         by default True
@@ -360,8 +364,16 @@ def _call_signature(
         )
 
     if include_batch_size:
-        parameter = Parameter(name="batch_size", kind=Parameter.KEYWORD_ONLY, annotation=int)
-        param_list.append(parameter)
+        annotation = Optional[int] if optional_batch_size else int
+        default = None if optional_batch_size else Parameter.empty
+        param_list.append(
+            Parameter(
+                name="batch_size",
+                kind=Parameter.KEYWORD_ONLY,
+                annotation=annotation,
+                default=default,
+            )
+        )
 
     if include_kwargs:
         param_list.extend(
@@ -531,12 +543,67 @@ def {fn_name}{call_signature(include_batch_size=True, return_annotation_gen=lamb
 """
 
 
+def _gen_dynamic_signature_single_inputs(schema: _b.OpSchema, schema_name: str, fn_name: str):
+    """Generate the signatures with a single input. The two overloads are:
+    - `(tensor, /, **kwargs) -> Tensor | Batch`:
+        When the input is a tensor, it is possible that one or more arguments are batches,
+        therefore producing a batch by broadcasting.
+    - `(tensor, /, *, batch_size: int, **kwargs) -> Batch`:
+        If `batch_size` is specified, the output is always a batch.
+    - `(batch, /, **kwargs) -> Batch`:
+        If the input is a batch, if the `batch_size` argument is set to an integer,
+        it either matches and has no effect, or doesn't and causes a runtime error.
+        It is therefore ommitted from this overload.
+    """
+
+    return f"""
+@overload
+def {fn_name}{_call_signature(
+    schema,
+    data_node_kwargs=False,
+    input_annotation_gen=lambda _: _Tensor,
+    return_annotation_gen=lambda _: Union[_Tensor, _Batch],
+)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+
+@overload
+def {fn_name}{_call_signature(
+    schema,
+    data_node_kwargs=False,
+    include_batch_size=True,
+    input_annotation_gen=lambda _: _Tensor,
+    return_annotation_gen=lambda _: _Batch,
+)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+
+@overload
+def {fn_name}{_call_signature(
+    schema,
+    data_node_kwargs=False,
+    input_annotation_gen=lambda _: _Batch,
+    return_annotation_gen=lambda _: _Batch,
+)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+"""
+
+
 def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """TODO"""
+    """Write the stub of the dynamic API function with the docstring, for given operator.
+    Depending on the number of inputs (0, 1, >1), the number of overloads is different.
+    """
+
+    num_inputs = schema.MaxNumInput()
     signature = (
         _gen_dynamic_signature_no_input(schema, schema_name, fn_name)
-        if schema.MaxNumInput() == 0
-        else "\n...\n"  # _gen_dynamic_signature_with_inputs(schema, schema_name, fn_name)
+        if num_inputs == 0
+        else (
+            _gen_dynamic_signature_single_inputs(schema, schema_name, fn_name)
+            if num_inputs == 1
+            else f"...  # {fn_name}\n"
+        )
     )
 
     return inspect_repr_fixups(signature)
