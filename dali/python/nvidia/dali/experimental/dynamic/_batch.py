@@ -530,11 +530,10 @@ class Batch:
         if self.device == device and not force_copy:
             return self
         else:
-            with device:
-                from . import copy
+            from . import copy
 
-                ret = copy(self, device=device)
-                return ret
+            ret = copy(self, device=device)
+            return ret
 
     def cpu(self) -> "Batch":
         """
