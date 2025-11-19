@@ -16,7 +16,7 @@ import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
 from nose_utils import SkipTest, attr, assert_raises
 import numpy as np
-import cupy as cp
+import os
 
 
 def test_eval_context_get():
@@ -146,13 +146,18 @@ def _validate_gpu_expr_result(result, expected_device_id):
     assert result.device.device_type == "gpu"
     assert result.device.device_id == expected_device_id
     assert result.shape == (1,)
-    output_cp = cp.from_dlpack(result._storage)
-    expected_cp = cp.array([5.0], dtype=cp.float32)
-    assert cp.allclose(output_cp, expected_cp)
+    result = result.evaluate()
+    result_cpu = result.to_device(ndd.Device("cpu"))
+    result_cpu = result_cpu.evaluate()
+    assert result_cpu.shape == (1,)
+    assert result_cpu.dtype == ndd.float32
+    assert result_cpu.device.device_type == "cpu"
+    assert result_cpu.device.device_id == 0
+    np.testing.assert_array_equal(result_cpu, np.array([5.0], dtype=np.float32))
 
 
 @attr("multi_gpu")
-def test_device_mismatch_explicit_device():
+def test_device_mismatch_device():
     """
     Test that we properly detect when an invocation created with one device
     is evaluated with a different device context.
@@ -160,59 +165,81 @@ def test_device_mismatch_explicit_device():
     if _backend.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
 
-    # Create an invocation in GPU 1 context
-    with ndd.Device("gpu:1"):
-        result = _gpu_expr()
-
-    # Try to evaluate with GPU 0 context - this should raise a RuntimeError
-    with assert_raises(RuntimeError, glob="*Device mismatch*gpu:1*gpu:0*"):
-        with ndd.EvalContext(device_id=0):
-            result.evaluate()
-
-
-@attr("multi_gpu")
-def test_device_mismatch_default_device():
-    """
-    Test that we properly detect when an invocation created with one device
-    is evaluated with a different device context.
-    """
-    if _backend.GetCUDADeviceCount() < 2:
-        raise SkipTest("At least 2 devices needed for the test")
-
-    result = _gpu_expr()
-
-    # Try to evaluate with GPU 0 context - this should raise a RuntimeError
-    with assert_raises(RuntimeError, glob="*Device mismatch*gpu:0*gpu:1*"):
-        with ndd.EvalContext(device_id=1):
-            result.evaluate()
+    devices = [None] + list(range(_backend.GetCUDADeviceCount()))
+    for device_id in devices:
+        if device_id is None:
+            result = _gpu_expr()
+        else:
+            with ndd.Device(f"gpu:{device_id}"):
+                result = _gpu_expr()
+        actual_device_id = device_id if device_id is not None else 0
+        eval_device_id = 0 if actual_device_id != 0 else 1
+        with assert_raises(
+            RuntimeError, glob=f"*Device mismatch*gpu:{actual_device_id}*gpu:{eval_device_id}*"
+        ):
+            with ndd.EvalContext(device_id=eval_device_id):
+                result.evaluate()
 
 
-def test_device_match_explicit_device():
+def test_device_match_device():
     """
     Test that operations work fine when device contexts match the default device.
     """
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
 
-    for device_id in range(_backend.GetCUDADeviceCount()):
-        with ndd.Device(f"gpu:{device_id}"):
+    devices = [None] + list(range(_backend.GetCUDADeviceCount()))
+    for device_id in devices:
+        if device_id is None:
             result = _gpu_expr()
-        with ndd.EvalContext(device_id=device_id):
+        else:
+            with ndd.Device(f"gpu:{device_id}"):
+                result = _gpu_expr()
+
+        eval_device_id = device_id if device_id is not None else 0
+        with ndd.EvalContext(device_id=eval_device_id):
             output = result.evaluate()
-            _validate_gpu_expr_result(output, device_id)
+            _validate_gpu_expr_result(output, eval_device_id)
 
 
-def test_device_match_default_device():
+def test_default_device_conversion_to_cpu():
     """
-    Test that slice operator works correctly when device contexts match.
+    Test that evaluating a GPU tensor converted to CPU doesn't trigger any device mismatch errors.
     """
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
 
-    # Create and evaluate slice operation with matching device context
-    with ndd.Device("gpu:0"):
-        sliced = _gpu_expr()
+    cpu_arr = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    gpu_tensor = ndd.tensor(cpu_arr, device="gpu")
+    cpu_tensor = gpu_tensor.cpu()
+    cpu_tensor_result = cpu_tensor.evaluate()
+    np.testing.assert_array_equal(cpu_tensor_result, cpu_arr)
 
-    with ndd.EvalContext(device_id=0):
-        output = sliced.evaluate()
-        _validate_gpu_expr_result(output, 0)
+
+def test_device_match_mixed_operator():
+    """
+    Test that mixed operators (such as decoders.image) correctly honor the active device context.
+    """
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 device needed for the test")
+
+    devices = [None] + list(range(_backend.GetCUDADeviceCount()))
+    for device_id in devices:
+        db_path = os.path.join(os.environ["DALI_EXTRA_PATH"], "db", "lmdb")
+        reader = ndd.readers.Caffe(path=db_path, random_shuffle=False)
+        iterator = reader.next_epoch(None)
+        encoded, _ = next(iterator)
+
+        if device_id is None:
+            decoded_gpu = ndd.decoders.image(encoded, device="mixed")
+        else:
+            with ndd.Device(f"gpu:{device_id}"):
+                decoded_gpu = ndd.decoders.image(encoded, device="mixed")
+
+        eval_device_id = device_id if device_id is not None else 0
+        with ndd.EvalContext(device_id=eval_device_id):
+            assert decoded_gpu.device.device_type == "gpu"
+            assert decoded_gpu.device.device_id == eval_device_id
+            output = decoded_gpu.evaluate()
+            assert output.shape == (1280, 919, 3)
+            assert output.dtype == ndd.uint8
