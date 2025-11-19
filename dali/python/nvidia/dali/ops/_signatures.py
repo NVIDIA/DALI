@@ -316,7 +316,6 @@ def _call_signature(
     include_kwargs=True,
     include_self=False,
     include_batch_size=False,
-    optional_batch_size=False,
     data_node_return=True,
     data_node_kwargs=True,
     all_args_optional=False,
@@ -338,9 +337,6 @@ def _call_signature(
         Prepend `self` as first positional argument in the signature, by default False
     include_batch_size : bool, optional
         Prepend `batch_size` as first keyword-only argument in the signature, by default False
-    optional_batch_size : bool, optional
-        If `include_batch_size` is set, whether to the annotation should be Optional[int],
-        by default False
     data_node_return : bool, optional
         If the signature should have a return annotation or return None (for ops class __init__),
         by default True
@@ -364,16 +360,7 @@ def _call_signature(
         )
 
     if include_batch_size:
-        annotation = Optional[int] if optional_batch_size else int
-        default = None if optional_batch_size else Parameter.empty
-        param_list.append(
-            Parameter(
-                name="batch_size",
-                kind=Parameter.KEYWORD_ONLY,
-                annotation=annotation,
-                default=default,
-            )
-        )
+        param_list.append(Parameter(name="batch_size", kind=Parameter.KEYWORD_ONLY, annotation=int))
 
     if include_kwargs:
         param_list.extend(
@@ -528,7 +515,9 @@ class {cls_name}:
 
 
 def _gen_dynamic_signature_no_input(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """TODO"""
+    """Generate the signatures with no input. The return type is a Batch iff `batch_size` is set
+    to an integer, else the function returns a Tensor.
+    """
     call_signature = functools.partial(_call_signature, schema, data_node_kwargs=False)
     return f"""
 @overload
@@ -543,7 +532,7 @@ def {fn_name}{call_signature(include_batch_size=True, return_annotation_gen=lamb
 """
 
 
-def _gen_dynamic_signature_single_inputs(schema: _b.OpSchema, schema_name: str, fn_name: str):
+def _gen_dynamic_signature_single_input(schema: _b.OpSchema, schema_name: str, fn_name: str):
     """Generate the signatures with a single input. The two overloads are:
     - `(tensor, /, **kwargs) -> Tensor | Batch`:
         When the input is a tensor, it is possible that one or more arguments are batches,
@@ -590,6 +579,46 @@ def {fn_name}{_call_signature(
 """
 
 
+def _gen_dynamic_signature_multiple_inputs(schema: _b.OpSchema, schema_name: str, fn_name: str):
+    """Generate the signatures with multiple inputs. The logic is similar to
+    `_gen_dynamic_signature_single_input` but functions accept Tensor | Batch instead of just
+    Tensor. Since the arguments of last overload are a subset of the arguments of the first,
+    definitions are reordered.
+    """
+    return f"""
+@overload
+def {fn_name}{_call_signature(
+    schema,
+    data_node_kwargs=False,
+    input_annotation_gen=lambda _: _Batch,
+    return_annotation_gen=lambda _: _Batch,
+)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+
+@overload
+def {fn_name}{_call_signature(
+    schema,
+    data_node_kwargs=False,
+    input_annotation_gen=lambda _: Union[_Tensor, _Batch],
+    return_annotation_gen=lambda _: Union[_Tensor, _Batch],
+)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+
+@overload
+def {fn_name}{_call_signature(
+    schema,
+    data_node_kwargs=False,
+    include_batch_size=True,
+    input_annotation_gen=lambda _: Union[_Tensor, _Batch],
+    return_annotation_gen=lambda _: _Batch,
+)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+"""
+
+
 def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, fn_name: str):
     """Write the stub of the dynamic API function with the docstring, for given operator.
     Depending on the number of inputs (0, 1, >1), the number of overloads is different.
@@ -600,9 +629,9 @@ def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, fn_name: str):
         _gen_dynamic_signature_no_input(schema, schema_name, fn_name)
         if num_inputs == 0
         else (
-            _gen_dynamic_signature_single_inputs(schema, schema_name, fn_name)
+            _gen_dynamic_signature_single_input(schema, schema_name, fn_name)
             if num_inputs == 1
-            else f"...  # {fn_name}\n"
+            else _gen_dynamic_signature_multiple_inputs(schema, schema_name, fn_name)
         )
     )
 
