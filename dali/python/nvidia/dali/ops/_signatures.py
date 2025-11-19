@@ -16,14 +16,16 @@ import ast
 import functools
 import os
 from contextlib import closing
-from inspect import Parameter, Signature
+from inspect import Parameter, Signature, getmodule, ismodule
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Sequence, Union
+from typing import Any, List, Literal, Optional, Sequence, TypeAlias, Union
 
 from nvidia.dali import backend as _b
 from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _docs, _names, _registry
+
+Api: TypeAlias = Literal["fn", "ops", "dynamic"]
 
 
 def _create_annotation_placeholder(typename):
@@ -242,10 +244,17 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
     return param_list
 
 
-def _get_keyword_params(schema, all_args_optional=False, data_node_tensors=False):
+def _get_keyword_params(schema, api: Api, all_args_optional=False, data_node_tensors=False):
     """Get the list of annotated keyword Parameters to the operator."""
+
+    if api == "dynamic":
+        from nvidia.dali.experimental.dynamic._op_builder import _unsupported_args
+
     param_list = []
     for arg in schema.GetArgumentNames():
+        if api == "dynamic" and arg in _unsupported_args:  # type: ignore
+            continue
+
         if schema.IsDeprecatedArg(arg):
             # We don't put the deprecated args in the visible API
             continue
@@ -295,23 +304,30 @@ def _get_keyword_params(schema, all_args_optional=False, data_node_tensors=False
     return param_list
 
 
-def _get_implicit_keyword_params(schema, all_args_optional=False):
+def _get_implicit_keyword_params(schema, api: Api):
     """All operators have some additional kwargs, that are not listed in schema, but are
     implicitly used by DALI.
     """
-    _ = all_args_optional
-    return [
+    params = [
         # TODO(klecki): The default for `device` is dependant on the input placement (and API).
         Parameter(
             name="device", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]
         ),
-        # The name is truly optional
-        Parameter(name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]),
     ]
+    if api != "dynamic":
+        # The name is truly optional
+        params.append(
+            Parameter(
+                name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]
+            )
+        )
+
+    return params
 
 
 def _call_signature(
     schema,
+    api: Api,
     include_inputs=True,
     include_kwargs=True,
     include_self=False,
@@ -329,6 +345,8 @@ def _call_signature(
     ----------
     schema : OpSchema
         Schema for the operator.
+    api : str
+        "fn", "ops" or "dynamic"
     include_inputs : bool, optional
         If positional inputs should be included in the signature, by default True
     include_kwargs : bool, optional
@@ -366,11 +384,12 @@ def _call_signature(
         param_list.extend(
             _get_keyword_params(
                 schema,
+                api,
                 all_args_optional=all_args_optional,
                 data_node_tensors=data_node_kwargs,
             )
         )
-        param_list.extend(_get_implicit_keyword_params(schema, all_args_optional=all_args_optional))
+        param_list.extend(_get_implicit_keyword_params(schema, api))
 
     if data_node_return:
         return_annotation = return_annotation_gen(schema)
@@ -398,7 +417,7 @@ def _gen_fn_signature_no_input(schema, schema_name, fn_name):
     we write only the default signature, without involving @overload decorator.
     """
     return f"""
-def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+def {fn_name}{_call_signature(schema, "fn", include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
@@ -421,14 +440,14 @@ def _gen_fn_signature_with_inputs(schema, schema_name, fn_name):
     """
     return f"""
 @overload
-def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+def {fn_name}{_call_signature(schema, "fn", include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
 
 
 @overload
-def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
+def {fn_name}{_call_signature(schema, "fn", include_inputs=True, include_kwargs=True,
                               input_annotation_gen=_get_annotation_input_mis,
                               return_annotation_gen=_get_annotation_return_mis)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
@@ -453,7 +472,7 @@ def _gen_ops_call_signature_no_input(schema, schema_name):
     we write only the default call signature, without involving @overload decorator.
     """
     return f"""
-    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+    def __call__{_call_signature(schema, "ops", include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
@@ -467,6 +486,7 @@ def _gen_ops_call_signature_with_inputs(schema, schema_name):
     """
     signature = _call_signature(
         schema,
+        "ops",
         include_inputs=True,
         include_kwargs=True,
         include_self=True,
@@ -476,7 +496,7 @@ def _gen_ops_call_signature_with_inputs(schema, schema_name):
     )
     return f"""
     @overload
-    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+    def __call__{_call_signature(schema, "ops", include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
@@ -504,7 +524,7 @@ def _gen_ops_signature(schema, schema_name, cls_name):
 class {cls_name}:
     \"""{_docs._docstring_generator_class(schema_name)}
     \"""
-    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
+    def __init__{_call_signature(schema, "ops", include_inputs=False, include_kwargs=True,
                                  include_self=True, data_node_return=False,
                                  all_args_optional=True)}:
         ...
@@ -518,16 +538,16 @@ def _gen_dynamic_signature_no_input(schema: _b.OpSchema, schema_name: str, fn_na
     """Generate the signatures with no input. The return type is a Batch iff `batch_size` is set
     to an integer, else the function returns a Tensor.
     """
-    call_signature = functools.partial(_call_signature, schema, data_node_kwargs=False)
+    call_signature = functools.partial(_call_signature, schema, "dynamic", data_node_kwargs=False)
     return f"""
 @overload
 def {fn_name}{call_signature(return_annotation_gen=lambda _: _Tensor)}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 
 @overload
 def {fn_name}{call_signature(include_batch_size=True, return_annotation_gen=lambda _: _Batch)}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 """
 
@@ -549,32 +569,35 @@ def _gen_dynamic_signature_single_input(schema: _b.OpSchema, schema_name: str, f
 @overload
 def {fn_name}{_call_signature(
     schema,
+    "dynamic",
     data_node_kwargs=False,
     input_annotation_gen=lambda _: _Tensor,
     return_annotation_gen=lambda _: Union[_Tensor, _Batch],
 )}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 
 @overload
 def {fn_name}{_call_signature(
     schema,
+    "dynamic",
     data_node_kwargs=False,
     include_batch_size=True,
     input_annotation_gen=lambda _: _Tensor,
     return_annotation_gen=lambda _: _Batch,
 )}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 
 @overload
 def {fn_name}{_call_signature(
     schema,
+    "dynamic",
     data_node_kwargs=False,
     input_annotation_gen=lambda _: _Batch,
     return_annotation_gen=lambda _: _Batch,
 )}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 """
 
@@ -589,32 +612,35 @@ def _gen_dynamic_signature_multiple_inputs(schema: _b.OpSchema, schema_name: str
 @overload
 def {fn_name}{_call_signature(
     schema,
+    "dynamic",
     data_node_kwargs=False,
     input_annotation_gen=lambda _: _Batch,
     return_annotation_gen=lambda _: _Batch,
 )}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 
 @overload
 def {fn_name}{_call_signature(
     schema,
+    "dynamic",
     data_node_kwargs=False,
     input_annotation_gen=lambda _: Union[_Tensor, _Batch],
     return_annotation_gen=lambda _: Union[_Tensor, _Batch],
 )}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 
 @overload
 def {fn_name}{_call_signature(
     schema,
+    "dynamic",
     data_node_kwargs=False,
     include_batch_size=True,
     input_annotation_gen=lambda _: Union[_Tensor, _Batch],
     return_annotation_gen=lambda _: _Batch,
 )}:
-    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
     \"""
 """
 
@@ -722,6 +748,32 @@ def _get_op(api_module, full_qualified_name: List[str]):
     for elem in full_qualified_name:
         op = getattr(op, elem, None)
     return op
+
+
+def _extract_dynamic_mode_definitions():
+    """DALI dynamic defines several classes and functions that are not operators and thus
+    not exported (e.g., Tensor, as_tensor). Retrieve such definitions.
+    """
+    from nvidia.dali.experimental import dynamic
+
+    registered_names = set()
+    for schema_name in _registry._all_registered_ops():
+        *_, op_name = _names._process_op_name(schema_name, api="fn")
+        registered_names.add(op_name)
+
+    exported_names = {name for name in dir(dynamic)}
+    for name in exported_names - registered_names:
+        definition = getattr(dynamic, name)
+        module = getmodule(definition)
+
+        # Exclude already re-exported definitions
+        if module is None or not module.__name__.startswith(dynamic.__name__):
+            continue
+
+        if ismodule(definition):
+            module = dynamic
+
+        yield module.__name__, name
 
 
 def _group_signatures(api: str):
@@ -847,6 +899,15 @@ def gen_all_signatures(nvidia_dali_path: Path, api: Literal["fn", "ops", "dynami
             stub_manager.get(module_nesting).write(
                 f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
             )
+
+        # Re-export pure-Python definitions in DALI dynamic
+        # It's possible that some symbols conflict with types used in the annotations.
+        # Keep track of all re-exported symbols to solve conflicts later
+        overwrites = set()
+        if api == "dynamic":
+            for module, name in _extract_dynamic_mode_definitions():
+                stub_manager.get([]).write(f"\n\nfrom {module} import" f" ({name} as {name})\n\n")
+                overwrites.add(name)
 
         # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
         # directly visible
