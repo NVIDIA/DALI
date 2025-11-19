@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <curand_kernel.h>
+#include <random>
 #include <vector>
 #include "dali/operators/random/philox.h"
 #include "dali/core/dev_buffer.h"
@@ -22,18 +23,33 @@
 namespace dali {
 namespace test {
 
+namespace {
+
 __global__ void GetCurandPhiloxOutput(
-      uint32_t *output, int n, uint64_t key, uint64_t sequence, uint64_t offset) {
+      uint32_t *output,
+      int n,
+      uint64_t key,
+      uint64_t sequence,
+      uint64_t offset,
+      bool use_skipahead) {
   curandStatePhilox4_32_10_t curand_state{};
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid >= n)
     return;
-  curand_init(key, sequence, offset + tid, &curand_state);
-  output[tid] = curand(&curand_state);
+  if (use_skipahead) {
+    curand_init(key, 0, tid, &curand_state);
+    skipahead(offset, &curand_state);
+    skipahead_sequence(sequence, &curand_state);
+    output[tid] = curand(&curand_state);
+  } else {
+    curand_init(key, sequence, offset, &curand_state);
+    skipahead(tid, &curand_state);  // we need to skipahead to avoid overflow for large offsets
+    output[tid] = curand(&curand_state);
+  }
 }
 
 std::vector<uint32_t> GetReferencePhiloxOutput(
-  int n, uint64_t key, uint64_t sequence, uint64_t offset) {
+  int n, uint64_t key, uint64_t sequence, uint64_t offset, bool skipahead = false) {
   std::vector<uint32_t> output(n);
   DeviceBuffer<uint32_t> output_buf;
   output_buf.resize(n);
@@ -42,7 +58,7 @@ std::vector<uint32_t> GetReferencePhiloxOutput(
   CUDA_CALL(cudaMemsetAsync(output_buf.data(), 0xFE, n * sizeof(uint32_t), s));
 
   GetCurandPhiloxOutput<<<div_ceil(n, 256), 256, 0, s>>>(
-      output_buf.data(), n, key, sequence, offset);
+      output_buf.data(), n, key, sequence, offset, skipahead);
 
   copyD2H(output.data(), output_buf.data(), n, s.get());
 
@@ -50,14 +66,27 @@ std::vector<uint32_t> GetReferencePhiloxOutput(
   return output;
 }
 
-TEST(TestPhilox, VersusCurand) {
-  const int n = 1 << 20;
-
   // some arbitrary values
-  uint64_t key = 0xCAFEBABEFEEDCAFE_u64;
-  uint64_t seq = 0xDECAFBADDEADBEEF_u64;
-  uint64_t ofs = 0x600DF00DF0CACC1A_u64;
+const uint64_t key = 0xCAFEBABEFEEDCAFE_u64;
+const uint64_t seq = 0xDECAFBADDEADBEEF_u64;
+const uint64_t ofs = 0xFFFFFFFFFFFFF000_u64;  // make sure we overflow
 
+}  // namespace
+
+
+TEST(TestPhilox, CurandSkipaheadSanityCheck) {
+  const int n = 1 << 20;
+  auto ref = GetReferencePhiloxOutput(n, key, seq, ofs, false);
+  auto skipahead = GetReferencePhiloxOutput(n, key, seq, ofs, true);
+
+  for (int i = 0; i < n; i++) {
+    ASSERT_EQ(ref[i], skipahead[i]) << " at " << i << "cuRAND vs cuRAND skipahead mismatch";
+  }
+}
+
+
+TEST(TestPhilox, VersusCurandSeq) {
+  const int n = 1 << 20;
   auto ref = GetReferencePhiloxOutput(n, key, seq, ofs);
 
   Philox4x32_10 philox{};
@@ -67,10 +96,52 @@ TEST(TestPhilox, VersusCurand) {
     uint32_t curand_ret = ref[i];
     ASSERT_EQ(ret, curand_ret) << " at " << i;
   }
+}
 
+TEST(TestPhilox, VersusCurandInitSeqOffset) {
+  const int n = 1 << 20;
+  auto ref = GetReferencePhiloxOutput(n, key, seq, ofs);
+
+  Philox4x32_10 philox{};
+  for (int i = n - 1; i >= 0; i--) {
+    philox.init(key, seq, ofs);
+    philox.skipahead(i);  // we can't just init becasue i + ofs overflows
+    uint32_t ret = philox.next();
+    uint32_t curand_ret = ref[i];
+    ASSERT_EQ(ret, curand_ret) << " at " << i;
+  }
+}
+
+TEST(TestPhilox, VersusCurandInitCtrPhase) {
+  const int n = 1 << 20;
+  auto ref = GetReferencePhiloxOutput(n, key, seq, ofs);
+
+  Philox4x32_10 philox{};
+  for (int i = n - 1; i >= 0; i--) {
+    uint64_t ofs_lo = ofs + i;
+    uint64_t ofs_hi = ofs_lo < ofs;
+
+    philox.init(key, seq, (ofs_lo >> 2) | (ofs_hi << 62), ofs_lo & 3);
+    uint32_t ret = philox.next();
+    uint32_t curand_ret = ref[i];
+    ASSERT_EQ(ret, curand_ret) << " at " << i;
+  }
+}
+
+TEST(TestPhilox, VersusCurandRandomSkipahead) {
+  const int n = 1 << 20;
+  auto ref = GetReferencePhiloxOutput(n, key, seq, ofs);
+
+  std::mt19937 mt(12345);
+  Philox4x32_10 philox{};
   // Go backwards and reinitialize the state each time to check rewinding
   for (int i = n - 1; i >= 0; i--) {
-    philox.init(key, seq, ofs + i);
+    uint64_t seq_part = std::uniform_int_distribution<uint64_t>(0, seq)(mt);
+    uint64_t ofs_part = std::uniform_int_distribution<uint64_t>(i, ofs)(mt);
+    philox.init(key, seq_part, ofs_part);
+
+    philox.skipahead_sequence(seq - seq_part);
+    philox.skipahead(ofs - ofs_part + i);
     uint32_t ret = philox.next();
     uint32_t curand_ret = ref[i];
     ASSERT_EQ(ret, curand_ret) << " at " << i;
