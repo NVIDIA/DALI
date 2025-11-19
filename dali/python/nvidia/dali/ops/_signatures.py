@@ -308,10 +308,18 @@ def _get_implicit_keyword_params(schema, api: Api):
     """All operators have some additional kwargs, that are not listed in schema, but are
     implicitly used by DALI.
     """
+
+    supported_backends = schema.GetSupportedBackends()
+    if api == "dynamic" and "mixed" in supported_backends:
+        supported_backends.append("gpu")
+
     params = [
         # TODO(klecki): The default for `device` is dependant on the input placement (and API).
         Parameter(
-            name="device", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]
+            name="device",
+            kind=Parameter.KEYWORD_ONLY,
+            default=None,
+            annotation=Optional[Literal[*supported_backends]],
         ),
     ]
     if api != "dynamic":
@@ -682,7 +690,7 @@ _HEADER = """
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Optional, overload
+from typing import Literal, Optional, Union, overload
 from typing import Any, List, Sequence
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
