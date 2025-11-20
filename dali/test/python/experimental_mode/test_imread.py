@@ -19,8 +19,7 @@ from nose_utils import SkipTest
 from test_utils import get_dali_extra_path
 import numpy as np
 import os
-from nose2.tools import params
-import itertools
+from nose2.tools import cartesian_params
 from PIL import Image
 
 dali_extra_path = get_dali_extra_path()
@@ -50,12 +49,10 @@ references = {
 }
 
 
-@params(
-    *itertools.product(
-        ("cpu", "mixed"),
-        (ndd.Tensor, ndd.Batch),
-        ({}, {"output_type": types.GRAY})
-    )
+@cartesian_params(
+    ("cpu", "mixed"),
+    (ndd.Tensor, ndd.Batch),
+    ({}, {"output_type": types.GRAY})
 )
 def test_imread(device_type, out_type, decoder_kwargs):
     if _backend.GetCUDADeviceCount() == 0:
