@@ -561,11 +561,11 @@ def {fn_name}{call_signature(include_batch_size=True, return_annotation_gen=lamb
 
 
 def _gen_dynamic_signature_single_input(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """Generate the signatures with a single input. The two overloads are:
-    - `(tensor, /, **kwargs) -> Tensor | Batch`:
+    """Generate the signatures with a single input. The three overloads are:
+    - `(tensor-like, /, **kwargs) -> Tensor | Batch`:
         When the input is a tensor, it is possible that one or more arguments are batches,
         therefore producing a batch by broadcasting.
-    - `(tensor, /, *, batch_size: int, **kwargs) -> Batch`:
+    - `(tensor-like, /, *, batch_size: int, **kwargs) -> Batch`:
         If `batch_size` is specified, the output is always a batch.
     - `(batch, /, **kwargs) -> Batch`:
         If the input is a batch, if the `batch_size` argument is set to an integer,
@@ -579,7 +579,7 @@ def {fn_name}{_call_signature(
     schema,
     "dynamic",
     data_node_kwargs=False,
-    input_annotation_gen=lambda _: _Tensor,
+    input_annotation_gen=lambda _: _TensorLike,
     return_annotation_gen=lambda _: Union[_Tensor, _Batch],
 )}:
     \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
@@ -591,7 +591,7 @@ def {fn_name}{_call_signature(
     "dynamic",
     data_node_kwargs=False,
     include_batch_size=True,
-    input_annotation_gen=lambda _: _Tensor,
+    input_annotation_gen=lambda _: _TensorLike,
     return_annotation_gen=lambda _: _Batch,
 )}:
     \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
@@ -612,8 +612,8 @@ def {fn_name}{_call_signature(
 
 def _gen_dynamic_signature_multiple_inputs(schema: _b.OpSchema, schema_name: str, fn_name: str):
     """Generate the signatures with multiple inputs. The logic is similar to
-    `_gen_dynamic_signature_single_input` but functions accept Tensor | Batch instead of just
-    Tensor. Since the arguments of last overload are a subset of the arguments of the first,
+    `_gen_dynamic_signature_single_input` but functions accept TensorLike | Batch instead of just
+    TensorLike. Since the arguments of last overload are a subset of the arguments of the first,
     definitions are reordered.
     """
     return f"""
@@ -633,7 +633,7 @@ def {fn_name}{_call_signature(
     schema,
     "dynamic",
     data_node_kwargs=False,
-    input_annotation_gen=lambda _: Union[_Tensor, _Batch],
+    input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
     return_annotation_gen=lambda _: Union[_Tensor, _Batch],
 )}:
     \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
@@ -645,7 +645,7 @@ def {fn_name}{_call_signature(
     "dynamic",
     data_node_kwargs=False,
     include_batch_size=True,
-    input_annotation_gen=lambda _: Union[_Tensor, _Batch],
+    input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
     return_annotation_gen=lambda _: _Batch,
 )}:
     \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
@@ -910,12 +910,9 @@ def gen_all_signatures(nvidia_dali_path: Path, api: Literal["fn", "ops", "dynami
 
         # Re-export pure-Python definitions in DALI dynamic
         # It's possible that some symbols conflict with types used in the annotations.
-        # Keep track of all re-exported symbols to solve conflicts later
-        overwrites = set()
         if api == "dynamic":
             for module, name in _extract_dynamic_mode_definitions():
                 stub_manager.get([]).write(f"\n\nfrom {module} import" f" ({name} as {name})\n\n")
-                overwrites.add(name)
 
         # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
         # directly visible

@@ -467,6 +467,7 @@ class Tensor:
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
+    @property
     def __cuda_array_interface__(self):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorGPU):

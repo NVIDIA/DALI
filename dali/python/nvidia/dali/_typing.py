@@ -25,7 +25,7 @@ class ArrayInterface(Protocol):
     to its operators. Such parameter would be broadcast for all samples in the batch.
     """
 
-    __array__: dict[str, Any]
+    def __array__(self) -> Any: ...
 
 
 class CudaArrayInterface(Protocol):
@@ -35,7 +35,8 @@ class CudaArrayInterface(Protocol):
     on the GPU memory. DALI can accept such objects as data source for External Source operator.
     """
 
-    __cuda_array_interface__: dict[str, Any]
+    @property
+    def __cuda_array_interface__(self) -> dict[str, Any]: ...
 
 
 class DLPack(Protocol):
