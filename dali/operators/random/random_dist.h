@@ -33,21 +33,24 @@ struct normalized_uniform_dist {
   DALI_HOST_DEV T operator()(RNG &rng) const;
 };
 
+DALI_NO_EXEC_CHECK
 template <typename RNG>
-uint32_t get_uint32(RNG &rng) {
+DALI_HOST_DEV DALI_FORCEINLINE uint32_t get_uint32(RNG &rng) {
   auto x = rng();
   static_assert(sizeof(x) >= 4);  // just throw out higher bits, if any
   static_assert(std::is_integral_v<decltype(x)>);
   return uint32_t(x);
 }
 
+DALI_NO_EXEC_CHECK
 template <typename RNG>
-uint64_t get_uint64(RNG &rng) {
+DALI_HOST_DEV DALI_FORCEINLINE uint64_t get_uint64(RNG &rng) {
   auto x = rng();
   static_assert(sizeof(x) == 4 || sizeof(x) == 8);
   static_assert(std::is_integral_v<decltype(x)>);
   if constexpr (sizeof(x) == 4) {
-    return x | (uint64_t(rng()) << 32);
+    uint64_t y = rng();
+    return x | (y << 32);
   } else {  // 8
     return x;
   }
@@ -144,6 +147,9 @@ struct uniform_real_dist {
 
   using gen_type = typename std::conditional_t<std::is_same_v<T, double>, uint64_t, uint32_t>;
 
+  DALI_HOST_DEV uniform_real_dist(const uniform_real_dist &other) = default;
+  DALI_HOST_DEV uniform_real_dist &operator=(const uniform_real_dist &other) = default;
+  DALI_HOST_DEV uniform_real_dist() = default;
   DALI_HOST_DEV uniform_real_dist(T start, T end) {
     min_value_ = start;
   #ifdef __CUDA_ARCH__
@@ -166,10 +172,10 @@ struct uniform_real_dist {
     T val = 0;
     if constexpr (std::is_same_v<T, double>) {
       uint64_t r = get_uint64(rng);
-      val = fma(r, factor_, min_value_);
+      val = fma(T(r), factor_, min_value_);
     } else {
       uint32_t r = get_uint32(rng);
-      val = fmaf(r, factor_, min_value_);
+      val = fmaf(T(r), factor_, min_value_);
     }
     // This may lead to slight overrepresentation of the max value but should be negligible.
     val = cuda_min(val, max_value_);
@@ -198,7 +204,7 @@ struct uniform_int_dist {
   DALI_HOST_DEV DALI_FORCEINLINE T operator()(RNG &rng) const {
     if ((range_size_ & (range_size_ - 1)) == 0) {  // special case for zero and pow2 range sizes
       // Range mask will be 0xffffffff for range_size_ == 0 due to overflow.
-      return range_start_ + (rng() & (range_size_ - 1));
+      return range_start_ + (get_uint32(rng) & (range_size_ - 1));
     }
   #ifdef __CUDA_ARCH__
     uint32_t u = get_uint32(rng);
