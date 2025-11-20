@@ -1,0 +1,275 @@
+// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_OPERATORS_UTIL_RANDOM_DIST_H_
+#define DALI_OPERATORS_UTIL_RANDOM_DIST_H_
+
+#include <cassert>
+#include <random>
+#include <type_traits>
+#include <utility>
+#include "dali/core/math_util.h"
+#include "dali/core/cuda_utils.h"
+#include "dali/core/host_dev.h"
+#include "dali/core/geom/vec.h"
+#include <curand_kernel.h>  // NOLINT
+
+namespace dali {
+
+DALI_HOST_DEV DALI_FORCEINLINE constexpr vec4 to_dali_vec(float4 v) {
+  return { v.x, v.y, v.z, v.w };
+}
+
+
+__NV_SILENCE_DEPRECATION_BEGIN
+DALI_HOST_DEV DALI_FORCEINLINE constexpr dvec4 to_dali_vec(double4 v) {
+  return { v.x, v.y, v.z, v.w };
+}
+__NV_SILENCE_DEPRECATION_END
+
+
+template <typename T>
+struct normalized_uniform_dist {
+  template <typename RNG>
+  DALI_HOST_DEV T operator()(RNG &rng) const;
+};
+
+template <typename RNG>
+uint32_t get_uint32(RNG &rng) {
+  auto x = rng();
+  static_assert(sizeof(x) >= 4);  // just throw out higher bits, if any
+  static_assert(std::is_integral_v<decltype(x)>);
+  return uint32_t(x);
+}
+
+template <typename RNG>
+u32vec2 get_uint32x2(RNG &rng) {
+  auto x = rng();
+  static_assert(sizeof(x) == 4 || sizeof(x) == 8);
+  static_assert(std::is_integral_v<decltype(x)>);
+  if constexpr (sizeof(x) == 4) {
+    return { x, rng() };
+  } else {  // 8
+    return { x, x >> 32 };
+  }
+}
+
+template <typename RNG>
+uint64_t get_uint64(RNG &rng) {
+  auto x = rng();
+  static_assert(sizeof(x) == 4 || sizeof(x) == 8);
+  static_assert(std::is_integral_v<decltype(x)>);
+  if constexpr (sizeof(x) == 4) {
+    return x | (rng() << 32)
+  } else {  // 8
+    return x;
+  }
+}
+
+template <>
+template <typename RNG>
+DALI_HOST_DEV inline float normalized_uniform_dist<float>::operator()(RNG &rng) const {
+  uint32_t r = get_uint32(rng);
+  return r * 0x1p-32f;
+}
+
+template <>
+template <typename RNG>
+DALI_HOST_DEV inline float normalized_uniform_dist<double>::operator()(RNG &rng) const {
+  uint64_t v = get_uint64(rng);
+  return r * 0x1p-64;
+}
+
+/** Normal distribution, using Box-Muller transform */
+template <typename T>
+struct standard_normal_dist {
+  template <typename RNG>
+  DALI_HOST_DEV inline float operator()(RNG &rng) const {
+    return get_coord(rng);
+  }
+
+ private:
+  template <typename RNG>
+  DALI_HOST_DEV inline T get_coord(RNG &rng) const {
+    if (has_box_muller_y) {
+      has_box_muller_y = false;
+      return box_muller_y;
+    }
+    T u1 = normalized_uniform_dist<T>()(rng);
+    T u2 = normalized_uniform_dist<T>()(rng);
+
+    // Handle zero values - avoid drawing new numbers to avoid desynchronizing the generators
+    // across threads in a warp.
+    if (u1 == 0) {
+      if (u2 == 0) { // two zeros - the likelihood is 2^-64 for float and 2^-128 for double
+        // we can do whatever here, it won't skew the result due to infinitesimal probability
+        u1 = T(1e-30f);
+      } else {
+        // if we get one zero, swap the values instead of generating a new one
+        T tmp = u2;
+        u2 = u1;
+        u1 = tmp;
+      }
+    }
+    T r = sqrt(-2 * log(u));
+    T theta = T(M_2_PI) * u2;
+    T x = sqrt(r) * cos(theta);
+    T y = sqrt(r) * sin(theta);
+    has_box_muller_y = true;
+    box_muller_y = y;
+    return x;
+  }
+
+  T box_muller_y = 0;
+  bool has_box_muller_y = false;
+}
+
+template <typename T>
+struct normal_dist {
+  T mean = 0, stddev = 1;
+  DALI_HOST_DEV normal_dist(T mean, T stddev) : mean_(mean), stddev_(stddev) {}
+
+  template <typename RNG>
+  DALI_HOST_DEV T operator()(RNG &rng) const {
+    return fma(dist_(rng), stddev, mean);
+  }
+
+ private:
+  standard_normal_dist<T> dist_;
+};
+
+
+template <typename T>
+struct uniform_real_dist {
+  static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>,
+    "Unexpected data type");
+
+  using gen_type = typename std::conditional_t<std::is_same_v<T, double>, uint64_t, uint32_t>;
+
+  DALI_HOST_DEV curand_uniform_dist(T start, T end)
+      : range_start_(start), range_end_(end) {
+    min_value_ = start;
+    max_value_ = nextafter(end, T(start));
+    if (min_value_ > max_value_) {
+      cuda_swap(min_value_, max_value_);
+    }
+    if constexpr (std::is_same_v<T, double>) {
+      factor_ = (max_value_ - min_value_) * 0x1p-64;
+    } else {
+      factor_ = (max_value_ - min_value_) * 0x1p-32f;
+    }
+  }
+
+  template <typename RNG>
+  DALI_HOST_DEV DALI_FORCEINLINE T operator()(RNG &state) const {
+    T val = fma(normalized_uniform_dist<T>()(rng), factor_, min_value_);
+    // This may lead to slight overrepresentation of the max value but should be negligible.
+    val = min(val, max_value_);
+    return val;
+  }
+
+ private:
+  T min_value_ = 0;
+  T max_value_ = nextafter(T(1), T(0));
+  T factor_ = std::is_same_v<T, double> ? 0x1p-64 : 0x1p-32f;
+};
+
+struct uniform_int_dist {
+  DALI_HOST_DEV uniform_int_dist(int start, int end, bool exclusive_max = false)
+      : range_start_(start), range_size_(end - start + (exclusive_max ? 0 : 1)) {
+    assert(end > start);
+  }
+
+  template <typename RNG>
+  DALI_HOST_DEV DALI_FORCEINLINE int operator()(RNG &rng) const {
+  #ifdef __CUDA_ARCH__
+    uint32_t u = get_uint32(RNG &rng);
+    int x = __umulhi(u, range_size_);
+  #else
+    uint64_t u = get_uint32(RNG &rng);
+    int x = (u * range_size) >> 32;
+  #endif
+    return range_start_ + x;
+  }
+
+ private:
+  int range_start_;
+  unsigned int range_size_;
+  friend class UniformIntTest;
+};
+
+template <typename T>
+struct uniform_discrete_dist {
+ public:
+  DALI_HOST_DEV uniform_discrete_dist() : values_(nullptr), nvalues_(0) {
+  }
+
+  DALI_HOST_DEV uniform_discrete_dist(const T *values, int64_t nvalues)
+    : values_(values), nvalues_(nvalues) {}
+
+  template <typename RNG>
+  DALI_HOST_DEV DALI_FORCEINLINE T operator()(RNG &rng) const {
+  #ifdef __CUDA_ARCH__
+    uint32_t u = get_uint32(RNG &rng);
+    unsigned idx = __umulhi(u, nvalues_);
+  #else
+    uint64_t u = get_uint32(RNG &rng);
+    unsigned idx = (u * nvalues_) >> 32;
+  #endif
+    return values_[idx];
+  }
+
+ private:
+  const T *values_ = nullptr;  // device mem pointer
+  int64_t nvalues_ = 0;
+};
+
+struct bernoulli_dist {
+ public:
+  DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist() : threshold(0x7fffffff) {}
+  explicit DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist(float probability = 0.5f) {
+    float th = probability * 0x1p32f;
+    if (th >= 0x1p32f) {  // avoid overflow
+      threshold = 0xffffffff;
+    } else {
+      threshold = static_cast<uint32_t>(th);
+    }
+  }
+
+  template <typename RNG>
+  DALI_HOST_DEV DALI_FORCEINLINE bool operator()(RNG &rng) const {
+    return get_uint32(RNG &rng) <= threshold;
+  }
+
+ private:
+  uint32_t threshold = 0x7fffffff;
+};
+
+struct curand_poisson_dist {
+ public:
+  explicit DALI_HOST_DEV curand_poisson_dist(float lambda)
+    : lambda_(lambda) {}
+
+  __device__ inline unsigned int operator()(curandState *state) const {
+    return curand_poisson(state, lambda_);
+  }
+
+ private:
+  float lambda_ = 0.0f;
+};
+
+
+}  // namespace dali
+
+#endif  // DALI_OPERATORS_UTIL_RANDOM_DIST_H_
