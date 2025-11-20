@@ -218,6 +218,7 @@ class Batch:
             The data to construct the batch from. It can be a list of tensors, a TensorList,
             or other supported types. If None, the batch is constructed from an invocation result.
             Supported types are:
+
             - a list of tensor-like objects; the objects need to have matching number of dimensions,
             data types and layouts,
             - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
@@ -804,6 +805,7 @@ def batch(
         The data to construct the batch from. Can be a list of tensors, a TensorList,
         or other supported types.
         Supported types are:
+        
         - a Batch object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
@@ -851,6 +853,7 @@ def as_batch(
         or other supported types. In general, the input tensors must be kept alive by the caller
         until the batch is no longer needed.
         Supported types are:
+
         - a Batch object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,

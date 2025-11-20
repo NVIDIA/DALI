@@ -70,7 +70,7 @@ class Tensor:
     """A Tensor object.
 
     This class represents a single tensor usable with DALI dynamic API. It can contain any of the
-    following::
+    following:
 
     - tensor data owned by DALI
     - external tensor data wrapped into a DALI tensor
@@ -862,6 +862,7 @@ def tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
+
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
@@ -893,6 +894,7 @@ def as_tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
+        
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
