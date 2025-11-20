@@ -71,7 +71,7 @@ DALI_HOST_DEV inline double normalized_uniform_dist<double>::operator()(RNG &rng
 template <typename T>
 struct standard_normal_dist {
   template <typename RNG>
-  DALI_HOST_DEV inline float operator()(RNG &rng) {
+  DALI_HOST_DEV inline T operator()(RNG &rng) {
     return get_coord(rng);
   }
 
