@@ -35,6 +35,7 @@ cropped and valid bounding boxes and valid labels are returned.)code")
   .NumOutput(3)  // [img, bbox, label]
   .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1)
   .AddRandomSeedArg()
+  .AddRandomStateArg()
   .Deprecate("RandomBBoxCrop");  // deprecated in DALI 0.30
 
 /*

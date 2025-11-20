@@ -49,7 +49,8 @@ that is: :meth:`nvidia.dali.types.DALIDataType`, :meth:`nvidia.dali.types.DALIIm
                                         "If not specified, uniform distribution is assumed.",
                                         nullptr, true)
     .AddOptionalArg<std::vector<int>>("shape", "Shape of the output data.", nullptr, true)
-    .AddRandomSeedArg();
+    .AddRandomSeedArg()
+    .AddRandomStateArg();
 
 DALI_REGISTER_OPERATOR(random__Choice, Choice<CPUBackend>, CPU);
 

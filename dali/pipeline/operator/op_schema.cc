@@ -514,6 +514,14 @@ OpSchema &OpSchema::AddRandomSeedArg() {
   return *this;
 }
 
+OpSchema &OpSchema::AddRandomStateArg() {
+  auto &arg = AddArgumentImpl("_random_state", DALI_UINT32, nullptr,
+                              "Internal argument for passing random state in Dynamic Mode.");
+  arg.hidden = true;
+  arg.tensor = true;
+  return *this;
+}
+
 bool OpSchema::HasRandomSeedArg() const {
   return !IsDeprecatedArg("seed");
 }

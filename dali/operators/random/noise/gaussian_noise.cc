@@ -26,6 +26,7 @@ The shape and data type of the output will match the input.
     .NumInput(1)
     .NumOutput(1)
     .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddOptionalArg<float>("mean",
       R"code(Mean of the distribution.)code",
       0.f, true)
