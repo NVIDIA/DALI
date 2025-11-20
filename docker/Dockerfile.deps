@@ -12,7 +12,7 @@ RUN yum install -y wget doxygen graphviz gettext xz openssl autogen zip \
                    gcc-toolset-14-libasan-devel gcc-toolset-14-liblsan-devel \
                    gcc-toolset-14-libtsan-devel gcc-toolset-14-libubsan-devel \
                    perl perl-IPC-Cmd nasm clang clang-devel && \
-    sed -i "/texture_fetch_functions\.h/d" /usr/lib/clang/19/include/__clang_cuda_runtime_wrapper.h
+    find /usr/lib/clang -name __clang_cuda_runtime_wrapper.h -exec sed -i '/texture_fetch_functions\.h/d' {} \;
 
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
