@@ -43,8 +43,12 @@ Device
 .. autoclass:: Device
    :members:
 
+EvalContext
+^^^^^^^^^^^
+.. autoclass:: EvalContext
+   :members:
+
 EvalMode
 ^^^^^^^^
 .. autoclass:: EvalMode
    :members:
-
