@@ -21,8 +21,8 @@ to improve performance.
    model = MyModel(...)
    flip_horizontal = True
    flip_vertical = False
-   dataset = ndd.readers.file(file_root=images_dir)
-   for batch in dataset.epoch(batch_size=16):
+   dataset = ndd.readers.File(file_root=images_dir)
+   for batch in dataset.next_epoch(batch_size=16):
        img = ndd.decoders.image(batch, device="mixed")
        flipped = ndd.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
        model((flipped, img))
