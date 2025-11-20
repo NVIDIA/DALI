@@ -21,10 +21,12 @@ DALI_SCHEMA(PeekImageShape)
 
 This operator returns the shape that an image would have after decoding.
 
+
 .. note::
-    This operator is useful for obtaining the shapes of images without decoding them. If the images
-    are decoded in full size anyway, use :meth:`nvidia.dali.pipeline.DataNode.shape()` instead on
-    the decoded images.
+    In most cases the optimal solution is to call :meth:`nvidia.dali.pipeline.DataNode.shape()`
+    on the decoded images. Use this operator if you either do not intend to decode the image
+    in your pipeline, or do not use the default execution model (i.e., explicitly set 
+    ``exec_dynamic=False``).
 )")
   .NumInput(1)
   .NumOutput(1)

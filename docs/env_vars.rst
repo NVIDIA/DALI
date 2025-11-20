@@ -163,9 +163,9 @@ Values: 0, 1
 
 Default: 0
 
-If set, DALI will use the dynamic executor (as if ``exec_dynamic=True`` was set in the  Pipeline)
+If set, DALI will use the default execution model (as if ``exec_dynamic=True`` was set in the Pipeline)
 whenever the default asychronous pipelined execution with uniform queue size is specified.
-Enabling the dynamic executor can potentially improve memory consumption.
+Enabling this flag can potentially improve memory consumption.
 
 .. note::
     This flag is used in the backend only; the Python frontend is unaware of it and doesn't enable

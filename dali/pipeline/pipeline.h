@@ -77,7 +77,7 @@ class DLL_PUBLIC Pipeline {
    * @param prefetch_queue_depth sets the length of the executor internal pipeline
    * @param async_execution whether to use extra host-threads to enable asynchronous execution
    * of cpu and gpu work. See AsyncExecutor/AsyncPipelinedExecutor.
-   * @param dynamic_execution whether to use the dynamic executor, enabling GPU->CPU transfers
+   * @param dynamic_execution whether to use the Executor2, enabling GPU->CPU transfers
    * and dynamic allocation of memory.
    * @param bytes_per_sample_hint Estimated size of each sample to be processed.
    * Defaults to 0. Ignored when dynamic_execution is true.

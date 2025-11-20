@@ -124,9 +124,9 @@ OpNode &OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
   CheckOpConstraints(spec);
 
   const char *gpu2cpu_error =
-    "This pipeline doesn't support transition from GPU to CPU.\n"
-    "To enable GPU->CPU transitions, use the \"dynamic\" executor.\n"
-    "Specify exec_dynamic=True in your Pipeline constructor or @pipeline_def.";
+    "GPU->CPU transitions are not allowed in legacy execution model.\n"
+    "Switch back to the default execution model by restoring the following pipeline "
+    "parameters to their default (`True`) values: `exec_dynamic`, `exec_async`, `exec_pipelined`.";
 
   string device = spec.GetArgument<string>("device");
   auto op_type = ParseOpType(device);
