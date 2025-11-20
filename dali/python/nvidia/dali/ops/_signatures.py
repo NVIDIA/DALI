@@ -15,6 +15,7 @@
 import ast
 import functools
 import os
+import string
 from contextlib import closing
 from inspect import Parameter, Signature, getmodule, ismodule
 from pathlib import Path
@@ -542,26 +543,32 @@ class {cls_name}:
     )
 
 
-def _gen_dynamic_signature_no_input(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """Generate the signatures with no input. The return type is a Batch iff `batch_size` is set
-    to an integer, else the function returns a Tensor.
+def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
+    """Generate function signatures for no-input dynamic mode ops. The overloads are:
+    - `(**kwargs) -> tensor-like`:
+      Calling a no-input parameter without specifying a batch size returns a single sample
+    - `(*, batch_size: int, **kwargs) -> batch`
+      Invocation with a batch size returns a batch.
     """
-    call_signature = functools.partial(_call_signature, schema, "dynamic", data_node_kwargs=False)
-    return f"""
-@overload
-def {fn_name}{call_signature(return_annotation_gen=lambda _: _Tensor)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
+    yield from (
+        _call_signature(
+            schema,
+            api="dynamic",
+            return_annotation_gen=lambda _: _Tensor,
+            **kwargs,
+        ),
+        _call_signature(
+            schema,
+            api="dynamic",
+            include_batch_size=True,
+            return_annotation_gen=lambda _: _Batch,
+            **kwargs,
+        ),
+    )
 
-@overload
-def {fn_name}{call_signature(include_batch_size=True, return_annotation_gen=lambda _: _Batch)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-"""
 
-
-def _gen_dynamic_signature_single_input(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """Generate the signatures with a single input. The three overloads are:
+def _gen_dynamic_call_signature_single_input(schema: _b.OpSchema, **kwargs):
+    """Generate function signatures for single-input dynamic mode ops. The overloads are:
     - `(tensor-like, /, **kwargs) -> Tensor | Batch`:
         When the input is a tensor, it is possible that one or more arguments are batches,
         therefore producing a batch by broadcasting.
@@ -572,102 +579,117 @@ def _gen_dynamic_signature_single_input(schema: _b.OpSchema, schema_name: str, f
         it either matches and has no effect, or doesn't and causes a runtime error.
         It is therefore ommitted from this overload.
     """
-
-    return f"""
-@overload
-def {fn_name}{_call_signature(
-    schema,
-    "dynamic",
-    data_node_kwargs=False,
-    input_annotation_gen=lambda _: _TensorLike,
-    return_annotation_gen=lambda _: Union[_Tensor, _Batch],
-)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-
-@overload
-def {fn_name}{_call_signature(
-    schema,
-    "dynamic",
-    data_node_kwargs=False,
-    include_batch_size=True,
-    input_annotation_gen=lambda _: _TensorLike,
-    return_annotation_gen=lambda _: _Batch,
-)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-
-@overload
-def {fn_name}{_call_signature(
-    schema,
-    "dynamic",
-    data_node_kwargs=False,
-    input_annotation_gen=lambda _: _Batch,
-    return_annotation_gen=lambda _: _Batch,
-)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-"""
+    yield from (
+        _call_signature(
+            schema,
+            api="dynamic",
+            data_node_kwargs=False,
+            input_annotation_gen=lambda _: _TensorLike,
+            return_annotation_gen=lambda _: Union[_Tensor, _Batch],
+            **kwargs,
+        ),
+        _call_signature(
+            schema,
+            api="dynamic",
+            data_node_kwargs=False,
+            include_batch_size=True,
+            input_annotation_gen=lambda _: _TensorLike,
+            return_annotation_gen=lambda _: _Batch,
+            **kwargs,
+        ),
+        _call_signature(
+            schema,
+            api="dynamic",
+            data_node_kwargs=False,
+            input_annotation_gen=lambda _: _Batch,
+            return_annotation_gen=lambda _: _Batch,
+            **kwargs,
+        ),
+    )
 
 
-def _gen_dynamic_signature_multiple_inputs(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """Generate the signatures with multiple inputs. The logic is similar to
-    `_gen_dynamic_signature_single_input` but functions accept TensorLike | Batch instead of just
-    TensorLike. Since the arguments of last overload are a subset of the arguments of the first,
-    definitions are reordered.
+def _gen_dynamic_call_signature_multiple_inputs(schema: _b.OpSchema, **kwargs):
+    """Generate function signatures for single-input dynamic mode ops. The logic is similar to
+    ``_gen_dynamic_call_signature_single_input`` but functions accept ``TensorLike | Batch``
+    instead of ``TensorLike``. Since ``Batch`` <: ``TensorLike | Batch``, signatures are reordered.
     """
-    return f"""
-@overload
-def {fn_name}{_call_signature(
-    schema,
-    "dynamic",
-    data_node_kwargs=False,
-    input_annotation_gen=lambda _: _Batch,
-    return_annotation_gen=lambda _: _Batch,
-)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-
-@overload
-def {fn_name}{_call_signature(
-    schema,
-    "dynamic",
-    data_node_kwargs=False,
-    input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
-    return_annotation_gen=lambda _: Union[_Tensor, _Batch],
-)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-
-@overload
-def {fn_name}{_call_signature(
-    schema,
-    "dynamic",
-    data_node_kwargs=False,
-    include_batch_size=True,
-    input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
-    return_annotation_gen=lambda _: _Batch,
-)}:
-    \"""{_docs._docstring_generator_fn(schema_name, api="dynamic")}
-    \"""
-"""
+    yield from (
+        _call_signature(
+            schema,
+            api="dynamic",
+            data_node_kwargs=False,
+            input_annotation_gen=lambda _: _Batch,
+            return_annotation_gen=lambda _: _Batch,
+        ),
+        _call_signature(
+            schema,
+            api="dynamic",
+            data_node_kwargs=False,
+            input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
+            return_annotation_gen=lambda _: Union[_Tensor, _Batch],
+        ),
+        _call_signature(
+            schema,
+            api="dynamic",
+            data_node_kwargs=False,
+            include_batch_size=True,
+            input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
+            return_annotation_gen=lambda _: _Batch,
+        ),
+    )
 
 
-def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, fn_name: str):
-    """Write the stub of the dynamic API function with the docstring, for given operator.
-    Depending on the number of inputs (0, 1, >1), the number of overloads is different.
+def _gen_dynamic_call_signature(schema: _b.OpSchema, **kwargs):
+    """Generate function signatures for a dynamic mode ops. The values produced by this function
+    can be used to fill the parameters of the function or __call__ method of the operator.
+    Additional arguments can will be forwarded to _call_signature
     """
 
     num_inputs = schema.MaxNumInput()
-    signature = (
-        _gen_dynamic_signature_no_input(schema, schema_name, fn_name)
-        if num_inputs == 0
-        else (
-            _gen_dynamic_signature_single_input(schema, schema_name, fn_name)
-            if num_inputs == 1
-            else _gen_dynamic_signature_multiple_inputs(schema, schema_name, fn_name)
-        )
+    if num_inputs == 0:
+        generator = _gen_dynamic_call_signature_no_input
+    elif num_inputs == 1:
+        generator = _gen_dynamic_call_signature_single_input
+    else:
+        generator = _gen_dynamic_call_signature_multiple_inputs
+
+    yield from generator(schema, **kwargs)
+
+
+def _gen_dynamic_fun_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
+    template = string.Template(
+        """
+@overload
+def $fn_name$signature:
+    \"""$doc
+    \"""
+"""
     )
+
+    doc = _docs._docstring_generator_fn(schema_name, api="dynamic")
+    overloads = (
+        template.substitute(fn_name=op_name, signature=signature, doc=doc)
+        for signature in _gen_dynamic_call_signature(schema)
+    )
+
+    return "\n".join(overloads)
+
+
+def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
+    return "...\n"
+
+
+def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
+    """Write the stub of the dynamic API function with the docstring, for given function or class.
+    Depending on the number of inputs (0, 1, >1), the number of overloads is different.
+    """
+
+    # Determine if we have a class or a function by looking at the case
+    # This is a bit hacky but should work as functions are snake-cased.
+    if schema_name[0].isupper():
+        signature = _gen_dynamic_fun_signature(schema, schema_name, op_name)
+    else:
+        signature = _gen_dynamic_cls_signature(schema, schema_name, op_name)
 
     return inspect_repr_fixups(signature)
 
@@ -807,12 +829,11 @@ def _group_signatures(api: str):
     }
 
     api_module = {"fn": fn, "ops": ops, "dynamic": dynamic}[api]
-    naming_convention = api if api != "dynamic" else "fn"
 
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
 
-        _, module_nesting, op_name = _names._process_op_name(schema_name, api=naming_convention)
+        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])
 
         if op is None:
@@ -838,14 +859,14 @@ def _group_signatures(api: str):
 
 
 class StubFileManager:
-    def __init__(self, nvidia_dali_path: Path, api: str):
+    def __init__(self, nvidia_dali_path: Path, api_path: str):
         self._module_to_file = {}
         self._nvidia_dali_path = nvidia_dali_path
-        self._api = api
+        self._api = api_path
         self._module_tree = _build_module_tree()
         self._header = _HEADER
 
-        if api in ("ops", "fn"):
+        if api_path in ("ops", "fn"):
             self._header += _PIPELINE_HEADER
         else:
             self._header += _DYNAMIC_HEADER
@@ -892,17 +913,14 @@ def gen_all_signatures(nvidia_dali_path: Path, api: Literal["fn", "ops", "dynami
     api : str
         "fn", "ops" or "dynamic"
     """
-    api_path = naming_convention = api
-    if api == "dynamic":
-        api_path = os.path.join("experimental", api)
-        naming_convention = "fn"
+    api_path = api if api != "dynamic" else os.path.join("experimental", api)
 
     with closing(StubFileManager(nvidia_dali_path, api_path)) as stub_manager:
         sig_groups = _group_signatures(api)
 
         # Python-only and the manually defined ones are reexported from their respective modules
         for schema_name, op in sig_groups["python_only"] + sig_groups["python_wrapper"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=naming_convention)
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
 
             stub_manager.get(module_nesting).write(
                 f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
@@ -924,7 +942,7 @@ def gen_all_signatures(nvidia_dali_path: Path, api: Literal["fn", "ops", "dynami
             "dynamic": _gen_dynamic_signature,
         }
         for schema_name, op in sig_groups["generated"]:
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=naming_convention)
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
             schema = _b.TryGetSchema(schema_name)
 
             signature = signature_generators[api](schema, schema_name, op_name)
