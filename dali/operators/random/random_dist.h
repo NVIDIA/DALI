@@ -42,18 +42,6 @@ uint32_t get_uint32(RNG &rng) {
 }
 
 template <typename RNG>
-u32vec2 get_uint32x2(RNG &rng) {
-  auto x = rng();
-  static_assert(sizeof(x) == 4 || sizeof(x) == 8);
-  static_assert(std::is_integral_v<decltype(x)>);
-  if constexpr (sizeof(x) == 4) {
-    return { x, rng() };
-  } else {  // 8
-    return { x, x >> 32 };
-  }
-}
-
-template <typename RNG>
 uint64_t get_uint64(RNG &rng) {
   auto x = rng();
   static_assert(sizeof(x) == 4 || sizeof(x) == 8);
@@ -112,7 +100,7 @@ struct standard_normal_dist {
     }
   #ifdef __CUDA_ARCH__
     T r = sqrt(-2 * log(u1));
-    T theta = T(M_2_PI) * u2;
+    T theta = T(M_PI * 2) * u2;
     T x = r * cos(theta);
     T y = r * sin(theta);
   #else
@@ -159,7 +147,7 @@ struct uniform_real_dist {
   DALI_HOST_DEV uniform_real_dist(T start, T end) {
     min_value_ = start;
   #ifdef __CUDA_ARCH__
-    max_value = nextafter(end, start);
+    max_value_ = nextafter(end, start);
   #else
     max_value_ = std::nextafter(end, start);
   #endif

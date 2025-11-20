@@ -34,7 +34,7 @@ struct ConstantGenerator {
   }
 };
 
-/** Check th */
+/** Check the mapping of the 32-bit RNG output to the desired integer range */
 TEST(RandomDistTest, UniformIntDistMapping) {
   using dist_t = uniform_int_dist<uint32_t>;
   dist_t dist(0, 1);
