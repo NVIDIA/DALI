@@ -52,6 +52,7 @@ With probability 1-foreground_prob, the entire area of the input is returned.)")
     return 1 + separate_corners + output_class;
   })
   .AddRandomSeedArg()
+  .AddRandomStateArg()
   .AddOptionalArg("ignore_class", R"(If True, all objects are picked with equal probability,
 regardless of the class they belong to. Otherwise, a class is picked first and then an object is
 randomly selected from this class.
