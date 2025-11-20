@@ -33,6 +33,13 @@ struct CurandGenerator {
     }
 };
 
+/** Fill the array with the data distributed according to `dist` using Philox RNG.
+ *
+ * The output array is filled in blocks of 4 to amortize the cost of Philox evaluation.
+ * The generator is configured as if it started at offset defined by the position in the array.
+ * The offset is further multiplied by 16 to avoid significant overlap between adjacent groups
+ * of 4 elements. This is useful when the distribution needs to get multiple words from the RNG.
+ */
 template <typename T, typename Dist>
 __global__ void GetGPUDistOutput(T *output, int n, Dist d, uint64_t seed, uint64_t seq) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -40,9 +47,10 @@ __global__ void GetGPUDistOutput(T *output, int n, Dist d, uint64_t seed, uint64
   if (base_idx >= n)
     return;
   curandStatePhilox4_32_10_t curand_state = {};
-  curand_init(seed, seq, base_idx, &curand_state);
+  curand_init(seed, seq, base_idx * 16, &curand_state);
   Dist dist = d;
   CurandGenerator gen(curand_state);
+  // Go in blocks of 4 to amortize the cost of Philox evaluation
   for (int i = base_idx; i < base_idx + 4 && i < n; i++) {
     T value = dist(gen);
     output[i] = value;
@@ -53,7 +61,8 @@ template <typename T, typename Dist>
 void GetCPUDistOutput(T *output, int n, Dist dist, uint64_t seed, uint64_t seq) {
   for (int base = 0; base + 4 <= n; base +=4) {
     Philox4x32_10 philox{};
-    philox.init(seed, seq, base);
+    philox.init(seed, seq, base * 16);
+    // Go in blocks of 4 to amortize the cost of Philox evaluation
     for (int i = base; i < base + 4 && i < n; i++) {
         output[i] = dist(philox);
     }
