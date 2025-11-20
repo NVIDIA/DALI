@@ -17,6 +17,8 @@ import nvidia.dali.backend as _backend
 from nose_utils import SkipTest, attr, assert_raises
 import numpy as np
 import os
+from nose2.tools import cartesian_params
+from test_utils import get_dali_extra_path
 
 
 def test_eval_context_get():
@@ -137,9 +139,16 @@ def test_eval_context_evaluate_all_weakref():
 
 
 def _gpu_expr():
-    a = ndd.tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32), device="gpu")
-    b = ndd.tensor(np.array([4.0, 5.0, 6.0], dtype=np.float32), device="gpu")
-    return ndd.slice(a + b, end=[1], axes=[0])
+    device_id = ndd.Device.current().device_id
+    # Need eval context because the ndd.tensor is evaluated immediately.
+    if device_id == ndd.EvalContext.current().device_id:
+        eval_context = ndd.EvalContext.current()
+    else:
+        eval_context = ndd.EvalContext(device_id=device_id)
+    with eval_context:
+        a = ndd.tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32), device=f"gpu:{device_id}")
+        b = ndd.tensor(np.array([4.0, 5.0, 6.0], dtype=np.float32), device="gpu")
+        return ndd.slice(a + b, end=[1], axes=[0])
 
 
 def _validate_gpu_expr_result(result, expected_device_id):
@@ -157,7 +166,13 @@ def _validate_gpu_expr_result(result, expected_device_id):
 
 
 @attr("multi_gpu")
-def test_device_mismatch_device():
+@cartesian_params(
+    [
+        None,
+    ]
+    + list(range(_backend.GetCUDADeviceCount())),
+)
+def test_device_mismatch_device(device_id):
     """
     Test that we properly detect when an invocation created with one device
     is evaluated with a different device context.
@@ -165,41 +180,43 @@ def test_device_mismatch_device():
     if _backend.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
 
-    devices = [None] + list(range(_backend.GetCUDADeviceCount()))
-    for device_id in devices:
-        if device_id is None:
+    if device_id is None:
+        result = _gpu_expr()
+    else:
+        with ndd.Device(f"gpu:{device_id}"):
             result = _gpu_expr()
-        else:
-            with ndd.Device(f"gpu:{device_id}"):
-                result = _gpu_expr()
-        actual_device_id = device_id if device_id is not None else 0
-        eval_device_id = 0 if actual_device_id != 0 else 1
-        with assert_raises(
-            RuntimeError, glob=f"*Device mismatch*gpu:{actual_device_id}*gpu:{eval_device_id}*"
-        ):
-            with ndd.EvalContext(device_id=eval_device_id):
-                result.evaluate()
+    actual_device_id = device_id if device_id is not None else 0
+    eval_device_id = 0 if actual_device_id != 0 else 1
+    with assert_raises(
+        RuntimeError, glob=f"*Device mismatch*gpu:{actual_device_id}*gpu:{eval_device_id}*"
+    ):
+        with ndd.EvalContext(device_id=eval_device_id):
+            result.evaluate()
 
 
-def test_device_match_device():
+@cartesian_params(
+    [
+        None,
+    ]
+    + list(range(_backend.GetCUDADeviceCount())),
+)
+def test_device_match_device(device_id):
     """
     Test that operations work fine when device contexts match the default device.
     """
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
 
-    devices = [None] + list(range(_backend.GetCUDADeviceCount()))
-    for device_id in devices:
-        if device_id is None:
+    if device_id is None:
+        result = _gpu_expr()
+    else:
+        with ndd.Device(f"gpu:{device_id}"):
             result = _gpu_expr()
-        else:
-            with ndd.Device(f"gpu:{device_id}"):
-                result = _gpu_expr()
 
-        eval_device_id = device_id if device_id is not None else 0
-        with ndd.EvalContext(device_id=eval_device_id):
-            output = result.evaluate()
-            _validate_gpu_expr_result(output, eval_device_id)
+    eval_device_id = device_id if device_id is not None else 0
+    with ndd.EvalContext(device_id=eval_device_id):
+        output = result.evaluate()
+        _validate_gpu_expr_result(output, eval_device_id)
 
 
 def test_default_device_conversion_to_cpu():
@@ -216,30 +233,38 @@ def test_default_device_conversion_to_cpu():
     np.testing.assert_array_equal(cpu_tensor_result, cpu_arr)
 
 
-def test_device_match_mixed_operator():
+@cartesian_params(
+    [
+        None,
+    ]
+    + list(range(_backend.GetCUDADeviceCount())),
+)
+def test_device_match_mixed_operator(device_id):
     """
     Test that mixed operators (such as decoders.image) correctly honor the active device context.
     """
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
 
-    devices = [None] + list(range(_backend.GetCUDADeviceCount()))
-    for device_id in devices:
-        db_path = os.path.join(os.environ["DALI_EXTRA_PATH"], "db", "lmdb")
-        reader = ndd.readers.Caffe(path=db_path, random_shuffle=False)
-        iterator = reader.next_epoch(None)
-        encoded, _ = next(iterator)
+    image_path = os.path.join(
+        get_dali_extra_path(), "db", "single", "jpeg", "100", "swan-3584559_640.jpg"
+    )
+    with open(image_path, "rb") as f:
+        # Use .copy() to create a writable array so that it can be passed as a Tensor through dlpack
+        encoded_data = np.frombuffer(f.read(), dtype=np.uint8).copy()
 
-        if device_id is None:
-            decoded_gpu = ndd.decoders.image(encoded, device="mixed")
-        else:
-            with ndd.Device(f"gpu:{device_id}"):
-                decoded_gpu = ndd.decoders.image(encoded, device="mixed")
+    if device_id is None:
+        decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+    else:
+        with ndd.Device(f"gpu:{device_id}"):
+            decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
 
-        eval_device_id = device_id if device_id is not None else 0
-        with ndd.EvalContext(device_id=eval_device_id):
-            assert decoded_gpu.device.device_type == "gpu"
-            assert decoded_gpu.device.device_id == eval_device_id
-            output = decoded_gpu.evaluate()
-            assert output.shape == (1280, 919, 3)
-            assert output.dtype == ndd.uint8
+    eval_device_id = device_id if device_id is not None else 0
+    with ndd.EvalContext(device_id=eval_device_id):
+        assert decoded_gpu.device.device_type == "gpu"
+        assert decoded_gpu.device.device_id == eval_device_id
+        output = decoded_gpu.evaluate()
+        # Image dimensions for swan-3584559_640.jpg
+        assert output.ndim == 3
+        assert output.shape == (408, 640, 3)
+        assert output.dtype == ndd.uint8

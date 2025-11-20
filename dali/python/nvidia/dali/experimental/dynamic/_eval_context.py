@@ -20,6 +20,7 @@ import weakref
 _tls = local()
 _tls.default = None
 _tls.stack = []
+_tls.previous_cuda_devices = []
 
 
 def _default_num_threads():
@@ -77,15 +78,25 @@ class EvalContext:
         """
         Returns the currently active EvalContext for the calling thread.
         """
-        return _tls.stack[-1] if _tls.stack else EvalContext.default()
+        if _tls.stack:
+            return _tls.stack[-1]
+        else:
+            return EvalContext.default()
 
     def __enter__(self):
         _tls.stack.append(self)
+        if self._device.device_type == "gpu":
+            if not hasattr(_tls, "previous_cuda_devices"):
+                _tls.previous_cuda_devices = []
+            _tls.previous_cuda_devices.append(_b.GetCUDACurrentDevice())
+            _b.SetCUDACurrentDevice(self.device_id)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         assert _tls.stack[-1] is self
         _tls.stack.pop()
+        if self._device.device_type == "gpu":
+            _b.SetCUDACurrentDevice(_tls.previous_cuda_devices.pop())
         if EvalContext.current() is not self:
             self.evaluate_all()
 

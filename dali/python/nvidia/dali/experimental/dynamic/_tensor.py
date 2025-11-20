@@ -322,9 +322,10 @@ class Tensor:
         if self.device == device and not force_copy:
             return self
         else:
-            from . import copy
+            with device:
+                from . import copy
 
-            return copy(self, device=device)
+                return copy(self, device=device)
 
     def _assign(self, other: "Tensor"):
         if other is self:
