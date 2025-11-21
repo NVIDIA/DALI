@@ -17,19 +17,27 @@ import nvidia.dali.backend as _backend
 import nvidia.dali.types as types
 from nose_utils import SkipTest
 from test_utils import get_dali_extra_path
-import numpy as np
 import os
+import pathlib
+import numpy as np
 from nose2.tools import cartesian_params
-from PIL import Image
 
 dali_extra_path = get_dali_extra_path()
 tiff_dir = os.path.join(dali_extra_path, "db", "single", "tiff")
 reference_dir = os.path.join(dali_extra_path, "db", "single", "reference", "tiff")
 
+# string paths
 images = [
     os.path.join(tiff_dir, "0", "cat-111793_640.tiff"),
     os.path.join(tiff_dir, "0", "cat-3449999_640.tiff"),
     os.path.join(tiff_dir, "0", "cat-3504008_640.tiff"),
+]
+
+# Also provide images as pathlib.Path objects for additional tests
+images_pathlib = [
+    pathlib.Path(tiff_dir) / "0" / "cat-111793_640.tiff",
+    pathlib.Path(tiff_dir) / "0" / "cat-3449999_640.tiff",
+    pathlib.Path(tiff_dir) / "0" / "cat-3504008_640.tiff",
 ]
 
 # Reference numpy arrays for pixel comparison
@@ -52,16 +60,17 @@ references = {
 @cartesian_params(
     ("cpu", "mixed"),
     (ndd.Tensor, ndd.Batch),
-    ({}, {"output_type": types.GRAY})
+    ({}, {"output_type": types.GRAY}),
+    (images, images_pathlib),
 )
-def test_imread(device_type, out_type, decoder_kwargs):
+def test_imread(device_type, out_type, decoder_kwargs, image_paths):
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
 
     output_device = "cpu" if device_type == "cpu" else "gpu"
 
     # Test reading a single image
-    input_data = images[0] if out_type == ndd.Tensor else images
+    input_data = image_paths[0] if out_type == ndd.Tensor else image_paths
     result = ndd.imread(input_data, device=device_type, **decoder_kwargs)
     assert isinstance(result, out_type)
     assert result.device == ndd.Device(output_device)
@@ -69,23 +78,24 @@ def test_imread(device_type, out_type, decoder_kwargs):
     output_type = decoder_kwargs.get("output_type", types.RGB)
     expected_nchannels = 1 if output_type == types.GRAY else 3
 
-    # Evaluate and check shape
-    evaluated = result.evaluate()
-    
     def to_cpu_array(t):
-        arr = t.cpu().evaluate() if t.device.device_type == "gpu" else t
+        arr = t.cpu() if t.device.device_type == "gpu" else t
         return np.array(arr)
-    
-    tensors = [evaluated] if out_type == ndd.Tensor else evaluated.tensors
-    input_names = [os.path.basename(input_data)] if out_type == ndd.Tensor else [os.path.basename(p) for p in input_data]
+
+    tensors = [result] if out_type == ndd.Tensor else result.tensors
+    input_names = (
+        [os.path.basename(input_data)]
+        if out_type == ndd.Tensor
+        else [os.path.basename(p) for p in input_data]
+    )
 
     if out_type == ndd.Tensor:
-        assert len(evaluated.shape) == 3  # HWC
-        assert evaluated.shape[2] == expected_nchannels
-        assert evaluated.dtype == ndd.uint8
+        assert len(result.shape) == 3  # HWC
+        assert result.shape[2] == expected_nchannels
+        assert result.dtype == ndd.uint8
     else:
-        assert evaluated.batch_size == len(images)
-        assert evaluated.dtype == ndd.uint8
+        assert result.batch_size == len(image_paths)
+        assert result.dtype == ndd.uint8
 
     for tensor, image_name in zip(tensors, input_names):
         if out_type != ndd.Tensor:
