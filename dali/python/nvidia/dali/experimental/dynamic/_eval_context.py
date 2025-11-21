@@ -18,9 +18,8 @@ import nvidia.dali.backend_impl as _b
 import weakref
 
 _tls = local()
-_tls.default = None
+_tls.default = {}  # per-device default context
 _tls.stack = []
-_tls.previous_cuda_devices = []
 
 
 def _default_num_threads():
@@ -58,11 +57,6 @@ class EvalContext:
         """
         self._invocations = []
         self._cuda_stream = cuda_stream
-        if device_id is None:
-            try:
-                device_id = _b.GetCUDACurrentDevice()
-            except Exception:
-                device_id = None
         if device_id is not None:
             self._device = _device.Device("gpu", device_id)
         else:
@@ -85,18 +79,15 @@ class EvalContext:
 
     def __enter__(self):
         _tls.stack.append(self)
-        if self._device.device_type == "gpu":
-            if not hasattr(_tls, "previous_cuda_devices"):
-                _tls.previous_cuda_devices = []
-            _tls.previous_cuda_devices.append(_b.GetCUDACurrentDevice())
-            _b.SetCUDACurrentDevice(self.device_id)
+        if self._device:
+            self._device.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         assert _tls.stack[-1] is self
+        if self._device:
+            self._device.__exit__(exc_type, exc_value, traceback)
         _tls.stack.pop()
-        if self._device.device_type == "gpu":
-            _b.SetCUDACurrentDevice(_tls.previous_cuda_devices.pop())
         if EvalContext.current() is not self:
             self.evaluate_all()
 
@@ -128,9 +119,10 @@ class EvalContext:
 
     @staticmethod
     def default():
-        if _tls.default is None:
-            _tls.default = EvalContext()
-        return _tls.default
+        current_device_id = _device.Device.default_device_id("gpu")
+        if current_device_id not in _tls.default:
+            _tls.default[current_device_id] = EvalContext(device_id=current_device_id)
+        return _tls.default[current_device_id]
 
     def cached_results(self, invocation):
         """

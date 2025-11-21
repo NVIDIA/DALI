@@ -139,16 +139,9 @@ def test_eval_context_evaluate_all_weakref():
 
 
 def _gpu_expr():
-    device_id = ndd.Device.current().device_id
-    # Need eval context because the ndd.tensor is evaluated immediately.
-    if device_id == ndd.EvalContext.current().device_id:
-        eval_context = ndd.EvalContext.current()
-    else:
-        eval_context = ndd.EvalContext(device_id=device_id)
-    with eval_context:
-        a = ndd.tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32), device=f"gpu:{device_id}")
-        b = ndd.tensor(np.array([4.0, 5.0, 6.0], dtype=np.float32), device="gpu")
-        return ndd.slice(a + b, end=[1], axes=[0])
+    a = ndd.tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32), device="gpu")
+    b = ndd.tensor(np.array([4.0, 5.0, 6.0], dtype=np.float32), device="gpu")
+    return ndd.slice(a + b, end=[1], axes=[0])
 
 
 def _validate_gpu_expr_result(result, expected_device_id):
@@ -215,8 +208,7 @@ def test_device_match_device(device_id):
 
     eval_device_id = device_id if device_id is not None else 0
     with ndd.EvalContext(device_id=eval_device_id):
-        output = result.evaluate()
-        _validate_gpu_expr_result(output, eval_device_id)
+        _validate_gpu_expr_result(result, eval_device_id)
 
 
 def test_default_device_conversion_to_cpu():

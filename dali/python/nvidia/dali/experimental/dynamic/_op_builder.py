@@ -358,7 +358,6 @@ def build_call_function(schema, op_class):
                     is_batch=is_batch,
                     batch_size=batch_size,
                     previous_invocation=self._last_invocation,
-                    device=_device.Device.current(),
                 )
 
             if stateful:

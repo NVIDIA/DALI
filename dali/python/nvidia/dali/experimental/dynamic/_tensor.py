@@ -322,7 +322,8 @@ class Tensor:
         if self.device == device and not force_copy:
             return self
         else:
-            with device:
+            copy_dev = device if device.device_type == "gpu" else self.device
+            with copy_dev:
                 from . import copy
 
                 return copy(self, device=device)
