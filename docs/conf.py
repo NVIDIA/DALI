@@ -101,13 +101,15 @@ with mock(["torch", "numba"]):
     )
     autodoc_submodules.dynamic_autodoc(
         generated_dynamic_path / "dynamic_autodoc",
+        generated_dynamic_path,
         relative_generated_dynamic_path,
-        references,
+        [],
     )
     autodoc_submodules.dynamic_readers_autodoc(
         generated_dynamic_path / "dynamic_readers_autodoc",
+        generated_dynamic_path,
         relative_generated_dynamic_path,
-        references,
+        [],
     )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.

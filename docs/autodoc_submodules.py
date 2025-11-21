@@ -18,6 +18,7 @@ import nvidia.dali.plugin.jax
 import nvidia.dali.experimental.dynamic
 import inspect
 import sys
+import os
 
 try:
     import nvidia.dali.plugin.video
@@ -244,7 +245,7 @@ def fn_autodoc(out_filename, generated_path, references):
         f.write(all_modules_str)
 
 
-def dynamic_autodoc(out_filename, generated_path, references):
+def dynamic_autodoc(out_filename, generated_path, relative_generated_path, references):
     all_modules_str = ".. toctree::\n   :hidden:\n\n"
     all_modules = get_modules(dynamic_modules)
     for module in all_modules:
@@ -264,7 +265,7 @@ def dynamic_autodoc(out_filename, generated_path, references):
         # As the top-level file is included from a directory above generated_path
         # we need to provide the relative path to the per-module files
         # the rest is within the same directory, so there is no need for that
-        all_modules_str += f"   {generated_path / module}\n"
+        all_modules_str += f"   {os.path.join(relative_generated_path, module)}\n"
 
         single_module_str = single_module_file(
             module, funs_in_module, references
@@ -284,7 +285,7 @@ def dynamic_autodoc(out_filename, generated_path, references):
         f.write(all_modules_str)
 
 
-def dynamic_readers_autodoc(out_filename, generated_path, references):
+def dynamic_readers_autodoc(out_filename, generated_path, relative_generated_path, references):
     all_modules_str = ".. toctree::\n   :hidden:\n\n"
     all_modules = [m for m in get_modules(dynamic_modules) if "readers" in m]
     for module in all_modules:
@@ -299,8 +300,7 @@ def dynamic_readers_autodoc(out_filename, generated_path, references):
         # As the top-level file is included from a directory above generated_path
         # we need to provide the relative path to the per-module files
         # the rest is within the same directory, so there is no need for that
-        all_modules_str += f"   {generated_path / module}\n"
-
+        all_modules_str += f"   {os.path.join(relative_generated_path, module)}\n"
         single_module_str = single_module_file(
             module, readers_in_module, references
         )

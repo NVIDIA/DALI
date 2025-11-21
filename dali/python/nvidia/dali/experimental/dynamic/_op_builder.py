@@ -378,13 +378,7 @@ def build_fn_wrapper(op):
     module_path = schema.ModulePath()
     from .. import dynamic as parent
 
-    module = parent
-    for path_part in module_path:
-        new_module = getattr(module, path_part, None)
-        if new_module is None:
-            new_module = types.ModuleType(path_part)
-            setattr(module, path_part, new_module)
-        module = new_module
+    module = _internal.get_submodule(parent, module_path)
 
     fn_name = _to_snake_case(op.schema.OperatorName())
     inputs = _get_inputs(schema)
