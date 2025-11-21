@@ -60,6 +60,8 @@ class Philox4x32_10 {
     return ret;
   }
 
+  uint32_t operator()() { return next(); }
+
  private:
   DLL_PUBLIC void recalc_output();
 
