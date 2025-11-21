@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import ast
-import functools
 import os
+import re
 import string
+import textwrap
 from contextlib import closing
-from inspect import Parameter, Signature, getmodule, ismodule
+from inspect import Parameter, Signature, getdoc, getmodule, ismodule
+from inspect import signature as getsignature
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Sequence, TypeAlias, Union
 
@@ -305,31 +307,63 @@ def _get_keyword_params(schema, api: Api, all_args_optional=False, data_node_ten
     return param_list
 
 
-def _get_implicit_keyword_params(schema, api: Api):
-    """All operators have some additional kwargs, that are not listed in schema, but are
+def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
+    """All operators have some parameters, that are not listed in schema, but are
     implicitly used by DALI.
+    If include_init_header is True, arguments are positional or keyword, so the order matters.
     """
 
     supported_backends = schema.GetSupportedBackends()
     if api == "dynamic" and "mixed" in supported_backends:
         supported_backends.append("gpu")
 
-    params = [
-        # TODO(klecki): The default for `device` is dependant on the input placement (and API).
-        Parameter(
-            name="device",
-            kind=Parameter.KEYWORD_ONLY,
-            default=None,
-            annotation=Optional[Literal[*supported_backends]],
-        ),
-    ]
-    if api != "dynamic":
-        # The name is truly optional
-        params.append(
+    if include_init_header:
+        params = [
             Parameter(
-                name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]
+                name="max_batch_size",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                default=None,
+                annotation=Optional[int],
+            ),
+            Parameter(
+                name="name",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                default=None,
+                annotation=Optional[str],
+            ),
+            Parameter(
+                name="device",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                default="cpu",
+                annotation=Union["Device", Literal[*supported_backends]],  # noqa # type: ignore
+            ),
+            Parameter(
+                name="num_inputs",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                default=None,
+                annotation=Optional[int],
+            ),
+        ]
+    else:
+        params = [
+            # TODO(klecki): The default for `device` is dependant on the input placement (and API).
+            Parameter(
+                name="device",
+                kind=Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=Optional[Literal[*supported_backends]],
             )
-        )
+        ]
+        if api != "dynamic":
+            # The name is truly optional
+            params.append(
+                Parameter(
+                    name="name",
+                    kind=Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=Optional[str],
+                )
+            )
 
     return params
 
@@ -341,9 +375,10 @@ def _call_signature(
     include_kwargs=True,
     include_self=False,
     include_batch_size=False,
-    data_node_return=True,
+    return_annotation=True,
     data_node_kwargs=True,
     all_args_optional=False,
+    include_init_header=False,
     input_annotation_gen=_get_annotation_input_regular,
     return_annotation_gen=_get_annotation_return_regular,
     filter_annotations=False,
@@ -364,7 +399,7 @@ def _call_signature(
         Prepend `self` as first positional argument in the signature, by default False
     include_batch_size : bool, optional
         Prepend `batch_size` as first keyword-only argument in the signature, by default False
-    data_node_return : bool, optional
+    return_annotation : bool, optional
         If the signature should have a return annotation or return None (for ops class __init__),
         by default True
     data_node_kwargs : bool, optional
@@ -372,6 +407,8 @@ def _call_signature(
     all_args_optional : bool, optional
         Make all keyword arguments optional, even if they are not - needed by the ops API, where
         the argument can be specified in either __init__ or __call__, by default False
+    include_init_header : bool, optional
+        Ignored if api != 'dynamic'. Used to include extra arguments in __init__, by default False
     input_annotation_gen : Callable[[OpSchema], type annotation]
         Callback generating the annotation to be used for type annotation of inputs.
     return_annotation_gen : Callable[[OpSchema], type annotation]
@@ -398,9 +435,10 @@ def _call_signature(
                 data_node_tensors=data_node_kwargs,
             )
         )
-        param_list.extend(_get_implicit_keyword_params(schema, api))
+        include_init_header = include_init_header and api == "dynamic"
+        param_list.extend(_get_implicit_extra_params(schema, api, include_init_header))
 
-    if data_node_return:
+    if return_annotation:
         return_annotation = return_annotation_gen(schema)
     else:
         return_annotation = None
@@ -534,7 +572,7 @@ class {cls_name}:
     \"""{_docs._docstring_generator_class(schema_name)}
     \"""
     def __init__{_call_signature(schema, "ops", include_inputs=False, include_kwargs=True,
-                                 include_self=True, data_node_return=False,
+                                 include_self=True, return_annotation=False,
                                  all_args_optional=True)}:
         ...
 
@@ -656,6 +694,75 @@ def _gen_dynamic_call_signature(schema: _b.OpSchema, **kwargs):
     yield from generator(schema, **kwargs)
 
 
+def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
+    """If the operator is a reader, add additional methods to its signature.
+    Return an empty string if not a reader
+    """
+
+    from nvidia.dali.experimental import dynamic
+
+    op = getattr(dynamic.readers, op_name, None)
+    if op is None:
+        return ""
+
+    template = string.Template(f"{' ' * 4}def $name$signature:")
+
+    signatures = []
+    for method_name in ("next_epoch", "_samples", "_batches"):
+        method = getattr(op, method_name)
+        signature = template.substitute(name=method_name, signature=getsignature(method))
+
+        # A symbol imported from a module will keep the module path in its string representation.
+        # We want to remove this path for classes in function signatures.
+        signature = re.sub(r"nvidia.(?:\w+\.)+(\w+)", r"\1", signature)
+
+        if doc := getdoc(method):
+            signature += textwrap.indent(f'\n"""\n{doc}\n"""', " " * 8)
+        else:
+            signature += " ..."
+
+        signatures.append(signature)
+
+    return "\n".join(signatures)
+
+
+def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
+    call_template = string.Template(
+        """
+    @overload
+    def __call__$signature:
+        ...
+    """
+    )
+    call_overloads = (
+        call_template.substitute(signature=signature)
+        for signature in _gen_dynamic_call_signature(
+            schema,
+            include_self=True,
+            return_annotation=False,
+            include_kwargs=False,
+        )
+    )
+
+    return f"""
+class {op_name}:
+    \"""{_docs._docstring_generator_class(schema_name, api="dynamic")}
+    \"""
+
+    def __init__{_call_signature(
+        schema,
+        "dynamic",
+        include_inputs=False,
+        include_self=True,
+        return_annotation=False,
+    )}:
+        ...
+
+{"\n".join(call_overloads)}
+{_try_extend_reader_signature(schema, op_name)}
+"""
+
+
 def _gen_dynamic_fun_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
     template = string.Template(
         """
@@ -675,10 +782,6 @@ def $fn_name$signature:
     return "\n".join(overloads)
 
 
-def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
-    return "...\n"
-
-
 def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
     """Write the stub of the dynamic API function with the docstring, for given function or class.
     Depending on the number of inputs (0, 1, >1), the number of overloads is different.
@@ -686,7 +789,7 @@ def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
 
     # Determine if we have a class or a function by looking at the case
     # This is a bit hacky but should work as functions are snake-cased.
-    if schema_name[0].isupper():
+    if op_name[0].islower():
         signature = _gen_dynamic_fun_signature(schema, schema_name, op_name)
     else:
         signature = _gen_dynamic_cls_signature(schema, schema_name, op_name)
@@ -726,8 +829,9 @@ from nvidia.dali.data_node import DataNode
 
 _DYNAMIC_HEADER = """
 from nvidia.dali._typing import TensorLike, TensorLikeArg
-from nvidia.dali.experimental.dynamic._tensor import Tensor
 from nvidia.dali.experimental.dynamic._batch import Batch
+from nvidia.dali.experimental.dynamic._eval_context import EvalContext
+from nvidia.dali.experimental.dynamic._tensor import Tensor
 """
 
 
@@ -848,8 +952,7 @@ def _group_signatures(api: str):
             continue
 
         # Dynamic mode doesn't have registered python wrappers yet
-        # If necessary, we can later check hasattr(op, "op_class")
-        if not hasattr(op, "_generated") and api != "dynamic":
+        if not getattr(op, "_generated", False) and api != "dynamic":
             sig_groups["python_wrapper"].append((schema_name, op))
             continue
 

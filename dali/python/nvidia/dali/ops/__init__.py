@@ -699,7 +699,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             include_inputs=False,
             include_kwargs=True,
             include_self=True,
-            data_node_return=False,
+            return_annotation=False,
             all_args_optional=True,
         )
         Operator.__call__.__signature__ = _signatures._call_signature(
