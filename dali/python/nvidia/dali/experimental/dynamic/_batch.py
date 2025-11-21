@@ -182,7 +182,7 @@ class Batch:
     This class represents a batch of tensors usable with DALI dynamic API. The tensors in the batch
     have the same element type, layout and number of dimensions, but can differ in shape.
 
-    A Batch can contain:
+    A :class:`Batch` can contain:
 
     * a single buffer and shape, owned by DALI, representing consecutive tensors
     * a list of :class:`Tensor` objects.
@@ -201,10 +201,10 @@ class Batch:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
-        """Constructs a Batch object.
+        """Constructs a :class:`Batch` object.
 
         .. warning::
-            Batch objects should not be constructed directly, use :meth:`batch` or
+            :class:`Batch` objects should not be constructed directly, use :meth:`batch` or
             :meth:`as_batch` instead.
 
         The batch object can be created either from an existing object, passed as `tensors` or
@@ -794,7 +794,7 @@ def batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
-    """Constructs a Batch object.
+    """Constructs a :class:`Batch` object.
 
     Constructs a batch by copying the input tensors and optionally converting them to the desired
     data type and storing on the specified device.
@@ -806,7 +806,7 @@ def batch(
         or other supported types.
         Supported types are:
         
-        - a Batch object; the batch is copied and the data is converted and moved to the
+        - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
           data types and layouts,
@@ -840,7 +840,7 @@ def as_batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
-    """Constructs a Batch object, avoiding the copy.
+    """Constructs a :class:`Batch` object, avoiding the copy.
 
     Constructs a batch by viewing the input tensors as a batch. If the input tensors do not
     reside on the specified device or do not match the desired type, the data will be converted
@@ -854,7 +854,7 @@ def as_batch(
         until the batch is no longer needed.
         Supported types are:
 
-        - a Batch object; the batch is copied and the data is converted and moved to the
+        - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
           data types and layouts,

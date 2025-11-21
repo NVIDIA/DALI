@@ -92,13 +92,13 @@ class Tensor:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
-        """Constructs a Tensor object.
+        """Constructs a :class:`Tensor` object.
 
         .. warning::
-            Tensor objects should not be constructed directly, use :meth:`tensor` or
+            :class:`Tensor` objects should not be constructed directly, use :meth:`tensor` or
             :meth:`as_tensor` instead.
 
-        The `Tensor` object can be created either from an existing object, passed as `data` or
+        The :class:`Tensor` object can be created either from an existing object, passed as `data` or
         from an invocation result.
         Unless explicitly requested with the `copy` parameter, this constructor will make best
         effort to avoid the copy.
@@ -866,7 +866,7 @@ def tensor(
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
-        - existing Tensor objects
+        - existing :class:`Tensor` objects
     dtype : DType, default: None
         The desired data type of the tensor. If not specified, the data type is inferred
         from the input data. If specified, the input data is cast to the desired data type.
@@ -898,7 +898,7 @@ def as_tensor(
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
-        - existing Tensor objects
+        - existing :class:`Tensor` objects
     dtype : DType, default: None
         The desired data type of the tensor. If not specified, the data type is inferred
         from the input data. If specified, the input data is cast to the desired data type.
