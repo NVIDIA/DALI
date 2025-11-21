@@ -107,7 +107,7 @@ def _scalar_element_annotation(scalar_dtype, api: Api):
         if hasattr(api_module, t.__name__) and t.__name__ in __builtins__:
             # Resolve conflicts between exported symbols and types used in annotations
             # For instance, bool becomes "__builtins__.bool" because of ndd.bool
-            t = f"__builtins__.{t.__name__}"
+            t = f"builtins.{t.__name__}"
         return t
     # This is tied to TFRecord implementation
     except NotImplementedError:
@@ -829,6 +829,7 @@ _HEADER = """
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import builtins
 from typing import Literal, Optional, Union, overload
 from typing import Any, List, Sequence
 
@@ -948,6 +949,9 @@ def _group_signatures(api: Api):
 
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
+
+        if schema.IsDeprecated():
+            continue
 
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])
