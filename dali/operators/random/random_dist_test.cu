@@ -59,7 +59,7 @@ __global__ void GetGPUDistOutput(T *output, int n, Dist d, uint64_t seed, uint64
 
 template <typename T, typename Dist>
 void GetCPUDistOutput(T *output, int n, Dist dist, uint64_t seed, uint64_t seq) {
-  for (int base = 0; base + 4 <= n; base +=4) {
+  for (int base = 0; base < n; base += 4) {
     Philox4x32_10 philox{};
     philox.init(seed, seq, base * 16);
     // Go in blocks of 4 to amortize the cost of Philox evaluation
@@ -106,37 +106,37 @@ TYPED_TEST(GPURandomDistFPTest, UniformReal) {
   using T = TypeParam;
   dali::random::uniform_real_dist<T> dist(1, 2);
   double eps = std::is_same_v<T, float> ? 1e-6f : 1e-15;
-  CompareDist<T>(dist, 10000, eps);
+  CompareDist<T>(dist, 10001, eps);
 }
 
 TYPED_TEST(GPURandomDistFPTest, Normal) {
   using T = TypeParam;
   dali::random::normal_dist<T> dist(2, 3);
   double eps = std::is_same_v<T, float> ? 1e-5f : 1e-14;
-  CompareDist<T>(dist, 10000, eps);
+  CompareDist<T>(dist, 10001, eps);
 }
 
 TEST(GPURandomDistTest, UniformIntUnsigned) {
   using T = uint32_t;
   dali::random::uniform_int_dist<T> dist(0, 0xffffffffu);
-  CompareDist<T>(dist, 10000, 0);
+  CompareDist<T>(dist, 10002, 0);
   dist = dali::random::uniform_int_dist<T>(1234, 31337, true);
-  CompareDist<T>(dist, 10000, 0);
+  CompareDist<T>(dist, 10003, 0);
 }
 
 TEST(GPURandomDistTest, UniformIntSigned) {
   using T = int32_t;
   dali::random::uniform_int_dist<T> dist(-0x80000000, 0x7fffffff);
-  CompareDist<T>(dist, 10000, 0);
+  CompareDist<T>(dist, 10001, 0);
 
   dist = dali::random::uniform_int_dist<T>(-100, 12345, true);
-  CompareDist<T>(dist, 10000, 0);
+  CompareDist<T>(dist, 10002, 0);
 }
 
 TEST(GPURandomDistTest, Bernoulli) {
   using T = int;
   dali::random::bernoulli_dist dist(0.25f);
-  CompareDist<T>(dist, 10000, 0);
+  CompareDist<T>(dist, 10003, 0);
 }
 
 }  // namespace test

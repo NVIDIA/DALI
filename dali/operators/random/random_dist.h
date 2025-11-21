@@ -56,6 +56,18 @@ DALI_HOST_DEV DALI_FORCEINLINE uint64_t get_uint64(RNG &rng) {
   }
 }
 
+DALI_NO_EXEC_CHECK
+template <typename T, typename RNG>
+DALI_HOST_DEV DALI_FORCEINLINE T get_next(RNG &rng) {
+  static_assert(sizeof(T) <= 8);
+  static_assert(std::is_integral_v<T>);
+  if constexpr (sizeof(T) <= 4) {
+    return T(get_uint32(rng));
+  } else {  // more than 4 bytes
+    return T(get_uint64(rng));
+  }
+}
+
 template <>
 template <typename RNG>
 DALI_HOST_DEV inline float normalized_uniform_dist<float>::operator()(RNG &rng) const {
@@ -170,13 +182,13 @@ struct uniform_real_dist {
   template <typename RNG>
   DALI_HOST_DEV DALI_FORCEINLINE T operator()(RNG &rng) const {
     T val = 0;
-    if constexpr (std::is_same_v<T, double>) {
-      uint64_t r = get_uint64(rng);
-      val = fma(T(r), factor_, min_value_);
-    } else {
-      uint32_t r = get_uint32(rng);
-      val = fmaf(T(r), factor_, min_value_);
-    }
+    using U = typename std::conditional_t<std::is_same_v<T, double>, uint64_t, uint32_t>;
+    U r = get_next<U>(rng);
+  #ifdef __CUDA_ARCH__
+    val = fma(T(r), factor_, min_value_);
+  #else
+    val = std::fma(T(r), factor_, min_value_);
+  #endif
     // This may lead to slight overrepresentation of the max value but should be negligible.
     val = cuda_min(val, max_value_);
     return val;
