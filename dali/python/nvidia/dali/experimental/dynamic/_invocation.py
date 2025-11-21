@@ -14,7 +14,6 @@
 
 from typing import Optional
 from ._eval_context import EvalContext as _EvalContext
-from ._device import Device as _Device
 from ._type import DType
 import nvtx
 
@@ -40,7 +39,6 @@ class Invocation:
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
-        device: Optional[_Device] = None,
     ):
         """
         Parameters
@@ -63,9 +61,6 @@ class Invocation:
             the batch size.
         previous_invocation : Invocation
             The previous invocation of the same operator. Used by stateful operators.
-        device : Device
-            The device context at the time of invocation creation. Used to validate that
-            the evaluation context matches the creation context.
         """
         self._operator = operator_instance
         self._call_id = call_id
@@ -77,7 +72,7 @@ class Invocation:
         self._num_outputs = None
         self._output_devices = None
         self._previous_invocation = previous_invocation
-        self._device = device
+        self._eval_context = _EvalContext.current()
 
     def device(self, result_index: int):
         if self._output_devices is None:
@@ -87,14 +82,14 @@ class Invocation:
     def ndim(self, result_index: int) -> int:
         if self._results is None:
             # TODO(michalz): Try to get ndim without full evaluation.
-            with _EvalContext.current() as ctx:
+            with self._eval_context as ctx:
                 self.run(ctx)
         return self._results[result_index].ndim()
 
     def shape(self, result_index: int):
         if self._results is None:
             # TODO(michalz): Try to get shape without full evaluation.
-            with _EvalContext.current() as ctx:
+            with self._eval_context as ctx:
                 self.run(ctx)
         s = self._results[result_index].shape()
         return s if self.is_batch else tuple(s)
@@ -102,7 +97,7 @@ class Invocation:
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
             # TODO(michalz): Try to get dtype without full evaluation.
-            with _EvalContext.current() as ctx:
+            with self._eval_context as ctx:
                 self.run(ctx)
         return self._results[result_index].dtype
 
@@ -114,14 +109,14 @@ class Invocation:
                 return self._batch_size
             if self._results is None:
                 # TODO(michalz): Try to get batch_size without full evaluation.
-                with _EvalContext.current() as ctx:
+                with self._eval_context as ctx:
                     self.run(ctx)
             return self._results[result_index].batch_size if self._is_batch else None
 
     def layout(self, result_index: int):
         if self._results is None:
             # TODO(michalz): Try to get layout without full evaluation.
-            with _EvalContext.current() as ctx:
+            with self._eval_context as ctx:
                 self.run(ctx)
         return self._results[result_index].layout()
 
@@ -144,16 +139,20 @@ class Invocation:
         if self._results is not None:
             return
         with nvtx.annotate("Invocation.run", domain="invocation"):
-            # Validate that the device context matches
-            if self._device is not None:
-                if self._device != ctx._device:
+            # If the invocation was created with a GPU device, validate that
+            # the evaluation context matches.
+            if (
+                self._eval_context._device is not None
+                and self._eval_context._device.device_type == "gpu"
+            ):
+                if self._eval_context._device != ctx._device:
                     raise RuntimeError(
-                        f"Device mismatch: Invocation was created with device '{self._device}' "
+                        f"Device mismatch: Invocation was created with device "
+                        f"'{self._eval_context._device}' "
                         f"but is being evaluated with device '{ctx._device}'. "
-                        f"This can happen when using a Device context manager at invocation time "
-                        f"and a different EvalContext device at evaluation time. "
-                        f"Ensure consistent device usage or evaluate immediately in the same "
-                        f"context."
+                        f"This can happen when using an EvalContext context manager "
+                        f"at invocation time and a different EvalContext at evaluation "
+                        f"time. Ensure consistent EvalContext usage."
                     )
 
             if self._previous_invocation is not None:
