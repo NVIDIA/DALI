@@ -695,35 +695,28 @@ def _gen_dynamic_call_signature(schema: _b.OpSchema, **kwargs):
 
 
 def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
-    """If the operator is a reader, add additional methods to its signature.
-    Return an empty string if not a reader
+    """If the operator is a reader, add the signature for ``next_epoch``.
+    Return an empty string if not a reader.
     """
 
     from nvidia.dali.experimental import dynamic
 
     op = getattr(dynamic.readers, op_name, None)
-    if op is None:
+    if op is None or not isinstance(op, dynamic.ops.Reader):
         return ""
 
-    template = string.Template(f"{' ' * 4}def $name$signature:")
+    doc = getdoc(op)
+    return f"""
+    @overload
+    def next_epoch(self, ctx: Optional[EvalContext] = None) -> Tensor:
+        \"""{doc}
+        \"""
 
-    signatures = []
-    for method_name in ("next_epoch", "_samples", "_batches"):
-        method = getattr(op, method_name)
-        signature = template.substitute(name=method_name, signature=getsignature(method))
-
-        # A symbol imported from a module will keep the module path in its string representation.
-        # We want to remove this path for classes in function signatures.
-        signature = re.sub(r"nvidia.(?:\w+\.)+(\w+)", r"\1", signature)
-
-        if doc := getdoc(method):
-            signature += textwrap.indent(f'\n"""\n{doc}\n"""', " " * 8)
-        else:
-            signature += " ..."
-
-        signatures.append(signature)
-
-    return "\n".join(signatures)
+    @overload
+    def next_epoch(self, batch_size: int, ctx: Optional[EvalContext] = None) -> Batch:
+        \"""{doc}
+        \"""
+"""
 
 
 def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
@@ -951,8 +944,7 @@ def _group_signatures(api: str):
             sig_groups["hidden_or_internal"].append((schema_name, op))
             continue
 
-        # Dynamic mode doesn't have registered python wrappers yet
-        if not getattr(op, "_generated", False) and api != "dynamic":
+        if not getattr(op, "_generated", False):
             sig_groups["python_wrapper"].append((schema_name, op))
             continue
 
