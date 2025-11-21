@@ -34,5 +34,7 @@ if __name__ == "__main__":
 
     print(f"Generating signatures for {args.wheel_path=}")
 
-    _signatures.gen_all_signatures(Path(args.wheel_path), "fn")
-    _signatures.gen_all_signatures(Path(args.wheel_path), "ops")
+    wheel_path = Path(args.wheel_path)
+    _signatures.gen_all_signatures(wheel_path, "fn")
+    _signatures.gen_all_signatures(wheel_path, "ops")
+    _signatures.gen_all_signatures(wheel_path, "dynamic")
