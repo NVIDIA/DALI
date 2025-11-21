@@ -37,7 +37,7 @@ NVIDIA DALI Documentation
    :hidden:
    :caption: Python API Documentation
 
-   dali_dynamic
+   dali_dynamic/index
    pipeline
    data_types
    math

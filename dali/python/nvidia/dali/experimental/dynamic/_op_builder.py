@@ -25,6 +25,7 @@ from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
+from nvidia.dali import internal as _internal
 from nvidia.dali.ops import _docs, _names
 
 
@@ -128,14 +129,7 @@ _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
 
 def _find_or_create_module(root_module, module_path):
-    module = root_module
-    for path_part in module_path:
-        submodule = getattr(module, path_part, None)
-        if submodule is None:
-            submodule = types.ModuleType(path_part)
-            setattr(module, path_part, submodule)
-        module = submodule
-    return module
+    return _internal.get_submodule(root_module, module_path)
 
 
 def build_operator_class(schema):
@@ -384,13 +378,7 @@ def build_fn_wrapper(op):
     module_path = schema.ModulePath()
     from .. import dynamic as parent
 
-    module = parent
-    for path_part in module_path:
-        new_module = getattr(module, path_part, None)
-        if new_module is None:
-            new_module = types.ModuleType(path_part)
-            setattr(module, path_part, new_module)
-        module = new_module
+    module = _internal.get_submodule(parent, module_path)
 
     fn_name = _to_snake_case(op.schema.OperatorName())
     inputs = _get_inputs(schema)
@@ -516,7 +504,12 @@ def build_operators():
     deprecated = {}
     op_map = {}
     for op_name in _all_ops:
-        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
+        if (
+            op_name.endswith("ExternalSource")
+            or op_name.endswith("PythonFunction")
+            or op_name.endswith("NumbaFunction")
+            or op_name.endswith("JaxFunction")
+        ):
             continue
 
         schema = _b.GetSchema(op_name)

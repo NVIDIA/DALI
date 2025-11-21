@@ -69,6 +69,10 @@ release = str(version_long)
 generated_path = Path("./operations")
 generated_path.mkdir(exist_ok=True)
 
+generated_dynamic_path = Path("./dali_dynamic/operations")
+relative_generated_dynamic_path = Path("./operations")
+generated_dynamic_path.mkdir(exist_ok=True)
+
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
 with mock(["torch", "numba"]):
@@ -77,6 +81,13 @@ with mock(["torch", "numba"]):
 
     operations_table.operations_table(generated_path / "fn_table")
     operations_table.fn_to_op_table(generated_path / "fn_to_op_table")
+    operations_table.operations_table(
+        generated_dynamic_path / "dynamic_table",
+        module_name="nvidia.dali.experimental.dynamic",
+    )
+    operations_table.dynamic_readers_table(
+        generated_dynamic_path / "dynamic_readers_table"
+    )
 
     import doc_index
 
@@ -87,6 +98,18 @@ with mock(["torch", "numba"]):
     autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
     autodoc_submodules.fn_autodoc(
         generated_path / "fn_autodoc", generated_path, references
+    )
+    autodoc_submodules.dynamic_autodoc(
+        generated_dynamic_path / "dynamic_autodoc",
+        generated_dynamic_path,
+        relative_generated_dynamic_path,
+        [],
+    )
+    autodoc_submodules.dynamic_readers_autodoc(
+        generated_dynamic_path / "dynamic_readers_autodoc",
+        generated_dynamic_path,
+        relative_generated_dynamic_path,
+        [],
     )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.

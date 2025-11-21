@@ -1,41 +1,7 @@
-[Experimental] DALI Dynamic
+Overview
 ========
 
-Overview
---------
-
-**DALI Dynamic** extends NVIDIA DALI by introducing an imperative execution model with lazy evaluation.
-It complements the existing graph-based pipeline execution, and its main goal is to enable seamless
-integration into Python workflows. This results in easier debugging and opens a path to rapid 
-prototyping of pre-processing pipelines.
-
-Key features include:
-
-- **Imperative programming with lazy execution**  
-  In the original DALI execution model, operators were defined and executed within a static 
-  pipeline graph. This often resulted in a steep learning curve, complex debugging, and 
-  limited error visibility. DALI Dynamic introduces imperative programming with lazy operator 
-  execution, aligning DALI more closely with standard Python workflows.  
-
-- **Minimal performance overhead**  
-  DALI Dynamic is designed to deliver performance that is close to graph-based pipelines, incurring 
-  only marginal overhead.  
-
-- **Batch processing support**  
-  Batch processing remains a core concept in DALI. DALI Dynamic preserves this functionality and 
-  introduces a dedicated API for batch-oriented workflows.  
-
-- **Framework interoperability**  
-  DALI Dynamic provides type conversion support for major deep learning frameworks, including 
-  PyTorch, CuPy, JAX, and Numba.
-
-.. note::
-
-   DALI Dynamic does not replace the graph-based execution model. Instead, it provides 
-   an alternative interface for a seamless Python experience. Prototyping and development 
-   can be performed in DALI Dynamic using exactly the same operators as a pipeline mode
-   and transition between the two modes is straightforward.
-
+.. include:: dynamic_mode_introduction
 
 How it works
 ------------
@@ -50,13 +16,13 @@ to improve performance.
 
 .. code-block:: python
 
-   import nvidia.dali.dynamic as ndd
+   import nvidia.dali.experimental.dynamic as ndd
 
    model = MyModel(...)
    flip_horizontal = True
    flip_vertical = False
-   dataset = ndd.readers.file(file_root=images_dir)
-   for batch in dataset.epoch(batch_size=16):
+   dataset = ndd.readers.File(file_root=images_dir)
+   for batch in dataset.next_epoch(batch_size=16):
        img = ndd.decoders.image(batch, device="mixed")
        flipped = ndd.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
        model((flipped, img))
