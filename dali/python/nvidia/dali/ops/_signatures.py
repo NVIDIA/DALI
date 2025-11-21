@@ -16,10 +16,8 @@ import ast
 import os
 import re
 import string
-import textwrap
 from contextlib import closing
 from inspect import Parameter, Signature, getdoc, getmodule, ismodule
-from inspect import signature as getsignature
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Sequence, TypeAlias, Union
 
@@ -84,7 +82,18 @@ _Batch = _create_annotation_placeholder("Batch")
 _TensorLike = _create_annotation_placeholder("TensorLike")
 
 
-def _scalar_element_annotation(scalar_dtype):
+def _api_to_module(api: Api):
+    if api == "fn":
+        return fn
+    if api == "ops":
+        return fn
+    if api == "dynamic":
+        from nvidia.dali.experimental import dynamic
+
+        return dynamic
+
+
+def _scalar_element_annotation(scalar_dtype, api: Api):
     # We already have function that converts a scalar constant/literal into the desired type,
     # utilize the fact that they accept integer values and get the actual type.
     conv_fn = _types._known_types[scalar_dtype][1]
@@ -93,6 +102,12 @@ def _scalar_element_annotation(scalar_dtype):
         t = type(dummy_val)
         if t in _enum_mapping:
             return _enum_mapping[t]
+
+        api_module = _api_to_module(api)
+        if hasattr(api_module, t.__name__) and t.__name__ in __builtins__:
+            # Resolve conflicts between exported symbols and types used in annotations
+            # For instance, bool becomes "__builtins__.bool" because of ndd.bool
+            t = f"__builtins__.{t.__name__}"
         return t
     # This is tied to TFRecord implementation
     except NotImplementedError:
@@ -101,7 +116,7 @@ def _scalar_element_annotation(scalar_dtype):
         return Any
 
 
-def _arg_type_annotation(arg_dtype):
+def _arg_type_annotation(arg_dtype, api: Api):
     """Convert regular key-word argument type to annotation. Handles Lists and scalars.
 
     Parameters
@@ -111,10 +126,10 @@ def _arg_type_annotation(arg_dtype):
     """
     if arg_dtype in _types._vector_types:
         scalar_dtype = _types._vector_types[arg_dtype]
-        scalar_annotation = _scalar_element_annotation(scalar_dtype)
+        scalar_annotation = _scalar_element_annotation(scalar_dtype, api)
         # DALI allows tuples and lists as a "sequence" parameter
         return Union[Sequence[scalar_annotation], scalar_annotation]
-    return _scalar_element_annotation(arg_dtype)
+    return _scalar_element_annotation(arg_dtype, api)
 
 
 def _get_positional_input_param(schema, idx, annotation):
@@ -262,7 +277,7 @@ def _get_keyword_params(schema, api: Api, all_args_optional=False, data_node_ten
             # We don't put the deprecated args in the visible API
             continue
         arg_dtype = schema.GetArgumentType(arg)
-        kw_annotation = _arg_type_annotation(arg_dtype)
+        kw_annotation = _arg_type_annotation(arg_dtype, api)
         is_arg_input = schema.IsTensorArgument(arg)
 
         if is_arg_input:
@@ -451,12 +466,16 @@ def _call_signature(
 def inspect_repr_fixups(signature: str) -> str:
     """Replace the weird quirks of printing the repr of signature.
     We use signature object for type safety and additional validation, but the printing rules
-    are questionable in some cases. Python type hints advocate the usage of `None` instead of its
-    type, but printing a signature would insert NoneType (specifically replacing
-    Optional[Union[...]] with Union[..., None] and printing it as Union[..., NoneType]).
-    The NoneType doesn't exist as a `types` definition in some Pythons.
+    are questionable in some cases:
+    - Python type hints advocate the usage of `None` instead of its type, but printing a signature
+      would insert NoneType (specifically replacing Optional[Union[...]] with Union[..., None] and
+      printing it as Union[..., NoneType]). The NoneType doesn't exist as a `types` definition in
+      some Pythons versions.
+    - Optional["SomeClass"] get translated to Optional[ForwardRef("SomeClass")], which then can
+      confuse type checkers. Remove forward refs
     """
-    return signature.replace("NoneType", "None")
+
+    return re.sub(r"ForwardRef\('([^']+)'\)", r"\1", signature).replace("NoneType", "None")
 
 
 def _gen_fn_signature_no_input(schema, schema_name, fn_name):
@@ -592,6 +611,7 @@ def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
         _call_signature(
             schema,
             api="dynamic",
+            data_node_kwargs=False,
             return_annotation_gen=lambda _: _Tensor,
             **kwargs,
         ),
@@ -599,6 +619,7 @@ def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
             schema,
             api="dynamic",
             include_batch_size=True,
+            data_node_kwargs=False,
             return_annotation_gen=lambda _: _Batch,
             **kwargs,
         ),
@@ -903,7 +924,7 @@ def _extract_dynamic_mode_definitions():
         yield module.__name__, name
 
 
-def _group_signatures(api: str):
+def _group_signatures(api: Api):
     """Divide all operators registered into the "ops", "fn" or "dynamic api into 4 categories
     and return them as a dictionary:
     * python_only - there is just the Python definition
@@ -916,8 +937,6 @@ def _group_signatures(api: str):
 
     """
 
-    from nvidia.dali.experimental import dynamic
-
     sig_groups = {
         "python_only": [],
         "hidden_or_internal": [],
@@ -925,7 +944,7 @@ def _group_signatures(api: str):
         "generated": [],
     }
 
-    api_module = {"fn": fn, "ops": ops, "dynamic": dynamic}[api]
+    api_module = _api_to_module(api)
 
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
