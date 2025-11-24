@@ -316,6 +316,13 @@ TYPED_TEST(RandomDistFPTest, NormalDistHistogramComparisonWithStdNormal) {
   CompareHistograms(dali_hist, std_hist);
 }
 
+TEST(RandomDistTest, PoissonWithPhilox) {
+  std::poisson_distribution<int> std_dist(10);
+  Philox4x32_10 philox;
+  philox.init(100, 101, 102);
+  std_dist(philox);
+}
+
 }  // namespace test
 }  // namespace random
 }  // namespace dali

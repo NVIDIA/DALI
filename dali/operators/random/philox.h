@@ -62,6 +62,13 @@ class Philox4x32_10 {
 
   uint32_t operator()() { return next(); }
 
+  using result_type = uint32_t;
+
+  static constexpr uint32_t max() { return 0xffffffffu; }
+
+  static constexpr uint32_t min() { return 0; }
+
+
  private:
   DLL_PUBLIC void recalc_output();
 
