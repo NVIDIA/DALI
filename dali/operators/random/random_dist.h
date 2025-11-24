@@ -157,8 +157,6 @@ struct uniform_real_dist {
   static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>,
     "Unexpected data type");
 
-  using gen_type = typename std::conditional_t<std::is_same_v<T, double>, uint64_t, uint32_t>;
-
   DALI_HOST_DEV uniform_real_dist(const uniform_real_dist &other) = default;
   DALI_HOST_DEV uniform_real_dist &operator=(const uniform_real_dist &other) = default;
   DALI_HOST_DEV uniform_real_dist() = default;
@@ -278,6 +276,29 @@ struct bernoulli_dist {
 
  private:
   uint32_t threshold = 0x7fffffff;
+};
+
+
+/** Poisson distribution, using either curand_poisson or std::poisson_distribution.
+ *
+ * NOTE: Results are different between CPU and GPU variant.
+ *
+ * TODO(michalz): Add an implementation that is consistent between CPU and GPU.
+ */
+struct poisson_dist {
+  float mean = 1.0f;
+  DALI_HOST_DEV poisson_dist() = default;
+  DALI_HOST_DEV explicit poisson_dist(float mean) : mean(mean) {}
+
+  template <typename RNG,
+            std::enable_if_t<std::is_invocable_v<curand_poisson_dist, RNG &>, int> = 0>
+  DALI_HOST_DEV DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
+    #ifdef __CUDA_ARCH__
+      return curand_poisson(rng, mean);
+    #else
+      return std::poisson_distribution<uint32_t>(mean)(rng);
+    #endif
+  }
 };
 
 }  // namespace random
