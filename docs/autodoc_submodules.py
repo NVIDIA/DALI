@@ -18,7 +18,6 @@ import nvidia.dali.plugin.jax
 import nvidia.dali.experimental.dynamic
 import inspect
 import sys
-import os
 
 try:
     import nvidia.dali.plugin.video
