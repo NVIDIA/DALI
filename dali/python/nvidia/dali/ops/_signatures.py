@@ -730,7 +730,7 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
     doc = getdoc(op)
     return f"""
     @overload
-    def next_epoch(self, ctx: Optional[EvalContext] = None) -> Tensor:
+    def next_epoch(self, ctx: Optional[EvalContext] = None) -> Union[Tensor, Batch]:
         \"""{doc}
         \"""
 
@@ -1022,7 +1022,7 @@ class StubFileManager:
             f.close()
 
 
-def gen_all_signatures(nvidia_dali_path: Path, api: Literal["fn", "ops", "dynamic"]):
+def gen_all_signatures(nvidia_dali_path: Path, api: Api):
     """Generate the signatures for "fn", "ops" or "dynamic" api.
 
     Parameters
