@@ -22,6 +22,7 @@ from ._tensor import (
     as_tensor as _as_tensor,
 )
 import nvidia.dali.backend as _backend
+import nvidia.dali.types as _dali_types
 from ._eval_context import EvalContext as _EvalContext
 from ._device import Device, device as _device
 from . import _eval_mode
@@ -388,7 +389,12 @@ class Batch:
         return self._wraps_external_data
 
     @staticmethod
-    def broadcast(sample, batch_size: int, device: Optional[Device] = None) -> "Batch":
+    def broadcast(
+        sample,
+        batch_size: int,
+        device: Optional[Device] = None,
+        dtype: Optional[DType] = None,
+    ) -> "Batch":
         """
         Creates a batch by repeating a single `sample` `batch_size` times.
 
@@ -403,7 +409,7 @@ class Batch:
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
-            t = _as_tensor(sample, device=device).evaluate()
+            t = _as_tensor(sample, device=device, dtype=dtype).evaluate()
             if t.device.device_type == "gpu":
                 tl_type = _backend.TensorListGPU
             else:
@@ -422,6 +428,8 @@ class Batch:
                 arr = arr.astype(np.uint32)
             elif arr.dtype == object:
                 arr, converted_dtype_id = _try_convert_enums(arr)
+            if dtype is not None and dtype.kind != DType.Kind.enum:
+                arr = arr.astype(_dali_types.to_numpy_type(dtype.type_id))
             arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
 
         with nvtx.annotate("to backend", domain="batch"):
@@ -429,7 +437,7 @@ class Batch:
             if converted_dtype_id is not None:
                 tl.reinterpret(converted_dtype_id)
         with nvtx.annotate("create batch", domain="batch"):
-            return Batch(tl, device=device)
+            return Batch(tl, device=device, dtype=dtype)
 
     @property
     def dtype(self) -> DType:
