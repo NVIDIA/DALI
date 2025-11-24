@@ -73,8 +73,8 @@ requirements:
     - python-clang
     - git-lfs
   host:
-    - protobuf =6.31.1
-    - libprotobuf-static =6.31.1
+    - protobuf =6.33.1
+    - libprotobuf-static =6.33.1
     - libjpeg-turbo
     - dali-opencv
     - dali-ffmpeg
@@ -107,7 +107,7 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - libprotobuf =6.31.1
+    - libprotobuf =6.33.1
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
     - libnvcomp
