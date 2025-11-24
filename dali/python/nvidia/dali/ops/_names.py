@@ -48,13 +48,20 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
     op_name = schema.OperatorName()
     if make_hidden:
         submodule_path = [*submodule_path, "hidden"]
-    if api == "fn" or (
-        api == "dynamic"
-        and (
-            not submodule_path
-            or (submodule_path[0] not in ["ops"] and "readers" not in submodule_path)
-        )
-    ):
+    to_snake_case = False
+    if api == "fn":
+        to_snake_case = True
+    elif api == "dynamic":
+        if not submodule_path:
+            to_snake_case = True
+        elif submodule_path[0] == "ops":
+            to_snake_case = False
+        elif "readers" in submodule_path:
+            to_snake_case = False
+        else:
+            to_snake_case = True
+    
+    if to_snake_case:
         op_name = _functional._to_snake_case(op_name)
     op_full_name = ".".join(submodule_path + [op_name])
     return op_full_name, submodule_path, op_name
