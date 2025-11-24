@@ -290,8 +290,7 @@ struct poisson_dist {
   DALI_HOST_DEV poisson_dist() = default;
   DALI_HOST_DEV explicit poisson_dist(float mean) : mean(mean) {}
 
-  template <typename RNG,
-            std::enable_if_t<std::is_invocable_v<curand_poisson_dist, RNG &>, int> = 0>
+  template <typename RNG>
   DALI_HOST_DEV DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
     #ifdef __CUDA_ARCH__
       return curand_poisson(rng, mean);
