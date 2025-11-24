@@ -98,8 +98,8 @@ class Tensor:
             :class:`Tensor` objects should not be constructed directly, use :meth:`tensor` or
             :meth:`as_tensor` instead.
 
-        The :class:`Tensor` object can be created either from an existing object, passed as `data` or
-        from an invocation result.
+        The :class:`Tensor` object can be created either from an existing object, passed as `data`
+        or from an invocation result.
         Unless explicitly requested with the `copy` parameter, this constructor will make best
         effort to avoid the copy.
 

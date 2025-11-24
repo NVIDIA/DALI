@@ -19,7 +19,6 @@ from ._batch import Batch, _get_batch_size
 from ._tensor import Tensor
 from . import ops
 from . import _type
-import types
 import copy
 from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
