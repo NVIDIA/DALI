@@ -86,7 +86,7 @@ def _api_to_module(api: Api):
     if api == "fn":
         return fn
     if api == "ops":
-        return fn
+        return ops
     if api == "dynamic":
         from nvidia.dali.experimental import dynamic
 
