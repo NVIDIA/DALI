@@ -775,7 +775,7 @@ class {op_name}:
     )}:
         ...
 
-{"\n".join(call_overloads)}
+{os.linesep.join(call_overloads)}
 {_try_extend_reader_signature(schema, op_name)}
 """
 
@@ -796,7 +796,7 @@ def $fn_name$signature:
         for signature in _gen_dynamic_call_signature(schema)
     )
 
-    return "\n".join(overloads)
+    return os.linesep.join(overloads)
 
 
 def _gen_dynamic_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
@@ -1014,9 +1014,9 @@ class StubFileManager:
                 submodules_dict = submodules_dict[submodule]
             direct_submodules = submodules_dict.keys()
             for direct_submodule in direct_submodules:
-                f.write(f"from . import {direct_submodule} as {direct_submodule}\n")
+                print(f"from . import {direct_submodule} as {direct_submodule}", file=f)
 
-            f.write("\n\n")
+            f.write(os.linesep * 2)
         return self._module_to_file[module_path]
 
     def close(self):
@@ -1044,14 +1044,17 @@ def gen_all_signatures(nvidia_dali_path: Path, api: Api):
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
 
             stub_manager.get(module_nesting).write(
-                f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
+                f"{os.linesep * 2}from {op._impl_module} import"
+                f" ({op.__name__} as {op.__name__}){os.linesep * 2}"
             )
 
         # Re-export pure-Python definitions in DALI dynamic
         # It's possible that some symbols conflict with types used in the annotations.
         if api == "dynamic":
             for module, name in _extract_dynamic_mode_definitions():
-                stub_manager.get([]).write(f"\n\nfrom {module} import" f" ({name} as {name})\n\n")
+                stub_manager.get([]).write(
+                    f"{os.linesep * 2}from {module} import" f" ({name} as {name}){os.linesep * 2}"
+                )
 
         # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
         # directly visible
