@@ -333,6 +333,8 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
     if api == "dynamic" and "mixed" in supported_backends:
         supported_backends.append("gpu")
 
+    device_annotation = Literal[tuple(supported_backends)] if supported_backends else str
+
     if include_init_header:
         params = [
             Parameter(
@@ -351,7 +353,7 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
                 name="device",
                 kind=Parameter.POSITIONAL_OR_KEYWORD,
                 default="cpu",
-                annotation=Union["Device", Literal[*supported_backends]],  # noqa # type: ignore
+                annotation=Union["Device", device_annotation],  # noqa # type: ignore
             ),
             Parameter(
                 name="num_inputs",
@@ -367,7 +369,7 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
                 name="device",
                 kind=Parameter.KEYWORD_ONLY,
                 default=None,
-                annotation=Optional[Literal[*supported_backends]],
+                annotation=Optional[device_annotation],
             )
         ]
         if api != "dynamic":
