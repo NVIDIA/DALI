@@ -67,15 +67,13 @@ def test_device_change_multi_gpu():
         raise SkipTest("At least 2 devices needed for the test")
     data = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.uint8)
     c1 = ndd.Tensor(data)
-    with ndd.EvalContext(device_id=0):
-        g1 = c1.gpu(0).evaluate()
-        assert isinstance(g1._storage, _b.TensorGPU)
-        assert g1._storage.device_id() == 0
-    with ndd.EvalContext(device_id=1):
-        g2 = c1.gpu(1).evaluate()
-        assert g2._storage.device_id() == 1
-        c2 = g2.cpu().evaluate()
-        assert isinstance(c2._storage, _b.TensorCPU)
+    g1 = c1.gpu(0).evaluate()
+    assert isinstance(g1._storage, _b.TensorGPU)
+    assert g1._storage.device_id() == 0
+    g2 = c1.gpu(1).evaluate()
+    assert g2._storage.device_id() == 1
+    c2 = g2.cpu().evaluate()
+    assert isinstance(c2._storage, _b.TensorCPU)
     assert np.array_equal(c2._storage, data)
 
 
