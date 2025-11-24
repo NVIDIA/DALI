@@ -151,7 +151,7 @@ def _scalar_arg_type_id(dtype_id):
         return dtype_id
 
 
-def _argumument_type_conversion(dtype_id):
+def _argument_type_conversion(dtype_id):
     try:
         return _type.dtype(_scalar_arg_type_id(dtype_id))
     except KeyError:
@@ -193,7 +193,7 @@ def build_operator_class(schema):
     op_class.__module__ = module.__name__
     op_class.__qualname__ = class_name
     op_class._argument_conversion_map = {
-        arg: _argumument_type_conversion(schema.GetArgumentType(arg))
+        arg: _argument_type_conversion(schema.GetArgumentType(arg))
         for arg in schema.GetArgumentNames()
     }
     setattr(module, class_name, op_class)
