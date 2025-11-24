@@ -805,7 +805,7 @@ def batch(
         The data to construct the batch from. Can be a list of tensors, a TensorList,
         or other supported types.
         Supported types are:
-        
+
         - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,

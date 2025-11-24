@@ -60,7 +60,7 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
             to_snake_case = False
         else:
             to_snake_case = True
-    
+
     if to_snake_case:
         op_name = _functional._to_snake_case(op_name)
     op_full_name = ".".join(submodule_path + [op_name])

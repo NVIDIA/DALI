@@ -894,7 +894,7 @@ def as_tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
-        
+
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
