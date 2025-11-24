@@ -6,11 +6,6 @@ It complements the existing graph-based pipeline execution, and its main goal is
 integration into Python workflows. This results in easier debugging and opens a path to rapid 
 prototyping of pre-processing pipelines.
 
-DALI Dynamic offers an imperative programming model. This means that it does not 
-require isolating data processing logic into a separate pipeline, and operators can
-be called directly from Python code. Moreover, DALI Dynamic evaluates operators lazily 
-to improve performance. 
-
 .. code-block:: python
 
    import nvidia.dali.experimental.dynamic as ndd
