@@ -181,7 +181,9 @@ class Tensor:
                 else:
                     from . import cast
 
-                    converted = cast(data.to_device(device), dtype=dtype, device=self.device)
+                    if device is None:
+                        device = data.device
+                    converted = cast(data.to_device(device), dtype=dtype, device=device)
                     self._assign(converted.evaluate())
                     copied = True
             elif isinstance(data, TensorSlice):

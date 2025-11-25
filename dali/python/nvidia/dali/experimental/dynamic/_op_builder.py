@@ -15,7 +15,7 @@
 import nvidia.dali.backend as _b
 from nvidia.dali.fn import _to_snake_case
 import makefun
-from ._batch import Batch, _get_batch_size
+from ._batch import Batch, _get_batch_size, as_batch as _as_batch
 from ._tensor import Tensor
 from . import ops
 from . import _type
@@ -87,11 +87,13 @@ def _get_input_device_type(x):
     return dev.device_type if dev is not None else None
 
 
-def _to_tensor(x, device=None):
+def _to_tensor(x, device=None, dtype=None):
     with nvtx.annotate("to_tensor", domain="op_builder"):
         if x is None:
             return None
         if isinstance(x, Tensor):
+            if dtype is not None and x.dtype != dtype:
+                return Tensor(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x
@@ -99,29 +101,31 @@ def _to_tensor(x, device=None):
             if x.is_batch:
                 raise ValueError("Batch invocation result cannot be used as a single tensor")
             return Tensor(invocation_result=x, device=device)
-        return Tensor(x, device=device)
+        return Tensor(x, device=device, dtype=dtype)
 
 
-def _to_batch(x, batch_size, device=None):
+def _to_batch(x, batch_size, device=None, dtype=None):
     with nvtx.annotate("to_batch", domain="op_builder"):
         if x is None:
             return None
         if isinstance(x, Batch):
+            if dtype is not None and x.dtype != dtype:
+                return _as_batch(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x
         if isinstance(x, _invocation.InvocationResult):
             if x.is_batch:
-                return Batch(invocation_result=x, device=device)
+                return Batch(invocation_result=x, device=device, dtype=dtype)
             else:
-                x = _to_tensor(x)  # fall back to regular replication
+                x = _to_tensor(x, dtype=dtype)  # fall back to regular replication
         actual_batch_size = _get_batch_size(x)
         if actual_batch_size is not None:
             if batch_size is not None and actual_batch_size != batch_size:
                 raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
-            return Batch(x, device=device)
+            return Batch(x, device=device, dtype=dtype)
 
-        return Batch.broadcast(x, batch_size, device=device)
+        return Batch.broadcast(x, batch_size, device=device, dtype=dtype)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
@@ -136,6 +140,26 @@ def _find_or_create_module(root_module, module_path):
             setattr(module, path_part, submodule)
         module = submodule
     return module
+
+
+def _scalar_arg_type_id(dtype_id):
+    if dtype_id == nvidia.dali.types.DALIDataType._INT32_VEC:
+        return nvidia.dali.types.INT32
+    elif dtype_id == nvidia.dali.types.DALIDataType._FLOAT_VEC:
+        return nvidia.dali.types.FLOAT
+    elif dtype_id == nvidia.dali.types.DALIDataType._STRING_VEC:
+        return nvidia.dali.types.STRING
+    elif dtype_id == nvidia.dali.types.DALIDataType._BOOL_VEC:
+        return nvidia.dali.types.BOOL
+    else:
+        return dtype_id
+
+
+def _argument_type_conversion(dtype_id):
+    try:
+        return _type.dtype(_scalar_arg_type_id(dtype_id))
+    except KeyError:
+        return None
 
 
 def build_operator_class(schema):
@@ -172,6 +196,10 @@ def build_operator_class(schema):
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
     op_class.__qualname__ = class_name
+    op_class._argument_conversion_map = {
+        arg: _argument_type_conversion(schema.GetArgumentType(arg))
+        for arg in schema.GetArgumentNames()
+    }
     setattr(module, class_name, op_class)
     return op_class
 
@@ -296,7 +324,10 @@ def build_call_function(schema, op_class):
                     for k, v in raw_kwargs.items():
                         if v is None:
                             continue
-                        kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
+                        dtype = op_class._argument_conversion_map[k]
+                        kwargs[k] = _to_batch(
+                            v, batch_size, device=_device.Device("cpu"), dtype=dtype
+                        )
             else:
                 with nvtx.annotate("__call__: convert to tensors", domain="op_builder"):
                     for inp in raw_args:
@@ -306,7 +337,8 @@ def build_call_function(schema, op_class):
                     for k, v in raw_kwargs.items():
                         if v is None:
                             continue
-                        kwargs[k] = _to_tensor(v)
+                        dtype = op_class._argument_conversion_map[k]
+                        kwargs[k] = _to_tensor(v, dtype=dtype)
 
             with nvtx.annotate("__call__: shallowcopy", domain="op_builder"):
                 inputs = [copy.copy(x) for x in inputs]
