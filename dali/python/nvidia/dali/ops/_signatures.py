@@ -1024,7 +1024,7 @@ class StubFileManager:
             f.close()
 
 
-def gen_all_signatures(nvidia_dali_path: Path, api: Api):
+def gen_all_signatures(nvidia_dali_path: Path | str, api: Api):
     """Generate the signatures for "fn", "ops" or "dynamic" api.
 
     Parameters
@@ -1034,6 +1034,7 @@ def gen_all_signatures(nvidia_dali_path: Path, api: Api):
     api : str
         "fn", "ops" or "dynamic"
     """
+    nvidia_dali_path = Path(nvidia_dali_path)
     api_path = api if api != "dynamic" else os.path.join("experimental", api)
 
     with closing(StubFileManager(nvidia_dali_path, api_path)) as stub_manager:
