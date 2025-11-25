@@ -110,7 +110,7 @@ def _scalar_element_annotation(scalar_dtype, api: Api):
             return _enum_mapping[t]
 
         api_module = _api_to_module(api)
-        if hasattr(api_module, t.__name__) and hasattr(builtins, t.__name__):  # type: ignore[reportAttributeAccessIssue]
+        if hasattr(api_module, t.__name__) and hasattr(builtins, t.__name__):
             # Resolve conflicts between exported symbols and types used in annotations
             # For instance, bool becomes "builtins.bool" because of ndd.bool
             t = f"builtins.{t.__name__}"  # type: ignore[reportAttributeAccessIssue]
@@ -463,6 +463,7 @@ def _call_signature(
         )
 
     if include_kwargs and not include_only_inputs:
+        include_init_header = include_init_header and api == "dynamic"
         param_list.extend(_get_implicit_extra_params(schema, api, include_init_header))
 
     if include_batch_size:
@@ -479,7 +480,6 @@ def _call_signature(
                 include_only_inputs=include_only_inputs,
             )
         )
-        include_init_header = include_init_header and api == "dynamic"
 
     if return_annotation:
         return_annotation = return_annotation_gen(schema)
@@ -754,18 +754,24 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
     from nvidia.dali.experimental import dynamic
 
     op = getattr(dynamic.readers, op_name, None)
-    if op is None or not issubclass(op, dynamic.ops.Reader):  # type: ignore[reportAttributeAccessIssue]
+    if op is None or not issubclass(op, dynamic.ops.Reader):
         return ""
 
     doc = getdoc(op)
     return f"""
     @overload
-    def next_epoch(self, ctx: Optional[EvalContext] = None) -> Union[Iterable[tuple[Tensor, ...]], Iterable[tuple[Batch, ...]]]:
+    def next_epoch(
+        self,
+        ctx: Optional[EvalContext] = None,
+    ) -> Union[Iterable[tuple[Tensor, ...]], Iterable[tuple[Batch, ...]]]:
         \"""{doc}
         \"""
 
     @overload
-    def next_epoch(self, batch_size: int, ctx: Optional[EvalContext] = None) -> Iterable[tuple[Batch, ...]]:
+    def next_epoch(
+        self,
+        batch_size: int, ctx: Optional[EvalContext] = None,
+    ) -> Iterable[tuple[Batch, ...]]:
         \"""{doc}
         \"""
 """
