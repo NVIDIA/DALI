@@ -15,12 +15,12 @@ def get_rn50_pipeline_fn(max_batch_size):
     def f(jpegs):
         batch_size = jpegs.batch_size
         images = ndd.decoders.image(jpegs, device="mixed")
-        xy = uniform(batch_size=batch_size, range=[0.0, 1.0], shape=2)
+        xy = uniform(batch_size=batch_size, range=[0, 1], shape=2)
         do_mirror = mirror(batch_size=batch_size, probability=0.5)
-        size = resize_uniform(batch_size=batch_size, range=[256.0, 480.0])
+        size = resize_uniform(batch_size=batch_size, range=[256, 480])
         resized_images = ndd.fast_resize_crop_mirror(
             images,
-            crop=[224.0, 224.0],
+            crop=[224, 224],
             crop_pos_x=xy.slice[0],
             crop_pos_y=xy.slice[1],
             mirror=do_mirror,
@@ -31,8 +31,8 @@ def get_rn50_pipeline_fn(max_batch_size):
             resized_images,
             device="gpu",
             dtype=ndd.float16,
-            mean=[128.0, 128.0, 128.0],
-            std=[1.0, 1.0, 1.0],
+            mean=[128, 128, 128],
+            std=[1, 1, 1],
         )
         return output
 
@@ -44,8 +44,8 @@ def rn50_pipeline():
     jpegs, labels = fn.readers.file(
         name="reader", file_root=file_root, file_list=img_list, random_shuffle=False
     )
-    uniform = fn.random.uniform(range=[0.0, 1.0], shape=2, seed=42)
-    resize_uniform = fn.random.uniform(range=[256.0, 480.0], seed=43)
+    uniform = fn.random.uniform(range=[0, 1], shape=2, seed=42)
+    resize_uniform = fn.random.uniform(range=[256, 480], seed=43)
     mirror = fn.random.coin_flip(probability=0.5, seed=44)
     images = fn.decoders.image(jpegs, device="mixed")
     xy = uniform
@@ -53,7 +53,7 @@ def rn50_pipeline():
     size = resize_uniform
     resized_images = fn.fast_resize_crop_mirror(
         images,
-        crop=[224.0, 224.0],
+        crop=[224, 224],
         crop_pos_x=xy[0],
         crop_pos_y=xy[1],
         mirror=do_mirror,
@@ -64,8 +64,8 @@ def rn50_pipeline():
         resized_images,
         device="gpu",
         dtype=dali.types.DALIDataType.FLOAT16,
-        mean=[128.0, 128.0, 128.0],
-        std=[1.0, 1.0, 1.0],
+        mean=[128, 128, 128],
+        std=[1, 1, 1],
     )
     return output, labels
 
