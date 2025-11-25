@@ -877,11 +877,11 @@ from nvidia.dali.data_node import DataNode
 
 _DYNAMIC_HEADER = """
 from nvidia.dali._typing import TensorLike, TensorLikeArg
-from nvidia.dali.experimental.dynamic._batch import Batch
-from nvidia.dali.experimental.dynamic._device import Device
-from nvidia.dali.experimental.dynamic._eval_context import EvalContext
-from nvidia.dali.experimental.dynamic._tensor import Tensor
-from nvidia.dali.experimental.dynamic._type import DType
+from nvidia.dali.experimental.dynamic._batch import Batch as Batch
+from nvidia.dali.experimental.dynamic._device import Device as Device
+from nvidia.dali.experimental.dynamic._eval_context import EvalContext as EvalContext
+from nvidia.dali.experimental.dynamic._tensor import Tensor as Tensor
+from nvidia.dali.experimental.dynamic._type import DType as DType
 """
 
 
