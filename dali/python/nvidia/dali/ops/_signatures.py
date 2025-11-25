@@ -296,6 +296,9 @@ def _get_keyword_params(
         if not is_arg_input and include_only_inputs:
             continue
 
+        if is_arg_input and not include_kwarg_inputs:
+            continue
+
         if is_arg_input and include_kwarg_inputs:
             annotation = (
                 Union[_DataNode, _TensorLikeArg, kw_annotation]
