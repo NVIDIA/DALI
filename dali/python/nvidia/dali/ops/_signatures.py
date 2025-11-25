@@ -295,7 +295,7 @@ def _get_keyword_params(
             annotation = (
                 Union[_DataNode, _TensorLikeArg, kw_annotation]
                 if data_node_tensors
-                else Union[_TensorLikeArg, kw_annotation]
+                else Union[_TensorLikeArg, _Batch, kw_annotation]
             )
         else:
             annotation = kw_annotation
