@@ -23,9 +23,21 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/core/host_dev.h"
 #include "dali/core/geom/vec.h"
+#ifdef __CUDACC__
+#include <curand_kernel.h>
+#endif
 
 namespace dali {
 namespace random {
+
+template <typename CurandState>
+struct CurandGenerator {
+    CurandState &state;
+    __device__ explicit CurandGenerator(CurandState &s) : state(s) {}
+    __device__ inline uint32_t operator()() const {
+        return curand(&state);
+    }
+};
 
 template <typename T>
 struct normalized_uniform_dist {
@@ -290,13 +302,14 @@ struct poisson_dist {
   DALI_HOST_DEV poisson_dist() = default;
   DALI_HOST_DEV explicit poisson_dist(float mean) : mean(mean) {}
 
+  template <typename State>
+  __device__ DALI_FORCEINLINE uint32_t operator()(CurandGenerator<State> &rng) const {
+    return curand_poisson(&rng.state, mean);
+  }
+
   template <typename RNG>
-  DALI_HOST_DEV DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
-    #ifdef __CUDA_ARCH__
-      return curand_poisson(rng, mean);
-    #else
-      return std::poisson_distribution<uint32_t>(mean)(rng);
-    #endif
+  __host__ DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
+    return std::poisson_distribution<uint32_t>(mean)(rng);
   }
 };
 
