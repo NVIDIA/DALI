@@ -92,6 +92,8 @@ def _to_tensor(x, device=None, dtype=None):
         if x is None:
             return None
         if isinstance(x, Tensor):
+            if dtype is not None and x.dtype != dtype:
+                return Tensor(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x
@@ -107,6 +109,8 @@ def _to_batch(x, batch_size, device=None, dtype=None):
         if x is None:
             return None
         if isinstance(x, Batch):
+            if dtype is not None and x.dtype != dtype:
+                return Batch(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x

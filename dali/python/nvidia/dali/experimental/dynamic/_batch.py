@@ -400,10 +400,10 @@ class Batch:
 
         This function returns a batch obtained by repeating the sample `sample` `batch_size` times.
         Optionally, the result may be placed on the specified device (otherwise it will inherit the
-        device from the `sample` argument).
+        device from the `sample` argument) or converted to the desired data type.
 
         This function yields result equivalent to
-        ``as_batch([tensor(sample)] * batch_size, device=device)``
+        ``as_batch([tensor(sample, dtype=dtype, device=device)] * batch_size)``
         but is much more efficient.
         """
         if isinstance(sample, Batch):
