@@ -754,18 +754,18 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
     from nvidia.dali.experimental import dynamic
 
     op = getattr(dynamic.readers, op_name, None)
-    if op is None or not isinstance(op, dynamic.ops.Reader):
+    if op is None or not issubclass(op, dynamic.ops.Reader):  # type: ignore[reportAttributeAccessIssue]
         return ""
 
     doc = getdoc(op)
     return f"""
     @overload
-    def next_epoch(self, ctx: Optional[EvalContext] = None) -> Union[Tensor, Batch]:
+    def next_epoch(self, ctx: Optional[EvalContext] = None) -> Union[Iterable[tuple[Tensor, ...]], Iterable[tuple[Batch, ...]]]:
         \"""{doc}
         \"""
 
     @overload
-    def next_epoch(self, batch_size: int, ctx: Optional[EvalContext] = None) -> Batch:
+    def next_epoch(self, batch_size: int, ctx: Optional[EvalContext] = None) -> Iterable[tuple[Batch, ...]]:
         \"""{doc}
         \"""
 """
@@ -876,6 +876,8 @@ from nvidia.dali.data_node import DataNode
 """
 
 _DYNAMIC_HEADER = """
+from collections.abc import Iterable
+
 from nvidia.dali._typing import TensorLike, TensorLikeArg
 from nvidia.dali.experimental.dynamic._batch import Batch as Batch
 from nvidia.dali.experimental.dynamic._device import Device as Device
