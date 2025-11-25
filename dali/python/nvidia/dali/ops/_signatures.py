@@ -81,6 +81,7 @@ _enum_mapping = {
 _Tensor = _create_annotation_placeholder("Tensor")
 _Batch = _create_annotation_placeholder("Batch")
 _TensorLike = _create_annotation_placeholder("TensorLike")
+_DType = _create_annotation_placeholder("DType")
 
 
 def _api_to_module(api: Api):
@@ -101,14 +102,18 @@ def _scalar_element_annotation(scalar_dtype, api: Api):
     try:
         dummy_val = conv_fn(0)
         t = type(dummy_val)
+
+        if api == "dynamic" and t is types.DALIDataType:
+            t = Union[_DALIDataType, _DType]
+
         if t in _enum_mapping:
             return _enum_mapping[t]
 
         api_module = _api_to_module(api)
-        if hasattr(api_module, t.__name__) and hasattr(builtins, t.__name__):
+        if hasattr(api_module, t.__name__) and hasattr(builtins, t.__name__):  # type: ignore[reportAttributeAccessIssue]
             # Resolve conflicts between exported symbols and types used in annotations
             # For instance, bool becomes "builtins.bool" because of ndd.bool
-            t = f"builtins.{t.__name__}"
+            t = f"builtins.{t.__name__}"  # type: ignore[reportAttributeAccessIssue]
         return t
     # This is tied to TFRecord implementation
     except NotImplementedError:
@@ -876,6 +881,7 @@ from nvidia.dali.experimental.dynamic._batch import Batch
 from nvidia.dali.experimental.dynamic._device import Device
 from nvidia.dali.experimental.dynamic._eval_context import EvalContext
 from nvidia.dali.experimental.dynamic._tensor import Tensor
+from nvidia.dali.experimental.dynamic._type import DType
 """
 
 
