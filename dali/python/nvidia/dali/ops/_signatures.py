@@ -263,7 +263,14 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
     return param_list
 
 
-def _get_keyword_params(schema, api: Api, all_args_optional=False, data_node_tensors=False):
+def _get_keyword_params(
+    schema,
+    api: Api,
+    all_args_optional: bool,
+    data_node_tensors: bool,
+    include_kwarg_inputs: bool,
+    include_only_inputs: bool,
+):
     """Get the list of annotated keyword Parameters to the operator."""
 
     if api == "dynamic":
@@ -281,7 +288,10 @@ def _get_keyword_params(schema, api: Api, all_args_optional=False, data_node_ten
         kw_annotation = _arg_type_annotation(arg_dtype, api)
         is_arg_input = schema.IsTensorArgument(arg)
 
-        if is_arg_input:
+        if not is_arg_input and include_only_inputs:
+            continue
+
+        if is_arg_input and include_kwarg_inputs:
             annotation = (
                 Union[_DataNode, _TensorLikeArg, kw_annotation]
                 if data_node_tensors
@@ -390,6 +400,8 @@ def _call_signature(
     schema,
     api: Api,
     include_inputs=True,
+    include_kwarg_inputs=True,
+    include_only_inputs=False,
     include_kwargs=True,
     include_self=False,
     include_batch_size=False,
@@ -411,6 +423,10 @@ def _call_signature(
         "fn", "ops" or "dynamic"
     include_inputs : bool, optional
         If positional inputs should be included in the signature, by default True
+    include_kwarg_inputs: bool, optional
+        If inputs that are keyword arguments should be included in the signature, by default True
+    include_only_inputs: bool, optional
+        If non-input keyword arguments should be excluded, by default False
     include_kwargs : bool, optional
         If keyword arguments should be included in the signature, by default True
     include_self : bool, optional
@@ -441,6 +457,9 @@ def _call_signature(
             _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen)
         )
 
+    if include_kwargs and not include_only_inputs:
+        param_list.extend(_get_implicit_extra_params(schema, api, include_init_header))
+
     if include_batch_size:
         param_list.append(Parameter(name="batch_size", kind=Parameter.KEYWORD_ONLY, annotation=int))
 
@@ -451,10 +470,11 @@ def _call_signature(
                 api,
                 all_args_optional=all_args_optional,
                 data_node_tensors=data_node_kwargs,
+                include_kwarg_inputs=include_kwarg_inputs,
+                include_only_inputs=include_only_inputs,
             )
         )
         include_init_header = include_init_header and api == "dynamic"
-        param_list.extend(_get_implicit_extra_params(schema, api, include_init_header))
 
     if return_annotation:
         return_annotation = return_annotation_gen(schema)
@@ -682,6 +702,7 @@ def _gen_dynamic_call_signature_multiple_inputs(schema: _b.OpSchema, **kwargs):
             data_node_kwargs=False,
             input_annotation_gen=lambda _: _Batch,
             return_annotation_gen=lambda _: _Batch,
+            **kwargs,
         ),
         _call_signature(
             schema,
@@ -689,6 +710,7 @@ def _gen_dynamic_call_signature_multiple_inputs(schema: _b.OpSchema, **kwargs):
             data_node_kwargs=False,
             input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
             return_annotation_gen=lambda _: Union[_Tensor, _Batch],
+            **kwargs,
         ),
         _call_signature(
             schema,
@@ -697,6 +719,7 @@ def _gen_dynamic_call_signature_multiple_inputs(schema: _b.OpSchema, **kwargs):
             include_batch_size=True,
             input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
             return_annotation_gen=lambda _: _Batch,
+            **kwargs,
         ),
     )
 
@@ -756,8 +779,7 @@ def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: s
         for signature in _gen_dynamic_call_signature(
             schema,
             include_self=True,
-            return_annotation=False,
-            include_kwargs=False,
+            include_only_inputs=True,
         )
     )
 
@@ -770,8 +792,11 @@ class {op_name}:
         schema,
         "dynamic",
         include_inputs=False,
+        include_kwarg_inputs=False,
         include_self=True,
         return_annotation=False,
+        include_kwargs=True,
+        include_init_header=True,
     )}:
         ...
 
@@ -848,6 +873,7 @@ from nvidia.dali.data_node import DataNode
 _DYNAMIC_HEADER = """
 from nvidia.dali._typing import TensorLike, TensorLikeArg
 from nvidia.dali.experimental.dynamic._batch import Batch
+from nvidia.dali.experimental.dynamic._device import Device
 from nvidia.dali.experimental.dynamic._eval_context import EvalContext
 from nvidia.dali.experimental.dynamic._tensor import Tensor
 """
@@ -956,6 +982,12 @@ def _group_signatures(api: Api):
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])
 
+        # Special case for dynamic.ops
+        if op is None and api_module.__name__.endswith("dynamic"):
+            schema_name = f"ops__{schema_name}"
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            op = _get_op(api_module, module_nesting + [op_name])  # type: ignore
+
         if op is None:
             continue
 
@@ -987,6 +1019,7 @@ class StubFileManager:
         if api_path in ("ops", "fn"):
             self._header += _PIPELINE_HEADER
         else:
+            self._module_tree[""]["ops"] = self._module_tree[""]
             self._header += _DYNAMIC_HEADER
 
     def get(self, module_nesting: List[str]):
@@ -1065,6 +1098,8 @@ def gen_all_signatures(nvidia_dali_path: Path | str, api: Api):
         }
         for schema_name, op in sig_groups["generated"]:
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            if api == "dynamic":
+                schema_name = schema_name.removeprefix("ops__")
             schema = _b.TryGetSchema(schema_name)
 
             signature = signature_generators[api](schema, schema_name, op_name)
