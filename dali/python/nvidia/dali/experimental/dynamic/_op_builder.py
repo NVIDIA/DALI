@@ -15,7 +15,7 @@
 import nvidia.dali.backend as _b
 from nvidia.dali.fn import _to_snake_case
 import makefun
-from ._batch import Batch, _get_batch_size
+from ._batch import Batch, _get_batch_size, as_batch as _as_batch
 from ._tensor import Tensor
 from . import ops
 from . import _type
@@ -110,7 +110,7 @@ def _to_batch(x, batch_size, device=None, dtype=None):
             return None
         if isinstance(x, Batch):
             if dtype is not None and x.dtype != dtype:
-                return Batch(x, dtype=dtype, device=device)
+                return _as_batch(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x

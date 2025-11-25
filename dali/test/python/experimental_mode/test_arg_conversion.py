@@ -38,7 +38,6 @@ def test_arg_conversion():
     def check_converted(args):
         nonlocal test_calls
         test_calls += 1
-        print(args["size"].dtype)
         assert args["size"].dtype == ndd.float32, "size should be float32"
 
     _conversion_test_op(check_converted)(img, size=[100, 100]).evaluate()
@@ -55,4 +54,34 @@ def test_arg_conversion():
         assert args["size"] is size, "size should not be passed as-is"
 
     _conversion_test_op(check_not_converted)(img, size=size).evaluate()
+    assert test_calls == 3, "Argument check function not called"
+
+
+def test_arg_conversion_batch():
+    path = os.path.join(get_dali_extra_path(), "db", "imgproc", "alley.png")
+    file = np.fromfile(path, dtype=np.uint8)
+    img = ndd.decoders.image(file)
+    imgs = ndd.as_batch([img, img])
+
+    test_calls = 0
+
+    def check_converted(args):
+        nonlocal test_calls
+        test_calls += 1
+        assert args["size"].dtype == ndd.float32, "size should be float32"
+
+    _conversion_test_op(check_converted)(imgs, size=[100, 100]).evaluate()
+    assert test_calls == 1, "Argument check function not called"
+    size = ndd.batch([[100, 100], [150, 150]])
+    _conversion_test_op(check_converted)(img, size=size).evaluate()
+    assert test_calls == 2, "Argument check function not called"
+
+    size = ndd.batch([[100, 100], [150, 150]], dtype=ndd.float32)
+
+    def check_not_converted(args):
+        nonlocal test_calls
+        test_calls += 1
+        assert args["size"] is size, "size should not be passed as-is"
+
+    _conversion_test_op(check_not_converted)(imgs, size=size).evaluate()
     assert test_calls == 3, "Argument check function not called"
