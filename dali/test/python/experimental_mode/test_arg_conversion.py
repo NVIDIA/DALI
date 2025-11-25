@@ -73,7 +73,7 @@ def test_arg_conversion_batch():
     _conversion_test_op(check_converted)(imgs, size=[100, 100]).evaluate()
     assert test_calls == 1, "Argument check function not called"
     size = ndd.batch([[100, 100], [150, 150]])
-    _conversion_test_op(check_converted)(img, size=size).evaluate()
+    _conversion_test_op(check_converted)(imgs, size=size).evaluate()
     assert test_calls == 2, "Argument check function not called"
 
     size = ndd.batch([[100, 100], [150, 150]], dtype=ndd.float32)
