@@ -1338,7 +1338,9 @@ class Pipeline(object):
             else:
                 reason = "was explicitly disabled in this pipeline"
 
-            raise RuntimeError(error_message_prefix + " dynamic execution, which " + reason + ".")
+            raise RuntimeError(
+                error_message_prefix + " legacy execution model, which " + reason + "."
+            )
 
     def outputs(self, cuda_stream=None):
         """Returns the outputs of the pipeline and releases previous buffer.
