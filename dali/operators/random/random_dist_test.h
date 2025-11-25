@@ -25,10 +25,9 @@ namespace dali {
 namespace random {
 namespace test {
 
-namespace {
-constexpr int kSampleSize = 100000;
-constexpr double kBinTolerance = 0.01;
-constexpr double kCDFTolerance = 0.01;
+static constexpr int kSampleSize = 100000;
+static constexpr double kBinTolerance = 0.01;
+static constexpr double kCDFTolerance = 0.01;
 
 template <typename T>
 std::vector<int> ComputeHistogram(span<const T> samples, T min, T max, int nbins) {
@@ -55,7 +54,7 @@ std::vector<int> ComputeHistogram(span<const T> samples, span<const T> bin_edges
     return hist;
 }
 
-void CompareHistograms(
+inline void CompareHistograms(
     const std::vector<int> &a,
     const std::vector<int> &b,
     double bin_tol_frac = kBinTolerance,
@@ -82,8 +81,6 @@ void CompareHistograms(
     std::cout << "Max bin diff: " << max_bin_diff << std::endl;
     std::cout << "Max cdf diff: " << max_cdf_diff << std::endl;
 }
-
-}  // namespace
 
 }  // namespace test
 }  // namespace random
