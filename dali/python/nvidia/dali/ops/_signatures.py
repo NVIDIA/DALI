@@ -953,9 +953,6 @@ def _group_signatures(api: Api):
     for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
 
-        if schema.IsDeprecated():
-            continue
-
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])
 
