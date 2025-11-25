@@ -210,6 +210,18 @@ struct uniform_real_dist {
   T factor_ = std::is_same_v<T, double> ? 0x1p-64 : 0x1p-32f;
 };
 
+/** Uniform distribution over a range of integers.
+ *
+ * @tparam T The result type. Must be an integral type up to 32 bits.
+ *
+ * The values are sampled uniformly from the range [start, end) if exclusive_max is false, or
+ * [start, end] if exclusive_max is true.
+ *
+ * For exclusive_max = false, the entire range of the type T may be specified.
+ *
+ * For large ranges, some values may be sampled more frequently than others due to the limited
+ * precision of the random number generator. The mean and variance are not affected, though.
+ */
 template <typename T = int>
 struct uniform_int_dist {
   static_assert(std::is_integral_v<T>, "uniform_int_dist only supports integral types");
@@ -243,6 +255,15 @@ struct uniform_int_dist {
   uint32_t range_size_;
 };
 
+/** A distribution that samples values from a discrete set.
+ *
+ * @tparam T The type of the values to sample from.
+ *
+ * @note For a large number of values, some values may be sampled more frequently than others due
+ *       to the limited precision of the random number generator.
+ *       There are 2^32 rng outputs assigned to nvalues bins. The probablitties are evenly
+ *       distributed only for nvalues much smaller than 2^32 and powers of 2.
+ */
 template <typename T>
 struct uniform_discrete_dist {
  public:
