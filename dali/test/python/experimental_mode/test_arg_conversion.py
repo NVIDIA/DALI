@@ -51,7 +51,7 @@ def test_arg_conversion():
     def check_not_converted(args):
         nonlocal test_calls
         test_calls += 1
-        assert args["size"] is size, "size should not be passed as-is"
+        assert args["size"] is size, "size should be passed as-is"
 
     _conversion_test_op(check_not_converted)(img, size=size).evaluate()
     assert test_calls == 3, "Argument check function not called"
@@ -81,7 +81,7 @@ def test_arg_conversion_batch():
     def check_not_converted(args):
         nonlocal test_calls
         test_calls += 1
-        assert args["size"] is size, "size should not be passed as-is"
+        assert args["size"] is size, "size should be passed as-is"
 
     _conversion_test_op(check_not_converted)(imgs, size=size).evaluate()
     assert test_calls == 3, "Argument check function not called"
