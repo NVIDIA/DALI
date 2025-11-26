@@ -37,7 +37,7 @@ def _imread_impl(filepaths: str | List[str] | Tensor | Batch, device: str = "cpu
         - A Batch containing encoded filepath bytes
 
     device : str, optional
-        Device to decode the image on. Can be "cpu", or "mixed".
+        Device to decode the image on. Can be "cpu", "gpu", or "mixed".
         Default is "cpu".
 
     <DECODERS_IMAGE_KWARGS_PLACEHOLDER>
@@ -90,6 +90,9 @@ def _imread_impl(filepaths: str | List[str] | Tensor | Batch, device: str = "cpu
 
     if device not in ["cpu", "mixed", "gpu"]:
         raise ValueError(f"Invalid device: {device}. Must be 'cpu', 'mixed', or 'gpu'.")
+
+    if device == "gpu":
+        device = "mixed"
 
     # Handle different input types
     if isinstance(filepaths, (Tensor, Batch)):
