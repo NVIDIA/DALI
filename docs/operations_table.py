@@ -4,6 +4,7 @@ import nvidia.dali.ops._python_def_op_utils as _python_def_op_utils
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba.experimental
 import nvidia.dali.plugin.jax as dax
+import nvidia.dali.experimental.dynamic as ndd
 import sys
 
 # Dictionary with modules that can have registered Ops
@@ -29,7 +30,13 @@ removed_ops = ["Compose"]
 cpu_ops = ops.cpu_ops()
 gpu_ops = ops.gpu_ops()
 mix_ops = ops.mixed_ops()
-all_ops = cpu_ops.union(gpu_ops).union(mix_ops)
+all_ops_in_module = {
+    "nvidia.dali.fn": cpu_ops.union(gpu_ops).union(mix_ops),
+    "nvidia.dali.experimental.dynamic": [
+        f.schema.Name() for f in ndd.ops._all_functions
+    ],
+}
+all_ops = all_ops_in_module["nvidia.dali.fn"]
 link_formatter = ":meth:`{op} <{module}.{op}>`"
 
 
@@ -40,6 +47,22 @@ def to_fn_module(module_name):
         return module_name.replace(".ops", ".fn")
 
 
+def to_dynamic_module(module_name):
+    if module_name in module_mapping:
+        return module_mapping[module_name]
+    else:
+        return module_name.replace(".ops", ".experimental.dynamic")
+
+
+def to_other_module(api_name, module_name):
+    return {
+        "fn": to_fn_module,
+        "dynamic": to_dynamic_module,
+    }[
+        api_name
+    ](module_name)
+
+
 def name_sort(op_name):
     if isinstance(op_name, _python_def_op_utils.PyOpDesc):
         return f"{op_name.module}.{op_name.name.upper()}"
@@ -47,12 +70,12 @@ def name_sort(op_name):
     return ".".join(module + [name.upper()])
 
 
-def longest_fn_string():
+def longest_operator_string(api_name):
     longest_str = ""
     for op in sorted(all_ops, key=name_sort):
         fn_string = ""
         _, submodule, op_name = ops._process_op_name(op, api="ops")
-        fn_full_name = ops._op_name(op, api="fn")
+        fn_full_name = ops._op_name(op, api=api_name)
         for module_name, module in ops_modules.items():
             m = module
             for part in submodule:
@@ -61,18 +84,16 @@ def longest_fn_string():
                     break
             if m is not None and hasattr(m, op_name):
                 fn_string = link_formatter.format(
-                    op=fn_full_name, module=to_fn_module(module_name)
+                    op=fn_full_name,
+                    module=to_other_module(api_name, module_name),
                 )
                 if len(fn_string) > len(longest_str):
                     longest_str = fn_string
     return longest_str
 
 
-op_name_max_len = len(longest_fn_string())
-name_bar = op_name_max_len * "="
-
-
 def fn_to_op_table(out_filename):
+    op_name_max_len = len(longest_operator_string("fn"))
     formater = "{:{c}<{op_name_max_len}} {:{c}<{op_name_max_len}}\n"
     doc_table = ""
     doc_table += formater.format("", "", op_name_max_len=op_name_max_len, c="=")
@@ -114,10 +135,17 @@ def fn_to_op_table(out_filename):
         f.write(doc_table)
 
 
-def operations_table_str(ops_to_process):
+def operations_table_str(ops_to_process, module_name):
+    api_name = (
+        "dynamic"
+        if module_name.startswith("nvidia.dali.experimental.dynamic")
+        else "fn"
+    )
+    op_name_max_len = len(longest_operator_string(api_name))
+
     formater = "{:{c}<{op_name_max_len}} {:{c}^48} {:{c}<150}\n"
     doc_table = ""
-    doc_table += "\n.. currentmodule:: nvidia.dali.fn\n\n"
+    doc_table += f"\n.. currentmodule:: {module_name}\n\n"
     doc_table += formater.format(
         "", "", "", op_name_max_len=op_name_max_len, c="="
     )
@@ -138,7 +166,7 @@ def operations_table_str(ops_to_process):
             short_descr = op.short_desc
         else:
             _, submodule, op_name = ops._process_op_name(op, api="ops")
-            fn_full_name = ops._op_name(op, api="fn")
+            fn_full_name = ops._op_name(op, api=api_name)
             if op_name in removed_ops:
                 continue
             schema = b.TryGetSchema(op)
@@ -168,7 +196,8 @@ def operations_table_str(ops_to_process):
                         break
                 if m is not None and hasattr(m, op_name):
                     fn_string = link_formatter.format(
-                        op=fn_full_name, module=to_fn_module(module_name)
+                        op=fn_full_name,
+                        module=to_other_module(api_name, module_name),
                     )
         op_doc = formater.format(
             fn_string,
@@ -184,8 +213,23 @@ def operations_table_str(ops_to_process):
     return doc_table
 
 
-def operations_table(out_filename):
-    doc_table = operations_table_str(all_ops)
+def operations_table(out_filename, module_name="nvidia.dali.fn"):
+    doc_table = operations_table_str(
+        all_ops_in_module[module_name], module_name=module_name
+    )
+    with open(out_filename, "w") as f:
+        f.write(doc_table)
+
+
+def dynamic_readers_table(out_filename):
+    readers = [
+        f.schema.Name()
+        for f in ndd.ops._all_ops
+        if "readers" in f.schema.ModulePath()
+    ]
+    doc_table = operations_table_str(
+        readers, module_name="nvidia.dali.experimental.dynamic"
+    )
     with open(out_filename, "w") as f:
         f.write(doc_table)
 

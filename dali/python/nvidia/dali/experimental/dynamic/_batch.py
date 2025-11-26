@@ -183,7 +183,7 @@ class Batch:
     This class represents a batch of tensors usable with DALI dynamic API. The tensors in the batch
     have the same element type, layout and number of dimensions, but can differ in shape.
 
-    A Batch can contain:
+    A :class:`Batch` can contain:
 
     * a single buffer and shape, owned by DALI, representing consecutive tensors
     * a list of :class:`Tensor` objects.
@@ -202,10 +202,10 @@ class Batch:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
-        """Constructs a Batch object.
+        """Constructs a :class:`Batch` object.
 
         .. warning::
-            Batch objects should not be constructed directly, use :meth:`batch` or
+            :class:`Batch` objects should not be constructed directly, use :meth:`batch` or
             :meth:`as_batch` instead.
 
         The batch object can be created either from an existing object, passed as `tensors` or
@@ -219,6 +219,7 @@ class Batch:
             The data to construct the batch from. It can be a list of tensors, a TensorList,
             or other supported types. If None, the batch is constructed from an invocation result.
             Supported types are:
+
             - a list of tensor-like objects; the objects need to have matching number of dimensions,
             data types and layouts,
             - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
@@ -574,17 +575,17 @@ class Batch:
         Samplewise slicing interface allows the slicing parmaters to be batches (with the same
         number of samples) and the slicing parameters are applied to respective samples.
 
-        ```Python
-        start = Batch([1, 2, 3])
-        stop = Batch([4, 5, 6])
-        step = Batch([1, 1, 2])
-        sliced = input.slice[start, stop, step]
-        # the result is equivalent to
-        sliced = Batch([
-            sample[start[i]:stop[i]:step[i]]
-            for i, sample in enumerate(input)
-        ])
-        ```
+        ::
+
+            start = Batch([1, 2, 3])
+            stop = Batch([4, 5, 6])
+            step = Batch([1, 1, 2])
+            sliced = input.slice[start, stop, step]
+            # the result is equivalent to
+            sliced = Batch([
+                sample[start[i]:stop[i]:step[i]]
+                for i, sample in enumerate(input)
+            ])
 
         If the slicing parameters are not batches, they are broadcast to all samples.
         """
@@ -663,15 +664,13 @@ class Batch:
 
         Example::
 
-        ```
-        >>> import nvidia.dali.experimental.dynamic as ndd
-        >>> import numpy as np
-        >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
-        >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
-        >>> b = ndd.as_batch([t0, t1])
-        >>> print(b.shape)
-        [(480, 640, 3), (720, 1280, 1)]
-        ```
+            >>> import nvidia.dali.experimental.dynamic as ndd
+            >>> import numpy as np
+            >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
+            >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
+            >>> b = ndd.as_batch([t0, t1])
+            >>> print(b.shape)
+            [(480, 640, 3), (720, 1280, 1)]
         """
         if self._invocation_result is not None:
             return self._invocation_result.shape
@@ -803,7 +802,7 @@ def batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
-    """Constructs a Batch object.
+    """Constructs a :class:`Batch` object.
 
     Constructs a batch by copying the input tensors and optionally converting them to the desired
     data type and storing on the specified device.
@@ -814,7 +813,8 @@ def batch(
         The data to construct the batch from. Can be a list of tensors, a TensorList,
         or other supported types.
         Supported types are:
-        - a Batch object; the batch is copied and the data is converted and moved to the
+
+        - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
           data types and layouts,
@@ -848,7 +848,7 @@ def as_batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
-    """Constructs a Batch object, avoiding the copy.
+    """Constructs a :class:`Batch` object, avoiding the copy.
 
     Constructs a batch by viewing the input tensors as a batch. If the input tensors do not
     reside on the specified device or do not match the desired type, the data will be converted
@@ -861,7 +861,8 @@ def as_batch(
         or other supported types. In general, the input tensors must be kept alive by the caller
         until the batch is no longer needed.
         Supported types are:
-        - a Batch object; the batch is copied and the data is converted and moved to the
+
+        - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
           data types and layouts,
