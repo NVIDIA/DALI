@@ -74,10 +74,10 @@ void Philox4x32_10::recalc_output() {
   kx += PHILOX_W32_0;
   ky += PHILOX_W32_1;
   std::tie(x, y, z, w) = philox4x32round(x, y, z, w, kx, ky);    // 10
-  state_.out[0] = x;
-  state_.out[1] = y;
-  state_.out[2] = z;
-  state_.out[3] = w;
+  out_[0] = x;
+  out_[1] = y;
+  out_[2] = z;
+  out_[3] = w;
 }
 
 }  // namespace dali

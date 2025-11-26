@@ -122,9 +122,9 @@ void RandomMaskPixelCPU::RunImplTyped(Workspace &ws) {
   rle_.resize(thread_pool.NumThreads());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    auto rng = GetSampleRNG(sample_idx);
     thread_pool.AddWork(
-      [&, sample_idx](int thread_id) {
-        auto &rng = rng_[sample_idx];
+      [&, sample_idx, rng](int thread_id) {
         auto mask = masks_view[sample_idx];
         auto pixel_pos = pixel_pos_view[sample_idx];
         const auto &mask_sh = mask.shape;

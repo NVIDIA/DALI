@@ -15,7 +15,6 @@
 #include <random>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/random/rng_base_cpu.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
@@ -181,6 +180,7 @@ void ROIRandomCropCPU::RunImpl(Workspace &ws) {
   int ndim = crop_start[0].shape[0];
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    auto rng = GetSampleRNG(sample_idx);
     int64_t* sample_sh = nullptr;
     if (!in_shape_.empty())
       sample_sh = in_shape_.tensor_shape_span(sample_idx).data();
@@ -208,7 +208,7 @@ void ROIRandomCropCPU::RunImpl(Workspace &ws) {
         }
 
         auto dist = std::uniform_int_distribution<int64_t>(start_range[0], start_range[1]);
-        crop_start[sample_idx].data[d] = dist(rng_[sample_idx]);
+        crop_start[sample_idx].data[d] = dist(rng);
       }
     }
   }

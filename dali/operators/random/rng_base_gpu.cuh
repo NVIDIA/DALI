@@ -20,7 +20,6 @@
 #include "dali/core/convert.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 
@@ -28,6 +27,18 @@ namespace dali {
 namespace rng {
 
 namespace {  // NOLINT
+
+__device__ DALI_FORCEINLINE curandStatePhilox4_32_10_t ToGPU(Philox4x32_10::State state) const {
+  curandStatePhilox4_32_10_t rng;
+  curand_init(&rng, state.key, state.ctr[1], state.ctr[0] << 2 | state.phase);
+  // the two high bits of the counter cannot be set in init, so we need this loop
+  #pragma unroll(4)
+  for (unsigned i = 0; i < state.ctr[0] >> 62; i++) {
+    skipahead(1_u64 << 63, &rng);
+  }
+  return rng;
+}
+
 
 template <bool value>
 using bool_const = std::integral_constant<bool, value>;

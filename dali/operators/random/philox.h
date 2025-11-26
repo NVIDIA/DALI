@@ -15,8 +15,13 @@
 #ifndef DALI_OPERATORS_RANDOM_PHILOX_H_
 #define DALI_OPERATORS_RANDOM_PHILOX_H_
 
+#include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
+#include <string>
+#include <string_view>
+#include <stdexcept>
 #include "dali/core/api_helper.h"
 
 namespace dali {
@@ -51,7 +56,7 @@ class Philox4x32_10 {
   }
 
   uint32_t next() {
-    uint32_t ret = state_.out[state_.phase++];
+    uint32_t ret = out_[state_.phase++];
     if (state_.phase >= 4) {
       state_.phase = 0;
       advance_counter(1);
@@ -67,8 +72,61 @@ class Philox4x32_10 {
   static constexpr uint32_t max() { return 0xffffffffu; }
   static constexpr uint32_t min() { return 0; }
 
+  struct State {
+    uint64_t key;
+    uint64_t ctr[2];
+    int phase;
+  };
+
+  static inline std::string state_to_string(const State &state) {
+    char state_str[64] = "";
+    int n = std::snprintf(
+        state_str, sizeof(state_str),
+        state_fmt_string(),
+        state.key, state.ctr[1], state.ctr[0], state.phase);
+    assert(n > 0 && n < static_cast<int>(sizeof(state_str)));
+    return state_str;
+  }
+
+  inline std::string state_to_string() const { return state_to_string(state_); }
+
+  static inline void state_from_string(State &state, std::string_view str) {
+    int n = std::sscanf(
+        str.data(), state_fmt_string(),
+        &state.key, &state.ctr[1], &state.ctr[0], &state.phase);
+    if (n != 4) {
+      throw std::invalid_argument(make_string(
+        "Failed to deserialize Philox state from string: ", str));
+    }
+  }
+
+  inline void state_from_string(std::string_view str) {
+    State s;
+    state_from_string(s, str);
+    set_state(s);
+  }
+
+  State get_state() const {
+    return state_;
+  }
+
+  void set_state(const State &state) {
+    state_ = state;
+    recalc_output();
+  }
+
  private:
   DLL_PUBLIC void recalc_output();
+
+  static constexpr const char *state_fmt_string() {
+    if constexpr (sizeof(long) == 8) {
+      return "Philox_%016lX_%016lX:%016lX:%016lX:%X";
+    } else {
+      static_assert(sizeof(long) == 8 || sizeof(long long) == 8,
+                    "Unsupported long/long long sizes");
+      return "Philox_%016llX_%016llX:%016llX:%016llX:%X";
+    }
+  }
 
   bool advance(uint64_t n) {
     state_.phase = state_.phase + (n & 3);
@@ -95,13 +153,20 @@ class Philox4x32_10 {
     return n != 0;
   }
 
-  struct State {
-     uint64_t key;
-     uint64_t ctr[2];
-     uint32_t out[4];
-     int phase;
-  } state_ = {};
+  State state_ = {};
+  uint32_t out_[4] = {};
 };
+
+inline std::ostream &operator<<(std::ostream &os, const Philox4x32_10::State &state) {
+  return os << Philox4x32_10::state_to_string(state);
+}
+
+inline std::istream &operator>>(std::istream &is, Philox4x32_10::State &state) {
+  std::string str;
+  is >> str;
+  Philox4x32_10::state_from_string(state, str);
+  return is;
+}
 
 }  // namespace dali
 

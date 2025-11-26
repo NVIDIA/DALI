@@ -25,7 +25,6 @@
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/common/fast_hash.h"
 #include "dali/operators/random/rng_base_cpu.h"
@@ -235,21 +234,21 @@ class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
     return huge_context_;
   }
 
-  template <typename BlobLabel>
-  bool PickForegroundBox(SampleContext<BlobLabel> &context);
+  template <typename BlobLabel, typename RNG>
+  bool PickForegroundBox(SampleContext<BlobLabel> &context, RNG &rng);
 
-  template <typename BlobLabel, typename T>
+  template <typename BlobLabel, typename T, typename RNG>
   bool PickForegroundBox(SampleContext<BlobLabel> &context,
-                         const TensorView<StorageCPU, const T> &input);
+                         const TensorView<StorageCPU, const T> &input, RNG &rng);
 
   template <typename BlobLabel>
   void GetBoxes(SampleContext<BlobLabel> &ctx, int nblobs);
 
-  template <typename BlobLabel>
-  bool PickBox(SampleContext<BlobLabel> &ctx);
+  template <typename BlobLabel, typename RNG>
+  bool PickBox(SampleContext<BlobLabel> &ctx, RNG &rng);
 
-  template <int ndim>
-  int PickBox(span<Box<ndim, int>> boxes, int sample_idx);
+  template <int ndim, typename RNG>
+  int PickBox(span<Box<ndim, int>> boxes, int sample_idx, RNG &rng);
 
   bool  ignore_class_ = false;
   int   k_largest_ = -1;          // -1 means no k largest

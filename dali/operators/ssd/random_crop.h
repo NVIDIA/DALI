@@ -24,7 +24,6 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/operators/random/rng_base_cpu.h"
 
 namespace dali {

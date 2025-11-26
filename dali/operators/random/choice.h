@@ -286,6 +286,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     int num_samples = input.num_samples();
     auto &tp = ws.GetThreadPool();
     for (int sample_idx = 0; sample_idx < num_samples; ++sample_idx) {
+      auto rng = GetSampleRNG(sample_idx);
       int element_dim = GetElementDim(input);
       int64_t element_size = volume(input.tensor_shape(sample_idx).last(element_dim)) *
                              TypeTable::GetTypeInfo(input.type()).size();
@@ -297,7 +298,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
 
       tp.AddWork(
           [=, this](int thread_id) {
-            auto &rng = rng_[sample_idx];
             if (p_dist_.HasValue()) {
               auto dist = ChoiceSampleDist<int64_t, false, false>(
                   p_dist_[sample_idx].data,

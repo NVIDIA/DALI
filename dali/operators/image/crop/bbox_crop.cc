@@ -25,7 +25,6 @@
 #include "dali/core/geom/box.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/util/bounding_box_utils.h"
 
 namespace dali {
@@ -388,15 +387,14 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  RandomBBoxCropImpl(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
+  RandomBBoxCropImpl(const OpSpec *spec)
       : spec_(*spec),
         num_attempts_{spec_.GetArgument<int>("num_attempts")},
         has_labels_(spec_.NumRegularInput() > 1),
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
         has_input_shape_(spec_.ArgumentDefined("input_shape")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
-        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
-        rngs_(rng) {
+        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")) {
     has_bbox_layout_ = spec_.TryGetArgument(bbox_layout_, "bbox_layout");
     has_shape_layout_ = spec_.TryGetArgument(shape_layout_, "shape_layout");
 
@@ -717,8 +715,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     float best_metric = -1.0;
 
     crop.clear();
+    auto rng = GetSampleRNG(sample);
     while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
-      auto &rng = rngs_[sample];
       std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
       SampleOption option = sample_options_[idx_dist(rng)];
       bool absolute_crop_dims = has_crop_shape_;
@@ -927,8 +925,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
   float bbox_prune_threshold_ = 0.0f;
-
-  BatchRNG<std::mt19937_64> &rngs_;
 
   std::vector<SampleOption> sample_options_;
 

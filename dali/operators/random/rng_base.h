@@ -19,15 +19,15 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <cstdio>
+#include <stdexcept>
 
 #include "dali/core/convert.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
-#include "dali/pipeline/util/batch_rng.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/core/static_switch.h"
-#include "dali/operators/util/randomizer.cuh"
-#include "dali/operators/random/rng_checkpointing_utils.h"
+#include "philox.h"
 
 namespace dali {
 namespace rng {
@@ -35,58 +35,67 @@ namespace rng {
 template <typename Backend>
 struct OperatorWithRngFields;
 
+static constexpr int kSkipaheadPerElement = 16;
+static constexpr int kSkipaheadPerSample = 16;
 
-template<typename Backend, bool RngPerSample = true>
+template<typename Backend, bool DistPerSample = true>
 class OperatorWithRng : public Operator<Backend>{
  public:
-  using CheckpointType = std::conditional_t<std::is_same_v<Backend, CPUBackend>,
-                                            BatchRNG<std::mt19937_64>, curand_states>;
-  using CheckpointUtils = RngCheckpointUtils<Backend, CheckpointType>;
-
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      CheckpointUtils::SaveState(cpt, order, rng_);
-    } else {
-      static_assert(std::is_same_v<Backend, GPUBackend>);
-      CheckpointUtils::SaveState(cpt, order, backend_data_.randomizer_);
-    }
+    cpt.MutableCheckpointState() = master_rng_.get_state();
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      CheckpointUtils::RestoreState(cpt, rng_);
-    } else {
-      static_assert(std::is_same_v<Backend, GPUBackend>);
-      CheckpointUtils::RestoreState(cpt, backend_data_.randomizer_);
-    }
+    master_rng_.set_state(cpt.CheckpointState<Philox4x32_10::State>());
   }
 
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    return CheckpointUtils::SerializeCheckpoint(cpt);
+    const auto &state = cpt.CheckpointState<Philox4x32_10::State>();
+    return Philox4x32_10::state_to_string(state);
   }
 
   void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    CheckpointUtils::DeserializeCheckpoint(cpt, data);
+    Philox4x32_10::State s;
+    Philox4x32_10::state_from_string(s, data);
+    cpt.MutableCheckpointState() = s;
+  }
+
+  void Run(Workspace &ws) override {
+    Operator<Backend>::Run(ws);
+    assert(ws.NumOutput() > 0);
+    Advance(ws.GetOutputBatchSize(0));
+  }
+
+  int NumDists() const {
+    return DistPerSample ? max_batch_size_ : 1;
   }
 
  protected:
-  size_t RngsCount() {
-    if constexpr (RngPerSample) {
-      return max_batch_size_;
-    } else {
-      return 1;
-    }
-  }
 
   explicit OperatorWithRng(const OpSpec &spec)
-      : Operator<Backend>(spec),
-        rng_(spec.GetArgument<int64_t>("seed"), RngsCount()),
-        backend_data_(spec.GetArgument<int64_t>("seed"), RngsCount()) {}
+      : Operator<Backend>(spec)
+      , backend_data_(NumDists()) {
+    int64_t seed = spec.GetArgument<int64_t>("seed");
+    master_rng_.init(seed, 0, 0);
+  }
+
+  inline void Advance(int batch_size) {
+    master_rng_.skipahead_sequence(batch_size);
+  }
 
   using Operator<Backend>::max_batch_size_;
   using Operator<Backend>::spec_;
 
-  BatchRNG<std::mt19937_64> rng_;
+  Philox4x32_10 master_rng_;
+
+  // Gets a new RNG for a given sample. When called multiple times for the same sample, it will
+  // return independent copies of the same RNG.
+  Philox4x32_10 GetSampleRNG(int sample_idx) const {
+    Philox4x32_10 rng = master_rng_;
+    rng.skipahead_sequence(sample_idx * kSkipaheadPerSample);
+    return rng;
+  }
+
   OperatorWithRngFields<Backend> backend_data_;
 };
 
@@ -214,8 +223,9 @@ class RNGBase : public OperatorWithRng<Backend> {
 
   using OperatorWithRng<Backend>::spec_;
   using OperatorWithRng<Backend>::max_batch_size_;
-  using OperatorWithRng<Backend>::rng_;
+  using OperatorWithRng<Backend>::master_rng_;
   using OperatorWithRng<Backend>::backend_data_;
+  using OperatorWithRng<Backend>::GetSampleRNG;
 
   DALIDataType dtype_ = DALI_NO_TYPE;
   TensorListShape<> shape_;
