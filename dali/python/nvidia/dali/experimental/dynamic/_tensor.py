@@ -70,12 +70,12 @@ class Tensor:
     """A Tensor object.
 
     This class represents a single tensor usable with DALI dynamic API. It can contain any of the
-    following::
+    following:
 
-    * tensor data owned by DALI
-    * external tensor data wrapped into a DALI tensor
-    * a sample taken out of a Batch object
-    * a result of a lazy evaluation of a DALI operator.
+    - tensor data owned by DALI
+    - external tensor data wrapped into a DALI tensor
+    - a sample taken out of a Batch object
+    - a result of a lazy evaluation of a DALI operator
 
     In case of lazy evaluation, the operations are executed only after an attempt is made to access
     the tensor data or properties which cannot be obtained without running the underlying operation.
@@ -92,14 +92,14 @@ class Tensor:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
-        """Constructs a Tensor object.
+        """Constructs a :class:`Tensor` object.
 
         .. warning::
-            Tensor objects should not be constructed directly, use :meth:`tensor` or
+            :class:`Tensor` objects should not be constructed directly, use :meth:`tensor` or
             :meth:`as_tensor` instead.
 
-        The `Tensor` object can be created either from an existing object, passed as `data` or
-        from an invocation result.
+        The :class:`Tensor` object can be created either from an existing object, passed as `data`
+        or from an invocation result.
         Unless explicitly requested with the `copy` parameter, this constructor will make best
         effort to avoid the copy.
 
@@ -864,10 +864,11 @@ def tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
+
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
-        - existing Tensor objects
+        - existing :class:`Tensor` objects
     dtype : DType, default: None
         The desired data type of the tensor. If not specified, the data type is inferred
         from the input data. If specified, the input data is cast to the desired data type.
@@ -895,10 +896,11 @@ def as_tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
+
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
-        - existing Tensor objects
+        - existing :class:`Tensor` objects
     dtype : DType, default: None
         The desired data type of the tensor. If not specified, the data type is inferred
         from the input data. If specified, the input data is cast to the desired data type.
