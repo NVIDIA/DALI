@@ -194,48 +194,53 @@ class Operator:
                 self._op_backend = _b._Operator(self._op_spec)
 
     def run(self, ctx, *inputs, batch_size=None, **args):
-        if (
-            batch_size is not None
-            and self._max_batch_size is not None
-            and batch_size > self._max_batch_size
-            and self.schema.IsStateful()
-        ):
-            raise RuntimeError(
-                f"The batch size {batch_size} is larger than the `max_batch_size` "
-                f"{self._max_batch_size} specified when the operator was created."
-            )
+        device_id = ctx.device_id if ctx is not None else None
+        device_ctx = (
+            _device.Device("gpu", device_id) if device_id is not None else _device.Device("cpu")
+        )
+        with device_ctx:
+            if (
+                batch_size is not None
+                and self._max_batch_size is not None
+                and batch_size > self._max_batch_size
+                and self.schema.IsStateful()
+            ):
+                raise RuntimeError(
+                    f"The batch size {batch_size} is larger than the `max_batch_size` "
+                    f"{self._max_batch_size} specified when the operator was created."
+                )
 
-        def _is_batch():
-            for input in inputs:
-                if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
-                    return True
-            for input in args.values():
-                if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
-                    return True
-            return False
+            def _is_batch():
+                for input in inputs:
+                    if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
+                        return True
+                for input in args.values():
+                    if isinstance(input, ((_b.TensorListCPU, _b.TensorListGPU))):
+                        return True
+                return False
 
-        is_batch = batch_size is not None or _is_batch()
-        if self._is_backend_initialized():
-            if self.schema.IsStateful():
-                # clearing the backend in a stateful op would destroy the state
-                self.check_compatible(inputs, batch_size, args)
-            elif not self.is_compatible(inputs, batch_size, args):
-                # we can reinitialize a stateless operator - not very efficient :(
-                self._reset_backend()
+            is_batch = batch_size is not None or _is_batch()
+            if self._is_backend_initialized():
+                if self.schema.IsStateful():
+                    # clearing the backend in a stateful op would destroy the state
+                    self.check_compatible(inputs, batch_size, args)
+                elif not self.is_compatible(inputs, batch_size, args):
+                    # we can reinitialize a stateless operator - not very efficient :(
+                    self._reset_backend()
 
-        self._init_backend(ctx, inputs, args)
-        workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
-        for i, input in enumerate(inputs):
-            workspace.AddInput(self._to_batch(input).evaluate()._storage)
-        for name, arg in args.items():
-            workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._storage)
-        self._op_backend.SetupAndRun(workspace, batch_size)
-        out = workspace.GetOutputs()
-        if is_batch:
-            return tuple(out)
-        else:
-            tensors = tuple(o[0] for o in out)
-            return tensors
+            self._init_backend(ctx, inputs, args)
+            workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
+            for i, input in enumerate(inputs):
+                workspace.AddInput(self._to_batch(input).evaluate()._storage)
+            for name, arg in args.items():
+                workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._storage)
+            self._op_backend.SetupAndRun(workspace, batch_size)
+            out = workspace.GetOutputs()
+            if is_batch:
+                return tuple(out)
+            else:
+                tensors = tuple(o[0] for o in out)
+                return tensors
 
     def _to_batch(self, x):
         if not isinstance(x, Batch):

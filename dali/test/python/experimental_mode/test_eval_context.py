@@ -14,7 +14,7 @@
 
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
-from nose_utils import SkipTest, attr, assert_raises
+from nose_utils import SkipTest, attr
 import numpy as np
 import os
 from nose2.tools import cartesian_params
@@ -158,44 +158,16 @@ def _validate_gpu_expr_result(result, expected_device_id):
     np.testing.assert_array_equal(result_cpu, np.array([5.0], dtype=np.float32))
 
 
-@attr("multi_gpu")
 @cartesian_params(
     [
         None,
     ]
     + list(range(_backend.GetCUDADeviceCount())),
 )
-def test_device_mismatch_device(device_id):
+def test_eval_context_evaluate_gpu_expr(device_id):
     """
-    Test that we properly detect when an invocation created with one device
-    is evaluated with a different device context.
-    """
-    if _backend.GetCUDADeviceCount() < 2:
-        raise SkipTest("At least 2 devices needed for the test")
-
-    if device_id is None:
-        result = _gpu_expr()
-    else:
-        with ndd.Device(f"gpu:{device_id}"):
-            result = _gpu_expr()
-    actual_device_id = device_id if device_id is not None else 0
-    eval_device_id = 0 if actual_device_id != 0 else 1
-    with assert_raises(
-        RuntimeError, glob=f"*Device mismatch*gpu:{actual_device_id}*gpu:{eval_device_id}*"
-    ):
-        with ndd.EvalContext(device_id=eval_device_id):
-            result.evaluate()
-
-
-@cartesian_params(
-    [
-        None,
-    ]
-    + list(range(_backend.GetCUDADeviceCount())),
-)
-def test_device_match_device(device_id):
-    """
-    Test that operations work fine when device contexts match the default device.
+    Test that operations executed on the device context used to create the invocation, regardless
+    of the current eval context.
     """
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
@@ -205,10 +177,12 @@ def test_device_match_device(device_id):
     else:
         with ndd.Device(f"gpu:{device_id}"):
             result = _gpu_expr()
-
-    eval_device_id = device_id if device_id is not None else 0
-    with ndd.EvalContext(device_id=eval_device_id):
-        _validate_gpu_expr_result(result, eval_device_id)
+    actual_device_id = device_id if device_id is not None else 0
+    # It doesn't matter if the current eval context is different from the one used to create
+    # the invocation, since the eval context is captured when the invocation is created.
+    for eval_device_id in range(_backend.GetCUDADeviceCount()):
+        with ndd.EvalContext(device_id=eval_device_id):
+            _validate_gpu_expr_result(result, actual_device_id)
 
 
 def test_default_device_conversion_to_cpu():
