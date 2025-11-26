@@ -40,38 +40,61 @@ images_pathlib = [
     pathlib.Path(tiff_dir) / "0" / "cat-3504008_640.tiff",
 ]
 
-# Reference numpy arrays for pixel comparison
-references = {
-    "cat-111793_640.tiff": {
-        types.RGB: os.path.join(reference_dir, "0", "cat-111793_640.tiff.npy"),
-        types.GRAY: os.path.join(reference_dir, "0", "cat-111793_640_gray.tiff.npy"),
-    },
-    "cat-3449999_640.tiff": {
-        types.RGB: os.path.join(reference_dir, "0", "cat-3449999_640.tiff.npy"),
-        types.GRAY: os.path.join(reference_dir, "0", "cat-3449999_640_gray.tiff.npy"),
-    },
-    "cat-3504008_640.tiff": {
-        types.RGB: os.path.join(reference_dir, "0", "cat-3504008_640.tiff.npy"),
-        types.GRAY: os.path.join(reference_dir, "0", "cat-3504008_640_gray.tiff.npy"),
-    },
-}
+# Create Tensor/Batch with filepath bytes (not image contents)
+images_tensors = [
+    ndd.tensor(np.frombuffer(str(image).encode("utf-8"), dtype=np.uint8).copy()) for image in images
+]
+
+images_batch = ndd.batch(images_tensors)
+
+references_rgb = [
+    os.path.join(reference_dir, "0", "cat-111793_640.tiff.npy"),
+    os.path.join(reference_dir, "0", "cat-3449999_640.tiff.npy"),
+    os.path.join(reference_dir, "0", "cat-3504008_640.tiff.npy"),
+]
+
+references_gray = [
+    os.path.join(reference_dir, "0", "cat-111793_640_gray.tiff.npy"),
+    os.path.join(reference_dir, "0", "cat-3449999_640_gray.tiff.npy"),
+    os.path.join(reference_dir, "0", "cat-3504008_640_gray.tiff.npy"),
+]
+
+references = {types.RGB: references_rgb, types.GRAY: references_gray}
 
 
 @cartesian_params(
     ("cpu", "mixed"),
-    (ndd.Tensor, ndd.Batch),
     ({}, {"output_type": types.GRAY}),
-    (images, images_pathlib),
+    (
+        images[0],
+        images_pathlib[0],
+        images_tensors[0],
+        images,
+        images_pathlib,
+        images_tensors,
+        tuple(images),
+        tuple(images_pathlib),
+        tuple(images_tensors),
+        images_batch,
+    ),
 )
-def test_imread(device_type, out_type, decoder_kwargs, image_paths):
+def test_imread(device_type, decoder_kwargs, image_paths):
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
 
     output_device = "cpu" if device_type == "cpu" else "gpu"
 
-    # Test reading a single image
-    input_data = image_paths[0] if out_type == ndd.Tensor else image_paths
-    result = ndd.imread(input_data, device=device_type, **decoder_kwargs)
+    if isinstance(image_paths, (ndd.Tensor, str, pathlib.Path)):
+        out_type = ndd.Tensor
+    elif isinstance(image_paths, (list, tuple, ndd.Batch)):
+        out_type = ndd.Batch
+    else:
+        raise ValueError(
+            f"Invalid image paths type: {type(image_paths)}. Must be Tensor, str, "
+            f"pathlib.Path, list, tuple, or Batch."
+        )
+
+    result = ndd.imread(image_paths, device=device_type, **decoder_kwargs)
     assert isinstance(result, out_type)
     assert result.device == ndd.Device(output_device)
 
@@ -83,25 +106,17 @@ def test_imread(device_type, out_type, decoder_kwargs, image_paths):
         return np.array(arr)
 
     tensors = [result] if out_type == ndd.Tensor else result.tensors
-    input_names = (
-        [os.path.basename(input_data)]
-        if out_type == ndd.Tensor
-        else [os.path.basename(p) for p in input_data]
-    )
+    reference_files = references[output_type][: len(tensors)]
 
     if out_type == ndd.Tensor:
         assert len(result.shape) == 3  # HWC
         assert result.shape[2] == expected_nchannels
         assert result.dtype == ndd.uint8
     else:
-        assert result.batch_size == len(image_paths)
+        assert result.batch_size == len(reference_files)
         assert result.dtype == ndd.uint8
 
-    for tensor, image_name in zip(tensors, input_names):
-        if out_type != ndd.Tensor:
-            assert len(tensor.shape) == 3  # HWC
-            assert tensor.shape[2] == expected_nchannels
-        reference_path = references[image_name][output_type]
-        reference_array = np.load(reference_path)
+    for tensor, reference in zip(tensors, reference_files):
+        reference_array = np.load(reference)
         decoded_array = to_cpu_array(tensor)
         np.testing.assert_allclose(decoded_array, reference_array, atol=1)

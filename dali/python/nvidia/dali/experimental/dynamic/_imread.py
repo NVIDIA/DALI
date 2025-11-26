@@ -88,26 +88,30 @@ def _imread_impl(filepaths: str | List[str] | Tensor | Batch, device: str = "cpu
     """
     from . import io, decoders
 
-    # TODO(janton): Remove mixed
     if device not in ["cpu", "mixed", "gpu"]:
         raise ValueError(f"Invalid device: {device}. Must be 'cpu', 'mixed', or 'gpu'.")
 
     # Handle different input types
     if isinstance(filepaths, (Tensor, Batch)):
         # Already a Tensor or Batch (assume it's encoded filepath bytes)
-        filepath_tensor = filepaths
-    elif isinstance(filepaths, list):
-        # List of filepath strings (or pathlib.Path objects)
-        filepath_bytes_list = [
-            np.frombuffer(str(fp).encode("utf-8"), dtype=np.uint8).copy() for fp in filepaths
+        read_input = filepaths
+    elif isinstance(filepaths, (list, tuple)):
+        # Convert all elements to Tensors containing filepath bytes if not already Tensors
+        tensors = [
+            (
+                fp
+                if isinstance(fp, Tensor)
+                else tensor(np.frombuffer(str(fp).encode("utf-8"), dtype=np.uint8).copy())
+            )
+            for fp in filepaths
         ]
-        filepath_tensor = batch(filepath_bytes_list)
+        read_input = batch(tensors)
     else:
         # Single filepath (str or pathlib.Path)
         try:
             filepath_str = str(filepaths)
             filepath_bytes = np.frombuffer(filepath_str.encode("utf-8"), dtype=np.uint8).copy()
-            filepath_tensor = tensor(filepath_bytes)
+            read_input = tensor(filepath_bytes)
         except Exception:
             raise TypeError(
                 f"filepaths must be str, pathlib.Path, list, Tensor, or Batch, "
@@ -115,7 +119,7 @@ def _imread_impl(filepaths: str | List[str] | Tensor | Batch, device: str = "cpu
             )
 
     # Read file contents
-    file_data = io.file.read(filepath_tensor)
+    file_data = io.file.read(read_input)
 
     # Decode image
     decoded = decoders.image(file_data, device=device, **kwargs)
