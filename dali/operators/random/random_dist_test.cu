@@ -19,19 +19,11 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/operators/random/philox.h"
+#include "dali/operators/random/random_dist_test.h"
 
 namespace dali {
 namespace random {
 namespace test {
-
-template <typename CurandState>
-struct CurandGenerator {
-    CurandState &state;
-    __device__ explicit CurandGenerator(CurandState &s) : state(s) {}
-    __device__ inline uint32_t operator()() const {
-        return curand(&state);
-    }
-};
 
 /** Fill the array with the data distributed according to `dist` using Philox RNG.
  *
@@ -41,7 +33,7 @@ struct CurandGenerator {
  * of 4 elements. This is useful when the distribution needs to get multiple words from the RNG.
  */
 template <typename T, typename Dist>
-__global__ void GetGPUDistOutput(T *output, int n, Dist d, uint64_t seed, uint64_t seq) {
+__global__ void GetGPUDistOutputKernel(T *output, int n, Dist d, uint64_t seed, uint64_t seq) {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   int base_idx = tid * 4;
   if (base_idx >= n)
@@ -58,7 +50,8 @@ __global__ void GetGPUDistOutput(T *output, int n, Dist d, uint64_t seed, uint64
 }
 
 template <typename T, typename Dist>
-void GetCPUDistOutput(T *output, int n, Dist dist, uint64_t seed, uint64_t seq) {
+std::vector<T> GetCPUDistOutput(int n, Dist dist, uint64_t seed, uint64_t seq) {
+  std::vector<T> output(n);
   for (int base = 0; base < n; base += 4) {
     Philox4x32_10 philox{};
     philox.init(seed, seq, base * 16);
@@ -67,30 +60,45 @@ void GetCPUDistOutput(T *output, int n, Dist dist, uint64_t seed, uint64_t seq) 
         output[i] = dist(philox);
     }
   }
+  return output;
 }
 
-
 template <typename T, typename Dist>
-void CompareDist(Dist dist, int length, double tolerance, uint64_t seed = 12345, uint64_t seq = 0) {
+std::vector<T> GetGPUDistOutput(int length, Dist dist, uint64_t seed, uint64_t seq) {
   std::vector<T> gpu_output(length);
-  std::vector<T> cpu_output(length);
   DeviceBuffer<T> dev_buf;;
   dev_buf.resize(length);
   CUDAStream s = CUDAStream::Create(true);
 
   CUDA_CALL(cudaMemsetAsync(dev_buf.data(), 0xFE, length * sizeof(T), s));
 
-  GetGPUDistOutput<<<div_ceil(length, 4 * 256), 256, 0, s.get()>>>(
+  GetGPUDistOutputKernel<<<div_ceil(length, 4 * 256), 256, 0, s.get()>>>(
       dev_buf.data(), length, dist, seed, seq);
 
   copyD2H(gpu_output.data(), dev_buf.data(), length, s.get());
 
   CUDA_CALL(cudaStreamSynchronize(s));
+  return gpu_output;
+}
 
-  GetCPUDistOutput(cpu_output.data(), length, dist, seed, seq);
+template <typename T, typename Dist>
+void CompareDist(Dist dist, int length, double tolerance, uint64_t seed = 12345, uint64_t seq = 0) {
+  std::vector<T> gpu_output = GetGPUDistOutput<T>(length, dist, seed, seq);
+  std::vector<T> cpu_output = GetCPUDistOutput<T>(length, dist, seed, seq);
   for (int i = 0; i < length; i++) {
     ASSERT_NEAR(gpu_output[i], cpu_output[i], tolerance) << " at " << i;
   }
+}
+
+template <typename T, typename Dist>
+void CompareDistHistogram(Dist dist, int length, int bins, T min, T max, double tolerance) {
+  uint64_t seed = 12345;
+  uint64_t seq = 0;
+  std::vector<T> gpu_output = GetGPUDistOutput<T>(length, dist, seed, seq);
+  std::vector<T> cpu_output = GetCPUDistOutput<T>(length, dist, seed, seq);
+  auto gpu_histogram = ComputeHistogram(make_cspan(gpu_output), min, max, bins);
+  auto cpu_histogram = ComputeHistogram(make_cspan(cpu_output), min, max, bins);
+  CompareHistograms(gpu_histogram, cpu_histogram, tolerance, tolerance);
 }
 
 template <typename T>
@@ -137,6 +145,16 @@ TEST(GPURandomDistTest, Bernoulli) {
   using T = int;
   dali::random::bernoulli_dist dist(0.25f);
   CompareDist<T>(dist, 10003, 0);
+}
+
+TEST(GPURandomDistTest, Poisson) {
+  using T = int;
+  dali::random::poisson_dist dist(1);
+  CompareDistHistogram<T>(dist, 10000, 11, 0, 10, 0.01);
+  dist = dali::random::poisson_dist(10);
+  CompareDistHistogram<T>(dist, 10000, 20, dist.mean * 0.7, dist.mean * 1.3, 0.01);
+  dist = dali::random::poisson_dist(1000);
+  CompareDistHistogram<T>(dist, 100000, 100, dist.mean * 0.7, dist.mean * 1.3, 0.003);
 }
 
 }  // namespace test

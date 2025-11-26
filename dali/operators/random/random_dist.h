@@ -23,9 +23,21 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/core/host_dev.h"
 #include "dali/core/geom/vec.h"
+#ifdef __CUDACC__
+#include <curand_kernel.h>
+#endif
 
 namespace dali {
 namespace random {
+
+template <typename CurandState>
+struct CurandGenerator {
+    CurandState &state;
+    __device__ explicit CurandGenerator(CurandState &s) : state(s) {}
+    __device__ inline uint32_t operator()() const {
+        return curand(&state);
+    }
+};
 
 template <typename T>
 struct normalized_uniform_dist {
@@ -157,8 +169,6 @@ struct uniform_real_dist {
   static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>,
     "Unexpected data type");
 
-  using gen_type = typename std::conditional_t<std::is_same_v<T, double>, uint64_t, uint32_t>;
-
   DALI_HOST_DEV uniform_real_dist(const uniform_real_dist &other) = default;
   DALI_HOST_DEV uniform_real_dist &operator=(const uniform_real_dist &other) = default;
   DALI_HOST_DEV uniform_real_dist() = default;
@@ -200,6 +210,18 @@ struct uniform_real_dist {
   T factor_ = std::is_same_v<T, double> ? 0x1p-64 : 0x1p-32f;
 };
 
+/** Uniform distribution over a range of integers.
+ *
+ * @tparam T The result type. Must be an integral type up to 32 bits.
+ *
+ * The values are sampled uniformly from the range [start, end) if exclusive_max is false, or
+ * [start, end] if exclusive_max is true.
+ *
+ * For exclusive_max = false, the entire range of the type T may be specified.
+ *
+ * For large ranges, some values may be sampled more frequently than others due to the limited
+ * precision of the random number generator. The mean and variance are not affected, though.
+ */
 template <typename T = int>
 struct uniform_int_dist {
   static_assert(std::is_integral_v<T>, "uniform_int_dist only supports integral types");
@@ -233,6 +255,15 @@ struct uniform_int_dist {
   uint32_t range_size_;
 };
 
+/** A distribution that samples values from a discrete set.
+ *
+ * @tparam T The type of the values to sample from.
+ *
+ * @note For a large number of values, some values may be sampled more frequently than others due
+ *       to the limited precision of the random number generator.
+ *       There are 2^32 rng outputs assigned to nvalues bins. The probablitties are evenly
+ *       distributed only for nvalues much smaller than 2^32 and powers of 2.
+ */
 template <typename T>
 struct uniform_discrete_dist {
  public:
@@ -278,6 +309,29 @@ struct bernoulli_dist {
 
  private:
   uint32_t threshold = 0x7fffffff;
+};
+
+
+/** Poisson distribution, using either curand_poisson or std::poisson_distribution.
+ *
+ * NOTE: Results are different between CPU and GPU variant.
+ *
+ * TODO(michalz): Add an implementation that is consistent between CPU and GPU.
+ */
+struct poisson_dist {
+  float mean = 1.0f;
+  DALI_HOST_DEV poisson_dist() = default;
+  DALI_HOST_DEV explicit poisson_dist(float mean) : mean(mean) {}
+
+  template <typename State>
+  __device__ DALI_FORCEINLINE uint32_t operator()(CurandGenerator<State> &rng) const {
+    return curand_poisson(&rng.state, mean);
+  }
+
+  template <typename RNG>
+  __host__ DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
+    return std::poisson_distribution<uint32_t>(mean)(rng);
+  }
 };
 
 }  // namespace random
