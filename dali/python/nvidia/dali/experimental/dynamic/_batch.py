@@ -23,7 +23,6 @@ from ._tensor import (
 )
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
-from ._eval_context import EvalContext as _EvalContext
 from ._device import Device, device as _device
 from . import _eval_mode
 from . import _invocation
@@ -531,11 +530,11 @@ class Batch:
         if self.device == device and not force_copy:
             return self
         else:
-            with device:
+            copy_dev = device if device.device_type == "gpu" else self.device
+            with copy_dev:
                 from . import copy
 
-                ret = copy(self, device=device)
-                return ret
+                return copy(self, device=device)
 
     def cpu(self) -> "Batch":
         """
@@ -697,23 +696,22 @@ class Batch:
         """
         if self._storage is None:
             # TODO(michalz): Consider thread-safety
-            with _EvalContext.current() as ctx:
-                if self._invocation_result is not None:
-                    self._storage = self._invocation_result.value(ctx)
-                else:
-                    with self._device:
-                        if self._device.device_type == "cpu":
-                            backend_type = _backend.TensorListCPU
-                        elif self._device.device_type == "gpu":
-                            backend_type = _backend.TensorListGPU
-                        else:
-                            raise ValueError(
-                                f"Internal error: "
-                                f"Unsupported device type: {self._device.device_type}"
-                            )
-                        self._storage = backend_type(
-                            [t.evaluate()._storage for t in self._tensors], self.layout
+            if self._invocation_result is not None:
+                self._storage = self._invocation_result.value()
+            else:
+                with self._device:
+                    if self._device.device_type == "cpu":
+                        backend_type = _backend.TensorListCPU
+                    elif self._device.device_type == "gpu":
+                        backend_type = _backend.TensorListGPU
+                    else:
+                        raise ValueError(
+                            f"Internal error: "
+                            f"Unsupported device type: {self._device.device_type}"
                         )
+                    self._storage = backend_type(
+                        [t.evaluate()._storage for t in self._tensors], self.layout
+                    )
         return self
 
     def __add__(self, other):
