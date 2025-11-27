@@ -39,7 +39,8 @@ struct GaussianNoiseImpl {
   template <typename Generator>
   DALI_HOST_DEV FloatType Generate(T input, Generator &st) {
     (void) input;  // noise generation doesn't depend on the input
-    return dist_(st);
+    DistType d = dist_;  // this will waste the second box-muller number but will be thread-safe
+    return d(st);
   }
 
   DALI_HOST_DEV void Apply(T& output, T input, FloatType n) {

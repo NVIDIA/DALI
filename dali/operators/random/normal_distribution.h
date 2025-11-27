@@ -40,7 +40,8 @@ struct NormalDistImpl {
 
   template <typename Generator>
   DALI_HOST_DEV FloatType Generate(Generator &st) {
-    return dist_(st);
+    DistType d = dist_;  // this will waste the second box-muller number but will be thread-safe
+    return d(st);
   }
 
   DistType dist_;
