@@ -2983,7 +2983,8 @@ PYBIND11_MODULE(backend_impl, m) {
           return schema->HasArgument(arg_name);
         })
     .def("GetSupportedBackends", &GetSupportedBackends)
-    .def("HasRandomSeedArg", &OpSchema::HasRandomSeedArg);
+    .def("HasRandomSeedArg", &OpSchema::HasRandomSeedArg)
+    .def("HasRandomStateArg", &OpSchema::HasRandomStateArg);
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);

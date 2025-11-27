@@ -683,6 +683,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    */
   bool HasArgument(std::string_view name, bool include_internal = false) const;
 
+  /** Returns true if the operator has a "_random_state" tensor argument. */
+  bool HasRandomStateArg() const;
+
   /** Returns true if the operator has a "seed" argument. */
   bool HasRandomSeedArg() const;
 

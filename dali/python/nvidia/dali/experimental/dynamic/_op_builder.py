@@ -26,6 +26,7 @@ import nvidia.dali.types
 import nvtx
 from nvidia.dali import internal as _internal
 from nvidia.dali.ops import _docs, _names
+from . import random as _random
 
 
 def is_external(x):
@@ -280,6 +281,11 @@ def build_call_function(schema, op_class):
 
     call_args = ["batch_size=None"] + call_args
 
+    # Add rng argument for random operators
+    if schema.HasRandomStateArg():
+        call_args.append("rng=None")
+        used_kwargs.add("rng")
+
     inputs = _get_inputs(schema)
 
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
@@ -307,6 +313,16 @@ def build_call_function(schema, op_class):
             inputs = []
             kwargs = {}
 
+            random_state = None
+            if schema.HasRandomStateArg():
+                rng = raw_kwargs.get("rng", _random.get_default_rng())
+                raw_kwargs.pop("rng")
+                random_state = Tensor(
+                    [rng() for _ in range(7)],
+                    dtype=_type.dtype(nvidia.dali.types.UINT32),
+                    device="cpu",
+                )
+
             if is_batch:
                 with nvtx.annotate("__call__: convert to batches", domain="op_builder"):
                     for i, inp in enumerate(raw_args):
@@ -322,6 +338,13 @@ def build_call_function(schema, op_class):
                         kwargs[k] = _to_batch(
                             v, batch_size, device=_device.Device("cpu"), dtype=dtype
                         )
+                    if random_state is not None:
+                        kwargs["_random_state"] = _to_batch(
+                            random_state,
+                            batch_size,
+                            device=_device.Device("cpu"),
+                            dtype=_type.dtype(nvidia.dali.types.UINT32),
+                        )
             else:
                 with nvtx.annotate("__call__: convert to tensors", domain="op_builder"):
                     for inp in raw_args:
@@ -333,6 +356,8 @@ def build_call_function(schema, op_class):
                             continue
                         dtype = op_class._argument_conversion_map[k]
                         kwargs[k] = _to_tensor(v, dtype=dtype)
+                    if random_state is not None:
+                        kwargs["_random_state"] = random_state
 
             with nvtx.annotate("__call__: shallowcopy", domain="op_builder"):
                 inputs = [copy.copy(x) for x in inputs]
@@ -419,19 +444,24 @@ def build_fn_wrapper(op):
     tensor_args = []
     signature_args = ["batch_size=None, device=None"]
     used_kwargs = set()
+
     for arg in op.schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
         if op.schema.IsTensorArgument(arg):
             tensor_args.append(arg)
-            used_kwargs.add(arg)
         else:
             fixed_args.append(arg)
-            used_kwargs.add(arg)
+        used_kwargs.add(arg)
         if op.schema.IsArgumentOptional(arg):
             signature_args.append(f"{arg}=None")
         else:
             signature_args.append(arg)
+
+    if schema.HasRandomStateArg():
+        tensor_args.append("rng")
+        used_kwargs.add("rng")
+        signature_args.append("rng=None")
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
@@ -459,6 +489,7 @@ def build_fn_wrapper(op):
             for arg in tensor_args
             if arg in raw_kwargs and raw_kwargs[arg] is not None
         }
+
         # If device is not specified, infer it from the inputs and call_args
         if device is None:
 
@@ -524,7 +555,8 @@ def build_fn_wrappers(all_ops):
     for op in all_ops:
         if op.op_name.startswith("_"):
             continue
-        if op.schema.IsStateful():
+        # Allow random operators to have functional wrappers even if stateful
+        if op.schema.IsStateful() and not op.schema.HasRandomStateArg():
             continue
 
         wrappers.append(build_fn_wrapper(op))

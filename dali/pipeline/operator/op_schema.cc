@@ -522,6 +522,11 @@ OpSchema &OpSchema::AddRandomStateArg() {
   return *this;
 }
 
+
+bool OpSchema::HasRandomStateArg() const {
+  return HasArgument("_random_state") && IsTensorArgument("_random_state");
+}
+
 bool OpSchema::HasRandomSeedArg() const {
   return !IsDeprecatedArg("seed");
 }
