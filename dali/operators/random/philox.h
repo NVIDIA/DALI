@@ -23,6 +23,7 @@
 #include <string_view>
 #include <stdexcept>
 #include "dali/core/api_helper.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -119,10 +120,10 @@ class Philox4x32_10 {
   DLL_PUBLIC void recalc_output();
 
   static constexpr const char *state_fmt_string() {
-    if constexpr (sizeof(long) == 8) {
+    if constexpr (sizeof(long) == 8) {  // NOLINT
       return "Philox_%016lX_%016lX:%016lX:%016lX:%X";
     } else {
-      static_assert(sizeof(long) == 8 || sizeof(long long) == 8,
+      static_assert(sizeof(long) == 8 || sizeof(long long) == 8,  // NOLINT
                     "Unsupported long/long long sizes");
       return "Philox_%016llX_%016llX:%016llX:%016llX:%X";
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,20 +19,16 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/random_dist.h"
 
 #define DALI_SHOT_NOISE_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float
 
 namespace dali {
 
-template <typename Backend, typename T>
+template <typename T>
 class ShotNoiseImpl {
  public:
-  using DistType =
-      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                  curand_poisson_dist,
-                                  std::poisson_distribution<uint32_t>>;
-
   DALI_HOST_DEV explicit ShotNoiseImpl(float factor = 12)
       : factor_{factor}, inv_factor_{1.0f / factor_} {}
 
@@ -40,7 +36,7 @@ class ShotNoiseImpl {
   DALI_HOST_DEV uint32_t Generate(T in_val, Generator& g) {
     if (factor_ == 0.0f)
       return in_val;
-    DistType dist(cuda_max<float>(0.0f, in_val * inv_factor_));
+    random::poisson_dist dist(cuda_max<float>(0.0f, in_val * inv_factor_));
     return dist(g);
   }
 
@@ -60,7 +56,7 @@ class ShotNoise : public rng::RNGBase<Backend, ShotNoise<Backend>, true> {
   using BaseImpl = rng::RNGBase<Backend, ShotNoise<Backend>, true>;
 
   template <typename T>
-  using Impl = ShotNoiseImpl<Backend, T>;
+  using Impl = ShotNoiseImpl<T>;
 
   explicit ShotNoise(const OpSpec &spec)
       : BaseImpl(spec),

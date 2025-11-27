@@ -293,7 +293,7 @@ struct uniform_discrete_dist {
 struct bernoulli_dist {
  public:
   DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist() : threshold(0x7fffffff) {}
-  explicit DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist(float probability = 0.5f) {
+  explicit DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist(float probability) {
     float th = probability * 0x1p32f;
     if (th >= 0x1p32f) {  // avoid overflow
       threshold = 0xffffffff;

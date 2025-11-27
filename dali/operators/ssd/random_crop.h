@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,10 +29,10 @@
 namespace dali {
 
 template <typename Backend>
-class SSDRandomCrop : public rng::OperatorWithRng<Backend> {
+class SSDRandomCrop : public rng::OperatorWithRng<Operator<Backend>> {
  public:
   explicit inline SSDRandomCrop(const OpSpec &spec) :
-    rng::OperatorWithRng<Backend>(spec),
+    rng::OperatorWithRng<Operator<Backend>>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation

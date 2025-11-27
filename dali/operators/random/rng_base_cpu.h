@@ -29,7 +29,7 @@ namespace rng {
 
 template<>
 struct OperatorWithRngFields<CPUBackend> {
-  OperatorWithRngFields(int nsamples) {}
+  explicit OperatorWithRngFields(int /* nsamples */) {}
 
   template <typename Dist>
   std::vector<Dist> &dists_cpu() {
@@ -47,7 +47,7 @@ struct DistGen;
 template <>
 struct DistGen<false> {
   template <typename T, typename Dist>
-  inline void gen(span<T> out, span<const T> in, Dist &dist, Philox4x32_10 &rng,
+  inline void gen(span<T> out, span<const T> in, Dist &dist, const Philox4x32_10 &rng,
                   int64_t p_offset, int64_t p_count) const {
     (void) in;
     int64_t p_pos = p_offset;
@@ -61,7 +61,7 @@ struct DistGen<false> {
   }
 
   template <typename T, typename Dist>
-  inline void gen_all_channels(span<T> out, span<const T> in, Dist &dist, Philox4x32_10 &rng,
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist &dist, const Philox4x32_10 &rng,
                                int64_t p_offset, int64_t p_count, int c_count,
                                int64_t c_stride, int64_t p_stride) const {
     (void) in;
@@ -81,7 +81,7 @@ struct DistGen<false> {
 template <>
 struct DistGen<true> {
   template <typename T, typename Dist>
-  inline void gen(span<T> out, span<const T> in, Dist& dist, Philox4x32_10 &rng,
+  inline void gen(span<T> out, span<const T> in, Dist& dist, const Philox4x32_10 &rng,
                   int64_t p_offset, int64_t p_count) const {
     assert(out.size() == in.size());
     int64_t p_pos = p_offset;
@@ -94,7 +94,7 @@ struct DistGen<true> {
   }
 
   template <typename T, typename Dist>
-  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, Philox4x32_10 &rng,
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, const Philox4x32_10 &rng,
                                int64_t p_offset, int64_t p_count,
                                int c_count, int64_t c_stride, int64_t p_stride) const {
     assert(out.size() == in.size());
@@ -181,13 +181,13 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
 
     if (total_p_count < kThreshold) {
       tp.AddWork(
-        [=, this](int thread_id) {
+        [=](int thread_id) {
           auto dist = use_default_dist ? Dist() : dists[sample_id];
           if (independent_channels) {
-            dist_gen.template gen<T>(out_span, in_span, dist, rng, 0, total_p_count);
+            dist_gen.gen(out_span, in_span, dist, rng, 0, total_p_count);
           } else {
-            dist_gen.template gen_all_channels<T>(out_span, in_span, dist, rng, 0,
-                                                   total_p_count, nchannels, c_stride, p_stride);
+            dist_gen.gen_all_channels(out_span, in_span, dist, rng, 0,
+                                      total_p_count, nchannels, c_stride, p_stride);
           }
         }, total_p_count);
     } else {
@@ -200,11 +200,11 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
           [=](int thread_id) {
             auto dist = use_default_dist ? Dist() : dists[sample_id];
             if (independent_channels) {
-              dist_gen.template gen<T>(out_span, in_span, dist, rng,
-                                        p_offset, p_count);
+              dist_gen.gen(out_span, in_span, dist, rng,
+                           p_offset, p_count);
             } else {
-              dist_gen.template gen_all_channels<T>(out_span, in_span, dist, rng, p_offset,
-                                                     p_count, nchannels, c_stride, p_stride);
+              dist_gen.gen_all_channels(out_span, in_span, dist, rng, p_offset,
+                                        p_count, nchannels, c_stride, p_stride);
             }
           }, p_count);
       }

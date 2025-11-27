@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ If 0, the pixel position is sampled uniformly from all available pixels.)code",
     .AddRandomSeedArg()
     .AddRandomStateArg();
 
-class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
+class RandomMaskPixelCPU : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:
   explicit RandomMaskPixelCPU(const OpSpec &spec);
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
@@ -77,8 +77,8 @@ class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
 };
 
 RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
-    : rng::OperatorWithRng<CPUBackend>(spec),
-      has_value_(spec.ArgumentDefined("value")) {
+    : OperatorWithRng<Operator<CPUBackend>>(spec)
+    , has_value_(spec.ArgumentDefined("value")) {
   if (has_value_) {
     DALI_ENFORCE(!spec.ArgumentDefined("threshold"),
                  "Arguments ``value`` and ``threshold`` can not be provided together");
@@ -124,7 +124,7 @@ void RandomMaskPixelCPU::RunImplTyped(Workspace &ws) {
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto rng = GetSampleRNG(sample_idx);
     thread_pool.AddWork(
-      [&, sample_idx, rng](int thread_id) {
+      [&, sample_idx, rng](int thread_id) mutable {
         auto mask = masks_view[sample_idx];
         auto pixel_pos = pixel_pos_view[sample_idx];
         const auto &mask_sh = mask.shape;

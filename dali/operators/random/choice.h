@@ -297,7 +297,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
       const uint8_t *input_data = static_cast<const uint8_t *>(input.raw_tensor(sample_idx));
 
       tp.AddWork(
-          [=, this](int thread_id) {
+          [=, this](int thread_id) mutable {
             if (p_dist_.HasValue()) {
               auto dist = ChoiceSampleDist<int64_t, false, false>(
                   p_dist_[sample_idx].data,
@@ -325,8 +325,8 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   using Operator<Backend>::max_batch_size_;
   using BaseImpl::backend_data_;
   using BaseImpl::dtype_;
-  using BaseImpl::rng_;
   using BaseImpl::shape_;
+  using BaseImpl::GetSampleRNG;
 
 
   ArgValue<float, 1> p_dist_;

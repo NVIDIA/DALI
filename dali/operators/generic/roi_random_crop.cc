@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ bounds of the input.
     .NumInput(0, 1)
     .NumOutput(1);
 
-class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
+class ROIRandomCropCPU : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:
   explicit ROIRandomCropCPU(const OpSpec &spec);
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
@@ -88,7 +88,7 @@ class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
 };
 
 ROIRandomCropCPU::ROIRandomCropCPU(const OpSpec &spec)
-    : rng::OperatorWithRng<CPUBackend>(spec),
+    : OperatorWithRng<Operator<CPUBackend>>(spec),
       roi_start_("roi_start", spec),
       roi_end_("roi_end", spec),
       roi_shape_("roi_shape", spec),

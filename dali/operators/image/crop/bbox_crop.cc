@@ -387,8 +387,9 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  RandomBBoxCropImpl(const OpSpec *spec)
+  RandomBBoxCropImpl(const OpSpec *spec, rng::OperatorWithRng<Operator<CPUBackend>> *rng_op)
       : spec_(*spec),
+        rng_op_(rng_op),
         num_attempts_{spec_.GetArgument<int>("num_attempts")},
         has_labels_(spec_.NumRegularInput() > 1),
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
@@ -715,7 +716,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     float best_metric = -1.0;
 
     crop.clear();
-    auto rng = GetSampleRNG(sample);
+    auto rng = rng_op_->GetSampleRNG(sample);
     while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
       std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
       SampleOption option = sample_options_[idx_dist(rng)];
@@ -909,6 +910,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
  private:
   const OpSpec &spec_;
+  rng::OperatorWithRng<Operator<CPUBackend>> *rng_op_;
   int num_attempts_;
   int total_num_attempts_;
   bool has_labels_;
@@ -947,7 +949,7 @@ RandomBBoxCrop<CPUBackend>::~RandomBBoxCrop() = default;
 
 template <>
 RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
-    : OperatorWithRng<CPUBackend>(spec) {}
+    : OperatorWithRng<Operator<CPUBackend>>(spec) {}
 
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -973,7 +975,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   if (impl_ == nullptr || impl_ndim_ != num_dims) {
     VALUE_SWITCH(num_dims, ndim, (2, 3),
-      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_, rng_);),
+      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_, this);),
       (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
     impl_ndim_ = num_dims;
   }

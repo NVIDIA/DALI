@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ namespace dali {
 
 using kernels::InTensorCPU;
 
-class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
+class RandomObjectBBox : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:
   enum OutputFormat {
     Out_AnchorShape,
@@ -43,7 +43,7 @@ class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
 
   using hash_t = kernels::fast_hash_t;
 
-  explicit RandomObjectBBox(const OpSpec &spec) : rng::OperatorWithRng<CPUBackend>(spec),
+  explicit RandomObjectBBox(const OpSpec &spec) : OperatorWithRng<Operator<CPUBackend>>(spec),
         background_("background", spec),
         classes_("classes", spec),
         foreground_prob_("foreground_prob", spec),

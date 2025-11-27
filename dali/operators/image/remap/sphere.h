@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class SphereAugment {
   explicit SphereAugment(const OpSpec& spec) {}
 
   DALI_HOST_DEV
-  vec2 operator()(int h, int w, int c, int H, int W, int C) {
+  vec2 operator()(int, int h, int w, int c, int H, int W, int C) {
     // SPHERE_PREAMBLE
     const float mid_x = W * 0.5f;
     const float mid_y = H * 0.5f;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/core/static_switch.h"
-#include "philox.h"
+#include "dali/operators/random/philox.h"
 
 namespace dali {
 namespace rng {
@@ -38,9 +38,23 @@ struct OperatorWithRngFields;
 static constexpr int kSkipaheadPerElement = 16;
 static constexpr int kSkipaheadPerSample = 16;
 
-template<typename Backend, bool DistPerSample = true>
-class OperatorWithRng : public Operator<Backend>{
+void _DetectOperatrBackend(int /* ... */);
+template <typename Backend>
+Backend _DetectOperatrBackend(const Operator<Backend> *);
+
+template <typename Operator>
+struct backend_type {
+  using type = decltype(_DetectOperatrBackend(std::declval<Operator *>()));
+};
+
+template <typename X>
+using backend_t = typename backend_type<X>::type;
+
+template <typename Base>
+class OperatorWithRng : public Base {
  public:
+  using Backend = backend_t<Base>;
+
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     cpt.MutableCheckpointState() = master_rng_.get_state();
   }
@@ -61,20 +75,20 @@ class OperatorWithRng : public Operator<Backend>{
   }
 
   void Run(Workspace &ws) override {
-    Operator<Backend>::Run(ws);
+    Base::Run(ws);
     assert(ws.NumOutput() > 0);
     Advance(ws.GetOutputBatchSize(0));
   }
 
-  int NumDists() const {
-    return DistPerSample ? max_batch_size_ : 1;
+  Philox4x32_10 GetSampleRNG(int sample_idx) const {
+    Philox4x32_10 rng = master_rng_;
+    rng.skipahead_sequence(sample_idx * kSkipaheadPerSample);
+    return rng;
   }
 
  protected:
-
   explicit OperatorWithRng(const OpSpec &spec)
-      : Operator<Backend>(spec)
-      , backend_data_(NumDists()) {
+      : Base(spec) {
     int64_t seed = spec.GetArgument<int64_t>("seed");
     master_rng_.init(seed, 0, 0);
   }
@@ -83,20 +97,10 @@ class OperatorWithRng : public Operator<Backend>{
     master_rng_.skipahead_sequence(batch_size);
   }
 
-  using Operator<Backend>::max_batch_size_;
-  using Operator<Backend>::spec_;
+  using Base::max_batch_size_;
+  using Base::spec_;
 
   Philox4x32_10 master_rng_;
-
-  // Gets a new RNG for a given sample. When called multiple times for the same sample, it will
-  // return independent copies of the same RNG.
-  Philox4x32_10 GetSampleRNG(int sample_idx) const {
-    Philox4x32_10 rng = master_rng_;
-    rng.skipahead_sequence(sample_idx * kSkipaheadPerSample);
-    return rng;
-  }
-
-  OperatorWithRngFields<Backend> backend_data_;
 };
 
 /**
@@ -106,10 +110,12 @@ class OperatorWithRng : public Operator<Backend>{
  * value based on the input value at given coordinate.
  */
 template <typename Backend, typename Impl, bool IsNoiseGen>
-class RNGBase : public OperatorWithRng<Backend> {
+class RNGBase : public OperatorWithRng<Operator<Backend>> {
  protected:
+  using Base = OperatorWithRng<Operator<Backend>>;
   explicit RNGBase(const OpSpec &spec)
-      : OperatorWithRng<Backend>(spec) {}
+      : Base(spec)
+      , backend_data_(NumDists()) {}
 
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
   const Impl &This() const noexcept { return static_cast<const Impl&>(*this); }
@@ -221,14 +227,18 @@ class RNGBase : public OperatorWithRng<Backend> {
     RunImplTyped<T, Dist>(ws, Backend{});
   }
 
-  using OperatorWithRng<Backend>::spec_;
-  using OperatorWithRng<Backend>::max_batch_size_;
-  using OperatorWithRng<Backend>::master_rng_;
-  using OperatorWithRng<Backend>::backend_data_;
-  using OperatorWithRng<Backend>::GetSampleRNG;
+  int NumDists() const {
+    return max_batch_size_;
+  }
+
+  using Base::spec_;
+  using Base::max_batch_size_;
+  using Base::master_rng_;
+  using Base::GetSampleRNG;
 
   DALIDataType dtype_ = DALI_NO_TYPE;
   TensorListShape<> shape_;
+  OperatorWithRngFields<Backend> backend_data_;
 };
 
 }  // namespace rng

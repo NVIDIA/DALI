@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@
 #include "dali/core/host_dev.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/image/remap/displacement_filter.h"
-#include "dali/operators/util/randomizer.cuh"
-#include "dali/operators/random/rng_checkpointing_utils.h"
+#include "dali/operators/random/rng_util.cuh"
+#include "dali/operators/random/rng_base.h"
+#include "dali/operators/random/random_dist.h"
 
 namespace dali {
 
@@ -35,60 +36,44 @@ template <>
 class JitterAugment<GPUBackend> {
  public:
   static constexpr bool is_stateless = false;
-  explicit JitterAugment(const OpSpec& spec) :
-        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_),
-        nDegree_(spec.GetArgument<int>("nDegree")) {
-  }
+  explicit JitterAugment(const OpSpec& spec) : nDegree_(spec.GetArgument<int>("nDegree")) {}
 
-  __device__ ivec2 operator()(int y, int x, int c, int H, int W, int C) {
-    const uint16_t nHalf = nDegree_/2;
+  __device__ ivec2 operator()(int sample_idx, int y, int x, int c, int H, int W, int C) const {
+    const int center = -(nDegree_ >> 1);
+    auto state = rng_state_;
+    auto rnd = ToCurand(state);
+    skipahead_sequence(sample_idx * rng::kSkipaheadPerSample, &rnd);
+    ptrdiff_t offset = c + C * (x + W * y);  // component offset in HWC layout
+    skipahead(offset * rng::kSkipaheadPerElement, &rnd);
 
-    const int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    int newX = curand(&rnd_[idx % rnd_size_]) % nDegree_ - nHalf + x;
-    int newY = curand(&rnd_[idx % rnd_size_]) % nDegree_ - nHalf + y;
-    return { cuda_min(cuda_max(0, newX), W), cuda_min(cuda_max(0, newY), H) };
+    auto dist = random::uniform_int_dist<int>(center, center + nDegree_);
+    auto gen = random::CurandGenerator(rnd);
+    int newX = dist(gen) + x;
+    int newY = dist(gen) + y;
+    return { clamp(newX, 0, W - 1), clamp(newY, 0, H - 1) };
   }
 
   void Cleanup() {}
 
-  curand_states rnd_;
+  Philox4x32_10::State rng_state_;
 
  private:
   int nDegree_;
-  static constexpr unsigned rnd_size_ = 1024 * 256;
 };
 
 template <typename Backend>
-class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>> {
+class Jitter : public rng::OperatorWithRng<DisplacementFilter<Backend, JitterAugment<Backend>>> {
  public:
+  using Base = rng::OperatorWithRng<DisplacementFilter<Backend, JitterAugment<Backend>>>;
   inline explicit Jitter(const OpSpec &spec)
-    : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}
+    : Base(spec) {}
 
-  virtual ~Jitter() = default;
-
-  using DisplacementFilter<Backend, JitterAugment<Backend>>::displace_;
-  using CheckpointType = decltype(JitterAugment<Backend>::rnd_);
-  using CheckpointUtils = rng::RngCheckpointUtils<GPUBackend, CheckpointType>;
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    static_assert(std::is_same_v<Backend, GPUBackend>);
-    CheckpointUtils::SaveState(cpt, order, displace_.rnd_);
+  void RunImpl(Workspace &ws) override {
+    displace_.rng_state_ = this->GetSampleRNG(0).get_state();
+    Base::RunImpl(ws);
   }
 
-  void RestoreState(const OpCheckpoint &cpt) override {
-    static_assert(std::is_same_v<Backend, GPUBackend>);
-    CheckpointUtils::RestoreState(cpt, displace_.rnd_);
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    static_assert(std::is_same_v<Backend, GPUBackend>);
-    return CheckpointUtils::SerializeCheckpoint(cpt);
-  }
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    static_assert(std::is_same_v<Backend, GPUBackend>);
-    CheckpointUtils::DeserializeCheckpoint(cpt, data);
-  }
+  using Base::displace_;
 };
 
 }  // namespace dali
