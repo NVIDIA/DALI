@@ -132,7 +132,7 @@ class BasePackage:
         cuda_version : str, optional, default = None
             Cuda version used for this query
         idx : int
-            Index of name to retrive in case of specific version has different alias
+            Index of name to retrieve in case of specific version has different alias
         """
         name = BasePackage.get_alias(self.get_version(idx, cuda_version))
         if name is None:
@@ -181,7 +181,11 @@ class BasePackage:
         if idx is None:
             idx = 0
         idx = self.clamp_index(idx, cuda_version)
-        return self.get_all_versions(cuda_version)[idx]
+        versions = self.get_all_versions(cuda_version)
+        if len(versions):
+            return versions[idx]
+        else:
+            return None
 
     def get_all_versions(self, cuda_version=None):
         """Get all versions compatible with provided cuda_version
@@ -578,6 +582,21 @@ all_packages = [
                 PckgVer("0.61.2", python_min_ver="3.10", dependencies=["numpy<2"]),
             ]
         },
+    ),
+    CudaPackage(
+        "numba-cuda",
+        {
+            "120": [
+                PckgVer(
+                    "0.20.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
+                ),
+                PckgVer(
+                    "0.21.1", python_min_ver="3.10", dependencies=["numpy<2"]
+                ),
+            ]
+        },
+        # name used during installation
+        name="numba-cuda[cu{cuda_v[0]}{cuda_v[1]}]",
     ),
 ]
 
