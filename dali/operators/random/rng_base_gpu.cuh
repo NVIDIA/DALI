@@ -66,7 +66,7 @@ __device__ __inline__ void Generate(const SampleDesc &sample,
   auto in = static_cast<const T*>(sample.input);
   auto idx_end = block.p_offset + block.p_count;
   curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
-  skipahead_sequence(block.sample_idx, &sample_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
     int64_t pos = idx * sample.p_stride;
     // Implementations that generate noise once for all channels should not depend on the input
@@ -91,7 +91,7 @@ __device__ __inline__ void Generate(const SampleDesc &sample,
   auto out = static_cast<T*>(sample.output);
   auto idx_end = block.p_offset + block.p_count;
   curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
-  skipahead_sequence(block.sample_idx, &sample_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
     auto state = sample_state;
     skipahead(idx * kSkipaheadPerElement, &state);
@@ -111,7 +111,7 @@ __device__ __inline__ void Generate(const SampleDesc &sample,
   auto out = static_cast<T*>(sample.output);
   auto idx_end = block.p_offset + block.p_count;
   curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
-  skipahead_sequence(block.sample_idx, &sample_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
     int64_t pos = idx * sample.p_stride;
     auto state = sample_state;

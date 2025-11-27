@@ -75,6 +75,9 @@ class OperatorWithRng : public Base {
   }
 
   void Run(Workspace &ws) override {
+    if (has_random_state_arg_) {
+      LoadRandomState(ws);
+    }
     Base::Run(ws);
     assert(ws.NumOutput() > 0);
     Advance(ws.GetOutputBatchSize(0));
@@ -88,9 +91,25 @@ class OperatorWithRng : public Base {
 
  protected:
   explicit OperatorWithRng(const OpSpec &spec)
-      : Base(spec) {
+      : Base(spec)
+      , has_random_state_arg_(spec.HasTensorArgument("_random_state")) {
     int64_t seed = spec.GetArgument<int64_t>("seed");
     master_rng_.init(seed, 0, 0);
+  }
+
+  void LoadRandomState(const Workspace &ws) {
+    const TensorList<CPUBackend> &random_state = ws.ArgumentInput("_random_state");
+    assert(random_state.num_samples() > 0);
+    int element_size = random_state.type_info().size();
+    if (random_state[0].shape().num_elements() * element_size < 25)
+      throw std::invalid_argument("Random state tensor is too small");
+    const char *state_data = static_cast<const char *>(random_state[0].raw_data());
+    Philox4x32_10::State state;
+    memcpy(&state.key, state_data, 8);
+    memcpy(&state.ctr, state_data + 8, 16);
+    memcpy(&state.phase, state_data + 24, 1);
+    state.phase &= 3;
+    master_rng_.set_state(state);
   }
 
   inline void Advance(int batch_size) {
@@ -101,6 +120,7 @@ class OperatorWithRng : public Base {
   using Base::spec_;
 
   Philox4x32_10 master_rng_;
+  bool has_random_state_arg_ = false;
 };
 
 /**
