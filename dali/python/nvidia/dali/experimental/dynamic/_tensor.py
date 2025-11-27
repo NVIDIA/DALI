@@ -322,7 +322,8 @@ class Tensor:
         if self.device == device and not force_copy:
             return self
         else:
-            with device:
+            copy_dev = device if device.device_type == "gpu" else self.device
+            with copy_dev:
                 from . import copy
 
                 return copy(self, device=device)
@@ -467,6 +468,7 @@ class Tensor:
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
+    @property
     def __cuda_array_interface__(self):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorGPU):
@@ -490,21 +492,20 @@ class Tensor:
         """
         if self._storage is None:
             # TODO(michalz): Consider thread-safety
-            with _EvalContext.current() as ctx:
-                if self._slice:
-                    self._storage = self._slice.evaluate()._storage
-                elif self._batch is not None:
-                    t = self._batch._tensors[self._index_in_batch]
-                    if t is self:
-                        self._storage = self._batch.evaluate()._storage[self._index_in_batch]
-                    else:
-                        self._storage = t.evaluate()._storage
+            if self._slice:
+                self._storage = self._slice.evaluate()._storage
+            elif self._batch is not None:
+                t = self._batch._tensors[self._index_in_batch]
+                if t is self:
+                    self._storage = self._batch.evaluate()._storage[self._index_in_batch]
                 else:
-                    assert self._invocation_result is not None
-                    self._storage = self._invocation_result.value(ctx)
-                self._shape = tuple(self._storage.shape())
-                self._dtype = DType.from_type_id(self._storage.dtype)
-                self._layout = self._storage.layout()
+                    self._storage = t.evaluate()._storage
+            else:
+                assert self._invocation_result is not None
+                self._storage = self._invocation_result.value()
+            self._shape = tuple(self._storage.shape())
+            self._dtype = DType.from_type_id(self._storage.dtype)
+            self._layout = self._storage.layout()
         return self
 
     def __getitem__(self, ranges: Any) -> "Tensor":

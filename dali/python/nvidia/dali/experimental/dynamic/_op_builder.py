@@ -185,6 +185,7 @@ def build_operator_class(schema):
     op_class.legacy_op = legacy_op_class
     op_class.is_stateful = schema.IsStateful()
     op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
+    op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
@@ -512,6 +513,7 @@ def build_fn_wrapper(op):
     function = makefun.create_function(header, fn_call, doc=doc)
     function.op_class = op
     function.schema = schema
+    function._generated = True
     function.__module__ = module.__name__
     setattr(module, fn_name, function)
     return function
