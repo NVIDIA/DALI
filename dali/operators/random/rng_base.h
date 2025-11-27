@@ -38,13 +38,13 @@ struct OperatorWithRngFields;
 static constexpr int kSkipaheadPerElement = 16;
 static constexpr int kSkipaheadPerSample = 16;
 
-void _DetectOperatrBackend(int /* ... */);
+void _DetectOperatorBackend(int /* ... */);
 template <typename Backend>
-Backend _DetectOperatrBackend(const Operator<Backend> *);
+Backend _DetectOperatorBackend(const Operator<Backend> *);
 
 template <typename Operator>
 struct backend_type {
-  using type = decltype(_DetectOperatrBackend(std::declval<Operator *>()));
+  using type = decltype(_DetectOperatorBackend(std::declval<Operator *>()));
 };
 
 template <typename X>
