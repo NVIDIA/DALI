@@ -13,7 +13,14 @@
 // limitations under the License.
 
 #include "dali/operators/random/philox.h"
+#include <string>
+#include <string_view>
 #include <tuple>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <stdexcept>
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -78,6 +85,76 @@ void Philox4x32_10::recalc_output() {
   out_[1] = y;
   out_[2] = z;
   out_[3] = w;
+}
+
+constexpr const char *state_fmt_string() {
+  if constexpr (sizeof(long) == 8) {  // NOLINT
+    return "Philox_%016lX_%016lX:%016lX_%X";
+  } else {
+    static_assert(sizeof(long) == 8 || sizeof(long long) == 8,  // NOLINT
+                  "Unsupported long/long long sizes");
+    return "Philox_%016llX_%016llX:%016llX_%X";
+  }
+}
+
+std::string Philox4x32_10::state_to_string(const State &state) {
+  char state_str[64] = "";
+  int n = std::snprintf(
+      state_str, sizeof(state_str),
+      state_fmt_string(),
+      state.key, state.ctr[1], state.ctr[0], state.phase);
+  assert(n > 0 && n < static_cast<int>(sizeof(state_str)));
+  return state_str;
+}
+
+inline int parse_hex_char(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  } else if (c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
+  } else if (c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  } else {
+    throw std::invalid_argument(make_string("\'", c, "\'is not a hexadecimal digit."));
+  }
+}
+
+template <typename T>
+T parse_hex(const char *str, size_t len) {
+  T value = 0;
+  for (size_t i = 0; i < len; i++) {
+    value = (value << 4) | parse_hex_char(str[i]);
+  }
+  return value;
+}
+
+void Philox4x32_10::state_from_string(State &state, std::string_view str) {
+  const char example[] = "Philox_0123456789ABCDEF_0123456789ABCDEF:0123456789ABCDEF_0";
+  if (str.size() != sizeof(example) - 1) {
+    throw std::invalid_argument(make_string(
+      "Invalid Philox state string length: ", str.size()));
+  }
+  if (strncmp(str.data(), "Philox_", 7)) {
+    throw std::invalid_argument(make_string(
+      "Missing Philox_ prefix in: ", str.data()));
+  }
+  if (str[23] != '_' || str[40] != ':' || str[57] != '_') {
+    throw std::invalid_argument(make_string(
+      "Malformed Philox state string: ", str.data(), "\nShould be in format ", example));
+  }
+
+  uint64_t key = parse_hex<uint64_t>(str.data() + 7, 16);
+  uint64_t ctr_hi = parse_hex<uint64_t>(str.data() + 24, 16);
+  uint64_t ctr_lo = parse_hex<uint64_t>(str.data() + 41, 16);
+  int phase = parse_hex<int>(str.data() + 58, 1);
+  if (phase < 0 || phase > 3) {
+    throw std::invalid_argument(make_string(
+      "Invalid Philox state string phase: ", state.phase, " expected: 0..3"));
+  }
+  state.key = key;
+  state.ctr[0] = ctr_lo;
+  state.ctr[1] = ctr_hi;
+  state.phase = phase;
 }
 
 }  // namespace dali
