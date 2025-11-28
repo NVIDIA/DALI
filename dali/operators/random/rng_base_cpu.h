@@ -53,9 +53,9 @@ struct DistGen<false> {
     int64_t p_pos = p_offset;
     for (int64_t p = 0; p < p_count; p++, p_pos++) {
       Philox4x32_10 r = rng;
-      // NOTE: p * kSkipaheadPerElement should be less than 2^64, but it still means that we can
+      // NOTE: p_pos * kSkipaheadPerElement should be less than 2^64, but it still means that we can
       //       address 2^60 elements, which is 1 EiB * sizeof(T)
-      r.skipahead(p * kSkipaheadPerElement);
+      r.skipahead(p_pos * kSkipaheadPerElement);
       out[p_pos] = ConvertSat<T>(dist.Generate(r));
     }
   }
@@ -69,7 +69,7 @@ struct DistGen<false> {
     for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
       int64_t c_pos = p_pos;
       Philox4x32_10 r = rng;
-      r.skipahead(p * kSkipaheadPerElement);
+      r.skipahead((p_offset + p) * kSkipaheadPerElement);
       auto n = ConvertSat<T>(dist.Generate(r));
       for (int c = 0; c < c_count; c++, c_pos += c_stride) {
         out[c_pos] = n;
@@ -87,7 +87,7 @@ struct DistGen<true> {
     int64_t p_pos = p_offset;
     for (int64_t p = 0; p < p_count; p++, p_pos++) {
       Philox4x32_10 r = rng;
-      r.skipahead(p * kSkipaheadPerElement);
+      r.skipahead(p_pos * kSkipaheadPerElement);
       auto n = dist.Generate(in[p_pos], r);
       dist.Apply(out[p_pos], in[p_pos], n);
     }
@@ -102,7 +102,7 @@ struct DistGen<true> {
     for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
       int64_t c_pos = p_pos;
       Philox4x32_10 r = rng;
-      r.skipahead(p * kSkipaheadPerElement);
+      r.skipahead((p_offset + p) * kSkipaheadPerElement);
       auto n = dist.Generate(in[p_pos], r);
       for (int c = 0; c < c_count; c++, c_pos += c_stride) {
         dist.Apply(out[c_pos], in[c_pos], n);
