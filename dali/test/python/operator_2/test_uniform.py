@@ -116,25 +116,27 @@ def test_uniform_discrete():
         for values in [(0, 1, 2, 3, 4, 5), (200, 400, 5000, 1)]:
             yield check_uniform_discrete, device, batch_size, shape, values, niter
 
+
 def check_uniform_with_random_state(device, batch_size, shape, niter):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
         state1 = dali.fn.external_source(
             [
                 [np.array([1, 2, 3, 4, 5, 6, 7], dtype=np.uint32)] * batch_size,
-                [np.array([8, 9, 10, 11, 12, 13, 14], dtype=np.uint32)] * batch_size
+                [np.array([8, 9, 10, 11, 12, 13, 14], dtype=np.uint32)] * batch_size,
             ],
             batch=True,
-            cycle=True
+            cycle=True,
         )
         state2 = dali.fn.external_source(
             [
                 [np.array([100, 200, 300, 400, 500, 600, 700], dtype=np.uint32)] * batch_size,
                 [np.array([800, 900, 1000, 1100, 1200, 1300, 1400], dtype=np.uint32)] * batch_size,
-                [np.array([1500, 1600, 1700, 1800, 1900, 2000, 2100], dtype=np.uint32)] * batch_size
+                [np.array([1500, 1600, 1700, 1800, 1900, 2000, 2100], dtype=np.uint32)]
+                * batch_size,
             ],
             batch=True,
-            cycle=True
+            cycle=True,
         )
         u1_a = dali.fn.random.uniform(device=device, shape=shape, _random_state=state1)
         u1_b = dali.fn.random.uniform(device=device, shape=shape, _random_state=state1)
@@ -153,8 +155,12 @@ def check_uniform_with_random_state(device, batch_size, shape, niter):
             data2_b = np.array(data_out[3][i])
             assert np.array_equal(data1_a, data1_b), f"{data1_a} should be equal to {data1_b}"
             assert np.array_equal(data2_a, data2_b), f"{data2_a} should be equal to {data2_b}"
-            assert not np.array_equal(data1_a, data2_a), f"{data1_a} should be different from {data2_a}"
-            assert not np.array_equal(data1_b, data2_b), f"{data1_b} should be different from {data2_b}"
+            assert not np.array_equal(
+                data1_a, data2_a
+            ), f"{data1_a} should be different from {data2_a}"
+            assert not np.array_equal(
+                data1_b, data2_b
+            ), f"{data1_b} should be different from {data2_b}"
             if iter == 2:
                 # random state 1 has a period of 2 batches
                 assert np.array_equal(data1_a, outputs[0][0][i])
