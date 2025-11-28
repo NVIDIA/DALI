@@ -28,13 +28,19 @@
 namespace dali {
 
 template <typename T>
+struct uniform_int_dist_exclusive : public random::uniform_int_dist<T> {
+  DALI_HOST_DEV DALI_FORCEINLINE uniform_int_dist_exclusive(T start, T end)
+  : random::uniform_int_dist<T>(start, end, true) {}
+};
+
+template <typename T>
 struct UniformDistributionContinuousImpl {
   // TODO(michalz): Add support for integral types larger than 32 bits.
   using ResultType =
       std::conditional_t<((std::is_integral_v<T> && sizeof(T) > 4) || sizeof(T) > 4), double, T>;
 
   using DistType = std::conditional_t<std::is_integral_v<ResultType>,
-                                      random::uniform_int_dist<ResultType>,
+                                      uniform_int_dist_exclusive<ResultType>,
                                       random::uniform_real_dist<ResultType>>;
 
   DALI_HOST_DEV UniformDistributionContinuousImpl()

@@ -46,7 +46,7 @@ class JitterAugment<GPUBackend> {
     ptrdiff_t offset = c + C * (x + W * y);  // component offset in HWC layout
     skipahead(offset * rng::kSkipaheadPerElement, &rnd);
 
-    auto dist = random::uniform_int_dist<int>(center, center + nDegree_);
+    auto dist = random::uniform_int_dist<int>(center, center + nDegree_, true);
     auto gen = random::CurandGenerator(rnd);
     int newX = dist(gen) + x;
     int newY = dist(gen) + y;
