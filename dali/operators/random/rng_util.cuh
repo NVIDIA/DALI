@@ -27,7 +27,7 @@ __device__ DALI_FORCEINLINE curandStatePhilox4_32_10_t ToCurand(Philox4x32_10::S
   curandStatePhilox4_32_10_t rng{};
   curand_init(state.key, state.ctr[1], state.ctr[0] << 2 | state.phase, &rng);
   // the two high bits of the counter cannot be set in init, so we need this loop
-  #pragma unroll(4)
+  #pragma unroll 4
   for (unsigned i = 0; i < state.ctr[0] >> 62; i++) {
     skipahead(1_u64 << 63, &rng);
   }
