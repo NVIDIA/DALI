@@ -20,14 +20,14 @@ import string
 from contextlib import closing
 from inspect import Parameter, Signature, getdoc, getmodule, ismodule
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Sequence, TypeAlias, Union
+from typing import Any, List, Literal, Optional, Sequence, Union
 
 from nvidia.dali import backend as _b
 from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _docs, _names, _registry
 
-Api: TypeAlias = Literal["fn", "ops", "dynamic"]
+Api = Literal["fn", "ops", "dynamic"]
 
 
 def _create_annotation_placeholder(typename):
