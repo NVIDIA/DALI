@@ -110,7 +110,11 @@ def _scalar_element_annotation(scalar_dtype, api: Api):
             return _enum_mapping[t]
 
         api_module = _api_to_module(api)
-        if hasattr(api_module, t.__name__) and hasattr(builtins, t.__name__):
+        if (
+            hasattr(t, "__name__")
+            and hasattr(api_module, t.__name__)
+            and hasattr(builtins, t.__name__)
+        ):
             # Resolve conflicts between exported symbols and types used in annotations
             # For instance, bool becomes "builtins.bool" because of ndd.bool
             t = f"builtins.{t.__name__}"  # type: ignore[reportAttributeAccessIssue]
