@@ -1071,12 +1071,12 @@ class StubFileManager:
             f.close()
 
 
-def gen_all_signatures(nvidia_dali_path: Path | str, api: Api):
+def gen_all_signatures(nvidia_dali_path: Union[Path, str], api: Api):
     """Generate the signatures for "fn", "ops" or "dynamic" api.
 
     Parameters
     ----------
-    nvidia_dali_path : Path
+    nvidia_dali_path : Path or str
         The path to the wheel pre-packaging to the nvidia/dali directory.
     api : str
         "fn", "ops" or "dynamic"
