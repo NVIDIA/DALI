@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,14 +20,16 @@
 #include "dali/core/convert.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/operators/random/rng_util.cuh"
+#include "dali/operators/random/random_dist.h"
 
 namespace dali {
 namespace rng {
 
 namespace {  // NOLINT
+
 
 template <bool value>
 using bool_const = std::integral_constant<bool, value>;
@@ -36,13 +38,18 @@ template <typename T, typename Dist>
 __device__ __inline__ void Generate(const SampleDesc &sample,
                                     const BlockDesc &block,
                                     Dist& dist,
-                                    curandState* __restrict__ rng,
+                                    Philox4x32_10::State initial_state,
                                     bool_const<true>,     // is_noise_gen
                                     bool_const<true>) {   // is_per_channel
   auto out = static_cast<T*>(sample.output);
   auto in = static_cast<const T*>(sample.input);
   auto idx_end = block.p_offset + block.p_count;
+  curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
+    auto state = sample_state;
+    skipahead(idx * kSkipaheadPerElement, &state);
+    random::CurandGenerator rng(state);
     auto n = dist.Generate(in[idx], rng);
     dist.Apply(out[idx], in[idx], n);
   }
@@ -52,16 +59,21 @@ template <typename T, typename Dist>
 __device__ __inline__ void Generate(const SampleDesc &sample,
                                     const BlockDesc &block,
                                     Dist& dist,
-                                    curandState* __restrict__ rng,
+                                    Philox4x32_10::State initial_state,
                                     bool_const<true>,     // is_noise_gen
                                     bool_const<false>) {  // is_per_channel
   auto out = static_cast<T*>(sample.output);
   auto in = static_cast<const T*>(sample.input);
   auto idx_end = block.p_offset + block.p_count;
+  curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
     int64_t pos = idx * sample.p_stride;
     // Implementations that generate noise once for all channels should not depend on the input
     // to generate the number.
+    auto state = sample_state;
+    skipahead(idx * kSkipaheadPerElement, &state);
+    random::CurandGenerator rng(state);
     auto n = dist.Generate({}, rng);
     for (int c = 0; c < sample.c_count; c++, pos += sample.c_stride) {
       dist.Apply(out[pos], in[pos], n);
@@ -73,12 +85,17 @@ template <typename T, typename Dist>
 __device__ __inline__ void Generate(const SampleDesc &sample,
                                     const BlockDesc &block,
                                     Dist& dist,
-                                    curandState* __restrict__ rng,
+                                    Philox4x32_10::State initial_state,
                                     bool_const<false>,     // is_noise_gen
                                     bool_const<true>) {    // is_per_channel
   auto out = static_cast<T*>(sample.output);
   auto idx_end = block.p_offset + block.p_count;
+  curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
+    auto state = sample_state;
+    skipahead(idx * kSkipaheadPerElement, &state);
+    random::CurandGenerator rng(state);
     auto n = dist.Generate(rng);
     out[idx] = ConvertSat<T>(n);
   }
@@ -88,13 +105,18 @@ template <typename T, typename Dist>
 __device__ __inline__ void Generate(const SampleDesc &sample,
                                     const BlockDesc &block,
                                     Dist& dist,
-                                    curandState* __restrict__ rng,
+                                    Philox4x32_10::State initial_state,
                                     bool_const<false>,      // is_noise_gen
                                     bool_const<false>) {    // is_per_channel
   auto out = static_cast<T*>(sample.output);
   auto idx_end = block.p_offset + block.p_count;
+  curandStatePhilox4_32_10_t sample_state = ToCurand(initial_state);
+  skipahead_sequence(block.sample_idx * kSkipaheadPerSample, &sample_state);
   for (auto idx = block.p_offset + threadIdx.x; idx < idx_end; idx += blockDim.x) {
     int64_t pos = idx * sample.p_stride;
+    auto state = sample_state;
+    skipahead(idx * kSkipaheadPerElement, &state);
+    random::CurandGenerator rng(state);
     auto n = dist.Generate(rng);
     for (int c = 0; c < sample.c_count; c++, pos += sample.c_stride) {
       out[pos] = ConvertSat<T>(n);
@@ -105,19 +127,15 @@ __device__ __inline__ void Generate(const SampleDesc &sample,
 template <typename T, typename Dist, bool DefaultDist, bool IsNoiseGen, bool IsPerChannel>
 __global__ void RNGKernel(SampleDesc* __restrict__ sample_descs,
                           BlockDesc* __restrict__ block_descs,
-                          curandState* __restrict__ states,
+                          Philox4x32_10::State initial_state,
                           const Dist* __restrict__ dists, int nblocks) {
-  int block_size = blockDim.x * blockDim.y;
-  int local_tid = blockDim.x * threadIdx.y + threadIdx.x;
-  int64_t global_tid = blockIdx.y * block_size + local_tid;
-  auto rng = states + global_tid;
   int blk_stride = blockDim.y * gridDim.y;
   int blk = blockIdx.y * blockDim.y + threadIdx.y;
   for (; blk < nblocks; blk += blk_stride) {
     auto block = block_descs[blk];
     auto sample = sample_descs[block.sample_idx];
     Dist dist = DefaultDist ? Dist() : dists[block.sample_idx];
-    Generate<T, Dist>(sample, block, dist, rng,
+    Generate<T, Dist>(sample, block, dist, initial_state,
                       bool_const<IsNoiseGen>(), bool_const<IsPerChannel>());
   }
 }
@@ -129,7 +147,6 @@ template <typename T, typename Dist>
 void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend) {
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
   auto &output = ws.Output<GPUBackend>(0);
-  auto rngs = backend_data_.randomizer_.states();
   int block_sz = backend_data_.block_size_;
   int max_nblocks = backend_data_.max_blocks_;
   int blockdesc_count = -1;
@@ -195,6 +212,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend)
       scratch.ToContiguousGPU(ws.stream(), samples_cpu, blocks_cpu);
   }
 
+  Philox4x32_10::State rng_state = master_rng_.get_state();
   dim3 blockDim;
   dim3 gridDim;
   blockDim.x = std::min<int>(block_sz, blockdesc_max_sz);
@@ -206,7 +224,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend)
     VALUE_SWITCH(independent_channels ? 1 : 0, IsPerChannel, (false, true), (
       RNGKernel<T, Dist, DefaultDist, IsNoiseGen, IsPerChannel>
         <<<gridDim, blockDim, 0, ws.stream()>>>(samples_gpu, blocks_gpu,
-                                                rngs, dists_gpu, blockdesc_count);
+                                                rng_state, dists_gpu, blockdesc_count);
     ), ());  // NOLINT
   ), ());  // NOLINT
   CUDA_CALL(cudaGetLastError());

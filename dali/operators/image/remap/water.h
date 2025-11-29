@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class WaterAugment {
   void Cleanup() {}
 
   DALI_HOST_DEV
-  vec2 operator()(float h, float w, int c, int H, int W, int C) {
+  vec2 operator()(int, float h, float w, int c, int H, int W, int C) {
     const WaveDescr &wX = x_desc_;
     const WaveDescr &wY = y_desc_;
 

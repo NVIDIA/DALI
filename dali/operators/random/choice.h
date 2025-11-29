@@ -286,6 +286,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     int num_samples = input.num_samples();
     auto &tp = ws.GetThreadPool();
     for (int sample_idx = 0; sample_idx < num_samples; ++sample_idx) {
+      auto rng = GetSampleRNG(sample_idx);
       int element_dim = GetElementDim(input);
       int64_t element_size = volume(input.tensor_shape(sample_idx).last(element_dim)) *
                              TypeTable::GetTypeInfo(input.type()).size();
@@ -296,8 +297,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
       const uint8_t *input_data = static_cast<const uint8_t *>(input.raw_tensor(sample_idx));
 
       tp.AddWork(
-          [=, this](int thread_id) {
-            auto &rng = rng_[sample_idx];
+          [=, this](int thread_id) mutable {
             if (p_dist_.HasValue()) {
               auto dist = ChoiceSampleDist<int64_t, false, false>(
                   p_dist_[sample_idx].data,
@@ -325,8 +325,8 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   using Operator<Backend>::max_batch_size_;
   using BaseImpl::backend_data_;
   using BaseImpl::dtype_;
-  using BaseImpl::rng_;
   using BaseImpl::shape_;
+  using BaseImpl::GetSampleRNG;
 
 
   ArgValue<float, 1> p_dist_;

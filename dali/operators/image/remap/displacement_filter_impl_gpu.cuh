@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,24 +36,26 @@ struct DisplacementSampleDesc {
 };
 
 template <typename T, class Displacement, DALIInterpType interp_type>
-__device__ inline T GetPixelValueSingleC(int h, int w, int c,
+__device__ inline T GetPixelValueSingleC(int sample_idx,
+                                         int h, int w, int c,
                                          int H, int W, int C,
                                          const T * input,
                                          Displacement& displace, const T fill_value) {
   kernels::Surface2D<const T> in_surface = { input, W, H, C, C, C*W, 1 };
   auto sampler = kernels::make_sampler<interp_type>(in_surface);
-  auto p = displace(h, w, c, H, W, C);
+  auto p = displace(sample_idx, h, w, c, H, W, C);
   return sampler.template at<T>(p, c, fill_value);
 }
 
 template <typename T, class Displacement, DALIInterpType interp_type>
-__device__ inline void GetPixelValueMultiC(int h, int w,
+__device__ inline void GetPixelValueMultiC(int sample_idx,
+                                           int h, int w,
                                            int H, int W, int C,
                                            const T * input, T * output,
                                            Displacement& displace, const T fill_value) {
   kernels::Surface2D<const T> in_surface = { input, W, H, C, C, C*W, 1 };
   auto sampler = kernels::make_sampler<interp_type>(in_surface);
-  auto p = displace(h, w, 0, H, W, C);
+  auto p = displace(sample_idx, h, w, 0, H, W, C);
   sampler(output, p, fill_value);
 }
 
@@ -75,7 +77,8 @@ __global__ void DisplacementKernel(const DisplacementSampleDesc *samples,
                                    const kernels::BlockDesc<1> *blocks, const T fill_value,
                                    Displacement displace) {
   const auto &block = blocks[blockIdx.x];
-  const auto &sample = samples[block.sample_idx];
+  const int sample_idx = block.sample_idx;
+  const auto &sample = samples[sample_idx];
 
   auto *image_out = static_cast<T *>(sample.output);
   const auto *image_in = static_cast<const T *>(sample.input);
@@ -100,7 +103,7 @@ __global__ void DisplacementKernel(const DisplacementSampleDesc *samples,
       const int h = idx;
 
       image_out[out_idx] = GetPixelValueSingleC<T, Displacement, interp_type>(
-          h, w, c, H, W, C, image_in, displace, fill_value);
+          sample_idx, h, w, c, H, W, C, image_in, displace, fill_value);
     } else {
       image_out[out_idx] = image_in[out_idx];
     }
@@ -111,15 +114,16 @@ template <typename T, int C, bool per_channel_transform,
           int nThreads, class Displacement, DALIInterpType interp_type>
 __global__
 void DisplacementKernel_aligned32bit(
-  const DisplacementSampleDesc *samples,
-                                  const kernels::BlockDesc<1> *blocks,
-                        const T fill_value,
-                        Displacement displace) {
+        const DisplacementSampleDesc *samples,
+        const kernels::BlockDesc<1> *blocks,
+        const T fill_value,
+        Displacement displace) {
   constexpr int nPixelsPerThread = sizeof(uint32_t)/sizeof(T);
   __shared__ T scratch[nThreads * C * nPixelsPerThread];
 
   const auto &block = blocks[blockIdx.x];
-  const auto &sample = samples[block.sample_idx];
+  const int sample_idx = block.sample_idx;
+  const auto &sample = samples[sample_idx];
 
   auto *image_out = reinterpret_cast<uint32_t *>(sample.output);
   const auto *image_in = reinterpret_cast<const T *>(sample.input);
@@ -153,7 +157,7 @@ void DisplacementKernel_aligned32bit(
 #pragma unroll
           for (int c = 0; c < C; ++c) {
             my_scratch[j * C + c] = GetPixelValueSingleC<T, Displacement, interp_type>(
-                h, w, c, H, W, C, image_in, displace, fill_value);
+                sample_idx, h, w, c, H, W, C, image_in, displace, fill_value);
           }
         }
       } else {
@@ -163,7 +167,7 @@ void DisplacementKernel_aligned32bit(
           const int w = hw % W;
           const int h = hw / W;
           GetPixelValueMultiC<T, Displacement, interp_type>(
-              h, w, H, W, C, image_in, my_scratch + j * C, displace, fill_value);
+              sample_idx, h, w, H, W, C, image_in, my_scratch + j * C, displace, fill_value);
         }
       }
       __syncthreads();
@@ -188,8 +192,8 @@ void DisplacementKernel_aligned32bit(
 #pragma unroll
           for (int c = 0; c < C; ++c) {
             out[h * W * C + w * C + c] =
-                GetPixelValueSingleC<T, Displacement, interp_type>(h, w, c, H, W, C, image_in,
-                                                                   displace, fill_value);
+                GetPixelValueSingleC<T, Displacement, interp_type>(
+                    sample_idx, h, w, c, H, W, C, image_in, displace, fill_value);
           }
         }
       } else {
@@ -199,7 +203,7 @@ void DisplacementKernel_aligned32bit(
           const int w = hw % W;
           const int h = hw / W;
           GetPixelValueMultiC<T, Displacement, interp_type>(
-              h, w, H, W, C, image_in, out + h * W * C + w * C, displace, fill_value);
+              sample_idx, h, w, H, W, C, image_in, out + h * W * C + w * C, displace, fill_value);
         }
       }
     }

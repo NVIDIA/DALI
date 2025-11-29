@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ namespace dali {
 template <DALIInterpType interp_type, bool per_channel,
           typename Out, typename In, typename Displacement, typename Border>
 void Warp(
+    int sample_idx,
     const kernels::OutTensorCPU<Out, 3> &out,
     const kernels::InTensorCPU<In, 3> &in,
     Displacement &displacement,
@@ -51,11 +52,11 @@ void Warp(
     for (int x = 0; x < outW; x++) {
       if (per_channel) {
         for (int c = 0; c < C; c++) {
-          auto p = displacement(y, x, c, inH, inW, C);
+          auto p = displacement(sample_idx, y, x, c, inH, inW, C);
           sampler(&out_row[C*x], p, c, border);
         }
       } else {
-        auto p = displacement(y, x, 0, inH, inW, C);
+        auto p = displacement(sample_idx, y, x, 0, inH, inW, C);
         sampler(&out_row[C*x], p, border);
       }
     }
@@ -91,7 +92,11 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename Out, typename In, DALIInterpType interp>
-  void RunWarp(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input, int thread_idx) {
+  void RunWarp(
+        int sample_idx,
+        SampleView<CPUBackend> output,
+        ConstSampleView<CPUBackend> input,
+        int thread_idx) {
     auto &displace = displace_[thread_idx];
     In fill[1024];
     auto in = view<const Out, 3>(input);
@@ -101,7 +106,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
       fill[i] = fill_value_;
     }
 
-    Warp<interp, per_channel_transform>(out, in, displace, fill);
+    Warp<interp, per_channel_transform>(sample_idx, out, in, displace, fill);
   }
 
   void RunSample(Workspace &ws, int sample_idx, int thread_idx) {
@@ -117,18 +122,22 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
       switch (interp_type_) {
         case DALI_INTERP_NN:
           if (IsType<float>(input.type())) {
-            RunWarp<float, float, DALI_INTERP_NN>(out_tensor, in_tensor, thread_idx);
+            RunWarp<float, float, DALI_INTERP_NN>(
+                sample_idx, out_tensor, in_tensor, thread_idx);
           } else if (IsType<uint8_t>(input.type())) {
-            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(out_tensor, in_tensor, thread_idx);
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(
+                sample_idx, out_tensor, in_tensor, thread_idx);
           } else {
             DALI_FAIL(make_string("Unexpected input type ", input.type()));
           }
           break;
         case DALI_INTERP_LINEAR:
           if (IsType<float>(input.type())) {
-            RunWarp<float, float, DALI_INTERP_LINEAR>(out_tensor, in_tensor, thread_idx);
+            RunWarp<float, float, DALI_INTERP_LINEAR>(
+                sample_idx, out_tensor, in_tensor, thread_idx);
           } else if (IsType<uint8_t>(input.type())) {
-            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(out_tensor, in_tensor, thread_idx);
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(
+                sample_idx, out_tensor, in_tensor, thread_idx);
           } else {
             DALI_FAIL(make_string("Unexpected input type ", input.type()));
           }

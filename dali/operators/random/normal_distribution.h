@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,29 +19,29 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/random_dist.h"
 
 #define DALI_NORMDIST_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
 
 namespace dali {
 
-template <typename Backend, typename T>
+template <typename T>
 struct NormalDistImpl {
-  using FloatType =
-      typename std::conditional<((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
-                                double, float>::type;
-  using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                               curand_normal_dist<FloatType>,
-                                               std::normal_distribution<FloatType>>;
+  using FloatType = std::conditional_t<
+      ((std::is_integral_v<T> && sizeof(T) >= 4) || sizeof(T) > 4), double, float>;
 
-  DALI_HOST_DEV NormalDistImpl() {}
+  using DistType = random::normal_dist<FloatType>;
+
+  DALI_HOST_DEV NormalDistImpl() : dist_(0, 1) {}
 
   DALI_HOST_DEV explicit NormalDistImpl(FloatType mean, FloatType stddev)
     : dist_{mean, stddev} {}
 
   template <typename Generator>
   DALI_HOST_DEV FloatType Generate(Generator &st) {
-    return dist_(st);
+    DistType d = dist_;  // this will waste the second box-muller number but will be thread-safe
+    return d(st);
   }
 
   DistType dist_;
@@ -53,7 +53,7 @@ class NormalDistribution : public rng::RNGBase<Backend, NormalDistribution<Backe
   using BaseImpl = rng::RNGBase<Backend, NormalDistribution<Backend>, false>;
 
   template <typename T>
-  using Impl = NormalDistImpl<Backend, T>;
+  using Impl = NormalDistImpl<T>;
 
   explicit NormalDistribution(const OpSpec &spec)
       : BaseImpl(spec),
