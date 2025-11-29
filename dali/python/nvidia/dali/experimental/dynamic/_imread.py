@@ -17,12 +17,12 @@ imread - A convenience function for reading and decoding images from file paths.
 """
 
 import numpy as np
-from typing import List
+from typing import List, Union
 from ._tensor import Tensor, tensor
 from ._batch import Batch, batch
 
 
-def _imread_impl(filepaths: str | List[str] | Tensor | Batch, device: str = "cpu", **kwargs):
+def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = "cpu", **kwargs):
     """
     Reads and decodes an image (or batch of images) from file path(s).
 
