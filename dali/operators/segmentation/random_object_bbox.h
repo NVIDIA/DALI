@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/common/fast_hash.h"
 #include "dali/operators/random/rng_base_cpu.h"
@@ -34,7 +33,7 @@ namespace dali {
 
 using kernels::InTensorCPU;
 
-class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
+class RandomObjectBBox : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:
   enum OutputFormat {
     Out_AnchorShape,
@@ -44,7 +43,7 @@ class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
 
   using hash_t = kernels::fast_hash_t;
 
-  explicit RandomObjectBBox(const OpSpec &spec) : rng::OperatorWithRng<CPUBackend>(spec),
+  explicit RandomObjectBBox(const OpSpec &spec) : OperatorWithRng<Operator<CPUBackend>>(spec),
         background_("background", spec),
         classes_("classes", spec),
         foreground_prob_("foreground_prob", spec),
@@ -235,21 +234,21 @@ class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
     return huge_context_;
   }
 
-  template <typename BlobLabel>
-  bool PickForegroundBox(SampleContext<BlobLabel> &context);
+  template <typename BlobLabel, typename RNG>
+  bool PickForegroundBox(SampleContext<BlobLabel> &context, RNG &rng);
 
-  template <typename BlobLabel, typename T>
+  template <typename BlobLabel, typename T, typename RNG>
   bool PickForegroundBox(SampleContext<BlobLabel> &context,
-                         const TensorView<StorageCPU, const T> &input);
+                         const TensorView<StorageCPU, const T> &input, RNG &rng);
 
   template <typename BlobLabel>
   void GetBoxes(SampleContext<BlobLabel> &ctx, int nblobs);
 
-  template <typename BlobLabel>
-  bool PickBox(SampleContext<BlobLabel> &ctx);
+  template <typename BlobLabel, typename RNG>
+  bool PickBox(SampleContext<BlobLabel> &ctx, RNG &rng);
 
-  template <int ndim>
-  int PickBox(span<Box<ndim, int>> boxes, int sample_idx);
+  template <int ndim, typename RNG>
+  int PickBox(span<Box<ndim, int>> boxes, int sample_idx, RNG &rng);
 
   bool  ignore_class_ = false;
   int   k_largest_ = -1;          // -1 means no k largest

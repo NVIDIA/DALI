@@ -22,7 +22,6 @@
 #include "dali/core/span.h"
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {
@@ -45,21 +44,18 @@ struct BlockDesc {
 
 template<>
 struct OperatorWithRngFields<GPUBackend> {
-  OperatorWithRngFields(int64_t seed, int max_batch_size,
-                        int64_t static_sample_size = -1)
+  explicit OperatorWithRngFields(int max_batch_size, int64_t static_sample_size = -1)
       : block_size_(static_sample_size < 0 ? 256 : std::min<int64_t>(static_sample_size, 256)),
         max_blocks_(static_sample_size < 0 ?
                         1024 :
                         std::min<int64_t>(
-                            max_batch_size * div_ceil(static_sample_size, block_size_), 1024)),
-        randomizer_(seed, block_size_ * max_blocks_) {
+                            max_batch_size * div_ceil(static_sample_size, block_size_), 1024)) {
     sample_descs_cpu_.resize(max_batch_size);
     block_descs_cpu_.resize(max_blocks_);
   }
 
   const int block_size_;
   const int max_blocks_;
-  curand_states randomizer_;
 
   std::vector<SampleDesc> sample_descs_cpu_;
   std::vector<BlockDesc> block_descs_cpu_;

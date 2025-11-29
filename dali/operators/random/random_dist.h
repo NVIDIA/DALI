@@ -293,7 +293,7 @@ struct uniform_discrete_dist {
 struct bernoulli_dist {
  public:
   DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist() : threshold(0x7fffffff) {}
-  explicit DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist(float probability = 0.5f) {
+  explicit DALI_HOST_DEV DALI_FORCEINLINE bernoulli_dist(float probability) {
     float th = probability * 0x1p32f;
     if (th >= 0x1p32f) {  // avoid overflow
       threshold = 0xffffffff;
@@ -323,6 +323,28 @@ struct poisson_dist {
   DALI_HOST_DEV poisson_dist() = default;
   DALI_HOST_DEV explicit poisson_dist(float mean) : mean(mean) {}
 
+#if defined(__clang__) && defined(__CUDA__)
+  // Workaround for a clang-only build for cases where operator() is used in a host-device function
+  template <typename State>
+  DALI_HOST_DEV DALI_FORCEINLINE uint32_t operator()(CurandGenerator<State> &rng) const {
+    #ifdef __CUDA_ARCH__
+      return curand_poisson(&rng.state, mean);
+    #else
+      assert(!"Unreachable code!");
+      return 0;
+    #endif
+  }
+
+  template <typename RNG>
+  __host__ DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
+    #ifndef __CUDA_ARCH__
+      return std::poisson_distribution<uint32_t>(mean)(rng);
+    #else
+      assert(!"Unreachable code!");
+      return 0;
+    #endif
+  }
+#else
   template <typename State>
   __device__ DALI_FORCEINLINE uint32_t operator()(CurandGenerator<State> &rng) const {
     return curand_poisson(&rng.state, mean);
@@ -332,6 +354,7 @@ struct poisson_dist {
   __host__ DALI_FORCEINLINE uint32_t operator()(RNG &rng) const {
     return std::poisson_distribution<uint32_t>(mean)(rng);
   }
+#endif
 };
 
 }  // namespace random

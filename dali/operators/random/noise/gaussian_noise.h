@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/random_dist.h"
 
 #define DALI_GAUSSIAN_NOISE_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float
@@ -30,9 +31,7 @@ struct GaussianNoiseImpl {
   using FloatType =
       typename std::conditional<((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
                                 double, float>::type;
-  using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                               curand_normal_dist<FloatType>,
-                                               std::normal_distribution<FloatType>>;
+  using DistType = random::normal_dist<FloatType>;
 
   DALI_HOST_DEV explicit GaussianNoiseImpl(FloatType mean = 0, FloatType stddev = 1)
     : dist_{mean, stddev} {}
@@ -40,7 +39,8 @@ struct GaussianNoiseImpl {
   template <typename Generator>
   DALI_HOST_DEV FloatType Generate(T input, Generator &st) {
     (void) input;  // noise generation doesn't depend on the input
-    return dist_(st);
+    DistType d = dist_;  // this will waste the second box-muller number but will be thread-safe
+    return d(st);
   }
 
   DALI_HOST_DEV void Apply(T& output, T input, FloatType n) {
