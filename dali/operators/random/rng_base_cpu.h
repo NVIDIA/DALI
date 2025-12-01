@@ -22,7 +22,6 @@
 #include "dali/operators/random/rng_base.h"
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {
@@ -30,7 +29,7 @@ namespace rng {
 
 template<>
 struct OperatorWithRngFields<CPUBackend> {
-  OperatorWithRngFields(int64_t seed, int nsamples) {}
+  explicit OperatorWithRngFields(int /* nsamples */) {}
 
   template <typename Dist>
   std::vector<Dist> &dists_cpu() {
@@ -47,25 +46,29 @@ struct DistGen;
 
 template <>
 struct DistGen<false> {
-  template <typename T, typename Dist, typename RNG>
-  inline void gen(span<T> out, span<const T> in, Dist &dist, RNG &rng,
+  template <typename T, typename Dist>
+  inline void gen(span<T> out, span<const T> in, Dist &dist, const Philox4x32_10 &rng,
                   int64_t p_offset, int64_t p_count) const {
     (void) in;
     int64_t p_pos = p_offset;
     for (int64_t p = 0; p < p_count; p++, p_pos++) {
-      out[p_pos] = ConvertSat<T>(dist.Generate(rng));
+      Philox4x32_10 r = rng;
+      r.skipahead(p_pos * kSkipaheadPerElement);
+      out[p_pos] = ConvertSat<T>(dist.Generate(r));
     }
   }
 
-  template <typename T, typename Dist, typename RNG>
-  inline void gen_all_channels(span<T> out, span<const T> in, Dist &dist, RNG &rng,
+  template <typename T, typename Dist>
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist &dist, const Philox4x32_10 &rng,
                                int64_t p_offset, int64_t p_count, int c_count,
                                int64_t c_stride, int64_t p_stride) const {
     (void) in;
     int64_t p_pos = p_offset * p_stride;
     for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
       int64_t c_pos = p_pos;
-      auto n = ConvertSat<T>(dist.Generate(rng));
+      Philox4x32_10 r = rng;
+      r.skipahead((p_offset + p) * kSkipaheadPerElement);
+      auto n = ConvertSat<T>(dist.Generate(r));
       for (int c = 0; c < c_count; c++, c_pos += c_stride) {
         out[c_pos] = n;
       }
@@ -75,26 +78,30 @@ struct DistGen<false> {
 
 template <>
 struct DistGen<true> {
-  template <typename T, typename Dist, typename RNG>
-  inline void gen(span<T> out, span<const T> in, Dist& dist, RNG &rng,
+  template <typename T, typename Dist>
+  inline void gen(span<T> out, span<const T> in, Dist& dist, const Philox4x32_10 &rng,
                   int64_t p_offset, int64_t p_count) const {
     assert(out.size() == in.size());
     int64_t p_pos = p_offset;
     for (int64_t p = 0; p < p_count; p++, p_pos++) {
-      auto n = dist.Generate(in[p_pos], rng);
+      Philox4x32_10 r = rng;
+      r.skipahead(p_pos * kSkipaheadPerElement);
+      auto n = dist.Generate(in[p_pos], r);
       dist.Apply(out[p_pos], in[p_pos], n);
     }
   }
 
-  template <typename T, typename Dist, typename RNG>
-  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, RNG &rng,
+  template <typename T, typename Dist>
+  inline void gen_all_channels(span<T> out, span<const T> in, Dist& dist, const Philox4x32_10 &rng,
                                int64_t p_offset, int64_t p_count,
                                int c_count, int64_t c_stride, int64_t p_stride) const {
     assert(out.size() == in.size());
     int64_t p_pos = p_offset * p_stride;
     for (int64_t p = 0; p < p_count; p++, p_pos += p_stride) {
       int64_t c_pos = p_pos;
-      auto n = dist.Generate(in[p_pos], rng);
+      Philox4x32_10 r = rng;
+      r.skipahead((p_offset + p) * kSkipaheadPerElement);
+      auto n = dist.Generate(in[p_pos], r);
       for (int c = 0; c < c_count; c++, c_pos += c_stride) {
         dist.Apply(out[c_pos], in[c_pos], n);
       }
@@ -144,6 +151,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
 
   DistGen<IsNoiseGen> dist_gen;
   for (int sample_id = 0; sample_id < nsamples; ++sample_id) {
+    auto rng = GetSampleRNG(sample_id);
     auto sample_sz = out_shape.tensor_size(sample_id);
     int64_t total_p_count = sample_sz;
     int nchannels = -1;
@@ -171,34 +179,29 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
 
     if (total_p_count < kThreshold) {
       tp.AddWork(
-        [=, this](int thread_id) {
+        [=](int thread_id) {
           auto dist = use_default_dist ? Dist() : dists[sample_id];
           if (independent_channels) {
-            dist_gen.template gen<T>(out_span, in_span, dist, rng_[sample_id], 0, total_p_count);
+            dist_gen.gen(out_span, in_span, dist, rng, 0, total_p_count);
           } else {
-            dist_gen.template gen_all_channels<T>(out_span, in_span, dist, rng_[sample_id], 0,
-                                                   total_p_count, nchannels, c_stride, p_stride);
+            dist_gen.gen_all_channels(out_span, in_span, dist, rng, 0,
+                                      total_p_count, nchannels, c_stride, p_stride);
           }
         }, total_p_count);
     } else {
       int chunks = div_ceil(total_p_count, kChunkSize);
-      std::array<uint32_t, kNumChunkSeeds> seed;
       for (int c = 0; c < chunks; c++) {
         int64_t p_offset, p_count;
         std::tie(p_offset, p_count) = get_chunk<T>(total_p_count, c, chunks);
-        for (auto &s : seed)
-          s = rng_[sample_id]();
         tp.AddWork(
           [=](int thread_id) {
-            std::seed_seq seq(seed.begin(), seed.end());
-            std::mt19937_64 chunk_rng(seq);
             auto dist = use_default_dist ? Dist() : dists[sample_id];
             if (independent_channels) {
-              dist_gen.template gen<T>(out_span, in_span, dist, chunk_rng,
-                                        p_offset, p_count);
+              dist_gen.gen(out_span, in_span, dist, rng,
+                           p_offset, p_count);
             } else {
-              dist_gen.template gen_all_channels<T>(out_span, in_span, dist, chunk_rng, p_offset,
-                                                     p_count, nchannels, c_stride, p_stride);
+              dist_gen.gen_all_channels(out_span, in_span, dist, rng, p_offset,
+                                        p_count, nchannels, c_stride, p_stride);
             }
           }, p_count);
       }

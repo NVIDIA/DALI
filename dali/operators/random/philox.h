@@ -17,6 +17,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include "dali/core/api_helper.h"
 
 namespace dali {
@@ -51,7 +53,7 @@ class Philox4x32_10 {
   }
 
   uint32_t next() {
-    uint32_t ret = state_.out[state_.phase++];
+    uint32_t ret = out_[state_.phase++];
     if (state_.phase >= 4) {
       state_.phase = 0;
       advance_counter(1);
@@ -66,6 +68,33 @@ class Philox4x32_10 {
 
   static constexpr uint32_t max() { return 0xffffffffu; }
   static constexpr uint32_t min() { return 0; }
+
+  struct State {
+    uint64_t key;
+    uint64_t ctr[2];
+    int phase;
+  };
+
+  static DLL_PUBLIC std::string state_to_string(const State &state);
+
+  inline std::string state_to_string() const { return state_to_string(state_); }
+
+  static DLL_PUBLIC void state_from_string(State &state, std::string_view str);
+
+  inline void state_from_string(std::string_view str) {
+    State s;
+    state_from_string(s, str);
+    set_state(s);
+  }
+
+  State get_state() const {
+    return state_;
+  }
+
+  void set_state(const State &state) {
+    state_ = state;
+    recalc_output();
+  }
 
  private:
   DLL_PUBLIC void recalc_output();
@@ -95,13 +124,20 @@ class Philox4x32_10 {
     return n != 0;
   }
 
-  struct State {
-     uint64_t key;
-     uint64_t ctr[2];
-     uint32_t out[4];
-     int phase;
-  } state_ = {};
+  State state_ = {};
+  uint32_t out_[4] = {};
 };
+
+inline std::ostream &operator<<(std::ostream &os, const Philox4x32_10::State &state) {
+  return os << Philox4x32_10::state_to_string(state);
+}
+
+inline std::istream &operator>>(std::istream &is, Philox4x32_10::State &state) {
+  std::string str;
+  is >> str;
+  Philox4x32_10::state_from_string(state, str);
+  return is;
+}
 
 }  // namespace dali
 

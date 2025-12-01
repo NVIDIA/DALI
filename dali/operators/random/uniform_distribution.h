@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,80 +20,26 @@
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/arg_helper.h"
+#include "dali/operators/random/random_dist.h"
 
 #define DALI_UNIFORM_DIST_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
 
 namespace dali {
 
-/**
- * @brief Wraps std::uniform_real_distribution<T>> and works around the issue
- *        with end of the range (GCC and LLVM bug)
- */
 template <typename T>
-class uniform_real_dist {
- public:
-  explicit uniform_real_dist(T range_start = -1, T range_end = 1)
-      : range_end_(range_end)
-      , dist_(range_start, range_end) {
-    assert(range_end > range_start);
-  }
-
-  template <typename Generator>
-  inline T operator()(Generator& g) {
-    T val = range_end_;
-    while (val >= range_end_)
-      val = dist_(g);
-    return val;
-  }
-
- private:
-  T range_end_ = 1;
-  std::uniform_real_distribution<T> dist_;
-};
-
-
-/**
- * @brief Draws values from a discrete uniform distribution
- */
-template <typename T>
-class uniform_int_values_dist {
- public:
-  uniform_int_values_dist() : values_(nullptr), nvalues_(0) {
-    // Should not be used. It is just here to make the base
-    // RNG operator code easier.
-    assert(false);
-  }
-  uniform_int_values_dist(const T *values, int64_t nvalues)
-    : values_(values), nvalues_(nvalues), dist_(0, nvalues-1) {}
-
-  template <typename Generator>
-  inline T operator()(Generator& g) {
-    int idx = dist_(g);
-    return values_[idx];
-  }
-
- private:
-  const T *values_ = nullptr;
-  int64_t nvalues_ = 0;
-  std::uniform_int_distribution<int> dist_;
-};
-
-template <typename Backend, typename T>
 struct UniformDistributionContinuousImpl {
-  using FloatType =
-      typename std::conditional<((std::is_integral<T>::value && sizeof(T) >= 4) || sizeof(T) > 4),
-                                double, float>::type;
-  using DistType =
-      typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                  curand_uniform_dist<FloatType>, uniform_real_dist<FloatType>>;
+  using FloatType = std::conditional_t<
+      ((std::is_integral_v<T> && sizeof(T) >= 4) || sizeof(T) > 4), double, float>;
+
+  using DistType = random::uniform_real_dist<FloatType>;
 
   DALI_HOST_DEV UniformDistributionContinuousImpl()
     : dist_(-1, 1) {}
 
-  DALI_HOST_DEV explicit UniformDistributionContinuousImpl(FloatType range_start,
-                                                           FloatType range_end)
-      : dist_{range_start, range_end} {}
+  DALI_HOST_DEV
+  explicit UniformDistributionContinuousImpl(FloatType range_start, FloatType range_end)
+      : dist_(range_start, range_end) {}
 
   template <typename Generator>
   DALI_HOST_DEV FloatType Generate(Generator &st) {
@@ -103,11 +49,9 @@ struct UniformDistributionContinuousImpl {
   DistType dist_;
 };
 
-template <typename Backend, typename T>
+template <typename T>
 struct UniformDistributionDiscreteImpl {
-  using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                               curand_uniform_int_values_dist<float>,
-                                               uniform_int_values_dist<float>>;
+  using DistType = random::uniform_discrete_dist<float>;
 
   DALI_HOST_DEV explicit UniformDistributionDiscreteImpl() : dist_(nullptr, 0) {}
 
@@ -130,12 +74,12 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
 
   template <typename T>
   struct ImplDiscrete {
-    using type = UniformDistributionDiscreteImpl<Backend, T>;
+    using type = UniformDistributionDiscreteImpl<T>;
   };
 
   template <typename T>
   struct ImplContinuous {
-    using type = UniformDistributionContinuousImpl<Backend, T>;
+    using type = UniformDistributionContinuousImpl<T>;
   };
 
   explicit UniformDistribution(const OpSpec &spec)
@@ -196,7 +140,7 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
   template <typename T>
   bool SetupDists(typename ImplContinuous<T>::type* dists, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists[s] = typename ImplContinuous<T>::type{range_[s].data[0], range_[s].data[1]};
+      dists[s] = typename ImplContinuous<T>::type(T(range_[s].data[0]), T(range_[s].data[1]));
     }
     // note: can't use the default because this operator's default range is different to
     // the default constructed distribution.
