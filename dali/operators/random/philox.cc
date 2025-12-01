@@ -149,7 +149,7 @@ void Philox4x32_10::state_from_string(State &state, std::string_view str) {
   int phase = parse_hex<int>(str.data() + 58, 1);
   if (phase < 0 || phase > 3) {
     throw std::invalid_argument(make_string(
-      "Invalid Philox state string phase: ", state.phase, " expected: 0..3"));
+      "Invalid Philox state string phase: ", phase, " expected: 0..3"));
   }
   state.key = key;
   state.ctr[0] = ctr_lo;
