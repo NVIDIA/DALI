@@ -53,8 +53,6 @@ struct DistGen<false> {
     int64_t p_pos = p_offset;
     for (int64_t p = 0; p < p_count; p++, p_pos++) {
       Philox4x32_10 r = rng;
-      // NOTE: p_pos * kSkipaheadPerElement should be less than 2^64, but it still means that we can
-      //       address 2^60 elements, which is 1 EiB * sizeof(T)
       r.skipahead(p_pos * kSkipaheadPerElement);
       out[p_pos] = ConvertSat<T>(dist.Generate(r));
     }

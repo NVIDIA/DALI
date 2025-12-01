@@ -36,8 +36,23 @@ namespace rng {
 template <typename Backend>
 struct OperatorWithRngFields;
 
-static constexpr int kSkipaheadPerElement = 16;
-static constexpr int kSkipaheadPerSample = 16;
+/** The step taken between adjacent elements within a sample.
+ *
+ * It may be necessary to generate several uniform uint32 numbers to produce a single element of
+ * the output. This number is chosen to be large enough to avoid correlation between the elements,
+ * while being mutually prime with 2^64 so it will not reduce the space of possible states.
+ * It is a Fermat number, so multiplication is likely to be optimized into a shift and addition.
+ */
+static constexpr int kSkipaheadPerElement = 257;
+/** If we want to advance to a next subsequence within a sample.
+ *
+ * It may be desierable to generate several subsequences of random numbers to produce a single
+ * sample of the output. This number is chosen to be large enough to avoid correlation between the
+ * subsequences, while being mutually prime with 2^64 so it will not reduce the space of possible
+ * states.
+ * It is a Fermat number, so multiplication is likely to be optimized into a shift and addition.
+ */
+static constexpr int kSkipaheadPerSample = 65537;
 
 void _DetectOperatorBackend(int /* ... */);
 template <typename Backend>

@@ -386,6 +386,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
+   * @param rng_op  Pointer to the (base class) of the enclosing operator, needed for
+   *                accessing the random number generator infrastructure.
    */
   RandomBBoxCropImpl(const OpSpec *spec, rng::OperatorWithRng<Operator<CPUBackend>> *rng_op)
       : spec_(*spec),
