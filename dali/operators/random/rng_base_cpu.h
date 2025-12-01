@@ -192,7 +192,6 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
         }, total_p_count);
     } else {
       int chunks = div_ceil(total_p_count, kChunkSize);
-      std::array<uint32_t, kNumChunkSeeds> seed;
       for (int c = 0; c < chunks; c++) {
         int64_t p_offset, p_count;
         std::tie(p_offset, p_count) = get_chunk<T>(total_p_count, c, chunks);

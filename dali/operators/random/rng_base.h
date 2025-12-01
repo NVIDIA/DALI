@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_RANDOM_RNG_BASE_H_
 #define DALI_OPERATORS_RANDOM_RNG_BASE_H_
 
+#include <cassert>
 #include <random>
 #include <string>
 #include <vector>
